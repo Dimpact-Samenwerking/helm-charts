@@ -30,8 +30,7 @@ See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.m
 
 GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
 VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
-                      "- **ZAC** app `{app_source} → {app_target}` (chart `1.0.297`, unchanged) "
-                      "— image tag only.\n\n"
+                      "## ZAC {app_source} → {app_target} (chart 1.0.297, unchanged) — image tag only\n\n"
                       "No gemeente podiumd.yml changes are required for this hop.\n")
 IMAGES_MANIFEST = """\
 # Baseline: podiumd {baseline} (test @ 0000000).
@@ -208,7 +207,7 @@ def test_undocumented_new_component_is_caught_everywhere(vp, chart_repo, capsys)
     out = capsys.readouterr().out
     assert 'component "openformulieren" changed vs' in out
     assert 'has no row in the "Component versions" table' in out
-    assert 'is not mentioned anywhere in the doc' in out
+    assert 'has no "## ..." section of its own' in out
     assert "openformulieren" in out and 'changed vs 4.8.5 but has no entry' in out
 
 
@@ -409,7 +408,7 @@ See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.m
 """
 REDIS_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
 REDIS_VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
-                            "- **redis-operator** app `{app_source} → {app_target}` — image tag only.\n\n"
+                            "## redis-operator {app_source} → {app_target} — image tag only\n\n"
                             "No gemeente podiumd.yml changes are required for this hop.\n")
 REDIS_IMAGES_MANIFEST = """\
 # Baseline: podiumd {baseline} (test @ 0000000).
@@ -1027,7 +1026,7 @@ See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.m
 """
 NEW_DEP_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
 NEW_DEP_VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
-                             "- **openklant** newly added (`openklant.image`).\n\n"
+                             "## openklant newly added (`openklant.image`)\n\n"
                              "No gemeente podiumd.yml changes are required for this hop.\n")
 NEW_DEP_IMAGES_MANIFEST = """\
 # Baseline: podiumd {baseline} (test @ 0000000).

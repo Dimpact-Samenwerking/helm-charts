@@ -13,12 +13,12 @@ import yaml
 from lib.chart import (
     canonical_sidecar_row_names, global_image_paths, load_yaml, paths_by_repository, repo_group_representative,
 )
-from lib.component_docs import CHANGES_ITEM_RE, find_images_manifest_changes_header
+from lib.component_docs import CHANGES_ITEM_RE, find_images_manifest_changes_header, find_values_delta_section
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
     actual_app_version, changes_heading_has_app_version, changes_heading_identities, compute_changed_components,
-    diff_keys, extract_mentioned_dependency_keys, extract_source_version, extract_target_version,
+    diff_keys, extract_source_version, extract_target_version,
     find_all_image_and_version_paths, find_changes_row_correspondence_gaps, find_grouped_preceding_comment,
     find_image_tag_paths, find_images_manifest_faulty_headers, find_images_manifest_list_diff,
     find_images_manifest_out_of_order_names, find_out_of_order_names, find_wrong_or_duplicate_dependency_claims,
@@ -561,46 +561,63 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     return issues
 
 
-def check_values_deltas_content(doc_path, changed_component_keys, baseline_values, values):
-    """Verify every top-level component key that was added, removed, or
-    renamed between the upgrade_docs_baseline and now is actually mentioned (backtick-
-    quoted, matching the doc convention) in values-deltas.md."""
+def check_values_deltas_content(doc_path, actual_changed_keys, baseline_values, values, deps, canonical_names=None):
+    """For every top-level component key that changed vs upgrade_docs_
+    baseline in ANY way (app version, chart version, or values-schema —
+    see lib.upgradedoc.compute_changed_components), verify it has its
+    own values-deltas.md section (see lib.upgradedoc.parse_values_
+    delta_sections/changes_heading_identities/lib.component_docs.
+    find_values_delta_section) — and, for a key whose values.yaml
+    SCHEMA also changed (a key was added/removed/renamed under it),
+    verify every such change is actually mentioned (backtick-quoted,
+    matching the doc convention) specifically WITHIN that key's own
+    section. A key mentioned only in some OTHER component's section (or
+    nowhere at all) is exactly the drift this per-component-section
+    convention exists to catch."""
     text = doc_path.read_text(encoding="utf-8")
-    backtick_spans = re.findall(r"`([^`]+)`", strip_fenced_code_blocks(text))
     no_changes_claimed = bool(re.search(
         r"no\s+gemeente\s+`?podiumd\.yml`?\s+changes\s+are\s+required", text, re.IGNORECASE))
 
     issues = []
-    all_added, all_removed, all_renamed = [], [], []
-    for values_key in sorted(changed_component_keys):
+    for values_key in sorted(actual_changed_keys):
+        section = find_values_delta_section(text, values_key, deps, canonical_names)
+        if section is None:
+            issues.append(f'{doc_path.name}: component "{values_key}" changed vs upgrade_docs_baseline '
+                           f'but has no "## ..." section of its own')
+            continue
+
         baseline_subtree = baseline_values.get(values_key, {}) if isinstance(baseline_values, dict) else {}
         current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
         diffs = list(diff_keys(baseline_subtree, current_subtree, (values_key,)))
         added = [p for kind, p in diffs if kind == "added"]
         removed = [p for kind, p in diffs if kind == "removed"]
         renamed, added, removed = pair_renames(added, removed, baseline_subtree, current_subtree)
-        all_added.extend(added)
-        all_removed.extend(removed)
-        all_renamed.extend(renamed)
+        if not (added or removed or renamed):
+            continue
 
-    def mentioned(dotted):
-        return any(dotted in span or span in dotted for span in backtick_spans)
+        lines = text.splitlines(keepends=True)
+        section_text = "".join(lines[section["start"]:section["end"]])
+        backtick_spans = set(re.findall(r"`([^`]+)`", strip_fenced_code_blocks(section_text)))
 
-    for path in all_added:
-        dotted = ".".join(path)
-        if not mentioned(dotted):
-            issues.append(f'{doc_path.name}: key "{dotted}" was added but is not mentioned '
-                           f'(backtick-quoted) anywhere in the doc')
-    for path in all_removed:
-        dotted = ".".join(path)
-        if not mentioned(dotted):
-            issues.append(f'{doc_path.name}: key "{dotted}" was removed but is not mentioned '
-                           f'(backtick-quoted) anywhere in the doc')
-    for old_path, new_path in all_renamed:
-        old_dotted, new_dotted = ".".join(old_path), ".".join(new_path)
-        if not (mentioned(old_dotted) and mentioned(new_dotted)):
-            issues.append(f'{doc_path.name}: key "{old_dotted}" appears renamed to "{new_dotted}" '
-                           f'but this rename is not mentioned (backtick-quoted, both sides) in the doc')
+        def mentioned(span):
+            return span in backtick_spans
+
+        for path in added:
+            dotted = ".".join(path)
+            if not mentioned(dotted):
+                issues.append(f'{doc_path.name}: key "{dotted}" was added but is not mentioned '
+                               f'(backtick-quoted) in "{values_key}"\'s own section')
+        for path in removed:
+            dotted = ".".join(path)
+            if not mentioned(dotted):
+                issues.append(f'{doc_path.name}: key "{dotted}" was removed but is not mentioned '
+                               f'(backtick-quoted) in "{values_key}"\'s own section')
+        for old_path, new_path in renamed:
+            old_dotted, new_dotted = ".".join(old_path), ".".join(new_path)
+            if not (mentioned(old_dotted) and mentioned(new_dotted)):
+                issues.append(f'{doc_path.name}: key "{old_dotted}" appears renamed to "{new_dotted}" '
+                               f'but this rename is not mentioned (backtick-quoted, both sides) in '
+                               f'"{values_key}"\'s own section')
 
     if issues and no_changes_claimed:
         issues.insert(0, f'{doc_path.name}: claims "No gemeente podiumd.yml changes are required" '
@@ -960,15 +977,9 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
 
     if baseline_ref and is_bare_version and actual_changed_keys:
         values_deltas_path = doc_dir / f"{upgrade_docs_baseline}-to-{podiumd_version}-values-deltas.md"
-        mentioned_keys = extract_mentioned_dependency_keys(
-            values_deltas_path.read_text(encoding="utf-8"), deps)
-        for key in sorted(actual_changed_keys - mentioned_keys):
-            mismatches.append(
-                f'{values_deltas_path.name}: component "{key}" changed vs {baseline_ref} but is '
-                f'not mentioned anywhere in the doc'
-            )
+        canonical_names_for_deltas = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
         mismatches.extend(check_values_deltas_content(
-            values_deltas_path, actual_changed_keys, baseline_values, values))
+            values_deltas_path, actual_changed_keys, baseline_values, values, deps, canonical_names_for_deltas))
 
     if not checked:
         return True, "no matching docs found — skipped"

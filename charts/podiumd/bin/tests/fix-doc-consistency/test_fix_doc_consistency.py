@@ -1288,10 +1288,10 @@ def test_main_adds_missing_values_delta_bullet(cdb, repo_with_unmentioned_compon
 
     deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
         encoding="utf-8")
-    assert "- **zaakbrug** app `1.26.14 → 1.26.15` (chart `2.3.28`, unchanged) — image tag only.\n" in deltas
+    assert "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged) — image tag only\n" in deltas
     assert "No unrelated changes." in deltas  # existing content preserved
     out = capsys.readouterr().out
-    assert "Adding missing component mention(s)" in out
+    assert "Adding new component section(s)" in out
     assert "zaakbrug" in out
 
 
@@ -1300,7 +1300,7 @@ def test_main_does_not_duplicate_already_mentioned_component_bullet(
     doc = repo_with_unmentioned_component_bump / "4.8.3-to-4.9.0-values-deltas.md"
     doc.write_text(
         "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
-        "- **zaakbrug** app `1.26.14 → 1.26.15` (chart `2.3.28`, unchanged) — image tag only.\n",
+        "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged) — image tag only\n",
         encoding="utf-8",
     )
     set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
@@ -1308,9 +1308,9 @@ def test_main_does_not_duplicate_already_mentioned_component_bullet(
 
     deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
         encoding="utf-8")
-    assert deltas.count("**zaakbrug**") == 1
+    assert deltas.count("## zaakbrug") == 1
     out = capsys.readouterr().out
-    assert "Adding missing component mention(s)" not in out
+    assert "Adding new component section(s)" not in out
 
 
 @pytest.fixture
@@ -1370,12 +1370,12 @@ def test_main_adds_missing_native_component_row_and_bullet(
 
     deltas = (repo_with_unmentioned_native_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
         encoding="utf-8")
-    assert ("- **frankgateway** app `100 → 104` — image tag only "
-            "(no separate Helm chart for this component).\n") in deltas
+    assert ("## frankgateway 100 → 104 — image tag only "
+            "(no separate Helm chart for this component)\n") in deltas
 
     out = capsys.readouterr().out
     assert "Adding missing component row(s)" in out
-    assert "Adding missing component mention(s)" in out
+    assert "Adding new component section(s)" in out
 
 
 def test_main_adds_todo_bullet_when_app_version_unresolvable(cdb, repo_with_undocumented_component_bumps,
@@ -1392,7 +1392,7 @@ def test_main_adds_todo_bullet_when_app_version_unresolvable(cdb, repo_with_undo
 
     deltas = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-values-deltas.md").read_text(
         encoding="utf-8")
-    assert "- **redis-operator** chart `0.26.1 → 0.27.0` — TODO: describe this component's changes" in deltas
+    assert "## redis-operator chart 0.26.1 → 0.27.0 — TODO: describe this component's changes" in deltas
 
 
 # --- main() integration: values-deltas.md missing key-change mentions ---
@@ -1441,10 +1441,14 @@ def test_main_adds_missing_key_change_mention(cdb, repo_with_undocumented_schema
 
     deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(
         encoding="utf-8")
+    # No existing "## ..." section names zac yet, so it gets a brand new
+    # one (see sync_values_delta_sections) carrying the missing key-change
+    # line as its own body content.
+    assert "## zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n" in deltas
     assert "- Key `zac.brpApi.protocollering.verwerking.extendWithZaaktype` was removed.\n" in deltas
     assert "No gemeente podiumd.yml changes are required" in deltas  # existing content preserved
     out = capsys.readouterr().out
-    assert "Adding missing key-change mentions" in out
+    assert "Adding new component section(s)" in out
 
 
 def test_main_does_not_duplicate_already_mentioned_key_change(cdb, repo_with_undocumented_schema_change,
@@ -1462,7 +1466,7 @@ def test_main_does_not_duplicate_already_mentioned_key_change(cdb, repo_with_und
         encoding="utf-8")
     assert deltas.count("extendWithZaaktype") == 1
     out = capsys.readouterr().out
-    assert "Adding missing key-change mentions" not in out
+    assert "Adding missing key-change mention(s)" not in out
 
 
 def test_main_ignores_mention_inside_fenced_code_block_and_does_not_duplicate(
@@ -1489,7 +1493,7 @@ def test_main_ignores_mention_inside_fenced_code_block_and_does_not_duplicate(
         encoding="utf-8")
     assert deltas.count("extendWithZaaktype") == 1
     out = capsys.readouterr().out
-    assert "Adding missing key-change mentions" not in out
+    assert "Adding missing key-change mention(s)" not in out
 
 
 # --- replace_version_pair ---

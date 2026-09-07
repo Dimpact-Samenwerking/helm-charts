@@ -24,11 +24,12 @@ import yaml
 from lib.chart import NATIVE_COMPONENTS, image_paths_for, replace_scalar_value, version_paths_for
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
-    _word_aligned_spans, actual_app_version, append_to_doc, component_order_key, component_version_cell,
-    COMPONENT_VERSIONS_HEADING_RE, extract_mentioned_dependency_keys, extract_source_version,
+    _word_aligned_spans, actual_app_version, append_to_doc, changes_heading_identities, component_order_key,
+    component_version_cell, COMPONENT_VERSIONS_HEADING_RE, extract_source_version,
     find_grouped_preceding_comment_line, insertion_index, match_dependency_excluding_sidecar_names,
-    match_native_component, normalize_name, normalize_version, parse_upgrade_doc_changes_blocks,
-    parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path, values_key_order,
+    match_native_component, missing_key_change_lines_by_key, normalize_name, normalize_version,
+    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, parse_values_delta_sections, replace_version_pair,
+    resolve_entry_path, values_key_order,
 )
 
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
@@ -621,45 +622,178 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
     return text, added_names
 
 
-def values_delta_bullet(friendly, old_app, new_app, old_chart, new_chart):
-    """`new_chart == "-"` means a NATIVE_COMPONENTS component (see lib.
-    chart.NATIVE_COMPONENTS) with no Chart.yaml dependency/chart version
-    at all — the "(chart ...)" clause is dropped entirely rather than
-    rendered as the misleading "chart `None → -`"."""
-    app_changed = normalize_version(old_app) != normalize_version(new_app)
-    app_bit = f"`{old_app} → {new_app}`" if app_changed else f"`{new_app}` (unchanged)"
+def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_chart, has_body_lines):
+    """The "## <friendly> ..." heading for this component's own values-
+    deltas.md section — carries the SAME app/chart-transition info a
+    flat "- **<friendly>** app ..." bullet used to restate on its own
+    first line: once the heading itself already says it, repeating it
+    as the section's first bullet is pure noise (that's the whole point
+    of giving each component its own section instead of a shared flat
+    list). `new_chart == "-"` means a NATIVE_COMPONENTS component (see
+    lib.chart.NATIVE_COMPONENTS) with no Chart.yaml dependency/chart
+    version at all — the "(chart ...)" clause is dropped entirely rather
+    than rendered as the misleading "chart None → -". `old_app`/
+    `old_chart` may be None (nothing resolved at upgrade_docs_baseline,
+    e.g. a component added since then) — treated as "unchanged against
+    the new value" rather than a literal "None → ...".
+
+    A trailing "— <note>" explaining why this heading is the ENTIRE
+    story (nothing else changed besides the image tag/chart version) is
+    included only when `has_body_lines` is false — the moment there IS
+    a "- Key `...`" line below it, that note stops being true and is
+    dropped. `new_app is None` (actual_app_version couldn't resolve
+    anything — see that function's own docstring) falls back to a
+    chart-only heading with an unconditional TODO note instead, since
+    that note isn't about "nothing else changed" but about a real
+    tooling gap (the app version itself is unknown) that stays true
+    regardless of body content."""
+    if new_app is None:
+        if new_chart == "-":
+            return (f"## {friendly} — TODO: describe this component's changes; its app version "
+                     f"could not be resolved automatically.\n")
+        chart_bit = (f"chart {old_chart} → {new_chart}"
+                     if old_chart and normalize_version(old_chart) != normalize_version(new_chart)
+                     else f"chart {new_chart}, unchanged")
+        return (f"## {friendly} {chart_bit} — TODO: describe this component's changes; its app "
+                f"version could not be resolved automatically.\n")
+
+    app_changed = normalize_version(old_app or new_app) != normalize_version(new_app)
+    app_bit = f"{old_app or new_app} → {new_app}" if app_changed else f"{new_app} (unchanged)"
     if new_chart == "-":
-        return f"- **{friendly}** app {app_bit} — image tag only (no separate Helm chart for this component).\n"
-    chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
-    chart_bit = f"`{old_chart} → {new_chart}`" if chart_changed else f"`{new_chart}`, unchanged"
-    note = "image tag only" if not chart_changed else "chart + image tag"
-    return f"- **{friendly}** app {app_bit} (chart {chart_bit}) — {note}.\n"
+        chart_bit = ""
+        note = "image tag only (no separate Helm chart for this component)"
+    else:
+        chart_changed = normalize_version(old_chart or new_chart) != normalize_version(new_chart)
+        chart_bit = f" (chart {old_chart or new_chart} → {new_chart})" if chart_changed \
+            else f" (chart {new_chart}, unchanged)"
+        note = "image tag only" if not chart_changed else "chart + image tag"
+    suffix = "" if has_body_lines else f" — {note}"
+    return f"## {friendly} {app_bit}{chart_bit}{suffix}\n"
 
 
-def add_missing_values_delta_bullets(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
-                                      actual_changed_keys):
-    """Append a "- **<name>** app ..." bullet (see values_delta_bullet) for
-    every key in `actual_changed_keys` that isn't already mentioned via a
-    bold "**Name**" span anywhere in `text` (see extract_mentioned_
-    dependency_keys — the exact gap check_docs_consistency's own
-    "component ... changed vs ... but is not mentioned anywhere in the
-    doc" finding reports). Resolves each bullet's own old/new app+chart
-    versions the same way add_missing_component_rows does for the
-    "Component versions" table row, so a component's bullet here and its
-    table row always agree.
+def find_values_delta_section(text, friendly, deps, canonical_names=None):
+    """The existing "## ..." section (see lib.upgradedoc.parse_values_
+    delta_sections/changes_heading_identities) that already names the
+    SAME component identity `friendly` does — reused for a real
+    Chart.yaml dependency/NATIVE_COMPONENTS friendly name, a canonical
+    "<parent> - <basename>" sidecar name, or a bare shared-image
+    basename (see changes_heading_identities for all three shapes), so
+    a hand-written section already covering this identity (KISS's own
+    "## KISS ... — required edits", or a shared-image mention already
+    covered elsewhere) is found and reused instead of creating a
+    redundant new one right next to it. None if `friendly` itself
+    resolves to no real identity at all, or no existing section shares
+    one."""
+    target_idents = changes_heading_identities(friendly, deps, canonical_names)
+    if not target_idents:
+        return None
+    for section in parse_values_delta_sections(text):
+        if changes_heading_identities(section["heading"], deps, canonical_names) & target_idents:
+            return section
+    return None
+
+
+def insert_values_delta_section(text, friendly, heading_line, body_lines, deps, values, canonical_names=None):
+    """Insert a brand-new "## <heading_line>" section (heading_line
+    already includes its own trailing newline) + body_lines as its
+    content, in values.yaml's own top-level component order relative to
+    the "## " sections already there (see lib.upgradedoc.component_
+    order_key/insertion_index) — not always at the end. Mirrors
+    insert_changes_section's own positioning logic, one heading level
+    up (top-level "## " instead of "## Changes"'s own nested "### ...")."""
+    body = "".join(body_lines)
+    section_text = heading_line + "\n" + body + ("\n" if body else "")
+    sections = parse_values_delta_sections(text)
+    lines = text.splitlines(keepends=True)
+    if not sections:
+        if text and not text.endswith("\n\n"):
+            text = text.rstrip("\n") + "\n\n"
+        return text + section_text
+
+    key_order = values_key_order(values)
+    new_key = component_order_key(friendly, deps, key_order, canonical_names)
+    existing_keys = [component_order_key(s["heading"], deps, key_order, canonical_names) for s in sections]
+    idx = insertion_index(new_key, existing_keys)
+    insert_at = sections[idx]["start"] if idx < len(sections) else len(lines)
+    if insert_at > 0 and lines[insert_at - 1].strip():
+        lines.insert(insert_at, "\n")
+        insert_at += 1
+    lines[insert_at:insert_at] = [section_text]
+    return "".join(lines)
+
+
+def append_values_delta_section_body(text, section, new_lines):
+    """Append new_lines at the end of an EXISTING values-deltas.md
+    section (see find_values_delta_section) — right before its own next
+    "## " heading (or EOF) — blank-line-separated from whatever already
+    ends the section (append_to_doc's own convention, just section-
+    scoped instead of always true EOF), never disturbing whatever
+    hand-written prose or previously-added lines already sit there."""
+    lines = text.splitlines(keepends=True)
+    head = "".join(lines[:section["end"]])
+    tail = "".join(lines[section["end"]:])
+    new_head = append_to_doc(head, new_lines)
+    if tail:
+        new_head = new_head.rstrip("\n") + "\n\n"
+    return new_head + tail
+
+
+def remove_values_delta_section(text, friendly, deps, canonical_names=None):
+    """Delete this component's OWN values-deltas.md section entirely —
+    the counterpart to insert_values_delta_section, for a bump that nets
+    out to no change from upgrade_docs_baseline at all. Only ever
+    deletes a section whose own identity set is EXACTLY `friendly`'s
+    (see find_values_delta_section) — a hand-written section covering
+    several components at once (e.g. "## ZAC and ZGW Office Add-in — no
+    changes") is never a candidate for deletion just because one of ITS
+    components reset to baseline; that always needs a human's own edit.
+    Also swallows the section's own trailing blank line(s). Returns
+    (new_text, removed)."""
+    target_idents = changes_heading_identities(friendly, deps, canonical_names)
+    if not target_idents:
+        return text, False
+    for section in parse_values_delta_sections(text):
+        if changes_heading_identities(section["heading"], deps, canonical_names) == target_idents:
+            lines = text.splitlines(keepends=True)
+            start, end = section["start"], section["end"]
+            while end < len(lines) and not lines[end].strip():
+                end += 1
+            del lines[start:end]
+            return "".join(lines), True
+    return text, False
+
+
+def sync_values_delta_sections(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
+                                actual_changed_keys, canonical_names=None):
+    """Ensure every key in `actual_changed_keys` has its own values-
+    deltas.md section (see find_values_delta_section/insert_values_
+    delta_section) carrying every describe_key_changes line not already
+    mentioned anywhere in the doc (see missing_key_change_lines_by_key)
+    — creating a brand new "## <key> <old> → <new>..." section (see
+    values_delta_section_heading) at its own values.yaml-order position
+    when no existing section (hand-written, or a previous run's own)
+    already covers this key's identity, or appending just the missing
+    lines into whichever section already does, after whatever's already
+    there. Existing content is only ever ADDED to, never reordered or
+    rewritten — see sort_values_delta_sections for reordering.
 
     A key with no matching Chart.yaml dependency AND no lib.chart.
-    NATIVE_COMPONENTS entry either is skipped — nothing here can be
-    generated confidently without a real Chart.yaml version to read, or
-    the chart-less convention (see add_missing_component_rows) to fall
-    back to. A key whose app version can't be resolved via actual_app_
-    version's own known shapes (see that function's own docstring) gets
-    a short TODO bullet instead of a value-less "app `None`" line.
-    Returns (new_text, added_names)."""
-    mentioned_keys = extract_mentioned_dependency_keys(text, target_deps)
-    new_lines = []
-    added_names = []
-    for key in sorted(actual_changed_keys - mentioned_keys):
+    NATIVE_COMPONENTS entry either is skipped when it needs a brand-new
+    section — nothing here can be generated confidently without a real
+    Chart.yaml version to read, or the chart-less convention to fall
+    back to (same skip add_missing_component_rows already applies).
+    Returns (new_text, created_names, updated_names)."""
+    by_key = missing_key_change_lines_by_key(text, actual_changed_keys, baseline_values, target_values)
+    created_names, updated_names = [], []
+    for key in sorted(actual_changed_keys):
+        section = find_values_delta_section(text, key, target_deps, canonical_names)
+        key_lines = by_key.get(key, [])
+        if section is not None:
+            if key_lines:
+                text = append_values_delta_section_body(text, section, key_lines)
+                updated_names.append(key)
+            continue
+
         dep = dep_for_values_key(target_deps, key)
         if dep is not None:
             chart_name = dep["name"]
@@ -672,55 +806,15 @@ def add_missing_values_delta_bullets(text, chart_dir, target_deps, target_values
             new_chart = "-"
         else:
             continue
+
         old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
         new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
+        heading_line = values_delta_section_heading(key, old_app, new_app, old_chart, new_chart, bool(key_lines))
+        text = insert_values_delta_section(text, key, heading_line, key_lines, target_deps, target_values,
+                                            canonical_names)
+        created_names.append(key)
 
-        if new_app is not None:
-            new_lines.append(values_delta_bullet(key, old_app or new_app, new_app,
-                                                  old_chart or new_chart, new_chart))
-        elif new_chart == "-":
-            new_lines.append(f"- **{key}** — TODO: describe this component's changes; its app "
-                              f"version could not be resolved automatically.\n")
-        else:
-            chart_bit = (f"`{old_chart} → {new_chart}`"
-                         if old_chart and normalize_version(old_chart) != normalize_version(new_chart)
-                         else f"`{new_chart}`, unchanged")
-            new_lines.append(f"- **{key}** chart {chart_bit} — TODO: describe this component's "
-                              f"changes; its app version could not be resolved automatically.\n")
-        added_names.append(key)
-
-    return append_to_doc(text, new_lines), added_names
-
-
-def remove_component_values_delta(text, friendly):
-    """Delete this component's version-bullet block from values-deltas.md
-    entirely: the "- **<friendly>** app ..." (values_delta_bullet) or
-    "- **<basename>** image ..." (lib.image_docs.image_delta_bullet)
-    bullet line, plus any immediately-following describe_key_changes
-    lines appended alongside it (a bullet's own caller always appends
-    them together as one contiguous block — see append_to_doc). Used both
-    to collapse more than one bump within a release into a single
-    up-to-date bullet (remove the stale one before appending the fresh
-    one) and to remove it outright when a bump nets out to no change from
-    upgrade_docs_baseline at all. Returns (new_text, removed)."""
-    lines = text.splitlines(keepends=True)
-    norm_friendly = normalize_name(friendly)
-    bullet_re = re.compile(r"^-\s+\*\*([^*]+)\*\*\s+\w+\b")
-    start = None
-    for i, line in enumerate(lines):
-        m = bullet_re.match(line)
-        if m and norm_friendly in normalize_name(m.group(1)):
-            start = i
-            break
-    if start is None:
-        return text, False
-    end = start + 1
-    while end < len(lines) and lines[end].startswith("- ") and not bullet_re.match(lines[end]):
-        end += 1
-    while end < len(lines) and not lines[end].strip():
-        end += 1
-    del lines[start:end]
-    return "".join(lines), True
+    return text, created_names, updated_names
 
 
 def values_tree_path_for(values_key, image_path):

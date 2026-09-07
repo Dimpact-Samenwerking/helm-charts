@@ -250,148 +250,77 @@ def sort_changes_blocks(text, deps, values, canonical_names=None):
     return prefix + "".join(new_texts) + suffix, moved
 
 
-VALUES_DELTA_KEY_CHANGE_RE = re.compile(r"^- Key `([^`]+)`")
-VALUES_DELTA_VERSION_BULLET_RE = re.compile(r"^- \*\*([^*]+)\*\*")
+VALUES_DELTA_SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
 
 
-def _values_delta_bullet_order_key(line, deps, key_order):
-    """The values.yaml top-level key `line` (a single values-deltas.md
-    bullet, no trailing newline) belongs to, or None if it isn't one of
-    the two shapes values_delta_bullet/describe_key_changes themselves
-    ever write — see sort_values_delta_bullets, the one caller. A
-    "- Key `<dotted>` ..." bullet's own leading dotted segment already
-    IS the real values_key, no fuzzy resolution needed at all — unlike
-    a "- **<name>** app ..." version bullet, which needs match_
-    dependency/match_native_component the same way component_order_key
-    does for -upgrade.md's own rows."""
-    m = VALUES_DELTA_KEY_CHANGE_RE.match(line)
-    if m:
-        values_key = m.group(1).split(".", 1)[0]
-    else:
-        m = VALUES_DELTA_VERSION_BULLET_RE.match(line)
-        if not m:
-            return None
-        dep = match_dependency(m.group(1), deps)
-        values_key = dep.get("alias", dep["name"]) if dep else None
-        if values_key is None:
-            values_key = match_native_component(m.group(1), NATIVE_COMPONENTS)
-    if values_key is None:
-        return len(key_order)
-    try:
-        return key_order.index(values_key)
-    except ValueError:
-        return len(key_order)
-
-
-def _values_delta_bullet_chunks(lines, deps, key_order):
-    """[(start, end, key), ...] (0-based, end exclusive, relative to
-    `lines`) — each chunk is a maximal run of CONSECUTIVE non-blank
-    lines that all resolve to the SAME component (see
-    _values_delta_bullet_order_key): either a blank line OR a change in
-    resolved key starts a new chunk. The key-change split matters on
-    its own, not just the blank-line one — a real case in the actual
-    doc: an earlier fix-doc-consistency run backfilled several
-    UNRELATED components' key-change bullets back-to-back with no blank
-    line between them (kiss/kiss-eck/openbao/openformulieren/
-    openinwoner/opennotificaties/redis-operator, all in one run). Without
-    splitting on the key change too, that whole 16-line run would move
-    as one atomic block wherever its own FIRST line's component sorts
-    to, dragging six unrelated components' bullets along with it
-    instead of each sorting to its own real position.
-
-    Each chunk's own `end` is its own last non-blank line + 1 — NOT
-    extended through any following blank line(s) the way parse_
-    upgrade_doc_changes_blocks' own "### ..." blocks are: sort_values_
-    delta_bullets rejoins reordered chunks with a normalized single
-    blank line of its own instead, so an original chunk's own (highly
-    variable — anywhere from zero, for whatever happened to be the very
-    last chunk in the file, to several) amount of trailing blank-line
-    filler never travels with it into a new, generally different,
-    neighboring context."""
-    chunks = []
-    start = key = None
-    for i, line in enumerate(lines):
-        stripped = line.rstrip("\n")
-        if not stripped.strip():
-            if start is not None:
-                chunks.append((start, i, key))
-                start = None
-            continue
-        line_key = _values_delta_bullet_order_key(stripped, deps, key_order)
-        if start is not None and line_key == key:
-            continue
-        if start is not None:
-            chunks.append((start, i, key))
-        start, key = i, line_key
-    if start is not None:
-        chunks.append((start, len(lines), key))
-    return chunks
-
-
-def sort_values_delta_bullets(text, deps, values):
-    """Reorder the TRAILING run of auto-generated "- **<name>** app ..."/
-    "- Key `<dotted>` was ..." bullets (see values_delta_bullet/
-    describe_key_changes — the only two shapes this recognizes) to
-    match values.yaml's own top-level component order — the same
-    convention sort_upgrade_doc_rows/sort_changes_blocks apply to
-    -upgrade.md's own rows/Changes sections, and sort_images_manifest_
-    entries applies to images-<target>.yaml's own entries.
-
-    Scoped to the maximal TRAILING block of only blank lines and
-    matching bullet lines, found by scanning backward from the end of
-    the document — the first non-blank, non-matching line (a heading,
-    or hand-written prose, e.g. a "## ZAC ..." section mixing the same
-    bullet shape with extra hand-added prose after it) stops the scan
-    and is never touched, nor is anything above it. This never reorders
-    or otherwise touches hand-written content — only the tail of
-    purely mechanically-appended bullets add_missing_values_delta_
-    bullets/missing_key_change_lines/append_to_doc themselves ever
-    produce, which is always the last thing in the file (append_to_doc
-    only ever appends at the true end).
-
-    Bullets are grouped into chunks (see _values_delta_bullet_chunks)
-    and a chunk is moved as one atomic unit (never further split/
-    merged), keyed by its own component. A chunk whose component can't
-    be resolved sorts last, never dragged around by one that can.
-    Returns (new_text, moved) where moved is [(first_line, old_position,
-    new_position)] (1-based, among just the chunks in scope) for every
-    chunk that actually moved — empty (text unchanged) if already in
-    order, or fewer than 2 chunks are in scope at all."""
+def parse_values_delta_sections(text):
+    """(heading, start, end) for every top-level "## ..." heading in a
+    values-deltas.md doc — start is the heading line's 0-based index,
+    end is exclusive (the next "## " heading, or EOF). Unlike parse_
+    upgrade_doc_changes_blocks (which only looks INSIDE one umbrella
+    "## Changes" heading for its own "### ..." sub-blocks), values-
+    deltas.md has no such umbrella — every component's own section is
+    already a top-level "## " heading (e.g. "## KISS 2.2.4 → 3.0.0 —
+    required edits", "## PABC 1.1.0 → 1.1.1 no values changes") — so
+    this scans the whole document. Content before the first "## "
+    heading (the doc's own "# Values deltas — ..." H1 title, and any
+    intro prose) is never part of any section this returns."""
     lines = text.splitlines(keepends=True)
-    key_order = values_key_order(values)
+    heading_indices = [i for i, line in enumerate(lines) if VALUES_DELTA_SECTION_HEADING_RE.match(line)]
+    sections = []
+    for j, start in enumerate(heading_indices):
+        end = heading_indices[j + 1] if j + 1 < len(heading_indices) else len(lines)
+        sections.append({
+            "heading": VALUES_DELTA_SECTION_HEADING_RE.match(lines[start]).group(1),
+            "start": start,
+            "end": end,
+        })
+    return sections
 
-    region_start = len(lines)
-    for i in range(len(lines) - 1, -1, -1):
-        stripped = lines[i].rstrip("\n")
-        if not stripped.strip():
-            region_start = i
-            continue
-        if _values_delta_bullet_order_key(stripped, deps, key_order) is None:
-            break
-        region_start = i
 
-    chunks = [(region_start + s, region_start + e, key)
-              for s, e, key in _values_delta_bullet_chunks(lines[region_start:], deps, key_order)]
-    if len(chunks) < 2:
+def sort_values_delta_sections(text, deps, values, canonical_names=None):
+    """Reorder values-deltas.md's own top-level "## ..." sections (each
+    section's full text, heading through its last line before the next
+    section) to match values.yaml's own top-level key order — the same
+    rule sort_upgrade_doc_rows/sort_changes_blocks apply to -upgrade.md's
+    own rows/Changes blocks (see canonical_names' own docstring there
+    for the "global" shared-image case this also fixes). A hand-written
+    section is reordered exactly like an auto-generated one — its own
+    CONTENT is never touched, only which physical position it occupies,
+    the same guarantee sort_changes_blocks already gives -upgrade.md's
+    own hand-written "### ..." blocks. Returns (new_text, moved) — moved
+    is [(heading, old_position, new_position)] (1-based) for every
+    section that moved; empty (text unchanged) if already in order or
+    fewer than 2 sections exist."""
+    sections = parse_values_delta_sections(text)
+    if len(sections) < 2:
         return text, []
 
-    order = sorted(range(len(chunks)), key=lambda i: chunks[i][2])
-    first_lines = [lines[s].rstrip("\n") for s, _, _ in chunks]
-    moved = [(first_lines[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
+    key_order = values_key_order(values)
+    headings = [s["heading"] for s in sections]
+    order = sorted(range(len(headings)),
+                    key=lambda i: component_order_key(headings[i], deps, key_order, canonical_names))
+    moved = [(headings[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
     if not moved:
         return text, []
 
-    original_texts = ["".join(lines[s:e]) for s, e, _ in chunks]
+    lines = text.splitlines(keepends=True)
+    # Normalized to a single trailing newline (no blank line) before
+    # rejoining — a section's own ORIGINAL trailing blank-line count is
+    # meaningless once reordered (the very last section in the file, in
+    # particular, always originally had none, since there's nothing
+    # after it to separate from); "\n".join below reinstates exactly one
+    # blank line between every section regardless of slot.
+    original_texts = ["".join(lines[s["start"]:s["end"]]).rstrip("\n") + "\n" for s in sections]
     new_texts = [original_texts[i] for i in order]
-    first_start, last_end = chunks[0][0], chunks[-1][1]
+
+    first_start, last_end = sections[0]["start"], sections[-1]["end"]
     prefix = "".join(lines[:first_start])
     suffix = "".join(lines[last_end:])
-    # A normalized single blank line between every reordered chunk —
-    # never each chunk's own original trailing blank-line count (see
-    # _values_delta_bullet_chunks' own docstring for why: the very last
-    # chunk in the file, in particular, always originally had none at
-    # all, since there's nothing after it to separate from).
-    return prefix + "\n".join(new_texts) + suffix, moved
+    body = "\n".join(new_texts)
+    if suffix:
+        body += "\n"
+    return prefix + body + suffix, moved
 
 
 COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
@@ -533,7 +462,13 @@ def match_canonical_sidecar_name(text, canonical_names):
     followed by version/arrow text the exact lookup can't see past (e.g.
     "redis-operator - k8s 1.36.2 → 1.36.2" vs the table row's own bare
     "redis-operator - k8s"). Longest name wins on overlap, the same
-    tie-break match_dependency itself uses. None if nothing matches."""
+    tie-break match_dependency itself uses. None if nothing matches, or
+    if canonical_names itself is None — a caller with no canonical-names
+    map handy at all (e.g. values-deltas.md section lookups that don't
+    always have one available) rather than every such call site having
+    to remember its own "or {}" guard."""
+    if canonical_names is None:
+        return None
     exact = canonical_names.get(text)
     if exact is not None:
         return exact
@@ -2106,30 +2041,6 @@ def strip_fenced_code_blocks(text):
     return FENCED_CODE_BLOCK_RE.sub("", text)
 
 
-def extract_mentioned_dependency_keys(text, deps):
-    """Component keys mentioned via a bold "**Name**" span anywhere in a
-    free-form doc (e.g. a values-deltas.md bullet like "- **ZAC** app ..."),
-    matched the same fuzzy way as an upgrade-doc table row's name. Uses
-    match_dependency_excluding_sidecar_names, not match_dependency
-    directly — a canonical sidecar/shared-image bullet like "- **redis-
-    operator - redis** app ..." must never register as mentioning the
-    real "redis-operator" dependency (see that function's own
-    docstring); doing so would wrongly suppress redis-operator's own
-    bullet as "already mentioned" if it changed independently. A
-    NATIVE_COMPONENTS component (see lib.chart.NATIVE_COMPONENTS) is
-    matched the same way, via match_native_component."""
-    mentioned = set()
-    for m in re.finditer(r"\*\*([^*]+)\*\*", strip_fenced_code_blocks(text)):
-        dep = match_dependency_excluding_sidecar_names(m.group(1), deps)
-        if dep:
-            mentioned.add(dep.get("alias", dep["name"]))
-            continue
-        native_key = match_native_component(m.group(1), NATIVE_COMPONENTS)
-        if native_key:
-            mentioned.add(native_key)
-    return mentioned
-
-
 def describe_key_changes(values_key, baseline_subtree, current_subtree):
     """One "- Key `<dotted>` was added/removed/renamed to `<dotted>`." line
     per top-level key change under this component — backtick-quoted,
@@ -2158,33 +2069,41 @@ def describe_key_changes(values_key, baseline_subtree, current_subtree):
     return lines
 
 
-def missing_key_change_lines(text, changed_component_keys, baseline_values, values):
-    """Every describe_key_changes() line for a changed component that isn't
-    already mentioned (backtick-quoted, matching verify-podiumd's own
-    check_values_deltas_content convention) anywhere in text. A rename line
-    carries two backtick spans (old and new key); both must already be
-    mentioned for the line to count as covered, else it's reported as
-    missing so a partial/stale rename mention still gets caught.
+def missing_key_change_lines_by_key(text, changed_component_keys, baseline_values, values):
+    """{values_key: [line, ...]} — every describe_key_changes() line for
+    a changed component that isn't already mentioned (backtick-quoted,
+    matching verify-podiumd's own check_values_deltas_content
+    convention) anywhere in text, grouped by the component it's about —
+    only keys with at least one missing line appear in the result. The
+    per-key-preserving counterpart to a flattened "just append
+    everything" list: each key's own missing lines need routing into
+    THAT key's own values-deltas.md section (see lib.component_docs.
+    sync_values_delta_sections), not appended as one shared flat block.
+    A rename line carries two backtick spans (old and new key); both
+    must already be mentioned for the line to count as covered, else
+    it's reported as missing so a partial/stale rename mention still
+    gets caught.
 
     "Mentioned" requires an EXACT match against an existing backtick
     span — never a substring check either direction. A real bug this
-    fixes: ordinary prose using a short, generic word in backticks
-    elsewhere in the doc (e.g. "environments override `registry`/
-    `repository` ... but never `tag`", describing a general convention,
-    not any one specific key) used to silently mark EVERY dotted key
-    path merely CONTAINING that word — `objecten.image.repository`,
-    `keycloak-operator.operator.image.tag`, ... — as "already covered",
-    dropping real, distinct additions/removals with no trace. A dotted
-    path's own bare trailing segment already mentioned elsewhere without
-    its full prefix (e.g. "ita.verlopenContactverzoekHerinneringNotifi
-    catie" referred to as just "verlopenContactverzoekHerinneringNotifi
-    catie" in prose) is now, deliberately, reported as missing too —
-    the exact same string shape as the bug above, with no mechanical way
-    to tell the two apart, so there's no looser rule that catches one
-    without the other. That trades an occasional harmless duplicate
-    bullet (something already covered by differently-phrased prose gets
-    suggested again) for actually catching every real omission, the
-    much safer failure mode for a correctness check.
+    guards against: ordinary prose using a short, generic word in
+    backticks elsewhere in the doc (e.g. "environments override
+    `registry`/`repository` ... but never `tag`", describing a general
+    convention, not any one specific key) would otherwise silently mark
+    EVERY dotted key path merely CONTAINING that word —
+    `objecten.image.repository`, `keycloak-operator.operator.image.tag`,
+    ... — as "already covered", dropping real, distinct
+    additions/removals with no trace. A dotted path's own bare trailing
+    segment already mentioned elsewhere without its full prefix (e.g.
+    "ita.verlopenContactverzoekHerinneringNotificatie" referred to as
+    just "verlopenContactverzoekHerinneringNotificatie" in prose) is
+    deliberately reported as missing too — the exact same string shape
+    as the bug above, with no mechanical way to tell the two apart, so
+    there's no looser rule that catches one without the other. That
+    trades an occasional harmless duplicate line (something already
+    covered by differently-phrased prose gets suggested again) for
+    actually catching every real omission, the much safer failure mode
+    for a correctness check.
 
     A line whose exact text is already present verbatim in `text` is
     never reported either way, even if the "mentioned" check above
@@ -2196,15 +2115,18 @@ def missing_key_change_lines(text, changed_component_keys, baseline_values, valu
     def mentioned(span):
         return span in backtick_spans
 
-    lines = []
+    by_key = {}
     for values_key in sorted(changed_component_keys):
         baseline_subtree = baseline_values.get(values_key, {}) if isinstance(baseline_values, dict) else {}
         current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
+        lines = []
         for line in describe_key_changes(values_key, baseline_subtree, current_subtree):
             spans_in_line = re.findall(r"`([^`]+)`", line)
             if line not in text and not all(mentioned(span) for span in spans_in_line):
                 lines.append(line)
-    return lines
+        if lines:
+            by_key[values_key] = lines
+    return by_key
 
 
 def append_to_doc(text, new_lines):

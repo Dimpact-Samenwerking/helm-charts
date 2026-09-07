@@ -1934,39 +1934,6 @@ def test_compute_changed_components_ignores_unrelated_key_changes(libupgradedoc)
     assert libupgradedoc.compute_changed_components(deps, deps, current, baseline) == set()
 
 
-# --- extract_mentioned_dependency_keys ---
-
-def test_extract_mentioned_dependency_keys_finds_bold_bullet(libupgradedoc):
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    text = "- **ZAC** app `5.0.2 → 5.4.3` (chart `1.0.297`, unchanged) — image tag only.\n"
-    assert libupgradedoc.extract_mentioned_dependency_keys(text, deps) == {"zac"}
-
-
-def test_extract_mentioned_dependency_keys_ignores_unmatched_bold_text(libupgradedoc):
-    deps = [{"name": "zac", "version": "1.0.297"}]
-    text = "This is **not a component** and neither is **this**.\n"
-    assert libupgradedoc.extract_mentioned_dependency_keys(text, deps) == set()
-
-
-def test_extract_mentioned_dependency_keys_no_bold_spans_is_empty(libupgradedoc):
-    deps = [{"name": "zac", "version": "1.0.297"}]
-    assert libupgradedoc.extract_mentioned_dependency_keys("plain text, no bold at all", deps) == set()
-
-
-def test_extract_mentioned_dependency_keys_ignores_fenced_code_block(libupgradedoc):
-    """A single "**" pair used inside a fenced code block (e.g. Python's
-    own `**kwargs`) must never desync bold-span pairing for the REST of
-    the document — see strip_fenced_code_blocks."""
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    text = (
-        "```python\n"
-        "def f(**kwargs): pass\n"
-        "```\n\n"
-        "- **ZAC** app `5.0.2 → 5.4.3` (chart `1.0.297`, unchanged) — image tag only.\n"
-    )
-    assert libupgradedoc.extract_mentioned_dependency_keys(text, deps) == {"zac"}
-
-
 # --- describe_key_changes / append_to_doc ---
 
 def test_describe_key_changes_reports_added_removed_renamed(libupgradedoc):
@@ -1994,45 +1961,45 @@ def test_append_to_doc_no_new_lines_returns_unchanged(libupgradedoc):
     assert libupgradedoc.append_to_doc(text, []) == text
 
 
-# --- missing_key_change_lines ---
+# --- missing_key_change_lines_by_key ---
 
-def test_missing_key_change_lines_reports_unmentioned_addition(libupgradedoc):
+def test_missing_key_change_lines_by_key_reports_unmentioned_addition(libupgradedoc):
     baseline_values = {"zac": {"brpApi": {}}}
     values = {"zac": {"brpApi": {"logLevel": "OFF"}}}
     text = "Nothing relevant mentioned.\n"
-    lines = libupgradedoc.missing_key_change_lines(text, {"zac"}, baseline_values, values)
-    assert lines == ["- Key `zac.brpApi.logLevel` was added.\n"]
+    by_key = libupgradedoc.missing_key_change_lines_by_key(text, {"zac"}, baseline_values, values)
+    assert by_key == {"zac": ["- Key `zac.brpApi.logLevel` was added.\n"]}
 
 
-def test_missing_key_change_lines_skips_already_mentioned_addition(libupgradedoc):
+def test_missing_key_change_lines_by_key_skips_already_mentioned_addition(libupgradedoc):
     baseline_values = {"zac": {"brpApi": {}}}
     values = {"zac": {"brpApi": {"logLevel": "OFF"}}}
     text = "New field `zac.brpApi.logLevel`, defaults to `OFF`.\n"
-    assert libupgradedoc.missing_key_change_lines(text, {"zac"}, baseline_values, values) == []
+    assert libupgradedoc.missing_key_change_lines_by_key(text, {"zac"}, baseline_values, values) == {}
 
 
-def test_missing_key_change_lines_rename_needs_both_sides_mentioned(libupgradedoc):
+def test_missing_key_change_lines_by_key_rename_needs_both_sides_mentioned(libupgradedoc):
     baseline_values = {"mi": {"sftp": {"host": "x", "user": "y", "password": "z"}}}
     values = {"mi": {"transfer": {"mode": "sftp-password", "host": "x", "user": "y", "password": "z"}}}
     # only the OLD side is mentioned — the rename isn't fully documented
     text = "Removed `mi.sftp` in favor of something else.\n"
-    lines = libupgradedoc.missing_key_change_lines(text, {"mi"}, baseline_values, values)
-    assert lines == ["- Key `mi.sftp` was renamed to `mi.transfer`.\n"]
+    by_key = libupgradedoc.missing_key_change_lines_by_key(text, {"mi"}, baseline_values, values)
+    assert by_key == {"mi": ["- Key `mi.sftp` was renamed to `mi.transfer`.\n"]}
 
 
-def test_missing_key_change_lines_ignores_unrelated_component(libupgradedoc):
+def test_missing_key_change_lines_by_key_ignores_unrelated_component(libupgradedoc):
     baseline_values = {"zac": {"a": 1}, "unrelated": {"a": 1}}
     values = {"zac": {"a": 1}, "unrelated": {"b": 2}}
     # "unrelated" isn't in changed_component_keys, so its diff must be ignored
-    assert libupgradedoc.missing_key_change_lines("no mentions", {"zac"}, baseline_values, values) == []
+    assert libupgradedoc.missing_key_change_lines_by_key("no mentions", {"zac"}, baseline_values, values) == {}
 
 
-def test_missing_key_change_lines_empty_when_nothing_changed(libupgradedoc):
+def test_missing_key_change_lines_by_key_empty_when_nothing_changed(libupgradedoc):
     values = {"zac": {"a": 1}}
-    assert libupgradedoc.missing_key_change_lines("", {"zac"}, values, values) == []
+    assert libupgradedoc.missing_key_change_lines_by_key("", {"zac"}, values, values) == {}
 
 
-def test_missing_key_change_lines_ignores_mention_inside_fenced_code_block(libupgradedoc):
+def test_missing_key_change_lines_by_key_ignores_mention_inside_fenced_code_block(libupgradedoc):
     """A key mentioned only inside an unrelated fenced code block (an odd
     number of backticks there desyncs regex pairing for the rest of the
     doc) must not be treated as "already mentioned" for a real bullet —
@@ -2047,10 +2014,10 @@ def test_missing_key_change_lines_ignores_mention_inside_fenced_code_block(libup
         "```\n\n"
         "New field `zac.brpApi.logLevel`, defaults to `OFF`.\n"
     )
-    assert libupgradedoc.missing_key_change_lines(text, {"zac"}, baseline_values, values) == []
+    assert libupgradedoc.missing_key_change_lines_by_key(text, {"zac"}, baseline_values, values) == {}
 
 
-def test_missing_key_change_lines_never_reports_a_line_already_present_verbatim(libupgradedoc):
+def test_missing_key_change_lines_by_key_never_reports_a_line_already_present_verbatim(libupgradedoc):
     """A second, independent backstop alongside the "mentioned" check
     above: a generated line whose exact text is already in the doc is
     never re-added, regardless of whether "mentioned" itself would also
@@ -2058,10 +2025,10 @@ def test_missing_key_change_lines_never_reports_a_line_already_present_verbatim(
     baseline_values = {"zac": {"brpApi": {}}}
     values = {"zac": {"brpApi": {"logLevel": "OFF"}}}
     text = "- Key `zac.brpApi.logLevel` was added.\n"
-    assert libupgradedoc.missing_key_change_lines(text, {"zac"}, baseline_values, values) == []
+    assert libupgradedoc.missing_key_change_lines_by_key(text, {"zac"}, baseline_values, values) == {}
 
 
-def test_missing_key_change_lines_generic_backtick_word_elsewhere_is_not_a_match(libupgradedoc):
+def test_missing_key_change_lines_by_key_generic_backtick_word_elsewhere_is_not_a_match(libupgradedoc):
     """Real bug this guards against: ordinary prose using a short, generic
     word in backticks elsewhere in the doc (describing a general
     convention, not any one specific key) must never be mistaken for a
@@ -2076,11 +2043,11 @@ def test_missing_key_change_lines_generic_backtick_word_elsewhere_is_not_a_match
     baseline_values = {"objecten": {"image": {}}}
     values = {"objecten": {"image": {"repository": "ghcr.io/maykinmedia/objects-api"}}}
     text = "Every environment checked overrides `registry`/`repository` for these images but never `tag`.\n"
-    lines = libupgradedoc.missing_key_change_lines(text, {"objecten"}, baseline_values, values)
-    assert lines == ["- Key `objecten.image.repository` was added.\n"]
+    by_key = libupgradedoc.missing_key_change_lines_by_key(text, {"objecten"}, baseline_values, values)
+    assert by_key == {"objecten": ["- Key `objecten.image.repository` was added.\n"]}
 
 
-def test_missing_key_change_lines_bare_leaf_mention_is_not_enough(libupgradedoc):
+def test_missing_key_change_lines_by_key_bare_leaf_mention_is_not_enough(libupgradedoc):
     """The flip side of the fix above: a key's own bare trailing segment,
     mentioned in prose WITHOUT its full dotted prefix, is the exact same
     string shape as the bug case (an existing short span that's a
@@ -2092,8 +2059,8 @@ def test_missing_key_change_lines_bare_leaf_mention_is_not_enough(libupgradedoc)
     baseline_values = {"ita": {}}
     values = {"ita": {"verlopenContactverzoekHerinneringNotificatie": {"schedule": "0 7 * * 1-5"}}}
     text = "The new `verlopenContactverzoekHerinneringNotificatie` CronJob is enabled by default.\n"
-    lines = libupgradedoc.missing_key_change_lines(text, {"ita"}, baseline_values, values)
-    assert lines == ["- Key `ita.verlopenContactverzoekHerinneringNotificatie` was added.\n"]
+    by_key = libupgradedoc.missing_key_change_lines_by_key(text, {"ita"}, baseline_values, values)
+    assert by_key == {"ita": ["- Key `ita.verlopenContactverzoekHerinneringNotificatie` was added.\n"]}
 
 
 # --- values_key_order ---
@@ -2460,138 +2427,99 @@ def test_sort_changes_blocks_fewer_than_two_blocks_is_unchanged(libupgradedoc):
     assert new_text == text
 
 
-# --- sort_values_delta_bullets ---
+# --- parse_values_delta_sections ---
 
-def test_sort_values_delta_bullets_reorders_out_of_order_chunks(libupgradedoc):
+def test_parse_values_delta_sections_finds_top_level_headings(libupgradedoc):
     text = (
-        "- Key `openinwoner.a` was added.\n"
-        "\n"
-        "- Key `openzaak.b` was added.\n"
+        "# Values deltas\n\n"
+        "Intro prose, not part of any section.\n\n"
+        "## KISS 2.2.4 → 3.0.0 — required edits\n\n"
+        "Some required edits.\n\n"
+        "### 1. A sub-heading\n\n"
+        "Still part of the KISS section.\n\n"
+        "## PABC 1.1.0 → 1.1.1 no values changes\n\n"
+        "PABC app and chart bump only.\n"
     )
-    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}, "openinwoner": {}})
-    assert moved == [("- Key `openzaak.b` was added.", 2, 1), ("- Key `openinwoner.a` was added.", 1, 2)]
-    assert new_text == (
-        "- Key `openzaak.b` was added.\n"
-        "\n"
-        "- Key `openinwoner.a` was added.\n"
-    )
+    sections = libupgradedoc.parse_values_delta_sections(text)
+    assert [s["heading"] for s in sections] == [
+        "KISS 2.2.4 → 3.0.0 — required edits", "PABC 1.1.0 → 1.1.1 no values changes"]
+    lines = text.splitlines(keepends=True)
+    assert "".join(lines[sections[0]["start"]:sections[0]["end"]]).count("### 1. A sub-heading") == 1
+    assert lines[sections[1]["start"]].strip() == "## PABC 1.1.0 → 1.1.1 no values changes"
 
 
-def test_sort_values_delta_bullets_already_in_order_is_unchanged(libupgradedoc):
-    text = "- Key `openzaak.b` was added.\n\n- Key `openinwoner.a` was added.\n"
-    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}, "openinwoner": {}})
-    assert moved == []
-    assert new_text == text
+def test_parse_values_delta_sections_no_headings_is_empty(libupgradedoc):
+    assert libupgradedoc.parse_values_delta_sections("# Values deltas\n\nTODO.\n") == []
 
 
-def test_sort_values_delta_bullets_fewer_than_two_chunks_is_unchanged(libupgradedoc):
-    text = "- Key `openzaak.b` was added.\n"
-    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}})
-    assert moved == []
-    assert new_text == text
+# --- sort_values_delta_sections ---
 
-
-def test_sort_values_delta_bullets_never_touches_hand_written_content_above(libupgradedoc):
-    """Real case this guards against: an earlier "## ZAC ..." section
-    mixes the exact same "- **<name>** app ..." bullet shape with extra
-    hand-added prose after some of its own bullets — only the TRAILING
-    run of purely mechanical bullets add_missing_values_delta_bullets/
-    missing_key_change_lines themselves ever produce is ever reordered;
-    anything above the first non-blank, non-bullet line (a heading, or
-    hand-written prose) is left completely untouched."""
+def test_sort_values_delta_sections_reorders_out_of_order_sections(libupgradedoc):
     text = (
-        "## ZAC and ZGW Office Add-in — no changes\n\n"
-        "- **zac** app `5.0.2 → 5.4.4` — sidecars also bump: `opa` etc.\n"
-        "- **openinwoner** app `2.4.2 → 2.4.3` — image tag only.\n\n"
-        "## PABC\n\n"
+        "## openinwoner 2.4.2 → 2.4.3\n\n"
         "- Key `openinwoner.a` was added.\n\n"
+        "## openzaak 1.27.4 → 1.29.3\n\n"
         "- Key `openzaak.b` was added.\n"
     )
-    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}, "openinwoner": {}})
-    assert moved == [("- Key `openzaak.b` was added.", 2, 1), ("- Key `openinwoner.a` was added.", 1, 2)]
-    lines = new_text.splitlines()
-    assert lines[2] == "- **zac** app `5.0.2 → 5.4.4` — sidecars also bump: `opa` etc."
-    assert lines[3] == "- **openinwoner** app `2.4.2 → 2.4.3` — image tag only."
-    assert "- Key `openzaak.b` was added." in new_text
-    assert new_text.index("- Key `openzaak.b`") < new_text.index("- Key `openinwoner.a`")
-
-
-def test_sort_values_delta_bullets_version_bullet_and_key_changes_move_together(libupgradedoc):
-    """A component's own version bullet and its key-change bullets are
-    separate chunks (each add_missing_values_delta_bullets/missing_key_
-    change_lines call appends its own new_lines as one chunk) — a stable
-    sort keeps them adjacent, in their existing relative order, once
-    both share the same resolved component."""
-    text = (
-        "- Key `openzaak.b` was added.\n"
-        "\n"
-        "- **openinwoner** app `2.4.2 → 2.4.3` — image tag only.\n"
-        "\n"
-        "- Key `openinwoner.a` was added.\n"
-    )
-    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}, "openinwoner": {}})
+    new_text, moved = libupgradedoc.sort_values_delta_sections(text, DEPS, {"openzaak": {}, "openinwoner": {}})
+    assert moved == [("openzaak 1.27.4 → 1.29.3", 2, 1), ("openinwoner 2.4.2 → 2.4.3", 1, 2)]
     assert new_text == (
-        "- Key `openzaak.b` was added.\n"
-        "\n"
-        "- **openinwoner** app `2.4.2 → 2.4.3` — image tag only.\n"
-        "\n"
+        "## openzaak 1.27.4 → 1.29.3\n\n"
+        "- Key `openzaak.b` was added.\n\n"
+        "## openinwoner 2.4.2 → 2.4.3\n\n"
         "- Key `openinwoner.a` was added.\n"
     )
-    assert moved == []
 
 
-def test_sort_values_delta_bullets_native_component_uses_its_own_values_position(libupgradedoc):
-    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
-    dependency at all — its own version bullet still sorts at its real
-    values.yaml position instead of always last."""
+def test_sort_values_delta_sections_already_in_order_is_unchanged(libupgradedoc):
     text = (
-        "- **frankgateway** app `100 → 104` — image tag only (no separate Helm chart for this component).\n"
-        "\n"
-        "- Key `openzaak.b` was added.\n"
+        "## openzaak 1.27.4 → 1.29.3\n\n- Key `openzaak.b` was added.\n\n"
+        "## openinwoner 2.4.2 → 2.4.3\n\n- Key `openinwoner.a` was added.\n"
     )
-    # frankgateway genuinely comes BEFORE openzaak in values.yaml's own
-    # order here — matching the text's existing order, so this is the
-    # "already sorted, nothing moves" case, not "always last".
-    values = {"frankgateway": {}, "openzaak": {}}
-    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, values)
+    new_text, moved = libupgradedoc.sort_values_delta_sections(text, DEPS, {"openzaak": {}, "openinwoner": {}})
     assert moved == []
     assert new_text == text
 
 
-def test_sort_values_delta_bullets_splits_mixed_chunk_with_no_blank_line_between_components(libupgradedoc):
-    """Real case found in the actual doc: an earlier fix-doc-consistency
-    run backfilled several UNRELATED components' key-change bullets
-    back-to-back with NO blank line separating them (openinwoner then
-    openzaak then openinwoner again). Each bullet must still sort to its
-    own component's real position — not get dragged along as one atomic
-    block keyed by whichever component the whole run's first line
-    happens to belong to."""
-    text = (
-        "- Key `openinwoner.a` was added.\n"
-        "- Key `openzaak.b` was added.\n"
-        "- Key `openinwoner.c` was added.\n"
-    )
-    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}, "openinwoner": {}})
-    assert new_text == (
-        "- Key `openzaak.b` was added.\n"
-        "\n"
-        "- Key `openinwoner.a` was added.\n"
-        "\n"
-        "- Key `openinwoner.c` was added.\n"
-    )
+def test_sort_values_delta_sections_fewer_than_two_is_unchanged(libupgradedoc):
+    text = "## openzaak 1.27.4 → 1.29.3\n\n- Key `openzaak.b` was added.\n"
+    new_text, moved = libupgradedoc.sort_values_delta_sections(text, DEPS, {"openzaak": {}})
+    assert moved == []
+    assert new_text == text
 
 
-def test_sort_values_delta_bullets_unmatched_chunk_stays_last(libupgradedoc):
+def test_sort_values_delta_sections_never_touches_intro_prose_above(libupgradedoc):
+    """Content before the very first "## " heading (the doc's own H1
+    title, and any intro prose) is never part of any section — see
+    parse_values_delta_sections — so it's never moved even when every
+    real section below it is."""
     text = (
-        "- Key `totallyunknown.a` was added.\n"
-        "\n"
-        "- Key `openzaak.b` was added.\n"
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+        "Some intro prose.\n\n"
+        "## openinwoner 2.4.2 → 2.4.3\n\n- Key `openinwoner.a` was added.\n\n"
+        "## openzaak 1.27.4 → 1.29.3\n\n- Key `openzaak.b` was added.\n"
     )
-    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}})
+    new_text, moved = libupgradedoc.sort_values_delta_sections(text, DEPS, {"openzaak": {}, "openinwoner": {}})
+    assert moved
+    assert new_text.startswith("# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nSome intro prose.\n\n")
+
+
+def test_sort_values_delta_sections_reorders_hand_written_sections_too(libupgradedoc):
+    """A hand-written section (no different from an auto-generated one
+    as far as this function is concerned) is reordered exactly like any
+    other — its own CONTENT is never touched, only its physical
+    position, the same guarantee sort_changes_blocks already gives
+    -upgrade.md's own hand-written "### ..." blocks."""
+    text = (
+        "## openinwoner 2.4.2 → 2.4.3\n\n- Key `openinwoner.a` was added.\n\n"
+        "## ZAC 5.0.2 → 5.4.4 — required edits\n\nSome hand-written prose.\n\n"
+    )
+    values = {"zac": {}, "openinwoner": {}}
+    new_text, moved = libupgradedoc.sort_values_delta_sections(text, DEPS, values)
+    assert moved == [("ZAC 5.0.2 → 5.4.4 — required edits", 2, 1), ("openinwoner 2.4.2 → 2.4.3", 1, 2)]
     assert new_text == (
-        "- Key `openzaak.b` was added.\n"
-        "\n"
-        "- Key `totallyunknown.a` was added.\n"
+        "## ZAC 5.0.2 → 5.4.4 — required edits\n\nSome hand-written prose.\n\n"
+        "## openinwoner 2.4.2 → 2.4.3\n\n- Key `openinwoner.a` was added.\n"
     )
 
 
