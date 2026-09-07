@@ -31,7 +31,7 @@ from lib.upgradedoc import (
     match_dependency, match_dependency_excluding_sidecar_names,
     normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
     parse_upgrade_doc_rows as _parse_upgrade_doc_rows, parse_values_delta_sections, path_display_name,
-    resolve_component_row, resolve_entry_image_path, resolve_entry_path, strip_fenced_code_blocks, values_key_order,
+    resolve_component_row, resolve_entry_image_path, strip_fenced_code_blocks, values_key_order,
 )
 
 
@@ -831,6 +831,8 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     current_paths.update(global_image_paths(values))
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_ref else {}
     baseline_paths.update(global_image_paths(baseline_values) if baseline_ref else [])
+    repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys()) if chart_dir is not None else {}
+    repo_map = {repo: repo_group_representative(paths, deps) for repo, paths in repo_groups.items()}
 
     if not doc_matches:
         print(f"WARNING: no upgrade doc matches {doc_glob} — skipping doc check")
@@ -1137,9 +1139,9 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             name = entry.get("name")
             if not name:
                 continue
-            path = resolve_entry_path(name, current_paths.keys())
+            path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
             if not path:
-                print(f'  (images-manifest entry "{name}" — no matching image in values.yaml, skipped)')
+                print(f'  ({images_path.name}: entry "{name}" — no matching image in values.yaml, skipped)')
                 continue
 
             version, digest = entry.get("version"), entry.get("digest")
