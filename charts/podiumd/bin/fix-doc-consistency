@@ -102,7 +102,7 @@ from lib.upgradedoc import (
     images_manifest_block_start, images_manifest_display_name_positions, images_manifest_entries_share_group,
     images_manifest_entry_positions, insertion_index, is_primary_image_path,
     match_changes_item_display_name,
-    match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
+    missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
     path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
     sort_images_manifest_entries, sort_upgrade_doc_rows, sort_values_delta_bullets, values_key_order,
 )
