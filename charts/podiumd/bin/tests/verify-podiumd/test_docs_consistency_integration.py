@@ -1129,3 +1129,109 @@ def test_plus_in_heading_not_naming_two_real_components_still_resolves_normally(
     assert ok is True, detail
     out = capsys.readouterr().out
     assert "has no matching" not in out
+
+
+# --- values-deltas.md: "## ..." sections must follow values.yaml's own order ---
+
+TWO_DEP_CHART_YAML = """\
+apiVersion: v2
+name: podiumd
+version: 4.9.0
+dependencies:
+  - name: zaakafhandelcomponent
+    alias: zac
+    version: 1.0.297
+    repository: "@zac"
+  - name: openformulieren
+    version: 1.12.0
+    repository: "@openformulieren"
+"""
+
+
+def two_dep_values(zac_app, openformulieren_app):
+    return (f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n'
+            f'    tag: "{zac_app}@sha256:abc"\n'
+            f'openformulieren:\n  image:\n    repository: openformulieren/open-forms\n'
+            f'    tag: "{openformulieren_app}@sha256:def"\n')
+
+
+@pytest.fixture
+def two_dep_chart_repo(tmp_path):
+    """zac and openformulieren both already exist at the baseline ref
+    (podiumd-4.8.5) and both bump their app version at HEAD — values.yaml
+    lists zac first, openformulieren second, so that's the order their
+    own values-deltas.md sections must follow."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    images_dir = chart_dir / "docs" / "images"
+    for d in (doc_dir, images_dir):
+        d.mkdir(parents=True)
+
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+
+    (chart_dir / "Chart.yaml").write_text(TWO_DEP_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(two_dep_values("5.0.2", "3.4.10"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    (chart_dir / "values.yaml").write_text(two_dep_values("5.4.3", "3.5.6"))
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n"
+        "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | n/a |\n\n"
+        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n")
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(
+        "# Gemeente-specific notes — PodiumD 4.8.5 → 4.9.0\n\nNone.\n")
+    # sections deliberately in the WRONG order: openformulieren (values.yaml's
+    # SECOND key) comes before zac (values.yaml's FIRST key)
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+        "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged) — image tag only\n\n"
+        "## ZAC 5.0.2 → 5.4.3 (chart 1.0.297, unchanged) — image tag only\n")
+    (images_dir / "images-4.9.0.yaml").write_text(
+        "# Baseline: podiumd 4.8.5 (test @ 0000000).\n#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n"
+        "# Changes:\n"
+        "#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n"
+        "#   2. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged).\n#\n"
+        "# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
+        "# ZAC — 5.0.2 -> 5.4.3\n"
+        "- name: zac\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.4.3"\n'
+        '  digest: "sha256:abc"\n\n'
+        "# openformulieren — 3.4.10 -> 3.5.6\n"
+        "- name: openformulieren\n"
+        "  url: openformulieren/open-forms\n"
+        '  version: "3.5.6"\n'
+        '  digest: "sha256:def"\n')
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "bump both zac and openformulieren", cwd=repo_root)
+
+    return chart_dir
+
+
+def test_values_deltas_sections_out_of_order_is_caught(vp, two_dep_chart_repo, capsys):
+    ok, detail = vp.check_docs_consistency(two_dep_chart_repo, upgrade_docs_baseline="4.8.5")
+    assert ok is False
+    out = capsys.readouterr().out
+    assert ('4.8.5-to-4.9.0-values-deltas.md: "## ZAC' in out
+            and 'section comes right after "## openformulieren' in out
+            and 'sections should follow values.yaml\'s own component order' in out)
+
+
+def test_values_deltas_sections_correctly_ordered_passes(vp, two_dep_chart_repo):
+    doc = two_dep_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-values-deltas.md"
+    doc.write_text(
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+        "## ZAC 5.0.2 → 5.4.3 (chart 1.0.297, unchanged) — image tag only\n\n"
+        "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged) — image tag only\n")
+    ok, detail = vp.check_docs_consistency(two_dep_chart_repo, upgrade_docs_baseline="4.8.5")
+    assert ok is True, detail
