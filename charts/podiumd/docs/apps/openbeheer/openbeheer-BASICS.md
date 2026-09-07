@@ -9,7 +9,7 @@ the raw Open Zaak and Objecttypen admin screens. It is part of PodiumD because e
 component (ZAC, Open Formulieren, Open Inwoner) depends on well-maintained catalogi, and
 Open Beheer makes that maintenance manageable. To run it needs a PostgreSQL database, a
 small Azure file share, Redis, a Keycloak client and API credentials for Open Zaak and
-Objecttypen. Its footprint is small: two lightweight web pods plus an nginx sidecar,
+Objecttypen and Objecten. Its footprint is small: two lightweight web pods plus an nginx sidecar,
 roughly 250–270 MiB memory each and near-idle CPU.
 
 ## What it is
@@ -86,6 +86,9 @@ optional classic Ingress template (`openbeheer.ingress.*`, disabled by default) 
 - **Objecttypen**: API token (`auth_type: api_key`) in
   `openbeheer.configuration.secrets.objecttypen_openbeheer_token`; token holder registered
   in the Objecttypen admin.
+- **Objecten**: API token (`auth_type: api_key`) in
+  `openbeheer.configuration.secrets.objecten_openbeheer_token`; token holder registered in
+  the Objecten admin with `is_superuser: true`.
 - **Selectielijst**: public `https://selectielijst.openzaak.nl/api/v1/`, no auth.
 - **SMTP**: optional, `openbeheer.settings.email.*` (defaults `localhost:25`).
 - Django `SECRET_KEY` via `openbeheer.settings.secretKey` (pipeline-injected).
@@ -104,9 +107,11 @@ Chart defaults (`charts/podiumd/values.yaml`; Open Beheer has **no** section in
 Observed usage (2026-07-10, `kubectl top pods -n podiumd`): on aks-blue-ontw-dimp the two
 web pods use ~4m CPU and 249–269 MiB memory each, the nginx sidecar ~1m/4Mi. Not deployed
 on accp at capture time. CPU is essentially idle at dev load; memory is steady around
-250–270 MiB per web pod. Sizing recommendation: for production set explicit requests of
-roughly 50m CPU / 384 Mi memory per web pod (limit ~512 Mi) to cover uWSGI worker cycling
-headroom; the nginx sidecar default (10m/16Mi) is adequate.
+250–270 MiB per web pod. Before enabling Open Beheer, configure requests and limits for every
+container. A production baseline is 50m CPU / 384Mi memory requested and 250m CPU / 512Mi
+memory limited for each web pod, 10m / 16Mi requested and 50m / 64Mi limited for nginx, and
+50m / 128Mi requested and 100m / 256Mi limited for the configuration job. Adjust these values
+with production workload measurements.
 
 ## Integrating Open Beheer as a new app
 
@@ -119,10 +124,10 @@ headroom; the nginx sidecar default (10m/16Mi) is adequate.
 3. **Provision Key Vault secrets**: Django `SECRET_KEY` (`openssl rand -base64 50`),
    Keycloak client secret `openbeheer-oidc-secret` (`openssl rand -hex 32`), Open Zaak ZGW
    secret, Objecten API Token and Objecttypen API token (all `openssl rand -hex 32`).
-4. **Enable and configure** in the environment values file openbeheer:
+4. **Enable and configure** in the environment values file:
    ```yaml
     openbeheer:
-      enabled: true 
+      enabled: true
       image:
         repository: acrprodmgmt.azurecr.io/maykinmedia/open-beheer
       nodeSelector:
@@ -227,8 +232,8 @@ headroom; the nginx sidecar default (10m/16Mi) is adequate.
             objecttypen_service_identifier: objecttypen-service
      ```
    Secrets inside `configuration.data` use django-setup-configuration's
-   `value_from: {env: VAR}` pattern; the Objecttypen `Authorization: Token ...` header is
-   the exception and keeps an inline `REP_..._REP` token.
+   `value_from: {env: VAR}` pattern; the Objecttypen and Objecten `Authorization: Token ...`
+   headers are exceptions and keep inline `REP_..._REP` tokens.
 5. Configure the matching peer services (openzaak, objecttypen, objecten):
    **objecttypen side** — register `openbeheer-token`. `token:` is a plain scalar (no prefix), so `value_from` applies directly:
 
@@ -294,8 +299,8 @@ headroom; the nginx sidecar default (10m/16Mi) is adequate.
    `configuration.oidcUrl`; populate `openbeheer-oidc-secret` **before** the first deploy
    or the job generates a random secret you must reconcile.
 7. **Register API consumers**: in Open Zaak, add a ZGW application/credential for client id
-   `openbeheer` with the ZGW secret; in Objecttypen, create a token-authorised user holding
-   the API token.
+  `openbeheer` with the ZGW secret; in Objecttypen, create a token-authorised user holding
+  the API token; in Objecten, create a token-authorised user with `is_superuser: true`.
 8. **DNS + HTTPRoute**: have the environment deployment create the
    `<env>-openbeheer.<gemeente>.nl` DNS record and the HTTPRoute on `public-gateway`; the
    hostname must match `configuration.oidcUrl`.
@@ -303,8 +308,8 @@ headroom; the nginx sidecar default (10m/16Mi) is adequate.
    app.kubernetes.io/name=openbeheer` → 1/1); 2/2 pods Ready with 0 restarts (uWSGI master
    fix active: `kubectl -n podiumd get cm openbeheer -o jsonpath='{.data.UWSGI_MASTER}'`
    → `1`); browse to `https://<env>-openbeheer.<gemeente>.nl/admin/` and confirm the Keycloak
-   redirect; in the UI confirm the Catalogi, Objecttypen and Selectielijst services resolve
-   and catalogi load from Open Zaak.
+  redirect; in the UI confirm the Catalogi, Objecttypen, Objecten and Selectielijst services
+  resolve and catalogi load from Open Zaak.
 
 ## Related documents
 
