@@ -138,6 +138,21 @@ def version_paths_for(component):
 # just an "is this path exempt" boolean.
 SPLIT_TAG_SHA_PATHS = {
     ("keycloak-operator", "operator", "config", "keycloakImage"),
+    # keycloak.image aliases the above via YAML anchor (repository/tag/
+    # sha all shared — see values.yaml's own comment there) and so uses
+    # the exact same split shape, not the ordinary embedded-digest one.
+    ("keycloak", "image"),
+    # The operator's OWN image — same split tag:/sha: shape, overridden
+    # explicitly in values.yaml (see the "operator image digest pinning
+    # differs from every other image" caveat in the upgrade doc) even
+    # though update-component-version's own SPLIT_TAG_SHA_PATHS
+    # deliberately excludes this path (a chart-version bump is the
+    # sanctioned way to move it there — see that script's own comment).
+    # That's a WRITE-side policy choice, irrelevant here: this registry
+    # is read-only (resolved_digest_pin needs the actual digest to
+    # report/compare against, regardless of how it got there), so it
+    # must reflect whatever values.yaml actually contains.
+    ("keycloak-operator", "operator", "image"),
 }
 
 

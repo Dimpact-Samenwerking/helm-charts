@@ -243,6 +243,10 @@ def locate_dotted_key_line(lines, dotted_path):
 # the operator itself, rather than overriding this field.
 SPLIT_TAG_SHA_PATHS = {
     ("keycloak-operator", "operator.config.keycloakImage"),
+    # keycloak.image aliases the above via YAML anchor (repository/tag/
+    # sha all shared — see values.yaml's own comment there) and so uses
+    # the exact same split shape, not the ordinary embedded-digest one.
+    ("keycloak", "image"),
 }
 
 

@@ -55,6 +55,10 @@ DIGEST_SUFFIX_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
 EXEMPT_PATHS = {
     ("keycloak-operator", "operator", "image"),
     ("keycloak-operator", "operator", "config", "keycloakImage"),
+    # keycloak.image aliases the above via YAML anchor (repository/tag/
+    # sha all shared — see values.yaml's own comment there) and so uses
+    # the exact same split shape, not the ordinary embedded-digest one.
+    ("keycloak", "image"),
     ("omc", "image"),
 }
 
