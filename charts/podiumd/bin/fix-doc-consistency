@@ -88,7 +88,7 @@ from lib.chart import (
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, IMAGES_STUB_TEMPLATE, NUMBER_WORDS, STANDARD_SUFFIXES, STUB_TEMPLATES,
-    add_missing_component_rows, existing_doc_baselines,
+    add_missing_component_rows, ensure_images_manifest_changes_header, existing_doc_baselines,
     find_images_manifest_changes_header, images_manifest_order_key, insert_images_manifest_header_item,
     prune_empty_values_delta_sections, renumber_images_manifest_changes_items, sync_values_delta_sections,
 )
@@ -861,6 +861,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         # ONE logical change, so only the FIRST one gets a header item; the
         # same whole-word/whole-phrase check the second pass (backfilled_names)
         # already uses to skip an entry whose name is already mentioned.
+        ensure_images_manifest_changes_header(lines)
         header_text = _images_manifest_changes_header_text(lines)
         if not re.search(rf"\b{re.escape(name)}\b", header_text, re.IGNORECASE):
             insert_images_manifest_header_item(lines, deps, key_order, new_key, f"{version_text}.")
@@ -899,9 +900,11 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     backfilled_names = []
     while True:
         lines = text.splitlines(keepends=True)
+        ensure_images_manifest_changes_header(lines)
         header_text = _images_manifest_changes_header_text(lines)
         if not header_text:
             break
+        text = "".join(lines)
 
         entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
         target = None

@@ -6,6 +6,81 @@ friends) are exercised through update-component-version/update-image-
 version's own test suites instead, against realistic doc fixtures."""
 
 
+# --- ensure_images_manifest_changes_header ---
+
+def test_ensure_images_manifest_changes_header_creates_missing_header(libcomponentdocs):
+    """Regression test (real bug, real doc): a file that has lost its
+    "# Changes:" header (or never had one) previously stayed that way
+    forever — insert_images_manifest_header_item is a documented no-op
+    when no header exists at all, so no amount of re-running fix-doc-
+    consistency could ever add one back. Real case: images-4.9.1.yaml
+    gained 5 real entries this session (redis, 3 openbao sidecars, zac's
+    otel sidecar), each with a correct own "#"/"#   sidecar:" comment,
+    but none of them ever got a "# Changes:" list item, because the
+    header itself was simply missing and nothing ever created it."""
+    lines = (
+        "# Baseline: podiumd 4.9.0. Re-verify before release.\n"
+        "#\n"
+        "# Images new or changed in podiumd 4.9.1 vs 4.9.0.\n"
+        "#\n"
+        "# See docs/_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md for the operator upgrade notes.\n"
+        "#\n"
+        "# redis 8.0 -> 8.0\n"
+        "- name: redis\n"
+        "  url: redis\n"
+    ).splitlines(keepends=True)
+
+    libcomponentdocs.ensure_images_manifest_changes_header(lines)
+
+    text = "".join(lines)
+    assert "# Images new or changed in podiumd 4.9.1 vs 4.9.0.\n#\n# Changes:\n#\n" in text
+    assert "# See docs/_UPGRADE_PATHS" in text  # rest of the header preserved
+
+
+def test_ensure_images_manifest_changes_header_noop_when_bare_header_exists(libcomponentdocs):
+    lines = (
+        "# Images new or changed in podiumd 4.9.1 vs 4.9.0.\n"
+        "#\n"
+        "# Changes:\n"
+        "#   1. redis 8.0 -> 8.0.\n"
+    ).splitlines(keepends=True)
+    original = list(lines)
+
+    libcomponentdocs.ensure_images_manifest_changes_header(lines)
+
+    assert lines == original
+
+
+def test_ensure_images_manifest_changes_header_noop_when_counted_header_exists(libcomponentdocs):
+    lines = (
+        "# Images new or changed in podiumd 4.9.1 vs 4.9.0.\n"
+        "#\n"
+        "# One change:\n"
+        "#   1. redis 8.0 -> 8.0.\n"
+    ).splitlines(keepends=True)
+    original = list(lines)
+
+    libcomponentdocs.ensure_images_manifest_changes_header(lines)
+
+    assert lines == original
+
+
+def test_ensure_images_manifest_changes_header_noop_when_no_intro_anchor_either(libcomponentdocs):
+    """Defensive fallback: a manifest with no recognizable intro line at
+    all (never produced by anything in this codebase) must never crash
+    — silently does nothing, same as before this fix existed."""
+    lines = (
+        "# redis 8.0 -> 8.0\n"
+        "- name: redis\n"
+        "  url: redis\n"
+    ).splitlines(keepends=True)
+    original = list(lines)
+
+    libcomponentdocs.ensure_images_manifest_changes_header(lines)
+
+    assert lines == original
+
+
 # --- renumber_images_manifest_changes_items ---
 
 def test_renumber_images_manifest_changes_items_fixes_a_gap(libcomponentdocs):

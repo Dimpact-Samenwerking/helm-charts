@@ -2666,6 +2666,46 @@ def test_add_missing_images_manifest_entries_no_header_still_orders_body(
     assert openzaak_idx < kc_idx < zac_idx
 
 
+def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch(
+        cdb, ordered_images_manifest_chart_dir):
+    """Regression test (real bug, real doc): images-4.9.1.yaml's own
+    real intro block ("# Baseline: ...", "# Images new or changed...",
+    "# See docs/_UPGRADE_PATHS...") with NO "# Changes:" header at all
+    (distinct from test_add_missing_images_manifest_entries_no_header_
+    still_orders_body above, whose text has no recognizable intro block
+    to anchor a fresh header on either) — every new entry must still get
+    both its own body comment AND a matching "# Changes:" list item,
+    with the header itself created right after the intro line, not
+    silently skipped forever."""
+    text = (
+        "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
+        "#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
+        "#\n"
+        "# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n"
+        "#\n"
+        "# openzaak — 1.27.4 -> 1.29.3\n"
+        "- name: openzaak/open-zaak\n"
+        "  url: openzaak/open-zaak\n"
+        '  version: "1.29.3"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+
+    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
+        _ordered_baseline_values())
+
+    assert skipped == []
+    assert set(added) == {"keycloak-operator - postgres", "zac"}
+    assert "# Changes:\n" in new_text
+    header_idx = new_text.index("# Changes:\n")
+    intro_idx = new_text.index("# Images new or changed")
+    assert intro_idx < header_idx  # created right after the intro block, not just anywhere
+    changes_block = new_text[header_idx:]
+    for name in ("openzaak", "keycloak-operator - postgres", "zac"):
+        assert f". {name} " in changes_block, f"{name!r} has no '# Changes:' list item"
+
+
 def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
         cdb, ordered_images_manifest_chart_dir):
     """The real symptom a fresh lib.component_docs.IMAGES_STUB_TEMPLATE
