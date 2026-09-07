@@ -74,16 +74,40 @@ def resolve_header_row_count(rows, grid):
     MAX_HEADER_ROW_PROBE for why a table's own <th> tagging can't always
     be trusted to mark the full header block. Falls back to the
     untouched base count if no depth in that range resolves everything
-    (extract_release_rows will then report it as missing the usual way)."""
+    (extract_release_rows will then report it as missing the usual way).
+
+    Among every depth that DOES resolve every required column, prefers
+    the DEEPEST one that additionally resolves an optional column
+    ("vendor"/"used_by"/"source_helm"/"target_helm") a shallower depth
+    still missed — never the other way around (a deeper depth is only
+    ever preferred for GAINING a column, never for losing one). Without
+    this, a table whose "Versie ..." groups have exactly one column
+    each (see select_release_columns' own position-based match for that
+    shape — real case: "Technische component versies" since its Helm
+    sub-column was dropped) already satisfies the required columns at
+    the SHALLOWEST depth, before the probe ever reaches the row where
+    "Used by" actually lives — silently losing every row's used_by
+    value (and, downstream, its component resolution) even though a
+    deeper, still-required-column-valid depth would have found it.
+    Confirmed live against the real podiumd release page — every
+    "Technische" row's used_by/component came back blank/UNKNOWN before
+    this fix."""
     base = effective_header_row_count(rows, grid)
+    best_count, best_columns = None, None
     for extra in range(MAX_HEADER_ROW_PROBE + 1):
         count = base + extra
         if count > len(grid):
             break
         columns = select_release_columns(header_paths(grid, count))
-        if not missing_required_release_columns(columns):
-            return count
-    return base
+        if missing_required_release_columns(columns):
+            continue
+        if best_count is None:
+            best_count, best_columns = count, columns
+            continue
+        if any(columns[key] is not None and best_columns[key] is None
+               for key in ("vendor", "used_by", "source_helm", "target_helm")):
+            best_count, best_columns = count, columns
+    return best_count if best_count is not None else base
 
 
 def parse_args():

@@ -231,6 +231,56 @@ def test_resolve_header_row_count_extends_past_inconsistent_th_tagging(ecrt):
     assert ecrt.resolve_header_row_count(rows, grid) == 2
 
 
+# Same shape as TECHNISCHE_TABLE_NO_HELM_HTML (no App/Helm sub-column at
+# all under either "Versie ..." group), but "Used by" lives in its OWN
+# second header row instead of alongside the table's other top-level
+# headers — the real podiumd page's current shape, confirmed live: with
+# exactly one column per "Versie ..." group, source_app/target_app
+# already resolve by POSITION at header_row_count=1 (see
+# select_release_columns), satisfying missing_required_release_columns
+# before the probe ever reaches row 1, where "Used by" actually is —
+# silently losing every row's used_by (and, downstream, its component
+# resolution) without resolve_header_row_count's own preference for a
+# deeper, still-valid count that resolves MORE optional columns.
+TECHNISCHE_TABLE_TWO_HEADER_ROWS_NO_HELM_HTML = """
+<h2>Technische component versies</h2>
+<table>
+<tbody>
+<tr>
+<th rowspan="2">Image</th>
+<th></th>
+<th>Versie 4.8</th>
+<th>Versie 4.9</th>
+</tr>
+<tr>
+<th>Used by</th>
+<th>App</th>
+<th>App</th>
+</tr>
+<tr>
+<td>Elastic operator</td>
+<td>ZAC</td>
+<td>3.4.0</td>
+<td>3.5.0</td>
+</tr>
+</tbody>
+</table>
+"""
+
+
+def test_resolve_header_row_count_prefers_deeper_count_for_used_by_when_versie_groups_are_single_column(ecrt):
+    from lib.confluence_tables import expand_grid, extract_tables
+    _heading, rows = extract_tables(TECHNISCHE_TABLE_TWO_HEADER_ROWS_NO_HELM_HTML)[0]
+    grid = expand_grid(rows)
+    assert ecrt.resolve_header_row_count(rows, grid) == 2
+
+
+def test_extract_release_rows_technische_table_two_header_rows_still_resolves_used_by(ecrt):
+    rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_TWO_HEADER_ROWS_NO_HELM_HTML)
+    assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "",
+                      "3.4.0", "", "3.5.0", ""]]
+
+
 def test_extract_release_rows_handles_inconsistent_th_tagging(ecrt):
     """End-to-end: the same table with a <td>-tagged sub-header row must
     still resolve every required column, not just the ones a strict
