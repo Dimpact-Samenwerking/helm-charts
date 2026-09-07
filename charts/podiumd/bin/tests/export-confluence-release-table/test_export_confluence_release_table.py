@@ -167,6 +167,13 @@ def test_normalize_version_leaves_allowed_variations_untouched(ecrt):
     assert ecrt.normalize_version("v.1.25.4") == "v.1.25.4"
 
 
+def test_normalize_version_leaves_bare_discrete_version_number_untouched(ecrt):
+    """A bare, dot-less incrementing build number (e.g. frankgateway's
+    own real app version, "104") is a real, discrete version, never
+    semver in the first place — must not be flagged as UNKNOWN."""
+    assert ecrt.normalize_version("104") == "104"
+
+
 def test_normalize_version_leaves_empty_value_untouched(ecrt):
     """No data at all for that cell isn't a malformed version — nothing
     to flag."""
