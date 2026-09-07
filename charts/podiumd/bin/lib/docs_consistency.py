@@ -26,8 +26,8 @@ from lib.upgradedoc import (
     match_changes_item_display_name,
     match_dependency, match_dependency_excluding_sidecar_names,
     normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
-    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, path_display_name, resolve_component_row,
-    resolve_entry_image_path, resolve_entry_path, strip_fenced_code_blocks, values_key_order,
+    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, parse_values_delta_sections, path_display_name,
+    resolve_component_row, resolve_entry_image_path, resolve_entry_path, strip_fenced_code_blocks, values_key_order,
 )
 
 
@@ -980,6 +980,17 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         canonical_names_for_deltas = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
         mismatches.extend(check_values_deltas_content(
             values_deltas_path, actual_changed_keys, baseline_values, values, deps, canonical_names_for_deltas))
+
+        deltas_key_order = values_key_order(values)
+        deltas_headings = [s["heading"] for s in parse_values_delta_sections(
+            values_deltas_path.read_text(encoding="utf-8"))]
+        for name_a, name_b in find_out_of_order_names(deltas_headings, deps, deltas_key_order,
+                                                        canonical_names_for_deltas):
+            mismatches.append(
+                f'{values_deltas_path.name}: "## {name_b}" section comes right after "## {name_a}", '
+                f'but values.yaml lists the {name_b} component before {name_a} — sections should follow '
+                f'values.yaml\'s own component order'
+            )
 
     if not checked:
         return True, "no matching docs found — skipped"
