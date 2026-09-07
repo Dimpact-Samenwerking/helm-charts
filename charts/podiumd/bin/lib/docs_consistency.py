@@ -21,8 +21,8 @@ from lib.component_docs import (
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
-    actual_app_version, changes_heading_has_app_version, changes_heading_identities, compute_changed_components,
-    diff_keys, extract_source_version, extract_target_version,
+    actual_app_version, changes_heading_has_app_version, changes_heading_identities, component_version_cell,
+    compute_changed_components, diff_keys, extract_source_version, extract_target_version,
     find_all_image_and_version_paths, find_changes_row_correspondence_gaps, find_grouped_preceding_comment,
     find_image_tag_paths, find_images_manifest_faulty_headers, find_images_manifest_list_diff,
     find_images_manifest_out_of_order_names, find_out_of_order_names, find_wrong_or_duplicate_dependency_claims,
@@ -704,6 +704,18 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     # app-version pair at all for a component that DOES have one — see
     # "is missing the primary-image app version" below.
     resolved_app_by_identity = {}
+    # Same identity keying as resolved_app_by_identity, holding the
+    # BASELINE side instead (None when the component is genuinely new at
+    # the baseline, or when no baseline_ref was even given) — populated
+    # alongside it below. Used, together with resolved_app_by_identity,
+    # to catch a Changes heading whose own "(new)"/"(unchanged)"/"X -> Y"
+    # wording DISAGREES with what the row itself would render there (see
+    # "app-version wording disagrees with its own row" below) — a real,
+    # observed bug: a heading can show the CORRECT current version yet
+    # the WRONG transition wording (e.g. "(unchanged)" for a component
+    # that's actually new), which changes_heading_has_app_version's own
+    # "is some version shown at all" check can never catch.
+    baseline_app_by_identity = {}
     images_baseline = load_images_baseline(chart_dir)
 
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
@@ -885,9 +897,13 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                     f'be verified against {baseline_ref} — the component didn\'t exist there yet, '
                     f'or its version isn\'t resolvable there; source cells left unchecked'
                 )
+                if resolved["kind"] != "sidecar" and actual_app:
+                    baseline_app_by_identity[("dep", values_key)] = None
                 continue
 
             baseline_chart_actual, baseline_app_actual = resolved["baseline_chart"], resolved["baseline_app"]
+            if resolved["kind"] != "sidecar" and actual_app:
+                baseline_app_by_identity[("dep", values_key)] = baseline_app_actual
 
             if row["chart_source"] and baseline_chart_actual and \
                     normalize_version(row["chart_source"]) != normalize_version(baseline_chart_actual):
@@ -988,12 +1004,41 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 idents = changes_heading_identities(heading, deps, canonical_names)
                 if len(idents) != 1:
                     continue
-                actual_app = resolved_app_by_identity.get(next(iter(idents)))
+                identity = next(iter(idents))
+                actual_app = resolved_app_by_identity.get(identity)
                 if actual_app and not changes_heading_has_app_version(heading):
                     mismatches.append(
                         f'{doc_path.name}: "## Changes" section "### {heading}" is missing the '
                         f'primary-image app version in its own heading — values.yaml shows "{actual_app}"'
                     )
+                    continue
+
+                # A heading can ALREADY show the correct current app
+                # version yet still get the transition wording wrong (real
+                # bug: "openbao v2.5.5 (unchanged)" when openbao's own
+                # baseline app version was actually unresolvable — the
+                # component is really "(new)" to this doc, per component_
+                # version_cell's own convention). changes_heading_has_app_
+                # version only ever checks "is SOME version shown at all",
+                # never whether the shown wording is the CORRECT one for
+                # baseline_app -> actual_app — this reuses component_
+                # version_cell directly (the exact function that decides
+                # this for the table row's own cell — see fix_component_
+                # version_table/update_component_table) so the row and its
+                # own Changes heading can never independently drift on
+                # what "correct" wording even means, the same "shared
+                # resolution" principle resolve_component_row's own
+                # docstring already applies to the row side.
+                if baseline_ref and identity in baseline_app_by_identity:
+                    expected_app_heading = component_version_cell(baseline_app_by_identity[identity], actual_app)
+                    without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
+                    if expected_app_heading not in without_chart_clause:
+                        mismatches.append(
+                            f'{doc_path.name}: "## Changes" section "### {heading}" shows the wrong '
+                            f'app-version transition in its own heading — expected "{expected_app_heading}" '
+                            f'(values.yaml/{baseline_ref} show {baseline_app_by_identity[identity]!r} -> '
+                            f'{actual_app!r})'
+                        )
 
     images_path = chart_dir / "docs" / "images" / f"images-{podiumd_version}.yaml"
 
@@ -1023,7 +1068,30 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         pass  # format issue(s) already recorded above; entries aren't safely interpretable until fixed
     else:
         checked.append(images_path.name)
-        for entry in (load_yaml(images_path) or []):
+        entries_list = load_yaml(images_path) or []
+
+        # Simple, always-reliable complement to the per-entry "has an
+        # entry but no mention in the '# Changes:' list" check further
+        # below: that one resolves each entry to its own display name
+        # first and silently skips one it can't resolve, so it isn't a
+        # guaranteed catch-all for the header being gone entirely. Real
+        # bug this fixes: images-4.9.1.yaml gained 5 real entries this
+        # session with no "# Changes:" header ever created for them to
+        # be listed in (see lib.component_docs.ensure_images_manifest_
+        # changes_header's own docstring) — a real manifest with real
+        # entries but literally no header line anywhere should never
+        # pass silently.
+        if entries_list:
+            manifest_lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
+            header_idx, _has_count = find_images_manifest_changes_header(manifest_lines)
+            if header_idx is None:
+                noun = "entry" if len(entries_list) == 1 else "entries"
+                mismatches.append(
+                    f'{images_path.name}: has {len(entries_list)} {noun} but no "# Changes:" header '
+                    f'at all — every real change is undocumented in the summary list'
+                )
+
+        for entry in entries_list:
             name = entry.get("name")
             if not name:
                 continue

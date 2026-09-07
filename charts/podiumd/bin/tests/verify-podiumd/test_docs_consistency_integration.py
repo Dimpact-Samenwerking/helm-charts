@@ -312,6 +312,28 @@ def test_images_manifest_entry_missing_version_or_digest_is_reported_not_crashed
     assert 'zac: entry in images-4.9.0.yaml is missing "version" or "digest"' in out
 
 
+def test_images_manifest_missing_changes_header_entirely_is_caught(vp, chart_repo, capsys):
+    """Regression test (real bug, real doc): a manifest with real entries
+    but no "# Changes:" header anywhere at all (see lib.component_docs.
+    ensure_images_manifest_changes_header's own docstring — real case:
+    images-4.9.1.yaml gained 5 real entries this session with no header
+    ever created for them to be listed in) must be flagged directly and
+    unambiguously — never silently pass just because every individual
+    entry happens to resolve cleanly otherwise."""
+    images_path = chart_repo / "docs" / "images" / "images-4.9.0.yaml"
+    text = images_path.read_text(encoding="utf-8")
+    assert "# Changes:" in text
+    stripped = "\n".join(line for line in text.splitlines() if "# Changes:" not in line and "#   1." not in line)
+    images_path.write_text(stripped, encoding="utf-8")
+
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    assert ok is False
+
+    out = capsys.readouterr().out
+    assert ('images-4.9.0.yaml: has 1 entry but no "# Changes:" header at all — every real change is '
+            'undocumented in the summary list') in out
+
+
 def test_images_manifest_format_issue_does_not_swallow_other_mismatches(vp, chart_repo, capsys):
     """A format problem in images-<target>.yaml (e.g. a stale header
     comment) must not discard mismatches an earlier, completely unrelated
@@ -1162,7 +1184,8 @@ NEW_DEP_IMAGES_MANIFEST = """\
 #
 # Images new or changed in podiumd 4.9.0 vs {baseline}.
 #
-# Changes: none.
+# Changes:
+#   1. openklant 2.15.0.
 #
 # See docs/_UPGRADE_PATHS/{baseline}-to-4.9.0-upgrade.md for the operator upgrade notes.
 
@@ -1374,4 +1397,54 @@ def test_values_deltas_sections_correctly_ordered_passes(vp, two_dep_chart_repo)
         "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n"
         "- Key `openformulieren.clamavConfigJob` was added.\n")
     ok, detail = vp.check_docs_consistency(two_dep_chart_repo, upgrade_docs_baseline="4.8.5")
+    assert ok is True, detail
+
+
+# --- Changes heading app-version wording vs. its own row (regression:
+# a heading can show the CORRECT current version yet the WRONG
+# transition wording, e.g. "(unchanged)" for a component that's really
+# "(new)" to this doc — real case: openbao's own Changes heading said
+# "(unchanged)" while its table row correctly said "(new)", because its
+# baseline app version was only resolvable via a vendored-.tgz fallback
+# the OLD code never attempted for the baseline side) ---
+
+def test_changes_heading_wrong_transition_wording_is_caught(vp, chart_repo, capsys):
+    """zac really changed 5.0.2 -> 5.4.3 (see chart_repo's own docstring),
+    but its own Changes heading wrongly claims "(unchanged)" — the table
+    row itself is untouched/correct, only the heading's own wording is
+    stale/wrong. changes_heading_has_app_version alone would pass this
+    (SOME version marker is shown) — this needs the wording ITSELF
+    checked against the real baseline -> target transition."""
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n\n"
+        "## Changes\n\n"
+        "### ZAC (Zaakafhandelcomponent) 5.4.3 (unchanged) (chart 1.0.297, unchanged)\n\n"
+        "blah\n")
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    assert ok is False
+    assert "mismatch" in detail
+    out = capsys.readouterr().out
+    assert ('"## Changes" section "### ZAC (Zaakafhandelcomponent) 5.4.3 (unchanged) (chart 1.0.297, '
+            'unchanged)" shows the wrong app-version transition in its own heading — expected '
+            '"5.0.2 → 5.4.3" (values.yaml/podiumd-4.8.5 show \'5.0.2\' -> \'5.4.3\')') in out
+
+
+def test_changes_heading_correct_transition_wording_passes(vp, chart_repo):
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n\n"
+        "## Changes\n\n"
+        "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
+        "blah\n")
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    assert ok is True, detail
     assert ok is True, detail
