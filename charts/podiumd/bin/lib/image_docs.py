@@ -50,9 +50,19 @@ def make_image_changes_section(basename, target, old_version, new_version, pinne
     return "".join(lines)
 
 
-def image_delta_bullet(basename, old_version, new_version, pin_count):
+def image_delta_section_heading(basename, old_version, new_version, pin_count, has_body_lines):
+    """The "## <basename> ..." heading for a shared image basename's own
+    values-deltas.md section — replaces the old flat "- **<basename>**
+    image ..." bullet (see lib.component_docs.values_delta_section_
+    heading for the same restructuring on the component-keyed side): the
+    heading itself now carries the version transition and pin count, so
+    a body bullet restating it would be pure noise. `has_body_lines` is
+    unused today (a shared-image bump has no describe_key_changes lines
+    of its own — there's no values.yaml SCHEMA under a bare basename to
+    diff) but kept for signature symmetry with values_delta_section_
+    heading, its component-keyed counterpart."""
     plural = "s" if pin_count != 1 else ""
-    return f"- **{basename}** image `{old_version} → {new_version}` — pinned at {pin_count} place{plural} in `values.yaml`.\n"
+    return f"## {basename} {old_version} → {new_version} — pinned at {pin_count} place{plural} in `values.yaml`\n"
 
 
 def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_values, target):

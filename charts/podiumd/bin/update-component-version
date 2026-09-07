@@ -77,15 +77,16 @@ from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs import (
     baseline_doc_paths as _baseline_doc_paths,
     images_manifest_path as _images_manifest_path, insert_changes_section,
-    load_baseline_state as _load_baseline_state, load_baseline_values as _load_baseline_values,
+    insert_values_delta_section, load_baseline_state as _load_baseline_state,
+    load_baseline_values as _load_baseline_values,
     make_changes_section, remove_changes_section, remove_component_from_images_manifest,
-    remove_component_row, remove_component_values_delta, update_component_table,
-    update_images_manifest, values_delta_bullet,
+    remove_component_row, remove_values_delta_section, update_component_table,
+    update_images_manifest, values_delta_section_heading,
 )
 from lib.image_version import image_basename, update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo, registry_tag_exists
-from lib.upgradedoc import append_to_doc, compute_changed_components, describe_key_changes
+from lib.upgradedoc import compute_changed_components, describe_key_changes
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -608,34 +609,38 @@ def main():
 
     if values_deltas_path is not None:
         text = values_deltas_path.read_text(encoding="utf-8")
-        text, bullet_removed = remove_component_values_delta(text, friendly)
+        text, section_removed = remove_values_delta_section(text, friendly, deps)
         if reset_to_baseline:
             values_deltas_path.write_text(text, encoding="utf-8")
             print()
             print(f"=== Updating {values_deltas_path.name} ===")
             print(f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — "
-                  f"{'removed its bullet' if bullet_removed else 'nothing to remove'}")
+                  f"{'removed its section' if section_removed else 'nothing to remove'}")
         else:
-            new_lines = [values_delta_bullet(friendly, old_app, app_version, old_chart, new_chart)]
             current_values_after = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
             current_subtree = current_values_after.get(values_key, {})
             baseline_values_at_release = (baseline_values if baseline_deps is not None
                                            else load_baseline_values(upgrade_docs_baseline))
-            if baseline_values_at_release is None:
-                print()
-                print(f"  note: could not resolve upgrade_docs_baseline {upgrade_docs_baseline} to a git ref — skipping "
-                      f"added/removed/renamed key detection for values-deltas.md")
-            else:
+            key_lines = []
+            no_baseline_ref = baseline_values_at_release is None
+            if not no_baseline_ref:
                 baseline_subtree = (baseline_values_at_release.get(values_key, {})
                                      if isinstance(baseline_values_at_release, dict) else {})
-                new_lines.extend(describe_key_changes(values_key, baseline_subtree, current_subtree))
+                key_lines = describe_key_changes(values_key, baseline_subtree, current_subtree)
 
             no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
-            values_deltas_path.write_text(append_to_doc(text, new_lines), encoding="utf-8")
+            heading_line = values_delta_section_heading(friendly, old_app, app_version, old_chart, new_chart,
+                                                          bool(key_lines))
+            text = insert_values_delta_section(text, friendly, heading_line, key_lines, deps, values)
+            values_deltas_path.write_text(text, encoding="utf-8")
             print()
             print(f"=== Updating {values_deltas_path.name} ===")
-            for line in new_lines:
+            print(f"  '{heading_line.rstrip()}'")
+            for line in key_lines:
                 print(f"  {line.rstrip()}")
+            if no_baseline_ref:
+                print(f"  note: could not resolve upgrade_docs_baseline {upgrade_docs_baseline} to a git ref — skipping "
+                      f"added/removed/renamed key detection for values-deltas.md")
             if no_changes_claimed:
                 print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
                       "gemeente ACTION, not about whether anything changed, so it may still hold; "

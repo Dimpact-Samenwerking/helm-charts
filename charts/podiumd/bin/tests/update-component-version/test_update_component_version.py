@@ -900,24 +900,31 @@ def test_insert_changes_section_no_changes_heading_appends_at_end(ucv):
     assert new_text.endswith("### new section\n")
 
 
-# --- values_delta_bullet / describe_key_changes / append_to_doc ---
+# --- values_delta_section_heading / describe_key_changes ---
 
-def test_values_delta_bullet_app_and_chart_changed(ucv):
-    bullet = ucv.values_delta_bullet("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.13.0")
-    assert bullet == "- **openformulieren** app `3.4.10 → 3.5.6` (chart `1.12.0 → 1.13.0`) — chart + image tag.\n"
-
-
-def test_values_delta_bullet_chart_unchanged(ucv):
-    bullet = ucv.values_delta_bullet("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0")
-    assert bullet == "- **openformulieren** app `3.4.10 → 3.5.6` (chart `1.12.0`, unchanged) — image tag only.\n"
+def test_values_delta_section_heading_app_and_chart_changed(ucv):
+    heading = ucv.values_delta_section_heading("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.13.0", False)
+    assert heading == "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0 → 1.13.0) — chart + image tag\n"
 
 
-def test_values_delta_bullet_native_component_omits_chart_clause(ucv):
+def test_values_delta_section_heading_chart_unchanged(ucv):
+    heading = ucv.values_delta_section_heading("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", False)
+    assert heading == "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged) — image tag only\n"
+
+
+def test_values_delta_section_heading_native_component_omits_chart_clause(ucv):
     """new_chart="-" (see lib.chart.NATIVE_COMPONENTS) drops the "(chart
-    ...)" clause entirely rather than rendering "(chart `None → -`)"."""
-    bullet = ucv.values_delta_bullet("frankgateway", "100", "104", None, "-")
-    assert bullet == ("- **frankgateway** app `100 → 104` — image tag only "
-                       "(no separate Helm chart for this component).\n")
+    ...)" clause entirely rather than rendering "(chart None → -)"."""
+    heading = ucv.values_delta_section_heading("frankgateway", "100", "104", None, "-", False)
+    assert heading == ("## frankgateway 100 → 104 — image tag only "
+                        "(no separate Helm chart for this component)\n")
+
+
+def test_values_delta_section_heading_suppresses_note_when_body_has_lines(ucv):
+    """The trailing "— <note>" only ever means "nothing else changed" —
+    once there IS a "- Key `...`" line in the body, it's dropped."""
+    heading = ucv.values_delta_section_heading("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", True)
+    assert heading == "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n"
 
 
 def test_describe_key_changes_reports_added_removed_renamed(ucv):
@@ -931,17 +938,6 @@ def test_describe_key_changes_reports_added_removed_renamed(ucv):
 
 def test_describe_key_changes_empty_when_nothing_changed(ucv):
     assert ucv.describe_key_changes("comp", {"a": 1}, {"a": 1}) == []
-
-
-def test_append_to_doc_adds_blank_line_separator(ucv):
-    text = "existing content\n"
-    result = ucv.append_to_doc(text, ["- new bullet\n"])
-    assert result == "existing content\n\n- new bullet\n"
-
-
-def test_append_to_doc_no_new_lines_returns_unchanged(ucv):
-    text = "existing\n"
-    assert ucv.append_to_doc(text, []) == text
 
 
 # --- values_tree_path_for / find_matching_images_entry / update_images_manifest_entry ---
@@ -1268,7 +1264,7 @@ def test_main_adds_new_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
     assert upgrade.index("### zac") < upgrade.index("## Per-environment checklist")
 
     deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "**zac** app `5.0.2 → 5.4.3` (chart `1.0.296 → 1.0.297`) — chart + image tag." in deltas
+    assert "## zac 5.0.2 → 5.4.3 (chart 1.0.296 → 1.0.297) — chart + image tag\n" in deltas
 
     images = (ucv.IMAGES_DIR / "images-4.9.0.yaml").read_text(encoding="utf-8")
     assert "1. zac 5.0.2 -> 5.4.3 (chart 1.0.296 -> 1.0.297)." in images
@@ -1351,7 +1347,7 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(ucv, tmp_path, monkey
         ),
         values_deltas_text=(
             "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
-            "- **zac** app `5.0.2 → 5.5.0` (chart `1.0.296`, unchanged) — image tag only.\n"
+            "## zac 5.0.2 → 5.5.0 (chart 1.0.296, unchanged) — image tag only\n"
         ),
         images_text=(
             "# One change:\n"
@@ -1378,7 +1374,7 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(ucv, tmp_path, monkey
     assert "### zac" not in upgrade
 
     deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "**zac**" not in deltas
+    assert "## zac" not in deltas
 
     images = (ucv.IMAGES_DIR / "images-4.9.0.yaml").read_text(encoding="utf-8")
     assert "Zero changes:" in images
@@ -1433,9 +1429,9 @@ def test_main_collapses_repeated_bump_into_single_baseline_entry(ucv, tmp_path, 
     assert "### zac 5.0.2 → 5.5.0 (chart 1.0.296 → 1.0.297)" in upgrade
 
     deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert deltas.count("**zac**") == 1
+    assert deltas.count("## zac") == 1
     assert "5.4.3" not in deltas
-    assert "**zac** app `5.0.2 → 5.5.0` (chart `1.0.296 → 1.0.297`) — chart + image tag." in deltas
+    assert "## zac 5.0.2 → 5.5.0 (chart 1.0.296 → 1.0.297) — chart + image tag\n" in deltas
 
     images = (ucv.IMAGES_DIR / "images-4.9.0.yaml").read_text(encoding="utf-8")
     assert "One change:" in images
@@ -1576,7 +1572,7 @@ def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, 
     out = capsys.readouterr().out
     assert "could not resolve upgrade_docs_baseline 4.8.5" in out
     deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "**zac** app" in deltas  # version bullet still written
+    assert "## zac" in deltas  # section still written
 
 
 def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkeypatch):
@@ -1628,7 +1624,7 @@ def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkey
     )
     values_deltas_text = (
         "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
-        "- **openformulieren** app `3.4.9 → 3.4.10` (chart `1.12.0`, unchanged) — image tag only.\n"
+        "## openformulieren 3.4.9 → 3.4.10 (chart 1.12.0, unchanged) — image tag only\n"
     )
     images_text = (
         "# One change:\n"
@@ -1675,7 +1671,11 @@ def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkey
     assert upgrade_after.count("### openformulieren") == 1
 
     deltas_after = (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert values_deltas_text in deltas_after  # openformulieren's own line, verbatim, still there
+    # openformulieren's own section, verbatim, still there — zac (Chart.yaml's
+    # FIRST dependency) gets its own brand new section inserted BEFORE it, in
+    # values.yaml order, so it's no longer immediately after the doc's own H1.
+    assert "## openformulieren 3.4.9 → 3.4.10 (chart 1.12.0, unchanged) — image tag only\n" in deltas_after
+    assert deltas_after.count("## openformulieren") == 1
 
     images_after = (images_dir / "images-4.9.0.yaml").read_text(encoding="utf-8")
     # openformulieren's own header ITEM renumbers from "1." to "2." — zac's

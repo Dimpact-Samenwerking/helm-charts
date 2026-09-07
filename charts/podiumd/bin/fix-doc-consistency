@@ -24,22 +24,23 @@ changed vs ... but has no row" gap, e.g. a nested init-container image
 bumped alongside its parent component but never given its own
 "<component> - <basename>" row), reordering the table's rows and the
 "## Changes" section's "### ..." blocks to match values.yaml's own
-top-level component order. Also ADDING a "- **<name>** app ..." bullet to
-the values-deltas doc for a component that changed but was never
-mentioned there at all (see add_missing_values_delta_bullets — the
-"component ... changed vs ... but is not mentioned anywhere in the doc"
-gap, distinct from missing_key_change_lines's own "- Key `...` was
-added/removed" lines for NESTED schema changes under an already-mentioned
-component), and flagging any such schema changes still missing after
-that. Any of the three standard docs that don't already exist under ANY
-baseline for this target are created as TODO stubs instead (nothing to
-rebase) — see create-doc-version for a script that ONLY ever does that,
-refusing outright if docs already exist under some other baseline (this
-script owns rebasing those on purpose; that one refuses to touch them).
-See fix_component_version_table, add_missing_component_rows,
-add_missing_sidecar_rows, add_missing_values_delta_bullets,
-fix_images_manifest_entries, and add_missing_images_manifest_entries for
-exactly what gets rewritten/added vs. just reported for manual review. A
+top-level component order. Also ADDING a brand new "## <name> ..."
+section to the values-deltas doc for a component that changed but has
+no section of its own yet (see lib.component_docs.sync_values_delta_
+sections — the "component ... changed vs ... but has no section" gap),
+and appending any "- Key `...` was added/removed" lines for NESTED
+schema changes to whichever section (new or already existing) covers
+that component, reordering the doc's own "## ..." sections the same way
+(see sort_values_delta_sections). Any of the three standard docs that
+don't already exist under ANY baseline for this target are created as
+TODO stubs instead (nothing to rebase) — see create-doc-version for a
+script that ONLY ever does that, refusing outright if docs already
+exist under some other baseline (this script owns rebasing those on
+purpose; that one refuses to touch them). See fix_component_version_
+table, add_missing_component_rows, add_missing_sidecar_rows, sync_
+values_delta_sections, fix_images_manifest_entries, and add_missing_
+images_manifest_entries for exactly what gets rewritten/added vs. just
+reported for manual review. A
 missing images-manifest entry IS auto-added now (its own "# ... — <old>
 -> <new>" comment and version/digest all mechanically derivable from
 values.yaml's own already-pinned tag) — but with "name:"/"url:" both set
@@ -87,8 +88,9 @@ from lib.chart import (
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, IMAGES_STUB_TEMPLATE, NUMBER_WORDS, STANDARD_SUFFIXES, STUB_TEMPLATES,
-    add_missing_component_rows, add_missing_values_delta_bullets, existing_doc_baselines,
+    add_missing_component_rows, existing_doc_baselines,
     find_images_manifest_changes_header, images_manifest_order_key, insert_images_manifest_header_item,
+    sync_values_delta_sections,
 )
 from lib.docs_consistency import match_changes_item_to_entry
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
@@ -102,9 +104,9 @@ from lib.upgradedoc import (
     images_manifest_block_start, images_manifest_display_name_positions, images_manifest_entries_share_group,
     images_manifest_entry_positions, insertion_index, is_primary_image_path,
     match_changes_item_display_name,
-    missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
+    normalize_version, parse_upgrade_doc_rows,
     path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
-    sort_images_manifest_entries, sort_upgrade_doc_rows, sort_values_delta_bullets, values_key_order,
+    sort_images_manifest_entries, sort_upgrade_doc_rows, sort_values_delta_sections, values_key_order,
 )
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
@@ -1219,32 +1221,36 @@ def main():
             text = values_deltas_path.read_text(encoding="utf-8")
             write_needed = False
 
-            text, added_bullet_names = add_missing_values_delta_bullets(
-                text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values, changed_keys
+            values_delta_target_paths = ([p for p, _tag in find_all_image_and_version_paths(target_values, target_deps)]
+                                          + [p for p, _tag in global_image_paths(target_values)])
+            values_delta_canonical_names = canonical_sidecar_row_names(
+                CHART_YAML.parent, target_deps, target_values, values_delta_target_paths)
+
+            text, created_names, updated_names = sync_values_delta_sections(
+                text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values, changed_keys,
+                values_delta_canonical_names
             )
-            if added_bullet_names:
+            if created_names or updated_names:
                 write_needed = True
-                print()
-                print(f"=== Adding missing component mention(s) to {values_deltas_path.name} ===")
-                for name in added_bullet_names:
-                    print(f"  {name}")
+                if created_names:
+                    print()
+                    print(f"=== Adding new component section(s) to {values_deltas_path.name} ===")
+                    for name in created_names:
+                        print(f"  {name}")
+                if updated_names:
+                    print()
+                    print(f"=== Adding missing key-change mention(s) to {values_deltas_path.name} ===")
+                    for name in updated_names:
+                        print(f"  {name}")
 
-            new_lines = missing_key_change_lines(text, changed_keys, baseline_values, target_values)
-            if new_lines:
-                write_needed = True
-                text = append_to_doc(text, new_lines)
-                print()
-                print(f"=== Adding missing key-change mentions to {values_deltas_path.name} ===")
-                for line in new_lines:
-                    print(f"  {line.rstrip()}")
-
-            text, moved_bullets = sort_values_delta_bullets(text, target_deps, target_values)
-            if moved_bullets:
+            text, moved_sections = sort_values_delta_sections(
+                text, target_deps, target_values, values_delta_canonical_names)
+            if moved_sections:
                 write_needed = True
                 print()
                 print(f"=== Reordering {values_deltas_path.name} to match values.yaml's component order ===")
-                for first_line, old_pos, new_pos in moved_bullets:
-                    print(f"  '{first_line}': position {old_pos} -> {new_pos}")
+                for heading, old_pos, new_pos in moved_sections:
+                    print(f"  '## {heading}': position {old_pos} -> {new_pos}")
 
             if write_needed:
                 values_deltas_path.write_text(text, encoding="utf-8")

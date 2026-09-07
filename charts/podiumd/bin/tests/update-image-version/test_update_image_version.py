@@ -172,7 +172,7 @@ def test_main_single_component_updates_upgrade_doc_table_and_changes(uiv, tmp_pa
     assert "### openklant 2.15.0 → 2.15.1 (chart 1.0.0, unchanged)" in upgrade
 
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "- **openklant** app `2.15.0 → 2.15.1` (chart `1.0.0`, unchanged) — image tag only." in deltas
+    assert "## openklant 2.15.0 → 2.15.1 (chart 1.0.0, unchanged) — image tag only\n" in deltas
 
     out = capsys.readouterr().out
     assert "added table row" in out
@@ -225,7 +225,7 @@ def test_main_sidecar_bump_gets_disambiguated_row_name(uiv, tmp_path, monkeypatc
     assert "### redis-operator - redis 8.6.2 → 8.6.6" in upgrade
 
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "- **redis-operator - redis** app `8.6.2 → 8.6.6`" in deltas
+    assert "## redis-operator - redis 8.6.2 → 8.6.6" in deltas
 
     out = capsys.readouterr().out
     assert "(re)wrote '### redis-operator - redis ...' Changes section" in out
@@ -287,7 +287,7 @@ def test_main_sidecar_reset_to_baseline_uses_raw_values_key(uiv, tmp_path, monke
               "### redis-operator - redis 8.6.2 → 8.6.6\n\nblah\n")
     write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
               "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n"
-              "- **redis-operator - redis** app `8.6.2 → 8.6.6` (chart `1.0.0`, unchanged) — image tag only.\n")
+              "## redis-operator - redis 8.6.2 → 8.6.6 (chart 1.0.0, unchanged) — image tag only\n")
 
     import lib.image_version as image_version
     monkeypatch.setattr(image_version, "registry_tag_exists",
@@ -359,7 +359,7 @@ def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, t
     assert "`global.images.curl.tag` `8.20.0` → `8.21.0`" in upgrade
 
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "- **curl** image `8.20.0 → 8.21.0` — pinned at 1 place in `values.yaml`." in deltas
+    assert "## curl 8.20.0 → 8.21.0 — pinned at 1 place in `values.yaml`\n" in deltas
 
     manifest = (uiv.IMAGES_DIR / "images-1.0.0.yaml").read_text(encoding="utf-8")
     assert "#   1. curl 8.20.0 -> 8.21.0." in manifest
@@ -431,7 +431,7 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(uiv, tmp_pat
               "### curl 8.20.0 → 8.21.0\n\nblah\n")
     write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
               "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n"
-              "- **curl** image `8.20.0 → 8.21.0` — pinned at 1 place in `values.yaml`.\n")
+              "## curl 8.20.0 → 8.21.0 — pinned at 1 place in `values.yaml`\n")
     write_doc(uiv.IMAGES_DIR, "images-1.0.0.yaml",
               "# Baseline: podiumd 0.9.0.\n#\n# One change:\n#   1. curl 8.20.0 -> 8.21.0.\n#\n\n"
               "# curl — 8.20.0 -> 8.21.0\n"
@@ -455,7 +455,7 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(uiv, tmp_pat
     assert "### curl" not in upgrade
 
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "**curl**" not in deltas
+    assert "## curl" not in deltas
 
     manifest = (uiv.IMAGES_DIR / "images-1.0.0.yaml").read_text(encoding="utf-8")
     assert "Zero changes:" in manifest
@@ -508,9 +508,9 @@ def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(ui
     assert "### curl 8.20.0 → 8.22.0" in upgrade
 
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
-    assert deltas.count("**curl**") == 1
+    assert deltas.count("## curl") == 1
     assert "8.21.0" not in deltas
-    assert "- **curl** image `8.20.0 → 8.22.0` — pinned at 1 place in `values.yaml`." in deltas
+    assert "## curl 8.20.0 → 8.22.0 — pinned at 1 place in `values.yaml`\n" in deltas
 
     manifest = (uiv.IMAGES_DIR / "images-1.0.0.yaml").read_text(encoding="utf-8")
     assert "One change:" in manifest
