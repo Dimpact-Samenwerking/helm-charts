@@ -498,36 +498,66 @@ def make_changes_section(friendly, target, chart_name, values_key, old_app, new_
     (which needs a real chart_name/old_chart/new_chart triple) is never
     emitted either.
 
-    old_app == new_app (real case: a component whose own PRIMARY image
-    is untouched but still qualifies for a row/section because SOME
-    OTHER path in its subtree changed — e.g. a brand-new sidecar of its
-    own; see compute_changed_components) renders "<app> (unchanged)",
-    matching chart_suffix's own existing "(chart ..., unchanged)"
-    convention, instead of a meaningless "<app> → <app>" self-
-    transition — same reasoning throughout: this doc is about VERSION
-    changes, and there isn't one to report here."""
+    old_chart is None (a component with no baseline Chart.yaml dependency
+    at all — genuinely brand new this hop) renders "(chart <new_chart>,
+    new)", the chart-side sibling of old_app is None below; the "Helm
+    chart `...` bump" bullet is suppressed for it too, same as the
+    new_chart == "-" case, since there's no real "old → new" chart
+    transition to describe.
+
+    old_app is None (real case: openbao — actual_app_version(baseline_
+    values, ...) never even attempts its own subchart_app_version
+    fallback for the BASELINE side, so a component whose real app
+    version only ever resolves via that fallback has no baseline value
+    to compare against at all, same as a genuinely brand-new component)
+    renders "<app> (new)", matching component_version_cell's own
+    "(new)" convention for exactly this case — never a nonsensical
+    "None → <app>". old_app == new_app (real case: a component whose
+    own PRIMARY image is untouched but still qualifies for a row/
+    section because SOME OTHER path in its subtree changed — e.g. a
+    brand-new sidecar of its own; see compute_changed_components)
+    renders "<app> (unchanged)", matching chart_suffix's own existing
+    "(chart ..., unchanged)" convention, instead of a meaningless
+    "<app> → <app>" self-transition — same reasoning throughout: this
+    doc is about VERSION changes, and there isn't one to report in
+    either case."""
     if new_chart == "-":
         chart_changed = False
         chart_suffix = ""
+    elif old_chart is None:
+        chart_changed = False
+        chart_suffix = f" (chart {new_chart}, new)"
     else:
         chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
         chart_suffix = f" (chart {old_chart} → {new_chart})" if chart_changed else f" (chart {new_chart}, unchanged)"
-    app_changed = normalize_version(old_app) != normalize_version(new_app)
-    app_heading = f"{old_app} → {new_app}" if app_changed else f"{new_app} (unchanged)"
+    if old_app is None:
+        app_heading = f"{new_app} (new)"
+    elif normalize_version(old_app) == normalize_version(new_app):
+        app_heading = f"{new_app} (unchanged)"
+    else:
+        app_heading = f"{old_app} → {new_app}"
     lines = [f"### {friendly} {app_heading}{chart_suffix}\n\n"]
-    if app_changed:
+    if old_app is None:
+        lines.append(f"PodiumD {target} introduces **{friendly}** at app version {new_app}.\n\n")
+    elif normalize_version(old_app) == normalize_version(new_app):
+        lines.append(f"**{friendly}**'s own app version ({new_app}) is unchanged this hop.\n\n")
+    else:
         lines.append(f"PodiumD {target} upgrades **{friendly}** from app version {old_app}\n")
         lines.append(f"to {new_app}.\n\n")
+    if old_app is None:
+        pin_suffix = f"`{new_app}` (new)"
+    elif normalize_version(old_app) == normalize_version(new_app):
+        pin_suffix = f"`{new_app}` (unchanged)"
     else:
-        lines.append(f"**{friendly}**'s own app version ({new_app}) is unchanged this hop.\n\n")
+        pin_suffix = f"`{old_app}` → `{new_app}`"
     if chart_changed:
         lines.append(f"- Helm chart `{chart_name}` `{old_chart}` → `{new_chart}` in\n")
         lines.append("  `charts/podiumd/Chart.yaml`.\n")
     for path in image_paths:
-        lines.append(f"- Image tag pin `{values_key}.{path}.tag` `{old_app}` → `{new_app}` in\n")
+        lines.append(f"- Image tag pin `{values_key}.{path}.tag` {pin_suffix} in\n")
         lines.append("  `charts/podiumd/values.yaml`.\n")
     for path in version_paths:
-        lines.append(f"- Version pin `{values_key}.{path}` `{old_app}` → `{new_app}` in\n")
+        lines.append(f"- Version pin `{values_key}.{path}` {pin_suffix} in\n")
         lines.append("  `charts/podiumd/values.yaml`.\n")
     lines.append(f"- Image / digest: see [`images-{target}.yaml`](../images/images-{target}.yaml).\n\n")
     return "".join(lines)
@@ -739,8 +769,8 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
             # component actually shaped like version_paths (e.g. eck-stack).
             version_paths = version_paths_for(chart_name)
             image_paths = [] if version_paths else image_paths_for(chart_name)
-            section = make_changes_section(key, target, chart_name, key, old_app or new_app, new_app,
-                                            old_chart or new_chart, new_chart, image_paths, version_paths)
+            section = make_changes_section(key, target, chart_name, key, old_app, new_app,
+                                            old_chart, new_chart, image_paths, version_paths)
         else:
             chart_suffix = (f"{old_chart} → {new_chart}"
                              if old_chart and normalize_version(old_chart) != normalize_version(new_chart)
