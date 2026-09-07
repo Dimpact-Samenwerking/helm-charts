@@ -3855,6 +3855,19 @@ zaakbrug:
     IbisTester: zaakbrug_admin
     IbisDataAdmin: dataadmin
 
+# BRP Personen Mock — a stand-in "BRP Personen" API for gemeentes without
+# their own connection to the real BRP, so dependent components (e.g.
+# ZAC) still have something to query in non-production/demo environments.
+brppersonenmock:
+  # This stub MUST stay in this file: Helm resolves the dependency condition
+  # `brppersonenmock.enabled` against the PARENT chart's values — if the path
+  # were absent here, the subchart would render unconditionally for every
+  # deployment (same reasoning as the `mi:` stub right below).
+  enabled: false
+  image:
+    repository: ghcr.io/brp-api/personen-mock
+    tag: "2.7.0-202606230850@sha256:024308250beab8a6327d8f4ce91e630b4bcbd650015a4e86df6db437dc8bb4d7"
+
 # Management Information (MI) data exports — IN-1650 / IN-2119 / IN-2499.
 #
 # Since 4.8.3 the MI export tooling lives in the standalone `mi-data` chart
