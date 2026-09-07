@@ -281,19 +281,19 @@ with production workload measurements.
        secrets:
          openzaak_openbeheer_secret: "REP_OPENZAAK_OPENBEHEER_SECRET_REP"
        data: |-
-         vng_api_common_applicaties_config_enable: true
-         vng_api_common_applicaties:
-           items:
-           - uuid: 3690fccd-b625-4896-8829-992b14bca77a
-             client_ids:
-             - openbeheer
-             label: Open Beheer
-             heeft_alle_autorisaties: true
-         vng_api_common_credentials_config_enable: true
-         vng_api_common_credentials:
-           items:
-           - identifier: openbeheer
-             secret: {value_from: {env: openzaak_openbeheer_secret}}
+          vng_api_common_applicaties_config_enable: true
+          vng_api_common_applicaties:
+            items:
+              - uuid: 3690fccd-b625-4896-8829-992b14bca77a
+                client_ids:
+                  - openbeheer
+                label: Open Beheer
+                heeft_alle_autorisaties: true
+          vng_api_common_credentials_config_enable: true
+          vng_api_common_credentials:
+            items:
+              - identifier: openbeheer
+                secret: {value_from: {env: openzaak_openbeheer_secret}}
    ```
 6. **Keycloak client**: created automatically by the realm-config job from
    `configuration.oidcUrl`; populate `openbeheer-oidc-secret` **before** the first deploy
