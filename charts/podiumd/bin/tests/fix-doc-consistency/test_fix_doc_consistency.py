@@ -1568,6 +1568,89 @@ def test_main_ignores_mention_inside_fenced_code_block_and_does_not_duplicate(
     assert "Adding missing key-change mention(s)" not in out
 
 
+# --- main() integration: renumbering a pre-existing "# Changes:" gap ---
+
+@pytest.fixture
+def repo_with_fully_documented_images_but_a_numbering_gap(tmp_path):
+    """Both zac and openformulieren are already fully, correctly
+    documented everywhere (no missing row/section/entry, nothing stale,
+    already in the right order) — the ONLY thing wrong is the images
+    manifest's own "# Changes:" list numbering, which has a gap (a
+    human hand-removed a THIRD item's own block, between these two,
+    without renumbering) — real case that surfaced this gap. Neither
+    dedupe (no duplicates) nor sort (already correctly ordered) would
+    ever touch this on their own."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "version": "1.0.297", "repository": "@zac", "alias": "zac"},
+            {"name": "openforms", "version": "1.12.0", "repository": "@maykinmedia", "alias": "openformulieren"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"tag": "5.0.2@sha256:aaaa"}},
+        "openformulieren": {"image": {"tag": "3.4.10@sha256:bbbb"}},
+    }, sort_keys=False))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    images_dir = tmp_path / "docs" / "images"
+    doc_dir.mkdir(parents=True)
+    images_dir.mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"tag": "5.4.3@sha256:cccc"}},
+        "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
+    }, sort_keys=False))
+    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n"
+          "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | n/a |\n\n"
+          "## Changes\n\n")
+    write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
+    write(images_dir / "images-4.9.0.yaml",
+          "# Baseline: podiumd 4.8.5.\n#\n"
+          "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n"
+          "# Changes:\n"
+          "#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3.\n"
+          "#   3. openformulieren 3.4.10 -> 3.5.6.\n#\n\n"
+          "# ZAC — 5.0.2 -> 5.4.3\n"
+          "- name: zac\n"
+          "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+          '  version: "5.4.3"\n'
+          '  digest: "sha256:cccc"\n\n'
+          "# openformulieren — 3.4.10 -> 3.5.6\n"
+          "- name: openformulieren\n"
+          "  url: maykinmedia/open-forms\n"
+          '  version: "3.5.6"\n'
+          '  digest: "sha256:dddd"\n')
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump both, images-manifest header has a gap", cwd=tmp_path)
+    return doc_dir, images_dir
+
+
+def test_main_renumbers_a_preexisting_changes_gap(
+        cdb, repo_with_fully_documented_images_but_a_numbering_gap, monkeypatch, capsys):
+    doc_dir, images_dir = repo_with_fully_documented_images_but_a_numbering_gap
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    images = (images_dir / "images-4.9.0.yaml").read_text(encoding="utf-8")
+    assert "#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3.\n" in images
+    assert "#   2. openformulieren 3.4.10 -> 3.5.6.\n" in images
+    assert "#   3." not in images
+    out = capsys.readouterr().out
+    assert "Renumbering '# Changes:' list in images-4.9.0.yaml" in out
+
+
 # --- main() integration: images-baseline.yaml fallback for a brand-new component ---
 
 @pytest.fixture

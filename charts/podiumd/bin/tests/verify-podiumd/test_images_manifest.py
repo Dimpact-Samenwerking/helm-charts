@@ -59,6 +59,31 @@ def test_parse_changes_block_no_changes_section(libupgradedoc):
     assert libupgradedoc.parse_changes_block("# just a header\n# no changes block\n") == []
 
 
+# --- check_images_manifest_changes_numbering ---
+
+def test_changes_numbering_flags_a_gap(libdocsconsistency):
+    """A gap left by a human hand-removing an item's own block without
+    renumbering everything after it — real case that surfaced this."""
+    text = "# Changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   3. openformulieren 3.4.10 -> 3.5.6.\n"
+    issues = libdocsconsistency.check_images_manifest_changes_numbering("images-4.9.0.yaml", text)
+    assert any('item numbered 3 should be 2' in i for i in issues)
+
+
+def test_changes_numbering_correct_sequence_is_clean(libdocsconsistency):
+    text = "# Changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   2. openformulieren 3.4.10 -> 3.5.6.\n"
+    assert libdocsconsistency.check_images_manifest_changes_numbering("images-4.9.0.yaml", text) == []
+
+
+def test_changes_numbering_flags_stale_count_word(libdocsconsistency):
+    text = "# Three changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   2. openformulieren 3.4.10 -> 3.5.6.\n"
+    issues = libdocsconsistency.check_images_manifest_changes_numbering("images-4.9.0.yaml", text)
+    assert any('header says "Three changes" but there are actually 2' in i for i in issues)
+
+
+def test_changes_numbering_no_header_is_clean(libdocsconsistency):
+    assert libdocsconsistency.check_images_manifest_changes_numbering("images-4.9.0.yaml", "some: yaml\n") == []
+
+
 # --- check_images_manifest_format ---
 
 DEPS = [
@@ -73,6 +98,17 @@ def test_images_manifest_format_passes_for_consistent_manifest(libdocsconsistenc
     images_path.write_text(REAL_MANIFEST)
     issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert issues == []
+
+
+def test_images_manifest_format_flags_a_numbering_gap(libdocsconsistency, tmp_path):
+    """check_images_manifest_format wires in check_images_manifest_
+    changes_numbering — a gap in the "# Changes:" list is a real,
+    reportable mismatch, not silently ignored."""
+    text = REAL_MANIFEST.replace("#   2. ZGW Office Add-in", "#   3. ZGW Office Add-in")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(text)
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert any('item numbered 3 should be 2' in i for i in issues)
 
 
 def test_images_manifest_format_missing_file(libdocsconsistency, tmp_path):

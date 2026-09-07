@@ -14,7 +14,10 @@ from lib.chart import (
     canonical_sidecar_row_names, global_image_paths, load_images_baseline, load_yaml, paths_by_repository,
     repo_group_representative,
 )
-from lib.component_docs import CHANGES_ITEM_RE, find_images_manifest_changes_header, find_values_delta_section
+from lib.component_docs import (
+    CHANGES_HEADER_RE, CHANGES_ITEM_RE, find_images_manifest_changes_header, find_images_manifest_changes_items,
+    find_values_delta_section, images_manifest_changes_count_word,
+)
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
@@ -332,6 +335,43 @@ def find_images_manifest_entries_missing_changes_mention(text, entries, deps, va
     return sorted(missing)
 
 
+def check_images_manifest_changes_numbering(images_path_name, text):
+    """The images-manifest's own "# Changes:" numbered item list must be
+    a gapless 1..N sequence matching its own current top-to-bottom
+    document order, and the header's own leading count word (if it has
+    one — see find_images_manifest_changes_header) must equal the
+    actual item count. sort_images_manifest_changes_items/dedupe_
+    images_manifest_changes_items each already renumber correctly as a
+    side effect of their OWN operation (reordering, removing a
+    duplicate) — but neither fires, and so neither catches, a list
+    that's already duplicate-free and already in the right RELATIVE
+    order yet still has the wrong ABSOLUTE numbers (real case: a human
+    hand-removes a stale item's own block without renumbering
+    everything after it, leaving a gap like "...6. ... 8. ..." with no
+    "7." at all). See lib.component_docs.renumber_images_manifest_
+    changes_items, fix-doc-consistency's own fix for exactly this."""
+    lines = text.splitlines(keepends=True)
+    header_idx, header_has_count, item_indices = find_images_manifest_changes_items(lines)
+    if header_idx is None or not item_indices:
+        return []
+
+    issues = []
+    for slot, idx in enumerate(item_indices):
+        expected = slot + 1
+        actual = int(CHANGES_ITEM_RE.match(lines[idx]).group("num"))
+        if actual != expected:
+            issues.append(f'{images_path_name}: "# Changes:" item numbered {actual} should be {expected} '
+                           f'(item #{expected} in the list, top to bottom)')
+
+    if header_has_count:
+        count_word, noun = images_manifest_changes_count_word(len(item_indices))
+        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+        if header_m and header_m.group("count_word").lower() != count_word.lower():
+            issues.append(f'{images_path_name}: header says "{header_m.group("count_word")} {noun}" but there '
+                           f'are actually {len(item_indices)}')
+    return issues
+
+
 def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_version, deps, values, baseline_values,
                                   chart_dir=None):
     """Existence + YAML-validity + header-comment-accuracy precheck for the
@@ -380,6 +420,8 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
         if normalize_version(vs_baseline) != normalize_version(upgrade_docs_baseline):
             issues.append(f'{images_path.name}: "... vs ..." line says upgrade_docs_baseline "{vs_baseline}", '
                            f'expected "{upgrade_docs_baseline}"')
+
+    issues.extend(check_images_manifest_changes_numbering(images_path.name, text))
 
     items = list(parse_changes_block(text))
     # Same two deterministic gaps as lib.docs_consistency's own upgrade-doc

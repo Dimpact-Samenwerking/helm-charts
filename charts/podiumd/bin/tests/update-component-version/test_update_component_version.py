@@ -1268,6 +1268,59 @@ def test_main_adds_new_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
     assert f'"sha256:{"c" * 64}"' in images
 
 
+def test_main_fixes_a_preexisting_changes_numbering_gap_when_adding_an_item(ucv, tmp_path, monkeypatch):
+    """The images manifest already has a gap in its own "# Changes:"
+    numbering (items "1." and "3." — a THIRD, unrelated item was
+    apparently removed by hand at some point without renumbering) when
+    update-component-version adds zac's own brand-new item — the whole
+    list must come out fully renumbered 1..N, not just the new item
+    slotted in with the pre-existing gap still there (see lib.
+    component_docs.insert_images_manifest_header_item/renumber_images_
+    manifest_changes_items)."""
+    setup_repo(tmp_path, monkeypatch, ucv)
+    setup_docs(
+        ucv, monkeypatch,
+        upgrade_text=(
+            "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+            "## Component versions (4.9.0 vs 4.8.5)\n\n"
+            "| Component | App version | Helm chart | Notes |\n"
+            "| --- | --- | --- | --- |\n\n"
+            "## Changes\n\n"
+        ),
+        images_text=(
+            "# Three changes:\n"
+            "#   1. redis-operator v0.25.0 -> v0.26.0.\n"
+            "#   3. openbao 0.28.4, unchanged.\n"
+            "#\n"
+            "# redis-operator — v0.25.0 -> v0.26.0\n"
+            "- name: redis-operator\n"
+            '  version: "v0.26.0"\n'
+            '  digest: "sha256:eeee"\n'
+            "# openbao — 0.28.4\n"
+            "- name: openbao\n"
+            '  version: "0.28.4"\n'
+            '  digest: "sha256:ffff"\n'
+        ),
+    )
+    mock_verify_passes(monkeypatch, ucv)
+    mock_registry_passes(monkeypatch, ucv, "c")
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
+
+    ucv.main()
+
+    # zac is the only REAL Chart.yaml dependency among these three items
+    # (redis-operator/openbao are free-form prose here, matching no
+    # dependency at all) — a resolved item always sorts before an
+    # unresolved one, so zac's own new item becomes "1.", pushing the
+    # other two down to "2."/"3." (still 2 apart in the source, but now
+    # correctly sequential instead of the original 1/3 gap).
+    images = (ucv.IMAGES_DIR / "images-4.9.0.yaml").read_text(encoding="utf-8")
+    assert "#   2. redis-operator v0.25.0 -> v0.26.0.\n" in images
+    assert "#   3. openbao 0.28.4, unchanged.\n" in images
+    assert "#   4." not in images
+    assert ". zac" in images
+
+
 def test_main_updates_existing_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
     setup_repo(tmp_path, monkeypatch, ucv)
     setup_docs(
