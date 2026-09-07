@@ -85,8 +85,8 @@ from lib.image_version import update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo
 from lib.upgradedoc import (
-    compute_changed_components, describe_key_changes, find_all_image_and_version_paths, global_image_paths,
-    normalize_version,
+    actual_app_version, compute_changed_components, describe_key_changes, find_all_image_and_version_paths,
+    global_image_paths, normalize_version,
 )
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -176,7 +176,28 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
         # a member of that set even when this specific image DID change.
         reset_to_baseline = values_key not in changed_keys
         baseline_tag = get_path(baseline_values, f"{values_key}.{image_paths[0]}.tag") or ""
-        old_app = baseline_tag.split("@", 1)[0] or old_app
+        baseline_app = baseline_tag.split("@", 1)[0] or None
+        if baseline_app is None:
+            # baseline_tag came back blank — a component whose own image
+            # tag is deliberately left blank in values.yaml (e.g.
+            # openbao's "server.image.tag" — see lib.chart.COMPONENT_
+            # IMAGE_PATHS) only ever resolves its real app version via
+            # actual_app_version's own vendored-.tgz subchart_app_version
+            # fallback, which the raw tag read above can never reach. A
+            # basename bump never touches Chart.yaml (see this function's
+            # own docstring) — dep's own chart version at baseline always
+            # matches its current one, so the same vendored .tgz backs
+            # both, and it's safe to resolve the baseline's app version
+            # through that same file. Same fix, same reasoning, as lib.
+            # component_docs.resolve_component_own_version_change's own
+            # fallback (real bug that fix addressed in fix-doc-
+            # consistency's own doc-sync path — this is the same gap in
+            # THIS script's own doc-writing path): without it, a
+            # component like openbao got a false "(new)" Changes-section
+            # heading here even when nothing about it had actually
+            # changed.
+            baseline_app = actual_app_version(baseline_values, values_key, chart_name, chart_dir=CHART_DIR, dep=dep)
+        old_app = baseline_app or old_app
 
     if upgrade_path is None:
         print()

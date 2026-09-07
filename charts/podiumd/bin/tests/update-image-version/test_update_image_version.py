@@ -5,9 +5,12 @@ imported binding (update_image_version lives in lib.image_version, which
 resolves `registry_tag_exists` via ITS OWN globals — see
 lib.image_version's import — so tests patch that module directly, same as
 tests/lib/test_image_version.py does)."""
+import io
 import subprocess
+import tarfile
 
 import pytest
+import yaml
 
 
 def write_values(tmp_path, text):
@@ -180,6 +183,107 @@ def test_main_single_component_updates_upgrade_doc_table_and_changes(uiv, tmp_pa
     out = capsys.readouterr().out
     assert "added table row" in out
     assert "(re)wrote '### openklant ...' Changes section" in out
+
+
+def _make_vendored_tgz(charts_dir, name, version, chart_yaml):
+    charts_dir.mkdir(parents=True, exist_ok=True)
+    tgz_path = charts_dir / f"{name}-{version}.tgz"
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        data = yaml.safe_dump(chart_yaml).encode("utf-8")
+        info = tarfile.TarInfo(name=f"{name}/Chart.yaml")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+    return tgz_path
+
+
+def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(
+        uiv, tmp_path, monkeypatch):
+    """Regression test (real bug, real doc): openbao's own "server.image.
+    tag" is deliberately left blank at the baseline (see lib.chart.
+    COMPONENT_IMAGE_PATHS["openbao"]'s own comment) — its real baseline
+    app version only resolves via the vendored-.tgz subchart_app_version
+    fallback, which the raw baseline_values.yaml tag read used to never
+    attempt. lib.image_version.update_image_version can only ever bump
+    an ALREADY digest-pinned tag (scan_digest_pins never matches a blank
+    one), so the real sequence is: baseline ships blank (subchart-only
+    v2.5.0), values.yaml gets hand-pinned to v2.5.5 by some OTHER means
+    (exactly the real openbao doc's own actual history this session),
+    then THIS run bumps v2.5.5 -> v2.6.0 via update-image-version. A
+    basename bump never touches Chart.yaml (old_chart == new_chart
+    always here — see update_docs_single_component's own docstring), so
+    the SAME vendored .tgz backs both baseline and target — old_app
+    must resolve to the real "v2.5.0" baked into that file, not None,
+    collapsing to a real "v2.5.0 -> v2.6.0" transition (never showing
+    the intermediate v2.5.5 hop, same as any other repeated-bump case)
+    instead of a false "(new)" one purely because of this resolution
+    gap (the same fix already made in lib.component_docs.resolve_
+    component_own_version_change for fix-doc-consistency's own doc-sync
+    path — this is the same gap in update-image-version's own doc-
+    writing path)."""
+    (tmp_path / "Chart.yaml").write_text(
+        "apiVersion: v2\n"
+        "name: podiumd\n"
+        "version: 1.0.0\n"
+        "dependencies:\n"
+        "  - name: openbao\n"
+        "    version: 0.28.4\n"
+        "    repository: \"@openbao\"\n",
+        encoding="utf-8",
+    )
+    values_path = write_values(tmp_path, (
+        "openbao:\n"
+        "  server:\n"
+        "    image:\n"
+        "      repository: quay.io/openbao/openbao\n"
+        "      tag: \"\"\n"
+    ))
+    monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
+    _make_vendored_tgz(tmp_path / "charts", "openbao", "0.28.4",
+                        {"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.0"})
+    commit_baseline_tag(tmp_path, "0.9.0")  # baseline: chart 0.28.4, app version blank (subchart-only v2.5.0)
+
+    # Simulate "hand-pinned to v2.5.5 by some other means, chart untouched" --
+    # real openbao's own actual history this session.
+    write_values(tmp_path, (
+        "openbao:\n"
+        "  server:\n"
+        "    image:\n"
+        "      repository: quay.io/openbao/openbao\n"
+        f'      tag: "v2.5.5@sha256:{"a" * 64}"\n'
+    ))
+
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
+              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+              "## Component versions (1.0.0 vs 0.9.0)\n\n"
+              "| Component | App version | Helm chart | Notes |\n"
+              "| --- | --- | --- | --- |\n\n"
+              "## Changes\n")
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
+              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n")
+    write_doc(uiv.IMAGES_DIR, "images-1.0.0.yaml",
+              "# Baseline: podiumd 0.9.0.\n#\n# Zero changes:\n#\n\n"
+              "- name: openbao\n"
+              "  url: quay.io/openbao/openbao\n"
+              '  version: "v2.5.5"\n'
+              f'  digest: "sha256:{"a" * 64}"\n')
+
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv", ["update-image-version", "openbao", "openbao", "v2.6.0"])
+
+    uiv.main()
+
+    upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
+    assert "None" not in upgrade
+    assert "(new)" not in upgrade
+    assert "| openbao | v2.5.0 → v2.6.0 | 0.28.4 (unchanged) | - |" in upgrade
+    assert "### openbao v2.5.0 → v2.6.0 (chart 0.28.4, unchanged)" in upgrade
+
+    manifest = (uiv.IMAGES_DIR / "images-1.0.0.yaml").read_text(encoding="utf-8")
+    assert "None" not in manifest
+    assert "1. openbao v2.5.0 -> v2.6.0 (chart 0.28.4, unchanged)." in manifest
 
 
 # --- doc updates: a sidecar bump (not the dependency's own primary image) ---

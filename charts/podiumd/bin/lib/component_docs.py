@@ -1187,6 +1187,16 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
     original_text = images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
+    # A file that has lost its "# Changes:" header (or never had one) —
+    # see ensure_images_manifest_changes_header's own docstring for the
+    # real bug this fixes: insert_images_manifest_header_item is a
+    # documented no-op with no header to insert into, so without this,
+    # a component bumped via update-component-version/update-image-
+    # version into a header-less manifest would silently never get a
+    # "# Changes:" list item, exactly the fix-doc-consistency-side gap
+    # this same fix already closed for add_missing_images_manifest_
+    # entries — this is the same gap in THESE scripts' own write path.
+    ensure_images_manifest_changes_header(lines)
     header_idx, _header_has_count = find_images_manifest_changes_header(lines)
 
     changes_action = None
