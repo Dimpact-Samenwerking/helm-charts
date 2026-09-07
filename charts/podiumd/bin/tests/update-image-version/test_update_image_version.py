@@ -150,7 +150,8 @@ def test_main_single_component_updates_upgrade_doc_table_and_changes(uiv, tmp_pa
     ))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    (tmp_path / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
     write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
               "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
               "## Component versions (1.0.0 vs 0.9.0)\n\n"
@@ -202,7 +203,8 @@ def test_main_sidecar_bump_gets_disambiguated_row_name(uiv, tmp_path, monkeypatc
     values_path = write_values(tmp_path, REDIS_VALUES_TMPL.format(version="8.6.2", digest="a" * 64))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    (tmp_path / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
     write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
               "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
               "## Component versions (1.0.0 vs 0.9.0)\n\n"
@@ -239,7 +241,8 @@ def test_main_sidecar_bump_does_not_corrupt_dependencys_own_row(uiv, tmp_path, m
     values_path = write_values(tmp_path, REDIS_VALUES_TMPL.format(version="8.6.2", digest="a" * 64))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    (tmp_path / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
     write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
               "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
               "## Component versions (1.0.0 vs 0.9.0)\n\n"
@@ -326,7 +329,8 @@ def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, t
     ))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    (tmp_path / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
     write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
               "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
               "## Component versions (1.0.0 vs 0.9.0)\n\n"
@@ -382,7 +386,8 @@ def commit_baseline_tag(tmp_path, baseline):
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "baseline", cwd=tmp_path)
     git("tag", f"podiumd-{baseline}", cwd=tmp_path)
-    (tmp_path / "release-baseline.yaml").write_text(f'upgrade_docs: "{baseline}"\n', encoding="utf-8")
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    (tmp_path / "etc" / "release-baseline.yaml").write_text(f'upgrade_docs: "{baseline}"\n', encoding="utf-8")
 
 
 CURL_VALUES_TMPL = (

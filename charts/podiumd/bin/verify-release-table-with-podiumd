@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Compare charts/podiumd/release-table.csv (see
+Compare charts/podiumd/etc/release-table.csv (see
 export-confluence-release-table) against the CURRENT
 charts/podiumd/Chart.yaml + values.yaml, and report:
 
@@ -121,7 +121,7 @@ from lib.image_version import GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, basenames_under
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"
 VALUES_YAML = CHART_DIR / "values.yaml"
-RELEASE_TABLE_CSV = CHART_DIR / "release-table.csv"
+RELEASE_TABLE_CSV = CHART_DIR / "etc" / "release-table.csv"
 
 UNRESOLVED_COMPONENTS = ("", "UNKNOWN")
 

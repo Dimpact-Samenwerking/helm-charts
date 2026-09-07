@@ -51,7 +51,8 @@ def write_baselines(repo, upgrade_docs=None, release_table=None):
         lines.append(f'upgrade_docs: "{upgrade_docs}"\n')
     if release_table is not None:
         lines.append(f'release_table: "{release_table}"\n')
-    (repo / "charts" / "podiumd" / "release-baseline.yaml").write_text("".join(lines), encoding="utf-8")
+    (repo / "charts" / "podiumd" / "etc").mkdir(exist_ok=True)
+    (repo / "charts" / "podiumd" / "etc" / "release-baseline.yaml").write_text("".join(lines), encoding="utf-8")
 
 
 def test_find_repo_root_returns_repo_root(scbv, repo, monkeypatch):

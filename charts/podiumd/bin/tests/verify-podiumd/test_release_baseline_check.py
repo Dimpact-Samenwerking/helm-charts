@@ -34,7 +34,8 @@ def write_baselines(chart_dir, upgrade_docs=None, release_table=None):
         lines.append(f"upgrade_docs: '{upgrade_docs}'\n")
     if release_table is not None:
         lines.append(f"release_table: '{release_table}'\n")
-    (chart_dir / "release-baseline.yaml").write_text("".join(lines), encoding="utf-8")
+    (chart_dir / "etc").mkdir(exist_ok=True)
+    (chart_dir / "etc" / "release-baseline.yaml").write_text("".join(lines), encoding="utf-8")
 
 
 def test_both_baselines_resolve_passes(vp, repo, capsys):

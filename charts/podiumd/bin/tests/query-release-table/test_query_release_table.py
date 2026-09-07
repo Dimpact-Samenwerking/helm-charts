@@ -1,6 +1,6 @@
 """load_rows, matching_rows, component_matches, used_by_rows_for,
 display_value, print_table, main — with DEFAULT_INPUT monkeypatched to a
-fixture CSV, so no dependency on a real charts/podiumd/release-table.csv
+fixture CSV, so no dependency on a real charts/podiumd/etc/release-table.csv
 on disk."""
 import pytest
 

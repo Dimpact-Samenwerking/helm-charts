@@ -2,7 +2,7 @@
 """
 Open a new podiumd release cycle: bump charts/podiumd/Chart.yaml's own
 version/appVersion to the target named by the current branch, record the
-outgoing version in charts/podiumd/release-baseline.yaml's upgrade_docs
+outgoing version in charts/podiumd/etc/release-baseline.yaml's upgrade_docs
 key (and, on a minor bump only, its release_table key too — see below),
 then scaffold the upgrade-path docs for the outgoing version as the new
 upgrade_docs baseline (runs create-doc-version, which only ever creates

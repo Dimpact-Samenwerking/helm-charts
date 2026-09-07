@@ -64,7 +64,8 @@ def test_no_baseline_given_and_no_release_baseline_fails(cdv, tmp_path, monkeypa
 
 def test_no_baseline_given_uses_release_baseline(cdv, tmp_path, monkeypatch, capsys):
     doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
-    (tmp_path / "release-baseline.yaml").write_text('upgrade_docs: "4.8.5"\n', encoding="utf-8")
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "4.8.5"\n', encoding="utf-8")
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
     cdv.main()  # success path: must not raise

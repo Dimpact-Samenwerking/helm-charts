@@ -14,7 +14,8 @@ def make_chart_dir(tmp_path, files=None, upgrade_docs_baseline=None):
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "Chart.yaml").write_text("name: podiumd\nversion: 4.9.0\n", encoding="utf-8")
     if upgrade_docs_baseline is not None:
-        (tmp_path / "release-baseline.yaml").write_text(
+        (tmp_path / "etc").mkdir(exist_ok=True)
+        (tmp_path / "etc" / "release-baseline.yaml").write_text(
             f'upgrade_docs: "{upgrade_docs_baseline}"\n', encoding="utf-8")
     for rel_path, content in (files or {}).items():
         p = tmp_path / rel_path

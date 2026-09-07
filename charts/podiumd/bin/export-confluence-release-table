@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Exports the podiumd release-changes table(s) from a Confluence page into
-charts/podiumd/release-table.csv, including a "component"/"alias" per
+charts/podiumd/etc/release-table.csv, including a "component"/"alias" per
 row resolved against charts/podiumd/Chart.yaml and values.yaml (see
 component_and_alias).
 
@@ -37,7 +37,7 @@ from lib.confluence_tables import (
 from lib.image_version import basenames_under_scope, image_basename
 
 CHART_DIR = SCRIPT_DIR.parents[0]
-DEFAULT_OUTPUT = CHART_DIR / "release-table.csv"
+DEFAULT_OUTPUT = CHART_DIR / "etc" / "release-table.csv"
 
 # The four sections this export exists for, on the podiumd release-notes
 # Confluence page — pass --heading (repeatable) to override.
