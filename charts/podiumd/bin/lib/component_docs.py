@@ -608,6 +608,57 @@ def dep_for_values_key(deps, values_key):
     return None
 
 
+def resolve_component_own_version_change(key, target_deps, baseline_deps, target_values, baseline_values, chart_dir,
+                                          images_baseline):
+    """(dep, chart_name, old_chart, new_chart, old_app, new_app, unchanged)
+    for `key` (a member of lib.upgradedoc.compute_changed_components'
+    own result) — `unchanged` is True when BOTH this component's own
+    chart version and its own primary app version resolve as identical
+    between baseline and target (the images-baseline.yaml fallback
+    included — see app_version_pin_via_images_baseline), meaning
+    whatever else made `key` register as changed (almost always a
+    brand-new/changed sidecar nested under it — that gets its own
+    separate row via lib.image_docs.add_missing_sidecar_rows) has
+    NOTHING to do with this component's own version; -upgrade.md's own
+    "Component versions" table is about version changes specifically,
+    so a redundant "(unchanged)"-only row for the OWNING component
+    itself would just be noise on top of the sidecar's own row (real
+    case: zac gaining a brand-new opentelemetry-collector-contrib
+    sidecar, or openbao gaining three brand-new sidecars of its own,
+    neither changing that component's OWN app/chart version at all).
+
+    Returns None (nothing resolved) for a key matching neither a real
+    Chart.yaml dependency nor a lib.chart.NATIVE_COMPONENTS entry —
+    shouldn't happen for a key compute_changed_components itself ever
+    returns, but never assumed. Shared by add_missing_component_rows
+    (skip adding such a row) and lib.docs_consistency.check_docs_
+    consistency's own "changed but has no row" finding (skip demanding
+    one), so the two can never drift on which keys actually need a
+    row of their own."""
+    dep = dep_for_values_key(target_deps, key)
+    if dep is not None:
+        chart_name = dep["name"]
+        baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
+        old_chart = str(baseline_dep["version"]) if baseline_dep else None
+        new_chart = str(dep["version"])
+    elif key in NATIVE_COMPONENTS:
+        chart_name = key
+        old_chart = None
+        new_chart = "-"
+    else:
+        return None
+    old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
+    new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
+    if old_app is None and baseline_values:
+        old_app = app_version_pin_via_images_baseline(target_values, key, chart_name, chart_dir, target_deps,
+                                                       images_baseline)
+    chart_unchanged = new_chart == "-" or (old_chart is not None
+                                           and normalize_version(old_chart) == normalize_version(new_chart))
+    app_unchanged = (old_app is not None and new_app is not None
+                     and normalize_version(old_app) == normalize_version(new_app))
+    return dep, chart_name, old_chart, new_chart, old_app, new_app, (chart_unchanged and app_unchanged)
+
+
 def add_missing_component_rows(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
                                 actual_changed_keys, target):
     """Insert a new "Component versions" table row + matching "### ..."
@@ -661,33 +712,18 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
 
     added_names = []
     for key in sorted(actual_changed_keys - matched_keys):
-        dep = dep_for_values_key(target_deps, key)
-        if dep is not None:
-            chart_name = dep["name"]
-            baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
-            old_chart = str(baseline_dep["version"]) if baseline_dep else None
-            new_chart = str(dep["version"])
-        elif key in NATIVE_COMPONENTS:
-            chart_name = key
-            old_chart = None
-            new_chart = "-"
-        else:
+        resolved = resolve_component_own_version_change(
+            key, target_deps, baseline_deps, target_values, baseline_values, chart_dir, images_baseline)
+        if resolved is None:
             continue
-        old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
-        new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
-        if old_app is None and baseline_values:
-            # baseline_values has nothing for `key` at all (a component
-            # whose own values.yaml section — or, for a NATIVE_COMPONENTS
-            # key, whose top-level key itself — didn't exist at the
-            # baseline ref yet) — before concluding "genuinely new", check
-            # whether the CURRENTLY-pinned image is already a known,
-            # previously-mirrored pin in images-baseline.yaml (real case:
-            # brppersonenmock's own Chart.yaml dependency predates 4.9.0,
-            # but its "image:" block was only added to podiumd's own
-            # values.yaml this release, pinned to a version already
-            # mirrored from an earlier, unrelated hop).
-            old_app = app_version_pin_via_images_baseline(target_values, key, chart_name, chart_dir, target_deps,
-                                                           images_baseline)
+        dep, chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
+        if unchanged:
+            # This component's OWN chart+app are both unchanged — whatever
+            # else made `key` register as changed (almost always a brand-
+            # new/changed sidecar nested under it) already gets its own
+            # separate row via add_missing_sidecar_rows; a redundant
+            # "(unchanged)"-only row here would just be noise.
+            continue
 
         text, table_action = update_component_table(
             text, key, old_app, new_app if new_app is not None else "-", old_chart, new_chart,

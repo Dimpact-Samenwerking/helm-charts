@@ -233,6 +233,96 @@ DEPS = [
 ]
 
 
+# --- resolve_component_own_version_change / add_missing_component_rows ---
+
+def test_resolve_component_own_version_change_true_when_both_unchanged(libcomponentdocs):
+    """Regression test: zac gaining a brand-new sidecar of its own (not
+    modeled here — this only checks the OWN-version resolution) with
+    its own chart+app both unchanged must resolve unchanged=True."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+    resolved = libcomponentdocs.resolve_component_own_version_change("zac", deps, deps, values, values, None, [])
+    assert resolved is not None
+    *_rest, unchanged = resolved
+    assert unchanged is True
+
+
+def test_resolve_component_own_version_change_false_when_app_changed(libcomponentdocs):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    current = {"zac": {"image": {"tag": "5.4.4@sha256:bbbb"}}}
+    baseline = {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
+    resolved = libcomponentdocs.resolve_component_own_version_change("zac", deps, deps, current, baseline, None, [])
+    _dep, _chart_name, _old_chart, _new_chart, old_app, new_app, unchanged = resolved
+    assert (old_app, new_app, unchanged) == ("5.0.2", "5.4.4", False)
+
+
+def test_resolve_component_own_version_change_false_when_chart_changed(libcomponentdocs):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
+    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+    resolved = libcomponentdocs.resolve_component_own_version_change(
+        "zac", deps, baseline_deps, values, values, None, [])
+    *_rest, unchanged = resolved
+    assert unchanged is False
+
+
+def test_resolve_component_own_version_change_native_component_ignores_chart(libcomponentdocs):
+    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no chart at
+    all — new_chart == "-" always counts as "chart unchanged", so the
+    decision hinges entirely on the app version."""
+    values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
+    resolved = libcomponentdocs.resolve_component_own_version_change(
+        "frankgateway", [], [], values, values, None, [])
+    *_rest, unchanged = resolved
+    assert unchanged is True
+
+
+def test_resolve_component_own_version_change_none_for_unmatched_key(libcomponentdocs):
+    resolved = libcomponentdocs.resolve_component_own_version_change("ghost", [], [], {}, {}, None, [])
+    assert resolved is None
+
+
+def test_add_missing_component_rows_skips_own_unchanged_component(libcomponentdocs, tmp_path):
+    """Regression test: zac's subtree gains a brand-new sidecar of its
+    own (not modeled here directly — actual_changed_keys already
+    contains "zac" for whatever reason, matching what compute_changed_
+    components would report), but zac's OWN chart+app are both
+    unchanged — no row/section should be added for zac itself; that
+    sidecar already gets its own separate row via add_missing_sidecar_
+    rows. Real case: zac gaining opentelemetry-collector-contrib,
+    openbao gaining three brand-new sidecars — neither's own version
+    moved, so a redundant "(unchanged)" row for the owner was pure
+    noise."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n\n"
+    )
+    new_text, added_names = libcomponentdocs.add_missing_component_rows(
+        text, tmp_path, deps, values, deps, values, {"zac"}, "4.9.1")
+    assert added_names == []
+    assert "zac" not in new_text
+
+
+def test_add_missing_component_rows_still_adds_a_real_bump(libcomponentdocs, tmp_path):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    current_values = {"zac": {"image": {"tag": "5.4.4@sha256:bbbb"}}}
+    baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n\n"
+    )
+    new_text, added_names = libcomponentdocs.add_missing_component_rows(
+        text, tmp_path, deps, current_values, deps, baseline_values, {"zac"}, "4.9.1")
+    assert added_names == ["zac"]
+    assert "| zac | 5.0.2 → 5.4.4 | 1.0.297 (unchanged) | - |" in new_text
+
+
 def test_find_values_delta_section_matches_hand_written_heading(libcomponentdocs):
     text = "# Values deltas\n\n## KISS 2.2.4 → 3.0.0 — required edits\n\nSome prose.\n"
     section = libcomponentdocs.find_values_delta_section(text, "kiss", [{"name": "kiss", "version": "3.0.0"}])

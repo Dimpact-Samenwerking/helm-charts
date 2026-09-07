@@ -16,7 +16,7 @@ from lib.chart import (
 )
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, find_images_manifest_changes_header, find_images_manifest_changes_items,
-    find_values_delta_section, images_manifest_changes_count_word,
+    find_values_delta_section, images_manifest_changes_count_word, resolve_component_own_version_change,
 )
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_repository_check import find_images_without_repository
@@ -904,6 +904,18 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
 
         if baseline_ref:
             for key in sorted(actual_changed_keys - changed_component_keys):
+                # A key whose OWN chart+app both resolve unchanged never
+                # needed a row of its own in the first place — see
+                # resolve_component_own_version_change (shared with fix-
+                # doc-consistency's own add_missing_component_rows, so
+                # the two can never drift on which keys actually need
+                # one); whatever else made `key` register as changed
+                # (almost always a brand-new/changed sidecar nested
+                # under it) already gets its own separate row.
+                resolved = resolve_component_own_version_change(
+                    key, deps, baseline_deps, values, baseline_values, chart_dir, images_baseline)
+                if resolved is not None and resolved[-1]:
+                    continue
                 mismatches.append(
                     f'{doc_path.name}: component "{key}" changed vs {baseline_ref} but has no row '
                     f'in the "Component versions" table'
