@@ -243,16 +243,16 @@ with production workload measurements.
        secrets:
          objecttypen_openbeheer_token: "REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
        data: |-
-         tokenauth_config_enable: true
-         tokenauth:
-           items:
-           - identifier: openbeheer-token
-             token: {value_from: {env: objecttypen_openbeheer_token}}
-             contact_person: Open Beheer
-             email: openbeheer@example.com
-             organization: Open Beheer
-             application: Open Beheer
-             administration: Open Beheer
+          tokenauth_config_enable: true
+          tokenauth:
+            items:
+              - identifier: openbeheer-token
+                token: {value_from: {env: objecttypen_openbeheer_token}}
+                contact_person: Open Beheer
+                email: openbeheer@example.com
+                organization: Open Beheer
+                application: Open Beheer
+                administration: Open Beheer
    ```
 
    **objecten side** — register `openbeheer-token` with **`is_superuser: true`** so it can read/write across all object types:
