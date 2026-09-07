@@ -321,14 +321,12 @@ def test_minor_bump_writes_both_baselines_and_delegates(cpv, repo, monkeypatch, 
     assert 'upgrade_docs: 4.9.0' in baselines or 'upgrade_docs: "4.9.0"' in baselines
     assert 'release_table: 4.9.0' in baselines or 'release_table: "4.9.0"' in baselines
     assert len(calls) == 1
-    assert calls[0][0] == cpv.sys.executable
-    assert calls[0][1] == str(cpv.CREATE_DOC_VERSION_SCRIPT)
-    assert calls[0][2] == "4.9.0"
+    assert calls[0] == [cpv.sys.executable, str(cpv.CREATE_DOC_VERSION_SCRIPT)]
     out = capsys.readouterr().out
     assert "4.9.0 -> 4.10.0 (minor bump)" in out
     assert "upgrade_docs 4.9.0 (resolved to podiumd-4.9.0)" in out
     assert "release_table 4.9.0 (resolved to podiumd-4.9.0)" in out
-    assert "create-doc-version 4.9.0" in out
+    assert "create-doc-version (upgrade_docs baseline 4.9.0)" in out
 
 
 def test_patch_bump_writes_only_upgrade_docs_leaves_release_table(cpv, repo, monkeypatch, capsys):

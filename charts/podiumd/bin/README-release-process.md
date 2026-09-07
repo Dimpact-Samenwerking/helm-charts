@@ -100,7 +100,7 @@ This updates just a container image version in a release.
 - create a PR to merge the my-changes branch into the release branch
 
 ### Fix and debug tools
-- `fix-doc-consistency`: rebases doc filenames and components and images in them onto a different baseline (normally run automatically by `change-podiumd-baseline`)
+- `fix-doc-consistency`: rebases doc filenames and components and images in them onto `charts/podiumd/etc/release-baseline.yaml`'s own `upgrade_docs` baseline (normally run automatically by `change-podiumd-baseline`, right after it writes that key)
 - `fix-helm-doc`: re-generate `charts/podiumd/README.md` using `helm-docs`
 - `fix-image-digests`: updates image digests for one specific image or all stale images (also runs `fix-helm-doc` on any real write)
 - `fix-markdown`: auto-fix whatever pymarkdown's own `fix` mode can safely resolve
@@ -130,7 +130,7 @@ Tools:
 - `create-doc-version`: create the standard docs for the current target version, for whichever don't already exist — refuses if docs already exist under a different baseline (use `fix-doc-consistency` for that instead)
 - `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as the outgoing baseline release, updates version in `Chart.yaml`, records that baseline in `charts/podiumd/etc/release-baseline.yaml` and creates upgrade docs (runs `create-doc-version`) — refuses unless the outgoing→target jump is a single patch increment (records `upgrade_docs` only) or a single minor increment (records both `upgrade_docs` and `release_table`); major-version bumps and skipped versions aren't supported
 - `export-confluence-release-table`: fetch release data from confluence and store it in `charts/podiumd/etc/release-table.csv`
-- `fix-doc-consistency`: given a new baseline, rebases doc filenames and components and images in them onto it (creates the standard docs fresh instead, for whichever were never scaffolded under any baseline at all)
+- `fix-doc-consistency`: reads `charts/podiumd/etc/release-baseline.yaml`'s own `upgrade_docs` baseline (never a CLI argument — change `upgrade_docs` via `change-podiumd-baseline` instead) and rebases doc filenames and components and images in them onto it (creates the standard docs fresh instead, for whichever were never scaffolded under any baseline at all)
 - `fix-helm-doc`: re-generate `charts/podiumd/README.md` using `helm-docs`
 - `fix-image-digests`: updates image digests for one specific image or all stale images (also runs `fix-helm-doc` on any real write)
 - `fix-markdown`: auto-fix whatever pymarkdown's own `fix` mode can safely resolve

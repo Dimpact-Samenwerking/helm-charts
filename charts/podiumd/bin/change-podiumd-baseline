@@ -81,8 +81,8 @@ def main():
               f"(resolved to {ref})")
 
     print()
-    print(f"=== Running fix-doc-consistency {new_baseline} ===")
-    result = run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT), new_baseline])
+    print(f"=== Running fix-doc-consistency (upgrade_docs baseline {new_baseline}) ===")
+    result = run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT)])
     if result.returncode != 0:
         sys.exit(result.returncode)
 

@@ -52,13 +52,15 @@ Example:
     create-podiumd-version
         # bumps Chart.yaml's version/appVersion 4.9.0 -> 4.9.1 (a patch
         # increment), writes upgrade_docs: "4.9.0" (release_table stays
-        # "4.8.5"), then runs create-doc-version 4.9.0
+        # "4.8.5"), then runs create-doc-version (which picks that same
+        # "4.9.0" back up from release-baseline.yaml)
 
     # on branch feature/podiumd-4.10.0, with Chart.yaml at version: 4.9.1
     create-podiumd-version
         # bumps Chart.yaml's version/appVersion 4.9.1 -> 4.10.0 (a minor
         # increment), writes BOTH upgrade_docs and release_table to
-        # "4.9.1", then runs create-doc-version 4.9.1
+        # "4.9.1", then runs create-doc-version (which picks that same
+        # "4.9.1" back up from release-baseline.yaml)
 """
 import re
 import sys
@@ -186,8 +188,8 @@ def main():
               f"resolved to {resolved_refs['release_table']})")
 
     print()
-    print(f"=== Running create-doc-version {baseline} ===")
-    result = run_script([sys.executable, str(CREATE_DOC_VERSION_SCRIPT), baseline])
+    print(f"=== Running create-doc-version (upgrade_docs baseline {baseline}) ===")
+    result = run_script([sys.executable, str(CREATE_DOC_VERSION_SCRIPT)])
     sys.exit(result.returncode)
 
 

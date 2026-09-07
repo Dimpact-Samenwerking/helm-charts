@@ -2,12 +2,14 @@
 """
 Rebase every docs/_UPGRADE_PATHS/<baseline>-to-<target>-*.md doc (and
 docs/images/images-<target>.yaml) for the current chart's target
-version — charts/podiumd/Chart.yaml's own "version:" — onto a new
-baseline, e.g. renaming "4.8.2-to-4.9.0-upgrade.md" to
-"4.8.3-to-4.9.0-upgrade.md", updating titles/headings and any sibling-doc
-cross-reference (any "<X>-to-<target>-*.md" mention, wherever it appears
-in the text — this chart supports exactly one upgrade path per target, so
-every such reference always means the current baseline). A doc already
+version — charts/podiumd/Chart.yaml's own "version:" — onto
+charts/podiumd/etc/release-baseline.yaml's own upgrade_docs baseline,
+e.g. renaming "4.8.2-to-4.9.0-upgrade.md" to "4.8.3-to-4.9.0-upgrade.md"
+once upgrade_docs reads "4.8.3", updating titles/headings and any
+sibling-doc cross-reference (any "<X>-to-<target>-*.md" mention,
+wherever it appears in the text — this chart supports exactly one
+upgrade path per target, so every such reference always means the
+current baseline). A doc already
 at the target baseline is checked for a stale sibling reference too
 (a scar from an earlier, incomplete rebase this doc's own baseline
 already moved past) even though nothing else about it changes. Also
@@ -51,24 +53,26 @@ afterward. A sidecar row's own values-delta mention is still never
 auto-added — no mechanically-derivable placeholder exists for prose
 explaining WHY a change happened, unlike a manifest entry's own fields.
 
-Called automatically by change-podiumd-baseline, right after it writes
-release-baseline.yaml's upgrade_docs key — see that script for the
-usual "rebase onto a different baseline" workflow. Also runnable
-standalone.
+Never takes the baseline as an argument — always release-baseline.
+yaml's own upgrade_docs key, so change-podiumd-baseline only has to
+write that key (which it does right before calling this script) for
+this to pick it up; that's also the only sanctioned way to actually
+change what baseline this script rebases onto, see that script for
+the usual "rebase onto a different baseline" workflow. This script
+itself never writes release-baseline.yaml. Errors if the file or key
+doesn't exist yet — run create-podiumd-version (new release cycle) or
+change-podiumd-baseline <baseline> (existing cycle) first. Also
+runnable standalone, to repair the current baseline's docs in place
+without rebasing (e.g. after a manual values.yaml edit).
 
 Usage:
-    fix-doc-consistency [<new-baseline>]
-        # <new-baseline> defaults to release-baseline.yaml's upgrade_docs
-        # content if omitted (error if that key doesn't exist either) —
-        # this script itself never writes release-baseline.yaml; see
-        # change-podiumd-baseline.
+    fix-doc-consistency
 
 Example:
-    fix-doc-consistency 4.8.3
-        # if Chart.yaml's version is 4.9.0, renames *-to-4.9.0-*.md
     fix-doc-consistency
-        # same, but reads "4.8.3" from release-baseline.yaml's
-        # upgrade_docs key instead
+        # if Chart.yaml's version is 4.9.0 and release-baseline.yaml's
+        # upgrade_docs is "4.8.3", renames *-to-4.9.0-*.md accordingly
+        # and repairs their content against Chart.yaml/values.yaml
 """
 import re
 import subprocess
@@ -950,19 +954,16 @@ def main():
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)
-    if len(sys.argv) not in (1, 2):
+    if len(sys.argv) != 1:
         print(__doc__)
         sys.exit(1)
 
-    if len(sys.argv) == 2:
-        new_baseline = sys.argv[1]
-    else:
-        new_baseline = read_upgrade_docs_baseline(CHART_YAML.parent)
-        if new_baseline is None:
-            print("error: no <new-baseline> given and release-baseline.yaml's "
-                  "upgrade_docs key doesn't exist — pass <new-baseline> explicitly")
-            sys.exit(1)
-        print(f"No <new-baseline> given — using release-baseline.yaml's upgrade_docs '{new_baseline}'")
+    new_baseline = read_upgrade_docs_baseline(CHART_YAML.parent)
+    if new_baseline is None:
+        print("error: release-baseline.yaml has no upgrade_docs key (or the file doesn't "
+              "exist yet) — run create-podiumd-version (new release cycle) or "
+              "change-podiumd-baseline <baseline> (existing cycle) to set it first")
+        sys.exit(1)
 
     if not BASELINE_VERSION_RE.match(new_baseline):
         print(f"error: '{new_baseline}' is not a valid MAJOR.MINOR.PATCH version")

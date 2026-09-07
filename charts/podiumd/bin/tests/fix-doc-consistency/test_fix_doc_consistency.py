@@ -147,7 +147,8 @@ def repo(tmp_path):
 
 
 def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
-    monkeypatch.setattr("sys.argv", ["fix-doc-consistency", new_baseline])
+    monkeypatch.setattr("sys.argv", ["fix-doc-consistency"])
+    monkeypatch.setattr(cdb, "read_upgrade_docs_baseline", lambda chart_dir: new_baseline)
     monkeypatch.setattr(cdb, "DOC_DIR", doc_dir)
     monkeypatch.setattr(cdb, "IMAGES_DIR", doc_dir.parent / "images")
     monkeypatch.setattr(cdb, "CHART_YAML", doc_dir.parents[1] / "Chart.yaml")
@@ -288,10 +289,10 @@ def test_main_already_at_new_baseline_with_correct_sibling_ref_is_a_noop(cdb, re
     assert "fixed stale sibling doc reference(s)" not in out
 
 
-def test_main_no_argument_and_no_release_baseline_errors(cdb, monkeypatch):
-    """Zero arguments is otherwise valid (falls back to release-baseline.
-    yaml's upgrade_docs content) — only the combination of no argument AND
-    no upgrade_docs baseline to fall back to is an error.
+def test_main_no_release_baseline_errors(cdb, monkeypatch):
+    """No release-baseline.yaml upgrade_docs key to read (file or key
+    missing) is an error — this script never takes the baseline as an
+    argument, so there's nothing else to fall back to.
     read_upgrade_docs_baseline mocked directly (never CHART_YAML/DOC_DIR)
     so this can't accidentally read/touch the real chart's own
     release-baseline.yaml/docs if the mock were ever missed."""
@@ -304,10 +305,8 @@ def test_main_no_argument_and_no_release_baseline_errors(cdb, monkeypatch):
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
 def test_main_help_flag_prints_usage_and_exits_zero_without_touching_anything(cdb, repo, monkeypatch, capsys, flag):
-    """`--help` must never be treated as `new_baseline` — passing it used to
-    run the whole bump for real with a literal baseline of "--help",
-    renaming docs to "--help-to-<target>-*.md". It must instead print the
-    module docstring and exit 0, leaving every doc untouched."""
+    """`--help` must print the module docstring and exit 0, leaving every
+    doc untouched."""
     before = sorted(p.name for p in repo.iterdir())
     monkeypatch.setattr("sys.argv", ["fix-doc-consistency", flag])
     with pytest.raises(SystemExit) as exc_info:
@@ -317,15 +316,30 @@ def test_main_help_flag_prints_usage_and_exits_zero_without_touching_anything(cd
     assert sorted(p.name for p in repo.iterdir()) == before
 
 
-@pytest.mark.parametrize("bogus", ["4.8", "4.8.2-rc1", "v4.8.2", "latest", "4.8.2.1", ""])
-def test_main_rejects_non_semver_baseline_without_touching_anything(cdb, repo, monkeypatch, capsys, bogus):
-    """Anything that isn't a bare MAJOR.MINOR.PATCH — a two-part version, a
-    pre-release suffix, a "v" prefix, "latest", four parts, or empty — must
-    be rejected up front with a clear error, not silently treated as a
-    literal baseline (see BASELINE_VERSION_RE). "--help"/"-h" are their own,
-    earlier case (see test_main_help_flag_...), not part of this check."""
+def test_main_rejects_any_argument(cdb, repo, monkeypatch, capsys):
+    """This script never takes the baseline (or anything else) as an
+    argument — any positional argument (other than -h/--help, its own
+    earlier case) must be rejected with the usage docstring, not silently
+    treated as a baseline the way it used to be."""
     before = sorted(p.name for p in repo.iterdir())
-    monkeypatch.setattr("sys.argv", ["fix-doc-consistency", bogus])
+    monkeypatch.setattr("sys.argv", ["fix-doc-consistency", "4.8.3"])
+    with pytest.raises(SystemExit) as exc_info:
+        cdb.main()
+    assert exc_info.value.code == 1
+    assert capsys.readouterr().out == cdb.__doc__ + "\n"
+    assert sorted(p.name for p in repo.iterdir()) == before
+
+
+@pytest.mark.parametrize("bogus", ["4.8", "4.8.2-rc1", "v4.8.2", "latest", "4.8.2.1", ""])
+def test_main_rejects_non_semver_baseline_from_release_baseline_yaml(cdb, repo, monkeypatch, capsys, bogus):
+    """Anything release-baseline.yaml's own upgrade_docs key holds that
+    isn't a bare MAJOR.MINOR.PATCH — a two-part version, a pre-release
+    suffix, a "v" prefix, "latest", four parts, or empty — must be
+    rejected up front with a clear error (see BASELINE_VERSION_RE), a
+    defensive check against a hand-edited or corrupted file now that this
+    can no longer come from a CLI argument."""
+    before = sorted(p.name for p in repo.iterdir())
+    set_argv_and_dir(cdb, monkeypatch, repo, bogus)
     with pytest.raises(SystemExit) as exc_info:
         cdb.main()
     assert exc_info.value.code == 1

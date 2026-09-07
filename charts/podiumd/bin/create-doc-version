@@ -9,34 +9,33 @@ fix-doc-consistency for that (rebasing docs already scaffolded under a
 different upgrade_docs_baseline onto a new one).
 
 Refuses to create anything if a doc already exists for this target under
-a DIFFERENT upgrade_docs_baseline than the one given — that's exactly the situation
-fix-doc-consistency exists for. Silently creating fresh stubs next to
-docs already scaffolded under some other upgrade_docs_baseline (this script's
-ancestor, set-doc-baseline, could do exactly that — blindly rebase docs
-that should have been left alone, or the reverse) is the one thing this
-split makes structurally impossible: creating and rebasing are now two
-different scripts, so neither can accidentally do the other's job.
+a DIFFERENT upgrade_docs_baseline than release-baseline.yaml's own —
+that's exactly the situation fix-doc-consistency exists for. Silently
+creating fresh stubs next to docs already scaffolded under some other
+upgrade_docs_baseline (this script's ancestor, set-doc-baseline, could
+do exactly that — blindly rebase docs that should have been left alone,
+or the reverse) is the one thing this split makes structurally
+impossible: creating and rebasing are now two different scripts, so
+neither can accidentally do the other's job.
 
-Called automatically by create-podiumd-version, right after it bumps
-Chart.yaml and writes release-baseline.yaml's upgrade_docs key — see
-that script for the usual "open a new release" workflow. Also runnable
-standalone to re-scaffold a doc that's missing without going through
+Never takes the baseline as an argument — always release-baseline.
+yaml's own upgrade_docs key, so create-podiumd-version only has to
+write that key (which it does right before calling this script, at the
+start of a release cycle) for this to pick it up; see that script for
+the usual "open a new release" workflow. Errors if the file or key
+doesn't exist yet — run create-podiumd-version first. Also runnable
+standalone, to re-scaffold a doc that's missing without going through
 the whole flow.
 
 Usage:
-    create-doc-version [<upgrade_docs_baseline>]
-        # <upgrade_docs_baseline> defaults to release-baseline.yaml's
-        # upgrade_docs content if omitted (error if that key doesn't
-        # exist either)
+    create-doc-version
 
 Example:
-    create-doc-version 4.9.0
-        # if Chart.yaml's version is 4.10.0, creates whichever of
+    create-doc-version
+        # if Chart.yaml's version is 4.10.0 and release-baseline.yaml's
+        # upgrade_docs is "4.9.0", creates whichever of
         # 4.9.0-to-4.10.0-{upgrade,gemeente-specific,values-deltas}.md
         # and images-4.10.0.yaml don't already exist
-    create-doc-version
-        # same, but reads "4.9.0" from release-baseline.yaml's
-        # upgrade_docs key instead
 """
 import sys
 from pathlib import Path
@@ -65,20 +64,15 @@ def main():
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)
-    if len(sys.argv) not in (1, 2):
+    if len(sys.argv) != 1:
         print(__doc__)
         sys.exit(1)
 
-    if len(sys.argv) == 2:
-        upgrade_docs_baseline = sys.argv[1]
-    else:
-        upgrade_docs_baseline = read_upgrade_docs_baseline(CHART_DIR)
-        if upgrade_docs_baseline is None:
-            print("error: no <upgrade_docs_baseline> given and release-baseline.yaml's "
-                  "upgrade_docs key doesn't exist — pass <upgrade_docs_baseline> explicitly")
-            sys.exit(1)
-        print(f"No <upgrade_docs_baseline> given — using release-baseline.yaml's "
-              f"upgrade_docs '{upgrade_docs_baseline}'")
+    upgrade_docs_baseline = read_upgrade_docs_baseline(CHART_DIR)
+    if upgrade_docs_baseline is None:
+        print("error: release-baseline.yaml has no upgrade_docs key (or the file doesn't "
+              "exist yet) — run create-podiumd-version to set it first")
+        sys.exit(1)
 
     if not BASELINE_VERSION_RE.match(upgrade_docs_baseline):
         print(f"error: '{upgrade_docs_baseline}' is not a valid MAJOR.MINOR.PATCH version")
