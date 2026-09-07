@@ -6,8 +6,8 @@ import yaml
 
 from lib.chart import (
     COMPONENT_IMAGE_PATHS, NATIVE_COMPONENTS, get_path, global_image_paths, image_paths_for,
-    is_primary_image_path, nested_subchart_registered_paths, subchart_app_version, version_of,
-    version_paths_for,
+    image_pin_known_in_images_baseline, is_primary_image_path, nested_subchart_registered_paths,
+    subchart_app_version, version_of, version_paths_for,
 )
 
 
@@ -1286,7 +1286,7 @@ def find_images_manifest_faulty_headers(entries, entry_line_indices, lines, deps
 
 
 def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_map, repo_groups,
-                                    unresolvable_paths):
+                                    unresolvable_paths, images_baseline=()):
     """(missing_paths, extra_entry_names) — the images-manifest's own
     "list of changed images" checked against the FULL, actual set of
     every image tag pin whose VERSION (lib.chart.version_of — the tag
@@ -1341,6 +1341,20 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     reports it as broken on its own; this one has no business demanding
     a manifest entry for it too.
 
+    images_baseline: lib.chart.load_images_baseline's own result (the
+    cumulative docs/images/images-baseline.yaml, [] if omitted) —
+    consulted ONLY when baseline_paths has NOTHING for a path at all
+    (baseline_tag is None below), the real gap this parameter closes: a
+    component that didn't exist in Chart.yaml/values.yaml until this
+    release has no prior tag to diff against, so the git baseline alone
+    can never tell "genuinely new pin" apart from "already-known image,
+    just newly used by a brand-new component" (real case: brppersonenmock
+    added in 4.9.0, pinned to a brp-personen-mock version already
+    mirrored from an earlier, unrelated hop — see lib.chart.image_pin_
+    known_in_images_baseline). Without this, EVERY image under a brand-
+    new component always counts as "changed" regardless of whether its
+    own specific version+digest is actually new to the mirror at all.
+
     missing_paths: every (already-collapsed) path whose tag actually
     changed but no entry resolves to it at all — a real change the
     manifest never mentions. stale_entry_names: every entry's own
@@ -1362,10 +1376,24 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     less."""
     representative_of = {path: repo_map[repo] for repo, paths in repo_groups.items()
                           for path in paths if repo in repo_map}
+    path_to_repo = {path: repo for repo, paths in repo_groups.items() for path in paths}
 
     def version_changed(path, tag):
         baseline_tag = baseline_paths.get(path)
-        return baseline_tag is None or version_of(tag) != version_of(baseline_tag)
+        if baseline_tag is not None:
+            return version_of(tag) != version_of(baseline_tag)
+        # No prior value for this path at all (a component that didn't
+        # exist in Chart.yaml/values.yaml until this release) — the git
+        # baseline genuinely has nothing to diff against. Before
+        # concluding "changed", check whether this EXACT version+digest
+        # is already a known, previously-mirrored pin in images-
+        # baseline.yaml — if so, it isn't new to the mirror, just new to
+        # THIS path (see lib.chart.image_pin_known_in_images_baseline).
+        repo = path_to_repo.get(path)
+        if repo is None:
+            return True
+        new_version, _, digest = tag.partition("@")
+        return not image_pin_known_in_images_baseline(images_baseline, repo, new_version, digest)
 
     changed_paths = {path for path, tag in current_paths.items()
                       if representative_of.get(path, path) == path

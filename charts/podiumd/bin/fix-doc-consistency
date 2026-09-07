@@ -83,7 +83,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import (
     canonical_sidecar_row_names, chart_version, documented_repository_for_path, global_image_paths,
-    paths_by_repository, repo_group_representative, resolved_digest_pin, version_of,
+    load_images_baseline, paths_by_repository, repo_group_representative, resolved_digest_pin, version_of,
 )
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
@@ -763,8 +763,9 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
     key_order = values_key_order(target_values)
 
+    images_baseline = load_images_baseline(chart_dir)
     missing_paths, _stale_entry_names, _unmatched_entry_names = find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths)
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths, images_baseline)
 
     def order_key(values_key, is_sidecar):
         return images_manifest_order_key(key_order, values_key, is_sidecar)

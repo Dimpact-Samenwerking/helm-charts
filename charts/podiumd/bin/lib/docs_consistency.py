@@ -11,7 +11,8 @@ import re
 import yaml
 
 from lib.chart import (
-    canonical_sidecar_row_names, global_image_paths, load_yaml, paths_by_repository, repo_group_representative,
+    canonical_sidecar_row_names, global_image_paths, load_images_baseline, load_yaml, paths_by_repository,
+    repo_group_representative,
 )
 from lib.component_docs import CHANGES_ITEM_RE, find_images_manifest_changes_header, find_values_delta_section
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
@@ -545,8 +546,9 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     # all (baseline_values is {} in that case, so baseline_paths is too).
     if baseline_paths and chart_dir is not None:
         unresolvable_paths = set(find_images_without_repository(chart_dir))
+        images_baseline = load_images_baseline(chart_dir)
         missing_paths, stale_entry_names, unmatched_entry_names = find_images_manifest_list_diff(
-            entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths)
+            entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths, images_baseline)
         for path in missing_paths:
             name = path_display_name(path, deps, canonical_names)
             issues.append(f'{images_path.name}: image "{name}" changed vs '
