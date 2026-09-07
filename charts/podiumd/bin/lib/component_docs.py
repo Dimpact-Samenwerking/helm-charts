@@ -21,15 +21,16 @@ import re
 
 import yaml
 
-from lib.chart import NATIVE_COMPONENTS, image_paths_for, replace_scalar_value, version_paths_for
+from lib.chart import NATIVE_COMPONENTS, image_paths_for, load_images_baseline, replace_scalar_value, \
+    version_paths_for
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
-    _word_aligned_spans, actual_app_version, append_to_doc, changes_heading_identities, component_order_key,
-    component_version_cell, COMPONENT_VERSIONS_HEADING_RE, extract_source_version,
-    find_grouped_preceding_comment_line, insertion_index, match_dependency_excluding_sidecar_names,
-    match_native_component, missing_key_change_lines_by_key, normalize_name, normalize_version,
-    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, parse_values_delta_sections, replace_version_pair,
-    resolve_entry_path, values_key_order,
+    _word_aligned_spans, actual_app_version, app_version_pin_via_images_baseline, append_to_doc,
+    changes_heading_identities, component_order_key, component_version_cell, COMPONENT_VERSIONS_HEADING_RE,
+    extract_source_version, find_grouped_preceding_comment_line, insertion_index,
+    match_dependency_excluding_sidecar_names, match_native_component, missing_key_change_lines_by_key,
+    normalize_name, normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
+    parse_values_delta_sections, replace_version_pair, resolve_entry_path, values_key_order,
 )
 
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
@@ -628,6 +629,7 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
     — see that function's own docstring) gets a "-" app-version
     placeholder and a short TODO-stub Changes section instead of
     guessing at prose. Returns (new_text, added_names)."""
+    images_baseline = load_images_baseline(chart_dir)
     matched_keys = set()
     for row in parse_upgrade_doc_rows(text):
         # match_dependency_excluding_sidecar_names, not match_dependency
@@ -659,6 +661,19 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
             continue
         old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
         new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
+        if old_app is None and baseline_values:
+            # baseline_values has nothing for `key` at all (a component
+            # whose own values.yaml section — or, for a NATIVE_COMPONENTS
+            # key, whose top-level key itself — didn't exist at the
+            # baseline ref yet) — before concluding "genuinely new", check
+            # whether the CURRENTLY-pinned image is already a known,
+            # previously-mirrored pin in images-baseline.yaml (real case:
+            # brppersonenmock's own Chart.yaml dependency predates 4.9.0,
+            # but its "image:" block was only added to podiumd's own
+            # values.yaml this release, pinned to a version already
+            # mirrored from an earlier, unrelated hop).
+            old_app = app_version_pin_via_images_baseline(target_values, key, chart_name, chart_dir, target_deps,
+                                                           images_baseline)
 
         text, table_action = update_component_table(
             text, key, old_app, new_app if new_app is not None else "-", old_chart, new_chart,

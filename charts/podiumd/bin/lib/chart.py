@@ -349,12 +349,16 @@ def load_images_baseline(chart_dir):
     — the full, CUMULATIVE strip-registry mirror manifest (every image
     version ever pinned across every release, not just this hop's own
     changes — see that file's own header comment) — or [] if it doesn't
-    exist. Entries are {name, url, version, digest} dicts; "name:" is
-    already in the same stripped form (strip_registry(url)) images-
-    <target>.yaml's own "name:"/"url:" fields use (see paths_by_
-    repository), so a manifest entry's own repo string is directly
-    comparable against this file's "name:" without re-deriving
-    anything."""
+    exist, or `chart_dir` itself is None (a caller with no chart_dir to
+    resolve at all — same "nothing to fall back to" convention every
+    other chart_dir-optional lookup here already uses). Entries are
+    {name, url, version, digest} dicts; "name:" is already in the same
+    stripped form (strip_registry(url)) images-<target>.yaml's own
+    "name:"/"url:" fields use (see paths_by_repository), so a manifest
+    entry's own repo string is directly comparable against this file's
+    "name:" without re-deriving anything."""
+    if chart_dir is None:
+        return []
     path = chart_dir / IMAGES_BASELINE_FILE_NAME
     if not path.is_file():
         return []
@@ -1001,6 +1005,30 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
         if isinstance(repo, str) and repo:
             groups.setdefault(strip_registry_host(repo), []).append(path)
     return groups
+
+
+def image_pin_matches_images_baseline(chart_dir, deps, values, path, tag, images_baseline):
+    """Whether `path`'s current `tag` — already known to have no prior
+    value to diff against in a git baseline at all (see
+    image_pin_known_in_images_baseline's own real cases: brppersonenmock,
+    redis-operator's own "k8s" sidecar, kiss's own "crawler" dependency,
+    all three added/rearranged in Chart.yaml this release) — is
+    nonetheless a pin already known in images_baseline: genuinely new to
+    THIS path, but not new to the mirror. `path` is resolved to its
+    stripped repository via paths_by_repository's own per-path
+    resolution chain (podiumd's own override, then nested-subchart/
+    version-sibling fallbacks) — a single-path convenience wrapper
+    around it, not a separate resolution rule. False outright when
+    `tag` carries no "@sha256:..." digest at all (nothing to match), or
+    `path` doesn't resolve to any repository."""
+    if not tag or "@" not in tag:
+        return False
+    version, digest = tag.split("@", 1)
+    repo_groups = paths_by_repository(chart_dir, deps, values, [path])
+    repo = next(iter(repo_groups), None)
+    if repo is None:
+        return False
+    return image_pin_known_in_images_baseline(images_baseline, repo, version, digest)
 
 
 def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):

@@ -98,8 +98,8 @@ from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_row
 from lib.image_repository_check import find_images_without_repository
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
-    append_to_doc, canonical_version_cell, component_version_cell, compute_changed_components,
-    extract_source_version, extract_target_version, find_all_image_and_version_paths,
+    app_version_pin_via_images_baseline, append_to_doc, canonical_version_cell, component_version_cell,
+    compute_changed_components, extract_source_version, extract_target_version, find_all_image_and_version_paths,
     find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff,
     images_manifest_block_start, images_manifest_display_name_positions, images_manifest_entries_share_group,
     images_manifest_entry_positions, insertion_index, is_primary_image_path,
@@ -266,6 +266,7 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
     current_paths = dict(find_image_tag_paths(target_values))
     current_paths.update(global_image_paths(target_values))
     canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
+    images_baseline = load_images_baseline(chart_dir)
 
     for row in rows:
         # resolve_component_row is shared with lib.docs_consistency's own
@@ -274,7 +275,7 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
         # silently drift apart on what "correct" even means).
         resolved = resolve_component_row(
             row["name"], chart_dir, canonical_names, target_deps, target_values,
-            baseline_deps=baseline_deps, baseline_values=baseline_values,
+            baseline_deps=baseline_deps, baseline_values=baseline_values, images_baseline=images_baseline,
         )
         if resolved["kind"] == "unmatched":
             # A row shaped like the canonical sidecar form ("<key> -
@@ -308,12 +309,24 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
                 unresolved_names.append(row["name"])
                 continue
 
+            # Before writing "(new)": a brand-new Chart.yaml dependency
+            # (resolved["dep"] not None) may still be pinned to an image
+            # that's already a known, previously-mirrored pin in images-
+            # baseline.yaml (see app_version_pin_via_images_baseline's own
+            # real cases) — genuinely new to Chart.yaml, but not new to the
+            # mirror, so its app cell should read "(unchanged)" instead.
+            old_app_for_cell = None
+            if resolved["dep"] is not None and actual_target_app is not None:
+                old_app_for_cell = app_version_pin_via_images_baseline(
+                    target_values, resolved["values_key"], resolved["dep"]["name"], chart_dir, target_deps,
+                    images_baseline)
+
             row_changed = False
             line = lines[row["line_index"]]
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
 
             if actual_target_app is not None:
-                new_app_cell = component_version_cell(None, actual_target_app)
+                new_app_cell = component_version_cell(old_app_for_cell, actual_target_app)
                 if cells[1] != new_app_cell:
                     cells[1] = new_app_cell
                     row_changed = True

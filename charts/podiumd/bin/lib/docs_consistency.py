@@ -704,6 +704,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     # app-version pair at all for a component that DOES have one — see
     # "is missing the primary-image app version" below.
     resolved_app_by_identity = {}
+    images_baseline = load_images_baseline(chart_dir)
 
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
     is_bare_version = bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline))
@@ -832,6 +833,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             resolved = resolve_component_row(
                 row["name"], chart_dir, canonical_names, deps, values,
                 baseline_deps=baseline_deps if baseline_ref else None, baseline_values=baseline_values,
+                images_baseline=images_baseline,
             )
             if resolved["kind"] == "unmatched":
                 mismatches.append(

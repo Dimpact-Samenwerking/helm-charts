@@ -6,8 +6,8 @@ import yaml
 
 from lib.chart import (
     COMPONENT_IMAGE_PATHS, NATIVE_COMPONENTS, get_path, global_image_paths, image_paths_for,
-    image_pin_known_in_images_baseline, is_primary_image_path, nested_subchart_registered_paths,
-    subchart_app_version, version_of, version_paths_for,
+    image_pin_known_in_images_baseline, image_pin_matches_images_baseline, is_primary_image_path,
+    nested_subchart_registered_paths, subchart_app_version, version_of, version_paths_for,
 )
 
 
@@ -851,6 +851,36 @@ def actual_app_version(values, values_key, component=None, chart_dir=None, dep=N
     return None
 
 
+def app_version_pin_via_images_baseline(target_values, values_key, component, chart_dir, deps, images_baseline):
+    """The CURRENT app version at values_key/component's own image_paths_
+    for(component) location — but ONLY when its exact (repo, version,
+    digest) pin is already a known, previously-mirrored pin in
+    images_baseline (lib.chart.image_pin_matches_images_baseline).
+    Tried by every caller that already knows actual_app_version(baseline_
+    values, ...) resolved to None because the component didn't exist in
+    Chart.yaml/values.yaml at the baseline ref AT ALL — the real gap this
+    closes: git has nothing to diff against, but the component's own
+    CURRENT image may already be a known mirror pin, just newly used by
+    a brand-new Chart.yaml dependency (real case: brppersonenmock, kiss's
+    own "crawler" dependency — both added in 4.9.0, each pinned to a
+    version already mirrored from an earlier, unrelated hop). Follows
+    the exact same "first image_paths_for candidate with a real tag
+    wins" order actual_app_version's own first pass uses, so this never
+    disagrees with what that call already resolved as the target app.
+    None when no candidate has a tag at all, that tag carries no digest
+    to match, or the pin isn't already known in images_baseline."""
+    for path in image_paths_for(component or values_key):
+        tag = get_path(target_values, f"{values_key}.{path}.tag")
+        if not tag:
+            continue
+        if "@" in tag:
+            full_path = (values_key,) + tuple(path.split("."))
+            if image_pin_matches_images_baseline(chart_dir, deps, target_values, full_path, tag, images_baseline):
+                return tag.split("@")[0]
+        return None
+    return None
+
+
 def sidecar_tag(values, sidecar_path):
     """The tag pinned at a sidecar's own values-tree path (as returned by
     lib.chart.canonical_sidecar_row_names — already ending in the real
@@ -867,8 +897,28 @@ def sidecar_tag(values, sidecar_path):
     return tag.split("@", 1)[0] if isinstance(tag, str) and tag else None
 
 
+def sidecar_tag_or_images_baseline(baseline_values, target_values, sidecar_path, chart_dir, deps, images_baseline):
+    """sidecar_tag(baseline_values, sidecar_path) — the ordinary "what was
+    this sidecar pinned to at the baseline ref" answer — except when
+    that resolves to None (sidecar_path didn't exist in baseline_values
+    at all, e.g. redis-operator's own "k8s" sidecar, added in 4.9.0) and
+    target_values' OWN current tag at that exact path is already a known
+    mirror pin (see lib.chart.image_pin_matches_images_baseline). Returns
+    the CURRENT tag's version in that case — so a caller renders
+    "(unchanged)"/no real transition instead of "(new)" — else None."""
+    baseline_app = sidecar_tag(baseline_values, sidecar_path)
+    if baseline_app is not None or not baseline_values:
+        return baseline_app
+    tag = get_path(target_values, ".".join(sidecar_path) + ".tag")
+    if not isinstance(tag, str) or not tag:
+        return None
+    if image_pin_matches_images_baseline(chart_dir, deps, target_values, sidecar_path, tag, images_baseline):
+        return tag.split("@", 1)[0]
+    return None
+
+
 def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
-                           baseline_deps=None, baseline_values=None):
+                           baseline_deps=None, baseline_values=None, images_baseline=()):
     """Resolve a "Component versions" table row's name to the real
     component it identifies, and its actual target (and, if requested,
     source) versions — the one place both fix-doc-consistency's row-
@@ -894,6 +944,25 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
     caller that deliberately isn't checking a baseline (no
     upgrade_docs_baseline given) can tell that apart from a baseline
     that was requested but couldn't be resolved for this one component.
+
+    images_baseline: lib.chart.load_images_baseline's own result ([] if
+    omitted) — consulted whenever a kind's own ordinary baseline-app
+    lookup resolves to None because there's simply nothing for it in
+    baseline_values (sidecar_path/values_key didn't exist there at all —
+    real cases: redis-operator's own "k8s" sidecar and brppersonenmock's
+    own "image:" block, both absent from baseline_values despite
+    brppersonenmock's Chart.yaml dependency line predating this release):
+    before concluding "genuinely new", checks whether the CURRENT tag is
+    already a known mirror pin (see sidecar_tag_or_images_baseline/
+    app_version_pin_via_images_baseline). Note this is entirely
+    independent of `baseline_resolved` for the "dependency" kind — that
+    stays governed solely by whether the Chart.yaml dependency itself
+    existed at the baseline ref (see the "dependency" branch below), so
+    a genuinely brand-new dependency (baseline_dep not found at all)
+    still resolves baseline_resolved=False regardless of images_baseline;
+    fix-doc-consistency's own "(new)" cell decision for THAT specific
+    case checks images_baseline itself, directly, once baseline_resolved
+    is already known False (see fix_component_version_table).
 
     Returns a dict:
       {"kind": "unmatched"}
@@ -963,7 +1032,8 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
     if baseline_deps is not None:
         baseline_values = baseline_values or {}
         if sidecar_path is not None:
-            baseline_app = sidecar_tag(baseline_values, sidecar_path)
+            baseline_app = sidecar_tag_or_images_baseline(baseline_values, values, sidecar_path, chart_dir, deps,
+                                                            images_baseline)
             result["baseline_app"] = baseline_app
             result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
         elif dep is not None:
@@ -973,13 +1043,29 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
             else:
                 result["baseline_resolved"] = True
                 result["baseline_chart"] = str(baseline_dep["version"])
-                result["baseline_app"] = actual_app_version(baseline_values, result["values_key"], dep["name"])
+                baseline_app = actual_app_version(baseline_values, result["values_key"], dep["name"])
+                if baseline_app is None and baseline_values:
+                    # The Chart.yaml dependency line itself already existed
+                    # at the baseline ref (baseline_dep found — that's what
+                    # got us into this branch), but its own values.yaml
+                    # section didn't yet (real case: brppersonenmock's
+                    # Chart.yaml entry predates 4.9.0, but its "image:"
+                    # block was only added to podiumd's own values.yaml this
+                    # release) — before concluding "genuinely new", check
+                    # the SAME images_baseline fallback the sidecar/native
+                    # branches above use.
+                    baseline_app = app_version_pin_via_images_baseline(
+                        values, result["values_key"], dep["name"], chart_dir, deps, images_baseline)
+                result["baseline_app"] = baseline_app
         else:
             # Same "no existence check possible, just compare both app
             # versions" shape as the sidecar branch above — there's no
             # dep to ask "did this exist at the baseline ref", only
             # whether native_key's own image tag was resolvable there too.
             baseline_app = actual_app_version(baseline_values, native_key, native_key)
+            if baseline_app is None:
+                baseline_app = app_version_pin_via_images_baseline(values, native_key, native_key, chart_dir, deps,
+                                                                    images_baseline)
             result["baseline_app"] = baseline_app
             result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
 

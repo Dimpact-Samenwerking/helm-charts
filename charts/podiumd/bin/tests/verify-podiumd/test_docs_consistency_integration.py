@@ -649,6 +649,71 @@ def test_unchanged_sidecar_with_no_row_is_not_flagged(vp, tmp_path, capsys):
     assert "redis-operator - redis-exporter" not in out
 
 
+def test_new_sidecar_row_known_in_images_baseline_is_not_a_warning(vp, tmp_path, capsys):
+    """Regression test: redis-operator's own "k8s" sidecar is added as a
+    brand-new nested path this release (baseline has nothing for it at
+    all), but it's pinned to an image already known, byte-for-byte, in
+    docs/images/images-baseline.yaml — resolve_component_row's own
+    images_baseline fallback (see lib.chart.image_pin_matches_images_
+    baseline) resolves its baseline app version anyway, so this is
+    verified clean, not left as an unverifiable warning the way a
+    genuinely new pin would be (see test_new_dependency_unresolvable_
+    baseline_row_is_a_warning_not_a_failure)."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    images_dir = chart_dir / "docs" / "images"
+    for d in (doc_dir, images_dir):
+        d.mkdir(parents=True)
+
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+
+    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(redis_values("8.6.2"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    (chart_dir / "values.yaml").write_text(
+        redis_values("8.6.2") + '  k8s:\n    image:\n      repository: quay.io/alpine/k8s\n'
+                                 '      tag: "1.36.2@sha256:cccc"\n')
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator - k8s | 1.36.2 (unchanged) | - | ACR mirror only |\n\n"
+        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+    )
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+        "## redis-operator - k8s 1.36.2 (unchanged)\n\n"
+        "No gemeente podiumd.yml changes are required for this hop.\n"
+    )
+    (images_dir / "images-4.9.0.yaml").write_text(
+        "# Baseline: podiumd 4.8.5 (test @ 0000000).\n#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n# Zero changes:\n#\n\n[]\n"
+    )
+    (images_dir / "images-baseline.yaml").write_text(
+        "- name: alpine/k8s\n"
+        "  url: quay.io/alpine/k8s\n"
+        '  version: "1.36.2"\n'
+        '  digest: "sha256:cccc"\n'
+    )
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "add k8s sidecar, pinned to an already-mirrored image", cwd=repo_root)
+
+    vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
+
+    out = capsys.readouterr().out
+    assert 'doc row "redis-operator - k8s" source version could not be verified' not in out
+    assert 'redis-operator - k8s" target app' not in out
+    assert 'redis-operator - k8s" source app' not in out
+
+
 JOB_TWO_IMAGES_VALUES_TMPL = (
     "redis-operator:\n"
     "  jobs:\n"

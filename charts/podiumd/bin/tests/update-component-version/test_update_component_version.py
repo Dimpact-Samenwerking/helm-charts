@@ -1432,6 +1432,83 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(ucv, tmp_path, monkey
     assert '"5.0.2"' in images  # the entry itself still lists the correct (reset) version
 
 
+def test_main_new_component_row_annotated_unchanged_when_known_in_images_baseline(ucv, tmp_path, monkeypatch):
+    """Regression test: brppersonenmock's own Chart.yaml dependency is
+    brand new (it doesn't exist at all at the podiumd-4.8.5 baseline
+    commit — zac is the only dependency there), so baseline_dep resolves
+    to None. Before this fix, that meant old_app stayed at whatever
+    (nothing) was on disk before THIS run — a nonsensical "(new)" app
+    cell for an image whose exact version+digest is already known in
+    images-baseline.yaml, same real gap as fix-doc-consistency's own
+    add_missing_component_rows/fix_component_version_table. No explicit
+    "repository:" override in podiumd's own values.yaml here (the
+    "fallback_paths" branch — a sub-chart default digest) since that's
+    the only bootstrap route with no PRE-EXISTING digest pin to bump
+    from at all — see check_image_versions, faked below to resolve
+    brppersonenmock's own real repository."""
+    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    commit_baseline_tag(tmp_path)  # baseline: only zac, no brppersonenmock at all
+
+    digest = "sha256:" + "b" * 64
+    chart_yaml.write_text(
+        "version: 4.9.0\n"
+        "dependencies:\n"
+        "  - name: zaakafhandelcomponent\n"
+        "    version: 1.0.296\n"
+        "    repository: \"@example\"\n"
+        "    alias: zac\n"
+        "  - name: brp-personen-mock\n"
+        "    version: 1.2.9\n"
+        "    repository: \"@dimpact\"\n"
+        "    alias: brppersonenmock\n",
+        encoding="utf-8",
+    )
+    values_yaml.write_text(
+        "zac:\n"
+        "  image:\n"
+        "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+        f'    tag: "5.0.2@sha256:{OLD_DIGEST}"\n'
+        "brppersonenmock:\n"
+        "  image:\n"
+        '    tag: ""\n',
+        encoding="utf-8",
+    )
+    write(ucv.IMAGES_DIR / "images-baseline.yaml",
+          "- name: brp-api/personen-mock\n"
+          "  url: ghcr.io/brp-api/personen-mock\n"
+          '  version: "2.7.0"\n'
+          f'  digest: "{digest}"\n')
+    setup_docs(
+        ucv, monkeypatch,
+        upgrade_text=(
+            "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+            "## Component versions (4.9.0 vs 4.8.5)\n\n"
+            "| Component | App version | Helm chart | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            "| zac | 5.0.2 (unchanged) | 1.0.296 (unchanged) | - |\n\n"
+            "## Changes\n\n"
+        ),
+        images_text=(
+            "# Zero changes:\n"
+            "#\n\n"
+        ),
+    )
+
+    def fake_check_image_versions(values, image_paths, app_version):
+        return [{"path": p, "repository": "ghcr.io/brp-api/personen-mock", "host": "ghcr.io",
+                 "repo_path": "brp-api/personen-mock", "exists": True, "digest": digest} for p in image_paths]
+
+    monkeypatch.setattr(ucv, "resolve_chart_values",
+                         lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None))
+    monkeypatch.setattr(ucv, "check_image_versions", fake_check_image_versions)
+    monkeypatch.setattr("sys.argv", ["update-component-version", "brppersonenmock", "2.7.0", "1.2.9"])
+
+    ucv.main()
+
+    upgrade = (ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| brppersonenmock | 2.7.0 (unchanged) |" in upgrade
+
+
 def test_main_collapses_repeated_bump_into_single_baseline_entry(ucv, tmp_path, monkeypatch):
     """Bumping zac to 5.4.3 and then, within the same release cycle,
     reconsidering to 5.5.0 instead must leave exactly ONE entry in each

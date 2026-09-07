@@ -19,8 +19,8 @@ since a bare basename never matches a Chart.yaml dependency by name."""
 import re
 
 from lib.chart import (
-    canonical_sidecar_row_names, get_path, global_image_paths, image_paths_for, replace_scalar_value,
-    version_paths_for,
+    canonical_sidecar_row_names, get_path, global_image_paths, image_paths_for, image_pin_matches_images_baseline,
+    load_images_baseline, replace_scalar_value, version_paths_for,
 )
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, NUMBER_WORDS, dep_for_values_key, insert_changes_section,
@@ -86,6 +86,7 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
     baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
     canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
+    images_baseline = load_images_baseline(chart_dir)
 
     matched_paths = {path for row in parse_upgrade_doc_rows(text)
                       for path in [canonical_names.get(row["name"])] if path is not None}
@@ -100,6 +101,14 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
             continue
         new_app = current_tag.split("@", 1)[0]
         old_app = baseline_tag.split("@", 1)[0] if baseline_tag else None
+        if old_app is None and baseline_values and image_pin_matches_images_baseline(
+                chart_dir, deps, target_values, path, current_tag, images_baseline):
+            # `path` didn't exist in baseline_values at all (real case:
+            # redis-operator's own "k8s" sidecar, added in 4.9.0) — before
+            # concluding "genuinely new", check whether the CURRENT pin is
+            # already a known, previously-mirrored pin in images-
+            # baseline.yaml (see lib.chart.image_pin_matches_images_baseline).
+            old_app = new_app
 
         text, table_action = update_component_table(text, name, old_app, new_app, None, "-", deps, target_values,
                                                      canonical_names)
