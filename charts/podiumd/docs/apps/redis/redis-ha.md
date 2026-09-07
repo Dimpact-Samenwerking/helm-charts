@@ -78,4 +78,4 @@ correctly after a simultaneous pod restart of all three `redis-ha` pods (e.g. du
 that touches the StatefulSet). Once verified, disable the CronJob and remove this doc's "Known Bug"
 framing (fold the historical context into a changelog note instead).
 
-Track: https://github.com/OT-CONTAINER-KIT/redis-operator/releases
+Track: [https://github.com/OT-CONTAINER-KIT/redis-operator/releases](https://github.com/OT-CONTAINER-KIT/redis-operator/releases)

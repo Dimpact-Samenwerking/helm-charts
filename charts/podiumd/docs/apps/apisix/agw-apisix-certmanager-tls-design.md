@@ -6,7 +6,7 @@
 > [../frankgateway/frankgateway-BASICS.md](../frankgateway/frankgateway-BASICS.md).
 > This document is kept as historical record.
 
-**Solution design for PodiumD ingress — Dimpact**
+## Solution design for PodiumD ingress — Dimpact
 
 | | |
 |---|---|

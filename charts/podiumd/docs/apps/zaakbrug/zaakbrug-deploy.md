@@ -230,7 +230,7 @@ kubectl -n podiumd rollout status deployment podiumd-zaakbrug --timeout=5m
 > `extraVolumes`/`extraVolumeMounts`, move the mount into the values block and
 > drop both this patch step and the crash-loop it works around. Track this as a
 > follow-up with wearefrank and remove the workaround at the chart upgrade.
-
+>
 > **Deploy without `helm --wait`/`--atomic`** while the patch workaround is in
 > place. With `--wait`/`--atomic` helm blocks on (or rolls back) the
 > un-mounted, crash-looping pod before the patch can run. Deploy the release,
@@ -326,7 +326,7 @@ In the Keycloak admin console for the `podiumd` realm:
 
 1. **Clients → `zaakbrug` → Roles** — confirm `administrators` / `zaakbrug_admin`
    / `dataadmin` exist (seeded by the realm import, step 6).
-2. **Users → _<user>_ → Role mapping → Assign role** — filter by the `zaakbrug`
+2. **Users → _\<user>_ → Role mapping → Assign role** — filter by the `zaakbrug`
    client and assign the appropriate client role (directly, or via a group /
    composite realm role your gemeente already uses).
 3. The user opens `https://<env>-zaakbrug.<gemeente-domain>/iaf/gui`, is

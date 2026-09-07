@@ -114,8 +114,10 @@ an environment already runs a standalone `elastic-operator` Helm release
 The operator is stateless (the data lives in the Elasticsearch StatefulSet/PVCs),
 so the choice above does not affect the data.
 
+```text
 <details>
 <summary>Optional (advanced): have the umbrella adopt the standalone operator</summary>
+```
 
 If you want the umbrella operator to take over the existing operator resources
 (`eck-operator.enabled: true` while a standalone release is running), first strip
@@ -204,8 +206,10 @@ surfaces on a later rollout. After fixing the CRDs, delete the operator pod
 once to skip the remaining backoff:
 `kubectl delete pod elastic-operator-0 -n podiumd`.
 
+```text
 <details>
 <summary>Installers without cluster-scope RBAC: manual CRD apply</summary>
+```
 
 Set `eck-operator.installCRDs: false` and apply the CRDs manually before the
 upgrade (cluster-admin, repeat on every operator version bump). The CRDs are

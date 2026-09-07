@@ -127,7 +127,7 @@ not needed when deploying one.
 
 ### Official upgrade path
 
-```
+```text
 4.5.15 ─▶ 4.5.16 ─▶ 4.6.4 ─▶ 4.6.8 ─▶ 4.7.3 ─▶ 4.7.4 ─▶ 4.7.5 ─▶ 4.7.6 ─▶ 4.7.7 ─▶ 4.7.8 ─▶ 4.8.0 ─▶ 4.8.1 ─▶ 4.8.2 ─▶ 4.8.3 ─▶ 4.8.4 ─▶ 4.8.5 ─▶ 4.9.0
                                                                                                                                          ╰▶ 4.8.6 ─▶ 4.9.0   (optional Keycloak security patch)
 ```
