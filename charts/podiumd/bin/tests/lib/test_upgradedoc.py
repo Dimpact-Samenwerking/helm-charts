@@ -2929,3 +2929,42 @@ def test_resolve_component_row_sidecar_shaped_name_with_no_canonical_match_is_un
         baseline_deps=baseline_deps, baseline_values=baseline_values)
 
     assert resolved == {"kind": "unmatched"}
+
+
+# --- changes_heading_has_app_version ---
+
+def test_changes_heading_has_app_version_arrow_shape(libupgradedoc):
+    assert libupgradedoc.changes_heading_has_app_version("openzaak 1.27.4 → 1.29.3 (chart 1.0.0, unchanged)")
+
+
+def test_changes_heading_has_app_version_new_shape(libupgradedoc):
+    """Regression test: a genuinely-new component's heading (see make_
+    changes_section's own old_app is None case) shows "(new)" for the
+    app version, no arrow at all — must still count as having one, or
+    check_docs_consistency false-flags every such heading as missing
+    its app version (real case: "### openbao v2.5.5 (new) (chart
+    0.28.4, unchanged)")."""
+    assert libupgradedoc.changes_heading_has_app_version("openbao v2.5.5 (new) (chart 0.28.4, unchanged)")
+
+
+def test_changes_heading_has_app_version_unchanged_shape(libupgradedoc):
+    """Same regression, for the "(unchanged)" app-version shape (see
+    make_changes_section's old_app == new_app case) — must not be
+    confused with the CHART clause's own unrelated "(..., unchanged)"
+    that may follow it in the same heading."""
+    assert libupgradedoc.changes_heading_has_app_version(
+        "mi-data (MI-data exports) 2.71.0 (unchanged) (chart 1.0.0 → 1.1.0)")
+
+
+def test_changes_heading_has_app_version_chart_only_unchanged_is_not_confused_for_app_side(libupgradedoc):
+    """The chart clause alone saying "(..., unchanged)" (or "(..., new)")
+    must never be read as if it were the APP side's own version marker
+    — only text OUTSIDE that clause counts."""
+    assert not libupgradedoc.changes_heading_has_app_version("openbao 0.28.4 (chart 0.28.4, unchanged)")
+
+
+def test_changes_heading_has_app_version_chart_only_stub_has_none(libupgradedoc):
+    """add_missing_component_rows' own chart-only TODO-stub shape (no
+    app version could be resolved at all, no "(chart ...)" clause
+    either) reliably signals no app version was ever written."""
+    assert not libupgradedoc.changes_heading_has_app_version("openbao 0.28.4")

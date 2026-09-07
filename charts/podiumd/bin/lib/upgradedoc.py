@@ -641,18 +641,24 @@ def find_changes_row_correspondence_gaps(rows, headings, deps, canonical_names):
 
 def changes_heading_has_app_version(heading):
     """Whether a "### ..." Changes heading's own text shows an app-
-    version pair at all. make_changes_section's own template always
-    writes the app pair as "<old> → <new>" immediately after the
-    component name — even when unchanged, e.g. "openzaak 1.27.4 →
-    1.29.3" or "objecten 3.6.2 → 3.6.2" — only the "(chart ...)" portion
-    ever uses the arrow-less "X, unchanged" shape for an unchanged
-    value. A heading with no arrow anywhere (real case: "### openbao
-    0.28.4" — add_missing_component_rows' own chart-only TODO-stub
-    shape, used when actual_app_version couldn't resolve anything at
-    the time) reliably signals no app version was ever written, not
-    just that it happens to equal the source (which would still show
-    the arrow)."""
-    return "→" in heading or "->" in heading
+    version pair at all. make_changes_section's own template writes the
+    app version as "<old> → <new>" when it changed, "<new> (unchanged)"
+    when old==new, or "<new> (new)" when there's no baseline to compare
+    against at all (see make_changes_section's own docstring) —
+    immediately after the component name, in all three shapes. The
+    "(chart ...)" clause that may follow uses the exact same "X →
+    Y"/"X, unchanged"/"X, new" family for the CHART side, independently
+    of the app side, so it's stripped before checking: a heading like
+    "openbao v2.5.5 (new) (chart 0.28.4, unchanged)" must not read the
+    chart clause's own "(... unchanged)" as if it were the app side's.
+    A heading with no arrow/"(new)"/"(unchanged)" anywhere outside that
+    clause (real case: "### openbao 0.28.4" — add_missing_component_
+    rows' own chart-only TODO-stub shape, used when actual_app_version
+    couldn't resolve anything at all at the time) reliably signals no
+    app version was ever written."""
+    without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
+    return ("→" in without_chart_clause or "->" in without_chart_clause
+            or "(new)" in without_chart_clause or "(unchanged)" in without_chart_clause)
 
 
 def is_exact_dependency_match(name, dep):
