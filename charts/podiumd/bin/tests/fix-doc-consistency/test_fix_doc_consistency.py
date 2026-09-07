@@ -1170,7 +1170,7 @@ def test_main_adds_missing_changes_section_for_an_existing_dependency_row(
     cdb.main()
 
     upgrade = (repo_with_undocumented_sidecar_bump / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
-    assert "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.0.2 (chart 1.0.297, unchanged)" in upgrade
+    assert "### ZAC (Zaakafhandelcomponent) 5.0.2 (unchanged) (chart 1.0.297, unchanged)" in upgrade
     out = capsys.readouterr().out
     assert "Adding missing '### ...' Changes section(s)" in out
     assert "ZAC (Zaakafhandelcomponent)" in out
@@ -1244,7 +1244,7 @@ def test_main_updates_a_changes_heading_missing_its_app_version(cdb, tmp_path, m
     cdb.main()
 
     upgrade = (doc_dir / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
-    assert "### widget 9.9.9 → 9.9.9 (chart 2.0.0, unchanged)" in upgrade
+    assert "### widget 9.9.9 (unchanged) (chart 2.0.0, unchanged)" in upgrade
     assert "TODO: describe this component's changes" not in upgrade
     assert "### widget 2.0.0\n" not in upgrade
 
@@ -1273,7 +1273,7 @@ def test_main_adds_sections_for_both_rows_named_by_a_two_component_heading(
     upgrade = doc.read_text(encoding="utf-8")
     assert combined_heading in upgrade
     assert "Some shared prose that must not be touched." in upgrade
-    assert "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.0.2 (chart 1.0.297, unchanged)" in upgrade
+    assert "### ZAC (Zaakafhandelcomponent) 5.0.2 (unchanged) (chart 1.0.297, unchanged)" in upgrade
     assert "### redis-operator 0.26.1\n" in upgrade
     out = capsys.readouterr().out
     assert "Adding missing '### ...' Changes section(s)" in out
