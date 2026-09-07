@@ -6,6 +6,98 @@ friends) are exercised through update-component-version/update-image-
 version's own test suites instead, against realistic doc fixtures."""
 
 
+# --- renumber_images_manifest_changes_items ---
+
+def test_renumber_images_manifest_changes_items_fixes_a_gap(libcomponentdocs):
+    """A gap left by a human hand-removing an item's own block without
+    renumbering everything after it — real case that surfaced this."""
+    lines = (
+        "# Changes:\n"
+        "#   1. zac 5.0.2 -> 5.4.3.\n"
+        "#   3. openformulieren 3.4.10 -> 3.5.6.\n"
+    ).splitlines(keepends=True)
+    changed = libcomponentdocs.renumber_images_manifest_changes_items(lines)
+    assert changed is True
+    assert lines[1] == "#   1. zac 5.0.2 -> 5.4.3.\n"
+    assert lines[2] == "#   2. openformulieren 3.4.10 -> 3.5.6.\n"
+
+
+def test_renumber_images_manifest_changes_items_already_correct_is_a_noop(libcomponentdocs):
+    lines = (
+        "# Changes:\n"
+        "#   1. zac 5.0.2 -> 5.4.3.\n"
+        "#   2. openformulieren 3.4.10 -> 3.5.6.\n"
+    ).splitlines(keepends=True)
+    original = list(lines)
+    changed = libcomponentdocs.renumber_images_manifest_changes_items(lines)
+    assert changed is False
+    assert lines == original
+
+
+def test_renumber_images_manifest_changes_items_updates_count_word(libcomponentdocs):
+    """A gap fix that changes the item COUNT (not just individual
+    numbers) must also update the header's own leading count word."""
+    lines = (
+        "# Three changes:\n"
+        "#   1. zac 5.0.2 -> 5.4.3.\n"
+        "#   4. openformulieren 3.4.10 -> 3.5.6.\n"
+    ).splitlines(keepends=True)
+    changed = libcomponentdocs.renumber_images_manifest_changes_items(lines)
+    assert changed is True
+    assert lines[0] == "# Two changes:\n"
+    assert lines[2] == "#   2. openformulieren 3.4.10 -> 3.5.6.\n"
+
+
+def test_renumber_images_manifest_changes_items_no_header_is_a_noop(libcomponentdocs):
+    lines = ["some: yaml\n"]
+    assert libcomponentdocs.renumber_images_manifest_changes_items(lines) is False
+
+
+# --- insert_images_manifest_header_item ---
+
+def test_insert_images_manifest_header_item_at_correct_position(libcomponentdocs):
+    lines = (
+        "# Changes:\n"
+        "#   1. openformulieren 3.4.10 -> 3.5.6.\n"
+    ).splitlines(keepends=True)
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
+            {"name": "openformulieren", "version": "1.12.0"}]
+    key_order = ["zac", "openformulieren"]
+    libcomponentdocs.insert_images_manifest_header_item(
+        lines, deps, key_order, (0, 0), "zac 5.0.2 -> 5.4.3.")
+    assert lines == [
+        "# Changes:\n",
+        "#   1. zac 5.0.2 -> 5.4.3.\n",
+        "#   2. openformulieren 3.4.10 -> 3.5.6.\n",
+    ]
+
+
+def test_insert_images_manifest_header_item_fixes_a_preexisting_gap(libcomponentdocs):
+    """Inserting a new item must not just shift each EXISTING item's own
+    (possibly already-wrong) number by +1 — it must leave the WHOLE list
+    gapless 1..N, fixing any pre-existing drift as a side effect (see
+    renumber_images_manifest_changes_items). Real bug: the old relative-
+    shift logic would have turned "1, 3" (gap at 2) into "1, 2, 4" here
+    (still missing "3") instead of the correct "1, 2, 3"."""
+    lines = (
+        "# Changes:\n"
+        "#   1. openzaak 1.27.4 -> 1.29.3.\n"
+        "#   3. zgw-office-addin v0.9.313 -> 0.11.0.\n"
+    ).splitlines(keepends=True)
+    deps = [{"name": "openzaak", "version": "1.14.2"},
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
+            {"name": "zgw-office-addin", "version": "0.0.89"}]
+    key_order = ["openzaak", "zac", "zgw-office-addin"]
+    libcomponentdocs.insert_images_manifest_header_item(
+        lines, deps, key_order, (1, 0), "zac 5.0.2 -> 5.4.3.")
+    assert lines == [
+        "# Changes:\n",
+        "#   1. openzaak 1.27.4 -> 1.29.3.\n",
+        "#   2. zac 5.0.2 -> 5.4.3.\n",
+        "#   3. zgw-office-addin v0.9.313 -> 0.11.0.\n",
+    ]
+
+
 # --- images_manifest_path ---
 
 def test_images_manifest_path(libcomponentdocs, tmp_path):

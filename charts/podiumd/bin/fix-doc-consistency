@@ -90,7 +90,7 @@ from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, IMAGES_STUB_TEMPLATE, NUMBER_WORDS, STANDARD_SUFFIXES, STUB_TEMPLATES,
     add_missing_component_rows, existing_doc_baselines,
     find_images_manifest_changes_header, images_manifest_order_key, insert_images_manifest_header_item,
-    prune_empty_values_delta_sections, sync_values_delta_sections,
+    prune_empty_values_delta_sections, renumber_images_manifest_changes_items, sync_values_delta_sections,
 )
 from lib.docs_consistency import match_changes_item_to_entry
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
@@ -1210,6 +1210,19 @@ def main():
                 print(f"  entry '{name}': position {old_pos} -> {new_pos}")
             if not moved_header_items and not moved_entries:
                 print("  (blank lines within group(s) tidied)")
+
+        # A gap or wrong number the list already had — e.g. a human
+        # hand-removing a stale item's own block without renumbering
+        # everything after it (see #437-era digest cleanups) — is
+        # invisible to dedupe/sort above: neither fires at all when the
+        # list has no duplicates and is already in the right RELATIVE
+        # order, only wrong ABSOLUTE numbers. This pass always fixes
+        # that, independent of anything else.
+        lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
+        if renumber_images_manifest_changes_items(lines):
+            images_path.write_text("".join(lines), encoding="utf-8")
+            print()
+            print(f"=== Renumbering '# Changes:' list in {images_path.name} ===")
 
     values_deltas_path = DOC_DIR / f"{new_baseline}-to-{target}-values-deltas.md"
     if values_deltas_path.is_file():

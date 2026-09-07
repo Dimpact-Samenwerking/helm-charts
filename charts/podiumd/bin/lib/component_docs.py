@@ -68,6 +68,81 @@ def find_images_manifest_changes_header(lines):
     return None, False
 
 
+def find_images_manifest_changes_items(lines):
+    """(header_idx, header_has_count, item_indices) — item_indices is
+    every "#   N. ..." line's own index (see CHANGES_ITEM_RE), in
+    current top-to-bottom document order, scoped to the "# Changes:"
+    header's own block (see find_images_manifest_changes_header). (None,
+    False, []) if the header doesn't exist. Shared by every function
+    that needs to enumerate this list's own items without re-deriving
+    the same block-scanning loop each time."""
+    header_idx, header_has_count = find_images_manifest_changes_header(lines)
+    if header_idx is None:
+        return None, False, []
+    item_indices = []
+    for i in range(header_idx + 1, len(lines)):
+        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+            break
+        if CHANGES_ITEM_RE.match(lines[i]):
+            item_indices.append(i)
+    return header_idx, header_has_count, item_indices
+
+
+def images_manifest_changes_count_word(total):
+    """The header's own leading count word for `total` items — a single
+    NUMBER_WORDS entry (Zero..Fifteen) when it has one, else the bare
+    numeral string; CHANGES_HEADER_RE's own count_word group is a single
+    \\w+ token, so a two-word compound like "Twenty Six" is never
+    produced — paired with "change"/"changes" for the trailing noun.
+    Shared by every function that rewrites this header line so the
+    "what word for what count" rule is never reimplemented twice."""
+    count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
+    noun = "change" if total == 1 else "changes"
+    return count_word, noun
+
+
+def renumber_images_manifest_changes_items(lines):
+    """Renumber the images-manifest's own "# Changes:" numbered item
+    list to a gapless 1..N sequence matching CURRENT top-to-bottom
+    document order, and update the header's own leading count word (see
+    images_manifest_changes_count_word) to match — regardless of
+    whether anything else about the list changed. insert_images_
+    manifest_header_item/dedupe_images_manifest_changes_items/sort_
+    images_manifest_changes_items each already renumber correctly as a
+    side effect of their OWN specific operation (inserting one item,
+    removing a duplicate, reordering) — but none of them fires at all
+    when the list is already duplicate-free and already in the right
+    RELATIVE order, yet still has the wrong ABSOLUTE numbers (real case:
+    a human hand-removes a stale item's own block without renumbering
+    everything after it, leaving a gap like "...6. ... 8. ..." with no
+    "7." at all). This is the one pass that always fixes that, on its
+    own, independent of anything else. Mutates `lines` in place. Returns
+    True if anything was renumbered (either an item's own number, or
+    the header's count word), False if the list was already exactly
+    1..N (or the header/list doesn't exist at all)."""
+    header_idx, header_has_count, item_indices = find_images_manifest_changes_items(lines)
+    if header_idx is None or not item_indices:
+        return False
+
+    changed = False
+    for slot, idx in enumerate(item_indices):
+        expected = slot + 1
+        m = CHANGES_ITEM_RE.match(lines[idx])
+        if int(m.group("num")) != expected:
+            lines[idx] = CHANGES_ITEM_RE.sub(lambda mm, n=expected: f"#   {n}. {mm.group('rest')}", lines[idx])
+            changed = True
+
+    if header_has_count:
+        count_word, noun = images_manifest_changes_count_word(len(item_indices))
+        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+        new_header = f"{header_m.group('indent')}{count_word} {noun}:\n"
+        if lines[header_idx] != new_header:
+            lines[header_idx] = new_header
+            changed = True
+
+    return changed
+
+
 def images_manifest_order_key(key_order, values_key, is_sidecar):
     """(index-in-key_order, 0-or-1-for-sidecar) sort key for an images-
     manifest "# Changes:" item belonging to `values_key` — an unknown
@@ -99,6 +174,14 @@ def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_tex
     word if it already had one (see header_has_count) — never invents
     one for a bare "# Changes:" label.
 
+    Renumbering after the raw insert goes through renumber_images_
+    manifest_changes_items rather than a relative "+1 to every existing
+    item's OWN current number" shift — the latter silently preserves
+    (just shifted) any gap or wrong number the list already had before
+    this call, since it never computes each item's correct ABSOLUTE
+    position from scratch; the former always does, fixing a pre-existing
+    drift as a side effect of this insert instead of just adding to it.
+
     Shared by update_images_manifest below (a real component's own app+
     chart bump — the common case update-component-version/update-image-
     version write) and fix-doc-consistency's own add_missing_images_
@@ -108,18 +191,15 @@ def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_tex
     the very end, out of values.yaml's own order, only ever fixed by a
     LATER fix-doc-consistency run), which could silently drift from this
     one on what "correct" position even means."""
-    header_idx, header_has_count = find_images_manifest_changes_header(lines)
+    header_idx, header_has_count, item_indices = find_images_manifest_changes_items(lines)
     if header_idx is None:
         return
 
-    item_indices = []
     block_end = header_idx + 1
     for i in range(header_idx + 1, len(lines)):
         if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
             break
         block_end = i + 1
-        if CHANGES_ITEM_RE.match(lines[i]):
-            item_indices.append(i)
 
     item_keys = []
     for idx in item_indices:
@@ -132,25 +212,12 @@ def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_tex
 
     insert_slot = insertion_index(new_key, item_keys)
     insert_line = item_indices[insert_slot] if insert_slot < len(item_indices) else block_end
-    lines.insert(insert_line, f"#   {insert_slot + 1}. {item_text}\n")
+    # The number here is only ever a placeholder — renumber_images_
+    # manifest_changes_items (below) overwrites it, and every OTHER
+    # item's own number, with each one's correct final position.
+    lines.insert(insert_line, f"#   0. {item_text}\n")
 
-    for later_idx in range(insert_line + 1, len(lines)):
-        if lines[later_idx].rstrip("\n") == "#" or not lines[later_idx].startswith("#"):
-            break
-        m = CHANGES_ITEM_RE.match(lines[later_idx])
-        if m:
-            lines[later_idx] = f"#   {int(m.group('num')) + 1}. {m.group('rest')}\n"
-
-    if header_has_count:
-        total = len(item_indices) + 1
-        count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
-        noun = "change" if total == 1 else "changes"
-        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
-        lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
-    # else: header was already a bare "# Changes:" label with no count
-    # word of its own — left exactly as-is, matching whatever style
-    # this file already uses; only the numbered item list itself needed
-    # the new entry.
+    renumber_images_manifest_changes_items(lines)
 
 
 def images_manifest_path(images_dir, target):
