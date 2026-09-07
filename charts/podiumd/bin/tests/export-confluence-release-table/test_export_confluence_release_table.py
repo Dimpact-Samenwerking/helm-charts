@@ -620,6 +620,79 @@ def test_extract_release_rows_technische_table_without_helm_column(ecrt):
                       "3.4.0", "", "3.5.0", ""]]
 
 
+# --- apply_native_helm_marker ---
+
+def _row(used_by="", component="frankgateway", source_helm="", target_helm=""):
+    return ["Product", "", used_by, "Frank Gateway", component, "", "",
+            "104", source_helm, "105", target_helm]
+
+
+def test_apply_native_helm_marker_fills_native_for_resolved_primary_row(ecrt):
+    rows = [_row()]
+    ecrt.apply_native_helm_marker(rows)
+    assert rows[0][8] == "NATIVE" and rows[0][10] == "NATIVE"
+
+
+def test_apply_native_helm_marker_skips_multiple(ecrt):
+    rows = [_row(component="MULTIPLE")]
+    ecrt.apply_native_helm_marker(rows)
+    assert rows[0][8] == "" and rows[0][10] == ""
+
+
+def test_apply_native_helm_marker_skips_unknown(ecrt):
+    rows = [_row(component="UNKNOWN")]
+    ecrt.apply_native_helm_marker(rows)
+    assert rows[0][8] == "" and rows[0][10] == ""
+
+
+def test_apply_native_helm_marker_skips_blank_component(ecrt):
+    rows = [_row(component="")]
+    ecrt.apply_native_helm_marker(rows)
+    assert rows[0][8] == "" and rows[0][10] == ""
+
+
+def test_apply_native_helm_marker_skips_used_by_tagged_row(ecrt):
+    """A "used_by"-tagged sidecar row is never a component in its own
+    right — "NATIVE" would be meaningless there, so it's left untouched
+    even when its own helm cells are blank and its component resolved
+    to a real single dependency."""
+    rows = [_row(used_by="zac")]
+    ecrt.apply_native_helm_marker(rows)
+    assert rows[0][8] == "" and rows[0][10] == ""
+
+
+def test_apply_native_helm_marker_skips_row_with_a_real_helm_value(ecrt):
+    """Only BOTH helm cells blank counts as "genuinely no Helm chart" —
+    a row with a real (or even just source-only/target-only) helm
+    value is a normal versioned Helm dependency, left untouched."""
+    rows = [_row(source_helm="1.2.9", target_helm="1.2.9")]
+    ecrt.apply_native_helm_marker(rows)
+    assert rows[0][8] == "1.2.9" and rows[0][10] == "1.2.9"
+
+
+def test_apply_native_helm_marker_mutates_in_place_and_leaves_other_columns_untouched(ecrt):
+    rows = [_row()]
+    ecrt.apply_native_helm_marker(rows)
+    assert rows[0] == ["Product", "", "", "Frank Gateway", "frankgateway", "", "",
+                        "104", "NATIVE", "105", "NATIVE"]
+
+
+def test_extract_release_rows_fills_native_helm_for_orphan_key_component_with_no_helm_column(ecrt, tmp_path):
+    """End-to-end: "Frank Gateway" resolves to the orphan values.yaml key
+    "frankgateway" (no real Chart.yaml dependency backs it — same real
+    case NATIVE_COMPONENTS/orphan_values_yaml_keys exist for), and the
+    table it comes from has no Helm sub-column at all — its helm cells
+    are filled "NATIVE" rather than left blank, since frankgateway
+    genuinely has no separate Helm chart to report a version for."""
+    write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
+    write_values_yaml(tmp_path, ["frankgateway", "openzaak"])
+    html = TECHNISCHE_TABLE_NO_HELM_HTML.replace(
+        "<td>Elastic operator</td>\n<td>ZAC</td>", "<td>Frank Gateway</td>\n<td></td>")
+    rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
+    assert rows == [["Technische", "", "", "Frank Gateway", "frankgateway", "", "",
+                      "3.4.0", "NATIVE", "3.5.0", "NATIVE"]]
+
+
 def test_extract_release_rows_resolves_component_via_used_by_not_name(ecrt, tmp_path):
     """TECHNISCHE_TABLE_HTML's row is named "Elastic operator" (shares no
     text with any real dependency) but has used_by "ZAC" — a much better
