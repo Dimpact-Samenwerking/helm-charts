@@ -36,7 +36,10 @@ After a real run, re-render the chart (verify-podiumd or
 real (non-dry-run, non-empty) run also regenerates README.md (runs
 fix-helm-doc) — its values-reference table embeds the same digest
 strings this script just rewrote, so it goes stale the moment values.yaml
-changes.
+changes — and repairs the current target's images-<version>.yaml (runs
+fix-doc-consistency, scoped to the current baseline from release-
+baseline.yaml's own upgrade_docs key, never a rebase) — an entry there
+pins its own "digest:" copy of the same value, which goes just as stale.
 """
 import sys
 import urllib.error
@@ -55,6 +58,7 @@ from lib.registry import is_sliding_tag, parse_repo, registry_tag_exists
 CHART_DIR = SCRIPT_DIR.parents[0]
 VALUES_PATH = CHART_DIR / "values.yaml"
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
+FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
 
 
 def find_stale_digests(lines, values_path):
@@ -193,6 +197,12 @@ def main():
         print()
         print("=== Regenerating README.md (fix-helm-doc) ===")
         result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
+        if result.returncode != 0:
+            sys.exit(result.returncode)
+
+        print()
+        print("=== Repairing images-manifest (fix-doc-consistency) ===")
+        result = run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT)])
         if result.returncode != 0:
             sys.exit(result.returncode)
 
