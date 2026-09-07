@@ -628,23 +628,36 @@ def main():
                                      if isinstance(baseline_values_at_release, dict) else {})
                 key_lines = describe_key_changes(values_key, baseline_subtree, current_subtree)
 
-            no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
-            heading_line = values_delta_section_heading(friendly, old_app, app_version, old_chart, new_chart,
-                                                          bool(key_lines))
-            text = insert_values_delta_section(text, friendly, heading_line, key_lines, deps, values)
-            values_deltas_path.write_text(text, encoding="utf-8")
-            print()
-            print(f"=== Updating {values_deltas_path.name} ===")
-            print(f"  '{heading_line.rstrip()}'")
-            for line in key_lines:
-                print(f"  {line.rstrip()}")
+            # A pure app/chart version bump with no values-schema change
+            # needs no section here at all — see sync_values_delta_
+            # sections' own docstring for why a heading with nothing
+            # under it is worse than no heading; that transition is
+            # already covered by -upgrade.md's own table + Changes
+            # section.
+            if key_lines:
+                no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
+                heading_line = values_delta_section_heading(friendly, old_app, app_version, old_chart, new_chart)
+                text = insert_values_delta_section(text, friendly, heading_line, key_lines, deps, values)
+                values_deltas_path.write_text(text, encoding="utf-8")
+                print()
+                print(f"=== Updating {values_deltas_path.name} ===")
+                print(f"  '{heading_line.rstrip()}'")
+                for line in key_lines:
+                    print(f"  {line.rstrip()}")
+                if no_changes_claimed:
+                    print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
+                          "gemeente ACTION, not about whether anything changed, so it may still hold; "
+                          "double-check it's still true now that this bullet's been added")
+            elif section_removed:
+                values_deltas_path.write_text(text, encoding="utf-8")
+                print()
+                print(f"=== Updating {values_deltas_path.name} ===")
+                print(f"  removed stale section for {friendly} — no values-schema change to document for "
+                      f"this bump")
             if no_baseline_ref:
+                print()
                 print(f"  note: could not resolve upgrade_docs_baseline {upgrade_docs_baseline} to a git ref — skipping "
                       f"added/removed/renamed key detection for values-deltas.md")
-            if no_changes_claimed:
-                print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
-                      "gemeente ACTION, not about whether anything changed, so it may still hold; "
-                      "double-check it's still true now that this bullet's been added")
     elif upgrade_path is not None:
         print()
         print(f"No values-deltas.md found for upgrade_docs_baseline {upgrade_docs_baseline} — skipping that update.")

@@ -115,6 +115,126 @@ def test_create_missing_docs_nothing_to_do_when_all_exist(libcomponentdocs, tmp_
     assert libcomponentdocs.create_missing_docs(doc_dir, images_dir, "4.8.5", "4.9.0") == []
 
 
+# --- values_delta_section_heading ---
+
+def test_values_delta_section_heading_app_changed_chart_unchanged(libcomponentdocs):
+    heading = libcomponentdocs.values_delta_section_heading("zac", "5.0.2", "5.4.3", "1.0.297", "1.0.297")
+    assert heading == "## zac 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n"
+
+
+def test_values_delta_section_heading_native_component_omits_chart_clause(libcomponentdocs):
+    heading = libcomponentdocs.values_delta_section_heading("frankgateway", "100", "104", None, "-")
+    assert heading == "## frankgateway 100 → 104\n"
+
+
+def test_values_delta_section_heading_unresolved_app_version_with_chart(libcomponentdocs):
+    heading = libcomponentdocs.values_delta_section_heading("redis-operator", None, None, "0.26.1", "0.27.0")
+    assert heading == ("## redis-operator chart 0.26.1 → 0.27.0 — TODO: describe this component's changes; "
+                        "its app version could not be resolved automatically.\n")
+
+
+# --- find_values_delta_section / insert_values_delta_section / append_values_delta_section_body ---
+
+DEPS = [
+    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
+    {"name": "openformulieren", "version": "1.12.0"},
+]
+
+
+def test_find_values_delta_section_matches_hand_written_heading(libcomponentdocs):
+    text = "# Values deltas\n\n## KISS 2.2.4 → 3.0.0 — required edits\n\nSome prose.\n"
+    section = libcomponentdocs.find_values_delta_section(text, "kiss", [{"name": "kiss", "version": "3.0.0"}])
+    assert section is not None
+    assert section["heading"] == "KISS 2.2.4 → 3.0.0 — required edits"
+
+
+def test_find_values_delta_section_no_match_returns_none(libcomponentdocs):
+    text = "# Values deltas\n\n## zac 5.0.2 → 5.4.3\n\n- Key `zac.a` was added.\n"
+    assert libcomponentdocs.find_values_delta_section(text, "openformulieren", DEPS) is None
+
+
+def test_insert_values_delta_section_positions_by_values_yaml_order(libcomponentdocs):
+    text = "# Values deltas\n\n## openformulieren 3.4.10 → 3.5.6\n\n- Key `a` was added.\n"
+    new_text = libcomponentdocs.insert_values_delta_section(
+        text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS,
+        {"zac": {}, "openformulieren": {}})
+    assert new_text.index("## zac") < new_text.index("## openformulieren")
+
+
+def test_append_values_delta_section_body_adds_after_existing_content(libcomponentdocs):
+    text = "# Values deltas\n\n## KISS — required edits\n\nSome prose.\n\n## PABC\n\nOther prose.\n"
+    sections = libcomponentdocs.find_values_delta_section(text, "kiss", [{"name": "kiss", "version": "1.0.0"}])
+    new_text = libcomponentdocs.append_values_delta_section_body(text, sections, ["- Key `kiss.a` was added.\n"])
+    assert "Some prose.\n\n- Key `kiss.a` was added.\n\n## PABC" in new_text
+
+
+def test_remove_values_delta_section_never_removes_multi_identity_heading(libcomponentdocs):
+    """A hand-written section covering several components at once must
+    never be deleted just because one of them reset to baseline."""
+    text = "# Values deltas\n\n## ZAC and ZGW Office Add-in — no changes\n\nProse.\n"
+    deps = DEPS + [{"name": "zgw-office-addin", "version": "0.0.89"}]
+    new_text, removed = libcomponentdocs.remove_values_delta_section(text, "zac", deps)
+    assert removed is False
+    assert new_text == text
+
+
+# --- sync_values_delta_sections ---
+
+def test_sync_values_delta_sections_skips_key_with_no_schema_change(libcomponentdocs, tmp_path):
+    """A pure app/chart version bump — no describe_key_changes lines at
+    all — gets no brand-new section: a heading with nothing under it is
+    worse than no heading (values-deltas.md exists for gemeente-
+    actionable schema changes, not a general changelog)."""
+    text = "# Values deltas\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
+    values = {"zac": {"image": {}}}
+    new_text, created, updated = libcomponentdocs.sync_values_delta_sections(
+        text, tmp_path, DEPS, values, DEPS, values, {"zac"})
+    assert created == []
+    assert updated == []
+    assert new_text == text
+
+
+def test_sync_values_delta_sections_creates_section_only_when_key_lines_exist(libcomponentdocs, tmp_path):
+    text = "# Values deltas\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
+    baseline_values = {"zac": {"image": {}}}
+    target_values = {"zac": {"image": {}, "newFeature": True}}
+    new_text, created, updated = libcomponentdocs.sync_values_delta_sections(
+        text, tmp_path, DEPS, target_values, DEPS, baseline_values, {"zac"})
+    assert created == ["zac"]
+    assert "## zac" in new_text
+    assert "- Key `zac.newFeature` was added.\n" in new_text
+
+
+# --- prune_empty_values_delta_sections ---
+
+def test_prune_empty_values_delta_sections_removes_a_heading_with_nothing_under_it(libcomponentdocs):
+    text = (
+        "# Values deltas\n\n"
+        "## zac 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
+        "## openformulieren 3.4.10 → 3.5.6\n\n"
+        "- Key `openformulieren.a` was added.\n"
+    )
+    new_text, removed = libcomponentdocs.prune_empty_values_delta_sections(text)
+    assert removed == ["zac 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)"]
+    assert "## zac" not in new_text
+    assert "## openformulieren" in new_text
+    assert "- Key `openformulieren.a` was added.\n" in new_text
+
+
+def test_prune_empty_values_delta_sections_never_removes_hand_written_prose(libcomponentdocs):
+    text = "# Values deltas\n\n## KISS — required edits\n\nSome real prose here.\n"
+    new_text, removed = libcomponentdocs.prune_empty_values_delta_sections(text)
+    assert removed == []
+    assert new_text == text
+
+
+def test_prune_empty_values_delta_sections_no_sections_is_unchanged(libcomponentdocs):
+    text = "# Values deltas\n\nTODO.\n"
+    new_text, removed = libcomponentdocs.prune_empty_values_delta_sections(text)
+    assert removed == []
+    assert new_text == text
+
+
 def test_images_stub_template_has_a_changes_header(libcomponentdocs):
     """A fresh images-manifest stub must include a "# Changes:" anchor
     line, not just the bare "[]" YAML placeholder — without it, find_

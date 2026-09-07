@@ -171,8 +171,11 @@ def test_main_single_component_updates_upgrade_doc_table_and_changes(uiv, tmp_pa
     assert "| openklant | 2.15.0 → 2.15.1 | 1.0.0 (unchanged) | - |" in upgrade
     assert "### openklant 2.15.0 → 2.15.1 (chart 1.0.0, unchanged)" in upgrade
 
+    # No git repo at all here, so the baseline (and any schema diff) can
+    # never be resolved — no values-deltas.md section gets written (see
+    # sync_values_delta_sections' own docstring).
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "## openklant 2.15.0 → 2.15.1 (chart 1.0.0, unchanged) — image tag only\n" in deltas
+    assert "## openklant" not in deltas
 
     out = capsys.readouterr().out
     assert "added table row" in out
@@ -224,8 +227,10 @@ def test_main_sidecar_bump_gets_disambiguated_row_name(uiv, tmp_path, monkeypatc
     assert "| redis-operator - redis | 8.6.2 → 8.6.6 | 1.0.0 (unchanged) | - |" in upgrade
     assert "### redis-operator - redis 8.6.2 → 8.6.6" in upgrade
 
+    # No git repo at all here, so the baseline (and any schema diff) can
+    # never be resolved — no values-deltas.md section gets written.
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "## redis-operator - redis 8.6.2 → 8.6.6" in deltas
+    assert "## redis-operator - redis" not in deltas
 
     out = capsys.readouterr().out
     assert "(re)wrote '### redis-operator - redis ...' Changes section" in out
@@ -358,8 +363,12 @@ def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, t
     assert "### curl 8.20.0 → 8.21.0" in upgrade
     assert "`global.images.curl.tag` `8.20.0` → `8.21.0`" in upgrade
 
+    # A shared image's own basename bump never touches any values.yaml
+    # SCHEMA — there's nothing for a gemeente to react to, so it gets no
+    # values-deltas.md section at all (see update_docs_shared_image's
+    # own comment on this).
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "## curl 8.20.0 → 8.21.0 — pinned at 1 place in `values.yaml`\n" in deltas
+    assert "## curl" not in deltas
 
     manifest = (uiv.IMAGES_DIR / "images-1.0.0.yaml").read_text(encoding="utf-8")
     assert "#   1. curl 8.20.0 -> 8.21.0." in manifest
@@ -507,10 +516,12 @@ def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(ui
     assert upgrade.count("### curl") == 1
     assert "### curl 8.20.0 → 8.22.0" in upgrade
 
+    # A shared image's own basename bump never touches any values.yaml
+    # SCHEMA — no values-deltas.md section at all, whether bumped once
+    # or (as here) reconsidered mid-cycle.
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
-    assert deltas.count("## curl") == 1
+    assert "## curl" not in deltas
     assert "8.21.0" not in deltas
-    assert "## curl 8.20.0 → 8.22.0 — pinned at 1 place in `values.yaml`\n" in deltas
 
     manifest = (uiv.IMAGES_DIR / "images-1.0.0.yaml").read_text(encoding="utf-8")
     assert "One change:" in manifest

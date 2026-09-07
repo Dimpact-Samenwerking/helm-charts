@@ -107,18 +107,6 @@ def test_make_image_changes_section_per_path_old_version_differs(libimagedocs):
     assert "- `b.image.tag` `8.20.0` → `8.21.0`" in section
 
 
-# --- image_delta_section_heading ---
-
-def test_image_delta_section_heading_pin_count_singular(libimagedocs):
-    heading = libimagedocs.image_delta_section_heading("curl", "8.20.0", "8.21.0", 1, False)
-    assert heading == "## curl 8.20.0 → 8.21.0 — pinned at 1 place in `values.yaml`\n"
-
-
-def test_image_delta_section_heading_pin_count_plural(libimagedocs):
-    heading = libimagedocs.image_delta_section_heading("curl", "8.20.0", "8.21.0", 3, False)
-    assert heading == "## curl 8.20.0 → 8.21.0 — pinned at 3 places in `values.yaml`\n"
-
-
 # --- update_image_manifest ---
 
 def write_manifest(path, text):

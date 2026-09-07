@@ -1252,11 +1252,84 @@ def test_main_short_alias_does_not_corrupt_unrelated_row(cdb, repo_with_short_al
 
 @pytest.fixture
 def repo_with_unmentioned_component_bump(tmp_path):
-    """zaakbrug's own app image tag changed between the baseline tag and
-    HEAD, but values-deltas.md never got a top-level "**zaakbrug**"
-    bullet at all — a different gap than missing_key_change_lines (which
-    is about NESTED schema keys under an already-mentioned component),
-    the one add_missing_values_delta_bullets exists to fill in."""
+    """zaakbrug's own app image tag changed AND a real values.yaml schema
+    key was added between the baseline tag and HEAD, but values-deltas.md
+    never got a section for it at all — the gap sync_values_delta_
+    sections exists to fill in. The schema change matters here (not just
+    the version bump): a pure version-only bump gets no values-deltas.md
+    section at all (see sync_values_delta_sections' own docstring) — the
+    tests below need a real "- Key ..." line to exercise section
+    creation/reuse meaningfully."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.14@sha256:aaaa"}}}))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zaakbrug": {"image": {"tag": "1.26.15@sha256:bbbb"}, "newFeature": {"enabled": True}},
+    }))
+    write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump zaakbrug, no values-deltas mention", cwd=tmp_path)
+    return doc_dir
+
+
+def test_main_adds_missing_values_delta_bullet(cdb, repo_with_unmentioned_component_bump, monkeypatch, capsys):
+    set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
+    cdb.main()
+
+    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
+        encoding="utf-8")
+    assert "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)\n" in deltas
+    assert "- Key `zaakbrug.newFeature` was added.\n" in deltas
+    assert "No unrelated changes." in deltas  # existing content preserved
+    out = capsys.readouterr().out
+    assert "Adding new component section(s)" in out
+    assert "zaakbrug" in out
+
+
+def test_main_does_not_duplicate_already_mentioned_component_bullet(
+        cdb, repo_with_unmentioned_component_bump, monkeypatch, capsys):
+    doc = repo_with_unmentioned_component_bump / "4.8.3-to-4.9.0-values-deltas.md"
+    doc.write_text(
+        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
+        "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)\n\n"
+        "- Key `zaakbrug.newFeature` was added.\n",
+        encoding="utf-8",
+    )
+    set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
+    cdb.main()
+
+    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
+        encoding="utf-8")
+    assert deltas.count("## zaakbrug") == 1
+    assert deltas.count("zaakbrug.newFeature") == 1
+    out = capsys.readouterr().out
+    assert "Adding new component section(s)" not in out
+    assert "Adding missing key-change mention(s)" not in out
+
+
+@pytest.fixture
+def repo_with_pure_version_bump_and_stale_empty_section(tmp_path):
+    """zaakbrug's app image tag changed but its OWN values.yaml subtree
+    has no schema change at all — nothing for a gemeente to act on — yet
+    values-deltas.md already has a heading-only section for it (left
+    over from before the "no empty sections" rule existed). fix-doc-
+    consistency must prune that stale section, never re-add a fresh
+    empty one in its place."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -1276,51 +1349,38 @@ def repo_with_unmentioned_component_bump(tmp_path):
 
     write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.15@sha256:bbbb"}}}))
     write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
+          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
+          "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)\n")
     git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump zaakbrug, no values-deltas mention", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump zaakbrug, pure version bump", cwd=tmp_path)
     return doc_dir
 
 
-def test_main_adds_missing_values_delta_bullet(cdb, repo_with_unmentioned_component_bump, monkeypatch, capsys):
-    set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
+def test_main_prunes_stale_empty_section_without_recreating_it(
+        cdb, repo_with_pure_version_bump_and_stale_empty_section, monkeypatch, capsys):
+    set_argv_and_dir(cdb, monkeypatch, repo_with_pure_version_bump_and_stale_empty_section, "4.8.5")
     cdb.main()
 
-    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
+    deltas = (repo_with_pure_version_bump_and_stale_empty_section / "4.8.5-to-4.9.0-values-deltas.md").read_text(
         encoding="utf-8")
-    assert "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged) — image tag only\n" in deltas
-    assert "No unrelated changes." in deltas  # existing content preserved
+    assert "## zaakbrug" not in deltas
     out = capsys.readouterr().out
-    assert "Adding new component section(s)" in out
-    assert "zaakbrug" in out
-
-
-def test_main_does_not_duplicate_already_mentioned_component_bullet(
-        cdb, repo_with_unmentioned_component_bump, monkeypatch, capsys):
-    doc = repo_with_unmentioned_component_bump / "4.8.3-to-4.9.0-values-deltas.md"
-    doc.write_text(
-        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
-        "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged) — image tag only\n",
-        encoding="utf-8",
-    )
-    set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
-    cdb.main()
-
-    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
-        encoding="utf-8")
-    assert deltas.count("## zaakbrug") == 1
-    out = capsys.readouterr().out
+    assert "Removing empty section(s)" in out
+    assert "'## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)'" in out
     assert "Adding new component section(s)" not in out
 
 
 @pytest.fixture
 def repo_with_unmentioned_native_component_bump(tmp_path):
     """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
-    dependency at all — its own app image tag changed between the
-    baseline tag and HEAD, with no "Component versions" row and no
-    values-deltas mention at all yet, real end-to-end coverage for both
-    add_missing_component_rows and add_missing_values_delta_bullets'
-    own NATIVE_COMPONENTS branches together."""
+    dependency at all — its own app image tag AND a real values.yaml
+    schema key changed between the baseline tag and HEAD, with no
+    "Component versions" row and no values-deltas section at all yet,
+    real end-to-end coverage for both add_missing_component_rows and
+    sync_values_delta_sections' own NATIVE_COMPONENTS branches together.
+    The schema change matters (not just the version bump) — see
+    sync_values_delta_sections' own docstring for why a pure version
+    bump alone gets no values-deltas.md section at all."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -1343,7 +1403,7 @@ def repo_with_unmentioned_native_component_bump(tmp_path):
 
     write(tmp_path / "values.yaml", yaml.safe_dump({
         "zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}},
-        "frankgateway": {"image": {"tag": "104@sha256:bbbb"}},
+        "frankgateway": {"image": {"tag": "104@sha256:bbbb"}, "nodeSelector": {"disktype": "ssd"}},
     }))
     write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
           "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
@@ -1370,8 +1430,8 @@ def test_main_adds_missing_native_component_row_and_bullet(
 
     deltas = (repo_with_unmentioned_native_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
         encoding="utf-8")
-    assert ("## frankgateway 100 → 104 — image tag only "
-            "(no separate Helm chart for this component)\n") in deltas
+    assert "## frankgateway 100 → 104\n" in deltas
+    assert "- Key `frankgateway.nodeSelector` was added.\n" in deltas
 
     out = capsys.readouterr().out
     assert "Adding missing component row(s)" in out
@@ -1379,20 +1439,32 @@ def test_main_adds_missing_native_component_row_and_bullet(
 
 
 def test_main_adds_todo_bullet_when_app_version_unresolvable(cdb, repo_with_undocumented_component_bumps,
-                                                               monkeypatch):
+                                                               tmp_path, monkeypatch):
     """redis-operator is chart-only — no matching values.yaml image at
     all — same fixture as the "Component versions" row tests, exercised
-    here for the values-deltas bullet instead."""
+    here for the values-deltas heading instead. A genuine schema change
+    (a brand-new key under its own subtree) is added here so there's
+    real "- Key ..." content to document — a pure, schema-less chart
+    bump alone gets no values-deltas.md section at all (see sync_
+    values_delta_sections' own docstring)."""
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+        "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
+        "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.7.3", "sha": "ffff"}}}},
+        "redis-operator": {"redisOperator": {"newFeature": True}},
+    }))
     write(repo_with_undocumented_component_bumps / "4.8.3-to-4.9.0-values-deltas.md",
           "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
     git("add", "-A", cwd=repo_with_undocumented_component_bumps)
-    git("commit", "-q", "-m", "add values-deltas doc", cwd=repo_with_undocumented_component_bumps)
+    git("commit", "-q", "-m", "add values-deltas doc + redis-operator schema key",
+        cwd=repo_with_undocumented_component_bumps)
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
     cdb.main()
 
     deltas = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-values-deltas.md").read_text(
         encoding="utf-8")
     assert "## redis-operator chart 0.26.1 → 0.27.0 — TODO: describe this component's changes" in deltas
+    assert "- Key `redis-operator.redisOperator` was added.\n" in deltas
 
 
 # --- main() integration: values-deltas.md missing key-change mentions ---

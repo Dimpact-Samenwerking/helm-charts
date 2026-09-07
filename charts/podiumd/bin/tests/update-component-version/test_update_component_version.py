@@ -903,28 +903,20 @@ def test_insert_changes_section_no_changes_heading_appends_at_end(ucv):
 # --- values_delta_section_heading / describe_key_changes ---
 
 def test_values_delta_section_heading_app_and_chart_changed(ucv):
-    heading = ucv.values_delta_section_heading("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.13.0", False)
-    assert heading == "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0 → 1.13.0) — chart + image tag\n"
+    heading = ucv.values_delta_section_heading("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.13.0")
+    assert heading == "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0 → 1.13.0)\n"
 
 
 def test_values_delta_section_heading_chart_unchanged(ucv):
-    heading = ucv.values_delta_section_heading("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", False)
-    assert heading == "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged) — image tag only\n"
+    heading = ucv.values_delta_section_heading("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0")
+    assert heading == "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n"
 
 
 def test_values_delta_section_heading_native_component_omits_chart_clause(ucv):
     """new_chart="-" (see lib.chart.NATIVE_COMPONENTS) drops the "(chart
     ...)" clause entirely rather than rendering "(chart None → -)"."""
-    heading = ucv.values_delta_section_heading("frankgateway", "100", "104", None, "-", False)
-    assert heading == ("## frankgateway 100 → 104 — image tag only "
-                        "(no separate Helm chart for this component)\n")
-
-
-def test_values_delta_section_heading_suppresses_note_when_body_has_lines(ucv):
-    """The trailing "— <note>" only ever means "nothing else changed" —
-    once there IS a "- Key `...`" line in the body, it's dropped."""
-    heading = ucv.values_delta_section_heading("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", True)
-    assert heading == "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n"
+    heading = ucv.values_delta_section_heading("frankgateway", "100", "104", None, "-")
+    assert heading == "## frankgateway 100 → 104\n"
 
 
 def test_describe_key_changes_reports_added_removed_renamed(ucv):
@@ -1263,8 +1255,12 @@ def test_main_adds_new_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
     # inserted before the next "## " heading, not after it
     assert upgrade.index("### zac") < upgrade.index("## Per-environment checklist")
 
+    # setup_repo never initializes a git repo — the baseline can never be
+    # resolved, so whether zac's own values.yaml schema actually changed
+    # can never be determined either; no section is written rather than
+    # guessing (see sync_values_delta_sections' own docstring).
     deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "## zac 5.0.2 → 5.4.3 (chart 1.0.296 → 1.0.297) — chart + image tag\n" in deltas
+    assert "## zac" not in deltas
 
     images = (ucv.IMAGES_DIR / "images-4.9.0.yaml").read_text(encoding="utf-8")
     assert "1. zac 5.0.2 -> 5.4.3 (chart 1.0.296 -> 1.0.297)." in images
@@ -1428,10 +1424,12 @@ def test_main_collapses_repeated_bump_into_single_baseline_entry(ucv, tmp_path, 
     assert upgrade.count("### zac") == 1
     assert "### zac 5.0.2 → 5.5.0 (chart 1.0.296 → 1.0.297)" in upgrade
 
+    # zac's own values.yaml has no schema beyond image.tag — a pure
+    # version/chart bump needs no values-deltas.md section at all (see
+    # sync_values_delta_sections' own docstring).
     deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert deltas.count("## zac") == 1
+    assert "## zac" not in deltas
     assert "5.4.3" not in deltas
-    assert "## zac 5.0.2 → 5.5.0 (chart 1.0.296 → 1.0.297) — chart + image tag\n" in deltas
 
     images = (ucv.IMAGES_DIR / "images-4.9.0.yaml").read_text(encoding="utf-8")
     assert "One change:" in images
@@ -1548,8 +1546,12 @@ def test_main_detects_key_added_before_running_against_real_baseline(ucv, tmp_pa
 
 def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, monkeypatch, capsys):
     """setup_repo's plain tmp_path (no git init) can't resolve any baseline —
-    main() must say so and continue (still write the version bullet), not
-    silently skip the note or crash."""
+    main() must say so and continue, not silently skip the note or crash.
+    No values-deltas.md section gets written either — whether zac's own
+    schema actually changed can never be determined without a baseline
+    to compare against, and a heading with nothing under it (or worse, a
+    guess) is not the answer (see sync_values_delta_sections' own
+    docstring)."""
     setup_repo(tmp_path, monkeypatch, ucv)
     (tmp_path / "etc").mkdir(exist_ok=True)
     write(tmp_path / "etc" / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')
@@ -1572,7 +1574,7 @@ def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, 
     out = capsys.readouterr().out
     assert "could not resolve upgrade_docs_baseline 4.8.5" in out
     deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "## zac" in deltas  # section still written
+    assert "## zac" not in deltas  # no section written — schema diff couldn't be determined
 
 
 def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkeypatch):
