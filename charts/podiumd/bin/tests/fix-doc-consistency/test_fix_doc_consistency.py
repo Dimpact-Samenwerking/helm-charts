@@ -146,6 +146,29 @@ def test_collapse_multiple_blank_lines_handles_multiple_separate_runs(cdb):
     assert cdb.collapse_multiple_blank_lines(text) == "a\n\nb\n\nc\n"
 
 
+def test_collapse_multiple_blank_lines_strips_single_trailing_blank_line_before_eof(cdb):
+    """Regression test (real bug, real user session, confirmed against
+    real pymarkdown): "content\n\n" — one syntactic blank line right
+    before EOF, never 3+ consecutive newlines anywhere — still reports
+    MD012 "Expected: 1, Actual: 2", since pymarkdown counts EOF itself
+    as an implicit extra blank line. The mid-document collapse above
+    never catches this (only 2 newlines, not 3+); a real upgrade.md kept
+    reporting this exact violation across fix-doc-consistency runs that
+    changed nothing else about the file."""
+    text = "line one\n\n"
+    assert cdb.collapse_multiple_blank_lines(text) == "line one\n"
+
+
+def test_collapse_multiple_blank_lines_strips_many_trailing_blank_lines_before_eof(cdb):
+    text = "line one\n\n\n\n"
+    assert cdb.collapse_multiple_blank_lines(text) == "line one\n"
+
+
+def test_collapse_multiple_blank_lines_single_trailing_newline_untouched(cdb):
+    text = "line one\nline two\n"
+    assert cdb.collapse_multiple_blank_lines(text) == text
+
+
 # --- main() integration, against a real temp git repo ---
 
 @pytest.fixture
