@@ -211,6 +211,20 @@ def update_sibling_doc_refs(text, target, new_baseline):
     return new_text, new_text != text
 
 
+def collapse_multiple_blank_lines(text):
+    """Collapse any run of 2+ consecutive blank lines down to exactly one
+    (pymarkdown's MD012, no-multiple-blanks) — never changes a doc's
+    rendered meaning (Markdown treats one blank line and several
+    identically), just removes purely cosmetic byte duplication this
+    script's own splicing (a new stub section inserted between two
+    existing ones, a reordered block leaving a stray blank line behind,
+    ...) can otherwise accumulate. Applied right before writing any of
+    the three standard .md docs this script manages, so a real MD012
+    violation never needs a separate fix-markdown pass afterward for
+    something this script itself introduced."""
+    return re.sub(r"\n{3,}", "\n\n", text)
+
+
 def update_images_manifest_baseline(text, target, new_baseline):
     """Rewrite the "Baseline: podiumd X" and "podiumd <target> vs X" lines
     to the new baseline, whatever X currently is. Returns (new_text, changed)."""
@@ -1006,7 +1020,7 @@ def main():
             text = path.read_text(encoding="utf-8")
             text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
             if refs_changed:
-                path.write_text(text, encoding="utf-8")
+                path.write_text(collapse_multiple_blank_lines(text), encoding="utf-8")
                 print(f"  {path.name}: already baseline {new_baseline} — fixed stale sibling doc reference(s)")
             else:
                 print(f"  {path.name}: already baseline {new_baseline} — unchanged")
@@ -1022,7 +1036,7 @@ def main():
 
         if path != new_path:
             git_mv(path, new_path)
-        new_path.write_text(text, encoding="utf-8")
+        new_path.write_text(collapse_multiple_blank_lines(text), encoding="utf-8")
 
         print(f"  {path.name} -> {new_name}")
         if title_changed:
@@ -1152,7 +1166,7 @@ def main():
 
         if (changed_rows or added_names or added_sidecar_names or added_section_names or updated_stale_headings
                 or moved_rows or moved_blocks):
-            upgrade_path.write_text(text, encoding="utf-8")
+            upgrade_path.write_text(collapse_multiple_blank_lines(text), encoding="utf-8")
 
     if images_path.is_file():
         text = images_path.read_text(encoding="utf-8")
@@ -1305,7 +1319,7 @@ def main():
                     print(f"  '## {heading}': position {old_pos} -> {new_pos}")
 
             if write_needed:
-                values_deltas_path.write_text(text, encoding="utf-8")
+                values_deltas_path.write_text(collapse_multiple_blank_lines(text), encoding="utf-8")
 
     if review_notes:
         print()
