@@ -73,7 +73,7 @@ spec:
 # REPLACES all applications, application roles, functional roles, domains,
 # entity types and mappings with the dataset contents (see DatabaseInitializer:
 # ExecuteDeleteAsync on all six tables, then insert). It is therefore NOT wired
-# into pabc.migrations.dataSetPath — that job reruns on every helm upgrade and
+# into pabc.migrations.dataSetPath: that job reruns on every helm upgrade and
 # would wipe every edit made in the PABC UI.
 #
 # Idempotency: the Job name carries a checksum of everything that decides what
@@ -82,8 +82,8 @@ spec:
 # already exists and nothing reruns. Changing files/pabc-dataset.json yields a
 # new name and deliberately re-seeds. There is intentionally no
 # ttlSecondsAfterFinished: the finished Job object IS the marker that says
-# "already seeded" — letting it be garbage collected would re-seed on the next
-# upgrade and discard UI edits.
+# "already seeded", and letting it be garbage collected would re-seed on
+# the next upgrade and discard UI edits.
 #
 # The pod template has to be in the checksum as well, because spec.template on
 # a batch/v1 Job is immutable: bumping pabc.migrations.image.tag or changing
