@@ -1121,6 +1121,7 @@ PodiumD Helm chart
 | openzaak.worker.replicaCount | int | `1` |  |
 | openzaak.worker.resources.requests.cpu | string | `"200m"` |  |
 | openzaak.worker.resources.requests.memory | string | `"1Gi"` |  |
+| pabc.datasetConfigMap | object | `{"enabled":false}` | When enabled, renders files/pabc-dataset.json into a ConfigMap named pabc-dataset, for a (one-shot) seed job running the migrations image with JSON_DATASET_PATH, or for migrations.dataSetPath (see caution above). Required by seedJob below. |
 | pabc.enabled | bool | `true` |  |
 | pabc.fullnameOverride | string | `"pabc"` |  |
 | pabc.image.repository | string | `"ghcr.io/platform-autorisatie-beheer-component/pabc-api"` |  |
@@ -1137,6 +1138,7 @@ PodiumD Helm chart
 | pabc.resources.limits.memory | string | `"768Mi"` |  |
 | pabc.resources.requests.cpu | string | `"10m"` |  |
 | pabc.resources.requests.memory | string | `"384Mi"` |  |
+| pabc.seedJob | object | `{"enabled":false,"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"10m","memory":"128Mi"}}}` | One-shot Job that seeds the PABC database from the pabc-dataset ConfigMap. Enable together with datasetConfigMap on an environment whose PABC is still empty: without it ZAC resolves no application roles at all and every user lands on "u heeft geen toestemming om deze pagina te bekijken". The Job name carries a checksum of the dataset and of the rendered pod template, so it runs once and stays put across upgrades; editing files/pabc-dataset.json re-seeds on purpose, and so does a change that alters the Job itself, such as a migrations image tag bump. Seeding REPLACES all PABC content, so on an environment that has already been curated through the PABC UI, leave this disabled. |
 | pabc.settings.apiKeys[0] | string | `""` |  |
 | pabc.settings.database.host | string | `""` |  |
 | pabc.settings.database.name | string | `"pabc"` |  |
