@@ -570,6 +570,26 @@ def test_component_and_alias_still_unknown_when_no_global_image_key_relates_eith
     assert ecrt.component_and_alias("Solr", [], [], ["nginx", "curl", "busybox"]) == ("UNKNOWN", "")
 
 
+def test_component_and_alias_global_image_key_overrides_coincidental_loose_dependency_match(ecrt):
+    """Regression test (real bug, real export): "Redis" (the shared
+    global.images.redis anchor) must resolve MULTIPLE, not hijacked by
+    the wholly unrelated "redis-operator" dependency just because "redis"
+    happens to be a substring of "redisoperator" (redis-operator has no
+    alias, so this can only ever be a loose tier-4 name relation, never
+    an exact match) — a global image key is a much stronger "genuinely
+    shared" signal than that coincidence."""
+    deps = [("redis-operator", "")]
+    assert ecrt.component_and_alias("Redis", deps, [], ["redis"]) == ("MULTIPLE", "MULTIPLE")
+
+
+def test_component_and_alias_exact_dependency_match_still_wins_despite_global_image_key(ecrt):
+    """The override above must never fire for an EXACT match — only a
+    loose-relation-only resolution is at risk of being a coincidental
+    false positive."""
+    deps = [("redis-operator", "redis")]
+    assert ecrt.component_and_alias("redis", deps, [], ["redis"]) == ("redis-operator", "redis")
+
+
 # --- extract_release_rows ---
 
 def test_extract_release_rows_matches_and_reports(ecrt, capsys):

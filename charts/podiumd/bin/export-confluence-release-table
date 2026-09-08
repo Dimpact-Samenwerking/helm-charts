@@ -302,13 +302,27 @@ _MATCH_TIERS = [
     lambda candidate, dependency_name, alias: _related(candidate, normalize_name(dependency_name)),
 ]
 
+# The two EXACT-match tiers (candidate == dependency name/alias, no
+# substring guessing) vs. the two looser RELATION tiers (candidate is a
+# substring of, or contains, the dependency's name/alias) — split out so
+# component_and_alias can check global_image_keys in between them: a
+# global.images key is a much stronger "this is genuinely shared" signal
+# than a coincidental loose substring hit (e.g. "redis" is a substring of
+# the UNRELATED "redis-operator" dependency's own name — see
+# component_and_alias's own docstring), so it must outrank the loose
+# tiers, but an EXACT match to a real dependency/alias is even stronger
+# still and must keep outranking everything.
+_EXACT_TIERS = _MATCH_TIERS[:2]
+_RELATION_TIERS = _MATCH_TIERS[2:]
 
-def _resolve_against(candidates, dependencies):
-    """(dependency_name, alias) from the first tier in _MATCH_TIERS with
-    exactly one distinct match against `dependencies`, ("MULTIPLE",
-    "MULTIPLE") from the first tier with more than one, or None if no
-    tier matches anything at all (caller decides what None means)."""
-    for tier in _MATCH_TIERS:
+
+def _resolve_against(candidates, dependencies, tiers=_MATCH_TIERS):
+    """(dependency_name, alias) from the first tier in `tiers` (default
+    _MATCH_TIERS) with exactly one distinct match against `dependencies`,
+    ("MULTIPLE", "MULTIPLE") from the first tier with more than one, or
+    None if no tier matches anything at all (caller decides what None
+    means)."""
+    for tier in tiers:
         found = _tier_matches(candidates, dependencies, tier)
         if len(found) == 1:
             return next(iter(found.items()))
@@ -341,21 +355,34 @@ def component_and_alias(name, dependencies, orphan_keys=(), global_image_keys=()
     that only exists because some OTHER dependency's alias happens to
     contain the candidate as a substring (tier 3) — see _MATCH_TIERS.
 
-    If nothing matches any real dependency at all, falls back to trying
-    the exact same tiers against `orphan_keys` (see
+    EXCEPTION: a tier-3/4 (loose-relation-only) single-dependency match
+    is overridden to ("MULTIPLE", "MULTIPLE") if a candidate ALSO relates
+    to one of `global_image_keys` (see global_image_keys) — e.g. "Redis",
+    the global.images.redis anchor, must resolve MULTIPLE even though
+    "redis" happens to also be a loose substring of the wholly unrelated
+    "redis-operator" dependency's own name (no alias, so it only ever
+    matches there via tier 4, never exactly). A key living under
+    global.images exists specifically because it's shared, via YAML
+    anchor, across multiple unrelated components — a much stronger,
+    deliberate "known shared" signal than a coincidental loose-relation
+    hit against some other dependency's name, so it must win there. An
+    EXACT match (tier 1/2) is stronger still and is never overridden this
+    way — only ever a tier-3/4-only resolution is at risk of being a
+    false positive like this.
+
+    If nothing matches any real dependency at all (neither exactly nor
+    loosely, before any global-image-key override above), falls back to
+    trying the exact same tiers against `orphan_keys` (see
     orphan_values_yaml_keys) — values.yaml top-level blocks that aren't
     backed by any Chart.yaml dependency, like "frankgateway". This is
-    strictly a last resort: a real dependency always wins first, so an
-    orphan key can never hijack a name that already resolves correctly.
+    strictly a last resort: a real dependency (via ANY tier, exact or
+    loose) always wins first, so an orphan key can never hijack a name
+    that already resolves through a real dependency.
 
     If NEITHER of those matches anything either, checks whether a
-    candidate relates to one of `global_image_keys` (see
-    global_image_keys) — e.g. "Nginx unprivileged" relates to key
-    "nginx". Unlike the two pools above, a match here is never resolved
-    to a single component: a key living under global.images exists
-    specifically because it's shared, via YAML anchor, across multiple
-    unrelated components, so it always resolves as ("MULTIPLE",
-    "MULTIPLE") outright rather than guessing an owner.
+    candidate relates to one of `global_image_keys` — same check as the
+    override above, just as its own fallback tier now that no
+    dependency/orphan-key match exists at all to override.
 
     ("UNKNOWN", "") if nothing matches at all, in any of the three pools
     — e.g. "Elastic operator", whose dependency "eck-operator" shares no
@@ -367,10 +394,25 @@ def component_and_alias(name, dependencies, orphan_keys=(), global_image_keys=()
     matches a global image key — rather than silently picking whichever
     came first."""
     candidates = name_candidates(name)
-    resolved = _resolve_against(candidates, dependencies) or _resolve_against(candidates, orphan_keys)
+
+    def relates_to_global_key():
+        return any(_related(candidate, normalize_name(key))
+                   for candidate in candidates for key in global_image_keys)
+
+    exact = _resolve_against(candidates, dependencies, _EXACT_TIERS)
+    if exact:
+        return exact
+    loose = _resolve_against(candidates, dependencies, _RELATION_TIERS)
+    if loose:
+        if loose[0] != "MULTIPLE" and relates_to_global_key():
+            return ("MULTIPLE", "MULTIPLE")
+        return loose
+
+    resolved = _resolve_against(candidates, orphan_keys)
     if resolved:
         return resolved
-    if any(_related(candidate, normalize_name(key)) for candidate in candidates for key in global_image_keys):
+
+    if relates_to_global_key():
         return ("MULTIPLE", "MULTIPLE")
     return ("UNKNOWN", "")
 
