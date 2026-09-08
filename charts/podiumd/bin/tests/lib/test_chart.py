@@ -677,6 +677,16 @@ def test_image_paths_for_ita_web_and_poller(libchart):
     assert libchart.image_paths_for("internetaakafhandeling") == ["web.image", "poller.image"]
 
 
+def test_image_paths_for_kiss_chart_frontend_and_sync_jobs(libchart):
+    """kiss-chart's own frontend image ("image") and its
+    settings.syncJobs.image (the elastic-sync CronJob) are released from
+    the same kiss-chart version and always move together — same
+    co-equal lockstep shape as internetaakafhandeling's web+poller split.
+    NOT syncJobs.crawlerImage/indexTemplateImage (the Elastic Open
+    Crawler images) — those have independent upstream version lines."""
+    assert libchart.image_paths_for("kiss-chart") == ["image", "settings.syncJobs.image"]
+
+
 def test_image_paths_for_unlisted_component_defaults_to_single_image_block(libchart):
     assert libchart.image_paths_for("zac") == ["image"]
 
