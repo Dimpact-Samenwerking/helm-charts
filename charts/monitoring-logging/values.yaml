@@ -182,7 +182,7 @@ grafana:
     # -- SMTP settings for Grafana alerting e-mail notifications (contact points). The relay accepts mail from cluster egress IPs only; no authentication needed. IMPORTANT: `from_address` must be an address allowed to relay through this environment's mail server — an unlisted sender gets silently rejected/dropped. Check with infra/ops per environment before changing.
     smtp:
       enabled: true
-      host: "mail.enschede.nl:587"
+      host: "mail.example.nl:587"
       from_address: "noreply@dimpact.nl"
       from_name: "PodiumD Monitoring"
       skip_verify: false
