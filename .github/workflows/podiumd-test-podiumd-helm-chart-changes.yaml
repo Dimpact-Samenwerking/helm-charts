@@ -43,7 +43,6 @@ jobs:
         helm repo add adfinis https://charts.adfinis.com
         helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
         helm repo add opstree https://ot-container-kit.github.io/helm-charts/
-        helm repo add apisix https://charts.apiseven.com
         helm repo add openbao https://openbao.github.io/openbao-helm
 
     - name: bake deployment
@@ -59,4 +58,17 @@ jobs:
         # template guards pass without real values (same file used by `helm lint`).
         overrideFiles: |
           charts/podiumd/ci/lint-values.yaml
+
+    - name: render Frank!Gateway single-class shape
+      # The bake above renders all three traffic classes with every optional
+      # surface on. Render the opposite corner too — one class, no dashboard,
+      # no NetworkPolicies — so a template that only holds together when every
+      # instance exists cannot merge unnoticed. Dependencies are already built
+      # by the bake step.
+      run: |
+        helm template github-test charts/podiumd \
+          --namespace podiumd \
+          -f charts/podiumd/ci/lint-values.yaml \
+          -f charts/podiumd/ci/frankgateway-single-class-values.yaml \
+          > /dev/null
 

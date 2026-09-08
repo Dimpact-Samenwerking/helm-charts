@@ -13,6 +13,7 @@
 #   8. kiss 3.0.0 -> 3.1.1.
 #   9. kiss - kiss-elastic-sync 3.0.0 -> 3.1.1.
 #   10. zaakbrug 1.26.15 -> 1.26.18.
+#   11. frankgateway 104 -> 1.1.0.
 #
 # See docs/_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md for the operator upgrade notes.
 #
@@ -78,3 +79,12 @@
   url: docker.io/wearefrank/zaakbrug
   version: "1.26.18"
   digest: "sha256:255a717ff620b08608db2d8cde24e6993b96896f785ecfb7082054a4cc36bc3b"
+
+# Frank!Gateway: 104 -> 1.1.0, the first SemVer release of WeAreFrank's build.
+# Still Apache APISIX 3.16.0 (label based-on); the delta is two new plugins
+# (auth-zen, merge-config) and release engineering. `latest` is one commit
+# ahead of 1.1.0 -- never pin it.
+- name: wearefrank/frank-gateway
+  url: ghcr.io/wearefrank/frank-gateway
+  version: "1.1.0"
+  digest: "sha256:2f944fdbc16883e4b586aaa20f04928cd33afc7efc78d37012d2c7acb62f55bd"
