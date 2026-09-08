@@ -831,6 +831,32 @@ def test_extract_release_rows_resolves_global_image_key_as_multiple(ecrt, tmp_pa
 
 
 
+def test_extract_release_rows_warns_when_multiple_row_has_no_resolved_image(ecrt, tmp_path, capsys):
+    """Regression test: a MULTIPLE row (see component_and_alias) export
+    couldn't resolve an image_basename for used to go silent all the way
+    through — the CSV just got a blank column, and verify-release-table-
+    with-podiumd can't catch it either (it only ever compares columns
+    this script already resolved, never re-derives). Now warns instead of
+    silently writing an untracked row."""
+    write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
+    write_values_yaml_with_global_images(tmp_path, ["zac"])  # no "repository" key -> unresolvable
+    ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    out = capsys.readouterr().out
+    assert ('WARNING: "ZAC" resolved to MULTIPLE but no image_basename could be resolved'
+            in out)
+
+
+def test_extract_release_rows_no_warning_when_multiple_row_resolves_an_image(ecrt, tmp_path, capsys):
+    """The new warning must not fire for a MULTIPLE row that DOES resolve
+    an image_basename — only for one that can't."""
+    write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
+    (tmp_path / "values.yaml").write_text(
+        "global:\n  images:\n    zac:\n      repository: org/zac-base\n", encoding="utf-8")
+    ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    out = capsys.readouterr().out
+    assert "WARNING" not in out
+
+
 def test_extract_release_rows_used_by_blank_when_table_has_none(ecrt):
     """A Product table has no "Used by" column at all (only Ontwikkelpartij)."""
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML)
