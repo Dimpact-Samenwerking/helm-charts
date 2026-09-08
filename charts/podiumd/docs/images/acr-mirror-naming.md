@@ -160,37 +160,31 @@ Recurring mappings observed in this list:
 ## Workflow for a new image in a release manifest
 
 1. Find the upstream registry/repo (the `url:` value).
-2. Look up the ACR mirror name in this table by `url:`. If it's not in the
-   table:
-   - Check the running pods on a deployed cluster
-     (`kubectl --context aks-blue-ontw-dim1 -n podiumd get pods -o jsonpath='{range .items[*].spec.containers[*]}{.image}{"\n"}{end}' | sort -u`)
-     to see whether the image is already mirrored.
-   - If it is already mirrored, use that ACR repo name and update this
-     table.
-   - If it is a brand-new mirror, follow the naming guideline closest to
-     the upstream shape (usually: drop everything before the last `/`, then
-     apply the Maykin "drop the hyphen" rule for `open-*` images), but
-     **coordinate with SSC-Hosting** before adding the entry — they decide
-     the actual ACR repo name when they create it.
+2. Strip the registry host — `name: <namespace>/<repo>` (see the mechanical
+   rule above). Nothing to look up in the legacy table below; that table is
+   frozen and only relevant when migrating an environment still running the
+   old hand-translated names off the old scheme. `mirror-strip-registry.py
+   --gen-manifest` computes this for you.
 3. Write the entry as:
    ```yaml
-   - name: <acr-mirror-name>
+   - name: <namespace>/<repo>
      url: <upstream-canonical-url-no-tag>
      version: "<tag>"
      digest: "sha256:<digest>"
    ```
 4. After publishing the manifest, verify on a deployed cluster that the
-   image pulls cleanly. A `name:` that mismatches the ACR repo will
-   manifest as `ImagePullBackOff` on the first rollout that touches that
-   image.
+   image pulls cleanly. A `name:` that doesn't match what the SSC-Hosting
+   import pipeline actually mirrored under will manifest as
+   `ImagePullBackOff` on the first rollout that touches that image — that
+   pipeline is what turns a manifest entry into a real ACR repo, so a
+   brand-new mirror still needs SSC-Hosting to run the import, even though
+   there's no longer a naming choice to coordinate.
 
 ## Common mistakes to avoid
 
-- Writing `name: open-inwoner` (upstream shape) when the ACR mirror is
-  `openinwoner`. The upstream URL stays hyphenated; only the mirror name
-  loses the hyphen.
-- Copying `name:` and `url:` from a freshly fetched docker.io manifest
-  without checking this table — the fetcher reports the upstream-shaped
-  repo, not the ACR-shaped one.
-- Assuming `name == basename(url)`: it's true most of the time, but the
-  Maykin open-* family and the Elastic stack are exceptions.
+- Writing `name: openinwoner` (an old, hand-translated name) instead of the
+  current `name: maykinmedia/open-inwoner` — the legacy table below is
+  migration-only; don't reach for it when writing a new manifest entry.
+- Assuming `name == basename(url)` (e.g. `name: open-inwoner`) — the rule
+  strips only the registry host, not the namespace: `name:` keeps the full
+  `<namespace>/<repo>` path.
