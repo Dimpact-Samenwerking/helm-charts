@@ -162,6 +162,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_markdown", make_check("markdown"))
     monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
     monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
+    monkeypatch.setattr(vp, "check_lockstep_versions", make_check("lockstep"))
     monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
     monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
@@ -178,7 +179,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     vp.main()  # must not raise / must not sys.exit
 
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
-                    "release-baseline", "helm-docs", "markdown", "repo-access", "deps", "docs",
+                    "release-baseline", "lockstep", "helm-docs", "markdown", "repo-access", "deps", "docs",
                     "subchart-images", "digests", "yamllint", "kubeconform", "shellcheck",
                     "kube-score", "image-upgrades", "cves"]
     out = capsys.readouterr().out
@@ -205,7 +206,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
 
     for name in ("check_repo_access", "check_duplicate_keys", "check_dry", "check_image_references",
                  "check_node_selector", "check_digest_pinning", "check_vendored_tgz_extraction",
-                 "check_release_baseline", "check_helm_docs", "check_markdown",
+                 "check_release_baseline", "check_lockstep_versions", "check_helm_docs", "check_markdown",
                  "check_subchart_image_visibility", "check_image_repository",
                  "check_yamllint", "check_kubeconform", "check_shellcheck", "check_kube_score",
                  "check_image_upgrades", "check_cves"):
@@ -251,6 +252,7 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_markdown", make_check("markdown"))
     monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
     monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
+    monkeypatch.setattr(vp, "check_lockstep_versions", make_check("lockstep"))
     monkeypatch.setattr(vp, "check_lint", make_check("helm-lint"))
     monkeypatch.setattr(vp, "check_render", make_check("full-render"))
     monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
@@ -267,7 +269,7 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
     # "UTF-8 format" fails first, but every other step still actually ran —
     # none of them are in "UTF-8 format"'s own STEP_PREREQUISITES chain.
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
-                    "release-baseline", "helm-docs", "markdown", "repo-access", "deps", "docs",
+                    "release-baseline", "lockstep", "helm-docs", "markdown", "repo-access", "deps", "docs",
                     "subchart-images", "image-repository", "digests", "helm-lint", "full-render",
                     "yamllint", "kubeconform", "shellcheck", "kube-score",
                     "image-upgrades", "cves"]
@@ -295,7 +297,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys)
 
     for name in ("check_utf8_format", "check_duplicate_keys", "check_dry", "check_image_references",
                  "check_node_selector", "check_digest_pinning", "check_vendored_tgz_extraction",
-                 "check_release_baseline", "check_helm_docs", "check_markdown",
+                 "check_release_baseline", "check_lockstep_versions", "check_helm_docs", "check_markdown",
                  "check_repo_access"):
         monkeypatch.setattr(vp, name, ok)
 
@@ -392,6 +394,7 @@ def _stub_all_checks(vp, monkeypatch, ran):
     monkeypatch.setattr(vp, "check_markdown", make_check("markdown"))
     monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
     monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
+    monkeypatch.setattr(vp, "check_lockstep_versions", make_check("lockstep"))
     monkeypatch.setattr(vp, "check_lint", make_check("lint"))
     monkeypatch.setattr(vp, "check_render", make_check("render"))
     monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))

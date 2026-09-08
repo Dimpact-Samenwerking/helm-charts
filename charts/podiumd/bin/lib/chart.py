@@ -132,6 +132,21 @@ def version_paths_for(component):
     return COMPONENT_VERSION_PATHS.get(component, [])
 
 
+# Chart.yaml dependency NAMEs (not alias) whose own declared "version:" is
+# expected to equal the resolved app version at image_paths_for(component)/
+# version_paths_for(component) — a DIFFERENT lockstep signal than either
+# registry above, which are both about several values-tree PATHS agreeing
+# with EACH OTHER; this is about the Chart.yaml dependency's own chart
+# version agreeing with the image it ships. True for a component whose
+# release process stamps the same version number on both the chart and its
+# one real app image (kiss-chart, pabc: both observed today at Chart.yaml
+# version == image tag) — never assume it for a component that merely
+# vendors a THIRD PARTY app at whatever version it happens to package
+# (e.g. keycloak-operator, eck-stack), where the chart's own version and
+# the app version it ships are two independent numbers by design.
+CHART_VERSION_LOCKSTEP_COMPONENTS = frozenset({"kiss-chart", "pabc"})
+
+
 # COMPONENT_IMAGE_PATHS path (as the tuple find_image_tag_paths/
 # find_all_image_and_version_paths itself yields) whose "tag:" field
 # never embeds an "@sha256:..." digest at all — the adfinis keycloak-
