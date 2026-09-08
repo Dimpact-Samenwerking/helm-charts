@@ -163,11 +163,19 @@ hostname.
   (cookie-only storage drops chunked cookies behind NGF → login loops).
 - **OpenBao** — **required**, not optional: it is the only source of
   external-API credentials, and `openbao.enabled: false` alongside
-  `frankgateway.enabled: true` fails the render. The BAG/KVK keys live at
-  `<mount>/frankgateway` (fields `bag_api_key`, `kvk_api_key`); the gateway
-  reads them with a scoped token supplied out-of-band in the Secret named by
-  `frankgateway.openbao.tokenSecret` (Key-Vault-fed, never minted by this
-  chart — a token the chart could mint is a token the chart would store).
+  `frankgateway.enabled: true` fails the render. Everything the gateway needs
+  from it lives under `<mount>/frankgateway/`: the API keys at
+  `frankgateway` (fields `bag_api_key`, `kvk_api_key`), the outbound client
+  certificates at `frankgateway/client-certs/<name>` (fields `cert`, `key`) and
+  the inbound consumer list at `frankgateway/consumers` (one field per
+  consumer) — see [`frankgateway-routes.md`](frankgateway-routes.md). The
+  gateway reads them with a scoped token supplied out-of-band in the Secret
+  named by `frankgateway.openbao.tokenSecret` (Key-Vault-fed, never minted by
+  this chart — a token the chart could mint is a token the chart would store).
+  That token's policy must cover the whole subtree (`<mount>/frankgateway/*`;
+  on a kv-v2 mount `<mount>/data/frankgateway/*`): a policy scoped to one path
+  makes the others read as an opaque failure, which is exactly how jim00's
+  first consumer key failed.
 - **CoreDNS** — `frankgateway.dashboard.auth.dnsResolver` must be set to the
   cluster's CoreDNS ClusterIP (AKS default `10.0.0.10`; jim00 `172.16.0.10`)
   for the shim's request-time DNS re-resolution.
@@ -238,14 +246,27 @@ handshake**, before any of that exists. APISIX matches the incoming SNI against
 SSL objects it has already loaded from etcd; there is no request context in
 which a Lua function could go and ask OpenBao for one.
 
-APISIX's `$secret://` references do not close this gap either: they resolve
-fields in **plugin** configuration (key-auth keys, jwt secrets and the like).
-An SSL object is a core resource, not a plugin, and it is consumed at handshake
-time.
+APISIX's `$secret://` references narrow this gap but do not close it, and it
+is worth being exact about what they do on the 3.16 this image builds on
+(verified in the `release/3.16` source): a reference is resolved in **consumer
+credentials** (key-auth keys and the like — with a cache of up to an hour, and
+on a failed read the literal `$secret://…` string silently becomes the key), in
+an SSL object's **`cert`/`key`** on the handshake path (300 s cache), and in a
+handful of plugins. It is **not** resolved in `client.ca`, not in an upstream's
+`tls.client_cert`/`client_key`, and not through `client_cert_id` — so it cannot
+carry a client certificate the gateway presents to someone else. APISIX 3.17
+and 3.18 fix all of that; until Frank!Gateway ships on them, the chart pulls
+certificates out of OpenBao itself (the `client-cert-sync` CronJob, see
+[`frankgateway-routes.md`](frankgateway-routes.md)) and the consumer list is
+read at request time by the chart's own Lua rather than through a reference.
 
 So a certificate always has to be **in etcd before the connection arrives**.
 Whatever issues it, something must push it there — which is exactly what the
-sync CronJob does. Changing the source does not remove that step.
+sync CronJobs do. Changing the source does not remove that step. (For this
+server certificate specifically, a `$secret://` reference in the SSL object
+*would* work on 3.16 and refresh within 300 s; it is not used today because the
+cert-manager path already renews and the CronJob already syncs — a possible
+later simplification, not a gap.)
 
 ### OpenBao as the issuing CA
 
@@ -354,7 +375,8 @@ traffic levels) next to each request so the margin is visible:
 | frankgateway-dashboard | 25m | 11m | 128Mi | 90Mi | 500m | 512Mi |
 | oauth2-proxy | 10m | <1m | 64Mi | 44Mi | 250m | 256Mi |
 | shim (nginx) | 10m | 2m | 32Mi | 7Mi | 250m | 128Mi |
-| apply-routes job | 25m | — | 32Mi | — | 250m | 128Mi |
+| seed job | 25m | — | 32Mi | — | 250m | 128Mi |
+| client-cert-sync job | 25m | — | 32Mi | — | 250m | 128Mi |
 
 The 375Mi gateway peak is the number that mattered: the previous request was
 **256Mi**, i.e. below the observed peak. A pod whose request understates its
@@ -426,9 +448,13 @@ security assessment without first confirming enforcement on the target cluster.
    without membership, nobody gets past oauth2-proxy.
 3. **OpenBao.** Enable it (`openbao.enabled: true` — the render fails
    otherwise), write the external-API keys to `<mount>/frankgateway`
-   (`bag_api_key`, `kvk_api_key`), and have the environment deployment create
-   the scoped-reader-token Secret named by
-   `frankgateway.openbao.tokenSecret`.
+   (`bag_api_key`, `kvk_api_key`), any outbound client certificates to
+   `<mount>/frankgateway/client-certs/<name>` (`cert`, `key`) and the inbound
+   consumer list to `<mount>/frankgateway/consumers`, and have the environment
+   deployment create the scoped-reader-token Secret named by
+   `frankgateway.openbao.tokenSecret` with a policy covering
+   `<mount>/frankgateway/*`. Commands in
+   [`frankgateway-routes.md`](frankgateway-routes.md).
 4. **Route the dashboards.** One per class that has one. Gateway API
    environments: HTTPRoute → `frankgateway-<class>-oauth2-proxy:4180` in ADO
    `ExternalsPodiumD` (`infra.yml`), and add each hostname to the gateway

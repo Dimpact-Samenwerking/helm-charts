@@ -25,3 +25,4 @@ frankgateway:
       # ConfigMap then holds only seed.sh, and the Job must still succeed —
       # this is exactly the state a freshly onboarded environment is in.
       routes: null
+      clientCertificates: null

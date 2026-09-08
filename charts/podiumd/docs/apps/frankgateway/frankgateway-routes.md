@@ -206,3 +206,149 @@ frankgateway:
 - The hook objects were renamed from `frankgateway-<class>-apply-routes` /
   `-routes` to `-seed`. Hook ConfigMaps are not release-tracked, so the old
   ones stay behind once: `kubectl -n podiumd delete configmap -l app.kubernetes.io/component=frankgateway-routes`.
+
+## Client certificates from OpenBao (outbound mTLS)
+
+Some external APIs want the gateway to present a client certificate (BRP / Haal
+Centraal with a PKIoverheid certificate, an ESB, KvK production). The
+certificate and key live in **OpenBao and nowhere else**; the chart pulls them
+into an APISIX SSL object that the route references.
+
+```yaml
+frankgateway:
+  instances:
+    outway:
+      clientCertificates:
+        brp:                                    # -> SSL object id client-brp
+          openbaoPath: frankgateway/client-certs/brp
+      routes:
+        apiproxy-brp:
+          uri: "/haalcentraal/api/brp/*"
+          labels: { managed-by: iac }
+          upstream:
+            scheme: https
+            pass_host: rewrite
+            upstream_host: brp.example.nl
+            nodes: { "brp.example.nl:443": 1 }
+            type: roundrobin
+            tls:
+              client_cert_id: client-brp          # the SSL object above
+              verify: true                        # verify the upstream too
+```
+
+- **OpenBao:** `bao kv put <mount>/frankgateway/client-certs/brp cert=@chain.pem key=@key.pem`
+  — `cert` is the PEM leaf plus intermediates, `key` the PEM private key.
+- **Sync:** for every instance with `clientCertificates`, the chart renders a
+  CronJob `frankgateway-<class>-client-cert-sync` (schedule
+  `frankgateway.clientCertSync.schedule`, default every 5 minutes) that reads
+  each path with the gateway's reader token and `PUT`s
+  `/apisix/admin/ssls/client-<name>` (`type: client`) when the certificate
+  changed. The seed Job runs the same sync first, before the routes — APISIX
+  rejects a route whose `client_cert_id` does not exist yet.
+- **Rotation:** `bao kv put` the new material; it is live within one schedule
+  tick, no deploy. Check `kubectl -n podiumd get jobs | grep client-cert-sync`
+  and the latest one's log (`unchanged`, or `ssls/client-brp -> 200`).
+- **Failure:** if OpenBao cannot be read and an SSL object already exists, the
+  sync keeps it and exits 2 — a retained failed CronJob run, and at deploy time
+  a warning rather than a failed install. No object to fall back on is a hard
+  failure, and the dependent route is rejected: nothing is served with a
+  missing certificate.
+- **Validation:** a route whose `client_cert_id` names no `clientCertificates`
+  entry of its instance fails the render.
+
+### Why a sync job and not `$secret://`
+
+On the APISIX 3.16 this image builds on, a `$secret://` reference is resolved
+for consumer credentials and for an SSL object's `cert`/`key` on the handshake
+path — but **not** for `upstream.tls.client_cert`/`client_key`, and not through
+`client_cert_id`, so it cannot carry a certificate the gateway presents to an
+upstream. APISIX 3.18 fixes that (and the consumer-credential caveats below).
+When Frank!Gateway ships on 3.18, the sync CronJob can be replaced by a
+reference in the SSL object — with a KV **v1** mount, which is all APISIX's
+Vault backend speaks, and one Secret resource per instance (each class has its
+own etcd prefix).
+
+## Consumer identities from OpenBao (inbound)
+
+External parties authenticate to the inway with a **client certificate**. The
+certificate is verified by the front door, which forwards the identity in a
+request header; the gateway maps that identity to a consumer name using a list
+kept in **OpenBao**, at request time — the same mechanism the API keys use, so
+onboarding or rotating a consumer needs no deploy.
+
+```yaml
+frankgateway:
+  instances:
+    inway:
+      routes:
+        inbound-openzaak:
+          uri: /*
+          host: openzaak.<env>.<domain>
+          labels: { managed-by: iac }
+          plugins:
+            serverless-pre-function:
+              phase: access
+              functions:
+                - 'local consumer_auth = require("openbao-consumer-auth") return consumer_auth({ path = "frankgateway/consumers", verificationHeader = "X-Client-Cert-Verification", allow = { "zaaksysteem-x" } })'
+          upstream:
+            type: roundrobin
+            scheme: http
+            pass_host: pass
+            nodes: { "openzaak-nginx.podiumd.svc.cluster.local:80": 1 }
+```
+
+- **OpenBao:** one secret, one field per consumer, the value its certificate's
+  SHA-1 fingerprint — or several, comma-separated, so old and new certificates
+  overlap during a rotation:
+  `bao kv patch <mount>/frankgateway/consumers zaaksysteem-x=ab12…ef,98fe…01`.
+  Removing a field revokes the consumer. Changes are live within 300 s (the
+  gateway's cache).
+- **Options:** `path` (required), `header` (default `X-Client-Cert-Fingerprint`),
+  `verificationHeader` (when set, must read `SUCCESS`), `allow` (consumer names
+  this route admits; omit to admit every known consumer), `stale_ttl` (seconds
+  the last-good list is served while OpenBao is unreachable; default 3600, `0`
+  to fail closed at once). Values are compared case-insensitively with colons
+  and spaces removed, so forwarding the certificate **subject** instead and
+  listing subject DNs works the same way.
+- **Answers:** 401 without an identity or with an unknown one, 403 for a known
+  consumer not in `allow`, 503 when OpenBao is unreachable and no last-good
+  list is within `stale_ttl`. On success the upstream receives
+  `X-Consumer-Username` (overwriting anything the caller sent), and the JSON
+  access log carries it as `consumer`.
+- **Only on the inway.** The function trusts the header. That is sound only
+  behind a front door that verified the certificate and overwrites the header
+  on every request, with the inway reachable through nothing else
+  (`networkPolicies.ingressNamespace`); the render refuses the function on any
+  other class.
+
+### What the front door must send
+
+For the Azure Application Gateway that fronts the environments (owned by the
+hosting partner): mutual authentication in **strict** mode on the listener's SSL
+profile, with the trusted client CA chain(s) uploaded, and a **rewrite rule
+set** on the routing rule that writes these request headers from server
+variables:
+
+| Header | Server variable | Note |
+|---|---|---|
+| `X-Client-Cert-Fingerprint` | `{var_client_certificate_fingerprint}` | **SHA-1**, hex — the value to list in OpenBao |
+| `X-Client-Cert-Subject` | `{var_client_certificate_subject}` | subject DN; optional, for subject-based matching |
+| `X-Client-Cert-Verification` | `{var_client_certificate_verification}` | `SUCCESS` in strict mode; pass as `verificationHeader` |
+
+Application Gateway cannot pass TLS through (it is a terminating proxy), so the
+existing chain stays as it is: it re-encrypts to NGINX Gateway Fabric, which
+re-encrypts to the inway on 9443 (`BackendTLSPolicy`). Nothing on the AKS side
+changes for mTLS traffic; only the headers are new. Because the gateway sets
+them on every request, a caller cannot forge one — provided the inway is not
+reachable by any other path.
+
+### Why not APISIX consumers with `$secret://` keys
+
+It would be the idiomatic way, and it is the way to go once Frank!Gateway is on
+APISIX 3.18. On 3.16 the consumer path caches a resolved key for up to an hour,
+and a failed OpenBao read leaves the literal `$secret://…` string as the key —
+silently. `key-auth` on the fingerprint header would also accept the same value
+from the `?apikey=` query string, which cannot be disabled, and a fingerprint is
+public. The request-time Lua fails closed, refreshes in 300 s, and reads only
+the header it is told to.
+

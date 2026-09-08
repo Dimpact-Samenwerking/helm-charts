@@ -10,12 +10,16 @@ Frank!Gateway
 {{- $classes := list }}
 {{- $tlsClasses := list }}
 {{- $noRoutes := list }}
+{{- $certClasses := list }}
 {{- range $key, $override := .Values.frankgateway.instances }}
 {{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $key "override" $override) | fromYaml }}
 {{- if $fg.enabled }}
 {{- $classes = append $classes $key }}
 {{- if not ($fg.routes | default dict) }}
 {{- $noRoutes = append $noRoutes $key }}
+{{- end }}
+{{- if $fg.clientCertificates }}
+{{- $certClasses = append $certClasses (printf "%s (%s)" $key $fg.clientCertSync.schedule) }}
 {{- end }}
 {{- if and $fg.tls.enabled $fg.tls.sslSync.enabled }}
 {{- /* The schedule is a per-instance value like any other, so report each
@@ -61,5 +65,15 @@ Frank!Gateway
   without a deploy. Failed runs are retained deliberately — check them:
 
       kubectl -n {{ .Release.Namespace }} get jobs | grep ssl-sync
+{{- end }}
+{{- if $certClasses }}
+
+  Client certificates from OpenBao on: {{ $certClasses | join ", " }}. A CronJob
+  on the schedule shown pulls each certificate into an APISIX SSL object, so a
+  rotation in OpenBao is live within one tick and needs no deploy. The seed Job
+  did the first pull; if a route that uses one was rejected, read its log.
+  Failed sync runs are retained — check them:
+
+      kubectl -n {{ .Release.Namespace }} get jobs | grep client-cert-sync
 {{- end }}
 {{- end }}

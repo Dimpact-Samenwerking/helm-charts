@@ -388,7 +388,7 @@ nginx_config:
   # split, so one Loki query can separate inway from outway from internal.
   http:
     access_log_format_escape: json
-    access_log_format: '{"time":"$time_iso8601","instance_name":"{{ .name }}","client":"$remote_addr","method":"$request_method","host":"$host","uri":"$uri","query":"$args","status":$status,"bytes_sent":$body_bytes_sent,"request_time":$request_time,"upstream_addr":"$upstream_addr","upstream_status":"$upstream_status","upstream_response_time":"$upstream_response_time","request_id":"$request_id","referer":"$http_referer","user_agent":"$http_user_agent"}'
+    access_log_format: '{"time":"$time_iso8601","instance_name":"{{ .name }}","client":"$remote_addr","method":"$request_method","host":"$host","uri":"$uri","query":"$args","status":$status,"bytes_sent":$body_bytes_sent,"request_time":$request_time,"upstream_addr":"$upstream_addr","upstream_status":"$upstream_status","upstream_response_time":"$upstream_response_time","request_id":"$request_id","referer":"$http_referer","user_agent":"$http_user_agent","consumer":"$http_x_consumer_username"}'
   {{- end }}
   main_configuration_snippet: |
     env OPENBAO_TOKEN;
@@ -578,10 +578,12 @@ before the instance can serve, PUT idempotently through the Admin API by the
 post-install/post-upgrade hook Job (frankgateway-seed-job.yaml).
 
 Order matters:
-  1. routes           — from values only; zero routes is a valid state
-  2. prune            — opt-in: managed-by=iac routes not in this render go
-  3. prometheus rule  — per-route metrics for every route, seeded or GUI-made
-  4. server cert      — the same ssl-sync the renewal CronJob runs
+  1. client certs     — SSL objects from OpenBao; a route whose client_cert_id
+                        has no object yet is rejected, so these go first
+  2. routes           — from values only; zero routes is a valid state
+  3. prune            — opt-in: managed-by=iac routes not in this render go
+  4. prometheus rule  — per-route metrics for every route, seeded or GUI-made
+  5. server cert      — the same ssl-sync the renewal CronJob runs
 
 Route bodies hold no secret material (they reference OpenBao PATHS), so the
 Admin API's answer is echoed on failure. ssl-sync has its own rules about that.
@@ -594,6 +596,7 @@ Usage: {{ include "podiumd.frankgateway.seedScript" (dict "root" $root "instance
 set -u
 ADMIN="http://{{ $name }}:9180/apisix/admin"
 rc=0
+warn=0
 put() { # put <kind/id> <file>
   code=$(curl -s --max-time 20 -o /tmp/resp -w '%{http_code}' -X PUT "${ADMIN}/$1" \
     -H "X-API-KEY: ${ADMIN_KEY}" -H 'Content-Type: application/json' --data @"$2")
@@ -603,6 +606,14 @@ put() { # put <kind/id> <file>
   esac
 }
 {{ include "podiumd.frankgateway.adminWait" (dict "name" $name) }}
+{{- if $fg.clientCertificates }}
+# Client certificates first: APISIX rejects a route whose client_cert_id has no
+# SSL object. An OpenBao read that fails while a last-good object is in place
+# is a warning here, not a failed deploy — the CronJob keeps retrying, and the
+# gateway keeps presenting the certificate it has.
+sh /scripts/client-cert-sync/sync.sh; ccrc=$?
+case "${ccrc}" in 0) ;; 2) warn=1 ;; *) rc=1 ;; esac
+{{- end }}
 # Routes: this instance's values, one file per route id. The chart ships none,
 # so no files is a valid state — the glob then stays unexpanded and the guard
 # skips it, and the Job still succeeds.
@@ -647,7 +658,94 @@ put "global_rules/prometheus-metrics" /tmp/gr.json
 # Exits 0 when no certificate material is mounted yet.
 sh /scripts/ssl-sync/sync.sh || rc=1
 {{- end }}
+[ "${warn}" -eq 1 ] && echo "seed: WARNING one or more client certificates could not be refreshed from OpenBao; the last-good SSL objects were kept"
 exit ${rc}
+{{- end -}}
+
+{{/*
+Frank!Gateway — sync.sh that pulls one instance's client certificates from
+OpenBao into APISIX SSL objects (type client), run by the seed hook at deploy
+time and by the <instance>-client-cert-sync CronJob afterwards.
+
+Why a job and not `$secret://`: on APISIX 3.16 a secret reference is resolved
+for consumer credentials and for the server certificate on the handshake path,
+but NOT for upstream.tls.client_cert/client_key nor via client_cert_id. APISIX
+3.18 changes that; until Frank!Gateway ships on it, OpenBao is the source of
+truth and etcd a copy that this script keeps current.
+
+Exit codes, because the two callers must react differently:
+  0  every certificate synced or unchanged
+  2  an OpenBao read failed but the SSL object already exists — last-good kept
+  1  hard failure: bad material, or no object to fall back on
+
+curl and sed only (the job image has no jq). The extraction is exact for PEM:
+the value contains no `"` and no `\` other than the `\n` escapes, so the
+still-escaped string is embedded in the APISIX body as is. Neither the OpenBao
+response nor the Admin API's GET is ever printed — both contain the private
+key. Unchanged detection is by a sha256 of the cert kept as an SSL label,
+because APISIX's JSON encoder may escape the PEM differently from OpenBao's.
+
+Usage: {{ include "podiumd.frankgateway.clientCertSyncScript" (dict "root" $root "instance" $fg "name" $name) }}
+*/}}
+{{- define "podiumd.frankgateway.clientCertSyncScript" -}}
+{{- $fg := .instance -}}
+{{- $name := .name -}}
+set -u
+ADMIN="http://{{ $name }}:9180/apisix/admin"
+if [ -z "${OPENBAO_TOKEN:-}" ]; then
+  echo "client-cert-sync: OPENBAO_TOKEN is empty — is Secret {{ $fg.openbao.tokenSecret.name }} (key {{ $fg.openbao.tokenSecret.key }}) present?"
+  exit 1
+fi
+umask 077
+hard=0
+soft=0
+kv_url() {
+  if [ "${OPENBAO_KV:-2}" = "1" ]; then
+    echo "${OPENBAO_ADDR}/v1/${OPENBAO_MOUNT}/$1"
+  else
+    echo "${OPENBAO_ADDR}/v1/${OPENBAO_MOUNT}/data/$1"
+  fi
+}
+# jfield <name>: the still-JSON-escaped string value of a top-level-looking key
+jfield() { sed -n 's/.*"'"$1"'":"\([^"]*\)".*/\1/p' | head -n 1; }
+{{ include "podiumd.frankgateway.adminWait" (dict "name" $name) }}
+sync_one() { # sync_one <name> <openbaoPath>
+  id="client-$1"
+  code=$(curl -s --max-time 20 -o /tmp/bao.json -w '%{http_code}' \
+    -H "X-Vault-Token: ${OPENBAO_TOKEN}" "$(kv_url "$2")")
+  if [ "${code}" != "200" ]; then
+    rm -f /tmp/bao.json
+    have=$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' -H "X-API-KEY: ${ADMIN_KEY}" "${ADMIN}/ssls/${id}")
+    if [ "${have}" = "200" ]; then
+      echo "client-cert-sync: ${id}: OpenBao $2 -> ${code}; keeping the last-good SSL object"
+      return 2
+    fi
+    echo "client-cert-sync: ${id}: OpenBao $2 -> ${code}; no existing SSL object to keep"
+    return 1
+  fi
+  cert=$(jfield cert < /tmp/bao.json)
+  key=$(jfield key < /tmp/bao.json)
+  rm -f /tmp/bao.json
+  case "${cert}" in "-----BEGIN CERTIFICATE-----"*) ;; *) echo "client-cert-sync: ${id}: field cert at $2 is not a PEM certificate"; return 1 ;; esac
+  case "${key}"  in "-----BEGIN "*)               ;; *) echo "client-cert-sync: ${id}: field key at $2 is not a PEM key";          return 1 ;; esac
+  sum=$(printf '%s' "${cert}" | sha256sum | cut -c1-64)
+  if curl -s --max-time 20 -H "X-API-KEY: ${ADMIN_KEY}" "${ADMIN}/ssls/${id}" | grep -qF -- "\"cert_sha256\":\"${sum}\""; then
+    echo "client-cert-sync: ${id}: unchanged"
+    return 0
+  fi
+  printf '{"type":"client","cert":"%s","key":"%s","labels":{"managed-by":"iac","cert_sha256":"%s"}}' "${cert}" "${key}" "${sum}" > /tmp/ssl.json
+  code=$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' -X PUT "${ADMIN}/ssls/${id}" \
+    -H "X-API-KEY: ${ADMIN_KEY}" -H 'Content-Type: application/json' --data @/tmp/ssl.json)
+  rm -f /tmp/ssl.json
+  echo "client-cert-sync: ssls/${id} -> ${code}"
+  case "${code}" in 2*) return 0 ;; *) return 1 ;; esac
+}
+{{- range $n, $c := $fg.clientCertificates }}
+sync_one {{ $n | quote }} {{ $c.openbaoPath | quote }}; case $? in 1) hard=1 ;; 2) soft=1 ;; esac
+{{- end }}
+[ "${hard}" -eq 1 ] && exit 1
+[ "${soft}" -eq 1 ] && exit 2
+exit 0
 {{- end -}}
 
 {{/*

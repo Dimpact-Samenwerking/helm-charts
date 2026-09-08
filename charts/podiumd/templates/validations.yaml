@@ -73,6 +73,18 @@
 {{- /* Route ids become APISIX route ids AND ConfigMap keys, so both charsets
      apply; a body whose own `id` disagrees with the key would be PUT under the
      key and rejected by APISIX with a message about the body, not the values. */ -}}
+{{- $certs := $fg.clientCertificates | default dict -}}
+{{- if not (kindIs "map" $certs) -}}
+{{- fail (printf "frankgateway.instances.%s.clientCertificates must be a map of name -> { openbaoPath: <path within the mount> }" $key) -}}
+{{- end -}}
+{{- range $n, $c := $certs -}}
+{{- if not (regexMatch "^[a-zA-Z0-9._-]+$" $n) -}}
+{{- fail (printf "frankgateway.instances.%s.clientCertificates: name %q must match ^[a-zA-Z0-9._-]+$ — it becomes the SSL object id client-%s" $key $n $n) -}}
+{{- end -}}
+{{- if or (not (kindIs "map" $c)) (not $c.openbaoPath) -}}
+{{- fail (printf "frankgateway.instances.%s.clientCertificates.%s.openbaoPath is required: the path within the OpenBao mount holding fields `cert` and `key`, e.g. frankgateway/client-certs/%s" $key $n $n) -}}
+{{- end -}}
+{{- end -}}
 {{- $routes := $fg.routes | default dict -}}
 {{- if not (kindIs "map" $routes) -}}
 {{- fail (printf "frankgateway.instances.%s.routes must be a map of route id -> APISIX route body (see docs/apps/frankgateway/frankgateway-routes.md)" $key) -}}
@@ -89,6 +101,18 @@
 {{- end -}}
 {{- if and (hasKey $route "id") (ne (toString $route.id) $id) -}}
 {{- fail (printf "frankgateway.instances.%s.routes.%s: the body's `id` (%v) differs from the key it is filed under; drop it or make them equal" $key $id $route.id) -}}
+{{- end -}}
+{{- /* A client_cert_id APISIX cannot find is rejected at seed time, per
+     route, with a message about the SSL object; a typo is cheaper here. */ -}}
+{{- $ccid := dig "upstream" "tls" "client_cert_id" "" $route -}}
+{{- if and $ccid (not (and (hasPrefix "client-" $ccid) (hasKey $certs (trimPrefix "client-" $ccid)))) -}}
+{{- fail (printf "frankgateway.instances.%s.routes.%s: upstream.tls.client_cert_id %q names no client certificate of this instance. Declare it under frankgateway.instances.%s.clientCertificates.<name> (the SSL object id is then client-<name>)" $key $id $ccid $key) -}}
+{{- end -}}
+{{- /* The consumer-auth function trusts a header. That is only sound on the
+     inway, behind the front door that sets it; anywhere else the header is
+     whatever the caller says it is. */ -}}
+{{- if and (contains "openbao-consumer-auth" (toJson $route)) (ne $class "inway") -}}
+{{- fail (printf "frankgateway.instances.%s.routes.%s uses openbao-consumer-auth, which trusts the client-certificate identity header set by the front door. Only an inway-class instance sits behind that front door; on %s the header would be caller-controlled. See docs/apps/frankgateway/frankgateway-routes.md" $key $id $key) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

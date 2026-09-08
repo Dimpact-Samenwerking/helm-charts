@@ -5,8 +5,10 @@
 
   One ConfigMap for all instances rather than one each: the code is identical,
   it carries no instance-specific values, and a route referring to
-  `require("openbao-secret-header")` must resolve to the same implementation on
-  whichever class seeds it.
+  `require("openbao-secret-header")` or `require("openbao-consumer-auth")` must
+  resolve to the same implementation on whichever class seeds it. Both are thin
+  wrappers over `openbao-client`, which owns the fetch, the cache and the
+  environment.
 
   Contains no secret material — only the fetch logic. The token reaches the
   container from a Secret, and the credential itself never leaves OpenBao's

@@ -3707,8 +3707,9 @@ frankgateway:
   # Admin API JSON written as YAML), seeded into the class's etcd prefix by the
   # hook Job. `routes` is deliberately not a shared key: the shared block
   # merges into every class, so a route placed there would be seeded into all
-  # three, and templates/validations.yaml rejects it. Worked examples in
-  # docs/apps/frankgateway/frankgateway-routes.md.
+  # three, and templates/validations.yaml rejects it. The same holds for
+  # `instances.<class>.clientCertificates` (see clientCertSync below). Worked
+  # examples in docs/apps/frankgateway/frankgateway-routes.md.
   instances:
     inway:
       enabled: true
@@ -3933,7 +3934,9 @@ frankgateway:
   # request time by a serverless function on the route
   # (files/frankgateway/openbao-secret-header.lua), so the VALUES never enter
   # etcd, git, a ConfigMap or a Kubernetes Secret. The gateway holds one scoped
-  # reader token and nothing else.
+  # reader token and nothing else. The same token and mount serve the inbound
+  # consumer list (openbao-consumer-auth.lua, read at request time) and the
+  # outbound client certificates (clientCertSync, pulled on a schedule).
   #
   # This replaced an env-var path (Secret -> envFrom -> os.getenv in the route).
   # That path is gone, not deprecated: two ways to supply a key means two ways
@@ -4052,6 +4055,43 @@ frankgateway:
       # -- How long the finished Job (and its per-route log) is kept. Must
       # outlast the deploy's Helm timeout, or the Job vanishes under --wait.
       ttlSecondsAfterFinished: 600
+
+  # Client certificates the gateway presents to external APIs (mTLS to BRP /
+  # Haal Centraal, KvK, an ESB) come from OpenBao and nowhere else — but the
+  # gateway cannot read them from there itself. On APISIX 3.16 a `$secret://`
+  # reference resolves for consumer credentials and for the data-plane server
+  # certificate, NOT for an upstream client certificate (that lands in APISIX
+  # 3.18). So the chart PULLS: a CronJob per instance reads
+  # `<mount>/<openbaoPath>` (fields `cert`, `key`) with the reader token and
+  # PUTs it as APISIX SSL object `client-<name>` (type client). A rotation in
+  # OpenBao is live within one schedule tick, with no redeploy. The seed hook
+  # runs the same sync at deploy time, BEFORE the routes, because APISIX
+  # rejects a route whose client_cert_id does not exist yet.
+  #
+  # Declared per instance, next to the routes that use it:
+  #
+  #   instances:
+  #     outway:
+  #       clientCertificates:
+  #         brp:
+  #           openbaoPath: frankgateway/client-certs/brp
+  #       routes:
+  #         apiproxy-brp:
+  #           upstream:
+  #             scheme: https
+  #             tls: { client_cert_id: client-brp, verify: true }
+  #             ...
+  #
+  # The reader token's policy must cover the path. Onboarding and rotation
+  # commands: docs/apps/frankgateway/frankgateway-routes.md.
+  clientCertSync:
+    # -- Cron schedule of the per-instance sync — also the upper bound on how
+    # long a rotation in OpenBao takes to reach the gateway.
+    schedule: "*/5 * * * *"
+    successfulJobsHistoryLimit: 1
+    # -- Failed runs are kept so a sync that has stopped working is visible.
+    failedJobsHistoryLimit: 3
+    nodeSelector: {}
 
   # apisix-dashboard GUI + its Keycloak SSO front door.
   #

@@ -298,6 +298,7 @@ surfaced somewhere other than the change that caused it:
 | Registering the OpenBao secret backend | a secret backend is an etcd object, so it lives under one prefix; `$secret://` then fails **at request time as an auth rejection**, looking exactly like a wrong key |
 | The OpenBao reader policy scoped to one secret path | a valid key is rejected with 401, indistinguishable from a wrong key |
 | Seeding routes but not consumers | a `key-auth` route whose consumer does not exist yet rejects everything until the next run |
+| Expecting consumers to come from values | there is no `consumers` key: inbound identity is the consumer list in OpenBao, read at request time by `openbao-consumer-auth` — see [`frankgateway-routes.md`](frankgateway-routes.md) |
 
 Select instances by `app.kubernetes.io/component=frankgateway` rather than
 naming them, so a newly enabled class is covered without editing scripts.

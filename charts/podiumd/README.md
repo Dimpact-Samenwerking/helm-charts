@@ -120,6 +120,10 @@ PodiumD Helm chart
 | frankgateway.accessLog.jsonFormat | bool | `false` |  |
 | frankgateway.admin.adminKey | string | `""` |  |
 | frankgateway.admin.viewerKey | string | `""` |  |
+| frankgateway.clientCertSync.failedJobsHistoryLimit | int | `3` | Failed runs are kept so a sync that has stopped working is visible. |
+| frankgateway.clientCertSync.nodeSelector | object | `{}` |  |
+| frankgateway.clientCertSync.schedule | string | `"*/5 * * * *"` | Cron schedule of the per-instance sync — also the upper bound on how long a rotation in OpenBao takes to reach the gateway. |
+| frankgateway.clientCertSync.successfulJobsHistoryLimit | int | `1` |  |
 | frankgateway.dashboard.adminPassword | string | `""` |  |
 | frankgateway.dashboard.auth.adminGroup | string | `"fg-admins"` |  |
 | frankgateway.dashboard.auth.adminGroupMembers | list | `[]` |  |

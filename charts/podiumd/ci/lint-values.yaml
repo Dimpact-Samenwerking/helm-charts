@@ -209,6 +209,12 @@ frankgateway:
         - "fg-operator-ci-example"
   seed:
     prune: true
+  clientCertSync:
+    schedule: "*/5 * * * *"
+  # JSON access logs on, so the structured format (with the consumer field the
+  # inway's consumer-auth sets) is part of what CI renders.
+  accessLog:
+    jsonFormat: true
   instances:
     inway:
       tls:
@@ -217,10 +223,18 @@ frankgateway:
         auth:
           hostname: "frankgateway-inway-admin.example.nl"
       routes:
+        # Inbound identity: the front door verifies the client certificate and
+        # forwards its fingerprint; the gateway maps it to a consumer from
+        # OpenBao at request time. Only valid on the inway (validations.yaml).
         inbound-openzaak:
           uri: /*
           host: openzaak.example.nl
           labels: { managed-by: iac }
+          plugins:
+            serverless-pre-function:
+              phase: access
+              functions:
+                - 'local consumer_auth = require("openbao-consumer-auth") return consumer_auth({ path = "frankgateway/consumers", verificationHeader = "X-Client-Cert-Verification", allow = { "mijn-omgeving" } })'
           upstream:
             type: roundrobin
             scheme: http
@@ -230,7 +244,25 @@ frankgateway:
       dashboard:
         auth:
           hostname: "frankgateway-outway-admin.example.nl"
+      # An outbound client certificate pulled from OpenBao into SSL object
+      # client-brp, referenced by the mTLS route below. Exercises the sync
+      # ConfigMap + CronJob and the client_cert_id validation.
+      clientCertificates:
+        brp:
+          openbaoPath: frankgateway/client-certs/brp
       routes:
+        apiproxy-brp-mtls:
+          uri: "/haalcentraal/api/brp/*"
+          labels: { managed-by: iac }
+          upstream:
+            scheme: https
+            pass_host: rewrite
+            upstream_host: brp.example.nl
+            nodes: { "brp.example.nl:443": 1 }
+            type: roundrobin
+            tls:
+              client_cert_id: client-brp
+              verify: true
         apiproxy-bag:
           uri: "/lvbag/individuelebevragingen/v2/*"
           name: apiproxy-bag

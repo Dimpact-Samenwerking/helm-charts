@@ -369,8 +369,9 @@ live at QA traffic levels, not carried over from the single-gateway setup.
 | apisix-dashboard | 25m | 128Mi | 500m | 512Mi |
 | oauth2-proxy | 10m | 64Mi | 250m | 256Mi |
 | shim (nginx) | 10m | 32Mi | 250m | 128Mi |
-| routes-seed Job | 25m | 32Mi | 250m | 128Mi |
+| seed Job | 25m | 32Mi | 250m | 128Mi |
 | ssl-sync CronJob | 25m | 32Mi | 250m | 128Mi |
+| client-cert-sync CronJob | 25m | 32Mi | 250m | 128Mi |
 
 *Dashboards ship **off** (`frankgateway.dashboard.enabled: false`). On, the
 dashboard chain — dashboard + oauth2-proxy + shim, two replicas each — is 18 of
