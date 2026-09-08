@@ -16,6 +16,7 @@ Resource requests and limits for all chart components. Values reflect the chart 
 PDBs prevent all pods of a workload from being evicted simultaneously during node maintenance. They are only meaningful for components running **2 or more replicas**.
 
 **PDBs managed automatically by operators** (no manual configuration needed):
+
 - `zac-solr-solrcloud` — `maxUnavailable: 2` (Solr Operator)
 - `zac-solr-solrcloud-zookeeper` — `maxUnavailable: 1` (Solr Operator)
 - `kiss-es-default` — `minAvailable: 1` (ECK Operator)

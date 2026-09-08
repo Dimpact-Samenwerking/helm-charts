@@ -120,6 +120,7 @@ headroom; the nginx sidecar default (10m/16Mi) is adequate.
    Keycloak client secret `openbeheer-oidc-secret` (`openssl rand -hex 32`), Open Zaak ZGW
    secret and Objecttypen API token (both `openssl rand -hex 32`).
 4. **Enable and configure** in the environment values file:
+
    ```yaml
    openbeheer:
      enabled: true
@@ -141,6 +142,7 @@ headroom; the nginx sidecar default (10m/16Mi) is adequate.
          username: openbeheer
          password: "REP_OPENBEHEER_DATABASE_PASSWORD_REP"
    ```
+
    Secrets inside `configuration.data` use django-setup-configuration's
    `value_from: {env: VAR}` pattern; the Objecttypen `Authorization: Token ...` header is
    the exception and keeps an inline `REP_..._REP` token.

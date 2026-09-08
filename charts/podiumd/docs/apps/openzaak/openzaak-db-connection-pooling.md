@@ -61,7 +61,7 @@ openzaak:
 
 This is the configuration recommended by the Open Zaak/open-api-framework documentation as the most useful pattern:
 
-```
+```text
 DB_POOL_MIN_SIZE (4) = DB_POOL_MAX_SIZE (4) < UWSGI_THREADS (4)
 ```
 
@@ -102,10 +102,12 @@ The total connection count is the same, but the pool gives more control over lif
 ## Before applying
 
 ### uWSGI settings (safe to apply now)
+
 - [ ] Verify `processes` and `threads` align with the pod's CPU request (250m supports 2 processes comfortably)
 - [ ] Apply to acceptance environment and monitor pod memory over time with `maxRequests` recycling
 
 ### DB connection pooling (apply only when no longer experimental)
+
 - [ ] Check whether the Open Zaak team has lifted the "experimental" label in a newer release
 - [ ] Test on an acceptance/OTAP environment first
 - [ ] Monitor with `SELECT count(*) FROM pg_stat_activity WHERE datname = 'openzaak'` before and after

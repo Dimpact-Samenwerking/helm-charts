@@ -5,7 +5,8 @@ instead of per-component Redis subcharts. Each component is assigned one or two 
 logical databases within Redis, identified by the `/N` suffix in the connection URL.
 
 The Redis HA service is reachable at:
-```
+
+```text
 redis-ha-master.podiumd.svc.cluster.local:6379
 ```
 
@@ -132,6 +133,7 @@ once the shared Redis HA approach is confirmed stable for all components.
 ## Reservations
 
 Database numbers are reserved (not yet configured in the application) when:
+
 - The component is new to the chart and Celery support is unknown or not yet implemented.
 - A future feature may require Celery (e.g. background tasks, async processing).
 
