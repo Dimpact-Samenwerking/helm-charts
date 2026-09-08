@@ -8,8 +8,8 @@ case-types, document-types and object schemas in one place, instead of editing t
 the raw Open Zaak and Objecttypen admin screens. It is part of PodiumD because every other
 component (ZAC, Open Formulieren, Open Inwoner) depends on well-maintained catalogi, and
 Open Beheer makes that maintenance manageable. To run it needs a PostgreSQL database, a
-small Azure file share, Redis, a Keycloak client and API credentials for Open Zaak and
-Objecttypen and Objecten. Its footprint is small: two lightweight web pods plus an nginx sidecar,
+small Azure file share, Redis, a Keycloak client and API credentials for Open Zaak,
+Objecttypen, and Objecten. Its footprint is small: two lightweight web pods plus an nginx sidecar,
 roughly 250–270 MiB memory each and near-idle CPU.
 
 ## What it is
@@ -263,15 +263,15 @@ with production workload measurements.
        secrets:
          objecten_openbeheer_token: "REP_OBJECTEN_OPENBEHEER_TOKEN_REP"
        data: |-
-         tokenauth_config_enable: true
-         tokenauth:
-           items:
-           - identifier: openbeheer-token
-             token: {value_from: {env: objecten_openbeheer_token}}
-             contact_person: Open Beheer
-             email: openbeheer@example.com
-             application: Open Beheer
-             is_superuser: true
+          tokenauth_config_enable: true
+          tokenauth:
+            items:
+              - identifier: openbeheer-token
+                token: {value_from: {env: objecten_openbeheer_token}}
+                contact_person: Open Beheer
+                email: openbeheer@example.com
+                application: Open Beheer
+                is_superuser: true
    ```
 
    **openzaak side** — register openbeheer as an authorised application with full admin rights:
