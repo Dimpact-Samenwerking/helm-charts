@@ -1,6 +1,6 @@
 # monitoring-logging
 
-![Version: 1.0.16](https://img.shields.io/badge/Version-1.0.16-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.16](https://img.shields.io/badge/AppVersion-1.0.16-informational?style=flat-square)
+![Version: 1.0.17](https://img.shields.io/badge/Version-1.0.17-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.17](https://img.shields.io/badge/AppVersion-1.0.17-informational?style=flat-square)
 
 A monitoring stack using Loki, Prometheus, Grafana Alloy, OpenTelemetry Collector, and Grafana. Optionally includes Grafana Tempo for distributed tracing.
 
@@ -79,10 +79,12 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | alloy.logCollectionNamespaces | list | `["podiumd","monitoring"]` | Namespaces Alloy collects pod logs from. This is a server-side namespace filter on the Kubernetes pod discovery (see configMap.content below). Override this if your workloads run in a different namespace, e.g. set to ["default", "monitoring"] when deploying apps to "default". |
 | grafana."grafana.ini"."auth.anonymous".enabled | bool | `false` |  |
 | grafana."grafana.ini"."auth.anonymous".hide_version | bool | `true` |  |
-| grafana."grafana.ini"."auth.generic_oauth" | object | `{"allow_assign_grafana_admin":true,"allow_sign_up":true,"api_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/userinfo","auth_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/auth","client_id":"monitoring","client_secret":"","email_attribute_path":"email","enabled":true,"groups_attribute_path":"groups","login_attribute_path":"username","name":"Keycloak-podiumd","name_attribute_path":"name","org_mapping":"*:Viewer","role_attribute_path":"contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'","role_attribute_strict":false,"scopes":"openid email profile offline_access roles","skip_org_role_sync":false,"sync_ttl":60,"token_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/token","use_pkce":true,"use_refresh_token":true}` | Authentication and Authorization with Keycloak |
+| grafana."grafana.ini"."auth.generic_oauth" | object | `{"allow_assign_grafana_admin":true,"allow_sign_up":true,"api_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/userinfo","auth_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/auth","client_id":"monitoring","client_secret":"","email_attribute_path":"email","enabled":true,"groups_attribute_path":"groups","login_attribute_path":"username","name":"Keycloak-podiumd","name_attribute_path":"name","org_mapping":"*:Viewer","role_attribute_path":"contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'","role_attribute_strict":false,"scopes":"openid email profile roles","skip_org_role_sync":false,"sync_ttl":60,"token_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/token","use_pkce":true,"use_refresh_token":false}` | Authentication and Authorization with Keycloak |
 | grafana."grafana.ini".auth.allow_sign_up | bool | `true` |  |
 | grafana."grafana.ini".auth.disable_login_form | bool | `true` |  |
 | grafana."grafana.ini".auth.disable_signout_menu | bool | `false` |  |
+| grafana."grafana.ini".auth.login_maximum_inactive_lifetime_duration | string | `"7d"` |  |
+| grafana."grafana.ini".auth.login_maximum_lifetime_duration | string | `"30d"` |  |
 | grafana."grafana.ini".auth.oauth_auto_login | bool | `true` |  |
 | grafana."grafana.ini".auth.oauth_skip_org_role_update_sync | bool | `false` |  |
 | grafana."grafana.ini".feature_toggles | object | `{"grafanaAdvisor":true}` | Grafana Advisor surfaces recommendations in the Grafana UI |
