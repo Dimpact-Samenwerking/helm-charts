@@ -292,7 +292,7 @@ Default replicas: **3** (SolrCloud), **1** (Zookeeper)
 | zookeeper `(op)` | 100m | 256Mi | 500m | 512Mi | `zac.solr-operator.zookeeper-operator.zookeeper.resources` → SolrCloud CRD |
 
 > JVM heap is set via `javaMem` in the ZAC chart (default `Xms512m Xmx768m`). The `solr.resources` and `zookeeper.resources` fields (added in ZAC chart 1.0.204) map to the SolrCloud CRD.
-
+>
 > ⚠️ **Increase for production**: Default JVM heap of 512–768Mi is suitable for dev. Production with large ZAAK indices should use `Xms1g Xmx2g`. Container memory limit must be ~1.5× the heap to account for off-heap usage. Suggested: `1000m / 3Gi` per SolrCloud node. Zookeeper: `200m / 512Mi`.
 
 **PDB**: Managed by the Solr Operator (`maxUnavailable: 2` for SolrCloud, `maxUnavailable: 1` for Zookeeper).

@@ -178,4 +178,3 @@ database before upgrading.
 ### See also
 
 - [`../../_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md`](../../_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md) — the 4.9.0 upgrade guide, which carries this as a pre-deploy step.
-

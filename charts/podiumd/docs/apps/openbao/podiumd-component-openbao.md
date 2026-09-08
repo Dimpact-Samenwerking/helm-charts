@@ -322,7 +322,7 @@ The `openbao-config` Job then makes the vault usable, idempotently:
 > lands with the `default` policy and can do nothing. Earlier chart versions
 > granted `token_policies=uploader` to every login — re-running the config Job
 > clears that grant (the OIDC-role write is a full replace).
-
+>
 > **Related, but separable:** this branch also makes `accessTokenLifespan`
 > configurable. Per-app `su-<app>` admin users are **not** chart-rendered; for
 > test environments create them with `scripts/create-su-users.sh` (run locally

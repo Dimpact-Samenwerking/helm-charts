@@ -1,6 +1,6 @@
 # Open Inwoner — disabling outgoing/external request logging
 
-**How to stop Open Inwoner logging outgoing HTTP requests — Dimpact**
+## How to stop Open Inwoner logging outgoing HTTP requests — Dimpact
 
 | | |
 |---|---|

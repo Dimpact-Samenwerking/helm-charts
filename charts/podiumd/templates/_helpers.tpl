@@ -130,7 +130,16 @@ app.kubernetes.io/instance: {{ .context.Release.Name }}
 {{- end }}
 
 {{/*
-Renders a container image from a string or a dict with optional registry, repository, and tag.
+Renders a container image from a string or a dict with optional registry,
+repository, tag, and sha. `sha` is a separate digest field (rather than
+embedded in `tag` as "tag@sha256:digest") for an image object that needs
+to share its repository/tag/digest with another image object of a
+DIFFERENT shape via YAML anchor/alias (e.g. keycloak.image aliasing
+keycloak-operator's own operator.config.keycloakImage, which the adfinis
+chart's own template already renders as "tag@sha256:{{ .sha }}" using a
+split field — embedding the digest in .tag there too would produce an
+invalid double digest). Absent/empty for every other image object in
+this chart, so this branch is a no-op everywhere else.
 Usage: {{ include "podiumd.image" .Values.path.to.image }}
 */}}
 {{- define "podiumd.image" -}}
@@ -139,6 +148,7 @@ Usage: {{ include "podiumd.image" .Values.path.to.image }}
 {{- else -}}
 {{- if .registry -}}{{ .registry }}/{{ end -}}
 {{- .repository -}}:{{- .tag -}}
+{{- if .sha -}}@sha256:{{ .sha }}{{- end -}}
 {{- end -}}
 {{- end -}}
 

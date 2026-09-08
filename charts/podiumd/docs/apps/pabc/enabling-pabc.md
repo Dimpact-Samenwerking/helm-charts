@@ -103,7 +103,7 @@ zac:
 > Since ZAC 5.0.1 (PodiumD 4.8.0) do **not** set
 > `zac.featureFlags.pabcIntegration` — the flag was removed and Helm
 > validation fails on it. On 4.7.x the flag still exists and must be `true`.
-
+>
 > **Note:** `oidcUrl` must exactly match the public URL of PABC (used as the Keycloak redirect URI base). A mismatch here is a common source of OIDC errors — see [Troubleshooting](#troubleshooting).
 
 ---
