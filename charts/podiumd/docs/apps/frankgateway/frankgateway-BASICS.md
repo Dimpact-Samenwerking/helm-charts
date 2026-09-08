@@ -29,7 +29,7 @@ two down. See
 Upstream: [Apache APISIX](https://apisix.apache.org/) 3.16 packaged by
 [WeAreFrank](https://wearefrank.nl/) as `ghcr.io/wearefrank/frank-gateway`
 ("APISIX + WeAreFrank patches"), image chart-pinned at
-`104@sha256:a830b9...` (`frankgateway.image.tag` in
+`1.1.0@sha256:2f944f...` (`frankgateway.image.tag` in
 `charts/podiumd/values.yaml`), deployed by this chart's own templates —
 there is no subchart and no APISIX operator. Optional; enabled with
 `frankgateway.enabled: true` (default `false`).

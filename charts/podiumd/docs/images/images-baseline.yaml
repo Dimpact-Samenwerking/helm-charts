@@ -339,6 +339,12 @@
   digest: "sha256:d963eb510065472fd9d9b9e27504638f0ce8a8cfe3fd818f92bcfb7277faaee5"
 - name: wearefrank/frank-gateway
   url: ghcr.io/wearefrank/frank-gateway
+  version: "1.1.0"
+  digest: "sha256:2f944fdbc16883e4b586aaa20f04928cd33afc7efc78d37012d2c7acb62f55bd"
+# 104 is the pre-SemVer build pinned by podiumd <= 4.9.0; keep mirrored until
+# every environment is on 4.9.1.
+- name: wearefrank/frank-gateway
+  url: ghcr.io/wearefrank/frank-gateway
   version: "104"
   digest: "sha256:a830b90f8820f5cdb0c382ecef02a302c50d129edc9de81d7daa7af1cf267d98"
 - name: wearefrank/zaakbrug

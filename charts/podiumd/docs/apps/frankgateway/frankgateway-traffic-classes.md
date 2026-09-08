@@ -344,7 +344,7 @@ does **not** preserve the **scheme**: an application reached over plain http on
 the internal class emits `http://` URLs where the same application reached
 through the inway emits `https://`.
 
-On `frank-gateway:104` (APISIX 3.16) this could not be fixed with headers —
+On `frank-gateway` 104 and 1.1.0 (both APISIX 3.16.0) this could not be fixed with headers —
 `proxy-rewrite`, a function setting `ctx.var.var_x_forwarded_proto` in either
 the `rewrite` or `before_proxy` phase, and a client-supplied
 `X-Forwarded-Proto` were all discarded before reaching the upstream. The last

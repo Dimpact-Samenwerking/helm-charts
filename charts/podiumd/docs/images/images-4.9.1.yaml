@@ -25,3 +25,12 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.7.3"
   digest: "sha256:e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
+
+# Frank!Gateway: 104 -> 1.1.0, the first SemVer release of WeAreFrank's build.
+# Still Apache APISIX 3.16.0 (label based-on); the delta is two new plugins
+# (auth-zen, merge-config) and release engineering. `latest` is one commit
+# ahead of 1.1.0 -- never pin it.
+- name: wearefrank/frank-gateway
+  url: ghcr.io/wearefrank/frank-gateway
+  version: "1.1.0"
+  digest: "sha256:2f944fdbc16883e4b586aaa20f04928cd33afc7efc78d37012d2c7acb62f55bd"
