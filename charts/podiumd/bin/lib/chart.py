@@ -62,6 +62,16 @@ COMPONENT_IMAGE_PATHS = {
     # that's not guaranteed by the chart itself, hence listing both
     # rather than picking one as "the" primary).
     "internetaakafhandeling": ["web.image", "poller.image"],
+    # kiss-chart's own frontend image (bare "image") and its
+    # syncJobs.image (the elastic-sync CronJob) are released from the
+    # same kiss-chart version and always move together — same co-equal
+    # lockstep shape as zgw-office-addin's frontend+backend, documented
+    # as one unit rather than treating syncJobs.image as a sidecar of
+    # the frontend. NOT syncJobs.crawlerImage/indexTemplateImage (the
+    # Elastic Open Crawler images) — those are separate upstream
+    # projects with their own independent version lines, never bumped
+    # in lockstep with kiss-chart itself.
+    "kiss-chart": ["image", "settings.syncJobs.image"],
 }
 DEFAULT_IMAGE_PATHS = ["image"]
 
