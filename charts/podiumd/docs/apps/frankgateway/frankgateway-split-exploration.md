@@ -57,7 +57,7 @@ APISIX in traditional mode loads exactly the objects under its configured
 etcd `prefix`. Three instances can share the **single existing etcd**
 StatefulSet, each with its own prefix:
 
-```
+```text
 /apisix-incoming
 /apisix-outgoing
 /apisix-internal

@@ -33,7 +33,7 @@ dashboard serves all three gateways (inway / outway / internal).
 > `"uid": "frankgateway"`, and Grafana's response to one UID claimed by two
 > providers is not to pick a winner — it revokes write permission from **both**:
 >
-> ```
+> ```text
 > the same UID is used more than once  uid=frankgateway times=2
 >   providers="[frankgateway sidecarProvider]"
 > dashboards provisioning provider has no database write permissions

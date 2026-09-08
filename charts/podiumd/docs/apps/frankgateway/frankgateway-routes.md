@@ -370,4 +370,3 @@ silently. `key-auth` on the fingerprint header would also accept the same value
 from the `?apikey=` query string, which cannot be disabled, and a fingerprint is
 public. The request-time Lua fails closed, refreshes in 300 s, and reads only
 the header it is told to.
-
