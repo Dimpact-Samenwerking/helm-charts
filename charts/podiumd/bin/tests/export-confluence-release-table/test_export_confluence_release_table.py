@@ -659,6 +659,11 @@ def test_extract_release_rows_replaces_non_semver_version_with_unknown_and_repor
     assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "", "5.0.0", "1.0.290", "UNKNOWN", "1.0.297"]
     out = capsys.readouterr().out
     assert "1 version value(s) were not semver-compatible — replaced with UNKNOWN" in out
+    assert 'WARNING: "ZAC": target_version_app is not semver-compatible — replaced with UNKNOWN' in out
+    # "ZAC" also resolves to component UNKNOWN here (no Chart.yaml/values.yaml
+    # at all under the isolated chart_dir this test runs against).
+    assert ('WARNING: "ZAC" did not resolve to any Chart.yaml dependency, orphan '
+            'values.yaml key, or global image key') in out
 
 
 def test_extract_release_rows_ignores_table_not_under_any_target_heading(ecrt, capsys):
@@ -678,13 +683,16 @@ def test_extract_release_rows_reports_skip_for_incomplete_table_under_target_hea
     assert '"Overige component versies": skipped (missing required column(s):' in out
 
 
-def test_extract_release_rows_vendor_blank_used_by_populated_for_technische_table(ecrt):
+def test_extract_release_rows_vendor_blank_used_by_populated_for_technische_table(ecrt, capsys):
     """A "Technische component versies" table has no Ontwikkelpartij
     column (vendor blank) but does have "Used by" — the reverse of a
     Product table."""
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML)
     assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "",
                       "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+    out = capsys.readouterr().out
+    assert ('WARNING: "Elastic operator" (used_by "ZAC") did not resolve to any Chart.yaml '
+            'dependency, orphan values.yaml key, or global image key') in out
 
 
 def test_extract_release_rows_technische_table_without_helm_column(ecrt):
@@ -857,6 +865,26 @@ def test_extract_release_rows_no_warning_when_multiple_row_resolves_an_image(ecr
     assert "WARNING" not in out
 
 
+def test_extract_release_rows_warns_on_duplicate_component_and_image(ecrt, tmp_path, capsys):
+    """Regression test: two distinct rows resolving to the exact same
+    (component, image_basename) pair — e.g. the same global.images key
+    accidentally named on two rows, since resolve_image_basenames'
+    MULTIPLE-row resolution (unlike its real-dependency one) has no
+    claim-and-delete exclusivity — must be flagged as a duplicate."""
+    write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
+    (tmp_path / "values.yaml").write_text(
+        "global:\n  images:\n    zac:\n      repository: org/zac-base\n", encoding="utf-8")
+    duplicated_zac_row = "<tr><td>ZAC</td><td>Info(NL)</td><td>5.0.0</td><td>1.0.290</td>" \
+                          "<td>5.1.0</td><td>1.0.297</td></tr>"
+    html = PRODUCT_TABLE_HTML.replace(
+        "</tr>\n<tr>\n<td>Open Zaak</td>", f"</tr>\n{duplicated_zac_row}\n<tr>\n<td>Open Zaak</td>")
+    rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
+    assert sum(1 for row in rows if row[3] == "ZAC") == 2
+    out = capsys.readouterr().out
+    assert ('WARNING: 2 rows all resolve to the same component "MULTIPLE" + image '
+            '"zac-base": ZAC, ZAC') in out
+
+
 def test_extract_release_rows_used_by_blank_when_table_has_none(ecrt):
     """A Product table has no "Used by" column at all (only Ontwikkelpartij)."""
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML)
@@ -914,6 +942,33 @@ def test_extract_release_rows_silent_when_target_matches_chart_yaml(ecrt, tmp_pa
     write_chart_yaml(tmp_path, "4.9.0")
     ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     assert capsys.readouterr().err == ""
+
+
+def test_extract_release_rows_warns_when_chart_yaml_version_unparseable(ecrt, tmp_path, capsys):
+    """Regression test: Chart.yaml's own "version:" not being a valid
+    MAJOR.MINOR(.PATCH) used to make check_target_matches_chart_version
+    quietly return, indistinguishable from "checked, and it matched" —
+    now warns that it couldn't verify at all."""
+    write_chart_yaml(tmp_path, "not-a-version")
+    ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    out = capsys.readouterr().out
+    assert ('WARNING: could not verify Confluence target version against Chart.yaml — its own '
+            '"version: not-a-version" isn\'t a valid MAJOR.MINOR(.PATCH)') in out
+
+
+def test_extract_release_rows_warns_when_no_target_label_found(ecrt, tmp_path, capsys):
+    """Regression test: a table whose header never yielded a resolvable
+    "target" Versie group (find_versie_groups) used to leave
+    target_labels empty, which quietly made check_target_matches_chart_
+    version behave exactly like "verified, and it matched" — now warns
+    that it couldn't verify at all."""
+    write_chart_yaml(tmp_path, "4.9.0")
+    html = "<h2>Product component versies</h2><table><tbody><tr><td>x</td></tr></tbody></table>"
+    with pytest.raises(SystemExit):
+        ecrt.extract_release_rows(html, chart_dir=tmp_path)
+    out = capsys.readouterr().out
+    assert ('WARNING: could not verify Confluence target version against Chart.yaml — no '
+            'table\'s "Versie ..." heading yielded a resolvable target-version group') in out
 
 
 # --- main() integration ---

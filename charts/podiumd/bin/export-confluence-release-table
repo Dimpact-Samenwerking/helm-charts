@@ -149,13 +149,29 @@ def check_target_matches_chart_version(target_labels, chart_dir):
     "Versie ..." group found per table) whose MAJOR.MINOR doesn't match
     chart_dir/Chart.yaml's own "version:" (patch ignored). Never raises —
     a mismatch is worth a human's attention, not a reason to stop
-    exporting whatever the page actually says."""
+    exporting whatever the page actually says.
+
+    Silent only when chart_dir has no Chart.yaml at all — a real export
+    always runs against CHART_DIR (this script's own real parent
+    directory, which always has one); this branch exists purely so tests
+    that don't care about this check can point chart_dir at an empty
+    tmp_path without triggering it. Every OTHER way this check can't
+    actually verify anything — Chart.yaml's own "version:" isn't a valid
+    MAJOR.MINOR(.PATCH), or no table's heading yielded a resolvable
+    target-version group at all — warns instead of quietly behaving the
+    same as "verified, and it matched"."""
     chart_yaml_path = chart_dir / "Chart.yaml"
     if not chart_yaml_path.is_file():
         return
     chart_version = str(load_yaml(chart_yaml_path).get("version", ""))
     chart_major_minor = major_minor(chart_version)
     if chart_major_minor is None:
+        print(f'WARNING: could not verify Confluence target version against Chart.yaml — '
+              f'its own "version: {chart_version}" isn\'t a valid MAJOR.MINOR(.PATCH)')
+        return
+    if not target_labels:
+        print('WARNING: could not verify Confluence target version against Chart.yaml — '
+              'no table\'s "Versie ..." heading yielded a resolvable target-version group')
         return
 
     mismatched = sorted({label for label in target_labels if major_minor(label) != chart_major_minor})
@@ -654,7 +670,16 @@ def extract_release_rows(html, headings=None, chart_dir=None):
     column it's missing) — using the real, full heading text, not the
     shortened "section" value — and a large warning (see
     check_target_matches_chart_version) if any table's target heading
-    doesn't match `chart_dir` (default CHART_DIR) Chart.yaml's version."""
+    doesn't match `chart_dir` (default CHART_DIR) Chart.yaml's version.
+
+    Also warns, per-row, for anything that could otherwise pass through
+    unseen: a row whose used_by/name resolved to component "UNKNOWN" (see
+    component_and_alias); a version cell that wasn't semver-compatible
+    and got replaced with "UNKNOWN" (the aggregate count of these is
+    still printed too, as a fast top-line summary); a MULTIPLE row (see
+    resolve_image_basenames) whose image_basename couldn't be resolved
+    at all; and two distinct rows resolving to the exact same
+    (component, image_basename) pair, which is never legitimate."""
     headings = headings or DEFAULT_HEADINGS
     chart_dir = chart_dir or CHART_DIR
     dependencies = chart_dependencies(chart_dir)
@@ -698,12 +723,22 @@ def extract_release_rows(html, headings=None, chart_dir=None):
             # own name (e.g. "Solr") usually shares no text with the
             # component that uses it at all.
             component, alias = component_and_alias(used_by or name, dependencies, orphan_keys, global_keys)
+            if component == "UNKNOWN":
+                used_by_suffix = f' (used_by "{used_by}")' if used_by else ""
+                print(f'WARNING: "{name}"{used_by_suffix} did not resolve to any Chart.yaml '
+                      f'dependency, orphan values.yaml key, or global image key')
             # source_app/target_app are guaranteed resolved (see
             # missing_required_release_columns above); source_helm/
             # target_helm are optional and blank exactly like a missing
             # vendor/used_by cell when this table has no Helm sub-column.
+            version_columns = ("source_version_app", "source_version_helm",
+                                "target_version_app", "target_version_helm")
             versions = [normalize_version(data_row[columns[key]]) if columns[key] is not None else ""
                         for key in ("source_app", "source_helm", "target_app", "target_helm")]
+            for column_name, value in zip(version_columns, versions):
+                if value == "UNKNOWN":
+                    print(f'WARNING: "{name}": {column_name} is not semver-compatible — '
+                          f'replaced with UNKNOWN')
             unknown_count += sum(1 for v in versions if v == "UNKNOWN")
             rows_out.append([section_name(heading), vendor, used_by, name, component, alias] + versions)
             matched += 1
@@ -734,6 +769,26 @@ def extract_release_rows(html, headings=None, chart_dir=None):
                   f'resolved — its image will be untracked in {DEFAULT_OUTPUT.name}')
         row.insert(6, basename)
     apply_native_helm_marker(rows_out)
+
+    # Two distinct rows resolving to the exact same (component, image_
+    # basename) pair — both non-blank — is never legitimate: either an
+    # accidentally duplicated Confluence row, or two differently-named
+    # rows that both happen to describe the same underlying image. A
+    # blank component or basename is excluded since those are already
+    # covered by their own warnings above (UNKNOWN component) or are a
+    # normal, expected "nothing to track here" result (a real
+    # component's own primary row with no directly-pinned image at all
+    # — see resolve_image_basenames's own docstring), not a duplicate.
+    by_pair = {}
+    for row in rows_out:
+        component, basename = row[4], row[6]
+        if component and basename:
+            by_pair.setdefault((component, basename), []).append(row[3])
+    for (component, basename), names in sorted(by_pair.items()):
+        if len(names) > 1:
+            print(f'WARNING: {len(names)} rows all resolve to the same component "{component}" + '
+                  f'image "{basename}": {", ".join(names)}')
+
     return rows_out
 
 
