@@ -1,8 +1,7 @@
 """check_markdown — lints every *.md file under chart_dir with pymarkdown,
-report-only (never fails on a finding, only on a missing pymarkdown
-install). No real pymarkdown binary is invoked in most of these tests —
-`run` is mocked throughout except where find_pymarkdown itself is under
-test."""
+failing on any finding (or a missing pymarkdown install). No real
+pymarkdown binary is invoked in most of these tests — `run` is mocked
+throughout except where find_pymarkdown itself is under test."""
 from types import SimpleNamespace
 
 
@@ -171,11 +170,11 @@ def test_no_findings_passes(libmarkdowncheck, vp, tmp_path, monkeypatch, capsys)
 
     ok, detail = vp.check_markdown(chart_dir)
     assert ok is True
-    assert detail == "0 finding(s) (report-only)"
+    assert detail == "0 finding(s)"
     assert "OK: no markdown findings" in capsys.readouterr().out
 
 
-def test_findings_are_report_only_never_fail(libmarkdowncheck, vp, tmp_path, monkeypatch, capsys):
+def test_findings_fail_the_check(libmarkdowncheck, vp, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path, files={"docs/foo.md": "Not a heading\n"})
     monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
     finding_line = (f"{chart_dir / 'docs' / 'foo.md'}:1:1: MD041: First line in file should be a top level "
@@ -183,8 +182,8 @@ def test_findings_are_report_only_never_fail(libmarkdowncheck, vp, tmp_path, mon
     monkeypatch.setattr(libmarkdowncheck, "run", lambda cmd, **kw: pymarkdown_result(finding_line))
 
     ok, detail = vp.check_markdown(chart_dir)
-    assert ok is True
-    assert detail == "1 finding(s) (report-only)"
+    assert ok is False
+    assert detail == "1 finding(s)"
     out = capsys.readouterr().out
     assert "Found 1 markdown finding(s)" in out
     assert "MD041 (first-line-heading)" in out
