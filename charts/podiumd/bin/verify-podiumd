@@ -154,6 +154,20 @@ trip:
       a HIGH/CRITICAL finding is a triage decision for a human, not a
       chart-correctness fact (see lib.cve_check)
 
+  23. every component registered as "lockstep" in lib.chart — either a
+      COMPONENT_IMAGE_PATHS/COMPONENT_VERSION_PATHS entry with 2+ paths
+      (e.g. kiss-chart's frontend "image" + its own settings.syncJobs.
+      image), or a CHART_VERSION_LOCKSTEP_COMPONENTS entry (kiss-chart,
+      pabc: a component whose Chart.yaml dependency version and its own
+      resolved app image version are released as the same number) —
+      actually agrees on one version in values.yaml/Chart.yaml right
+      now. Registering a component in either place is a purely
+      declarative claim nothing else in this codebase ever re-checks;
+      this is the one place that does. A cheap filesystem check (no
+      helm dependency update needed), so despite the number it runs up
+      front with the other trivial scans, right after step 8 (see
+      lib.lockstep_check)
+
   Steps 17-20's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
   Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, and any local
   ("file://") dependency are close/collaborative enough that their
@@ -279,6 +293,7 @@ from lib.image_repository_check import check_image_repository
 from lib.digest_pinning_check import check_digest_pinning, check_subchart_image_visibility
 from lib.node_selector_check import check_node_selector
 from lib.docs_consistency import check_docs_consistency
+from lib.lockstep_check import check_lockstep_versions
 from lib.helm_docs_check import check_helm_docs
 from lib.markdown_check import check_markdown
 from lib.vendored_tgz_check import check_vendored_tgz_extraction
@@ -482,6 +497,7 @@ SKIPPABLE_STEPS = [
     ("digest-pinning", "Digest pinning"),
     ("vendored-tgz", "Vendored tgz"),
     ("release-baseline", "Release baseline"),
+    ("lockstep-versions", "Lockstep versions"),
     ("helm-doc", "Helm doc"),
     ("markdown", "Markdown lint"),
     ("repo-access", "Repo access"),
@@ -684,6 +700,8 @@ def main():
              check_vendored_tgz_extraction, chart_dir)
     run_step("Release baseline", "Checking release-baseline resolves to a real release",
              check_release_baseline, chart_dir)
+    run_step("Lockstep versions", "Checking registered lockstep image/version groups agree",
+             check_lockstep_versions, chart_dir)
 
     run_step("Helm doc", "Checking README.md against values.yaml (helm-docs)",
              check_helm_docs, chart_dir)

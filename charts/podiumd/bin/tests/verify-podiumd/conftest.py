@@ -36,6 +36,7 @@ import lib.image_upgrade_cache as image_upgrade_cache
 import lib.image_upgrade_check as image_upgrade_check
 import lib.kube_score_check as kube_score_check
 import lib.kubeconform_check as kubeconform_check
+import lib.lockstep_check as lockstep_check
 import lib.markdown_check as markdown_check
 import lib.node_selector_check as node_selector_check
 import lib.registry as registry
@@ -157,6 +158,11 @@ def libimageupgradecheck():
 @pytest.fixture(scope="session")
 def libimageupgradecache():
     return image_upgrade_cache
+
+
+@pytest.fixture(scope="session")
+def liblockstepcheck():
+    return lockstep_check
 
 
 @pytest.fixture(scope="session")
