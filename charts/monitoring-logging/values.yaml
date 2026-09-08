@@ -146,7 +146,13 @@ grafana:
       allow_assign_grafana_admin: true
       client_id: "monitoring"
       client_secret: ""
-      scopes: openid email profile offline_access roles
+      # offline_access removed: podiumd's `monitoring` Keycloak client no longer
+      # grants it (see podiumd chart PR #441 / docs/apps/keycloak/keycloak-security-updates.md
+      # "Offline Access Disabled") — Keycloak would silently drop the scope from
+      # the auth request anyway. Session length is now governed by the
+      # `login_maximum_inactive_lifetime_duration` / `login_maximum_lifetime_duration`
+      # settings below instead of a persistent refresh token. See docs/grafana-auth.md.
+      scopes: openid email profile roles
       email_attribute_path: email
       login_attribute_path: username
       name_attribute_path: name
@@ -158,7 +164,8 @@ grafana:
       org_mapping: "*:Viewer"
       skip_org_role_sync: false
       groups_attribute_path: groups
-      use_refresh_token: true
+      # No offline_access grant to refresh from — see the scopes comment above.
+      use_refresh_token: false
       sync_ttl: 60
       use_pkce: true
     auth:
@@ -167,6 +174,14 @@ grafana:
       disable_login_form: true
       disable_signout_menu: false
       allow_sign_up: true
+      # Grafana's own session cookie now bounds how long a user stays logged in
+      # without re-authenticating via Keycloak (independent of offline_access /
+      # use_refresh_token above). These are Grafana's own defaults, set
+      # explicitly so the knob is visible — raise them if operators are being
+      # re-prompted to log in more often than acceptable. See docs/grafana-auth.md
+      # "Session lifetime" for details.
+      login_maximum_inactive_lifetime_duration: 7d
+      login_maximum_lifetime_duration: 30d
     server:
       domain: "logs.test.nl"
       enforce_domain: true
