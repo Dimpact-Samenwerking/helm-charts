@@ -1,14 +1,11 @@
-"""Runs pymarkdown against every in-scope *.md file under chart_dir —
-report-only: this repo's docs predate any markdown-style convention, and
-pymarkdown's default rule set finds ~300 pre-existing issues across the
-docs tree today (mostly stylistic — blank-line placement around
-lists/headings/fences, list indentation, ...). Failing the build over
-that the moment this check starts existing would just make
-verify-podiumd permanently red instead of catching anything new.
-Findings still print, grouped by rule, for whoever wants to clean them
-up; this can graduate to failing on a specific rule once there's an
-actual documented convention to enforce it against (see check_kube_score
-for what that looks like once one exists).
+"""Runs pymarkdown against every in-scope *.md file under chart_dir and
+FAILS the check on any finding — the docs tree has since been cleaned up
+(see the fix-markdown/markdown-lint commit history) to the point where
+any remaining finding is a real, actionable issue worth blocking on, not
+the ~300 pre-existing, mostly-stylistic issues this check used to
+tolerate as report-only (blank-line placement around lists/headings/
+fences, list indentation, ...) back when it was first added. Findings
+still print, grouped by rule, either way.
 
 In scope: every generic doc (not tied to one specific release) plus the
 docs/_UPGRADE_PATHS/*.md docs for the CURRENT release only — see
@@ -137,10 +134,9 @@ def _relative_path(path_str, base_dir):
 def check_markdown(chart_dir):
     """Lints every *.md file under chart_dir with pymarkdown, MD013
     (line-length) and MD014 (commands-show-output) disabled (see module
-    docstring). Always report-only —
-    findings print, grouped by rule, but never fail the check; only a
-    missing pymarkdown install does (matching every other external-tool
-    check here)."""
+    docstring). Fails whenever any finding is reported, same as a missing
+    pymarkdown install (see module docstring for why this no longer
+    tolerates findings the way it used to)."""
     pymarkdown = find_pymarkdown(chart_dir)
     if pymarkdown is None:
         return False, ("pymarkdown is not installed (see "
@@ -163,8 +159,7 @@ def check_markdown(chart_dir):
         findings.append(d)
 
     if findings:
-        print(f"Found {len(findings)} markdown finding(s) across {len(files)} file(s) "
-              f"(report-only, never fails):")
+        print(f"Found {len(findings)} markdown finding(s) across {len(files)} file(s):")
         print_grouped_findings(
             findings,
             key_fn=lambda f: (f["rule"], f["aliases"].split(",")[0]),
@@ -175,4 +170,4 @@ def check_markdown(chart_dir):
     else:
         print(f"OK: no markdown findings across {len(files)} file(s)")
 
-    return True, f"{len(findings)} finding(s) (report-only)"
+    return not findings, f"{len(findings)} finding(s)"
