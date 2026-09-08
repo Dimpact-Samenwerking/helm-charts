@@ -719,6 +719,19 @@ def extract_release_rows(html, headings=None, chart_dir=None):
 
     basenames = resolve_image_basenames(rows_out, chart_dir)
     for row, basename in zip(rows_out, basenames):
+        # A MULTIPLE row (see component_and_alias/global_image_keys) with
+        # no resolved basename is otherwise silent all the way through:
+        # this export just writes the blank column, and verify-release-
+        # table-with-podiumd can't catch it either (it only ever compares
+        # columns this script already resolved, never re-derives — see
+        # its own module docstring) — so a shared image whose row export
+        # couldn't actually pin down would go untracked with no warning
+        # anywhere. Not raised as an error: a human still has to add the
+        # Confluence row text this needs (see component_and_alias's own
+        # docstring) before a re-export can resolve it.
+        if row[4] == "MULTIPLE" and not basename:
+            print(f'WARNING: "{row[3]}" resolved to MULTIPLE but no image_basename could be '
+                  f'resolved — its image will be untracked in {DEFAULT_OUTPUT.name}')
         row.insert(6, basename)
     apply_native_helm_marker(rows_out)
     return rows_out
