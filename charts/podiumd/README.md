@@ -174,42 +174,6 @@ PodiumD Helm chart
 | frankgateway.instances.internal.enabled | bool | `true` |  |
 | frankgateway.instances.inway.enabled | bool | `true` |  |
 | frankgateway.instances.outway.enabled | bool | `true` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.labels.managed-by | string | `"iac"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.plugins.proxy-rewrite.regex_uri[0] | string | `"^/(.*)"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.plugins.proxy-rewrite.regex_uri[1] | string | `"/test/$1"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.plugins.serverless-pre-function.functions[0] | string | `"local set_secret_header = require(\"openbao-secret-header\") return set_secret_header({ path = \"frankgateway\", field = \"kvk_api_key\", header = \"apikey\" })"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.plugins.serverless-pre-function.phase | string | `"rewrite"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.upstream.nodes."api.kvk.nl:443" | int | `1` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.upstream.pass_host | string | `"rewrite"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.upstream.scheme | string | `"https"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.upstream.type | string | `"roundrobin"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.upstream.upstream_host | string | `"api.kvk.nl"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.name | string | `"apiproxy-kvk-basic"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.uri | string | `"/api/v1/basisprofielen*"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.labels.managed-by | string | `"iac"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.plugins.proxy-rewrite.regex_uri[0] | string | `"^/(.*)"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.plugins.proxy-rewrite.regex_uri[1] | string | `"/test/$1"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.plugins.serverless-pre-function.functions[0] | string | `"local set_secret_header = require(\"openbao-secret-header\") return set_secret_header({ path = \"frankgateway\", field = \"kvk_api_key\", header = \"apikey\" })"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.plugins.serverless-pre-function.phase | string | `"rewrite"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.upstream.nodes."api.kvk.nl:443" | int | `1` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.upstream.pass_host | string | `"rewrite"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.upstream.scheme | string | `"https"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.upstream.type | string | `"roundrobin"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.upstream.upstream_host | string | `"api.kvk.nl"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.name | string | `"apiproxy-kvk-branch"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.uri | string | `"/api/v1/vestigingsprofielen*"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.labels.managed-by | string | `"iac"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.plugins.proxy-rewrite.regex_uri[0] | string | `"^/(.*)"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.plugins.proxy-rewrite.regex_uri[1] | string | `"/test/$1"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.plugins.serverless-pre-function.functions[0] | string | `"local set_secret_header = require(\"openbao-secret-header\") return set_secret_header({ path = \"frankgateway\", field = \"kvk_api_key\", header = \"apikey\" })"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.plugins.serverless-pre-function.phase | string | `"rewrite"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.upstream.nodes."api.kvk.nl:443" | int | `1` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.upstream.pass_host | string | `"rewrite"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.upstream.scheme | string | `"https"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.upstream.type | string | `"roundrobin"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.upstream.upstream_host | string | `"api.kvk.nl"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.name | string | `"apiproxy-kvk-search"` |  |
-| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.uri | string | `"/api/v2/zoeken*"` |  |
 | frankgateway.metrics.enabled | bool | `false` |  |
 | frankgateway.metrics.serviceMonitor.enabled | bool | `false` |  |
 | frankgateway.metrics.serviceMonitor.interval | string | `"30s"` |  |
@@ -234,14 +198,14 @@ PodiumD Helm chart
 | frankgateway.resources.limits.memory | string | `"1Gi"` |  |
 | frankgateway.resources.requests.cpu | string | `"100m"` |  |
 | frankgateway.resources.requests.memory | string | `"384Mi"` |  |
-| frankgateway.routes.extra | object | `{}` |  |
-| frankgateway.routes.job.backoffLimit | int | `3` |  |
-| frankgateway.routes.job.image.pullPolicy | string | `"IfNotPresent"` |  |
-| frankgateway.routes.job.image.repository | string | `"curlimages/curl"` |  |
-| frankgateway.routes.job.image.tag | string | `"8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"` |  |
-| frankgateway.routes.job.nodeSelector | object | `{}` |  |
-| frankgateway.routes.job.ttlSecondsAfterFinished | int | `600` |  |
-| frankgateway.routes.seed | bool | `true` |  |
+| frankgateway.seed.enabled | bool | `true` | Run the seed Job. Off means the chart writes nothing to etcd for this instance; whatever is there stays. |
+| frankgateway.seed.job.backoffLimit | int | `3` |  |
+| frankgateway.seed.job.image.pullPolicy | string | `"IfNotPresent"` |  |
+| frankgateway.seed.job.image.repository | string | `"curlimages/curl"` |  |
+| frankgateway.seed.job.image.tag | string | `"8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"` |  |
+| frankgateway.seed.job.nodeSelector | object | `{}` |  |
+| frankgateway.seed.job.ttlSecondsAfterFinished | int | `600` | How long the finished Job (and its per-route log) is kept. Must outlast the deploy's Helm timeout, or the Job vanishes under --wait. |
+| frankgateway.seed.prune | bool | `false` | Delete routes labelled `managed-by: iac` that are NOT in this render. Off: a route removed from values lingers in etcd until this is turned on. On: values are the complete truth. Routes without the label (made in the dashboard) are never touched either way. |
 | frankgateway.tls.certManager.duration | string | `"2160h"` |  |
 | frankgateway.tls.certManager.enabled | bool | `false` |  |
 | frankgateway.tls.certManager.extraDnsNames | list | `[]` |  |

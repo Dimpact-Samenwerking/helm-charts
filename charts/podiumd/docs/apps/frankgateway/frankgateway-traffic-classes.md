@@ -14,7 +14,7 @@ one off.
 
 ## The three classes
 
-| Instance | Traffic | Typical routes |
+| Instance | Traffic | Typical routes (defined per environment — see [`frankgateway-routes.md`](frankgateway-routes.md)) |
 |----------|---------|----------------|
 | `inway` | North-south, entering PodiumD | `inbound-<app>` — NGF terminates TLS, re-encrypts to the gateway, gateway forwards to the app Service |
 | `outway` | PodiumD applications to external services | `apiproxy-bag`, `apiproxy-kvk-*` — the legacy api-proxy replacement |
@@ -241,7 +241,7 @@ Deployment — so anything addressing the gateway must name the class it means:
 | Service (data plane :9080, Admin API :9180) | `frankgateway-<class>` |
 | Admin API credentials | `frankgateway-<class>-admin-credentials` |
 | Gateway config (`config.yaml`) | `frankgateway-<class>-config` |
-| Routes hook Job + ConfigMap | `frankgateway-<class>-apply-routes`, `-routes` |
+| Seed hook Job + ConfigMap | `frankgateway-<class>-seed`, `-seed` |
 | Dashboard chain | `frankgateway-<class>-dashboard`, `-shim`, `-oauth2-proxy` |
 | Keycloak OIDC client | `frankgateway-dashboard-<class>` |
 | etcd prefix | `/frankgateway-<class>` |
@@ -417,5 +417,5 @@ genuinely needs the looser behaviour.
   its runtime components and required resources.
 - [`frankgateway-split-exploration.md`](frankgateway-split-exploration.md) —
   the feasibility assessment this design came from.
-- `files/frankgateway/routes/<class>/` (chart source) — the declarative route
-  JSONs seeded per instance.
+- [`frankgateway-routes.md`](frankgateway-routes.md) — routes are defined per
+  instance in values; the chart ships none.

@@ -3667,10 +3667,10 @@ omc:
 # Deployed identically to the proven jim00 stack: etcd-backed (traditional
 # mode), Admin API + apisix-dashboard, dashboard fronted by oauth2-proxy
 # (Keycloak SSO) + an nginx shim that auto-logs into the dashboard server-side
-# so its built-in login never surfaces. apiproxy-replacement routes are seeded
-# declaratively from files/frankgateway/routes/*.json by a hook Job; external
-# API keys are injected at request time from env vars (fed by a Secret) via a
-# serverless function — key VALUES never land in etcd or git.
+# so its built-in login never surfaces. Routes are seeded into etcd by a hook
+# Job from the environment's values — the chart ships none; external API keys
+# are fetched at request time from OpenBao by a serverless function — key
+# VALUES never land in etcd or git.
 #
 # See charts/podiumd/docs/apps/frankgateway/frankgateway-BASICS.md.
 frankgateway:
@@ -3698,12 +3698,17 @@ frankgateway:
   # see frankgateway-traffic-classes.md.)
   #
   # Per-instance overrides may set any shared key (replicas, resources, tls,
-  # admin, apiKeys, metrics, routes, dashboard, ...) plus `nameOverride` and
-  # `etcdPrefix`. A class can be switched off with `enabled: false`; an
-  # environment making no external calls needs no outway.
+  # admin, metrics, dashboard, seed, ...) plus `nameOverride` and `etcdPrefix`.
+  # A class can be switched off with `enabled: false`; an environment making
+  # no external calls needs no outway.
   #
-  # Route JSONs are seeded from files/frankgateway/routes/<key>/ — an instance
-  # seeds the directory named after its key unless `routes.dirs` says otherwise.
+  # Routes are PER INSTANCE and come from values only — the chart ships none.
+  # `instances.<class>.routes` is a map of route id -> APISIX route body (the
+  # Admin API JSON written as YAML), seeded into the class's etcd prefix by the
+  # hook Job. `routes` is deliberately not a shared key: the shared block
+  # merges into every class, so a route placed there would be seeded into all
+  # three, and templates/validations.yaml rejects it. Worked examples in
+  # docs/apps/frankgateway/frankgateway-routes.md.
   instances:
     inway:
       enabled: true
@@ -3712,43 +3717,6 @@ frankgateway:
       # (deploy-side today, see the tls block below), so it is not defaulted on.
     outway:
       enabled: true
-      routes:
-        # The three KVK routes differ only in `uri` and `name` — same upstream,
-        # same rewrite, same OpenBao key — so they are one definition merged
-        # three ways rather than three near-identical files under
-        # files/frankgateway/routes/outway/. The BAG route stays a file: it is
-        # the only one of its shape.
-        extra:
-          apiproxy-kvk-basic:
-            <<: &kvkRoute
-              labels:
-                managed-by: iac
-              plugins:
-                proxy-rewrite:
-                  regex_uri:
-                    - "^/(.*)"
-                    - "/test/$1"
-                serverless-pre-function:
-                  phase: rewrite
-                  functions:
-                    - 'local set_secret_header = require("openbao-secret-header") return set_secret_header({ path = "frankgateway", field = "kvk_api_key", header = "apikey" })'
-              upstream:
-                scheme: https
-                pass_host: rewrite
-                upstream_host: api.kvk.nl
-                nodes:
-                  "api.kvk.nl:443": 1
-                type: roundrobin
-            uri: "/api/v1/basisprofielen*"
-            name: apiproxy-kvk-basic
-          apiproxy-kvk-branch:
-            <<: *kvkRoute
-            uri: "/api/v1/vestigingsprofielen*"
-            name: apiproxy-kvk-branch
-          apiproxy-kvk-search:
-            <<: *kvkRoute
-            uri: "/api/v2/zoeken*"
-            name: apiproxy-kvk-search
     internal:
       enabled: true
 
@@ -4063,38 +4031,26 @@ frankgateway:
         cpu: 500m
         memory: 512Mi
 
-  # Seed the apiproxy-replacement routes (files/frankgateway/routes/*.json)
-  # into the Admin API via a post-install/post-upgrade hook Job. Idempotent:
-  # route id = file name, PUTs overwrite.
-  routes:
-    seed: true
-    # Extra routes defined here rather than shipped as files, keyed by route id.
-    # Needed for anything that depends on the environment: an inway route has to
-    # match that environment's own public hostname, so it cannot be a chart file.
-    # A key here overrides a shipped file of the same id.
-    #
-    #   instances:
-    #     inway:
-    #       routes:
-    #         extra:
-    #           inbound-openzaak:
-    #             uri: /*
-    #             host: openzaak.<env>.<domain>
-    #             labels: {managed-by: iac}
-    #             upstream:
-    #               type: roundrobin
-    #               scheme: http
-    #               pass_host: pass
-    #               nodes: {"openzaak-nginx.podiumd.svc.cluster.local:80": 1}
-    #
-    # For an internal route, prefer pass_host: rewrite with upstream_host set to
-    # the application's public FQDN — ZGW APIs emit absolute self-referencing
-    # URLs, and callers cannot resolve cluster-local ones.
-    extra: {}
+  # The seed hook: one post-install/post-upgrade Job per instance that PUTs
+  # everything the instance needs in etcd through its Admin API — the routes
+  # from `instances.<class>.routes`, the prometheus global rule and the
+  # data-plane certificate. Idempotent: PUTs overwrite, so every deploy
+  # re-applies the full set. Per-instance overridable like every shared key.
+  seed:
+    # -- Run the seed Job. Off means the chart writes nothing to etcd for this
+    # instance; whatever is there stays.
+    enabled: true
+    # -- Delete routes labelled `managed-by: iac` that are NOT in this render.
+    # Off: a route removed from values lingers in etcd until this is turned on.
+    # On: values are the complete truth. Routes without the label (made in the
+    # dashboard) are never touched either way.
+    prune: false
     job:
       image: *curlImage
       nodeSelector: {}
       backoffLimit: 3
+      # -- How long the finished Job (and its per-route log) is kept. Must
+      # outlast the deploy's Helm timeout, or the Job vanishes under --wait.
       ttlSecondsAfterFinished: 600
 
   # apisix-dashboard GUI + its Keycloak SSO front door.

@@ -88,7 +88,7 @@ spec:
           port: {{ $fg.tls.port }}
         {{- end }}
     {{- end }}
-    # Admin API: in-namespace only (the apply-routes hook Job and the dashboard).
+    # Admin API: in-namespace only (the seed hook Job, the sync CronJobs and the dashboard).
     - from:
         - podSelector: {}
       ports:

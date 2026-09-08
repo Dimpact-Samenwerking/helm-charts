@@ -42,6 +42,16 @@
 {{- if .Values.frankgateway.serviceAlias -}}
 {{- fail "frankgateway.serviceAlias no longer exists: the migration alias Service has been removed. Address instances by name (frankgateway-inway / frankgateway-outway / frankgateway-internal)." -}}
 {{- end -}}
+{{- /* Routes, consumers and client certificates are PER INSTANCE. The shared
+     frankgateway block deep-merges into every class, so a map placed there
+     would seed the same routes into inway, outway and internal alike. The
+     chart also ships no route any more: an environment's values are the
+     complete list, so there is nothing for a shared key to add to. */ -}}
+{{- range $k := list "routes" "consumers" "clientCertificates" -}}
+{{- if hasKey $.Values.frankgateway $k -}}
+{{- fail (printf "frankgateway.%s is not a shared key: it would merge into every traffic class. Define it per instance, under frankgateway.instances.<class>.%s. (The former routes.seed / routes.job settings moved to frankgateway.seed.enabled / seed.job, and the chart ships no route files any more — see docs/apps/frankgateway/frankgateway-routes.md.)" $k $k) -}}
+{{- end -}}
+{{- end -}}
 {{- /* A cert-manager Certificate without an issuer is rejected by the API
      server with a message about the CRD, not about this chart. Say it here.
 
@@ -59,6 +69,27 @@
 {{- end -}}
 {{- if and $fg.enabled $fg.tls.enabled $fg.tls.certManager.enabled (not $fg.tls.certManager.issuerRef.name) (not $fg.tls.certManager.issuer.create) -}}
 {{- fail (printf "frankgateway.instances.%s: tls.certManager.enabled needs an issuer — either name one in tls.certManager.issuerRef.name, or set tls.certManager.issuer.create=true to have the chart render an OpenBao-backed Issuer (see frankgateway-BASICS.md for the OpenBao-side setup)" $key) -}}
+{{- end -}}
+{{- /* Route ids become APISIX route ids AND ConfigMap keys, so both charsets
+     apply; a body whose own `id` disagrees with the key would be PUT under the
+     key and rejected by APISIX with a message about the body, not the values. */ -}}
+{{- $routes := $fg.routes | default dict -}}
+{{- if not (kindIs "map" $routes) -}}
+{{- fail (printf "frankgateway.instances.%s.routes must be a map of route id -> APISIX route body (see docs/apps/frankgateway/frankgateway-routes.md)" $key) -}}
+{{- end -}}
+{{- range $id, $route := $routes -}}
+{{- if has $id (list "extra" "seed" "job" "dirs") -}}
+{{- fail (printf "frankgateway.instances.%s.routes.%s: `%s` is not a route id. routes.extra / routes.seed / routes.job / routes.dirs no longer exist — `routes` is now the map of routes itself, and the hook Job settings live under frankgateway.seed. See docs/apps/frankgateway/frankgateway-routes.md" $key $id $id) -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-zA-Z0-9._-]+$" $id) -}}
+{{- fail (printf "frankgateway.instances.%s.routes: route id %q must match ^[a-zA-Z0-9._-]+$ — it becomes the APISIX route id and a ConfigMap key" $key $id) -}}
+{{- end -}}
+{{- if not (kindIs "map" $route) -}}
+{{- fail (printf "frankgateway.instances.%s.routes.%s must be an APISIX route body (a map)" $key $id) -}}
+{{- end -}}
+{{- if and (hasKey $route "id") (ne (toString $route.id) $id) -}}
+{{- fail (printf "frankgateway.instances.%s.routes.%s: the body's `id` (%v) differs from the key it is filed under; drop it or make them equal" $key $id $route.id) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

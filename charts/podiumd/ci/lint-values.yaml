@@ -182,8 +182,10 @@ openbao:
   enabled: true
 
 # Frank!Gateway enabled so lint/CI render covers the full stack (gateways +
-# etcd + dashboards + SSO chain + routes hook Jobs) across all three traffic
-# classes. Each dashboard needs its OWN hostname: they are distinct Ingresses
+# etcd + dashboards + SSO chain + seed hook Jobs) across all three traffic
+# classes. The chart ships no routes, so the ones below are what a real
+# environment would write; the former chart defaults (BAG, KVK x3, BRP) live
+# on here so the render exercises realistic bodies. Each dashboard needs its OWN hostname: they are distinct Ingresses
 # and oauth2-proxy redirect URIs, and the chart fails the render when two
 # instances claim the same one.
 frankgateway:
@@ -205,6 +207,8 @@ frankgateway:
     auth:
       adminGroupMembers:
         - "fg-operator-ci-example"
+  seed:
+    prune: true
   instances:
     inway:
       tls:
@@ -212,11 +216,86 @@ frankgateway:
       dashboard:
         auth:
           hostname: "frankgateway-inway-admin.example.nl"
+      routes:
+        inbound-openzaak:
+          uri: /*
+          host: openzaak.example.nl
+          labels: { managed-by: iac }
+          upstream:
+            type: roundrobin
+            scheme: http
+            pass_host: pass
+            nodes: { "openzaak-nginx.podiumd.svc.cluster.local:80": 1 }
     outway:
       dashboard:
         auth:
           hostname: "frankgateway-outway-admin.example.nl"
+      routes:
+        apiproxy-bag:
+          uri: "/lvbag/individuelebevragingen/v2/*"
+          name: apiproxy-bag
+          labels: { managed-by: iac }
+          plugins:
+            serverless-pre-function:
+              phase: rewrite
+              functions:
+                - 'local set_secret_header = require("openbao-secret-header") return set_secret_header({ path = "frankgateway", field = "bag_api_key", header = "X-Api-Key" })'
+          upstream:
+            scheme: https
+            pass_host: rewrite
+            upstream_host: api.bag.kadaster.nl
+            nodes: { "api.bag.kadaster.nl:443": 1 }
+            type: roundrobin
+        # The three KVK routes differ only in uri and name: one definition,
+        # merged three ways. Fine in an environment's values file; the chart
+        # avoids the anchor in values.yaml only because helm-docs cannot read it.
+        apiproxy-kvk-basic:
+          <<: &kvkRoute
+            labels: { managed-by: iac }
+            plugins:
+              proxy-rewrite:
+                regex_uri: ["^/(.*)", "/test/$1"]
+              serverless-pre-function:
+                phase: rewrite
+                functions:
+                  - 'local set_secret_header = require("openbao-secret-header") return set_secret_header({ path = "frankgateway", field = "kvk_api_key", header = "apikey" })'
+            upstream:
+              scheme: https
+              pass_host: rewrite
+              upstream_host: api.kvk.nl
+              nodes: { "api.kvk.nl:443": 1 }
+              type: roundrobin
+          uri: "/api/v1/basisprofielen*"
+          name: apiproxy-kvk-basic
+        apiproxy-kvk-branch:
+          <<: *kvkRoute
+          uri: "/api/v1/vestigingsprofielen*"
+          name: apiproxy-kvk-branch
+        apiproxy-kvk-search:
+          <<: *kvkRoute
+          uri: "/api/v2/zoeken*"
+          name: apiproxy-kvk-search
     internal:
       dashboard:
         auth:
           hostname: "frankgateway-internal-admin.example.nl"
+      routes:
+        apiproxy-brp:
+          uri: "/haalcentraal/api/brp/*"
+          name: apiproxy-brp
+          labels: { managed-by: iac }
+          upstream:
+            scheme: http
+            pass_host: rewrite
+            upstream_host: brp-personen-mock
+            nodes: { "brp-personen-mock:5010": 1 }
+            type: roundrobin
+        internal-openzaak:
+          uri: /*
+          labels: { managed-by: iac }
+          upstream:
+            scheme: http
+            pass_host: rewrite
+            upstream_host: openzaak.example.nl
+            nodes: { "openzaak-nginx.podiumd.svc.cluster.local:80": 1 }
+            type: roundrobin

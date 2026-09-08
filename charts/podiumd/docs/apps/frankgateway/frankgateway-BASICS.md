@@ -91,12 +91,14 @@ below stands for whichever of the three is meant:
   `dashboard.auth.adminGroupMembers` (dedicated accounts — the import fully
   manages the group memberships of listed users) or by hand in the Keycloak
   admin console.
-- **frankgateway-\<class\>-apply-routes** (hook Job, post-install/post-upgrade) —
-  seeds that class's routes from `files/frankgateway/routes/<class>/`
-  (route id = file name, idempotent PUTs). An instance seeds the directory
-  named after its key unless `routes.dirs` says otherwise: the five routes
-  replacing the legacy apiproxy live under `outway/` (BAG + three KVK) and
-  `internal/` (BRP). External-API keys are fetched from **OpenBao at request
+- **frankgateway-\<class\>-seed** (hook Job, post-install/post-upgrade) —
+  seeds that class's routes from **values only**
+  (`frankgateway.instances.<class>.routes`, a map of route id → APISIX route
+  body; idempotent PUTs), then the prometheus global rule and the data-plane
+  certificate. The chart ships no routes: an environment's values are the
+  complete list, and `seed.prune` can make etcd match them. Reference bodies
+  and the rules are in [`frankgateway-routes.md`](frankgateway-routes.md).
+  External-API keys are fetched from **OpenBao at request
   time** by `files/frankgateway/openbao-secret-header.lua` (mounted from the
   `frankgateway-lua` ConfigMap, resolved via `apisix.extra_lua_path`) — a
   configurable function taking the secret path, field and header name, so one
@@ -431,12 +433,18 @@ security assessment without first confirming enforcement on the target cluster.
    environments: HTTPRoute → `frankgateway-<class>-oauth2-proxy:4180` in ADO
    `ExternalsPodiumD` (`infra.yml`), and add each hostname to the gateway
    certificate SAN. Otherwise set `frankgateway.dashboard.ingress.enabled: true`.
-5. **Point callers at the right class.** Applications that used `apiproxy` for
+5. **Write the routes.** The chart ships none. Copy the bodies your
+   environment needs from [`frankgateway-routes.md`](frankgateway-routes.md)
+   into `frankgateway.instances.<class>.routes` — BAG and KVK on the outway,
+   BRP on the internal class, one `inbound-<app>` per public hostname on the
+   inway — and label them `managed-by: iac`.
+6. **Point callers at the right class.** Applications that used `apiproxy` for
    BAG/KVK egress call `http://frankgateway-outway:9080/...`; BRP and other
-   app-to-app calls go to `http://frankgateway-internal:9080/...` (route paths
-   mirror the apiproxy paths; see `files/frankgateway/routes/<class>/`).
-6. **Verify.** `kubectl -n podiumd get jobs` — every
-   `frankgateway-<class>-apply-routes` must complete; `kubectl -n podiumd get
+   app-to-app calls go to `http://frankgateway-internal:9080/...` (the route
+   paths mirror the apiproxy paths).
+7. **Verify.** `kubectl -n podiumd get jobs` — every
+   `frankgateway-<class>-seed` must complete (its log names every route it
+   applied); `kubectl -n podiumd get
    pods -l app.kubernetes.io/component=frankgateway` all Running; each dashboard
    hostname logs in via Keycloak (no dashboard login form) as an `fg-admins`
    member — and refuses a realm account that is not one; a test call through
@@ -454,5 +462,5 @@ security assessment without first confirming enforcement on the target cluster.
   banner).
 - [`../apiproxy/apiproxy-BASICS.md`](../apiproxy/apiproxy-BASICS.md) — the
   legacy egress proxy whose routes Frank!Gateway reproduces.
-- `files/frankgateway/routes/` (chart source) — the declarative route JSONs
-  seeded by the apply-routes job.
+- [`frankgateway-routes.md`](frankgateway-routes.md) — writing routes in
+  values: the shape, the seed hook, prune, and the reference bodies.

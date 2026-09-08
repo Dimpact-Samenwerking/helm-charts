@@ -148,7 +148,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: sync
-              image: {{ include "podiumd.image" $fg.routes.job.image }}
+              image: {{ include "podiumd.image" $fg.seed.job.image }}
               imagePullPolicy: IfNotPresent
               env:
                 - name: ADMIN_KEY

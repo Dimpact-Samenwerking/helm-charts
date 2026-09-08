@@ -107,7 +107,7 @@ spec:
         # it is being started before its dependency exists, so this orders the
         # start rather than hiding the failure behind a longer probe.
         - name: wait-for-etcd
-          image: {{ include "podiumd.image" $fg.routes.job.image }}
+          image: {{ include "podiumd.image" $fg.seed.job.image }}
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
@@ -165,20 +165,7 @@ spec:
             # The token is mounted optionally so a class that reads no secrets
             # (inway, internal) still starts without it; a route that does need
             # one answers 503 rather than the pod failing to schedule.
-            - name: OPENBAO_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $fg.openbao.tokenSecret.name }}
-                  key: {{ $fg.openbao.tokenSecret.key }}
-                  optional: true
-            - name: OPENBAO_ADDR
-              value: {{ include "podiumd.frankgateway.openbaoAddr" (dict "root" $root "instance" $fg) | quote }}
-            - name: OPENBAO_MOUNT
-              value: {{ $fg.openbao.mount | default $root.Values.openbao.configuration.kvPath | quote }}
-            - name: OPENBAO_KV
-              value: {{ $fg.openbao.kvVersion | quote }}
-            - name: OPENBAO_FAIL_MODE
-              value: {{ $fg.openbao.failMode | quote }}
+            {{- include "podiumd.frankgateway.openbaoEnv" (dict "root" $root "instance" $fg) | nindent 12 }}
           ports:
             - name: gateway
               containerPort: 9080

@@ -9,10 +9,14 @@ Frank!Gateway
 -------------
 {{- $classes := list }}
 {{- $tlsClasses := list }}
+{{- $noRoutes := list }}
 {{- range $key, $override := .Values.frankgateway.instances }}
 {{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $key "override" $override) | fromYaml }}
 {{- if $fg.enabled }}
 {{- $classes = append $classes $key }}
+{{- if not ($fg.routes | default dict) }}
+{{- $noRoutes = append $noRoutes $key }}
+{{- end }}
 {{- if and $fg.tls.enabled $fg.tls.sslSync.enabled }}
 {{- /* The schedule is a per-instance value like any other, so report each
        class's EFFECTIVE one rather than the shared default it may override. */ -}}
@@ -22,6 +26,13 @@ Frank!Gateway
 {{- end }}
   Traffic classes: {{ $classes | join ", " }}
   Applications call the class they mean, e.g. http://frankgateway-outway:9080/
+{{- if $noRoutes }}
+
+  No routes configured for: {{ $noRoutes | join ", " }}. The chart ships none,
+  and an instance without routes answers 404 to everything. Define them under
+  frankgateway.instances.<class>.routes — see
+  charts/podiumd/docs/apps/frankgateway/frankgateway-routes.md.
+{{- end }}
 
 {{- if .Values.frankgateway.networkPolicies.enabled }}
 

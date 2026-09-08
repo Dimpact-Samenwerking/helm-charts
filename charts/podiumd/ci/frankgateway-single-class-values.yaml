@@ -21,3 +21,7 @@ frankgateway:
       # hostname requirement. Proves the whole SSO chain is genuinely optional.
       dashboard:
         enabled: false
+      # No routes either (null removes the key lint-values.yaml set): the seed
+      # ConfigMap then holds only seed.sh, and the Job must still succeed —
+      # this is exactly the state a freshly onboarded environment is in.
+      routes: null

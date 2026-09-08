@@ -492,11 +492,7 @@ if [ ! -s "${CRT}" ] || [ ! -s "${KEY}" ]; then
   exit 0
 fi
 
-i=0
-until curl -s -o /dev/null "http://{{ $name }}:9180/apisix/admin/ssls" -H "X-API-KEY: ${ADMIN_KEY}"; do
-  i=$((i+1)); [ "${i}" -ge 30 ] && { echo "ssl-sync: admin API unreachable"; exit 1; }
-  sleep 5
-done
+{{ include "podiumd.frankgateway.adminWait" (dict "name" $name) }}
 
 # PEM -> JSON string: the only character needing escaping is the newline, since
 # PEM is base64 plus dashes. Nothing is echoed — the private key must not reach
@@ -530,6 +526,128 @@ Usage: {{ include "podiumd.frankgateway.openbaoAddr" (dict "root" $ "instance" $
 {{- else -}}
 http://{{ .root.Release.Name }}-openbao-active:8200
 {{- end -}}
+{{- end -}}
+
+{{/*
+Frank!Gateway — the OPENBAO_* environment for everything that reads OpenBao
+with the gateway's reader token: the gateway pods (request-time Lua), the seed
+Job and the client-cert-sync CronJob. One definition, so no container can be
+given a different mount or kv version than the gateway it serves.
+
+The token is optional: a class that reads no secrets still starts without it,
+and whatever does need it fails loudly at that point instead of the pod
+failing to schedule.
+
+Usage: {{ include "podiumd.frankgateway.openbaoEnv" (dict "root" $root "instance" $fg) | nindent 12 }}
+*/}}
+{{- define "podiumd.frankgateway.openbaoEnv" -}}
+- name: OPENBAO_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ .instance.openbao.tokenSecret.name }}
+      key: {{ .instance.openbao.tokenSecret.key }}
+      optional: true
+- name: OPENBAO_ADDR
+  value: {{ include "podiumd.frankgateway.openbaoAddr" (dict "root" .root "instance" .instance) | quote }}
+- name: OPENBAO_MOUNT
+  value: {{ .instance.openbao.mount | default .root.Values.openbao.configuration.kvPath | quote }}
+- name: OPENBAO_KV
+  value: {{ .instance.openbao.kvVersion | quote }}
+- name: OPENBAO_FAIL_MODE
+  value: {{ .instance.openbao.failMode | quote }}
+{{- end -}}
+
+{{/*
+Frank!Gateway — wait for one instance's Admin API. Shared by every script that
+talks to it, because the gateway may still be rolling when a hook or CronJob
+fires. Exits 1 after 30 x 5 s.
+
+Usage (inside a script body): {{ include "podiumd.frankgateway.adminWait" (dict "name" $name) }}
+*/}}
+{{- define "podiumd.frankgateway.adminWait" -}}
+i=0
+until curl -s --max-time 5 -o /dev/null "http://{{ .name }}:9180/apisix/admin/routes" -H "X-API-KEY: ${ADMIN_KEY}"; do
+  i=$((i+1)); [ "${i}" -ge 30 ] && { echo "{{ .name }}: admin API unreachable after ${i} attempts"; exit 1; }
+  sleep 5
+done
+{{- end -}}
+
+{{/*
+Frank!Gateway — seed.sh for one instance: everything that has to be in etcd
+before the instance can serve, PUT idempotently through the Admin API by the
+post-install/post-upgrade hook Job (frankgateway-seed-job.yaml).
+
+Order matters:
+  1. routes           — from values only; zero routes is a valid state
+  2. prune            — opt-in: managed-by=iac routes not in this render go
+  3. prometheus rule  — per-route metrics for every route, seeded or GUI-made
+  4. server cert      — the same ssl-sync the renewal CronJob runs
+
+Route bodies hold no secret material (they reference OpenBao PATHS), so the
+Admin API's answer is echoed on failure. ssl-sync has its own rules about that.
+
+Usage: {{ include "podiumd.frankgateway.seedScript" (dict "root" $root "instance" $fg "name" $name) }}
+*/}}
+{{- define "podiumd.frankgateway.seedScript" -}}
+{{- $fg := .instance -}}
+{{- $name := .name -}}
+set -u
+ADMIN="http://{{ $name }}:9180/apisix/admin"
+rc=0
+put() { # put <kind/id> <file>
+  code=$(curl -s --max-time 20 -o /tmp/resp -w '%{http_code}' -X PUT "${ADMIN}/$1" \
+    -H "X-API-KEY: ${ADMIN_KEY}" -H 'Content-Type: application/json' --data @"$2")
+  case "${code}" in
+    2*) echo "seed: $1 -> ${code}" ;;
+    *)  echo "seed: $1 -> ${code}: $(head -c 400 /tmp/resp)"; rc=1 ;;
+  esac
+}
+{{ include "podiumd.frankgateway.adminWait" (dict "name" $name) }}
+# Routes: this instance's values, one file per route id. The chart ships none,
+# so no files is a valid state — the glob then stays unexpanded and the guard
+# skips it, and the Job still succeeds.
+n=0
+for f in /seed/route-*.json; do
+  [ -e "${f}" ] || continue
+  id=$(basename "${f}" .json); id=${id#route-}
+  put "routes/${id}" "${f}"
+  n=$((n+1))
+done
+echo "seed: ${n} route(s) applied"
+{{- if $fg.seed.prune }}
+# Prune: a route carrying our label that is not in this render was removed from
+# values, so remove it from etcd too. Routes without the label (made in the
+# dashboard) are never touched.
+want=" "
+for f in /seed/route-*.json; do
+  [ -e "${f}" ] || continue
+  b=$(basename "${f}" .json); want="${want}${b#route-} "
+done
+for id in $(curl -s --max-time 20 -H "X-API-KEY: ${ADMIN_KEY}" "${ADMIN}/routes" \
+            | grep -o '"key":"[^"]*/routes/[^"]*"' | sed 's#.*/routes/##; s/"$//'); do
+  case "${want}" in *" ${id} "*) continue ;; esac
+  curl -s --max-time 20 -H "X-API-KEY: ${ADMIN_KEY}" "${ADMIN}/routes/${id}" \
+    | grep -q '"managed-by":"iac"' || continue
+  code=$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' -X DELETE \
+    -H "X-API-KEY: ${ADMIN_KEY}" "${ADMIN}/routes/${id}")
+  echo "seed: prune routes/${id} -> ${code}"
+  case "${code}" in 2*) ;; *) rc=1 ;; esac
+done
+{{- end }}
+{{- if $fg.metrics.enabled }}
+# Per-route metrics: the prometheus plugin must be active on a route to emit
+# route-level series. A global_rule covers every route (seeded and GUI-created)
+# without touching each one.
+printf '%s' '{"plugins":{"prometheus":{"prefer_name":true}}}' > /tmp/gr.json
+put "global_rules/prometheus-metrics" /tmp/gr.json
+{{- end }}
+{{- if and $fg.tls.enabled $fg.tls.sslSync.enabled }}
+# Data-plane certificate: the same script the renewal CronJob runs, so a fresh
+# install serves TLS immediately instead of waiting for the first nightly tick.
+# Exits 0 when no certificate material is mounted yet.
+sh /scripts/ssl-sync/sync.sh || rc=1
+{{- end }}
+exit ${rc}
 {{- end -}}
 
 {{/*
