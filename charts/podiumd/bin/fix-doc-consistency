@@ -221,8 +221,20 @@ def collapse_multiple_blank_lines(text):
     ...) can otherwise accumulate. Applied right before writing any of
     the three standard .md docs this script manages, so a real MD012
     violation never needs a separate fix-markdown pass afterward for
-    something this script itself introduced."""
-    return re.sub(r"\n{3,}", "\n\n", text)
+    something this script itself introduced.
+
+    ALSO collapses any trailing blank line(s) right before EOF down to a
+    single final newline — confirmed live against real pymarkdown: it
+    counts EOF itself as an implicit extra blank line, so a file merely
+    ENDING in "content\n\n" (one syntactic blank line before EOF, no
+    triple newline anywhere for the check above to ever catch) already
+    reports "Multiple consecutive blank lines: Expected: 1, Actual: 2"
+    at the line right after the last real content line. Both fixes
+    together mean this doc's own trailing blank-line convention matches
+    every other line in it: at most one blank line, ever, anywhere,
+    including right before EOF."""
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return re.sub(r"\n+\Z", "\n", text)
 
 
 def update_images_manifest_baseline(text, target, new_baseline):
