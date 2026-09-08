@@ -31,7 +31,7 @@ PodiumD Helm chart
 | https://openbao.github.io/openbao-helm | openbao | 0.28.4 |
 | https://wearefrank.github.io/charts | zaakbrug | 2.3.28 |
 | oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.0 |
-| oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.0.0 |
+| oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.1.1 |
 | oci://ghcr.io/platform-autorisatie-beheer-component | pabc(pabc) | 1.1.1 |
 
 ## Values
@@ -441,6 +441,7 @@ PodiumD Helm chart
 | kiss.adapter.extraVolumeMounts | list | `[]` | Optionally specify extra list of additional volumeMounts, for example to trust extra ca certificates. |
 | kiss.adapter.extraVolumes | list | `[]` | Optionally specify extra list of additional volumes, for example to trust extra ca certificates. |
 | kiss.adapter.image.pullPolicy | string | `"IfNotPresent"` |  |
+| kiss.adapter.image.repository | string | `"ghcr.io/icatt-menselijk-digitaal/podiumd-adapter"` |  |
 | kiss.adapter.image.tag | string | `"0.6.7@sha256:089d07a6efdfcab07b61b1a75b4d26c14099cc9b206a56419e36ef6f28a26a68"` |  |
 | kiss.adapter.objecten.baseUrl | string | `""` |  |
 | kiss.adapter.objecten.token | string | `""` |  |
@@ -466,7 +467,7 @@ PodiumD Helm chart
 | kiss.extraVolumes | list | `[]` | Optionally specify extra list of additional volumes, for example to trust extra ca certificates. |
 | kiss.fullnameOverride | string | `"contact"` |  |
 | kiss.image.pullPolicy | string | `"IfNotPresent"` |  |
-| kiss.image.tag | string | `"3.0.0@sha256:56a9c225d9fb19184ee9ad6c84877e7b5853c280cbb5e0d59edb340c7bb8599c"` |  |
+| kiss.image.tag | string | `"3.1.1@sha256:1b7c6c3904f11b33d8490c3f0b7968da859b8b4bb73f8d9dc20744eea1720990"` |  |
 | kiss.imagePullSecrets | list | `[]` |  |
 | kiss.nameOverride | string | `"contact"` |  |
 | kiss.nodeSelector | object | `{}` |  |
@@ -494,6 +495,7 @@ PodiumD Helm chart
 | kiss.settings.groepen.baseUrl | string | `""` |  |
 | kiss.settings.groepen.objectTypeUrl | string | `""` |  |
 | kiss.settings.groepen.token | string | `""` |  |
+| kiss.settings.groepsmailboxVerplichting | bool | `false` | New optional key in kiss-chart 3.1.1. Whether a medewerker must be linked to a contact request when the selected afdeling/groep has no groepsmailbox. Chart default shown; no action needed unless an environment wants to require this. |
 | kiss.settings.haalCentraal.apiKey | string | `""` |  |
 | kiss.settings.haalCentraal.baseUrl | string | `""` |  |
 | kiss.settings.kvk.apiKey | string | `""` |  |
@@ -517,7 +519,7 @@ PodiumD Helm chart
 | kiss.settings.registers | list | `[]` |  |
 | kiss.settings.syncJobs.crawlerImage | object | `{"pullPolicy":"IfNotPresent","repository":"docker.elastic.co/integrations/crawler","tag":"1.0.0@sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"}` | Elastic Open Crawler, vervangt de Enterprise Search web crawler. Draait als CronJob per site uit syncJobs.website en schrijft rechtstreeks naar Elasticsearch. |
 | kiss.settings.syncJobs.image.pullPolicy | string | `"IfNotPresent"` |  |
-| kiss.settings.syncJobs.image.tag | string | `"3.0.0@sha256:64d56ff3039b71806d7d03ecfcd37cede2d31c4146fe4e06d9de6f526415fffb"` |  |
+| kiss.settings.syncJobs.image.tag | string | `"3.1.1@sha256:f29f8b5f33831580e4da0e0f4885b5ef69068c8391ec97322b749f1970df18e1"` |  |
 | kiss.settings.syncJobs.indexTemplateImage | object | `{"pullPolicy":"IfNotPresent","repository":"curlimages/curl","tag":"8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"}` | pre-install/pre-upgrade hook die het search-website* index-template in Elasticsearch registreert. Heeft alleen curl nodig. |
 | kiss.settings.syncJobs.kennisbank.baseUrl | string | `""` |  |
 | kiss.settings.syncJobs.kennisbank.historyLimit | int | `1` |  |
