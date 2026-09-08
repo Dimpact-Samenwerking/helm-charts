@@ -490,3 +490,7 @@ security assessment without first confirming enforcement on the target cluster.
   legacy egress proxy whose routes Frank!Gateway reproduces.
 - [`frankgateway-routes.md`](frankgateway-routes.md) — writing routes in
   values: the shape, the seed hook, prune, and the reference bodies.
+- [`frankgateway-aag-client-certificates.md`](frankgateway-aag-client-certificates.md)
+  — design note for the hosting partner: how client certificates reach the
+  inway through the Azure Application Gateway, what the AAG can and cannot do,
+  and the header contract in practice.

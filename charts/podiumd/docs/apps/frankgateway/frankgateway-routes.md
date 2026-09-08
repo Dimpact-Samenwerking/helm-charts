@@ -342,6 +342,11 @@ changes for mTLS traffic; only the headers are new. Because the gateway sets
 them on every request, a caller cannot forge one — provided the inway is not
 reachable by any other path.
 
+The full picture for the hosting partner — hop-by-hop diagrams, the AAG
+restrictions, a Terraform-shaped fragment, onboarding and rotation, and the
+alternatives that were rejected — is in
+[`frankgateway-aag-client-certificates.md`](frankgateway-aag-client-certificates.md).
+
 ### Why not APISIX consumers with `$secret://` keys
 
 It would be the idiomatic way, and it is the way to go once Frank!Gateway is on
