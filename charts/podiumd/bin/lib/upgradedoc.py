@@ -1330,12 +1330,20 @@ def find_images_manifest_faulty_headers(entries, entry_line_indices, lines, deps
     correctly, unambiguously identify it. problem is:
     - "missing": no own indented "#   sidecar: ..." header directly
       above the entry at all — it may be silently sharing a PRECEDING
-      entry's plain header instead (the exact ambiguity that let one
-      shared "# KISS — 2.2.4 -> 3.0.0" header wrongly stand in for
+      entry's plain header instead (the exact ambiguity that once let
+      one shared "# KISS — 2.2.4 -> 3.0.0" header wrongly stand in for
       kiss-elastic-sync's own, genuinely different 0.3.3 -> 3.0.0 bump,
       since same_group's "same component + same declared version" test
       is only ever a proxy for "these two entries bumped in lockstep",
-      not a guarantee).
+      not a guarantee. That specific pair no longer even reaches this
+      check: kiss-elastic-sync (settings.syncJobs.image) is now listed
+      alongside kiss's own "image" in lib.chart.COMPONENT_IMAGE_PATHS,
+      so is_primary_image_path exempts it here the same way it already
+      exempted zgw-office-addin's frontend/backend, and lib.lockstep_
+      check.check_lockstep_versions now guards its actual version
+      agreement directly against values.yaml instead. This "missing"
+      check still protects every OTHER, not-yet-registered sidecar
+      against the same same_group misfire).
     - "wrong_name": it HAS its own indented sidecar header, but that
       header's own name segment (see _header_name_segment — everything
       before the version pair) doesn't EXACTLY equal "<parent> -
