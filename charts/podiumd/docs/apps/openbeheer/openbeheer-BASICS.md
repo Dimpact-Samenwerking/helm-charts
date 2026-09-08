@@ -125,6 +125,7 @@ with production workload measurements.
    Keycloak client secret `openbeheer-oidc-secret` (`openssl rand -hex 32`), Open Zaak ZGW
    secret, Objecten API token and Objecttypen API token (all `openssl rand -hex 32`).
 4. **Enable and configure** in the environment values file:
+
    ```yaml
     openbeheer:
       enabled: true
@@ -231,6 +232,7 @@ with production workload measurements.
             selectielijst_service_identifier: selectielijst-service
             objecttypen_service_identifier: objecttypen-service
      ```
+
    Secrets inside `configuration.data` use django-setup-configuration's
    `value_from: {env: VAR}` pattern; the Objecttypen and Objecten `Authorization: Token ...`
    headers are exceptions and keep inline `REP_..._REP` tokens.
@@ -275,6 +277,7 @@ with production workload measurements.
    ```
 
    **openzaak side** — register openbeheer as an authorised application with full admin rights:
+
    ```yaml
    openzaak:
      configuration:
@@ -295,6 +298,7 @@ with production workload measurements.
               - identifier: openbeheer
                 secret: {value_from: {env: openzaak_openbeheer_secret}}
    ```
+
 6. **Keycloak client**: created automatically by the realm-config job from
    `configuration.oidcUrl`; populate `openbeheer-oidc-secret` **before** the first deploy
    or the job generates a random secret you must reconcile.
