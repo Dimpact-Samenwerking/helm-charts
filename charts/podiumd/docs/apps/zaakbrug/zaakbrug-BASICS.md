@@ -20,12 +20,12 @@ using about 3.4Gi in practice.
   (originally built for Gemeente Súdwest-Fryslân, maintained by WeAreFrank!),
   built on the [Frank!Framework](https://frankframework.org/) integration
   engine.
-- Sub-chart: `wearefrank/zaakbrug` `2.3.28` from
+- Sub-chart: `wearefrank/zaakbrug` `2.3.32` from
   `https://wearefrank.github.io/charts` (wraps the Frank!Framework `ff-common`
   library chart). Condition `zaakbrug.enabled`, tag `zaak`. **Disabled by
   default.**
-- Image: `wearefrank/zaakbrug:1.26.15` (mirror to `acrprodmgmt.azurecr.io` for
-  production).
+- Image: `wearefrank/zaakbrug:1.26.18` (mirror to `acrprodmgmt.azurecr.io` for
+  production). Runs Frank!Framework `10.2.1`.
 - Role in PodiumD: translates inbound ZDS (SOAP/StUF) traffic from legacy
   applications into ZGW API calls against Open Zaak, so legacy koppelingen
   keep working during the migration to zaakgericht werken.
@@ -40,7 +40,9 @@ using about 3.4Gi in practice.
     (`templates/zaakbrug-oauth-role-mapping-configmap.yaml`): the files
     `oauth-role-mapping.properties` (Frank console role → Keycloak client
     role, from `zaakbrug.oauthRoleMapping`) and `RoutingProfiles.json`
-    (zero-byte placeholder). Because the upstream chart has no
+    (zero-byte placeholder — redundant since image 1.26.15, which ships its
+    own zero-byte copy; `oauth-role-mapping.properties` is not in the image
+    and still has to come from here). Because the upstream chart has no
     `extraVolumes`/`extraVolumeMounts` support, this ConfigMap is mounted at
     `/opt/frank/resources/` by a post-deploy `kubectl patch` in the
     ExternalsPodiumD Applications pipeline — a temporary workaround.
@@ -134,7 +136,7 @@ troubleshooting):
    the pipeline as `ZAAKBRUG_DATABASE_PASSWORD`,
    `ZAAKBRUG_OAUTH_CLIENT_SECRET`, `ZAAKBRUG_ZAKEN_API_JWT_PASSWORD`.
 3. **Environment values** — set `zaakbrug.enabled: true`,
-   `zaakbrug.staging.enabled: false`, pin `zaakbrug.image.tag` (`1.26.15`),
+   `zaakbrug.staging.enabled: false`, pin `zaakbrug.image.tag` (`1.26.18`),
    supply `zaakbrug.frank.zakenApi.jwt.password`
    (`REP_ZAAKBRUG_ZAKEN_API_JWT_PASSWORD_REP`), the
    `frank.environmentVariables`

@@ -12,6 +12,7 @@
 #   7. openbao - openbao-snapshot-agent 0.3.0 (new).
 #   8. kiss 3.0.0 -> 3.1.1.
 #   9. kiss - kiss-elastic-sync 3.0.0 -> 3.1.1.
+#   10. zaakbrug 1.26.15 -> 1.26.18.
 #
 # See docs/_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md for the operator upgrade notes.
 #
@@ -67,3 +68,13 @@
   url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
   version: "3.1.1"
   digest: "sha256:f29f8b5f33831580e4da0e0f4885b5ef69068c8391ec97322b749f1970df18e1"
+
+# Zaakbrug: 1.26.15 -> 1.26.18 (Helm sub-chart 2.3.28 -> 2.3.32).
+# Opt-in component (zaakbrug.enabled, default false) — only mirrored for
+# gemeentes that run it. Frank!Framework runtime 10.1.0-20260323.042326 ->
+# 10.2.1-20260804.125921 plus two SOAP/JWT bug fixes; no new or changed
+# values keys.
+- name: wearefrank/zaakbrug
+  url: docker.io/wearefrank/zaakbrug
+  version: "1.26.18"
+  digest: "sha256:255a717ff620b08608db2d8cde24e6993b96896f785ecfb7082054a4cc36bc3b"

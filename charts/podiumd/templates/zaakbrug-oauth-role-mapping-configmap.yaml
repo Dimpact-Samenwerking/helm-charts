@@ -8,8 +8,17 @@
 #
 # Two files, both required by Frank at startup:
 #   oauth-role-mapping.properties  Keycloak client role -> Frank console role
-#   RoutingProfiles.json           zero-byte placeholder (temporary; future
-#                                  upstream image bundles it)
+#                                  (NOT shipped in the image — must come from
+#                                  here)
+#   RoutingProfiles.json           zero-byte placeholder. Since image 1.26.15
+#                                  (upstream wearefrank/zaakbrug#683) the image
+#                                  ships its own zero-byte
+#                                  /opt/frank/resources/RoutingProfiles.json,
+#                                  so this key is redundant — kept because the
+#                                  post-deploy patch mounts it by subPath and
+#                                  the overwrite is byte-identical. Drop both
+#                                  the key and its mount together, never one
+#                                  alone.
 apiVersion: v1
 kind: ConfigMap
 metadata:

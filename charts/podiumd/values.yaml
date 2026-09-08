@@ -3863,9 +3863,12 @@ frankgateway:
 # bitnami/redis. The default below pins `staging.enabled: false` so the
 # Bitnami artifact is never rendered (Dimpact policy: no Bitnami images).
 #
-# Env values MUST set `frank.dtap.stage` (DEV/TEST/ACCP/PROD) — chart has no
-# default. Env values typically also override image.registry to acrprodmgmt
-# and configure connections.jdbc[0] for the shared Postgres + Keycloak OAuth.
+# Env values MUST set `frank.dtap.stage` — chart has no default and ff-common
+# renders it through `required`. Valid values are the Frank!Framework stages
+# LOC/DEV/TST/ACC/PRD (they select `StageSpecifics_<stage>.properties`);
+# spellings like TEST/ACCP/PROD are NOT valid. Env values typically also
+# override image.registry to acrprodmgmt and configure connections.jdbc[0]
+# for the shared Postgres + Keycloak OAuth.
 # -----------------------------------------------------------------------------
 zaakbrug:
   enabled: false
@@ -3877,14 +3880,14 @@ zaakbrug:
     # staging.apiProxy.image here as a result — they're just the
     # sub-chart's own stale upstream defaults (staging.image.tag alone
     # drifts to "1.9.0" against the actively-maintained main image's
-    # "1.26.15"), never rendered, and pinning them only made
+    # "1.26.18"), never rendered, and pinning them only made
     # verify-release-table-with-podiumd.py flag a same-basename
     # version "ambiguity" between the two that doesn't actually matter.
     enabled: false
   image:
     registry: wearefrank
     repository: zaakbrug
-    tag: "1.26.15@sha256:101d1319ea5706289ce8f22c7f012a12b8378770bb2a5ebf761d72fa46c5ca97"
+    tag: "1.26.18@sha256:255a717ff620b08608db2d8cde24e6993b96896f785ecfb7082054a4cc36bc3b"
   # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
   # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
   # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
@@ -3912,7 +3915,8 @@ zaakbrug:
   # OAuth2 console role mapping. templates/zaakbrug-oauth-role-mapping-configmap.yaml
   # renders a ConfigMap (zaakbrug-oauth-role-mapping) with:
   #   oauth-role-mapping.properties  <Frank role>=<Keycloak client role>
-  #   RoutingProfiles.json           zero-byte placeholder
+  #   RoutingProfiles.json           zero-byte placeholder — redundant since
+  #                                  image 1.26.15, which ships its own
   # Both are mounted into the zaakbrug Deployment at /opt/frank/resources/ by a
   # post-deploy kubectl patch in the ExternalsPodiumD Applications pipeline
   # (upstream wearefrank/zaakbrug chart has no extraVolumeMounts support).
