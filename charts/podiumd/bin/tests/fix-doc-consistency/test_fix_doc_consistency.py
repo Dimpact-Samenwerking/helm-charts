@@ -316,6 +316,29 @@ def test_main_already_at_new_baseline_with_correct_sibling_ref_is_a_noop(cdb, re
     assert "fixed stale sibling doc reference(s)" not in out
 
 
+def test_main_already_at_new_baseline_collapses_pre_existing_double_blank_line(cdb, repo, monkeypatch, capsys):
+    """Regression test (real bug, real user session): a doc already at
+    the target baseline, with no stale sibling reference to fix either,
+    used to be treated as a pure no-op — "already baseline ... —
+    unchanged" — even when it already had a double blank line (MD012).
+    Since this is the ONLY write site that ever touches a doc like
+    gemeente-specific.md at all (it never goes through upgrade.md/
+    values-deltas.md's own separate content-fixing pass), that pre-
+    existing violation could survive run after run with fix-doc-
+    consistency reporting nothing wrong."""
+    write(repo / "4.8.2-to-4.9.0-gemeente-specific.md",
+          "# Gemeente-specific notes — PodiumD 4.8.2 → 4.9.0\n\n\nNone.\n")
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
+
+    cdb.main()
+
+    text = (repo / "4.8.2-to-4.9.0-gemeente-specific.md").read_text(encoding="utf-8")
+    assert "\n\n\n" not in text
+    assert text == "# Gemeente-specific notes — PodiumD 4.8.2 → 4.9.0\n\nNone.\n"
+    out = capsys.readouterr().out
+    assert "4.8.2-to-4.9.0-gemeente-specific.md: already baseline 4.8.2 — collapsed multiple blank line(s)" in out
+
+
 def test_main_no_release_baseline_errors(cdb, monkeypatch):
     """No release-baseline.yaml upgrade_docs key to read (file or key
     missing) is an error — this script never takes the baseline as an
