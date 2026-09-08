@@ -1019,9 +1019,26 @@ def main():
             # doc again once it's "unchanged".
             text = path.read_text(encoding="utf-8")
             text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
-            if refs_changed:
-                path.write_text(collapse_multiple_blank_lines(text), encoding="utf-8")
-                print(f"  {path.name}: already baseline {new_baseline} — fixed stale sibling doc reference(s)")
+            # A pre-existing double blank line unrelated to refs_changed
+            # (or to anything else this loop checks) must still never
+            # survive untouched — for gemeente-specific.md, and any other
+            # non-STANDARD_SUFFIXES doc this rename loop also covers
+            # (e.g. operators-crds.md), this is the ONLY write site that
+            # ever touches it at all; upgrade.md/values-deltas.md's own
+            # later content-fixing pass has its own equivalent check, but
+            # only ever runs when this doc's baseline is ALSO being
+            # bumped this same run, never on this no-rename path.
+            collapsed_text = collapse_multiple_blank_lines(text)
+            blank_lines_fixed = collapsed_text != text
+            if refs_changed or blank_lines_fixed:
+                path.write_text(collapsed_text, encoding="utf-8")
+                if refs_changed and blank_lines_fixed:
+                    print(f"  {path.name}: already baseline {new_baseline} — fixed stale sibling doc "
+                          f"reference(s) and collapsed multiple blank line(s)")
+                elif refs_changed:
+                    print(f"  {path.name}: already baseline {new_baseline} — fixed stale sibling doc reference(s)")
+                else:
+                    print(f"  {path.name}: already baseline {new_baseline} — collapsed multiple blank line(s)")
             else:
                 print(f"  {path.name}: already baseline {new_baseline} — unchanged")
             continue
@@ -1164,9 +1181,20 @@ def main():
             for heading, old_pos, new_pos in moved_blocks:
                 print(f"  changes block '### {heading}': position {old_pos} -> {new_pos}")
 
+        # Checked (and, if needed, written) regardless of whether anything
+        # ABOVE changed — a pre-existing double blank line unrelated to
+        # any of this run's own edits (or one from before this check
+        # itself existed) must still never survive untouched just because
+        # this doc otherwise needed no correction at all.
+        collapsed_text = collapse_multiple_blank_lines(text)
+        blank_lines_fixed = collapsed_text != text
+        if blank_lines_fixed:
+            print()
+            print(f"=== Collapsing multiple consecutive blank line(s) in {upgrade_path.name} ===")
+
         if (changed_rows or added_names or added_sidecar_names or added_section_names or updated_stale_headings
-                or moved_rows or moved_blocks):
-            upgrade_path.write_text(collapse_multiple_blank_lines(text), encoding="utf-8")
+                or moved_rows or moved_blocks or blank_lines_fixed):
+            upgrade_path.write_text(collapsed_text, encoding="utf-8")
 
     if images_path.is_file():
         text = images_path.read_text(encoding="utf-8")
@@ -1318,8 +1346,17 @@ def main():
                 for heading, old_pos, new_pos in moved_sections:
                     print(f"  '## {heading}': position {old_pos} -> {new_pos}")
 
+            # Checked (and, if needed, written) regardless of whether
+            # anything ABOVE changed — see the matching comment on
+            # upgrade_path's own write site above.
+            collapsed_text = collapse_multiple_blank_lines(text)
+            if collapsed_text != text:
+                write_needed = True
+                print()
+                print(f"=== Collapsing multiple consecutive blank line(s) in {values_deltas_path.name} ===")
+
             if write_needed:
-                values_deltas_path.write_text(collapse_multiple_blank_lines(text), encoding="utf-8")
+                values_deltas_path.write_text(collapsed_text, encoding="utf-8")
 
     if review_notes:
         print()
