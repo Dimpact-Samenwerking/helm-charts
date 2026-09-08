@@ -10,6 +10,8 @@
 #   5. openbao - openbao-csi-provider 2.0.2 (new).
 #   6. openbao - vault-k8s 1.7.2 (new).
 #   7. openbao - openbao-snapshot-agent 0.3.0 (new).
+#   8. kiss 3.0.0 -> 3.1.1.
+#   9. kiss - kiss-elastic-sync 3.0.0 -> 3.1.1.
 #
 # See docs/_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md for the operator upgrade notes.
 #
@@ -54,3 +56,14 @@
   url: ghcr.io/openbao/openbao-snapshot-agent
   version: "0.3.0"
   digest: "sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"
+
+# kiss 3.0.0 -> 3.1.1
+- name: klantinteractie-servicesysteem/kiss-frontend
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+  version: "3.1.1"
+  digest: "sha256:1b7c6c3904f11b33d8490c3f0b7968da859b8b4bb73f8d9dc20744eea1720990"
+#   sidecar: kiss - kiss-elastic-sync 3.0.0 -> 3.1.1
+- name: klantinteractie-servicesysteem/kiss-elastic-sync
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
+  version: "3.1.1"
+  digest: "sha256:f29f8b5f33831580e4da0e0f4885b5ef69068c8391ec97322b749f1970df18e1"
