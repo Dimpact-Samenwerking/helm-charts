@@ -363,7 +363,7 @@ Reproduce/confirm:
 
 ### `wrong type for value; expected bool; got string`
 
-```
+```text
 template: podiumd/charts/zaakbrug/charts/ff-common/templates/_configmap.context.yaml:
 executing "ff-common.configmap.context.tpl" at <false>: wrong type for value; expected bool; got string
 ```

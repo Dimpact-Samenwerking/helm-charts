@@ -23,7 +23,7 @@ Application Gateway (AGW) remains the public TLS termination point and WAF for a
 
 Certificate rotation is fully automatic end to end:
 
-```
+```text
 cert-manager renews (T-30d before expiry)
    └─> Kubernetes Secret updated
          ├─> APISIX picks up new cert immediately (ApisixTls watch)
@@ -40,7 +40,7 @@ both.
 
 ### 1.1 Front-channel Scenario A — current state: AGW terminates, plain HTTP to in-cluster Gateway API
 
-```
+```text
 client
   │  HTTPS  (SNI: ontw-openzaak-in.dimpact.opengem.nl)
   ▼
@@ -139,7 +139,7 @@ probe {
 
 ### 1.2 Front-channel Scenario B — target state: end-to-end TLS with cert-manager as the single issuer
 
-```
+```text
 client
   │  HTTPS  (SNI: ontw-openzaak-in.dimpact.opengem.nl)
   ▼
@@ -331,7 +331,7 @@ spec:
 If the DNS team is reluctant to grant `DNS Zone Contributor` on the production
 zone, delegate only the challenge records:
 
-```
+```text
 _acme-challenge.ontw-openzaak-in.dimpact.opengem.nl.  CNAME  ontw-openzaak-in.acme.dimpact-aks.nl.
 ```
 
@@ -696,7 +696,7 @@ Key points worth restating:
 
 ### DNS
 
-```
+```text
 ontw-openzaak-in.dimpact.opengem.nl.  A  <AGW public frontend IP>
 # or, if the AGW has an Azure-assigned DNS name:
 ontw-openzaak-in.dimpact.opengem.nl.  CNAME  <agw-name>.<region>.cloudapp.azure.com.
@@ -839,7 +839,7 @@ from contractually authorized, certificate-authenticated peers.
 
 ### 12.2 Combined architecture
 
-```
+```text
 Front-channel (browsers, OIDC)                      FSC system-to-system (peers)
 ──────────────────────────────                      ────────────────────────────
 client                                              peer Outway

@@ -6,7 +6,7 @@
 
 After upgrading to PodiumD 4.6.2, `openzaak` pods fail to become ready. The pod starts but never passes its readiness probe. Application logs show:
 
-```
+```text
 django.db.utils.IntegrityError: duplicate key value violates unique constraint "admin_index_appgroup_slug_key"
 DETAIL:  Key (slug)=(accounts) already exists.
 ```
@@ -93,7 +93,7 @@ The `openzaak` pod fails to start after an upgrade to app version 1.29.3. The
 migration step aborts and the pod restarts in a loop. The logs show a
 `ProgrammingError` on the `documenten` migration:
 
-```
+```text
 django.db.utils.ProgrammingError: permission denied for table <table>
 ```
 

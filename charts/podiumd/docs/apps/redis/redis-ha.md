@@ -12,7 +12,7 @@ The Redis HA setup uses the [OT-CONTAINER-KIT redis-operator](https://github.com
 
 **Symptoms:** The operator logs repeat every ~60 seconds:
 
-```
+```text
 "Error in getting Redis pod IP"
 "error":"resource name may not be empty"
 stacktrace: getRedisServerIP @ internal/k8sutils/redis.go:50
@@ -40,6 +40,7 @@ stacktrace: getRedisServerIP @ internal/k8sutils/redis.go:50
 4. If they differ — applies `redis-role=master` to the CR master pod and `redis-role=slave` to the others
 
 Unlike the previous one-shot Job, the CronJob:
+
 - Always reconciles from the CR — no early-exit based on an existing label
 - Runs continuously, so label drift is corrected within 2 minutes
 - Uses `backoffLimit: 0` and `restartPolicy: Never` — a failed run is discarded; the next scheduled run retries
@@ -58,6 +59,7 @@ Before 4.6.4 a Helm post-install/post-upgrade Job handled labelling. It had two 
 - All Redis-dependent apps failed to start
 
 **Manual recovery applied (2026-04-17):**
+
 ```bash
 MASTER_IP=$(kubectl get pod redis-ha-0 -n podiumd -o jsonpath='{.status.podIP}')
 kubectl exec -n podiumd redis-ha-1 -c redis-ha -- redis-cli REPLICAOF $MASTER_IP 6379

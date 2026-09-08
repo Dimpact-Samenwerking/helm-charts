@@ -176,6 +176,7 @@ Run a normal `helm upgrade`. The `pabc-migrations` job runs automatically as par
 ```
 
 Verify after deploy:
+
 - `pabc` pod is `1/1 Running`
 - `pabc-migrations-<revision>` job is `Complete`
 - Keycloak clients `pabc` and `pabc-keycloak-admin` exist in the `podiumd` realm
@@ -191,6 +192,7 @@ Add a DNS A (or CNAME) record for `pabc.<env-domain>` pointing to the cluster's 
 ## 8. Post-install: seed PABC role mappings (automated)
 
 After the first successful deploy, the PABC database must be seeded with:
+
 - The ZAC application roles (`behandelaar`, `beheerder`, `coordinator`, `raadpleger`, `recordmanager`)
 - Functional roles that map 1:1 to the Keycloak group names in the `podiumd` realm
 - A domain and mappings that authorise each group for its intended ZAC roles
@@ -208,6 +210,7 @@ kubectl logs   -n podiumd -l job-name=post-deployment-pabc-init --follow
 ```
 
 The job is idempotent and safe to re-run. It performs the following SQL operations:
+
 1. Renames application `"zac"` → `"zaakafhandelcomponent"` (matches `APPLICATION_NAME_ZAC` constant in ZAC source)
 2. Adds missing application roles: `behandelaar`, `beheerder`, `coordinator`, `raadpleger`, `recordmanager`
 3. Renames functional role `"administrator"` → `"administrators"` (must match Keycloak group name)
@@ -248,6 +251,7 @@ kubectl run tmp-verify --rm -i --restart=Never --image=curlimages/curl:8.6.0 -n 
 ```
 
 Then verify ZAC can reach PABC:
+
 1. In ZAC, open a zaak of the e2e zaaktype and confirm the behandelaar assignment works
 2. If ZAC shows errors, check the ZAC pod logs for `401` or connection errors to `http://pabc/api`
 

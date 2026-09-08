@@ -12,7 +12,7 @@ The ACR mirror repo name is the **upstream image reference with only the
 registry host stripped** — the full `<namespace>/<repo>` path is kept verbatim.
 No drop-namespace, no drop-hyphen, no Dutch-rename. The rule is mechanical:
 
-```
+```text
 quay.io/keycloak/keycloak            -> keycloak/keycloak
 docker.io/maykinmedia/open-inwoner   -> maykinmedia/open-inwoner
 ghcr.io/infonl/zaakafhandelcomponent -> infonl/zaakafhandelcomponent
@@ -159,20 +159,22 @@ Recurring mappings observed in this list:
 
 ## Workflow for a new image in a release manifest
 
-1. Find the upstream registry/repo (the `url:` value).
-2. Strip the registry host — `name: <namespace>/<repo>` (see the mechanical
+- Find the upstream registry/repo (the `url:` value).
+- Strip the registry host — `name: <namespace>/<repo>` (see the mechanical
    rule above). Nothing to look up in the legacy table below; that table is
    frozen and only relevant when migrating an environment still running the
    old hand-translated names off the old scheme. `mirror-strip-registry.py
    --gen-manifest` computes this for you.
-3. Write the entry as:
-   ```yaml
+- Write the entry as:
+
+  ```yaml
    - name: <namespace>/<repo>
      url: <upstream-canonical-url-no-tag>
      version: "<tag>"
      digest: "sha256:<digest>"
    ```
-4. After publishing the manifest, verify on a deployed cluster that the
+
+- After publishing the manifest, verify on a deployed cluster that the
    image pulls cleanly. A `name:` that doesn't match what the SSC-Hosting
    import pipeline actually mirrored under will manifest as
    `ImagePullBackOff` on the first rollout that touches that image — that

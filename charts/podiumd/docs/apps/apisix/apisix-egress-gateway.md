@@ -60,7 +60,7 @@ The defaults turn off the bundled ingress controller, pin the gateway data-plane
 
 From APISIX **3.16** onwards (2026-04-08) the gateway ships an **embedded Dashboard UI** served at the Admin API port:
 
-```
+```text
 http://<apisix-admin-service>:9180/ui/
 ```
 
@@ -103,6 +103,7 @@ apisix:
 ```
 
 The first `helm upgrade` produces:
+
 1. Random `apisix-admin-credentials` (admin/viewer keys) — kills upstream public defaults.
 2. Random `apisix-dashboard-oidc-secret` in `keycloak-podiumd-realm-secrets` — used by both sides.
 3. `apisix-standalone-config` ConfigMap with templated `discovery` URL.
