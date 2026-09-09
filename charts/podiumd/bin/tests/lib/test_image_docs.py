@@ -366,3 +366,154 @@ def test_update_image_manifest_matches_entry_by_url_repository(libimagedocs, tmp
         path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
     assert entry_updated is True
     assert '"8.21.0"' in path.read_text(encoding="utf-8")
+
+
+# --- regenerate_images_baseline_manifest ---
+
+def test_regenerate_images_baseline_manifest_full_enumeration_and_sort_order(libimagedocs, tmp_path):
+    """Every primary image AND every sidecar is written, one entry per
+    distinct repository, ordered by values.yaml's own top-level
+    component order (images_manifest_entry_order_key) — "zac" (a real
+    Chart.yaml dependency) before "openbao" (values.yaml lists zac
+    first), regardless of dict/repo-groups iteration order."""
+    deps = [
+        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
+        {"name": "openbao", "version": "2.0.0"},
+    ]
+    values = {
+        "zac": {
+            "image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64},
+            "opa": {"image": {"repository": "openpolicyagent/opa", "tag": "0.60.0@sha256:" + "b" * 64}},
+        },
+        "openbao": {
+            "image": {"repository": "openbao/openbao", "tag": "2.0.0@sha256:" + "c" * 64},
+        },
+    }
+    images_baseline_path = tmp_path / "images-baseline.yaml"
+
+    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, deps, values, images_baseline_path)
+
+    assert skipped == []
+    assert written == 3
+    text = images_baseline_path.read_text(encoding="utf-8")
+    names_in_order = [line.split("name: ", 1)[1].strip() for line in text.splitlines() if line.startswith("- name:")]
+    assert names_in_order == [
+        "infonl/zaakafhandelcomponent", "openpolicyagent/opa", "openbao/openbao",
+    ]
+    assert 'url: docker.io/infonl/zaakafhandelcomponent' in text
+    assert 'version: "1.0.297"' in text
+    assert f'digest: "sha256:{"a" * 64}"' in text
+
+
+def test_regenerate_images_baseline_manifest_collapses_shared_repository(libimagedocs, tmp_path):
+    """A repository shared by more than one path (e.g. a "global.images"
+    anchor aliased into several components' own sidecars) collapses to
+    ONE entry, same dedup convention images-<target>.yaml's own entries
+    already follow — never one entry per alias site."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {
+        "zac": {
+            "image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64},
+            "nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.25.0@sha256:" + "d" * 64}},
+        },
+        "global": {
+            "images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.25.0@sha256:" + "d" * 64}},
+        },
+    }
+    images_baseline_path = tmp_path / "images-baseline.yaml"
+
+    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, deps, values, images_baseline_path)
+
+    assert skipped == []
+    assert written == 2
+    text = images_baseline_path.read_text(encoding="utf-8")
+    assert text.count("- name: nginxinc/nginx-unprivileged") == 1
+
+
+def test_regenerate_images_baseline_manifest_embedded_digest_used_directly(libimagedocs, tmp_path, monkeypatch):
+    """A tag that already embeds its own "@sha256:..." digest is used
+    directly — no live registry lookup is ever attempted for it."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
+    images_baseline_path = tmp_path / "images-baseline.yaml"
+
+    def fail_if_called(host, repo, tag):
+        raise AssertionError("registry_tag_exists must not be called for an already-digest-pinned tag")
+
+    monkeypatch.setattr(libimagedocs, "registry_tag_exists", fail_if_called)
+
+    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, deps, values, images_baseline_path)
+
+    assert skipped == []
+    assert written == 1
+    assert f'digest: "sha256:{"a" * 64}"' in images_baseline_path.read_text(encoding="utf-8")
+
+
+def test_regenerate_images_baseline_manifest_live_lookup_for_bare_tag(libimagedocs, tmp_path, monkeypatch):
+    """A bare tag with no embedded digest of its own falls back to a live
+    registry lookup (lib.registry.registry_tag_exists) for its digest —
+    matching the file's own header comment ("Digests are resolved live
+    against the source registry")."""
+    deps = [{"name": "openbao", "version": "2.0.0"}]
+    values = {"openbao": {"image": {"repository": "openbao/openbao", "tag": "2.0.0"}}}
+    images_baseline_path = tmp_path / "images-baseline.yaml"
+
+    calls = []
+
+    def fake_registry_tag_exists(host, repo, tag):
+        calls.append((host, repo, tag))
+        return True, "sha256:" + "e" * 64
+
+    monkeypatch.setattr(libimagedocs, "registry_tag_exists", fake_registry_tag_exists)
+
+    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, deps, values, images_baseline_path)
+
+    assert skipped == []
+    assert written == 1
+    assert calls == [("docker.io", "openbao/openbao", "2.0.0")]
+    assert f'digest: "sha256:{"e" * 64}"' in images_baseline_path.read_text(encoding="utf-8")
+
+
+def test_regenerate_images_baseline_manifest_skips_when_live_lookup_fails(libimagedocs, tmp_path, monkeypatch):
+    """A bare tag whose live registry lookup fails (image/tag doesn't
+    exist, or the registry is unreachable) is reported in `skipped`, not
+    silently written with a made-up or missing digest."""
+    deps = [{"name": "openbao", "version": "2.0.0"}]
+    values = {"openbao": {"image": {"repository": "openbao/openbao", "tag": "2.0.0"}}}
+    images_baseline_path = tmp_path / "images-baseline.yaml"
+
+    monkeypatch.setattr(libimagedocs, "registry_tag_exists", lambda host, repo, tag: (False, None))
+
+    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, deps, values, images_baseline_path)
+
+    assert written == 0
+    assert skipped == ["openbao/openbao"]
+    assert images_baseline_path.read_text(encoding="utf-8").strip().endswith(
+        libimagedocs.IMAGES_BASELINE_HEADER.strip())
+
+
+def test_regenerate_images_baseline_manifest_wholesale_overwrite(libimagedocs, tmp_path):
+    """A second run with different data completely REPLACES the file's
+    prior content — no incremental merge, no leftover entries from a
+    component that's since been removed."""
+    images_baseline_path = tmp_path / "images-baseline.yaml"
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
+    libimagedocs.regenerate_images_baseline_manifest(tmp_path, deps, values, images_baseline_path)
+    assert "infonl/zaakafhandelcomponent" in images_baseline_path.read_text(encoding="utf-8")
+
+    new_deps = [{"name": "openbao", "version": "2.0.0"}]
+    new_values = {"openbao": {"image": {"repository": "openbao/openbao", "tag": "2.0.0@sha256:" + "f" * 64}}}
+    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, new_deps, new_values, images_baseline_path)
+
+    assert skipped == []
+    assert written == 1
+    text = images_baseline_path.read_text(encoding="utf-8")
+    assert "infonl/zaakafhandelcomponent" not in text
+    assert "openbao/openbao" in text
