@@ -7,7 +7,7 @@ import yaml
 from lib.chart import (
     COMPONENT_IMAGE_PATHS, NATIVE_COMPONENTS, get_path, global_image_paths, historical_app_version_for_path,
     historical_app_version_for_repository, image_paths_for, is_primary_image_path,
-    nested_subchart_registered_paths, subchart_app_version, version_of, version_paths_for,
+    nested_subchart_registered_paths, resolved_digest_pin, subchart_app_version, version_of, version_paths_for,
 )
 
 
@@ -1407,23 +1407,45 @@ def find_images_manifest_faulty_headers(entries, entry_line_indices, lines, deps
 
 
 def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_map, repo_groups,
-                                    unresolvable_paths, chart_dir=None, upgrade_docs_baseline=None):
+                                    unresolvable_paths, chart_dir=None, upgrade_docs_baseline=None,
+                                    values=None, baseline_values=None):
     """(missing_paths, extra_entry_names) — the images-manifest's own
     "list of changed images" checked against the FULL, actual set of
     every image tag pin whose VERSION (lib.chart.version_of — the tag
-    with any "@sha256:..." digest suffix stripped) differs between the
-    target (current_paths) and upgrade_docs_baseline (baseline_paths)
-    — see find_image_tag_paths for what these dicts hold. Deliberately
-    version-only, not the full tag string: a chart-wide digest-pinning
-    sweep (see PR #437) can touch the digest of virtually every image
-    at once with no app-version change behind any of it — comparing
-    full tag strings would demand a manifest entry for every single one
-    of those, defeating the whole point of a curated "what actually
-    changed" list. A real, individually-deliberate digest-only re-pin
-    (this manifest's own "newly digest-pinned... tag unchanged"
-    convention) is a judgment call for whoever writes the manifest, not
-    something this check can distinguish from routine sweep noise by
-    the tag string alone — so it's never treated as required here.
+    with any "@sha256:..." digest suffix stripped) OR resolvable DIGEST
+    (lib.chart.resolved_digest_pin) differs between the target
+    (current_paths) and upgrade_docs_baseline (baseline_paths) — see
+    find_image_tag_paths for what these dicts hold.
+
+    The digest side of this is deliberately narrow: it only fires when
+    BOTH the target and upgrade_docs_baseline pin have a resolvable
+    digest of their own (an embedded "@sha256:..." in the tag, or — for
+    a SPLIT_TAG_SHA_PATHS path — the sibling "sha:" field; see resolved_
+    digest_pin) AND those two digests differ while the version stayed
+    the same. A path where either side has NO resolvable digest at all
+    (an ordinary bare-tag pin, digest resolved live against the
+    registry rather than stored anywhere in values.yaml/git history) is
+    NOT compared on digest — there is nothing stored to diff, and
+    treating "no digest recorded" as "digest changed" would flag every
+    such image on every run regardless of whether anything really
+    changed. This still leaves the routine chart-wide digest-pinning
+    sweep (see PR #437) largely out of scope: a sweep touches images
+    that didn't carry a digest before, so most of it has no baseline
+    digest to compare against and stays version-only exactly as
+    before — but a genuine, individually-deliberate re-pin of an image
+    that ALREADY carried a digest on both sides (ground-truthed against
+    the real 4.9.0 baseline while adding this: only clamav.image and
+    keycloak-operator's ensurePodiumdAdminUser initImage qualified, not
+    a chart-wide flood) now correctly surfaces as changed instead of
+    being silently invisible to this check.
+
+    values/baseline_values (the full values trees resolved_digest_pin
+    needs to look up a SPLIT_TAG_SHA_PATHS path's sibling "sha:" field)
+    are optional — omitting either one (or both) just means the digest
+    comparison can never fire for ANY path (resolved_digest_pin needs a
+    real values tree, not just the bare tag strings current_paths/
+    baseline_paths already hold), collapsing this back to the old
+    version-only behaviour. Every real caller passes both.
 
     Each entry is matched to its values-tree path via resolve_entry_
     image_path — repo_map's exact "name: is a stripped repository"
@@ -1500,10 +1522,23 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
                           for path in paths if repo in repo_map}
     path_to_repo = {path: repo for repo, paths in repo_groups.items() for path in paths}
 
-    def version_changed(path, tag):
+    def digest_changed(path, tag, baseline_tag):
+        # Only fires when BOTH sides have a resolvable digest of their
+        # own to compare (see this function's own docstring) — a bare
+        # tag with no stored digest on either side yields None here and
+        # is deliberately left alone, not treated as "changed".
+        if values is None or baseline_values is None:
+            return False
+        current_digest = resolved_digest_pin(values, path, tag)
+        baseline_digest = resolved_digest_pin(baseline_values, path, baseline_tag)
+        if not current_digest or not baseline_digest:
+            return False
+        return current_digest.split("@", 1)[1] != baseline_digest.split("@", 1)[1]
+
+    def pin_changed(path, tag):
         baseline_tag = baseline_paths.get(path)
         if baseline_tag is not None:
-            return version_of(tag) != version_of(baseline_tag)
+            return version_of(tag) != version_of(baseline_tag) or digest_changed(path, tag, baseline_tag)
         # No prior value for this path at all (a component that didn't
         # exist in Chart.yaml/values.yaml until this release) — the git
         # baseline genuinely has nothing to diff against. Before
@@ -1522,7 +1557,7 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     changed_paths = {path for path, tag in current_paths.items()
                       if representative_of.get(path, path) == path
                       and path not in unresolvable_paths
-                      and version_changed(path, tag)}
+                      and pin_changed(path, tag)}
 
     matched_paths = set()
     stale_entry_names, unmatched_entry_names = [], []
