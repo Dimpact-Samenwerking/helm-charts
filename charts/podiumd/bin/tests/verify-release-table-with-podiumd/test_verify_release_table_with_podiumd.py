@@ -229,12 +229,63 @@ def test_compare_chart_version_never_tracked_resolves_primary_via_vendored_subch
 def test_compare_skips_blank_or_unknown_targets(vrt, target_app, target_helm):
     """A blank/UNKNOWN target means "nothing planned to compare" (see
     query-release-table's own UNCHANGED display logic) — not a
-    mismatch just because it differs textually from the actual version."""
+    mismatch just because it differs textually from the actual version.
+    source_app/source_helm here already match the real, current version
+    (see ZAC_BLOCK/deps) — this is the genuinely "already tracked and
+    unchanged" case; see the blank-source tests below for what happens
+    when neither source nor target has ever recorded a real value."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     source_helm="1.0.297", target_app=target_app, target_helm=target_helm)]
+                     source_app="5.4.3", source_helm="1.0.297", target_app=target_app, target_helm=target_helm)]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     assert findings == {}
+
+
+def test_compare_blank_source_and_target_app_version_never_recorded_is_reported(vrt):
+    """Regression test (real bug, confirmed live against the real chart
+    and demonstrated by the user manually blanking mi-data's own
+    target_version_app in release-table.csv): a row whose app version
+    was NEVER recorded at all — source AND target both blank — used to
+    report "OK: matches" regardless of what values.yaml actually pins,
+    since the whole comparison was gated on is_verifiable_target(target)
+    alone. A real, resolvable pin must now be checked against source
+    even when target is blank, and reported as "never recorded" when
+    source is blank too."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
+                     source_helm="1.0.297")]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    assert any("has never recorded an app version" in m for m in findings["missing_from_release_table"])
+    assert "mismatches" not in findings
+
+
+def test_compare_blank_target_but_source_now_stale_is_reported(vrt):
+    """A row whose target_version_app is blank ("no planned change") but
+    whose own previously-recorded SOURCE has since drifted from the real
+    current values.yaml pin — release-table.csv's own "unchanged" claim
+    silently went stale and was never caught up. Same class of bug as
+    the "never recorded at all" case above, just with a real (now wrong)
+    source on file instead of nothing."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
+                     source_app="5.4.2", source_helm="1.0.297")]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    assert any("target_version_app was never filled in" in m and "5.4.2" in m and "5.4.3" in m
+               for m in findings["mismatches"])
+    assert "missing_from_release_table" not in findings
+
+
+def test_compare_blank_target_helm_but_source_now_stale_is_reported(vrt):
+    """Same class of bug as the app-version case above, for the Helm
+    chart version instead: target_version_helm blank ("no planned
+    change") but source_version_helm has since drifted from Chart.
+    yaml's real current dependency version."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
+                     source_app="5.4.3", source_helm="1.0.296")]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    assert any("target_version_helm was never filled in" in m and "1.0.296" in m and "1.0.297" in m
+               for m in findings["mismatches"])
 
 
 # --- is_primary_image ---
