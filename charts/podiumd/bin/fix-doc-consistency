@@ -87,7 +87,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import (
     canonical_sidecar_row_names, chart_version, documented_repository_for_path, global_image_paths,
-    load_images_baseline, paths_by_repository, repo_group_representative, resolved_digest_pin, version_of,
+    historical_app_version_for_path, image_paths_for, paths_by_repository, repo_group_representative,
+    resolved_digest_pin, version_of,
 )
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
@@ -102,7 +103,7 @@ from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_row
 from lib.image_repository_check import find_images_without_repository
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
-    app_version_pin_via_images_baseline, append_to_doc, canonical_version_cell, component_version_cell,
+    append_to_doc, canonical_version_cell, component_version_cell,
     compute_changed_components, extract_source_version, extract_target_version, find_all_image_and_version_paths,
     find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff,
     images_manifest_block_start, images_manifest_display_name_positions, images_manifest_entries_share_group,
@@ -317,7 +318,8 @@ def load_baseline_state(new_baseline):
     return baseline_chart_yaml.get("dependencies", []), baseline_values
 
 
-def fix_component_version_table(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values):
+def fix_component_version_table(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
+                                 upgrade_docs_baseline=None):
     """Rewrite each "Component versions" table row's App/Helm-chart cells to
     the actual baseline (source) and target versions found in git/Chart.yaml/
     values.yaml. A row is only rewritten when both its source and target are
@@ -348,7 +350,6 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
     current_paths = dict(find_image_tag_paths(target_values))
     current_paths.update(global_image_paths(target_values))
     canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
-    images_baseline = load_images_baseline(chart_dir)
 
     for row in rows:
         # resolve_component_row is shared with lib.docs_consistency's own
@@ -357,7 +358,8 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
         # silently drift apart on what "correct" even means).
         resolved = resolve_component_row(
             row["name"], chart_dir, canonical_names, target_deps, target_values,
-            baseline_deps=baseline_deps, baseline_values=baseline_values, images_baseline=images_baseline,
+            baseline_deps=baseline_deps, baseline_values=baseline_values,
+            upgrade_docs_baseline=upgrade_docs_baseline,
         )
         if resolved["kind"] == "unmatched":
             # A row shaped like the canonical sidecar form ("<key> -
@@ -391,17 +393,23 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
                 unresolved_names.append(row["name"])
                 continue
 
-            # Before writing "(new)": a brand-new Chart.yaml dependency
-            # (resolved["dep"] not None) may still be pinned to an image
-            # that's already a known, previously-mirrored pin in images-
-            # baseline.yaml (see app_version_pin_via_images_baseline's own
-            # real cases) — genuinely new to Chart.yaml, but not new to the
-            # mirror, so its app cell should read "(unchanged)" instead.
+            # A brand-new Chart.yaml dependency (resolved["dep"] not None)
+            # with no baseline value at all — before concluding
+            # "genuinely new" for the APP cell (the CHART cell still
+            # correctly reads "(new)" regardless — that dependency line
+            # really is new), check whether this repository already
+            # appears in any of this chart's own PAST images-
+            # <version>.yaml manifests (real, already-committed
+            # per-release documents, not the removed images-
+            # baseline.yaml side-file).
             old_app_for_cell = None
             if resolved["dep"] is not None and actual_target_app is not None:
-                old_app_for_cell = app_version_pin_via_images_baseline(
-                    target_values, resolved["values_key"], resolved["dep"]["name"], chart_dir, target_deps,
-                    images_baseline)
+                for path in image_paths_for(resolved["dep"]["name"]):
+                    old_app_for_cell = historical_app_version_for_path(
+                        chart_dir, target_deps, target_values, (resolved["values_key"],) + tuple(path.split(".")),
+                        upgrade_docs_baseline)
+                    if old_app_for_cell is not None:
+                        break
 
             row_changed = False
             line = lines[row["line_index"]]
@@ -447,12 +455,9 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
             # Compared as the full rendered CELL TEXT, not just the two
             # numeric endpoints (row["app_source"]/row["app"]) — a row
             # whose numbers already match but whose "(new)"/"(unchanged)"
-            # annotation is stale (real case: a sidecar row written
-            # "(new)" by an older fix-doc-consistency run, before this
-            # exact images-baseline.yaml fallback existed, now correctly
-            # resolves as unchanged) must still be corrected; comparing
-            # only the numbers would silently leave a wrong annotation
-            # in place forever, since they'd already "match".
+            # annotation is stale must still be corrected; comparing only
+            # the numbers would silently leave a wrong annotation in
+            # place forever, since they'd already "match".
             new_app_cell = canonical_version_cell(actual_baseline_app, actual_target_app)
             if cells[1] != new_app_cell:
                 cells[1] = new_app_cell
@@ -735,7 +740,8 @@ def sort_images_manifest_changes_items(lines, entries, entry_positions, display_
     return moved
 
 
-def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, baseline_values, allow_pull=False):
+def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, baseline_values, allow_pull=False,
+                                         upgrade_docs_baseline=None):
     """Insert a new entry (+ its own "# <name> — <old> -> <new>" comment,
     and a matching numbered item in the "# Changes:" header list) for
     every image lib.upgradedoc.find_images_manifest_list_diff's own
@@ -866,9 +872,9 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
     key_order = values_key_order(target_values)
 
-    images_baseline = load_images_baseline(chart_dir)
     missing_paths, _stale_entry_names, _unmatched_entry_names = find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths, images_baseline)
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths,
+        chart_dir=chart_dir, upgrade_docs_baseline=upgrade_docs_baseline)
 
     def order_key(values_key, is_sidecar):
         return images_manifest_order_key(key_order, values_key, is_sidecar)
@@ -1161,7 +1167,8 @@ def main():
     if upgrade_path.is_file():
         text = upgrade_path.read_text(encoding="utf-8")
         text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(
-            text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values
+            text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values,
+            upgrade_docs_baseline=new_baseline
         )
         if changed_rows:
             print()
@@ -1185,7 +1192,7 @@ def main():
 
         text, added_names = add_missing_component_rows(
             text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values,
-            actual_changed_keys, target
+            actual_changed_keys, target, upgrade_docs_baseline=new_baseline
         )
         if added_names:
             print()
@@ -1195,7 +1202,8 @@ def main():
 
         if baseline_deps is not None:
             text, added_sidecar_names = add_missing_sidecar_rows(
-                text, CHART_YAML.parent, target_deps, target_values, baseline_values, target
+                text, CHART_YAML.parent, target_deps, target_values, baseline_values, target,
+                upgrade_docs_baseline=new_baseline
             )
             if added_sidecar_names:
                 print()
@@ -1285,7 +1293,8 @@ def main():
             text = images_path.read_text(encoding="utf-8")
             new_text, added_entry_names, skipped_entry_names, backfilled_header_names = \
                 add_missing_images_manifest_entries(
-                    text, CHART_YAML.parent, target_deps, target_values, baseline_values, allow_pull=True
+                    text, CHART_YAML.parent, target_deps, target_values, baseline_values, allow_pull=True,
+                    upgrade_docs_baseline=new_baseline
                 )
             if added_entry_names:
                 images_path.write_text(new_text, encoding="utf-8")

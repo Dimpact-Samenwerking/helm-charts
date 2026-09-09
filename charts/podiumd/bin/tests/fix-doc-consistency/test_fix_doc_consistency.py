@@ -775,23 +775,25 @@ def test_fix_component_version_table_new_sidecar_app_annotated_new_chart_cell_un
     assert "| redis-operator - k8s | 1.36.2 (new) | - | ACR mirror only |" in new_text
 
 
-def _write_images_baseline(chart_dir, entries):
+def _write_historical_images_manifest(chart_dir, version, entries):
     images_dir = chart_dir / "docs" / "images"
     images_dir.mkdir(parents=True, exist_ok=True)
-    (images_dir / "images-baseline.yaml").write_text(
+    (images_dir / f"images-{version}.yaml").write_text(
         "".join(f"- name: {e['name']}\n  url: {e['name']}\n  version: \"{e['version']}\"\n"
                 f"  digest: \"{e['digest']}\"\n" for e in entries),
         encoding="utf-8",
     )
 
 
-def test_fix_component_version_table_new_dependency_known_in_images_baseline_is_unchanged(cdb, tmp_path):
+def test_fix_component_version_table_new_dependency_known_in_historical_manifest_is_unchanged(cdb, tmp_path):
     """Regression test: a brand-new Chart.yaml dependency (baseline_deps
-    has no matching entry at all) pinned to an image already known,
-    byte-for-byte, in images-baseline.yaml — its APP cell should read
+    has no matching entry at all) whose image repository already
+    appears, byte-for-byte at the same version, in an earlier release's
+    own images-4.8.0.yaml manifest — its APP cell should read
     "(unchanged)" instead of "(new)"; its CHART cell still correctly
-    reads "(new)", since the Chart.yaml dependency line genuinely is new."""
-    _write_images_baseline(tmp_path, [
+    reads "(new)", since the Chart.yaml dependency line genuinely is
+    new. Not the removed images-baseline.yaml side-file."""
+    _write_historical_images_manifest(tmp_path, "4.8.0", [
         {"name": "brp-api/personen-mock", "version": "2.7.0-202606230850", "digest": "sha256:aaaa"}])
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -804,21 +806,22 @@ def test_fix_component_version_table_new_dependency_known_in_images_baseline_is_
         "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}}}
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, tmp_path, target_deps, target_values, [], {}
+        text, tmp_path, target_deps, target_values, [], {}, upgrade_docs_baseline="4.8.5"
     )
     assert unmatched == [] and unresolved == []
     assert len(changed) == 1
     assert "| brppersonenmock | 2.7.0-202606230850 (unchanged) | 1.2.9 (new) | - |" in new_text
 
 
-def test_fix_component_version_table_new_sidecar_known_in_images_baseline_is_unchanged(cdb, tmp_path):
+def test_fix_component_version_table_new_sidecar_known_in_historical_manifest_is_unchanged(cdb, tmp_path):
     """Same fallback for a brand-new canonical sidecar row (see
     add_missing_sidecar_rows/lib.upgradedoc.resolve_component_row's own
     sidecar branch) — real case: redis-operator's own "k8s" sidecar. The
     row starts stale (a wrong target number) so it's guaranteed to be
     rewritten regardless of annotation text — the value under test is
     what it gets rewritten TO."""
-    _write_images_baseline(tmp_path, [{"name": "alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}])
+    _write_historical_images_manifest(tmp_path, "4.8.0", [
+        {"name": "alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}])
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -830,7 +833,7 @@ def test_fix_component_version_table_new_sidecar_known_in_images_baseline_is_unc
         "image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}}
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, tmp_path, target_deps, target_values, baseline_deps, baseline_values
+        text, tmp_path, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.8.5"
     )
     assert unmatched == [] and unresolved == []
     assert len(changed) == 1
@@ -839,13 +842,14 @@ def test_fix_component_version_table_new_sidecar_known_in_images_baseline_is_unc
 
 def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matching_numbers(cdb, tmp_path):
     """Regression test: a row written "(new)" by an OLDER fix-doc-
-    consistency run (before the images-baseline.yaml fallback existed)
-    whose NUMBER already happens to match the target (both read
-    "1.36.2") must still be corrected to "(unchanged)" — comparing only
-    row["app_source"]/row["app"] (the numeric endpoints alone) would
-    treat this row as already "matching" and never touch it, silently
-    leaving the wrong annotation in place forever."""
-    _write_images_baseline(tmp_path, [{"name": "alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}])
+    consistency run (before the historical-images-manifest fallback
+    existed) whose NUMBER already happens to match the target (both
+    read "1.36.2") must still be corrected to "(unchanged)" — comparing
+    only row["app_source"]/row["app"] (the numeric endpoints alone)
+    would treat this row as already "matching" and never touch it,
+    silently leaving the wrong annotation in place forever."""
+    _write_historical_images_manifest(tmp_path, "4.8.0", [
+        {"name": "alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}])
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -857,7 +861,7 @@ def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matchi
         "image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}}
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, tmp_path, target_deps, target_values, baseline_deps, baseline_values
+        text, tmp_path, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.8.5"
     )
     assert unmatched == [] and unresolved == []
     assert len(changed) == 1
@@ -1299,8 +1303,9 @@ def test_main_adds_missing_sidecar_row_for_global_shared_image(
 def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path):
     """redis-operator's own "k8s" sidecar is added as a brand-new nested
     path this release (baseline_values has nothing for it at all), but
-    it's pinned to an image version+digest that's ALREADY in docs/
-    images/images-baseline.yaml (from some earlier, unrelated hop) —
+    it's pinned to an image version+digest that's ALREADY recorded, at
+    the same version, in an earlier release's own docs/images/
+    images-4.8.0.yaml manifest (from some earlier, unrelated hop) —
     real case that surfaced this gap. Mirrors repo_with_new_component_
     pinned_to_a_known_mirrored_image, but for add_missing_sidecar_rows'
     own "brand new path" shape rather than add_missing_component_rows'."""
@@ -1340,7 +1345,7 @@ def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path):
           "| redis-operator | - | 1.36.1 → 1.36.2 | n/a |\n\n"
           "## Changes\n\n")
     write(images_dir / "images-4.9.0.yaml", "# Baseline: podiumd 4.8.5.\n#\n# Zero changes:\n#\n\n")
-    write(images_dir / "images-baseline.yaml",
+    write(images_dir / "images-4.8.0.yaml",
           "- name: alpine/k8s\n"
           "  url: quay.io/alpine/k8s\n"
           '  version: "1.36.2"\n'
@@ -1350,13 +1355,13 @@ def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path):
     return doc_dir
 
 
-def test_main_new_sidecar_row_annotated_unchanged_when_known_in_images_baseline(
+def test_main_new_sidecar_row_annotated_unchanged_when_known_in_historical_manifest(
         cdb, repo_with_new_sidecar_pinned_to_a_known_mirrored_image, monkeypatch):
     """The SAME fallback, applied to add_missing_sidecar_rows: redis-
     operator's own "k8s" sidecar path is brand new (baseline_values has
-    nothing for it), but its image pin is already known in images-
-    baseline.yaml, so its App cell reads "(unchanged)" rather than a
-    nonsensical "(new)"."""
+    nothing for it), but its image pin is already recorded in an
+    earlier release's own images-4.8.0.yaml manifest, so its App cell
+    reads "(unchanged)" rather than a nonsensical "(new)"."""
     doc_dir = repo_with_new_sidecar_pinned_to_a_known_mirrored_image
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -2080,12 +2085,13 @@ def test_main_renumbers_a_preexisting_changes_gap(
 @pytest.fixture
 def repo_with_new_component_pinned_to_a_known_mirrored_image(tmp_path):
     """brppersonenmock is added as a brand-new Chart.yaml dependency in
-    this release, pinned to an image version+digest that's ALREADY in
-    docs/images/images-baseline.yaml (from some earlier, unrelated hop)
-    — real case that surfaced this gap. The git baseline has nothing at
-    all to compare brppersonenmock's own image tag against (the
-    component didn't exist there), but since this EXACT pin is already
-    a known, previously-mirrored image, it must NOT be added to
+    this release, pinned to an image version+digest that's ALREADY
+    recorded, at the same version, in an earlier release's own docs/
+    images/images-4.8.0.yaml manifest (from some earlier, unrelated
+    hop) — real case that surfaced this gap. The git baseline has
+    nothing at all to compare brppersonenmock's own image tag against
+    (the component didn't exist there), but since this EXACT pin is
+    already a known, previously-mirrored image, it must NOT be added to
     images-4.9.0.yaml as a changed image."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
@@ -2131,7 +2137,7 @@ def repo_with_new_component_pinned_to_a_known_mirrored_image(tmp_path):
           "  url: wearefrank/zaakbrug\n"
           '  version: "1.26.15"\n'
           '  digest: "sha256:aaaa"\n')
-    write(images_dir / "images-baseline.yaml",
+    write(images_dir / "images-4.8.0.yaml",
           "- name: brp-api/personen-mock\n"
           "  url: ghcr.io/brp-api/personen-mock\n"
           '  version: "2.7.0"\n'
@@ -2141,12 +2147,13 @@ def repo_with_new_component_pinned_to_a_known_mirrored_image(tmp_path):
     return doc_dir, images_dir
 
 
-def test_main_does_not_add_new_component_image_already_known_in_images_baseline(
+def test_main_does_not_add_new_component_image_already_known_in_historical_manifest(
         cdb, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch, capsys):
     """brppersonenmock's own SCHEMA is genuinely new, so it still gets a
     real -upgrade.md row/Changes section and values-deltas.md section
     (unaffected by this fallback) — only its IMAGE is recognized as
-    already-known and thus skipped from images-4.9.0.yaml specifically."""
+    already-known (via an earlier release's own images-4.8.0.yaml
+    manifest) and thus skipped from images-4.9.0.yaml specifically."""
     doc_dir, images_dir = repo_with_new_component_pinned_to_a_known_mirrored_image
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -2157,13 +2164,13 @@ def test_main_does_not_add_new_component_image_already_known_in_images_baseline(
     assert "Adding missing entr(y/ies) to images-4.9.0.yaml" not in out
 
 
-def test_main_adds_new_component_image_not_in_images_baseline(
+def test_main_adds_new_component_image_not_in_historical_manifest(
         cdb, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch):
-    """Same shape, but the pinned digest genuinely isn't in images-
-    baseline.yaml anywhere — still added as changed, same as before
-    this fallback existed."""
+    """Same shape, but no historical images-<version>.yaml records this
+    exact pin anywhere — still added as changed, same as before this
+    fallback existed."""
     doc_dir, images_dir = repo_with_new_component_pinned_to_a_known_mirrored_image
-    (images_dir / "images-baseline.yaml").write_text(
+    (images_dir / "images-4.8.0.yaml").write_text(
         "- name: brp-api/personen-mock\n"
         "  url: ghcr.io/brp-api/personen-mock\n"
         '  version: "2.6.0"\n'
@@ -2172,7 +2179,7 @@ def test_main_adds_new_component_image_not_in_images_baseline(
     )
     repo_root = doc_dir.parent.parent
     git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "images-baseline.yaml doesn't have this pin", cwd=repo_root)
+    git("commit", "-q", "-m", "images-4.8.0.yaml doesn't have this pin", cwd=repo_root)
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
 
@@ -2180,15 +2187,16 @@ def test_main_adds_new_component_image_not_in_images_baseline(
     assert "brp-api/personen-mock" in images
 
 
-def test_main_new_component_row_annotated_unchanged_when_known_in_images_baseline(
+def test_main_new_component_row_annotated_unchanged_when_known_in_historical_manifest(
         cdb, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch):
     """The SAME fallback, applied to -upgrade.md's own "Component
     versions" row instead of images-4.9.0.yaml: brppersonenmock's
     Chart.yaml dependency is brand new (baseline has no matching
-    dependency at all), but its own image pin is already known in
-    images-baseline.yaml, so its App cell reads "(unchanged)" rather
-    than a nonsensical "(new)" — its Helm-chart cell still correctly
-    reads "(new)", since the Chart.yaml dependency line genuinely is."""
+    dependency at all), but its own image pin is already recorded in
+    an earlier release's own images-4.8.0.yaml manifest, so its App
+    cell reads "(unchanged)" rather than a nonsensical "(new)" — its
+    Helm-chart cell still correctly reads "(new)", since the Chart.yaml
+    dependency line genuinely is."""
     doc_dir, images_dir = repo_with_new_component_pinned_to_a_known_mirrored_image
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()

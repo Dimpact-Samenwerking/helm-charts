@@ -21,11 +21,12 @@ import re
 
 import yaml
 
-from lib.chart import NATIVE_COMPONENTS, image_paths_for, load_images_baseline, replace_scalar_value, \
-    version_paths_for
+from lib.chart import (
+    NATIVE_COMPONENTS, historical_app_version_for_path, image_paths_for, replace_scalar_value, version_paths_for,
+)
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
-    _word_aligned_spans, actual_app_version, app_version_pin_via_images_baseline, append_to_doc,
+    _word_aligned_spans, actual_app_version, append_to_doc,
     changes_heading_identities, component_order_key, component_version_cell, COMPONENT_VERSIONS_HEADING_RE,
     extract_source_version, find_grouped_preceding_comment_line, insertion_index,
     match_dependency_excluding_sidecar_names, match_native_component, missing_key_change_lines_by_key,
@@ -731,14 +732,13 @@ def dep_for_values_key(deps, values_key):
 
 
 def resolve_component_own_version_change(key, target_deps, baseline_deps, target_values, baseline_values, chart_dir,
-                                          images_baseline):
+                                          upgrade_docs_baseline=None):
     """(dep, chart_name, old_chart, new_chart, old_app, new_app, unchanged)
     for `key` (a member of lib.upgradedoc.compute_changed_components'
     own result) — `unchanged` is True when BOTH this component's own
     chart version and its own primary app version resolve as identical
-    between baseline and target (the images-baseline.yaml fallback
-    included — see app_version_pin_via_images_baseline), meaning
-    whatever else made `key` register as changed (almost always a
+    between baseline and target, meaning whatever else made `key`
+    register as changed (almost always a
     brand-new/changed sidecar nested under it — that gets its own
     separate row via lib.image_docs.add_missing_sidecar_rows) has
     NOTHING to do with this component's own version; -upgrade.md's own
@@ -774,8 +774,21 @@ def resolve_component_own_version_change(key, target_deps, baseline_deps, target
     old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
     new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
     if old_app is None and baseline_values:
-        old_app = app_version_pin_via_images_baseline(target_values, key, chart_name, chart_dir, target_deps,
-                                                       images_baseline)
+        # The git baseline genuinely has nothing for this path (real
+        # case: brppersonenmock's Chart.yaml entry predates 4.9.0, but
+        # its "image:" block was only added to podiumd's own values.yaml
+        # this release) — before concluding "genuinely new", check
+        # whether this repository already appears in any of this
+        # chart's own PAST images-<version>.yaml manifests (real,
+        # already-committed per-release documents, not the removed
+        # images-baseline.yaml side-file) — if so, that release's own
+        # recorded version is the true prior app version, even though
+        # THIS component's own Chart.yaml/values.yaml presence is new.
+        for path in image_paths_for(chart_name):
+            old_app = historical_app_version_for_path(
+                chart_dir, target_deps, target_values, (key,) + tuple(path.split(".")), upgrade_docs_baseline)
+            if old_app is not None:
+                break
     if old_app is None and baseline_values and dep is not None and chart_unchanged:
         # subchart_app_version's own vendored-.tgz lookup is keyed on
         # dep["version"] (see lib.chart.subchart_app_version) — never
@@ -804,7 +817,7 @@ def resolve_component_own_version_change(key, target_deps, baseline_deps, target
 
 
 def add_missing_component_rows(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
-                                actual_changed_keys, target):
+                                actual_changed_keys, target, upgrade_docs_baseline=None):
     """Insert a new "Component versions" table row + matching "### ..."
     Changes section for every key in `actual_changed_keys` (see
     lib.upgradedoc.compute_changed_components) that doesn't already have
@@ -838,7 +851,6 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
     — see that function's own docstring) gets a "-" app-version
     placeholder and a short TODO-stub Changes section instead of
     guessing at prose. Returns (new_text, added_names)."""
-    images_baseline = load_images_baseline(chart_dir)
     matched_keys = set()
     for row in parse_upgrade_doc_rows(text):
         # match_dependency_excluding_sidecar_names, not match_dependency
@@ -857,7 +869,7 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
     added_names = []
     for key in sorted(actual_changed_keys - matched_keys):
         resolved = resolve_component_own_version_change(
-            key, target_deps, baseline_deps, target_values, baseline_values, chart_dir, images_baseline)
+            key, target_deps, baseline_deps, target_values, baseline_values, chart_dir, upgrade_docs_baseline)
         if resolved is None:
             continue
         dep, chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
