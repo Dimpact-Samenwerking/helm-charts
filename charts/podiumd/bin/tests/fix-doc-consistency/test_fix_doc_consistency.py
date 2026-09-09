@@ -936,7 +936,12 @@ def test_fix_changes_heading_app_versions_syncs_headings_name_to_rows(cdb):
 def test_fix_changes_heading_app_versions_renames_even_when_app_version_already_correct(cdb):
     """A wrong NAME alone (app-version wording already correct) is still
     enough to trigger a rewrite — the two checks are independent, not
-    "only bother if the version is ALSO wrong"."""
+    "only bother if the version is ALSO wrong" — but ONLY because the
+    heading's own current name is precisely the bare values_key "mi"
+    (add_missing_component_rows' own auto-write convention), the
+    unambiguous "never hand-customized, still says what a fresh
+    auto-write would" signal (see the next test for what happens when
+    it isn't)."""
     text = (
         "## Component versions (4.9.1 vs 4.9.0)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -954,6 +959,68 @@ def test_fix_changes_heading_app_versions_renames_even_when_app_version_already_
 
     assert updated_headings == ["mi 2.90.0 (new) (chart 1.1.0, unchanged)"]
     assert "### mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)" in new_text
+
+
+def test_fix_changes_heading_app_versions_preserves_deliberately_customized_name(cdb):
+    """Real bug found live against the real chart: a first version of
+    this fix renamed "### Keycloak Operator (server) 26.7.2 -> 26.7.3
+    (chart 1.12.1 -> 1.13.0)" to "### Keycloak Operator (server +
+    operator images) 26.7.2 -> 26.7.3 (chart 1.12.1 -> 1.13.0)" — the
+    row's own longer name — even though the app-version wording was
+    ALREADY correct and the heading's own name is a DELIBERATE, human-
+    written editorial variant (distinguishing this heading, about just
+    the server image, from "keycloak-operator - operator"'s own
+    separate row/heading), never the stale bare values_key. Must be
+    left completely untouched."""
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| Keycloak Operator (server + operator images) | 26.7.2 → 26.7.3 | 1.12.1 → 1.13.0 | - |\n\n"
+        "## Changes\n\n"
+        "### Keycloak Operator (server) 26.7.2 → 26.7.3 (chart 1.12.1 → 1.13.0)\n\n"
+        "Real, hand-written prose describing just the server image bump.\n"
+    )
+    deps = [{"name": "keycloak-operator", "version": "1.13.0"}]
+    target_values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
+        "repository": "quay.io/keycloak/keycloak", "tag": "26.7.3@sha256:" + "b" * 64}}}}}
+    baseline_deps = [{"name": "keycloak-operator", "version": "1.12.1"}]
+    baseline_values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
+        "repository": "quay.io/keycloak/keycloak", "tag": "26.7.2@sha256:" + "a" * 64}}}}}
+
+    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+        text, None, deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.9.0")
+
+    assert updated_headings == []
+    assert new_text == text
+
+
+def test_fix_changes_heading_app_versions_no_version_marker_never_touched(cdb):
+    """A heading naming a real "dep" identity but with NO recognizable
+    version marker at all (arrow/"(new)"/"(unchanged)"/"(digest
+    changed)") was never meant to carry a machine-verifiable version in
+    the first place — real doc: values-deltas.md's own bare "## mi"
+    would-be case; reproduced here via -upgrade.md's own Changes
+    heading shape instead, since the mechanism (changes_heading_has_
+    app_version) is identical for both. Must be left untouched, not
+    "corrected" into inventing a version it never claimed to show."""
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| mi-data (MI-data exports) | 2.90.0 (new) | 1.1.0 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### mi\n\n"
+        "Free-form prose with no version claim at all.\n"
+    )
+    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+
+    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+
+    assert updated_headings == []
+    assert new_text == text
 
 
 def test_fix_changes_heading_app_versions_already_correct_heading_untouched(cdb):
@@ -1041,6 +1108,30 @@ def test_fix_values_delta_heading_app_versions_already_correct_heading_untouched
         "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
         "## mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)\n\n"
         "- Key `mi.transfer.noEpsv` (optional) added.\n"
+    )
+    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+
+    new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
+        MI_UPGRADE_DOC_TEXT, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+
+    assert updated_headings == []
+    assert new_text == values_deltas_text
+
+
+def test_fix_values_delta_heading_app_versions_bare_hand_written_heading_never_touched(cdb):
+    """Real bug found live: values-deltas.md's own bare "## zaakbrug"
+    and free-form "## Breaking — Frank!Gateway (only when
+    `frankgateway.enabled: true`)" section headings got clobbered by a
+    first version of this fix — neither shows any recognizable version
+    marker at all (changes_heading_has_app_version), so neither was
+    ever a "wrong wording" case to begin with; both must be left
+    completely untouched even though they resolve to a real "dep"
+    identity with a resolvable target app version."""
+    values_deltas_text = (
+        "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
+        "## mi\n\n"
+        "Free-form prose, no version marker at all.\n"
     )
     deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
