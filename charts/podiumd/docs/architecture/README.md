@@ -6,7 +6,7 @@ PodiumD is opgezet door Dimpact als een platform van applicaties voor gemeenteli
 
 ## Architectuur
 
-Hieronder staat het System Context diagram van PodiumD, dat de architectuur van het PodiumD systeem weergeeft. 
+Hieronder staat het System Context diagram van PodiumD, dat de architectuur van het PodiumD systeem weergeeft.
 Het diagram toont de interacties tussen de verschillende componenten, zowel binnen als buiten de PodiumD context.
 
 ```mermaid
@@ -82,14 +82,17 @@ C4Context
 ## Componenten
 
 ### Formulier (Open Formulieren)
+
 Zie voor architectuur context diagram van Open Formulieren de [Open Formulieren documentatie](./formulieren.md).
 
 ### Contact (KISS)
+
 Zie voor architectuur context diagram van Contact (KISS) de [Contact documentatie](./contact.md).
 
 ## Operationele functionaliteit
 
 ### MI exports — wekelijkse database dumps naar SFTP
+
 Wekelijkse exports van alle Postgres-componenten naar een externe SFTP server (CSV of `pg_dump`), per gemeente.
 Voor activatie, infra-prerequisites (incl. Terraform-snippet voor externe hosting), en troubleshooting:
 zie [MI exports documentatie](../../../mi-data/docs/mi-exports.md) (sinds 4.8.3 in de standalone `mi-data` chart; FTP/FTPS naast SFTP).

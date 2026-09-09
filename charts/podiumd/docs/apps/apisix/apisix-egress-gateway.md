@@ -5,7 +5,7 @@
 > the upstream `apisix` subchart and the legacy apiproxy routes. See
 > [../frankgateway/frankgateway-BASICS.md](../frankgateway/frankgateway-BASICS.md).
 > The design rationale below still applies; the implementation moved.
-
+>
 > Tracks parent story [IN-1866 — PodiumD 4.7: Api Gateway (APISIX)](https://dimpact.atlassian.net/browse/IN-1866).
 
 ## Why egress, not ingress
@@ -60,7 +60,7 @@ The defaults turn off the bundled ingress controller, pin the gateway data-plane
 
 From APISIX **3.16** onwards (2026-04-08) the gateway ships an **embedded Dashboard UI** served at the Admin API port:
 
-```
+```text
 http://<apisix-admin-service>:9180/ui/
 ```
 
@@ -103,6 +103,7 @@ apisix:
 ```
 
 The first `helm upgrade` produces:
+
 1. Random `apisix-admin-credentials` (admin/viewer keys) — kills upstream public defaults.
 2. Random `apisix-dashboard-oidc-secret` in `keycloak-podiumd-realm-secrets` — used by both sides.
 3. `apisix-standalone-config` ConfigMap with templated `discovery` URL.

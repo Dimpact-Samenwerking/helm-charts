@@ -128,6 +128,7 @@ service, but raise `replicaCount` to 2 if the environment requires zero-downtime
 3. **Provision Key Vault secrets**: Django `SECRET_KEY` (`openssl rand -base64 50`) and
    the Keycloak client secret (`openssl rand -hex 32`).
 4. **Enable and configure** in the environment values file:
+
    ```yaml
    referentielijsten:
      enabled: true
@@ -146,6 +147,7 @@ service, but raise `replicaCount` to 2 if the environment requires zero-downtime
          username: referentielijsten
          password: "REP_REFERENTIELIJSTEN_DB_PASSWORD_REP"
    ```
+
    For ACR-based environments also override `referentielijsten.image.repository` to
    `<acr>/referentielijsten-api` (keep the chart's pinned tag).
 5. **Keycloak client**: created automatically by the realm-config job from

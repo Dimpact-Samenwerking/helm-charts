@@ -7,7 +7,7 @@
 `openbeheer-*` pods accumulate restarts at a steady cadence (5+ in 24h).
 `kubectl describe pod` shows:
 
-```
+```text
 Last State:     Terminated
   Reason:       Error
   Exit Code:    30
@@ -15,7 +15,7 @@ Last State:     Terminated
 
 Previous-container logs end with:
 
-```
+```text
 [pid: 1|app: 0|req: 1000/2000] ... GET /admin/ ... HTTP/1.1 200 ...
 The work of process 1 is done. Seeya!
 ```
@@ -26,7 +26,7 @@ No OOMKill (exit 137), no SIGKILL (exit 143). Just a clean uWSGI shutdown after 
 
 The open-beheer 0.9.1 and earlier docker images launch uWSGI without `--master`:
 
-```
+```text
 uwsgi --http :8000 --http-keepalive --manage-script-name \
       --mount /=openbeheer.wsgi:application \
       --static-map /static=/app/static --static-map /media=/app/media \

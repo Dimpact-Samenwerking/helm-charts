@@ -1,0 +1,79 @@
+PodiumD {{ .Chart.AppVersion }} installed as release {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+
+  helm -n {{ .Release.Namespace }} status {{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} get pods
+
+{{- if .Values.frankgateway.enabled }}
+
+Frank!Gateway
+-------------
+{{- $classes := list }}
+{{- $tlsClasses := list }}
+{{- $noRoutes := list }}
+{{- $certClasses := list }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $key "override" $override) | fromYaml }}
+{{- if $fg.enabled }}
+{{- $classes = append $classes $key }}
+{{- if not ($fg.routes | default dict) }}
+{{- $noRoutes = append $noRoutes $key }}
+{{- end }}
+{{- if $fg.clientCertificates }}
+{{- $certClasses = append $certClasses (printf "%s (%s)" $key $fg.clientCertSync.schedule) }}
+{{- end }}
+{{- if and $fg.tls.enabled $fg.tls.sslSync.enabled }}
+{{- /* The schedule is a per-instance value like any other, so report each
+       class's EFFECTIVE one rather than the shared default it may override. */ -}}
+{{- $tlsClasses = append $tlsClasses (printf "%s (%s)" $key $fg.tls.sslSync.schedule) }}
+{{- end }}
+{{- end }}
+{{- end }}
+  Traffic classes: {{ $classes | join ", " }}
+  Applications call the class they mean, e.g. http://frankgateway-outway:9080/
+{{- if $noRoutes }}
+
+  No routes configured for: {{ $noRoutes | join ", " }}. The chart ships none,
+  and an instance without routes answers 404 to everything. Define them under
+  frankgateway.instances.<class>.routes — see
+  charts/podiumd/docs/apps/frankgateway/frankgateway-routes.md.
+{{- end }}
+
+{{- if .Values.frankgateway.networkPolicies.enabled }}
+
+  NetworkPolicies are ENABLED. Inbound traffic to the inway is accepted only
+  from namespace:
+
+      {{ .Values.frankgateway.networkPolicies.ingressNamespace }}
+
+  This must be the namespace of the pod that OPENS connections to the inway.
+  For NGINX Gateway Fabric 2.x that is the per-Gateway DATA plane pod, which
+  runs in the Gateway's own namespace — NOT the control plane's namespace,
+  which is the one carrying the product name. Confirm it now:
+
+      kubectl get pods -A | grep gateway-nginx
+
+  If that pod is in a different namespace than the one above, inbound traffic
+  is being dropped: silently, with no log line on either side, because the
+  packet never arrives. It will look like a TLS or connectivity fault.
+{{- end }}
+
+{{- if $tlsClasses }}
+
+  TLS on: {{ $tlsClasses | join ", " }}. The data-plane certificate is served
+  from etcd, not from a file, so a CronJob on the schedule shown against each
+  class keeps the SSL object in step with the Secret, and renewals take effect
+  without a deploy. Failed runs are retained deliberately — check them:
+
+      kubectl -n {{ .Release.Namespace }} get jobs | grep ssl-sync
+{{- end }}
+{{- if $certClasses }}
+
+  Client certificates from OpenBao on: {{ $certClasses | join ", " }}. A CronJob
+  on the schedule shown pulls each certificate into an APISIX SSL object, so a
+  rotation in OpenBao is live within one tick and needs no deploy. The seed Job
+  did the first pull; if a route that uses one was rejected, read its log.
+  Failed sync runs are retained — check them:
+
+      kubectl -n {{ .Release.Namespace }} get jobs | grep client-cert-sync
+{{- end }}
+{{- end }}

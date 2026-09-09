@@ -1,0 +1,106 @@
+{{- if .Values.frankgateway.enabled }}
+{{- /*
+  TEMPORARY — superseded by the next Frank!Gateway release. Everything in this
+  file is a bridge for APISIX 3.16 (Frank!Gateway 1.1.0), which cannot resolve
+  a $secret:// reference for an upstream client certificate. The next release
+  can, and this ConfigMap + CronJob are then removed in favour of a reference
+  in the SSL object. The OpenBao paths under <mount>/frankgateway/client-certs/
+  and the reader token stay as they are.
+
+  Frank!Gateway — outbound client certificates from OpenBao, per instance.
+
+  For every instance that declares `clientCertificates`, a ConfigMap with the
+  sync script (podiumd.frankgateway.clientCertSyncScript) and a CronJob that
+  runs it on `clientCertSync.schedule`. The seed hook mounts the same ConfigMap
+  and runs the script at deploy time, before the routes.
+
+  Why this exists at all: the gateway presents these certificates to external
+  APIs (mTLS), they must come from OpenBao, and APISIX 3.16 cannot resolve a
+  `$secret://` reference for an upstream client certificate. So OpenBao stays
+  the source of truth and this keeps the copy in etcd current — a rotation in
+  OpenBao is live within one schedule tick, with no redeploy.
+
+  The ConfigMap is a regular release resource, not a hook: post-install hooks
+  run after the release's resources exist, so the seed Job can mount it on a
+  first install too.
+*/ -}}
+{{- $root := . }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if and $fg.enabled ($fg.clientCertificates | default dict) }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-client-cert-sync
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-client-cert-sync
+data:
+  sync.sh: |
+{{ include "podiumd.frankgateway.clientCertSyncScript" (dict "root" $root "instance" $fg "name" $name) | indent 4 }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}-client-cert-sync
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-client-cert-sync
+spec:
+  schedule: {{ $fg.clientCertSync.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ $fg.clientCertSync.successfulJobsHistoryLimit }}
+  # Failed runs outlive successful ones: a sync that has stopped working is the
+  # thing this exists to make visible.
+  failedJobsHistoryLimit: {{ $fg.clientCertSync.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      # A run must finish inside one schedule tick; Forbid above then keeps
+      # runs from piling up behind a hung OpenBao.
+      activeDeadlineSeconds: 240
+      template:
+        metadata:
+          labels:
+            {{- include "podiumd.labels" $root | nindent 12 }}
+            app.kubernetes.io/component: frankgateway-client-cert-sync
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sync
+              image: {{ include "podiumd.image" $fg.seed.job.image }}
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: ADMIN_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $name }}-admin-credentials
+                      key: admin
+                {{- include "podiumd.frankgateway.openbaoEnv" (dict "root" $root "instance" $fg) | nindent 16 }}
+              command: ["sh", "/scripts/client-cert-sync/sync.sh"]
+              volumeMounts:
+                - name: client-cert-sync
+                  mountPath: /scripts/client-cert-sync
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 32Mi
+                limits:
+                  cpu: 250m
+                  memory: 128Mi
+          volumes:
+            - name: client-cert-sync
+              configMap:
+                name: {{ $name }}-client-cert-sync
+          {{- with $fg.clientCertSync.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

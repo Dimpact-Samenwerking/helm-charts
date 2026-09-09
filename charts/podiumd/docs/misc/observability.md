@@ -35,7 +35,8 @@ This document describes how metrics and tracing are configured across the podium
 The Maykin Django apps do **not** expose a direct Prometheus scrape endpoint. Metrics are pushed via OTLP to a collector, which forwards to Prometheus.
 
 Shared collector endpoint:
-```
+
+```text
 http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
 ```
 
@@ -357,6 +358,7 @@ elasticsearch-exporter:
 ```
 
 Kibana does not have a widely-used standalone exporter. Options:
+
 - Use Elastic Stack monitoring features (beats-based, writes to a monitoring cluster)
 - Query Kibana's own `/api/stats` endpoint via a custom scrape job
 

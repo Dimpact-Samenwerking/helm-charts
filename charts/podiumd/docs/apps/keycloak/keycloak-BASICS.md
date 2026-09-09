@@ -177,8 +177,7 @@ deploying Keycloak again. Standing up Keycloak in a fresh environment:
    `<env>-keycloak-admin.dimpact.nl` at the public gateway and have the
    environment deployment create `hr-keycloak-nginx` /
    `hr-keycloak-admin-nginx` targeting `keycloak-service:8080`.
-5. Optional: configure Entra ID brokering (`keycloak.config.identityProviders`
-   + mappers) and per-client secrets/oidcUrls under `keycloak.config.clients`.
+5. Optional: configure Entra ID brokering (`keycloak.config.identityProviders` + mappers) and per-client secrets/oidcUrls under `keycloak.config.clients`.
 6. Verify: both pods pass `/health/ready` (port 9000), all four jobs
    Completed, admin console reachable on the admin hostname, `podiumd` realm
    present with the expected clients, and a dependent app (e.g. Open Zaak)

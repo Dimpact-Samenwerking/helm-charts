@@ -36,6 +36,11 @@
   digest: "sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2"
 # Gap-filler: mi-export CronJobs (mi.image — mi-data subchart since 4.8.3).
 # Not part of any per-release delta — maintained here by hand.
+# 2.90.0 on podiumd 4.9.1; digest differs from the 4.9.0 pin below.
+- name: azure-cli
+  url: mcr.microsoft.com/azure-cli
+  version: "2.90.0"
+  digest: "sha256:e3768dde8142efa45d8f356a317aaac77abd7da15ba3719b0a150e9453f251db"
 - name: azure-cli
   url: mcr.microsoft.com/azure-cli
   version: "2.71.0"
@@ -50,6 +55,11 @@
   url: ghcr.io/brp-api/personen-mock
   version: "2.7.0-202508211438"
   digest: "sha256:43062e9200a1ae7cb92f1830acf0ab7ca19272dea0756400caaeb4748bed9fa5"
+# 1.5.4 re-published upstream again on 4.9.1; digest differs from the 4.9.0 pin below.
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
+  version: "1.5.4"
+  digest: "sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.5.4"
@@ -157,16 +167,12 @@
   digest: "sha256:cb56b4809e0c840cbc72814f8a72495fd18860cb08dfb092c12ba3c2cea785df"
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
-  version: "26.7.2"
-  digest: "sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
-- name: keycloak/keycloak
-  url: quay.io/keycloak/keycloak
-  version: "26.6.3"
-  digest: "sha256:9b0330756022422149aa6502eb2def8cd47c6e1b000c7c65cdb13e7c0133e992"
+  version: "26.7.3"
+  digest: "sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
 - name: keycloak/keycloak-operator
   url: quay.io/keycloak/keycloak-operator
-  version: "26.6.3"
-  digest: "sha256:40301d2bb0eeb6eb5c6c47b2ee8bc28f156c3c5626db21dbf6b7b37c0110696c"
+  version: "26.7.3"
+  digest: "sha256:e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
 # Kiss's ECK-managed Kibana (contact search).
 - name: kibana/kibana
   url: docker.elastic.co/kibana/kibana
@@ -200,7 +206,12 @@
 - name: library/postgres
   url: docker.io/library/postgres
   version: "16-alpine"
-  digest: "sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
+  digest: "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+# 3.14.7-slim re-published upstream again on 4.9.1; digest differs from the 4.9.0 pin below.
+- name: library/python
+  url: docker.io/library/python
+  version: "3.14.7-slim"
+  digest: "sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"
 - name: library/python
   url: docker.io/library/python
   version: "3.14.7-slim"
@@ -241,6 +252,11 @@
   url: docker.io/maykinmedia/referentielijsten-api
   version: "0.7.3"
   digest: "sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
+# 1.31.5 on podiumd 4.9.1.
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.5"
+  digest: "sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"
 - name: nginxinc/nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
   version: "1.27-alpine"
@@ -343,12 +359,18 @@
   digest: "sha256:d963eb510065472fd9d9b9e27504638f0ce8a8cfe3fd818f92bcfb7277faaee5"
 - name: wearefrank/frank-gateway
   url: ghcr.io/wearefrank/frank-gateway
+  version: "1.1.0"
+  digest: "sha256:2f944fdbc16883e4b586aaa20f04928cd33afc7efc78d37012d2c7acb62f55bd"
+# 104 is the pre-SemVer build pinned by podiumd <= 4.9.0; keep mirrored until
+# every environment is on 4.9.1.
+- name: wearefrank/frank-gateway
+  url: ghcr.io/wearefrank/frank-gateway
   version: "104"
   digest: "sha256:a830b90f8820f5cdb0c382ecef02a302c50d129edc9de81d7daa7af1cf267d98"
 - name: wearefrank/zaakbrug
   url: docker.io/wearefrank/zaakbrug
-  version: "1.26.15"
-  digest: "sha256:101d1319ea5706289ce8f22c7f012a12b8378770bb2a5ebf761d72fa46c5ca97"
+  version: "1.26.18"
+  digest: "sha256:255a717ff620b08608db2d8cde24e6993b96896f785ecfb7082054a4cc36bc3b"
 - name: worthnl/notifynl-omc
   url: docker.io/worthnl/notifynl-omc
   version: "1.17.19"

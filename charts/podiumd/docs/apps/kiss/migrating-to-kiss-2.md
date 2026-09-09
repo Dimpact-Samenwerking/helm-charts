@@ -226,6 +226,7 @@ kiss:
 3. Check `kiss.settings.registers[0].zaaksysteem.deeplink.url` — the script appends `/mp/zaak/` to the old `esuite.baseUrl`; confirm this matches your e-Suite deeplink format.
 4. If `kiss.sync.domain.enabled` was `false`, no `syncJobs.website` entry is created. Add one manually if website crawling needs to be enabled.
 5. Delete the legacy `podiumd-frontend` deployment after the first successful upgrade:
+
    ```bash
    kubectl delete deployment podiumd-frontend -n podiumd
    ```

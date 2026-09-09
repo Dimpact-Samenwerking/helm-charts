@@ -16,6 +16,7 @@ Resource requests and limits for all chart components. Values reflect the chart 
 PDBs prevent all pods of a workload from being evicted simultaneously during node maintenance. They are only meaningful for components running **2 or more replicas**.
 
 **PDBs managed automatically by operators** (no manual configuration needed):
+
 - `zac-solr-solrcloud` — `maxUnavailable: 2` (Solr Operator)
 - `zac-solr-solrcloud-zookeeper` — `maxUnavailable: 1` (Solr Operator)
 - `kiss-es-default` — `minAvailable: 1` (ECK Operator)
@@ -292,7 +293,7 @@ Default replicas: **3** (SolrCloud), **1** (Zookeeper)
 | zookeeper `(op)` | 100m | 256Mi | 500m | 512Mi | `zac.solr-operator.zookeeper-operator.zookeeper.resources` → SolrCloud CRD |
 
 > JVM heap is set via `javaMem` in the ZAC chart (default `Xms512m Xmx768m`). The `solr.resources` and `zookeeper.resources` fields (added in ZAC chart 1.0.204) map to the SolrCloud CRD.
-
+>
 > ⚠️ **Increase for production**: Default JVM heap of 512–768Mi is suitable for dev. Production with large ZAAK indices should use `Xms1g Xmx2g`. Container memory limit must be ~1.5× the heap to account for off-heap usage. Suggested: `1000m / 3Gi` per SolrCloud node. Zookeeper: `200m / 512Mi`.
 
 **PDB**: Managed by the Solr Operator (`maxUnavailable: 2` for SolrCloud, `maxUnavailable: 1` for Zookeeper).
@@ -349,6 +350,42 @@ Default replicas: **1**
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
 | nginx | 100m | 128Mi | 500m | 256Mi |
+
+---
+
+## Frank!Gateway
+
+Three traffic-class instances (`inway`, `outway`, `internal`), each at **2**
+replicas, sharing one **3**-member etcd. Figures below are per container;
+multiply by replicas and by the number of enabled classes.
+
+Requests were set from 7-day peaks measured on jim00 with all three classes
+live at QA traffic levels, not carried over from the single-gateway setup.
+
+| Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
+|-----------|-------------|-------------|-----------|-----------|
+| frankgateway (per instance) | 100m | 384Mi | 1 | 1Gi |
+| wait-for-etcd (init) | 10m | 16Mi | 100m | 64Mi |
+| etcd (per member) | 50m | 192Mi | 500m | 512Mi |
+| apisix-dashboard | 25m | 128Mi | 500m | 512Mi |
+| oauth2-proxy | 10m | 64Mi | 250m | 256Mi |
+| shim (nginx) | 10m | 32Mi | 250m | 128Mi |
+| seed Job | 25m | 32Mi | 250m | 128Mi |
+| ssl-sync CronJob | 25m | 32Mi | 250m | 128Mi |
+| client-cert-sync CronJob | 25m | 32Mi | 250m | 128Mi |
+
+*Dashboards ship **off** (`frankgateway.dashboard.enabled: false`). On, the
+dashboard chain — dashboard + oauth2-proxy + shim, two replicas each — is 18 of
+the 27 pods a full three-class gateway costs. Turn a class's dashboard on for
+as long as an investigation needs it and off again afterwards.*
+
+*The gateway memory request is 384Mi and deliberately **not** the 256Mi the
+single gateway used: that number sat below the observed peak, which is how a
+pod gets evicted first under node memory pressure while looking correctly sized
+on paper. CPU is 100m against a measured 8m peak — QA traffic says nothing
+about what the inway sees in production, and a request-path proxy is the wrong
+place to be stingy with the guaranteed share. ⚠️ **Revisit both once a
+production environment has run for a week.***
 
 ---
 
