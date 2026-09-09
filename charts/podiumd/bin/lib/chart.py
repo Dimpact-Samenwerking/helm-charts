@@ -1007,6 +1007,85 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
     return groups
 
 
+def full_repository_for_path(chart_dir, deps, values, path, allow_pull=False):
+    """The FULLY host-qualified repository for `path` (e.g. "docker.io/
+    curlimages/curl", "mcr.microsoft.com/azure-cli") — the same per-path
+    resolution chain paths_by_repository uses internally (podiumd's own
+    explicit override first, then a registered COMPONENT_VERSION_PATHS
+    sibling field, then a registered nested subchart's own documented
+    default, then the dependency's own vendored subchart default), but
+    returning the REAL, un-stripped value a registry call (parse_repo/
+    registry_tag_exists) or a manifest entry's own "url:" field needs —
+    paths_by_repository's own strip_registry_host'd groups are only
+    ever safe for repo-GROUP matching, never this: stripping first and
+    reconstructing a host from the stripped remainder via parse_repo
+    would silently assume Docker Hub for any image actually hosted
+    elsewhere (real bug, confirmed live: images-4.9.1.yaml's own
+    newly-added entries for curl/nginx-unprivileged/zac's own
+    opentelemetry-collector-contrib sidecar/openbao's own csi-
+    provider/vault-k8s/snapshot-agent sidecars all got a "url:" with no
+    registry host at all, written straight from paths_by_repository's
+    own stripped grouping key instead of through this resolution).
+
+    A "repository:" value with no registry host embedded in the string
+    at all (Docker Hub's own convention — "curlimages/curl") is
+    resolved via parse_repo (adds the implicit "docker.io/"), UNLESS a
+    sibling "registry:" key exists at that exact same values-tree
+    location (real case: mi's own "image.registry: mcr.microsoft.com"
+    alongside "image.repository: azure-cli" — Azure Container
+    Registry's own convention of a bare image name with the host given
+    separately, which parse_repo has no way to know about) — that
+    sibling, when present, is authoritative and used directly instead
+    of parse_repo's own Docker Hub inference. Every other tier already
+    yields a real, self-describing repository string (a nested/
+    vendored subchart's own documented default), so parse_repo alone
+    is enough there — it's a safe no-op once a real host is already
+    embedded (the "." in "docker.elastic.co" is detected exactly the
+    same way a raw values.yaml override's own real host would be).
+
+    None when `path` doesn't resolve to a repository at all — same
+    "nothing to fall back to" cases as paths_by_repository's own
+    docstring."""
+    own_repo = get_path(values, ".".join(path) + ".repository")
+    if isinstance(own_repo, str) and own_repo:
+        registry = get_path(values, ".".join(path) + ".registry")
+        if isinstance(registry, str) and registry:
+            return f"{registry}/{own_repo}"
+        host, repo_path = parse_repo(own_repo)
+        return f"{host}/{repo_path}"
+
+    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    dep = by_values_key.get(path[0]) if path else None
+    if dep is None:
+        return None
+
+    sibling_rel = version_repository_path_for(dep["name"])
+    if sibling_rel:
+        sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
+        if isinstance(sibling_repo, str) and sibling_repo:
+            host, repo_path = parse_repo(sibling_repo)
+            return f"{host}/{repo_path}"
+
+    nested_rel = ".".join(path[1:])
+    nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel)
+    if nested_chart_name and chart_dir is not None:
+        nested_repo = nested_subchart_documented_image_repository(chart_dir, dep, nested_chart_name)
+        if nested_repo:
+            host, repo_path = parse_repo(nested_repo)
+            return f"{host}/{repo_path}"
+
+    if chart_dir is None:
+        return None
+    sub_values, _source, _err = resolve_chart_values(chart_dir, dep, dep["version"], allow_pull=allow_pull)
+    if sub_values is None:
+        return None
+    repo = get_path(sub_values, ".".join(path[1:]) + ".repository")
+    if isinstance(repo, str) and repo:
+        host, repo_path = parse_repo(repo)
+        return f"{host}/{repo_path}"
+    return None
+
+
 def historical_images_manifest_paths(chart_dir, at_or_before=None):
     """This chart's own docs/images/images-<version>.yaml files, most-
     recent-first — every past release's own real, already-committed

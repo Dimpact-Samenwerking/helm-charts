@@ -1462,6 +1462,55 @@ def test_main_adds_new_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
     assert f'"sha256:{"c" * 64}"' in images
 
 
+def test_main_missing_manifest_entry_instructions_show_fully_qualified_url(ucv, tmp_path, monkeypatch, capsys):
+    """Regression test: zac's own repository ("curlimages/curl", stood
+    in here for a Docker-Hub-hosted image) omits the registry host
+    entirely, Docker Hub's own convention — the "add manually"
+    instructions printed for a missing images-manifest entry must
+    still show a fully host-qualified "url:" ("docker.io/curlimages/
+    curl"), not the bare, hostless string values.yaml itself happens
+    to spell it as (real bug, confirmed live in images-4.9.1.yaml —
+    see lib.chart.full_repository_for_path)."""
+    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    chart_yaml.write_text(
+        "version: 4.9.0\n"
+        "dependencies:\n"
+        "  - name: zaakafhandelcomponent\n"
+        "    version: 1.0.296\n"
+        "    repository: \"@example\"\n"
+        "    alias: zac\n",
+        encoding="utf-8",
+    )
+    values_yaml.write_text(
+        "zac:\n"
+        "  image:\n"
+        "    repository: curlimages/curl\n"
+        f'    tag: "5.0.2@sha256:{OLD_DIGEST}"\n',
+        encoding="utf-8",
+    )
+    setup_docs(
+        ucv, monkeypatch,
+        upgrade_text=(
+            "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+            "## Component versions (4.9.0 vs 4.8.5)\n\n"
+            "| Component | App version | Helm chart | Notes |\n"
+            "| --- | --- | --- | --- |\n\n"
+            "## Changes\n\n"
+        ),
+        values_deltas_text="# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n",
+        images_text="# Zero changes:\n#\n\n",
+    )
+    mock_verify_passes(monkeypatch, ucv)
+    mock_registry_passes(monkeypatch, ucv, "c")
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
+
+    ucv.main()
+
+    out = capsys.readouterr().out
+    assert "No existing entry for the following" in out
+    assert "url: docker.io/curlimages/curl" in out
+
+
 def test_main_fixes_a_preexisting_changes_numbering_gap_when_adding_an_item(ucv, tmp_path, monkeypatch):
     """The images manifest already has a gap in its own "# Changes:"
     numbering (items "1." and "3." — a THIRD, unrelated item was

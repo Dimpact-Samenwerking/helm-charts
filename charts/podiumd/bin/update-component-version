@@ -70,7 +70,8 @@ from lib.chart import chart_version as _chart_version
 from lib.chart import find_dependency as _find_dependency
 from lib.chart import upgrade_docs_baseline as _read_upgrade_docs_baseline
 from lib.chart import (
-    NATIVE_COMPONENTS, check_image_versions, get_path, image_paths_for, replace_scalar_value, resolve_chart_values,
+    NATIVE_COMPONENTS, check_image_versions, full_repository_for_path, get_path, image_paths_for,
+    replace_scalar_value, resolve_chart_values,
 )
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs import (
@@ -722,9 +723,18 @@ def main():
                           "docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):")
                     for path, repo, new_tag in missing_entries:
                         new_app_version, digest = new_tag.split("@", 1)
+                        # repo (the raw values.yaml/subchart-default
+                        # "repository:" string) may have no registry
+                        # host embedded at all (Docker Hub's own
+                        # convention) — never printed as-is for "url:",
+                        # which needs the real, fully host-qualified
+                        # value (see lib.chart.full_repository_for_
+                        # path's own docstring).
+                        full_repo = full_repository_for_path(
+                            CHART_DIR, deps, values, (values_key,) + tuple(path.split("."))) or repo
                         print(f"    # {friendly} — {old_app_by_path.get(path) or '(none)'} -> {new_app_version}")
                         print("    - name: <ACR-mirror-name>")
-                        print(f"      url: {repo}")
+                        print(f"      url: {full_repo}")
                         print(f'      version: "{new_app_version}"')
                         print(f'      digest: "{digest}"')
         else:
