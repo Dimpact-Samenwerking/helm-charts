@@ -111,6 +111,38 @@ def test_main_resolves_given_component_key_and_basename(viv, tmp_path, monkeypat
     assert "maykinmedia/open-klant:2.15.1" in out
 
 
+def test_main_accepts_dependency_name_not_just_alias(viv, tmp_path, monkeypatch, capsys):
+    """Regression test (real bug, confirmed live against the real chart):
+    <key> used to only accept whichever string happens to literally BE
+    the values.yaml top-level key — the alias, when a dependency has one
+    — rejecting the dependency's own real Chart.yaml "name" outright
+    ("no image pin ... found under"). lib.image_version.resolve_key_
+    scope now resolves either form to the real values.yaml key first —
+    same convention update-component-version's own <component> argument
+    already uses via find_dependency."""
+    write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
+    values_path = write_values(tmp_path, (
+        "zac:\n"
+        "  image:\n"
+        "    repository: infonl/zaakafhandelcomponent\n"
+        f'    tag: "5.4.3@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(viv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
+    monkeypatch.setattr(viv, "VALUES_YAML", values_path)
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv",
+                         ["verify-image-version", "zaakafhandelcomponent", "zaakafhandelcomponent", "5.4.4"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        viv.main()
+
+    assert exc_info.value.code == 0
+    assert "infonl/zaakafhandelcomponent:5.4.4" in capsys.readouterr().out
+
+
 def test_main_unresolvable_target_propagates(viv, tmp_path, monkeypatch):
     """resolve_scoped_matches (lib.image_version) already raises
     SystemExit with a clear message when <key> <basename> doesn't

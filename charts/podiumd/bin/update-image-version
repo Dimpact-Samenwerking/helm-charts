@@ -4,17 +4,18 @@ Bump every values.yaml image tag pin sharing a given image's basename (the
 last "/"-separated segment of its "repository:" value), scoped to <key>,
 to a new version, re-resolving each pin's digest against the registry.
 
-<key> is either a Chart.yaml dependency's own top-level values.yaml key
-(a component, e.g. "openklant", "zac") or the literal "MULTIPLE" — the
-same convention release-table.csv itself uses (see export-confluence-
-release-table's component_and_alias) for a base image shared across
-several unrelated components via values.yaml's global.images anchor
-block (e.g. curlimages/curl or redis, pinned once there and aliased
-everywhere else — updating it here updates every alias at once, since
-they're all the same YAML node). <key> <basename> together must resolve
-to exactly one real image pin under that scope — this fails loudly
-rather than guessing if the basename isn't pinned there at all, or (rare)
-resolves to more than one distinct repository (see
+<key> is either a Chart.yaml dependency (its own "name" OR "alias",
+whichever you'd naturally reach for — e.g. "kiss-chart" or "kiss" both
+work, see lib.image_version.resolve_key_scope) or the literal "MULTIPLE"
+— the same convention release-table.csv itself uses (see export-
+confluence-release-table's component_and_alias) for a base image shared
+across several unrelated components via values.yaml's global.images
+anchor block (e.g. curlimages/curl or redis, pinned once there and
+aliased everywhere else — updating it here updates every alias at once,
+since they're all the same YAML node). <key> <basename> together must
+resolve to exactly one real image pin under that scope — this fails
+loudly rather than guessing if the basename isn't pinned there at all,
+or (rare) resolves to more than one distinct repository (see
 lib.image_version.resolve_scoped_matches). No release-table.csv involved
 either way — this reads straight from Chart.yaml/values.yaml.
 
@@ -81,7 +82,7 @@ from lib.image_docs import (
     make_image_changes_section, remove_image_manifest_entry,
     resolve_basename_baseline_version, update_image_manifest,
 )
-from lib.image_version import update_image_version
+from lib.image_version import resolve_key_scope, update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo
 from lib.upgradedoc import (
@@ -497,6 +498,9 @@ def main():
         print(__doc__)
         sys.exit(1)
     key, basename, new_version = sys.argv[1], sys.argv[2], sys.argv[3]
+
+    deps = load_yaml(CHART_YAML).get("dependencies", [])
+    key = resolve_key_scope(key, deps)
 
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
 

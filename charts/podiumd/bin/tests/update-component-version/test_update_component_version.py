@@ -348,6 +348,61 @@ def test_main_writes_both_files_when_verify_passes(ucv, tmp_path, monkeypatch):
     assert f'"5.4.3@sha256:{"b" * 64}"' in values_yaml.read_text(encoding="utf-8")
 
 
+def test_main_alias_component_argument_bumps_all_registered_lockstep_paths(ucv, tmp_path, monkeypatch):
+    """Regression test (real bug, confirmed live against the real chart):
+    image_paths_for is keyed by the dependency's own Chart.yaml "name",
+    never its alias (see lib.chart.COMPONENT_IMAGE_PATHS) — this used to
+    pass the raw <component> CLI argument straight through to
+    image_paths_for(component) instead of the already-resolved
+    chart_name, so the ALIAS form ("kiss", the shorter, more natural one
+    every doc/script elsewhere in this chart uses) silently fell back to
+    the generic DEFAULT_IMAGE_PATHS = ["image"], bumping only kiss.image.
+    tag and leaving kiss.settings.syncJobs.image.tag — registered as a
+    co-equal lockstep path — completely untouched, with no error at
+    all."""
+    chart_yaml = tmp_path / "Chart.yaml"
+    values_yaml = tmp_path / "values.yaml"
+    chart_yaml.write_text(
+        "version: 4.9.0\n"
+        "dependencies:\n"
+        "  - name: kiss-chart\n"
+        "    version: 3.0.0\n"
+        "    repository: \"@example\"\n"
+        "    alias: kiss\n",
+        encoding="utf-8",
+    )
+    values_yaml.write_text(
+        "kiss:\n"
+        "  image:\n"
+        "    repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend\n"
+        f'    tag: "3.0.0@sha256:{OLD_DIGEST}"\n'
+        "  settings:\n"
+        "    syncJobs:\n"
+        "      image:\n"
+        "        repository: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync\n"
+        f'        tag: "3.0.0@sha256:{OLD_DIGEST}"\n',
+        encoding="utf-8",
+    )
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
+    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
+    monkeypatch.setattr("lib.chart.COMPONENT_IMAGE_PATHS", {"kiss-chart": ["image", "settings.syncJobs.image"]})
+    mock_verify_passes(monkeypatch, ucv)
+    mock_registry_passes(monkeypatch, ucv, "b")
+    monkeypatch.setattr("sys.argv", ["update-component-version", "kiss", "3.1.1", "3.1.1"])
+
+    ucv.main()
+
+    written = values_yaml.read_text(encoding="utf-8")
+    assert written.count(f'"3.1.1@sha256:{"b" * 64}"') == 2
+
+
 def test_main_invokes_fix_helm_doc(ucv, tmp_path, monkeypatch, block_real_subprocess_calls):
     """The version/tag bump above changes values.yaml, so README.md's
     helm-docs-generated table can go stale in the same commit if this

@@ -408,7 +408,15 @@ def main():
         dep = find_dependency(component)
         chart_name = dep["name"]
         values_key = dep.get("alias", dep["name"])
-    image_paths = image_paths_for(component)
+    # image_paths_for is keyed by the dependency's own Chart.yaml "name",
+    # never its alias (see lib.chart.COMPONENT_IMAGE_PATHS) — chart_name
+    # here (already resolved, above), not the raw `component` argument,
+    # which find_dependency accepts as EITHER form. Passing the alias
+    # straight through silently missed a real registry entry keyed by
+    # name (e.g. "kiss" for dependency "kiss-chart"), falling back to the
+    # generic ["image"] default and skipping any co-registered lockstep
+    # path — the exact same value this bump would then never touch.
+    image_paths = image_paths_for(chart_name)
 
     if no_chart:
         upstream_images = verify_component_version(

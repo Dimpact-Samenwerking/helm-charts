@@ -6,14 +6,16 @@ pull at deploy time rather than at edit time. Same <key> <basename>
 <new-version> shape as update-image-version's own arguments: this is
 that bump's pre-flight check, run by hand before committing to it.
 
-<key> is either a Chart.yaml dependency's own top-level values.yaml key
-(a component, e.g. "openklant", "zac") or the literal "MULTIPLE" — the
-same convention release-table.csv itself uses (see export-confluence-
-release-table's component_and_alias) for a base image shared across
-several unrelated components via values.yaml's global.images anchor
-block. <key> <basename> together must resolve to exactly one real image
-pin under that scope — see lib.image_version.resolve_scoped_matches, the
-same resolution update-image-version's own <key> <basename> uses. Reads
+<key> is either a Chart.yaml dependency (its own "name" OR "alias",
+whichever you'd naturally reach for — e.g. "kiss-chart" or "kiss" both
+work, see lib.image_version.resolve_key_scope) or the literal "MULTIPLE"
+— the same convention release-table.csv itself uses (see export-
+confluence-release-table's component_and_alias) for a base image shared
+across several unrelated components via values.yaml's global.images
+anchor block. <key> <basename> together must resolve to exactly one
+real image pin under that scope — see lib.image_version.resolve_scoped_
+matches, the same resolution update-image-version's own <key> <basename>
+uses. Reads
 straight from the CURRENT values.yaml/Chart.yaml, never pulls a chart:
 unlike verify-component-version, no chart-version bump is involved here
 at all — see that script instead when the Helm chart version is changing
@@ -37,9 +39,11 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.image_version import check_basename_version
+from lib.chart import load_yaml
+from lib.image_version import check_basename_version, resolve_key_scope
 
 CHART_DIR = SCRIPT_DIR.parents[0]
+CHART_YAML = CHART_DIR / "Chart.yaml"
 VALUES_YAML = CHART_DIR / "values.yaml"
 
 
@@ -51,6 +55,9 @@ def main():
         print(__doc__)
         sys.exit(1)
     key, basename, image_version = sys.argv[1], sys.argv[2], sys.argv[3]
+
+    deps = load_yaml(CHART_YAML).get("dependencies", [])
+    key = resolve_key_scope(key, deps)
 
     lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
     results = check_basename_version(lines, key, basename, image_version)

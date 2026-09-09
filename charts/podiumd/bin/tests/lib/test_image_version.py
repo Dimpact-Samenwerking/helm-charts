@@ -82,6 +82,44 @@ def test_find_matches_ignores_unresolved_repository(libimageversion):
     assert libimageversion.find_matches(lines, "openzaak") == []
 
 
+# --- resolve_key_scope ---
+
+def test_resolve_key_scope_accepts_alias(libimageversion):
+    dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
+    assert libimageversion.resolve_key_scope("kiss", [dep]) == "kiss"
+
+
+def test_resolve_key_scope_accepts_real_name_translates_to_alias(libimageversion):
+    """Regression test (real bug, confirmed live): <key> used to only
+    accept whichever string happens to literally BE the values.yaml
+    top-level key — the alias, when a dependency has one — silently
+    rejecting the dependency's own real Chart.yaml "name" even though
+    update-component-version's own find_dependency-based <component>
+    argument already accepts both interchangeably."""
+    dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
+    assert libimageversion.resolve_key_scope("kiss-chart", [dep]) == "kiss"
+
+
+def test_resolve_key_scope_dependency_with_no_alias_untouched(libimageversion):
+    dep = {"name": "keycloak-operator", "version": "1.13.0"}
+    assert libimageversion.resolve_key_scope("keycloak-operator", [dep]) == "keycloak-operator"
+
+
+def test_resolve_key_scope_multiple_passes_through_unchanged(libimageversion):
+    dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
+    assert libimageversion.resolve_key_scope(libimageversion.MULTIPLE_KEY, [dep]) == \
+        libimageversion.MULTIPLE_KEY
+
+
+def test_resolve_key_scope_no_matching_dependency_passes_through_unchanged(libimageversion):
+    """A lib.chart.NATIVE_COMPONENTS component (no Chart.yaml dependency
+    at all) or a genuine typo both pass through unchanged — resolve_
+    scoped_matches' own "no image pin ... found under" error already
+    covers that case correctly, under whatever raw string was typed."""
+    dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
+    assert libimageversion.resolve_key_scope("frankgateway", [dep]) == "frankgateway"
+
+
 # --- find_matches_in_scope / resolve_scoped_matches ---
 
 def test_find_matches_in_scope_finds_pins_under_key(libimageversion):

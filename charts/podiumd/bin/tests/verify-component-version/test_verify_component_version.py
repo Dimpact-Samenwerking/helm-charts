@@ -82,6 +82,44 @@ def test_main_multi_image_component_checks_both(vcv, tmp_path, monkeypatch, caps
     assert checked_paths == ["frontend.image", "backend.image"]
 
 
+def test_main_alias_argument_resolves_full_multi_path_registration(vcv, tmp_path, monkeypatch):
+    """Regression test (real bug, confirmed live against the real chart):
+    image_paths_for is keyed by the dependency's own Chart.yaml "name",
+    never its alias (see lib.chart.COMPONENT_IMAGE_PATHS) — this used to
+    pass the raw <component> CLI argument straight through to
+    image_paths_for(component) instead of the already-resolved dep
+    ["name"], so the ALIAS form (the shorter, more natural one — "kiss"
+    here) silently missed a real multi-path registry entry keyed by name
+    ("kiss-chart"), falling back to the generic ["image"] default and
+    skipping any co-registered lockstep path entirely. Confirmed live:
+    `verify-component-version kiss ...` only checked kiss-frontend;
+    `verify-component-version kiss-chart ...` (the real name) checked
+    both kiss-frontend and kiss-elastic-sync."""
+    monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
+    write_chart_yaml(vcv, [{"name": "kiss-chart", "alias": "kiss", "repository": "@kiss"}])
+    monkeypatch.setattr("lib.chart.COMPONENT_IMAGE_PATHS", {"kiss-chart": ["image", "settings.syncJobs.image"]})
+    checked_paths = []
+
+    def fake_check_image_versions(values, image_paths, app_version):
+        checked_paths.extend(image_paths)
+        return [
+            {"path": "image", "repository": "ghcr.io/klantinteractie-servicesysteem/kiss-frontend",
+             "host": "ghcr.io", "repo_path": "klantinteractie-servicesysteem/kiss-frontend",
+             "exists": True, "digest": "sha256:aaaa"},
+            {"path": "settings.syncJobs.image",
+             "repository": "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync", "host": "ghcr.io",
+             "repo_path": "klantinteractie-servicesysteem/kiss-elastic-sync", "exists": True,
+             "digest": "sha256:bbbb"},
+        ]
+
+    monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {})
+    monkeypatch.setattr(vcv, "check_image_versions", fake_check_image_versions)
+
+    exc = run_main(vcv, monkeypatch, ["kiss", "3.1.1", "3.1.1"])
+    assert exc.code == 0
+    assert checked_paths == ["image", "settings.syncJobs.image"]
+
+
 def test_main_dockerhub_component(vcv, tmp_path, monkeypatch, capsys):
     """openformulieren ships on Docker Hub — the registry must be inferred
     from the repository string, not assumed to be ghcr for everything."""

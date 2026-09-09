@@ -103,6 +103,35 @@ def test_main_resolves_given_component_key_and_basename(uiv, tmp_path, monkeypat
     assert f'2.15.1@sha256:{"b" * 64}' in values_path.read_text(encoding="utf-8")
 
 
+def test_main_accepts_dependency_name_not_just_alias(uiv, tmp_path, monkeypatch):
+    """Regression test (real bug, confirmed live against the real chart):
+    <key> used to only accept whichever string happens to literally BE
+    the values.yaml top-level key — the alias, when a dependency has one
+    — rejecting the dependency's own real Chart.yaml "name" outright
+    ("no image pin with basename ... found under"), even though update-
+    component-version's own <component> argument already accepts either
+    form via find_dependency. lib.image_version.resolve_key_scope now
+    resolves either form to the real values.yaml key first."""
+    write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
+    values_path = write_values(tmp_path, (
+        "zac:\n"
+        "  image:\n"
+        "    repository: infonl/zaakafhandelcomponent\n"
+        f'    tag: "5.4.3@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv",
+                         ["update-image-version", "zaakafhandelcomponent", "zaakafhandelcomponent", "5.4.4"])
+
+    uiv.main()
+
+    assert f'5.4.4@sha256:{"b" * 64}' in values_path.read_text(encoding="utf-8")
+
+
 def test_main_raises_when_basename_not_unique_under_key(uiv, tmp_path, monkeypatch, capsys):
     """Two DISTINCT repositories sharing a basename under the same <key>
     can't be identified uniquely (see lib.image_version.
