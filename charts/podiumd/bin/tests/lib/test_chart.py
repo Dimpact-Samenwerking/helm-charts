@@ -150,6 +150,44 @@ def test_release_table_baseline_none_when_key_missing(libchart, tmp_path):
     assert libchart.release_table_baseline(tmp_path) is None
 
 
+# --- full_repository_for_path ---
+# the fully host-qualified repository a manifest entry's own "url:"
+# field (or a real registry call) needs — never the STRIPPED form
+# paths_by_repository's own repo-group keys use.
+
+def test_full_repository_for_path_docker_hub_repository_gets_docker_io_host(libchart, tmp_path):
+    """Docker Hub's own convention: no registry host embedded in
+    "repository:" at all."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:aaaa"}}}
+    assert libchart.full_repository_for_path(tmp_path, deps, values, ("zac", "image")) == "docker.io/curlimages/curl"
+
+
+def test_full_repository_for_path_already_host_qualified_is_unchanged(libchart, tmp_path):
+    deps = [{"name": "brp-personen-mock", "alias": "brppersonenmock", "version": "1.2.9"}]
+    values = {"brppersonenmock": {"image": {
+        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:aaaa"}}}
+    assert libchart.full_repository_for_path(tmp_path, deps, values, ("brppersonenmock", "image")) == \
+        "ghcr.io/brp-api/personen-mock"
+
+
+def test_full_repository_for_path_separate_registry_key_is_authoritative(libchart, tmp_path):
+    """Regression test (mi's own real "azure-cli" case): a sibling
+    "registry:" key alongside a bare "repository:" (Azure Container
+    Registry's own convention) is used directly — never parse_repo's
+    own Docker Hub inference, which would wrongly assume "docker.io/
+    azure-cli"."""
+    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    values = {"mi": {"image": {
+        "registry": "mcr.microsoft.com", "repository": "azure-cli", "tag": "2.90.0@sha256:aaaa"}}}
+    assert libchart.full_repository_for_path(tmp_path, deps, values, ("mi", "image")) == \
+        "mcr.microsoft.com/azure-cli"
+
+
+def test_full_repository_for_path_none_when_unresolvable(libchart, tmp_path):
+    assert libchart.full_repository_for_path(tmp_path, [], {}, ("brppersonenmock", "image")) is None
+
+
 # --- historical_images_manifest_paths / historical_app_version_for_repository ---
 # the replacement for the removed images-baseline.yaml fallback: walks
 # this chart's own past docs/images/images-<version>.yaml manifests,

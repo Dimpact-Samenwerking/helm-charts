@@ -2389,24 +2389,70 @@ def test_add_missing_images_manifest_entries_appends_new_entry(cdb, images_manif
     assert added == ["zac"]
     assert "# zac 5.0.2 -> 5.1.0" in new_text  # primary: plain "# " prefix, no em-dash
     assert "- name: infonl/zaakafhandelcomponent" in new_text
-    assert "url: infonl/zaakafhandelcomponent" in new_text
+    assert "url: ghcr.io/infonl/zaakafhandelcomponent" in new_text
     assert 'version: "5.1.0"' in new_text
     assert 'digest: "sha256:aaaa"' in new_text
 
 
-def test_add_missing_images_manifest_entries_name_and_url_are_the_same_resolved_repository(
+def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_qualified(
         cdb, images_manifest_chart_dir):
-    """Both fields are set to the same repo_map key on purpose — the
-    curated ACR mirror slug (docs/images/acr-mirror-naming.md) has no
-    mechanical formula and stays a human's job to fix afterward."""
+    """Regression test: "name:" is the curated ACR mirror slug's own
+    starting point — the same STRIPPED repo_map key docs/images/
+    acr-mirror-naming.md documents, still a human's job to fix
+    afterward — but "url:" must be the REAL, fully host-qualified
+    repository (lib.chart.full_repository_for_path), never the same
+    stripped value: a manifest entry's "url:" with no registry host at
+    all (real bug, confirmed live in images-4.9.1.yaml) is silently
+    wrong for every Docker-Hub-hosted image (host omitted in values.
+    yaml's own "repository:" by Docker Hub's own convention)."""
     text = ""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
     target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
                                         "tag": "5.1.0@sha256:aaaa"}}}
 
-    _new_text, added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text, images_manifest_chart_dir, deps, target_values, baseline_values={})
     assert added == ["zac"]
+    assert "- name: infonl/zaakafhandelcomponent" in new_text
+    assert "url: ghcr.io/infonl/zaakafhandelcomponent" in new_text
+
+
+def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_io_host(
+        cdb, images_manifest_chart_dir):
+    """Regression test: a Docker-Hub-hosted image's own "repository:"
+    conventionally omits the host entirely (e.g. "curlimages/curl") —
+    the entry's "url:" must still come out fully host-qualified
+    ("docker.io/curlimages/curl"), not the bare, hostless string."""
+    text = ""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    target_values = {"zac": {"image": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:aaaa"}}}
+
+    new_text, added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+        text, images_manifest_chart_dir, deps, target_values, baseline_values={})
+    assert added == ["zac"]
+    assert "- name: curlimages/curl" in new_text
+    assert "url: docker.io/curlimages/curl" in new_text
+
+
+def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_url(
+        cdb, images_manifest_chart_dir):
+    """Regression test (mi's own real "azure-cli" case): a component
+    whose registry host lives in a SEPARATE sibling "registry:" key
+    (Azure Container Registry's own convention) rather than embedded in
+    "repository:" itself (bare "azure-cli", no namespace at all) must
+    still get a fully host-qualified "url:" — that sibling key is
+    authoritative, never parse_repo's own Docker Hub inference (which
+    would wrongly assume "docker.io/azure-cli")."""
+    text = ""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    target_values = {"zac": {"image": {
+        "registry": "mcr.microsoft.com", "repository": "azure-cli", "tag": "2.90.0@sha256:aaaa"}}}
+
+    new_text, added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+        text, images_manifest_chart_dir, deps, target_values, baseline_values={})
+    assert added == ["zac"]
+    assert "- name: azure-cli" in new_text
+    assert "url: mcr.microsoft.com/azure-cli" in new_text
 
 
 def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(cdb, images_manifest_chart_dir):
@@ -3512,7 +3558,7 @@ def test_main_adds_missing_images_manifest_entry(cdb, tmp_path, monkeypatch):
     text = images_path.read_text(encoding="utf-8")
     assert "# zac 5.0.2 -> 5.1.0" in text
     assert "- name: infonl/zaakafhandelcomponent" in text
-    assert "url: infonl/zaakafhandelcomponent" in text
+    assert "url: ghcr.io/infonl/zaakafhandelcomponent" in text
     assert 'version: "5.1.0"' in text
     assert 'digest: "sha256:aaaa"' in text
 

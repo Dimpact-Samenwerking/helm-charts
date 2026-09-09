@@ -214,6 +214,45 @@ def test_main_single_component_updates_upgrade_doc_table_and_changes(uiv, tmp_pa
     assert "(re)wrote '### openklant ...' Changes section" in out
 
 
+def test_main_missing_manifest_entry_instructions_show_fully_qualified_url(uiv, tmp_path, monkeypatch, capsys):
+    """Regression test: openklant's own repository ("maykinmedia/open-
+    klant") omits the registry host entirely, Docker Hub's own
+    convention — the "add manually" instructions printed for a missing
+    images-manifest entry must still show a fully host-qualified
+    "url:" ("docker.io/maykinmedia/open-klant"), not the bare, hostless
+    string values.yaml itself happens to spell it as (real bug,
+    confirmed live in images-4.9.1.yaml — see lib.chart.
+    full_repository_for_path)."""
+    write_chart_yaml(tmp_path, [("openklant", None)])
+    values_path = write_values(tmp_path, (
+        "openklant:\n"
+        "  image:\n"
+        "    repository: maykinmedia/open-klant\n"
+        f'    tag: "2.15.0@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
+              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+              "## Component versions (1.0.0 vs 0.9.0)\n\n"
+              "| Component | App version | Helm chart | Notes |\n"
+              "| --- | --- | --- | --- |\n\n"
+              "## Changes\n")
+    write_doc(uiv.IMAGES_DIR, "images-1.0.0.yaml", "# Baseline: podiumd 0.9.0.\n#\n# Zero changes:\n#\n\n[]\n")
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "open-klant", "2.15.1"])
+
+    uiv.main()
+
+    out = capsys.readouterr().out
+    assert "No existing entry for the following" in out
+    assert "url: docker.io/maykinmedia/open-klant" in out
+
+
 def _make_vendored_tgz(charts_dir, name, version, chart_yaml):
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"

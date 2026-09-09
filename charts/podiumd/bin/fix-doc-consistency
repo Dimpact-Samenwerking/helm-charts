@@ -86,9 +86,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import (
-    canonical_sidecar_row_names, chart_version, documented_repository_for_path, global_image_paths,
-    historical_app_version_for_path, image_paths_for, paths_by_repository, repo_group_representative,
-    resolved_digest_pin, version_of,
+    canonical_sidecar_row_names, chart_version, documented_repository_for_path, full_repository_for_path,
+    global_image_paths, historical_app_version_for_path, image_paths_for, paths_by_repository,
+    repo_group_representative, resolved_digest_pin, version_of,
 )
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
@@ -882,6 +882,17 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     added_names, skipped_names = [], []
     for path in missing_paths:
         repo = path_to_repo.get(path)
+        # repo (path_to_repo, built from paths_by_repository) is the
+        # STRIPPED form (strip_registry_host) — correct for the entry's
+        # own "name:" field (that's exactly what the ACR-mirror-naming
+        # convention wants there), but never for "url:", which needs the
+        # REAL registry host — reconstructing one from the ALREADY-
+        # stripped remainder would silently assume Docker Hub for any
+        # image actually hosted elsewhere. full_repository_for_path
+        # resolves the real, unstripped value directly instead (falls
+        # back to `repo` only if it can't — never seen in practice, but
+        # never worse than the old behavior either).
+        full_repo_url = full_repository_for_path(chart_dir, deps, target_values, path, allow_pull=allow_pull) or repo
         current_tag = current_paths[path]
         name = path_display_name(path, deps, canonical_names)
         pinned_tag = resolved_digest_pin(target_values, path, current_tag)
@@ -965,7 +976,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         block_lines = [
             f"{header_prefix}{version_text}\n",
             f"- name: {repo}\n",
-            f"  url: {repo}\n",
+            f"  url: {full_repo_url}\n",
             f'  version: "{new_version}"\n',
             f'  digest: "{digest}"\n',
         ]
