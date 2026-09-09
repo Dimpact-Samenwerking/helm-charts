@@ -1676,6 +1676,16 @@ openklant:
     disabled: true
 
 openformulieren:
+  # Pinned to 1 (upstream subchart default is 2): the open-forms image runs
+  # `migrate` + `loaddata default_admin_index.json` in its own entrypoint on
+  # every pod start, with no leader-election or upsert -- two replicas
+  # starting together race to insert the same fixture row and the loser
+  # crash-loops on a duplicate-key IntegrityError (admin_index_appgroup
+  # slug "accounts") forever, since the row already exists once one replica
+  # wins. Same reasoning as the existing openformulieren.worker.replicaCount
+  # pin below. Revisit if/when a future open-forms chart adds a dedicated
+  # one-shot migration Job.
+  replicaCount: 1
   # revert: verwijder LOG_OUTGOING_REQUESTS override (defaults True)
   # NAV verdere analyse is request logging wel gewenst !
   configuration:
