@@ -106,13 +106,13 @@ from lib.image_docs import (
 from lib.image_repository_check import find_images_without_repository
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
-    append_to_doc, canonical_version_cell, component_version_cell,
+    append_to_doc, canonical_version_cell, changes_heading_identities, component_version_cell,
     compute_changed_components, extract_source_version, extract_target_version, find_all_image_and_version_paths,
     find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff,
     images_manifest_block_start, images_manifest_display_name_positions, images_manifest_entries_share_group,
     images_manifest_entry_positions, insertion_index, is_primary_image_path,
     match_changes_item_display_name,
-    normalize_version, parse_upgrade_doc_rows,
+    normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
     path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
     sort_images_manifest_entries, sort_upgrade_doc_rows, sort_values_delta_sections, values_key_order,
 )
@@ -321,6 +321,30 @@ def load_baseline_state(new_baseline):
     return baseline_chart_yaml.get("dependencies", []), baseline_values
 
 
+def _dep_old_app_for_new_dependency(chart_dir, target_deps, target_values, resolved, upgrade_docs_baseline):
+    """The APP cell's own "old" version for a Chart.yaml dependency with
+    NO baseline value at all (resolved["baseline_resolved"] is False,
+    resolved["dep"] is not None, resolved["target_app"] is not None) —
+    before concluding "genuinely new", checks whether this repository
+    already appears in any of this chart's own PAST images-<version>.yaml
+    manifests (real, already-committed per-release documents, never a
+    fallback to the removed images-baseline.yaml side-file). None when
+    nothing is found there either (a real "(new)" component) — shared by
+    fix_component_version_table's own row loop and fix_changes_heading_
+    app_versions (see its own docstring) so the two can never disagree
+    on what a brand-new dependency's own "old" app version is."""
+    if resolved["dep"] is None or resolved["target_app"] is None:
+        return None
+    old_app = None
+    for path in image_paths_for(resolved["dep"]["name"]):
+        old_app = historical_app_version_for_path(
+            chart_dir, target_deps, target_values, (resolved["values_key"],) + tuple(path.split(".")),
+            upgrade_docs_baseline)
+        if old_app is not None:
+            break
+    return old_app
+
+
 def fix_component_version_table(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
                                  upgrade_docs_baseline=None):
     """Rewrite each "Component versions" table row's App/Helm-chart cells to
@@ -405,14 +429,8 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
             # <version>.yaml manifests (real, already-committed
             # per-release documents, not the removed images-
             # baseline.yaml side-file).
-            old_app_for_cell = None
-            if resolved["dep"] is not None and actual_target_app is not None:
-                for path in image_paths_for(resolved["dep"]["name"]):
-                    old_app_for_cell = historical_app_version_for_path(
-                        chart_dir, target_deps, target_values, (resolved["values_key"],) + tuple(path.split(".")),
-                        upgrade_docs_baseline)
-                    if old_app_for_cell is not None:
-                        break
+            old_app_for_cell = _dep_old_app_for_new_dependency(
+                chart_dir, target_deps, target_values, resolved, upgrade_docs_baseline)
 
             row_changed = False
             line = lines[row["line_index"]]
@@ -486,6 +504,108 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
             changed_rows.append((row["name"], cells[1], cells[2]))
 
     return "".join(lines), changed_rows, unmatched_names, unresolved_names
+
+
+def fix_changes_heading_app_versions(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
+                                      upgrade_docs_baseline=None):
+    """Rewrite a "### ..." Changes section heading's own app-version
+    portion (the piece right after the component's own name — never the
+    "(chart ...)" clause, or the body below it, both left untouched) to
+    match what fix_component_version_table's own row loop ALREADY
+    verifies and rewrites for the table row every single run — real bug,
+    real doc: mi's own "### mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"
+    heading, written by an earlier, buggy tool run before this chart's
+    baseline-resolution bugs were fixed. mi is actually a BRAND NEW
+    dependency this hop — no 2.71.0 baseline value exists at all — so
+    the correct heading is "### mi 2.90.0 (new) (chart 1.1.0,
+    unchanged)". fix_component_version_table's own row loop DOES
+    re-verify and rewrite the table ROW's own cells every run against
+    whatever baseline resolution is current now, bugs fixed or not —
+    but nothing else ever revisited the heading once it already
+    existed; this closes exactly that gap. Run this AFTER fix_component_
+    version_table (order matters only for the printed diff being
+    intuitive to read top-to-bottom; this function re-resolves its own
+    old/new versions independently, so it doesn't actually depend on
+    the row text having been rewritten first).
+
+    Deliberately does NOT reconstruct old/new from the table row's own
+    RENDERED cell text (extract_source_version/extract_target_version) —
+    that round-trip is lossy: a "<version> (new)" cell and a "<version>
+    (unchanged)" cell both extract to the exact same (source, target)
+    pair once the annotation itself is stripped, so there is no way to
+    tell a genuinely brand-new component's cell apart from an unchanged
+    one just from those two numbers (confirmed live: this WAS the first
+    approach tried here, and it silently turned mi's heading into the
+    equally-wrong "(unchanged)" instead of "(new)"). Independently
+    reresolves via resolve_component_row instead — the SAME shared
+    function fix_component_version_table's own row loop and lib.docs_
+    consistency.check_docs_consistency's own row-checker already use
+    (see its own docstring for why: a checker/fixer that resolves a
+    row/heading pair different ways can silently drift apart on what
+    "correct" even means) — and _dep_old_app_for_new_dependency, the
+    exact same brand-new-dependency historical-manifest fallback fix_
+    component_version_table's own row loop uses for its APP cell, so a
+    freshly-fixed row and its own heading can never disagree.
+
+    Only ever touches a heading naming EXACTLY ONE real "dep" identity
+    (see resolve_component_identity/changes_heading_identities — a real
+    Chart.yaml dependency or a lib.chart.NATIVE_COMPONENTS component,
+    never a sidecar: a canonical sidecar heading is only ever written
+    once its own tag is already known, so this "wrong content" gap
+    doesn't apply to it) whose row resolves to a real, non-None target
+    app version; a heading that's ambiguous, orphaned, whose row has no
+    resolvable app version at all, whose baseline genuinely can't be
+    checked (upgrade_docs_baseline itself doesn't resolve to a git ref),
+    or that's already correct is left exactly as-is — never a spurious
+    rewrite when nothing is actually wrong. Returns (new_text,
+    updated_headings) — updated_headings is the ORIGINAL (pre-fix)
+    heading text for every heading actually rewritten."""
+    current_paths = dict(find_image_tag_paths(target_values))
+    current_paths.update(global_image_paths(target_values))
+    canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
+
+    resolved_by_values_key = {}
+    for row in parse_upgrade_doc_rows(text):
+        resolved = resolve_component_row(
+            row["name"], chart_dir, canonical_names, target_deps, target_values,
+            baseline_deps=baseline_deps, baseline_values=baseline_values,
+            upgrade_docs_baseline=upgrade_docs_baseline,
+        )
+        if resolved["kind"] not in ("unmatched", "sidecar") and resolved["target_app"] is not None:
+            resolved_by_values_key[resolved["values_key"]] = (row["name"], resolved)
+
+    lines = text.splitlines(keepends=True)
+    updated_headings = []
+    for block in parse_upgrade_doc_changes_blocks(text):
+        heading = block["heading"]
+        idents = changes_heading_identities(heading, target_deps, canonical_names)
+        if len(idents) != 1:
+            continue
+        kind, values_key = next(iter(idents))
+        if kind != "dep" or values_key not in resolved_by_values_key:
+            continue
+        friendly_name, resolved = resolved_by_values_key[values_key]
+
+        if resolved["baseline_resolved"] is False:
+            old_app = _dep_old_app_for_new_dependency(
+                chart_dir, target_deps, target_values, resolved, upgrade_docs_baseline)
+        elif resolved["baseline_resolved"] is True:
+            old_app = resolved["baseline_app"]
+        else:
+            continue
+
+        expected_app_heading = component_version_cell(old_app, resolved["target_app"])
+        without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
+        if expected_app_heading in without_chart_clause:
+            continue
+
+        chart_clause_match = re.search(r"\s*\(chart[^)]*\)", heading)
+        chart_clause = chart_clause_match.group(0) if chart_clause_match else ""
+        suffix = "\n" if lines[block["start"]].endswith("\n") else ""
+        lines[block["start"]] = f"### {friendly_name} {expected_app_heading}{chart_clause}{suffix}"
+        updated_headings.append(heading)
+
+    return "".join(lines), updated_headings
 
 
 def resolve_entry_version(entry, paths, repo_map=None):
@@ -1259,6 +1379,17 @@ def main():
             for heading in updated_stale_headings:
                 print(f"  {heading}")
 
+        text, updated_wrong_headings = fix_changes_heading_app_versions(
+            text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values,
+            upgrade_docs_baseline=new_baseline
+        )
+        if updated_wrong_headings:
+            print()
+            print(f"=== Correcting '### ...' Changes section(s) with the wrong app-version "
+                  f"transition in {upgrade_path.name} ===")
+            for heading in updated_wrong_headings:
+                print(f"  {heading}")
+
         text, moved_rows = sort_upgrade_doc_rows(text, target_deps, target_values, canonical_names)
         text, moved_blocks = sort_changes_blocks(text, target_deps, target_values, canonical_names)
         if moved_rows or moved_blocks:
@@ -1281,7 +1412,7 @@ def main():
             print(f"=== Collapsing multiple consecutive blank line(s) in {upgrade_path.name} ===")
 
         if (changed_rows or added_names or added_sidecar_names or added_section_names or updated_stale_headings
-                or moved_rows or moved_blocks or blank_lines_fixed):
+                or updated_wrong_headings or moved_rows or moved_blocks or blank_lines_fixed):
             upgrade_path.write_text(collapsed_text, encoding="utf-8")
 
     if images_path.is_file():

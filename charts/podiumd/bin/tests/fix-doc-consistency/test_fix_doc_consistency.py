@@ -868,6 +868,88 @@ def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matchi
     assert "| redis-operator - k8s | 1.36.2 (unchanged) | - | ACR mirror only |" in new_text
 
 
+# --- fix_changes_heading_app_versions ---
+
+def test_fix_changes_heading_app_versions_corrects_wrong_new_dependency_heading(cdb):
+    """Real bug, real doc: mi's own row was already correctly fixed
+    ("2.90.0 (new)" — a brand-new Chart.yaml dependency this hop, no
+    2.71.0 baseline value exists at all) by an earlier fix_component_
+    version_table run, but its OWN "### mi ..." Changes heading was
+    never revisited and still shows the stale, wrong
+    "2.71.0 → 2.90.0" transition. Must become "2.90.0 (new)" — never
+    "2.90.0 (unchanged)", the wrong wording a naive round-trip through
+    the row's own rendered cell text (extract_source_version/
+    extract_target_version, which can't tell "(new)" and "(unchanged)"
+    apart once the annotation itself is stripped) would produce."""
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| mi | 2.90.0 (new) | 1.1.0 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
+        "Some stale prose here.\n"
+    )
+    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+
+    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+
+    assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
+    assert "### mi 2.90.0 (new) (chart 1.1.0, unchanged)" in new_text
+    assert "2.71.0" not in new_text
+    assert "(unchanged)\n\nSome stale prose here." not in new_text  # body left as-is, not regenerated
+    assert "Some stale prose here." in new_text
+
+
+def test_fix_changes_heading_app_versions_already_correct_heading_untouched(cdb):
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| mi | 2.90.0 (new) | 1.1.0 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### mi 2.90.0 (new) (chart 1.1.0, unchanged)\n\n"
+        "PodiumD 4.9.1 introduces **mi** at app version 2.90.0.\n"
+    )
+    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+
+    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+
+    assert updated_headings == []
+    assert new_text == text
+
+
+def test_fix_changes_heading_app_versions_real_version_bump_still_corrected(cdb):
+    """A real version transition (not a brand-new dependency) with a
+    stale heading is corrected the same way — the "(new)" case above
+    isn't the only one this covers."""
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zac | 5.4.0 → 5.5.0 | 1.0.297 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### zac 5.4.0 → 5.4.0 (chart 1.0.297, unchanged)\n\n"
+        "Stale prose from a previous, wrong resolution.\n"
+    )
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                                        "tag": "5.5.0@sha256:" + "b" * 64}}}
+    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    baseline_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                                          "tag": "5.4.0@sha256:" + "a" * 64}}}
+
+    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+        text, None, deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.9.0")
+
+    assert updated_headings == ["zac 5.4.0 → 5.4.0 (chart 1.0.297, unchanged)"]
+    assert "### zac 5.4.0 → 5.5.0 (chart 1.0.297, unchanged)" in new_text
+
+
 # --- current_chart_version ---
 
 def test_current_chart_version_reads_chart_yaml(cdb, tmp_path, monkeypatch):
