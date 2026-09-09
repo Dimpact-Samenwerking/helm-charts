@@ -36,6 +36,11 @@
   digest: "sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2"
 # Gap-filler: mi-export CronJobs (mi.image — mi-data subchart since 4.8.3).
 # Not part of any per-release delta — maintained here by hand.
+# 2.90.0 on podiumd 4.9.1; digest differs from the 4.9.0 pin below.
+- name: azure-cli
+  url: mcr.microsoft.com/azure-cli
+  version: "2.90.0"
+  digest: "sha256:e3768dde8142efa45d8f356a317aaac77abd7da15ba3719b0a150e9453f251db"
 - name: azure-cli
   url: mcr.microsoft.com/azure-cli
   version: "2.71.0"
@@ -201,7 +206,7 @@
 - name: library/postgres
   url: docker.io/library/postgres
   version: "16-alpine"
-  digest: "sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
+  digest: "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
 # 3.14.7-slim re-published upstream again on 4.9.1; digest differs from the 4.9.0 pin below.
 - name: library/python
   url: docker.io/library/python
@@ -247,6 +252,11 @@
   url: docker.io/maykinmedia/referentielijsten-api
   version: "0.7.3"
   digest: "sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
+# 1.31.5 on podiumd 4.9.1.
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.5"
+  digest: "sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"
 - name: nginxinc/nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
   version: "1.27-alpine"

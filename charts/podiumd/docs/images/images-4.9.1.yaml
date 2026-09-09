@@ -18,20 +18,27 @@
 #   13. openbao - openbao-snapshot-agent 0.3.0 (new).
 #   14. clamav 1.5.4 re-published upstream again; new digest, tag unchanged.
 #   15. keycloak jobs' python 3.14.7-slim re-published upstream; new digest, tag unchanged.
+#   16. nginx-unprivileged 1.31.4 -> 1.31.5.
 #
 # See docs/_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-# redis 8.0 (new)
+# mi (azure-cli) 2.71.0 -> 2.90.0 (chart 1.1.0, unchanged)
+- name: azure-cli
+  url: mcr.microsoft.com/azure-cli
+  version: "2.90.0"
+  digest: "sha256:e3768dde8142efa45d8f356a317aaac77abd7da15ba3719b0a150e9453f251db"
+
+# redis 8.0 -> 8.10.1 (new since 4.9.0)
 - name: redis
   url: docker.io/library/redis
   version: "8.10.1"
   digest: "sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"
 # curl 8.21.0 -> 8.22.0
 - name: curlimages/curl
-  url: curlimages/curl
+  url: docker.io/curlimages/curl
   version: "8.22.0"
   digest: "sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"
 
@@ -111,3 +118,9 @@
   url: docker.io/library/python
   version: "3.14.7-slim"
   digest: "sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"
+
+# nginx-unprivileged 1.31.4 -> 1.31.5
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.5"
+  digest: "sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"
