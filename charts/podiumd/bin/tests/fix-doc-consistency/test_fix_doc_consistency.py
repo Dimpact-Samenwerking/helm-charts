@@ -2394,6 +2394,32 @@ def test_add_missing_images_manifest_entries_appends_new_entry(cdb, images_manif
     assert 'digest: "sha256:aaaa"' in new_text
 
 
+def test_add_missing_images_manifest_entries_catches_same_version_changed_digest(cdb, images_manifest_chart_dir):
+    """Regression test (real bug, real doc, clamav-shaped): a same-
+    version, changed-digest re-pin is correctly DETECTED by lib.
+    upgradedoc.find_images_manifest_list_diff (see its own docstring),
+    but this function has its own SEPARATE call to it — and had been
+    passing neither `values=` nor `baseline_values=`, silently
+    collapsing that call back to the old version-only behaviour (see
+    find_images_manifest_list_diff's own "every real caller passes
+    both" docstring note). Confirmed live: running fix-doc-consistency
+    against the real chart produced zero mention of clamav's own real
+    digest-only re-pin at all — not even "no existing entry, add
+    manually". This must actually ADD the entry, not just detect it."""
+    text = "# Baseline: podiumd 4.8.5.\n"
+    deps = [{"name": "clamav", "version": "1.0.0"}]
+    target_values = {"clamav": {"image": {"repository": "clamav/clamav", "tag": "1.5.4@sha256:" + "b" * 64}}}
+    baseline_values = {"clamav": {"image": {"repository": "clamav/clamav", "tag": "1.5.4@sha256:" + "a" * 64}}}
+
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+
+    assert skipped == []
+    assert added == ["clamav"]
+    assert "- name: clamav/clamav" in new_text
+    assert f'digest: "sha256:{"b" * 64}"' in new_text
+
+
 def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_qualified(
         cdb, images_manifest_chart_dir):
     """Regression test: "name:" is the curated ACR mirror slug's own
