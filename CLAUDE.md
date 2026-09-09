@@ -1,29 +1,59 @@
-# CLAUDE.md
+# Claude context
 
-Guidance for Claude Code when working in this repository.
+## Conventions and architecture
 
-## Project
+Read [`.github/copilot-instructions.md`](.github/copilot-instructions.md) before making any changes. It is the single source of truth for:
+- Repository layout and chart architecture
+- Lint/template/deploy commands and their required flags
+- Image reference conventions and ACR mirror behaviour
+- Resource requests/limits requirements
+- AKS-blue cluster rules (read-only; no direct `helm`/`kubectl` mutations)
+- Keycloak migration status (Bitnami → Hostzero Operator, active)
+- Release process (production, snapshot, images manifest, upgrade notes)
+- Dependency management (Renovate + manual `.tgz` workflow)
+- ZAC repository conventions
 
-**Dimpact PodiumD** Helm charts — a Dutch government "zaakgericht werken" stack. GitHub: `Dimpact-Samenwerking/helm-charts`.
+## Branching strategy
 
-The umbrella chart is `charts/podiumd`, composing many sub-charts (openzaak, openinwoner, keycloak-operator, redis-operator, zgw-office-addin, zaakbrug, open-notificaties, etc.). Per-gemeente deployments inject their own values over the chart defaults.
+See [`README.md`](README.md#branching-strategy). Summary: forward-cascade from `main` → `feature/podiumd-<X.Y.0>` → `feature/podiumd-<X.Y.0>-*` feature branches and `feature/<env>-podiumd-<X.Y.0>` environment branches.
 
-> Note: if a `CLAUDE.md` describing "CrawlDock" (an MCP search server) is loaded from a parent/workspace directory, it does **not** apply here — this repo is the Helm charts.
+## Pre-commit checklist
 
-## Branches
+Always run before committing changes to `charts/podiumd/`:
 
-- `feature/podiumd-4.8.0` — current release integration base; feature/fix PRs target it, then it rolls up to `main`.
-- `main` — default branch.
+```
+/helm-precommit
+```
 
-## Conventions
+This runs BOM check + duplicate key detection + helm lint in one step.
 
-@.claude/memory/branch-workflow.md
-@.claude/memory/render-verify.md
+## Available slash commands
 
-## Skills
+| Command | Purpose |
+|---|---|
+| `/helm-lint` | Lint the podiumd chart |
+| `/helm-render` | Render a single template |
+| `/helm-render-all` | Render all templates |
+| `/helm-precommit` | BOM check + dup-key check + lint (run before every commit) |
+| `/helm-deps` | Update Helm dependencies |
+| `/helm-repos` | Add all required Helm repositories |
+| `/helm-fetch-updates` | Check for upstream component updates |
+| `/helm-dupecheck` | Detect duplicate keys in values.yaml |
+| `/helm-bomcheck` | Check for UTF-8 BOM in values.yaml |
+| `/helm-tgz-inspect` | Inspect vendored .tgz sub-charts |
+| `/images-manifest` | Generate the images manifest for a release |
+| `/fetch-image-digest` | Fetch the `sha256:` digest for a container image |
+| `/verify-image-digests` | Verify/refresh digest pins for current image tags |
+| `/check-image-cves` | Scan images for CVE-driven updates |
+| `/upgrade-notes` | Scaffold a per-release upgrade guide |
+| `/branch-overview` | Show current branch state vs main/upstream |
+| `/verify-release-branches` | Audit release branch hygiene |
+| `/kc-list-idp` | List configured Keycloak IDPs |
+| `/kc-idp-secret` | Manage Keycloak IDP secrets |
 
-Project skills live in `.claude/commands/` (e.g. `/helm-render-all`, `/helm-deps`, `/helm-lint`, `/check-image-cves`, `/verify-image-digests`, `/images-manifest`, `/branch-overview`). Prefer these for chart workflows.
+## Available skills
 
-## Images manifest
-
-`charts/podiumd/docs/images/images-baseline.yaml` is the single complete strip-registry mirror manifest (per-release delta images + long-stable gap-fillers). `scripts/mirror-strip-registry.py --gen-manifest` regenerates only the per-release-delta subset; the gap-filler entries are hand-maintained there.
+| Skill | Purpose |
+|---|---|
+| `/podiumd-check-updates` | Check available updates for all PodiumD components |
+| `/podiumd-configure-component` | Generate environment-specific component config + Keycloak client |

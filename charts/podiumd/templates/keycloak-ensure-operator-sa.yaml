@@ -35,6 +35,8 @@ spec:
       initContainers:
       - name: wait-for-podiumd-admin
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
+        resources:
+{{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
         command: ["/bin/sh", "-c"]
         args:
         - |
@@ -111,7 +113,7 @@ spec:
         command: ["/bin/sh", "-c"]
         args:
         - |
-          set -euo pipefail
+          set -eu
           SERVER="http://keycloak-service:8080"
 
           # Safely escape a value for embedding in a JSON string literal.

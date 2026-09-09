@@ -62,7 +62,7 @@ Enabling `values-enable-observability.yaml` introduces two additional exporter s
 | Exporter | Component | Original URL |
 |---|---|---|
 | redis_exporter | `redis-operator.redis-ha` sidecar on every redis-ha pod | `quay.io/opstree/redis-exporter:v1.82.0` |
-| clamav_exporter | `clamav` sidecar | `docker.io/sergeymakinen/clamav_exporter:v2.1.2` |
+| clamav_exporter | `clamav` sidecar | `docker.io/sergeymakinen/clamav_exporter:v2.1.8` |
 
 ```yaml
 redis-operator:

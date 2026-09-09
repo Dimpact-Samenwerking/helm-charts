@@ -63,9 +63,8 @@ metadata:
   name: frankgateway-shim
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-shim") | nindent 4 }}
     app.kubernetes.io/component: frankgateway-shim
-    app.kubernetes.io/name: frankgateway-shim
 spec:
   replicas: 1
   selector:
@@ -74,15 +73,14 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "podiumd.labels" . | nindent 8 }}
+        {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-shim") | nindent 8 }}
         app.kubernetes.io/component: frankgateway-shim
-        app.kubernetes.io/name: frankgateway-shim
       annotations:
         checksum/shim-conf: {{ include (print $.Template.BasePath "/frankgateway-dashboard.yaml") . | sha256sum }}
     spec:
       containers:
         - name: nginx
-          image: "{{ $auth.shim.image.repository }}:{{ $auth.shim.image.tag }}"
+          image: {{ include "podiumd.image" $auth.shim.image }}
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -102,6 +100,10 @@ spec:
         - name: conf
           secret:
             secretName: frankgateway-shim
+      {{- with $auth.shim.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -109,9 +111,8 @@ metadata:
   name: frankgateway-shim
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-shim") | nindent 4 }}
     app.kubernetes.io/component: frankgateway-shim
-    app.kubernetes.io/name: frankgateway-shim
 spec:
   selector:
     app.kubernetes.io/name: frankgateway-shim
@@ -126,9 +127,8 @@ metadata:
   name: frankgateway-oauth2-proxy
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-oauth2-proxy") | nindent 4 }}
     app.kubernetes.io/component: frankgateway-oauth2-proxy
-    app.kubernetes.io/name: frankgateway-oauth2-proxy
 spec:
   replicas: 1
   selector:
@@ -137,13 +137,12 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "podiumd.labels" . | nindent 8 }}
+        {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-oauth2-proxy") | nindent 8 }}
         app.kubernetes.io/component: frankgateway-oauth2-proxy
-        app.kubernetes.io/name: frankgateway-oauth2-proxy
     spec:
       containers:
         - name: oauth2-proxy
-          image: "{{ $auth.oauth2Proxy.image.repository }}:{{ $auth.oauth2Proxy.image.tag }}"
+          image: {{ include "podiumd.image" $auth.oauth2Proxy.image }}
           imagePullPolicy: IfNotPresent
           args:
             - --provider=oidc
@@ -190,6 +189,10 @@ spec:
             periodSeconds: 30
           resources:
             {{- toYaml $auth.oauth2Proxy.resources | nindent 12 }}
+      {{- with $auth.oauth2Proxy.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -197,9 +200,8 @@ metadata:
   name: frankgateway-oauth2-proxy
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-oauth2-proxy") | nindent 4 }}
     app.kubernetes.io/component: frankgateway-oauth2-proxy
-    app.kubernetes.io/name: frankgateway-oauth2-proxy
 spec:
   selector:
     app.kubernetes.io/name: frankgateway-oauth2-proxy

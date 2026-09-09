@@ -16,7 +16,7 @@ clusters.
 Upstream project: [Open Notificaties](https://github.com/open-zaak/open-notificaties)
 by Maykin Media — the reference implementation of the VNG/ZGW **Notificaties
 API** (publish/subscribe for zaakgericht werken events). Image:
-`openzaak/open-notificaties`, pinned to tag `1.16.0` in the umbrella chart.
+`openzaak/open-notificaties`, pinned to tag `1.16.1` in the umbrella chart.
 Deployed via the `opennotificaties` subchart (version 2.0.0, repo
 `@maykinmedia`), gated on `opennotificaties.enabled`.
 
@@ -115,7 +115,7 @@ CPU is negligible at dev/accp load; treat these as baseline, not peak.
    `DB_NAME`, `DB_USER`) in the `podiumd` namespace — note the `notificaties`
    name, not `opennotificaties`.
 2. **Enable and configure the subchart.** Set `opennotificaties.enabled: true`;
-   keep the pinned `opennotificaties.image.tag` (`1.16.0`); set
+   keep the pinned `opennotificaties.image.tag` (`1.16.1`); set
    `opennotificaties.configuration.oidcUrl: https://<env>-notificaties.dimpact.nl`
    and add the public hostname to `opennotificaties.settings.allowedHosts`.
    Leave `opennotificaties.tags.redis: false` and keep the

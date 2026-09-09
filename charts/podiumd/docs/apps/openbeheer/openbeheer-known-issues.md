@@ -24,7 +24,7 @@ No OOMKill (exit 137), no SIGKILL (exit 143). Just a clean uWSGI shutdown after 
 
 ### Root cause
 
-The open-beheer 0.9.0 docker image launches uWSGI without `--master`:
+The open-beheer 0.9.1 and earlier docker images launch uWSGI without `--master`:
 
 ```
 uwsgi --http :8000 --http-keepalive --manage-script-name \

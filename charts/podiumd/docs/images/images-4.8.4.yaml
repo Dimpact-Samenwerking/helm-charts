@@ -1,0 +1,21 @@
+# Images new or changed in podiumd 4.8.4 vs 4.8.3.
+#
+# Changes in this release:
+#   0. Open Inwoner Platform (OIP / "Portaal") -> 2.4.2
+#   1. Open Zaak -> 1.27.4
+#
+# See docs/_UPGRADE_PATHS/4.8.3-to-4.8.4-upgrade.md for the operator upgrade notes.
+#
+# Mirror names follow strip_registry(url) throughout. See docs/images/acr-mirror-naming.md.
+
+# Open Inwoner Platform (OIP / "Portaal")
+- name: maykinmedia/open-inwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.4.2"
+  digest: "sha256:cfd670b19464effc20e4d9402674d1abf493872fb94cff34dc18ff54335476f1"
+
+# Open Zaak
+- name: openzaak/open-zaak
+  url: docker.io/openzaak/open-zaak
+  version: "1.27.4"
+  digest: "sha256:f847e5148d857da07847b5d298d8d7a0b66a299fb48e02e4a28176cc09e8decf"

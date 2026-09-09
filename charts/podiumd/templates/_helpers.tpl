@@ -102,6 +102,34 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Common labels with an explicit app.kubernetes.io/name override — for
+sub-components (e.g. frankgateway's shim/oauth2-proxy/etcd/dashboard) that
+need a name distinct from the chart-wide default. Unlike labelsFrontend /
+labelsAdapter above, the override name is a call-site argument rather than a
+fixed suffix, and it replaces app.kubernetes.io/name outright instead of
+relying on a second, later occurrence of the same key winning in rendered
+YAML.
+Usage: {{ include "podiumd.labelsNamed" (dict "context" $ "name" "frankgateway-shim") }}
+*/}}
+{{- define "podiumd.labelsNamed" -}}
+helm.sh/chart: {{ include "podiumd.chart" .context }}
+{{ include "podiumd.selectorLabelsNamed" . }}
+{{- if .context.Chart.AppVersion }}
+app.kubernetes.io/version: {{ .context.Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .context.Release.Service }}
+{{- end }}
+
+{{/*
+Selector labels with an explicit app.kubernetes.io/name override — see
+podiumd.labelsNamed.
+*/}}
+{{- define "podiumd.selectorLabelsNamed" -}}
+app.kubernetes.io/name: {{ .name }}
+app.kubernetes.io/instance: {{ .context.Release.Name }}
+{{- end }}
+
+{{/*
 Renders a container image from a string or a dict with optional registry, repository, and tag.
 Usage: {{ include "podiumd.image" .Values.path.to.image }}
 */}}
@@ -125,4 +153,82 @@ Usage:
     {{- else }}
         {{- tpl (.value | toYaml) .context }}
     {{- end }}
+{{- end -}}
+
+{{/*
+Renders the PersistentVolume + PersistentVolumeClaim pair for a component's
+shared ReadWriteMany storage on the Azure File CSI driver — same shape for
+every component that needs it (objecten, openklant, openzaak, ...); the
+component name is both the .Values key and the resource-name suffix.
+Usage: {{ include "podiumd.storagePVC" (dict "component" "objecten" "context" $) }}
+*/}}
+{{- define "podiumd.storagePVC" -}}
+{{- $component := .component -}}
+{{- $ := .context -}}
+{{- $values := index $.Values $component -}}
+{{- if or $values.enabled (not (hasKey $values "enabled")) -}}
+{{- $pvName := printf "%s-%s" $.Release.Namespace $component -}}
+{{- if not (lookup "v1" "PersistentVolume" "" $pvName) }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $pvName }}
+  labels:
+    {{- include "podiumd.labels" $ | nindent 4 }}
+  annotations:
+    pv.kubernetes.io/provisioned-by: file.csi.azure.com
+    helm.sh/resource-policy: keep
+spec:
+  capacity:
+    storage: {{ $values.persistence.size }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ $values.persistentVolume.storageClassName | default "podiumd-standard" }}
+  csi:
+    driver: file.csi.azure.com
+    volumeHandle: {{ $pvName }}
+    volumeAttributes:
+      {{- if $.Values.persistentVolume.volumeAttributeResourceGroup }}
+      resourceGroup: {{ $.Values.persistentVolume.volumeAttributeResourceGroup }}
+      {{- end }}
+      {{- if $.Values.persistentVolume.volumeAttributeShareName }}
+      shareName: {{ $.Values.persistentVolume.volumeAttributeShareName }}
+      {{- else }}
+      shareName: {{ $values.persistentVolume.volumeAttributeShareName }}
+      {{- end }}
+    nodeStageSecretRef:
+      name: {{ $.Values.persistentVolume.nodeStageSecretRefName }}
+      namespace: {{ $.Values.persistentVolume.nodeStageSecretRefNamespace }}
+  mountOptions:
+    - dir_mode=0777
+    - file_mode=0777
+    - uid=1000
+    - gid=1000
+    - mfsymlinks
+    - cache=strict
+    - nosharesock
+    - nobrl
+{{- end }}
+{{- if not (lookup "v1" "PersistentVolumeClaim" $.Release.Namespace $values.persistence.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $values.persistence.existingClaim }}
+  labels:
+    {{- include "podiumd.labels" $ | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  volumeName: {{ $pvName }}
+  resources:
+    requests:
+      storage: {{ $values.persistence.size }}
+  accessModes:
+    - ReadWriteMany
+  storageClassName: {{ $values.persistence.storageClassName | default "podiumd-standard" }}
+{{- end }}
+{{- end }}
 {{- end -}}

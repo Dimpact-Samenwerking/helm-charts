@@ -16,11 +16,11 @@ small operator pod.
 
 - Upstream project: [Keycloak](https://www.keycloak.org/) — open source
   identity and access management (SSO, OIDC, SAML, identity brokering).
-- Image: `quay.io/keycloak/keycloak:26.6.3` (digest-pinned in
+- Image: `quay.io/keycloak/keycloak:26.6.4` (digest-pinned in
   `keycloak.image.tag`).
 - Operator-managed: the chart does not deploy Keycloak directly. The
-  `keycloak-operator` subchart (Adfinis wrapper chart 1.12.0 around the official
-  operator, image `quay.io/keycloak/keycloak-operator:26.6.3`) runs the operator,
+  `keycloak-operator` subchart (Adfinis wrapper chart 1.12.1 around the official
+  operator, image `quay.io/keycloak/keycloak-operator:26.6.4`) runs the operator,
   and the umbrella chart renders a **Keycloak CR**
   (`templates/keycloak-cr.yaml`, `k8s.keycloak.org/v2beta1`) with
   `instances: 2`. The operator reconciles that CR into the actual StatefulSet.

@@ -14,9 +14,9 @@ worker of about 1 GiB.
 
 ## What it is
 
-- Upstream project: [Open Forms](https://github.com/maykinmedia/open-forms)
+- Upstream project: [Open Forms](https://github.com/open-formulieren/open-forms)
   (Maykin Media), image `openformulieren/open-forms`, tag pinned in
-  `values.yaml` (`3.4.9@sha256:55dc…`).
+  `values.yaml` (`3.5.6@sha256:<digest>` — see `docs/images/images-4.9.0.yaml`).
 - Deployed as the `openforms` subchart (v1.12.0, repo `@maykinmedia`), aliased
   to values key **`openformulieren`** — note the docs folder is `openforms`
   but every values path below starts with `openformulieren.`.
@@ -29,7 +29,8 @@ worker of about 1 GiB.
     enabled, `maxWorkerLivenessDelta: "300"`)
   - `openformulieren-beat` — 1 replica (Celery beat scheduler)
   - `openformulieren-nginx` — nginx front (image `nginxinc/nginx-unprivileged`
-    tag `1.31.1@sha256:a863…`, `clientMaxBodySize: 100M`)
+    tag `1.31.4@sha256:197f252f060ed357f2ab98d4256762d7d107c76f18ad8f0b9d5178854611566d`,
+    `clientMaxBodySize: 100M`)
   - `django-setup-configuration` Job (`configuration.job`, `backoffLimit: 6`,
     `ttlSecondsAfterFinished: 600`) — applies declarative config on install/upgrade
   - Flower is available but disabled (`flower.enabled: false`)
@@ -86,7 +87,7 @@ The HTTPRoute is created by the per-gemeente environment deployment (ADO
   - DB **9** — cache, default + axes
     (`settings.cache.default/axes: redis-ha-master.podiumd.svc.cluster.local:6379/9`)
   - DB **10** — Celery broker + result backend
-    (`settings.celery.brokerUrl` / `settings.celery.resultBackendl`:
+    (`settings.celery.brokerUrl` / `settings.celery.resultBackend`:
     `redis://redis-ha-master.podiumd.svc.cluster.local:6379/10`)
   - Allocation table: `docs/apps/redis/redis-ha-databases.md`
 - **Keycloak** — OIDC client in the `podiumd` realm for admin login, wired via
@@ -107,8 +108,16 @@ The HTTPRoute is created by the per-gemeente environment deployment (ADO
   defaults `port: 587`, `useTLS: true`; host set per environment).
 - **ClamAV** — the stack ships a `clamav` service (clamd on TCP 3310,
   `clamav.podiumd.svc.cluster.local:3310`). Virus scanning of file uploads is
-  enabled at runtime in the Open Forms admin (general configuration); there
-  are no ClamAV keys under `openformulieren:` in `values.yaml`.
+  an Open Forms `GlobalConfiguration` setting with no declarative
+  setup-configuration step upstream (admin-UI-only,
+  `docs/configuration/general/virus_scan.rst`) — it's normally enabled at
+  runtime in the Open Forms admin (Configuratie → Algemene configuratie →
+  Virus scan). `openformulieren.clamavConfigJob` (off by default, opt-in per
+  gemeente) automates this instead: a Job runs `manage.py shell` to set
+  `enable_virus_scan`/`clamav_host`/`clamav_port`/`clamav_timeout` directly,
+  verifying the ClamAV connection first the same way the admin form does. See
+  `templates/openformulieren-configure-clamav.yaml` and
+  `docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md`.
 
 ## CPU and memory
 
@@ -174,5 +183,4 @@ baseline (dev/accp), not peak.
 
 ## Related documents
 
-None — this folder has only the BASICS file; no deep-dive documents exist yet
-for this component.
+- [openforms-migration-preparation.md](openforms-migration-preparation.md) — documents scripts to be used in preparation for version 4.0.

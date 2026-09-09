@@ -17,9 +17,9 @@ operator.
 
 - Upstream: [Redis](https://redis.io/), deployed and managed by the
   [OT-CONTAINER-KIT redis-operator](https://github.com/OT-CONTAINER-KIT/redis-operator).
-- Images: `quay.io/opstree/redis` tag `v8.6.2`
+- Images: `quay.io/opstree/redis` tag `v8.6.6`
   (`redis-operator.redis-ha.image`); operator `quay.io/opstree/redis-operator`
-  tag `v0.25.0` (`redis-operator.redisOperator`).
+  tag `v0.26.0` (`redis-operator.redisOperator`).
 - Role in PodiumD: one shared HA Redis cluster replaces the per-component
   Redis subcharts. Each app gets its own **logical databases** (32 configured,
   `redis-operator.redis-ha.databases`) — see the allocation table in
@@ -44,7 +44,7 @@ operator.
     endpoints after a simultaneous pod restart (see
     [redis-ha.md](redis-ha.md))
   - optional `redis-exporter` sidecar (`quay.io/opstree/redis-exporter`
-    `v1.82.0`, port 9121) + PodMonitor — disabled by default, enabled via
+    `v1.89.0`, port 9121) + PodMonitor — disabled by default, enabled via
     `values-enable-observability.yaml`
 
 ## Required resources

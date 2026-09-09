@@ -191,7 +191,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.openzaak.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.openzaak.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -231,7 +232,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.openarchiefbeheer.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.openarchiefbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -269,6 +271,9 @@ data:
       - clientId: monitoring
         name: {{ .Values.keycloak.config.clients.monitoring.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.monitoring.enabled }}
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
         secret: $(KC_SECRET_MONITORING)
         clientAuthenticatorType: client-secret
         redirectUris:
@@ -366,7 +371,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.opennotificaties.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.opennotificaties.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -406,7 +412,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.objecten.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.objecten.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -446,7 +453,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.objecttypen.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -486,7 +494,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.openklant.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.openklant.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -526,7 +535,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.openformulieren.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.openformulieren.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -566,7 +576,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.openinwoner.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.openinwoner.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -606,7 +617,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.referentielijsten.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.referentielijsten.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -646,7 +658,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.openbeheer.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.openbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -725,7 +738,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.kiss.settings.oidc.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -762,7 +776,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.zac.auth.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
@@ -800,10 +815,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         secret: $(KC_SECRET_ZAC_ADMIN)
-        redirectUris:
-          - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
-        webOrigins:
-          - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
         serviceAccountsEnabled: true
         protocolMappers:
           - name: "Client Host"
@@ -844,7 +858,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.ita.web.oidc.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.ita.web.oidc.frontendUrl | trimSuffix "/" }}/*"
@@ -884,7 +899,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.pabc.settings.oidc.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.pabc.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
@@ -1076,6 +1092,7 @@ data:
           - name: {{ .Values.openbao.configuration.uploadersRole | quote }}
         kiss:
           - name: Redacteur
+          - name: Beheerder
           - name: Klantcontactmedewerker
           - name: Kennisbank
         zac:

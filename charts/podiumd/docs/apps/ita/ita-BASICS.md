@@ -27,16 +27,19 @@ footprint is tiny: one small web pod plus a 15-minute cron job.
   `OIDC_…` environment variables from a chart-rendered ConfigMap + Secret).
 - Role in PodiumD: task-handling front end on top of the Open Klant
   *klantinteracties* API (internetaken), the Objecten API (Afdeling / Groep /
-  Medewerker / Activiteitenlog objects) and Open Zaak.
+  Medewerker / Activiteitenlog objects) and Open Zaak. The combination of a
+  Klantcontact and an internetaak is called a **Contactverzoek**
 - Runtime components:
   - `ita-web` — Deployment, **replicas hardcoded to 1 in the subchart
     template** (upstream comment: OIDC data-protection keys are not persisted
     yet, so >1 replica breaks login). `ita.replicaCount` has no effect.
   - `ita-web-svc` — ClusterIP Service, port 80 → container port 8080.
     Health probes on `/healthz`.
-  - `ita-poller` — CronJob, default schedule `*/15 * * * *`
-    (`ita.poller.schedule`); sends reminder notifications for internetaken
-    older than `poller.notification.hourThreshold` (default `-24` hours).
+  - `ita-poller` — Creates two Cronjobs. One for `nieuweInternetaakNotificatie`, 
+    default schedule `*/15 * * * *` (`ita.nieuweInternetaakNotificatie.schedule`). 
+    And one for `verlopenContactverzoekHerinneringNotificatie`, which reminds
+    employees about Contactverzoeken older than 48 hours. This value of 48 hours is not configurable yet. `ita.verlopenContactverzoekHerinneringNotificatie.schedule` is set
+    to `"0 7 * * 1-5"`
   - ConfigMap `ita-config`, Secret `ita-secrets`, appsettings ConfigMap —
     rendered by the subchart.
   - The subchart bundles a Bitnami PostgreSQL dependency; it is **disabled**
