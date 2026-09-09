@@ -3,17 +3,19 @@
 # Images new or changed in podiumd 4.9.1 vs 4.9.0.
 #
 # Changes:
-#   1. redis 8.0 (new).
-#   2. keycloak-operator 26.7.2 -> 26.7.3.
-#   3. keycloak-operator - operator 26.6.4 -> 26.7.3.
-#   4. kiss 3.0.0 -> 3.1.1.
-#   5. kiss - kiss-elastic-sync 3.0.0 -> 3.1.1.
-#   6. zac - opentelemetry-collector-contrib 0.158.0 (new).
-#   7. frankgateway 104 -> 1.1.0.
-#   8. zaakbrug 1.26.15 -> 1.26.18.
-#   9. openbao - openbao-csi-provider 2.0.2 (new).
-#   10. openbao - vault-k8s 1.7.2 (new).
-#   11. openbao - openbao-snapshot-agent 0.3.0 (new).
+#   1. mi 2.71.0 -> 2.90.0 (chart 1.1.0, unchanged).
+#   2. redis 8.0 (new).
+#   3. curl 8.21.0 -> 8.22.0.
+#   4. keycloak-operator 26.7.2 -> 26.7.3.
+#   5. keycloak-operator - operator 26.6.4 -> 26.7.3.
+#   6. kiss 3.0.0 -> 3.1.1.
+#   7. kiss - kiss-elastic-sync 3.0.0 -> 3.1.1.
+#   8. zac - opentelemetry-collector-contrib 0.158.0 (new).
+#   9. frankgateway 104 -> 1.1.0.
+#   10. zaakbrug 1.26.15 -> 1.26.18.
+#   11. openbao - openbao-csi-provider 2.0.2 (new).
+#   12. openbao - vault-k8s 1.7.2 (new).
+#   13. openbao - openbao-snapshot-agent 0.3.0 (new).
 #
 # See docs/_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md for the operator upgrade notes.
 #
@@ -23,8 +25,13 @@
 # redis 8.0 (new)
 - name: redis
   url: docker.io/library/redis
-  version: "8.0"
-  digest: "sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"
+  version: "8.10.1"
+  digest: "sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"
+# curl 8.21.0 -> 8.22.0
+- name: curlimages/curl
+  url: curlimages/curl
+  version: "8.22.0"
+  digest: "sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"
 
 # keycloak-operator 26.7.2 -> 26.7.3
 - name: keycloak/keycloak
