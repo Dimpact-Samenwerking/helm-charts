@@ -1626,19 +1626,23 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(ucv, tmp_path, monkey
     assert '"5.0.2"' in images  # the entry itself still lists the correct (reset) version
 
 
-def test_main_new_component_row_annotated_unchanged_when_known_in_images_baseline(ucv, tmp_path, monkeypatch):
+def test_main_new_component_row_renders_new_ignoring_images_baseline(ucv, tmp_path, monkeypatch):
     """Regression test: brppersonenmock's own Chart.yaml dependency is
     brand new (it doesn't exist at all at the podiumd-4.8.5 baseline
     commit — zac is the only dependency there), so baseline_dep resolves
-    to None. Before this fix, that meant old_app stayed at whatever
-    (nothing) was on disk before THIS run — a nonsensical "(new)" app
-    cell for an image whose exact version+digest is already known in
-    images-baseline.yaml, same real gap as fix-doc-consistency's own
-    add_missing_component_rows/fix_component_version_table. No explicit
-    "repository:" override in podiumd's own values.yaml here (the
-    "fallback_paths" branch — a sub-chart default digest) since that's
-    the only bootstrap route with no PRE-EXISTING digest pin to bump
-    from at all — see check_image_versions, faked below to resolve
+    to None and the git-baseline read has nothing for it. images-
+    baseline.yaml is NOT a valid substitute for that (source-version
+    resolution must come strictly from Chart.yaml/values.yaml AT the
+    release baseline's own git ref — see lib.upgradedoc.resolve_
+    baseline_component_versions) even though it happens to already know
+    this exact (repository, version, digest) pin — that's a genuinely
+    different, unrelated fact (ACR-mirror digest provenance), not "was
+    this component tracked at the true baseline." A component the true
+    baseline git ref has nothing for renders "(new)", full stop. No
+    explicit "repository:" override in podiumd's own values.yaml here
+    (the "fallback_paths" branch — a sub-chart default digest) since
+    that's the only bootstrap route with no PRE-EXISTING digest pin to
+    bump from at all — see check_image_versions, faked below to resolve
     brppersonenmock's own real repository."""
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     commit_baseline_tag(tmp_path)  # baseline: only zac, no brppersonenmock at all
@@ -1700,7 +1704,7 @@ def test_main_new_component_row_annotated_unchanged_when_known_in_images_baselin
     ucv.main()
 
     upgrade = (ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
-    assert "| brppersonenmock | 2.7.0 (unchanged) |" in upgrade
+    assert "| brppersonenmock | 2.7.0 (new) |" in upgrade
 
 
 def test_main_collapses_repeated_bump_into_single_baseline_entry(ucv, tmp_path, monkeypatch):

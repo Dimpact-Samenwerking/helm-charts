@@ -70,8 +70,7 @@ from lib.chart import chart_version as _chart_version
 from lib.chart import find_dependency as _find_dependency
 from lib.chart import upgrade_docs_baseline as _read_upgrade_docs_baseline
 from lib.chart import (
-    NATIVE_COMPONENTS, check_image_versions, get_path, image_paths_for, image_pin_known_in_images_baseline,
-    load_images_baseline, replace_scalar_value, resolve_chart_values, strip_registry_host,
+    NATIVE_COMPONENTS, check_image_versions, get_path, image_paths_for, replace_scalar_value, resolve_chart_values,
 )
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs import (
@@ -586,24 +585,16 @@ def main():
             baseline_values, baseline_dep, values_key, image_paths[0], chart_name, new_chart, chart_dir=CHART_DIR)
         if no_chart:
             old_chart = None  # NATIVE_COMPONENTS: never a chart version to show at all
-        if baseline_dep is None and old_app is None:
-            # baseline_dep is None (this Chart.yaml dependency is brand
-            # new at the release baseline) — before letting component_
-            # version_cell render a "(new)" app cell, check whether the
-            # image this bump just pinned (repos/new_tags_by_path — this
-            # exact run's own already-resolved repository/tag, whichever
-            # of split/delegated/fallback wrote it) is already a known,
-            # previously-mirrored pin in images-baseline.yaml (same
-            # fallback fix-doc-consistency's own fix_component_version_
-            # table/add_missing_component_rows use for the same real
-            # gap — see lib.chart.image_pin_known_in_images_baseline).
-            repo = repos.get(image_paths[0])
-            new_tag = new_tags_by_path.get(image_paths[0]) or ""
-            if repo and "@" in new_tag:
-                new_version, _, digest = new_tag.partition("@")
-                if image_pin_known_in_images_baseline(
-                        load_images_baseline(CHART_DIR), strip_registry_host(repo), new_version, digest):
-                    old_app = new_version
+        # baseline_dep is None (this Chart.yaml dependency is brand new at
+        # the release baseline) and old_app still None: the source version
+        # comes strictly from a direct git-baseline read (resolve_baseline_
+        # component_versions above) — images-baseline.yaml is never a
+        # substitute for that (it only ever tracks ACR-mirror digest
+        # provenance, not "what was this component pinned to at the true
+        # upgrade_docs_baseline"; a real upgrade_docs_baseline that
+        # genuinely has nothing for this component IS the "(new)"
+        # signal, not a reason to fall back to a different source). No
+        # further fallback here.
 
     if upgrade_path is None:
         print()
