@@ -109,8 +109,8 @@ from lib.upgradedoc import (
     append_to_doc, canonical_version_cell, changes_heading_identities, component_version_cell,
     compute_changed_components, extract_source_version, extract_target_version, find_all_image_and_version_paths,
     find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff,
-    images_manifest_block_start, images_manifest_display_name_positions, images_manifest_entries_share_group,
-    images_manifest_entry_positions, insertion_index, is_primary_image_path,
+    header_name_segment, images_manifest_block_start, images_manifest_display_name_positions,
+    images_manifest_entries_share_group, images_manifest_entry_positions, insertion_index, is_primary_image_path,
     match_changes_item_display_name,
     normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
     path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
@@ -512,8 +512,16 @@ def fix_changes_heading_app_versions(text, chart_dir, target_deps, target_values
     portion (the piece right after the component's own name — never the
     "(chart ...)" clause, or the body below it, both left untouched) to
     match what fix_component_version_table's own row loop ALREADY
-    verifies and rewrites for the table row every single run — real bug,
-    real doc: mi's own "### mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"
+    verifies and rewrites for the table row every single run.
+
+    The heading's own EXISTING name portion (lib.upgradedoc.header_name_
+    segment) is always kept verbatim, never replaced with the table
+    row's own display name — the two can legitimately differ (real
+    case: the table row's own longer "mi-data (MI-data exports)" vs
+    this same component's own heading's shorter "mi"), and this
+    function only ever corrects the app-version piece, nothing else.
+
+    Real bug, real doc: mi's own "### mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"
     heading, written by an earlier, buggy tool run before this chart's
     baseline-resolution bugs were fixed. mi is actually a BRAND NEW
     dependency this hop — no 2.71.0 baseline value exists at all — so
@@ -584,7 +592,7 @@ def fix_changes_heading_app_versions(text, chart_dir, target_deps, target_values
         kind, values_key = next(iter(idents))
         if kind != "dep" or values_key not in resolved_by_values_key:
             continue
-        friendly_name, resolved = resolved_by_values_key[values_key]
+        _row_name, resolved = resolved_by_values_key[values_key]
 
         if resolved["baseline_resolved"] is False:
             old_app = _dep_old_app_for_new_dependency(
@@ -599,10 +607,16 @@ def fix_changes_heading_app_versions(text, chart_dir, target_deps, target_values
         if expected_app_heading in without_chart_clause:
             continue
 
+        # The heading's OWN name portion, never the row's — a row can
+        # use a longer/different display name for the same identity
+        # (real case: table row "mi-data (MI-data exports)" vs this
+        # same component's own heading "mi"); only the app-version
+        # portion is ever being corrected here.
+        name_segment = header_name_segment(heading)
         chart_clause_match = re.search(r"\s*\(chart[^)]*\)", heading)
         chart_clause = chart_clause_match.group(0) if chart_clause_match else ""
         suffix = "\n" if lines[block["start"]].endswith("\n") else ""
-        lines[block["start"]] = f"### {friendly_name} {expected_app_heading}{chart_clause}{suffix}"
+        lines[block["start"]] = f"### {name_segment} {expected_app_heading}{chart_clause}{suffix}"
         updated_headings.append(heading)
 
     return "".join(lines), updated_headings

@@ -1324,16 +1324,27 @@ def images_manifest_block_start(lines, entry_line_idx):
     return i
 
 
-def _header_name_segment(text):
-    """The header's own component-name portion — everything before its
+def header_name_segment(text):
+    """A header's own component-name portion — everything before its
     version pair (or before a trailing "(...)" aside, or the whole text
     when neither is present), with a trailing dash/em-dash separator
-    stripped. Comparing only this isolated segment (not the header's
-    full text) for EXACT equality — never a "startswith" check against
-    the full text — matters because one canonical sidecar name can be a
-    literal text-prefix of another's ("redis-operator - redis" is a
-    prefix of "redis-operator - redis-exporter" once punctuation is
-    stripped by normalize_name); a startswith check would silently
+    stripped. Public (no longer underscore-prefixed): originally just
+    find_images_manifest_faulty_headers' own private helper for a "#
+    sidecar: ..." comment's name segment, but the exact same "<name>
+    <version-info>(optional paren clause)" shape also describes a "###
+    ..." Changes-section heading — fix-doc-consistency's own fix_
+    changes_heading_app_versions reuses this directly to isolate an
+    EXISTING heading's own name portion before rewriting just its
+    app-version portion, rather than re-deriving a (potentially
+    DIFFERENT-looking, e.g. the table row's own longer "mi-data (MI-data
+    exports)" vs the heading's own shorter "mi") name from the row.
+
+    Comparing only this isolated segment (not the header's full text)
+    for EXACT equality — never a "startswith" check against the full
+    text — matters because one canonical sidecar name can be a literal
+    text-prefix of another's ("redis-operator - redis" is a prefix of
+    "redis-operator - redis-exporter" once punctuation is stripped by
+    normalize_name); a startswith check would silently
     accept the wrong sidecar's header as long as it named the RIGHT
     parent and happened to start with the right basename's own letters.
 
@@ -1387,7 +1398,7 @@ def find_images_manifest_faulty_headers(entries, entry_line_indices, lines, deps
       check still protects every OTHER, not-yet-registered sidecar
       against the same same_group misfire).
     - "wrong_name": it HAS its own indented sidecar header, but that
-      header's own name segment (see _header_name_segment — everything
+      header's own name segment (see header_name_segment — everything
       before the version pair) doesn't EXACTLY equal "<parent> -
       <basename>" (see path_display_name) — the same canonical sidecar-
       naming convention -upgrade.md's own "### <parent> - <basename>
@@ -1422,7 +1433,7 @@ def find_images_manifest_faulty_headers(entries, entry_line_indices, lines, deps
         match = SIDECAR_HEADER_RE.match(top_line) if top_line is not None else None
         if match is None:
             problems.append((entry["name"], display_name, "missing"))
-        elif normalize_name(_header_name_segment(match.group("text"))) != normalize_name(display_name):
+        elif normalize_name(header_name_segment(match.group("text"))) != normalize_name(display_name):
             problems.append((entry["name"], display_name, "wrong_name"))
     return problems
 
