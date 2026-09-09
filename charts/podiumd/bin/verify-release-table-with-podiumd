@@ -368,8 +368,23 @@ def check_chart_version(dep, scope_key, rows, lines, values, chart_dir, findings
     actual = str(dep["version"])
     for row in rows:
         target = row["target_version_helm"]
-        if is_verifiable_target(target) and target != actual:
-            report_mismatch(findings, "CHART", row, dep["name"], target, actual, "Chart.yaml")
+        if is_verifiable_target(target):
+            if target != actual:
+                report_mismatch(findings, "CHART", row, dep["name"], target, actual, "Chart.yaml")
+        else:
+            # Same gap as check_images' own blank-target branch: a blank
+            # target_version_helm ("no planned change") must not excuse
+            # never checking this row again — if its own previously-
+            # recorded source has since drifted from Chart.yaml's real
+            # current version, that's a real change release-table.csv
+            # never caught up to, not a legitimate "unchanged".
+            source = row["source_version_helm"]
+            if is_verifiable_target(source) and source != actual:
+                findings["mismatches"].append(
+                    f"[CHART] {row['name']} ({dep['name']}): release-table target is blank (recorded "
+                    f"source {source}) but Chart.yaml is now {actual} — target_version_helm was never "
+                    f"filled in for this change"
+                )
     if not chart_version_ever_tracked(rows):
         hint = missing_chart_version_hint(chart_dir, lines, scope_key, dep["name"], dep, values, rows)
         findings["missing_from_release_table"].append(
@@ -463,19 +478,43 @@ def check_images(scope_key, component, rows, lines, findings, values, dep=None, 
                 # "keycloak-operator").
                 pins = find_matches(lines, basename) or None
             if pins is not None:
+                versions = {p["version"] for p in pins}
+                if len(versions) > 1:
+                    findings["ambiguous"].append(
+                        f"[IMAGE] '{basename}' under '{scope_key}' is pinned at {len(versions)} different "
+                        f"versions ({', '.join(sorted(versions))}) -- can't compare to release-table"
+                    )
+                    continue
+                actual = next(iter(versions))
                 if is_verifiable_target(target):
-                    versions = {p["version"] for p in pins}
-                    if len(versions) > 1:
-                        findings["ambiguous"].append(
-                            f"[IMAGE] '{basename}' under '{scope_key}' is pinned at {len(versions)} different "
-                            f"versions ({', '.join(sorted(versions))}) -- can't compare to release-table "
-                            f"target {target}"
-                        )
+                    if actual != target:
+                        report_mismatch(findings, "IMAGE", row, f"{component}.{basename}", target,
+                                         actual, "values.yaml")
+                else:
+                    # target_version_app blank ("no planned change" — see
+                    # is_verifiable_target) must never mean "nothing left
+                    # to check": a real pin was JUST resolved above, so
+                    # compare it against whatever this row's own source
+                    # last recorded instead — the exact gap a blank
+                    # target can otherwise hide behind indefinitely (real
+                    # case, confirmed live: mi-data's own azure-cli pin
+                    # moved to 2.90.0 in values.yaml while its
+                    # release-table row never recorded ANY app version at
+                    # all, source or target — "OK: matches" regardless).
+                    source = row["source_version_app"]
+                    if is_verifiable_target(source):
+                        if actual != source:
+                            findings["mismatches"].append(
+                                f"[IMAGE] {row['name']} ({component}.{basename}): release-table target is "
+                                f"blank (recorded source {source}) but values.yaml is now {actual} — "
+                                f"target_version_app was never filled in for this change"
+                            )
                     else:
-                        actual = next(iter(versions))
-                        if actual != target:
-                            report_mismatch(findings, "IMAGE", row, f"{component}.{basename}", target,
-                                             actual, "values.yaml")
+                        findings["missing_from_release_table"].append(
+                            f"[IMAGE] '{basename}' under '{scope_key}' is pinned at {actual} in values.yaml, "
+                            f"but release-table.csv's row for it has never recorded an app version "
+                            f"(source and target both blank)"
+                        )
                 continue
 
             basename_special_path = SPECIAL_CASE_BASENAME_TAG_PATHS.get(basename)
