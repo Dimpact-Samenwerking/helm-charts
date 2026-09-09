@@ -112,7 +112,7 @@ from lib.upgradedoc import (
     header_name_segment, images_manifest_block_start, images_manifest_display_name_positions,
     images_manifest_entries_share_group, images_manifest_entry_positions, insertion_index, is_primary_image_path,
     match_changes_item_display_name,
-    normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
+    normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, parse_values_delta_sections,
     path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
     sort_images_manifest_entries, sort_upgrade_doc_rows, sort_values_delta_sections, values_key_order,
 )
@@ -472,14 +472,27 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
         line = lines[row["line_index"]]
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
 
-        if actual_target_app is not None and actual_baseline_app is not None:
-            # Compared as the full rendered CELL TEXT, not just the two
-            # numeric endpoints (row["app_source"]/row["app"]) — a row
-            # whose numbers already match but whose "(new)"/"(unchanged)"
+        if actual_target_app is not None:
+            # component_version_cell, not canonical_version_cell directly:
+            # baseline_resolved=True here only means the dependency's own
+            # Chart.yaml LINE existed at the baseline ref — its own APP
+            # VERSION can still fail to resolve there (real bug, real
+            # case: mi — the Chart.yaml dependency line predates this
+            # release, but its own "image:" block was only pinned this
+            # hop, so actual_baseline_app is None even though baseline_
+            # resolved is True). component_version_cell already renders
+            # "(new)" for that case, the exact same wording fix_changes_
+            # heading_app_versions's own heading correction already uses
+            # — before this fix, the row silently kept its stale, wrong
+            # "<old> → <new>" transition forever, disagreeing with an
+            # already-correct heading right below it. Also compared as
+            # the full rendered CELL TEXT, not just the two numeric
+            # endpoints (row["app_source"]/row["app"]) — a row whose
+            # numbers already match but whose "(new)"/"(unchanged)"
             # annotation is stale must still be corrected; comparing only
             # the numbers would silently leave a wrong annotation in
             # place forever, since they'd already "match".
-            new_app_cell = canonical_version_cell(actual_baseline_app, actual_target_app)
+            new_app_cell = component_version_cell(actual_baseline_app, actual_target_app)
             if cells[1] != new_app_cell:
                 cells[1] = new_app_cell
                 row_changed = True
@@ -506,74 +519,24 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
     return "".join(lines), changed_rows, unmatched_names, unresolved_names
 
 
-def fix_changes_heading_app_versions(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
-                                      upgrade_docs_baseline=None):
-    """Rewrite a "### ..." Changes section heading's own app-version
-    portion (the piece right after the component's own name — never the
-    "(chart ...)" clause, or the body below it, both left untouched) to
-    match what fix_component_version_table's own row loop ALREADY
-    verifies and rewrites for the table row every single run.
-
-    The heading's own EXISTING name portion (lib.upgradedoc.header_name_
-    segment) is always kept verbatim, never replaced with the table
-    row's own display name — the two can legitimately differ (real
-    case: the table row's own longer "mi-data (MI-data exports)" vs
-    this same component's own heading's shorter "mi"), and this
-    function only ever corrects the app-version piece, nothing else.
-
-    Real bug, real doc: mi's own "### mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"
-    heading, written by an earlier, buggy tool run before this chart's
-    baseline-resolution bugs were fixed. mi is actually a BRAND NEW
-    dependency this hop — no 2.71.0 baseline value exists at all — so
-    the correct heading is "### mi 2.90.0 (new) (chart 1.1.0,
-    unchanged)". fix_component_version_table's own row loop DOES
-    re-verify and rewrite the table ROW's own cells every run against
-    whatever baseline resolution is current now, bugs fixed or not —
-    but nothing else ever revisited the heading once it already
-    existed; this closes exactly that gap. Run this AFTER fix_component_
-    version_table (order matters only for the printed diff being
-    intuitive to read top-to-bottom; this function re-resolves its own
-    old/new versions independently, so it doesn't actually depend on
-    the row text having been rewritten first).
-
-    Deliberately does NOT reconstruct old/new from the table row's own
-    RENDERED cell text (extract_source_version/extract_target_version) —
-    that round-trip is lossy: a "<version> (new)" cell and a "<version>
-    (unchanged)" cell both extract to the exact same (source, target)
-    pair once the annotation itself is stripped, so there is no way to
-    tell a genuinely brand-new component's cell apart from an unchanged
-    one just from those two numbers (confirmed live: this WAS the first
-    approach tried here, and it silently turned mi's heading into the
-    equally-wrong "(unchanged)" instead of "(new)"). Independently
-    reresolves via resolve_component_row instead — the SAME shared
-    function fix_component_version_table's own row loop and lib.docs_
-    consistency.check_docs_consistency's own row-checker already use
-    (see its own docstring for why: a checker/fixer that resolves a
-    row/heading pair different ways can silently drift apart on what
-    "correct" even means) — and _dep_old_app_for_new_dependency, the
-    exact same brand-new-dependency historical-manifest fallback fix_
-    component_version_table's own row loop uses for its APP cell, so a
-    freshly-fixed row and its own heading can never disagree.
-
-    Only ever touches a heading naming EXACTLY ONE real "dep" identity
-    (see resolve_component_identity/changes_heading_identities — a real
-    Chart.yaml dependency or a lib.chart.NATIVE_COMPONENTS component,
-    never a sidecar: a canonical sidecar heading is only ever written
-    once its own tag is already known, so this "wrong content" gap
-    doesn't apply to it) whose row resolves to a real, non-None target
-    app version; a heading that's ambiguous, orphaned, whose row has no
-    resolvable app version at all, whose baseline genuinely can't be
-    checked (upgrade_docs_baseline itself doesn't resolve to a git ref),
-    or that's already correct is left exactly as-is — never a spurious
-    rewrite when nothing is actually wrong. Returns (new_text,
-    updated_headings) — updated_headings is the ORIGINAL (pre-fix)
-    heading text for every heading actually rewritten."""
-    current_paths = dict(find_image_tag_paths(target_values))
-    current_paths.update(global_image_paths(target_values))
-    canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
-
+def _resolved_rows_by_values_key(upgrade_doc_text, chart_dir, target_deps, target_values, baseline_deps,
+                                  baseline_values, upgrade_docs_baseline, canonical_names):
+    """{values_key: (row_name, resolved)} for every "dep"-kind row (see
+    resolve_component_row) in -upgrade.md's own "Component versions"
+    table (`upgrade_doc_text`) - the SINGLE source both fix_changes_
+    heading_app_versions (the SAME doc) and fix_values_delta_heading_
+    app_versions (a DIFFERENT doc, -values-deltas.md, which has no
+    table of its own at all) key their own heading correction against,
+    so the row's own display name (see add_missing_component_rows' own
+    docstring - the same "friendly" value passed to both the table row
+    and its own Changes heading when freshly written together) is
+    authoritative for BOTH docs' own headings, not just whichever one
+    happens to share a file with the table. `upgrade_doc_text` is "" -
+    parse_upgrade_doc_rows("") is [] - when -upgrade.md itself doesn't
+    exist yet; there is nothing to resolve against in that case, same
+    as any other row this table doesn't (yet) have."""
     resolved_by_values_key = {}
-    for row in parse_upgrade_doc_rows(text):
+    for row in parse_upgrade_doc_rows(upgrade_doc_text):
         resolved = resolve_component_row(
             row["name"], chart_dir, canonical_names, target_deps, target_values,
             baseline_deps=baseline_deps, baseline_values=baseline_values,
@@ -581,10 +544,28 @@ def fix_changes_heading_app_versions(text, chart_dir, target_deps, target_values
         )
         if resolved["kind"] not in ("unmatched", "sidecar") and resolved["target_app"] is not None:
             resolved_by_values_key[resolved["values_key"]] = (row["name"], resolved)
+    return resolved_by_values_key
 
+
+def _fix_heading_app_versions(text, chart_dir, target_deps, target_values, resolved_by_values_key, canonical_names,
+                               upgrade_docs_baseline, blocks, heading_marker):
+    """Shared implementation for fix_changes_heading_app_versions
+    (-upgrade.md's own "### ..." Changes-section headings) and fix_
+    values_delta_heading_app_versions (-values-deltas.md's own "## ..."
+    section headings) - see either one's own docstring for the full
+    rationale; this just does the actual compare+rewrite once, given the
+    row data ALREADY resolved (see _resolved_rows_by_values_key - the
+    SAME map both callers pass in, so the two docs' own headings can
+    never independently disagree on the same component's own correct
+    name/wording), parameterized only by which already-parsed section
+    list (`blocks` - parse_upgrade_doc_changes_blocks or parse_values_
+    delta_sections) and heading marker ("###" or "##") apply. Returns
+    (new_text, updated_headings) - updated_headings is the ORIGINAL
+    (pre-fix) heading text for every heading actually rewritten (a wrong
+    name, a wrong app-version transition, or both at once)."""
     lines = text.splitlines(keepends=True)
     updated_headings = []
-    for block in parse_upgrade_doc_changes_blocks(text):
+    for block in blocks:
         heading = block["heading"]
         idents = changes_heading_identities(heading, target_deps, canonical_names)
         if len(idents) != 1:
@@ -592,7 +573,7 @@ def fix_changes_heading_app_versions(text, chart_dir, target_deps, target_values
         kind, values_key = next(iter(idents))
         if kind != "dep" or values_key not in resolved_by_values_key:
             continue
-        _row_name, resolved = resolved_by_values_key[values_key]
+        row_name, resolved = resolved_by_values_key[values_key]
 
         if resolved["baseline_resolved"] is False:
             old_app = _dep_old_app_for_new_dependency(
@@ -604,22 +585,137 @@ def fix_changes_heading_app_versions(text, chart_dir, target_deps, target_values
 
         expected_app_heading = component_version_cell(old_app, resolved["target_app"])
         without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
-        if expected_app_heading in without_chart_clause:
+        # The ROW's own name is authoritative - see add_missing_component_
+        # rows' own docstring ("using the dependency's own literal name/
+        # alias as the row's Name ... immune to a naming drift a hand-
+        # picked display name can fall into"), the same friendly value it
+        # passes to BOTH update_component_table (the row) and make_
+        # changes_section/insert_changes_section (the heading) when
+        # freshly writing the two together. Real bug, real doc: mi's own
+        # row later got hand-edited to the friendlier "mi-data (MI-data
+        # exports)", but nothing ever re-synced its own Changes heading
+        # (still bare "mi") or its values-deltas.md section heading
+        # (same) to match - every OTHER row/heading pair in the real doc
+        # agrees (exactly, or via a deliberately hand-customized variant
+        # of the SAME name), only mi's had drifted. Skip (leave alone)
+        # only when BOTH the name and the app-version wording already
+        # agree - either one being wrong is enough to rewrite.
+        if expected_app_heading in without_chart_clause and row_name == header_name_segment(heading):
             continue
 
-        # The heading's OWN name portion, never the row's — a row can
-        # use a longer/different display name for the same identity
-        # (real case: table row "mi-data (MI-data exports)" vs this
-        # same component's own heading "mi"); only the app-version
-        # portion is ever being corrected here.
-        name_segment = header_name_segment(heading)
         chart_clause_match = re.search(r"\s*\(chart[^)]*\)", heading)
         chart_clause = chart_clause_match.group(0) if chart_clause_match else ""
         suffix = "\n" if lines[block["start"]].endswith("\n") else ""
-        lines[block["start"]] = f"### {name_segment} {expected_app_heading}{chart_clause}{suffix}"
+        lines[block["start"]] = f"{heading_marker} {row_name} {expected_app_heading}{chart_clause}{suffix}"
         updated_headings.append(heading)
 
     return "".join(lines), updated_headings
+
+
+def fix_changes_heading_app_versions(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
+                                      upgrade_docs_baseline=None):
+    """Rewrite a "### ..." Changes section heading's own name and app-
+    version portions (never the "(chart ...)" clause, or the body below
+    it, both left untouched) to match what fix_component_version_table's
+    own row loop ALREADY verifies and rewrites for the table row every
+    single run - see _fix_heading_app_versions for the full mechanism.
+
+    Real bug, real doc: mi's own "### mi 2.71.0 -> 2.90.0 (chart 1.1.0, unchanged)"
+    heading, written by an earlier, buggy tool run before this chart's
+    baseline-resolution bugs were fixed. mi is actually a BRAND NEW
+    dependency this hop - no 2.71.0 baseline value exists at all - so
+    the correct heading is "### mi-data (MI-data exports) 2.90.0 (new)
+    (chart 1.1.0, unchanged)" (mi-data (MI-data exports) being the
+    table row's own, later hand-edited display name - see _fix_heading_
+    app_versions' own docstring for why that one wins). fix_component_
+    version_table's own row loop DOES re-verify and rewrite the table
+    ROW's own cells every run against whatever baseline resolution is
+    current now, bugs fixed or not - but nothing else ever revisited the
+    heading once it already existed; this closes exactly that gap. Run
+    this AFTER fix_component_version_table (order matters only for the
+    printed diff being intuitive to read top-to-bottom; this function
+    re-resolves its own old/new versions independently, so it doesn't
+    actually depend on the row text having been rewritten first).
+
+    Deliberately does NOT reconstruct old/new from the table row's own
+    RENDERED cell text (extract_source_version/extract_target_version) -
+    that round-trip is lossy: a "<version> (new)" cell and a "<version>
+    (unchanged)" cell both extract to the exact same (source, target)
+    pair once the annotation itself is stripped, so there is no way to
+    tell a genuinely brand-new component's cell apart from an unchanged
+    one just from those two numbers (confirmed live: this WAS the first
+    approach tried here, and it silently turned mi's heading into the
+    equally-wrong "(unchanged)" instead of "(new)"). Independently
+    re-resolves via resolve_component_row instead - the SAME shared
+    function fix_component_version_table's own row loop and lib.docs_
+    consistency.check_docs_consistency's own row-checker already use
+    (see its own docstring for why: a checker/fixer that resolves a
+    row/heading pair different ways can silently drift apart on what
+    "correct" even means) - and _dep_old_app_for_new_dependency, the
+    exact same brand-new-dependency historical-manifest fallback fix_
+    component_version_table's own row loop uses for its APP cell, so a
+    freshly-fixed row and its own heading can never disagree.
+
+    Only ever touches a heading naming EXACTLY ONE real "dep" identity
+    (see resolve_component_identity/changes_heading_identities - a real
+    Chart.yaml dependency or a lib.chart.NATIVE_COMPONENTS component,
+    never a sidecar: a canonical sidecar heading is only ever written
+    once its own tag is already known, so this "wrong content" gap
+    doesn't apply to it) whose row resolves to a real, non-None target
+    app version; a heading that's ambiguous, orphaned, whose row has no
+    resolvable app version at all, whose baseline genuinely can't be
+    checked (upgrade_docs_baseline itself doesn't resolve to a git ref),
+    or that's already correct (name AND app-version wording both agree)
+    is left exactly as-is - never a spurious rewrite when nothing is
+    actually wrong. Returns (new_text, updated_headings) - updated_
+    headings is the ORIGINAL (pre-fix) heading text for every heading
+    actually rewritten."""
+    current_paths = dict(find_image_tag_paths(target_values))
+    current_paths.update(global_image_paths(target_values))
+    canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
+    resolved_by_values_key = _resolved_rows_by_values_key(
+        text, chart_dir, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline,
+        canonical_names)
+    blocks = parse_upgrade_doc_changes_blocks(text)
+    return _fix_heading_app_versions(text, chart_dir, target_deps, target_values, resolved_by_values_key,
+                                      canonical_names, upgrade_docs_baseline, blocks, "###")
+
+
+def fix_values_delta_heading_app_versions(upgrade_doc_text, values_deltas_text, chart_dir, target_deps,
+                                           target_values, baseline_deps, baseline_values,
+                                           upgrade_docs_baseline=None):
+    """The SAME stale-heading gap fix_changes_heading_app_versions closes
+    for -upgrade.md's own "### ..." Changes-section headings, but for
+    -values-deltas.md's own "## ..." section headings instead (see
+    lib.component_docs.values_delta_section_heading/sync_values_delta_
+    sections - a genuinely SEPARATE, parallel implementation, not the
+    same function shared between the two doc types: sync_values_delta_
+    sections' own docstring already states "Existing content is only
+    ever ADDED to, never reordered or rewritten" - an existing section's
+    own heading is never revisited there either, the identical gap).
+    Real bug, real doc: mi's own "## mi 2.71.0 -> 2.90.0 (chart 1.1.0,
+    unchanged)" section heading in 4.9.0-to-4.9.1-values-deltas.md, same
+    wrong wording, same root cause, confirmed live.
+
+    `upgrade_doc_text` (the CURRENT -upgrade.md text, already corrected
+    by fix_component_version_table/fix_changes_heading_app_versions by
+    the time main() gets here) is where the row data this keys its own
+    correction against actually lives - values-deltas.md has no
+    "Component versions" table of its own at all, so its own row's
+    authoritative display name (see _resolved_rows_by_values_key) can
+    only ever come from -upgrade.md's. See _fix_heading_app_versions
+    for the shared compare+rewrite mechanism both this and fix_changes_
+    heading_app_versions actually use."""
+    current_paths = dict(find_image_tag_paths(target_values))
+    current_paths.update(global_image_paths(target_values))
+    canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
+    resolved_by_values_key = _resolved_rows_by_values_key(
+        upgrade_doc_text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
+        upgrade_docs_baseline, canonical_names)
+    blocks = parse_values_delta_sections(values_deltas_text)
+    return _fix_heading_app_versions(values_deltas_text, chart_dir, target_deps, target_values,
+                                      resolved_by_values_key, canonical_names, upgrade_docs_baseline, blocks, "##")
+
 
 
 def resolve_entry_version(entry, paths, repo_map=None):
@@ -1399,7 +1495,7 @@ def main():
         )
         if updated_wrong_headings:
             print()
-            print(f"=== Correcting '### ...' Changes section(s) with the wrong app-version "
+            print(f"=== Correcting '### ...' Changes section heading(s) with the wrong name/app-version "
                   f"transition in {upgrade_path.name} ===")
             for heading in updated_wrong_headings:
                 print(f"  {heading}")
@@ -1562,6 +1658,27 @@ def main():
                     print(f"=== Adding missing key-change mention(s) to {values_deltas_path.name} ===")
                     for name in updated_names:
                         print(f"  {name}")
+
+            # upgrade_path's own text at this point already reflects
+            # everything fix_component_version_table/fix_changes_
+            # heading_app_versions corrected above (written to disk by
+            # then, whether or not anything actually changed there) -
+            # the SAME row data this heading correction keys against
+            # (see fix_values_delta_heading_app_versions' own docstring
+            # for why -upgrade.md's own table is the authoritative
+            # source, not this doc, which has no table of its own).
+            upgrade_doc_text = upgrade_path.read_text(encoding="utf-8") if upgrade_path.is_file() else ""
+            text, updated_delta_headings = fix_values_delta_heading_app_versions(
+                upgrade_doc_text, text, CHART_YAML.parent, target_deps, target_values, baseline_deps,
+                baseline_values, upgrade_docs_baseline=new_baseline
+            )
+            if updated_delta_headings:
+                write_needed = True
+                print()
+                print(f"=== Correcting '## ...' section heading(s) with the wrong name/app-version "
+                      f"transition in {values_deltas_path.name} ===")
+                for heading in updated_delta_headings:
+                    print(f"  {heading}")
 
             text, pruned_headings = prune_empty_values_delta_sections(text)
             if pruned_headings:

@@ -1356,21 +1356,31 @@ def header_name_segment(text):
     before its "(...)" aside — VERSION_PAIR_RE finds nothing to search
     for there, so it must be stripped separately, the same atom shape
     VERSION_PAIR_RE's own source/target groups use. Only attempted when
-    a "(...)" aside is actually present: nothing in this codebase ever
-    writes a bare "<name> <version>" header with no arrow AND no aside,
-    so requiring one here is what keeps this from ever mistaking a real
-    bare-name-only header's own last word (no version at all) for a
-    version token and truncating a real basename by mistake."""
+    a trailing "(...)" aside is actually present: nothing in this
+    codebase ever writes a bare "<name> <version>" header with no arrow
+    AND no aside, so requiring one here is what keeps this from ever
+    mistaking a real bare-name-only header's own last word (no version
+    at all) for a version token and truncating a real basename by
+    mistake.
+
+    Trailing aside(s) are stripped from the very END of the string —
+    repeatedly, since there can be more than one back to back (an
+    app-side "(new)"/"(unchanged)"/"(digest changed)" aside AND a
+    "(chart ...)" one) — never by truncating at wherever the FIRST "("
+    happens to appear anywhere in the text: a real component's own
+    display name can itself embed a parenthetical nowhere near the
+    trailing aside (real bug, real docs: "mi-data (MI-data exports)",
+    "Keycloak Operator (server)" — truncating at the first "(" turned
+    both into a bare "mi-data"/"Keycloak Operator", silently losing
+    the rest of the name)."""
     m = VERSION_PAIR_RE.search(text)
     if m:
-        name = text[:m.start()]
-    elif "(" in text:
-        before_paren = text.split("(", 1)[0].rstrip()
-        bare_version = re.search(r"\s[A-Za-z0-9][\w.\-]*$", before_paren)
-        name = before_paren[:bare_version.start()] if bare_version else text
-    else:
-        name = text
-    name = name.split("(", 1)[0]
+        return text[:m.start()].rstrip(" \t—-")
+    without_trailing_asides = re.sub(r"(\s*\([^)]*\))+$", "", text)
+    if without_trailing_asides == text:
+        return text.rstrip(" \t—-")
+    bare_version = re.search(r"\s[A-Za-z0-9][\w.\-]*$", without_trailing_asides)
+    name = without_trailing_asides[:bare_version.start()] if bare_version else text
     return name.rstrip(" \t—-")
 
 

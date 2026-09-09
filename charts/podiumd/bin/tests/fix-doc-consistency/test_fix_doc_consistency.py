@@ -903,13 +903,16 @@ def test_fix_changes_heading_app_versions_corrects_wrong_new_dependency_heading(
     assert "Some stale prose here." in new_text
 
 
-def test_fix_changes_heading_app_versions_preserves_headings_own_name_not_rows(cdb):
+def test_fix_changes_heading_app_versions_syncs_headings_name_to_rows(cdb):
     """Real bug found live: the table row's own display name ("mi-data
     (MI-data exports)") and this same component's own Changes heading
-    ("mi") can legitimately differ — a first version of this fix
-    reconstructed the WHOLE heading using the ROW's own name, silently
-    renaming "### mi ..." to "### mi-data (MI-data exports) ..." even
-    though only the app-version portion was ever supposed to change."""
+    ("mi") had drifted apart — every OTHER row/heading pair in the real
+    doc agrees (exactly, or via a deliberately hand-customized variant
+    of the same name), only mi's didn't. The ROW's own name is
+    authoritative (see add_missing_component_rows' own docstring: the
+    same "friendly" value is passed to both the row and the heading
+    when freshly written together) — a first version of this fix instead
+    preserved the heading's own (stale) name, which is backwards."""
     text = (
         "## Component versions (4.9.1 vs 4.9.0)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -926,8 +929,31 @@ def test_fix_changes_heading_app_versions_preserves_headings_own_name_not_rows(c
         text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
 
     assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
-    assert "### mi 2.90.0 (new) (chart 1.1.0, unchanged)" in new_text
-    assert "mi-data (MI-data exports)" not in new_text.split("## Changes", 1)[1]
+    assert "### mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)" in new_text
+    assert "Some stale prose here." in new_text  # body left as-is, not regenerated
+
+
+def test_fix_changes_heading_app_versions_renames_even_when_app_version_already_correct(cdb):
+    """A wrong NAME alone (app-version wording already correct) is still
+    enough to trigger a rewrite — the two checks are independent, not
+    "only bother if the version is ALSO wrong"."""
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| mi-data (MI-data exports) | 2.90.0 (new) | 1.1.0 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### mi 2.90.0 (new) (chart 1.1.0, unchanged)\n\n"
+        "Some stale prose here.\n"
+    )
+    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+
+    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+
+    assert updated_headings == ["mi 2.90.0 (new) (chart 1.1.0, unchanged)"]
+    assert "### mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)" in new_text
 
 
 def test_fix_changes_heading_app_versions_already_correct_heading_untouched(cdb):
@@ -975,6 +1001,74 @@ def test_fix_changes_heading_app_versions_real_version_bump_still_corrected(cdb)
 
     assert updated_headings == ["zac 5.4.0 → 5.4.0 (chart 1.0.297, unchanged)"]
     assert "### zac 5.4.0 → 5.5.0 (chart 1.0.297, unchanged)" in new_text
+
+
+# --- fix_values_delta_heading_app_versions ---
+
+MI_UPGRADE_DOC_TEXT = (
+    "## Component versions (4.9.1 vs 4.9.0)\n\n"
+    "| Component | App version | Helm chart | Notes |\n"
+    "| --- | --- | --- | --- |\n"
+    "| mi-data (MI-data exports) | 2.90.0 (new) | 1.0.0 → 1.1.0 | - |\n"
+)
+
+
+def test_fix_values_delta_heading_app_versions_corrects_wrong_name_and_new_dependency_wording(cdb):
+    """Real bug, real doc: -values-deltas.md's own "## mi ..." section
+    heading has the SAME stale wording AND the SAME wrong (bare "mi",
+    not the row's own "mi-data (MI-data exports)") name problem as
+    -upgrade.md's own Changes heading did — values-deltas.md has no
+    "Component versions" table of its own, so its row data (and the
+    authoritative display name) can only come from -upgrade.md's."""
+    values_deltas_text = (
+        "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
+        "## mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
+        "- Key `mi.transfer.noEpsv` (optional) added.\n"
+    )
+    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+
+    new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
+        MI_UPGRADE_DOC_TEXT, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+
+    assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
+    assert "## mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)" in new_text
+    assert "- Key `mi.transfer.noEpsv` (optional) added." in new_text  # body left as-is
+
+
+def test_fix_values_delta_heading_app_versions_already_correct_heading_untouched(cdb):
+    values_deltas_text = (
+        "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
+        "## mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)\n\n"
+        "- Key `mi.transfer.noEpsv` (optional) added.\n"
+    )
+    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+
+    new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
+        MI_UPGRADE_DOC_TEXT, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+
+    assert updated_headings == []
+    assert new_text == values_deltas_text
+
+
+def test_fix_values_delta_heading_app_versions_no_upgrade_doc_is_a_noop(cdb):
+    """No -upgrade.md at all (upgrade_doc_text == "") — nothing to
+    resolve the row data against, so no heading is ever touched, never
+    an error."""
+    values_deltas_text = (
+        "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
+        "## mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
+        "- Key `mi.transfer.noEpsv` (optional) added.\n"
+    )
+    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+
+    new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
+        "", values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+
+    assert updated_headings == []
+    assert new_text == values_deltas_text
 
 
 # --- current_chart_version ---
@@ -1148,6 +1242,86 @@ def test_main_corrects_stale_table_using_real_baseline_tag(cdb, repo_with_baseli
     assert "1.0.251" not in upgrade
     out = capsys.readouterr().out
     assert "Correcting component version table" in out
+
+
+@pytest.fixture
+def repo_with_mi_shaped_stale_docs(tmp_path):
+    """The real mi bug, reproduced synthetically: a Chart.yaml dependency
+    ("mi-data", alias "mi") that already existed at the baseline ref
+    (condition-gated, disabled by default) but had NO "image:" block
+    pinned in values.yaml there yet — its own app version is genuinely
+    unresolvable at baseline, so per component_version_cell it should
+    render "(new)" everywhere, never a stale "<old> → <new>" transition.
+    All three surfaces (the table row, its own -upgrade.md Changes
+    heading, its own -values-deltas.md section heading) were written by
+    an earlier, buggy tool run with the wrong transition AND, for the
+    two headings, the wrong (bare "mi", not the row's own "mi-data
+    (MI-data exports)") name too."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "mi-data", "alias": "mi", "version": "1.0.0", "repository": "file://../mi-data",
+             "condition": "mi.enabled"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({"mi": {"enabled": False}}))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.9.0", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "mi-data", "alias": "mi", "version": "1.1.0", "repository": "file://../mi-data",
+             "condition": "mi.enabled"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "mi": {"enabled": False, "image": {"repository": "mcr.microsoft.com/azure-cli",
+                                            "tag": "2.90.0@sha256:" + "a" * 64}},
+    }))
+    write(doc_dir / "4.9.0-to-4.9.1-upgrade.md",
+          "# Upgrade guide: PodiumD 4.9.0 → 4.9.1\n\n"
+          "## Component versions (4.9.1 vs 4.9.0)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| mi-data (MI-data exports) | 2.71.0 → 2.90.0 | 1.0.0 → 1.1.0 | - |\n\n"
+          "## Changes\n\n"
+          "### mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
+          "Some stale prose here.\n")
+    write(doc_dir / "4.9.0-to-4.9.1-values-deltas.md",
+          "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
+          "## mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
+          "- Key `mi.transfer.noEpsv` (optional) added.\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "mi bump, stale docs from an old buggy run", cwd=tmp_path)
+    return doc_dir
+
+
+def test_main_corrects_mi_shaped_stale_name_and_new_dependency_wording_everywhere(
+        cdb, repo_with_mi_shaped_stale_docs, monkeypatch):
+    """One fix-doc-consistency run corrects all three surfaces to the
+    SAME name ("mi-data (MI-data exports)", the row's own — see
+    fix_changes_heading_app_versions' own docstring for why that one is
+    authoritative) and the SAME "(new)" wording (never the stale
+    "2.71.0 → 2.90.0" transition, since mi's own app version genuinely
+    never resolved at baseline)."""
+    set_argv_and_dir(cdb, monkeypatch, repo_with_mi_shaped_stale_docs, "4.9.0", target="4.9.1")
+    cdb.main()
+
+    upgrade = (repo_with_mi_shaped_stale_docs / "4.9.0-to-4.9.1-upgrade.md").read_text(encoding="utf-8")
+    values_deltas = (repo_with_mi_shaped_stale_docs / "4.9.0-to-4.9.1-values-deltas.md").read_text(encoding="utf-8")
+
+    assert "| mi-data (MI-data exports) | 2.90.0 (new) | 1.0.0 → 1.1.0 | - |" in upgrade
+    assert "### mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)" in upgrade
+    assert "## mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)" in values_deltas
+    assert "2.71.0" not in upgrade
+    assert "2.71.0" not in values_deltas
 
 
 # --- main() integration: adding a missing "Component versions" row ---
