@@ -70,7 +70,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import canonical_sidecar_row_names, dotted_key_path, find_dependency, get_path, image_paths_for, load_yaml
+from lib.chart import canonical_sidecar_row_names, dotted_key_path, find_dependency, image_paths_for, load_yaml
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
     NO_CHANGES_CLAIMED_RE, baseline_doc_paths, dep_for_values_key, images_manifest_path, insert_changes_section,
@@ -86,8 +86,8 @@ from lib.image_version import resolve_key_scope, update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo
 from lib.upgradedoc import (
-    actual_app_version, compute_changed_components, describe_key_changes, find_all_image_and_version_paths,
-    global_image_paths, normalize_version,
+    compute_changed_components, describe_key_changes, find_all_image_and_version_paths, global_image_paths,
+    normalize_version, resolve_baseline_component_versions,
 )
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -177,72 +177,20 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
         # disambiguated "<values_key> - <basename>" form, which wouldn't be
         # a member of that set even when this specific image DID change.
         reset_to_baseline = values_key not in changed_keys
-        baseline_tag = get_path(baseline_values, f"{values_key}.{image_paths[0]}.tag") or ""
-        baseline_app = baseline_tag.split("@", 1)[0] or None
-        if baseline_app is None:
-            # baseline_tag came back blank — a component whose own image
-            # tag is deliberately left blank in values.yaml (e.g.
-            # openbao's "server.image.tag" — see lib.chart.COMPONENT_
-            # IMAGE_PATHS) only ever resolves its real app version via
-            # actual_app_version's own vendored-.tgz subchart_app_version
-            # fallback, which the raw tag read above can never reach. A
-            # basename bump never touches Chart.yaml (see this function's
-            # own docstring) — dep's own chart version at baseline always
-            # matches its current one, so the same vendored .tgz backs
-            # both, and it's safe to resolve the baseline's app version
-            # through that same file. Same fix, same reasoning, as lib.
-            # component_docs.resolve_component_own_version_change's own
-            # fallback (real bug that fix addressed in fix-doc-
-            # consistency's own doc-sync path — this is the same gap in
-            # THIS script's own doc-writing path): without it, a
-            # component like openbao got a false "(new)" Changes-section
-            # heading here even when nothing about it had actually
-            # changed.
-            baseline_app = actual_app_version(baseline_values, values_key, chart_name, chart_dir=CHART_DIR, dep=dep)
-        # baseline_app is None here for two DIFFERENT reasons this used to
-        # conflate: actual_app_version's own subchart-fallback deliberately
-        # never guesses for a component with no COMPONENT_IMAGE_PATHS
-        # registration (see its own docstring) — for one of those, a blank
-        # baseline_tag PLUS this None both together mean "verifiably no
-        # override at the true baseline," which should read as a brand-new
-        # override ((new) heading), not "resolution failed, fall back to
-        # whatever old_app already held" (`old_app` at this point is
-        # group["old_app_by_path"]'s own value — whatever this image
-        # happened to be pinned at immediately BEFORE this specific run,
-        # which is not the release baseline at all once ANY earlier bump
-        # already changed it this same cycle — real bug, confirmed live:
-        # mi's own azure-cli pin got a brand-new values.yaml override this
-        # run, baseline never had one, yet the written heading showed a
-        # stale "2.71.0 -> 2.90.0" transition instead of "2.90.0 (new)",
-        # because "2.71.0" was simply whatever this run's own diff saw as
-        # "old", not the baseline). Once a real upgrade_docs_baseline WAS
-        # resolved (this whole `if baseline_deps is not None:` block),
-        # baseline_app is the authoritative answer regardless of whether
-        # it resolved to a real version or None — the exact same value
-        # check-doc's own independent actual_app_version call already
-        # treats as authoritative, so the two never disagree again.
-        old_app = baseline_app
-        # The chart-version side of the SAME gap #1's fix addresses on the
-        # app-version side: dep_for_values_key(baseline_deps, ...) would
-        # always find a Chart.yaml dependency entry (every dependency has
-        # a version field, unlike an image tag, which can be genuinely
-        # blank) — so a raw baseline_dep["version"] read (e.g. mi-data's
-        # git-history "1.0.0") is never None, and can't tell "this
-        # component's chart version was already correctly tracked at the
-        # true baseline" apart from "this component's chart AND app
-        # version both moved together, mid-cycle, via an earlier untracked
-        # run, with no prior doc ever having captured either one as a
-        # real baseline." baseline_app is None is exactly that second
-        # case (see the block above) — reusing it here means a component
-        # that was never really tracked at baseline gets "(new)" for BOTH
-        # its app and chart version, instead of a misleading "1.0.0 ->
-        # 1.1.0" transition implying a real prior baseline value existed
-        # and moved. When baseline_app resolved to a real version instead
-        # (this component WAS genuinely tracked at baseline), the
-        # baseline's own Chart.yaml dependency version is the correct,
-        # real old_chart, same as ever.
-        baseline_dep = dep_for_values_key(baseline_deps, values_key) if baseline_app is not None else None
-        old_chart_str = str(baseline_dep["version"]) if baseline_dep is not None else None
+        # resolve_baseline_component_versions (lib.upgradedoc) is the
+        # single shared source of truth for this resolution — see its own
+        # docstring for exactly why a blank baseline app-version tag isn't
+        # the same as "resolution failed, fall back to whatever old_app
+        # already held" (real bug, confirmed live: mi's own bump showed a
+        # stale "2.71.0 -> 2.90.0" transition instead of "2.90.0 (new)"),
+        # and why old_chart is gated by that same signal rather than
+        # always trusting baseline_dep's own raw Chart.yaml version.
+        # update-component-version's own main() calls the exact same
+        # helper, so the two scripts can never drift on this again.
+        baseline_dep = dep_for_values_key(baseline_deps, values_key)
+        old_app, old_chart_str = resolve_baseline_component_versions(
+            baseline_values, baseline_dep, values_key, image_paths[0], chart_name, chart_version_str,
+            chart_dir=CHART_DIR)
 
     if upgrade_path is None:
         print()
@@ -393,18 +341,36 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
     # resolve_basename_baseline_version only has an opinion when every
     # touched pin actually started at the same upgrade_docs_baseline version.
     baseline_values = load_baseline_values(VALUES_YAML, upgrade_docs_baseline) if upgrade_docs_baseline is not None else None
-    baseline_version = (resolve_basename_baseline_version(baseline_values, pinned)
-                         if baseline_values is not None else None)
-    old_version = baseline_version if baseline_version is not None else changes[0]["old_version"]
+    # baseline_version is None for two DIFFERENT reasons this used to
+    # conflate: resolve_basename_baseline_version's own "didn't all agree,
+    # or any of them isn't found there at all" (see its own docstring) is
+    # authoritative once baseline_values itself resolved at all — the
+    # exact same #1/#5-class gap already fixed in update_docs_single_
+    # component/update-component-version's own baseline resolution (see
+    # lib.upgradedoc.resolve_baseline_component_versions): falling back
+    # to changes[0]["old_version"] here unconditionally meant "genuinely
+    # never uniformly pinned at the true baseline" got conflated with
+    # "whatever this basename happened to be pinned at immediately BEFORE
+    # this specific run" -- wrong once ANY earlier bump this same cycle
+    # already moved it (e.g. a component bumped 8.20.0 -> 8.21.0 earlier
+    # in the cycle, then 8.21.0 -> 8.22.0 this run, would wrongly show
+    # "8.21.0 -> 8.22.0" instead of the TRUE cumulative "8.20.0 ->
+    # 8.22.0"). Only fall back to the pre-run value when baseline_values
+    # itself is None -- the git ref genuinely couldn't be resolved at
+    # all, not "resolved but this basename has no opinion there".
+    baseline_version = resolve_basename_baseline_version(baseline_values, pinned) if baseline_values is not None else None
+    old_version = baseline_version if baseline_values is not None else changes[0]["old_version"]
     reset_to_baseline = (baseline_version is not None
                           and normalize_version(new_version) == normalize_version(baseline_version))
-    if baseline_version is not None:
+    if baseline_values is not None:
         # Keep each path's own per-path old version (used by
         # make_image_changes_section's per-pin listing) consistent with
         # the single collapsed old_version above -- otherwise a second
         # bump in the same cycle would show the FIRST bump's target
         # (e.g. "8.21.0") as each pin's "old" value instead of the true
-        # upgrade_docs_baseline (e.g. "8.20.0").
+        # upgrade_docs_baseline (e.g. "8.20.0"), or (baseline_version is
+        # None) a real per-path transition below a "(new)" heading that
+        # contradicts it.
         pinned = [(path, baseline_version) for path, _old_version in pinned]
 
     if upgrade_path is None:

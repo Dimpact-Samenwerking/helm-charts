@@ -916,3 +916,70 @@ def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(ui
     assert "#   1. curl 8.20.0 -> 8.22.0." in manifest
     assert '"8.22.0"' in manifest
     assert f'"sha256:{"c" * 64}"' in manifest
+
+
+def test_main_renders_new_when_shared_image_never_existed_at_baseline(uiv, tmp_path, monkeypatch):
+    """Regression test (same root-cause family as #1/#5, in the MULTIPLE-
+    scope basename path): resolve_basename_baseline_version's own None
+    ("didn't all agree, or any of them isn't found there" -- see its own
+    docstring) used to get silently overridden by update_docs_shared_
+    image with changes[0]["old_version"] -- whatever this basename
+    happened to be pinned at immediately BEFORE this specific run, not
+    the true upgrade_docs_baseline -- exactly the same conflation #1's
+    fix already closed for a real Chart.yaml dependency's own app
+    version. Here the shared "global.images.curl" anchor genuinely
+    didn't exist at all at the true baseline (introduced mid-cycle at
+    8.21.0, then bumped again this run to 8.22.0) -- with the bug,
+    old_version fell back to the pre-run "8.21.0", showing a misleading
+    "8.21.0 -> 8.22.0" transition implying curl was already tracked at
+    the baseline and simply moved, instead of "(new)" (the same
+    convention old_app=None already uses elsewhere for a component with
+    no real baseline value at all)."""
+    write_chart_yaml(tmp_path, [("keycloak-operator", None)])
+    write_values(tmp_path, (
+        "keycloak-operator:\n"
+        "  image:\n"
+        "    repository: keycloak/keycloak\n"
+        f'    tag: "26.0.0@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(uiv, "VALUES_YAML", tmp_path / "values.yaml")
+    commit_baseline_tag(tmp_path, "0.9.0")  # baseline: no shared curl anchor at all yet
+
+    # Mid-cycle, before this run: curl introduced as a brand-new shared
+    # anchor at 8.21.0 -- never went through THIS run.
+    write_values(tmp_path, (
+        "global:\n"
+        "  images:\n"
+        "    curl: &curlImage\n"
+        "      repository: curlimages/curl\n"
+        '      tag: "8.21.0@sha256:{digest}"\n'
+        "keycloak-operator:\n"
+        "  image:\n"
+        "    repository: keycloak/keycloak\n"
+        f'    tag: "26.0.0@sha256:{"a" * 64}"\n'
+        "  jobs:\n"
+        "    ensureOperatorSa:\n"
+        "      image: *curlImage\n"
+    ).format(digest="b" * 64))
+
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
+              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+              "## Component versions (1.0.0 vs 0.9.0)\n\n"
+              "| Component | App version | Helm chart | Notes |\n"
+              "| --- | --- | --- | --- |\n\n"
+              "## Changes\n")
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
+              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n")
+
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "c" * 64))
+    monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.22.0"])
+    uiv.main()
+
+    upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
+    assert "8.21.0" not in upgrade
+    assert "None" not in upgrade
+    assert "| curl | 8.22.0 (new) | - | - |" in upgrade
+    assert "### curl 8.22.0 (new)" in upgrade

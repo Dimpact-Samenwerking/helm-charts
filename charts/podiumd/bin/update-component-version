@@ -86,7 +86,9 @@ from lib.component_docs import (
 from lib.image_version import image_basename, update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo, registry_tag_exists
-from lib.upgradedoc import actual_app_version, compute_changed_components, describe_key_changes, normalize_version
+from lib.upgradedoc import (
+    compute_changed_components, describe_key_changes, normalize_version, resolve_baseline_component_versions,
+)
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -571,33 +573,20 @@ def main():
         changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
         reset_to_baseline = friendly not in changed_keys
 
-        baseline_dep = _find_dependency(baseline_deps, chart_name)
-        if baseline_dep is not None:
-            old_chart = str(baseline_dep["version"])
-            baseline_tag = get_path(baseline_values, f"{values_key}.{image_paths[0]}.tag") or ""
-            old_app = baseline_tag.split("@", 1)[0] or None
-            if old_app is None and normalize_version(old_chart) == normalize_version(new_chart):
-                # baseline_tag came back blank — a component whose own
-                # image tag is deliberately left blank in values.yaml
-                # (e.g. openbao's "server.image.tag" — see lib.chart.
-                # COMPONENT_IMAGE_PATHS) only ever resolves its real app
-                # version via actual_app_version's own vendored-.tgz
-                # subchart_app_version fallback, which the raw tag read
-                # above can never reach. old_chart == new_chart here
-                # means the baseline's own chart version is the SAME one
-                # this run's vendored charts/<name>-<new_chart>.tgz
-                # already represents, so it's safe to resolve the
-                # baseline's app version through that same file. Same
-                # fix, same reasoning, as lib.component_docs.resolve_
-                # component_own_version_change's own fallback (real bug
-                # that fix addressed in fix-doc-consistency's own doc-
-                # sync path — this is the same gap in THIS script's own
-                # doc-writing path): without it, a component like
-                # openbao got a false "(new)" Changes-section heading
-                # here even when nothing about it had actually changed.
-                old_app = actual_app_version(baseline_values, values_key, chart_name, chart_dir=CHART_DIR,
-                                              dep={"name": chart_name, "version": new_chart})
-        elif old_app is None:
+        # resolve_baseline_component_versions (lib.upgradedoc) is the
+        # single shared source of truth for this resolution — see its own
+        # docstring for exactly why old_chart is gated by whether old_app
+        # itself resolved to a real value, rather than always trusting
+        # baseline_dep's own raw Chart.yaml version (the same #5-class
+        # gap fixed in update-image-version's own update_docs_single_
+        # component, which calls this exact same helper — the two
+        # scripts can never drift on this again).
+        baseline_dep = None if no_chart else _find_dependency(baseline_deps, chart_name)
+        old_app, old_chart = resolve_baseline_component_versions(
+            baseline_values, baseline_dep, values_key, image_paths[0], chart_name, new_chart, chart_dir=CHART_DIR)
+        if no_chart:
+            old_chart = None  # NATIVE_COMPONENTS: never a chart version to show at all
+        if baseline_dep is None and old_app is None:
             # baseline_dep is None (this Chart.yaml dependency is brand
             # new at the release baseline) — before letting component_
             # version_cell render a "(new)" app cell, check whether the

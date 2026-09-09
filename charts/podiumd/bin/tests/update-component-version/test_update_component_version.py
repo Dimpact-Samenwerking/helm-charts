@@ -1858,6 +1858,89 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
     assert "1. openbao v2.5.0 -> v2.6.0 (chart 0.28.4, unchanged)." in images
 
 
+def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(ucv, tmp_path, monkeypatch):
+    """Regression test (same #5-class gap as update-image-version's own
+    update_docs_single_component, in update-component-version's own
+    baseline resolution): a Chart.yaml dependency ALWAYS has a "version"
+    field, even one never really tracked at the baseline (no image
+    override existed there at all) -- old_chart used to unconditionally
+    trust that raw baseline_dep["version"] regardless of whether the
+    component's own app version resolved to anything real, showing a
+    misleading "1.0.0 -> 1.1.0" transition implying a real prior
+    baseline value existed and moved. Both mi-data's chart version
+    (1.0.0 -> 1.1.0) and app version (blank -> 2.90.0) moved together,
+    mid-cycle, via an earlier separate run never captured in any prior
+    baseline doc -- both fields must render "(new)" together (see lib.
+    upgradedoc.resolve_baseline_component_versions's own docstring)."""
+    chart_yaml = tmp_path / "Chart.yaml"
+    values_yaml = tmp_path / "values.yaml"
+    chart_yaml.write_text(
+        "version: 4.9.0\n"
+        "dependencies:\n"
+        "  - name: mi-data\n"
+        "    version: 1.0.0\n"
+        "    repository: \"@mi\"\n"
+        "    alias: mi\n",
+        encoding="utf-8",
+    )
+    values_yaml.write_text("mi:\n  enabled: false\n", encoding="utf-8")
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
+    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
+    commit_baseline_tag(tmp_path)  # baseline: chart 1.0.0, no image override at all
+
+    # Simulate the earlier, separate in-cycle bump that first introduced
+    # mi's own image override -- chart AND app version both moved, never
+    # captured in any prior doc.
+    chart_yaml.write_text(
+        "version: 4.9.0\n"
+        "dependencies:\n"
+        "  - name: mi-data\n"
+        "    version: 1.1.0\n"
+        "    repository: \"@mi\"\n"
+        "    alias: mi\n",
+        encoding="utf-8",
+    )
+    values_yaml.write_text(
+        "mi:\n"
+        "  enabled: false\n"
+        "  image:\n"
+        "    repository: example/mi-data\n"
+        f'    tag: "2.71.0@sha256:{OLD_DIGEST}"\n',
+        encoding="utf-8",
+    )
+
+    setup_docs(
+        ucv, monkeypatch,
+        upgrade_text=(
+            "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+            "## Component versions (4.9.0 vs 4.8.5)\n\n"
+            "| Component | App version | Helm chart | Notes |\n"
+            "| --- | --- | --- | --- |\n\n"
+            "## Changes\n\n"
+        ),
+        values_deltas_text="# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n",
+    )
+    mock_verify_passes(monkeypatch, ucv)
+    mock_registry_passes(monkeypatch, ucv, "b")
+    monkeypatch.setattr("sys.argv", ["update-component-version", "mi", "2.90.0", "1.1.0"])
+
+    ucv.main()
+
+    upgrade = (ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "None" not in upgrade
+    assert "1.0.0" not in upgrade
+    assert "2.71.0" not in upgrade
+    assert "| mi | 2.90.0 (new) | 1.1.0 (new) | - |" in upgrade
+    assert "### mi 2.90.0 (new) (chart 1.1.0, new)" in upgrade
+
+
 def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkeypatch, capsys):
     setup_repo(tmp_path, monkeypatch, ucv)
     (tmp_path / "etc").mkdir(exist_ok=True)
