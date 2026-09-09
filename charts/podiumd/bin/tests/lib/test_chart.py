@@ -184,6 +184,24 @@ def test_full_repository_for_path_separate_registry_key_is_authoritative(libchar
         "mcr.microsoft.com/azure-cli"
 
 
+def test_full_repository_for_path_bare_namespace_registry_key_gets_docker_io_host(libchart, tmp_path):
+    """Regression test (zaakbrug's own real case): the vendored zaakbrug
+    chart's own upstream default sets "image.registry: wearefrank"
+    alongside "image.repository: zaakbrug" — but "wearefrank" is a bare
+    Docker Hub NAMESPACE stored in the same field mi's own real ACR host
+    (mcr.microsoft.com) lives in, not a real DNS host itself (no "." or
+    ":", not "localhost" — the same test strip_registry_host/parse_repo
+    already use for the identical question elsewhere). Must still
+    resolve to a real, host-qualified "docker.io/wearefrank/zaakbrug" —
+    not the bare, unqualified "wearefrank/zaakbrug" a naive "registry:
+    sibling is always a real host" assumption would produce."""
+    deps = [{"name": "zaakbrug", "version": "2.3.32"}]
+    values = {"zaakbrug": {"image": {
+        "registry": "wearefrank", "repository": "zaakbrug", "tag": "1.26.18@sha256:aaaa"}}}
+    assert libchart.full_repository_for_path(tmp_path, deps, values, ("zaakbrug", "image")) == \
+        "docker.io/wearefrank/zaakbrug"
+
+
 def test_full_repository_for_path_none_when_unresolvable(libchart, tmp_path):
     assert libchart.full_repository_for_path(tmp_path, [], {}, ("brppersonenmock", "image")) is None
 

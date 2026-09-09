@@ -1031,17 +1031,34 @@ def full_repository_for_path(chart_dir, deps, values, path, allow_pull=False):
     at all (Docker Hub's own convention — "curlimages/curl") is
     resolved via parse_repo (adds the implicit "docker.io/"), UNLESS a
     sibling "registry:" key exists at that exact same values-tree
-    location (real case: mi's own "image.registry: mcr.microsoft.com"
-    alongside "image.repository: azure-cli" — Azure Container
-    Registry's own convention of a bare image name with the host given
-    separately, which parse_repo has no way to know about) — that
-    sibling, when present, is authoritative and used directly instead
-    of parse_repo's own Docker Hub inference. Every other tier already
-    yields a real, self-describing repository string (a nested/
-    vendored subchart's own documented default), so parse_repo alone
-    is enough there — it's a safe no-op once a real host is already
-    embedded (the "." in "docker.elastic.co" is detected exactly the
-    same way a raw values.yaml override's own real host would be).
+    location AND actually looks like a real DNS host itself — the same
+    "." / ":" / "localhost" test strip_registry_host/parse_repo already
+    use elsewhere for the identical question, applied here to the
+    registry value rather than a combined ref string (real case: mi's
+    own "image.registry: mcr.microsoft.com" alongside "image.repository:
+    azure-cli" — Azure Container Registry's own convention of a bare
+    image name with the host given separately, which parse_repo has no
+    way to know about on its own) — that sibling, when it looks like a
+    real host, is authoritative and used directly instead of parse_
+    repo's own Docker Hub inference.
+
+    A sibling "registry:" that does NOT look like a real host (real
+    case: zaakbrug's own vendored chart sets "image.registry: wearefrank"
+    alongside "image.repository: zaakbrug" — the upstream chart's own
+    inconsistent convention, storing a bare Docker Hub NAMESPACE in the
+    same field mi's own real ACR host lives in; its OWN sidecar image,
+    staging.apiProxy.image, uses the "registry: ''" / full-namespace-in-
+    repository shape instead) is treated as a namespace segment, not a
+    host — routed through parse_repo (as "<registry>/<own_repo>") the
+    same as if it had been written directly into "repository:" as one
+    string, so Docker Hub is still correctly inferred underneath it.
+
+    Every other tier already yields a real, self-describing repository
+    string (a nested/vendored subchart's own documented default), so
+    parse_repo alone is enough there — it's a safe no-op once a real
+    host is already embedded (the "." in "docker.elastic.co" is
+    detected exactly the same way a raw values.yaml override's own real
+    host would be).
 
     None when `path` doesn't resolve to a repository at all — same
     "nothing to fall back to" cases as paths_by_repository's own
@@ -1050,7 +1067,11 @@ def full_repository_for_path(chart_dir, deps, values, path, allow_pull=False):
     if isinstance(own_repo, str) and own_repo:
         registry = get_path(values, ".".join(path) + ".registry")
         if isinstance(registry, str) and registry:
-            return f"{registry}/{own_repo}"
+            registry_head = registry.partition("/")[0]
+            if "." in registry_head or ":" in registry_head or registry_head == "localhost":
+                return f"{registry}/{own_repo}"
+            host, repo_path = parse_repo(f"{registry}/{own_repo}")
+            return f"{host}/{repo_path}"
         host, repo_path = parse_repo(own_repo)
         return f"{host}/{repo_path}"
 
