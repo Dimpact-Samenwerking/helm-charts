@@ -106,7 +106,8 @@ from lib.image_docs import (
 from lib.image_repository_check import find_images_without_repository
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
-    append_to_doc, canonical_version_cell, changes_heading_identities, component_version_cell,
+    append_to_doc, canonical_version_cell, changes_heading_has_app_version, changes_heading_identities,
+    component_version_cell,
     compute_changed_components, extract_source_version, extract_target_version, find_all_image_and_version_paths,
     find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff,
     header_name_segment, images_manifest_block_start, images_manifest_display_name_positions,
@@ -567,6 +568,16 @@ def _fix_heading_app_versions(text, chart_dir, target_deps, target_values, resol
     updated_headings = []
     for block in blocks:
         heading = block["heading"]
+        # A heading with NO version marker at all (arrow/"(new)"/
+        # "(unchanged)"/"(digest changed)" — see changes_heading_has_
+        # app_version) was never meant to carry a machine-verifiable
+        # version in the first place — real docs: values-deltas.md's own
+        # bare "## zaakbrug" and free-form "## Breaking — Frank!Gateway
+        # (only when `frankgateway.enabled: true`)" — never touched here,
+        # same precondition update_stale_app_version_headings' own
+        # "missing entirely" case already requires.
+        if not changes_heading_has_app_version(heading):
+            continue
         idents = changes_heading_identities(heading, target_deps, canonical_names)
         if len(idents) != 1:
             continue
@@ -585,28 +596,30 @@ def _fix_heading_app_versions(text, chart_dir, target_deps, target_values, resol
 
         expected_app_heading = component_version_cell(old_app, resolved["target_app"])
         without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
-        # The ROW's own name is authoritative - see add_missing_component_
-        # rows' own docstring ("using the dependency's own literal name/
-        # alias as the row's Name ... immune to a naming drift a hand-
-        # picked display name can fall into"), the same friendly value it
-        # passes to BOTH update_component_table (the row) and make_
-        # changes_section/insert_changes_section (the heading) when
-        # freshly writing the two together. Real bug, real doc: mi's own
-        # row later got hand-edited to the friendlier "mi-data (MI-data
-        # exports)", but nothing ever re-synced its own Changes heading
-        # (still bare "mi") or its values-deltas.md section heading
-        # (same) to match - every OTHER row/heading pair in the real doc
-        # agrees (exactly, or via a deliberately hand-customized variant
-        # of the SAME name), only mi's had drifted. Skip (leave alone)
-        # only when BOTH the name and the app-version wording already
-        # agree - either one being wrong is enough to rewrite.
-        if expected_app_heading in without_chart_clause and row_name == header_name_segment(heading):
+        current_name = header_name_segment(heading)
+        # The name is corrected ONLY when it's precisely the bare
+        # values_key add_missing_component_rows' own auto-write
+        # convention uses (see its own docstring: the same "friendly"
+        # value passed to BOTH the row and its own heading when freshly
+        # written together) — unambiguously stale once a human later
+        # hand-edits the ROW to something friendlier (real bug, real
+        # doc: mi's own row became "mi-data (MI-data exports)", but its
+        # heading was left as bare "mi"). A DIFFERENT, already-
+        # customized name (real cases, confirmed live: "Keycloak
+        # Operator (server)" vs its own row's longer "Keycloak Operator
+        # (server + operator images)"; "FrankGateway image" vs the row's
+        # plain "FrankGateway") is a deliberate editorial choice this
+        # must never overwrite just because it happens to differ from
+        # the row's own text — a first version of this fix did exactly
+        # that, silently clobbering real, hand-written doc content.
+        corrected_name = row_name if current_name == values_key else current_name
+        if expected_app_heading in without_chart_clause and corrected_name == current_name:
             continue
 
         chart_clause_match = re.search(r"\s*\(chart[^)]*\)", heading)
         chart_clause = chart_clause_match.group(0) if chart_clause_match else ""
         suffix = "\n" if lines[block["start"]].endswith("\n") else ""
-        lines[block["start"]] = f"{heading_marker} {row_name} {expected_app_heading}{chart_clause}{suffix}"
+        lines[block["start"]] = f"{heading_marker} {corrected_name} {expected_app_heading}{chart_clause}{suffix}"
         updated_headings.append(heading)
 
     return "".join(lines), updated_headings
