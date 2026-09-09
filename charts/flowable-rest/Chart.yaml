@@ -1,6 +1,0 @@
-apiVersion: v2
-name: flowable-rest
-description: Flowable REST Helm chart
-deprecated: true
-version: 1.0.1
-appVersion: "7.0.1"

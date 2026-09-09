@@ -1,6 +1,0 @@
-apiVersion: v2
-name: flowable-ui
-description: Flowable UI Helm chart
-deprecated: true
-version: 1.0.1
-appVersion: "6.8.0"
