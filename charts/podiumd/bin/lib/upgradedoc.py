@@ -857,6 +857,69 @@ def actual_app_version(values, values_key, component=None, chart_dir=None, dep=N
     return None
 
 
+def resolve_baseline_component_versions(baseline_values, baseline_dep, values_key, image_path, chart_name,
+                                         new_chart, chart_dir=None):
+    """(old_app, old_chart) resolved against the TRUE release baseline —
+    the single source of truth update-image-version's own update_docs_
+    single_component and update-component-version's own main() both
+    call, instead of each maintaining its own slightly-different version
+    of this same resolution (the real gap behind #1/#5: update_docs_
+    single_component's old_app used to fall back to whatever the image
+    was pinned at immediately before THIS run when the true baseline
+    genuinely had no override — that None is authoritative, not a
+    resolution failure, once baseline_values itself resolved at all).
+
+    baseline_dep is this component's own Chart.yaml dependency dict AS
+    IT WAS AT THE BASELINE (None if it didn't exist there at all yet —
+    a brand-new dependency this cycle, or a lib.chart.NATIVE_COMPONENTS
+    component with no chart at all). `image_path` is the SPECIFIC dotted
+    path (under values_key) this bump actually touched — e.g. a
+    sidecar's own path ("redis-ha.image"), not always chart_name's
+    registered PRIMARY path (lib.chart.image_paths_for(chart_name)[0]),
+    which is why this reads baseline_values at that exact path directly
+    rather than re-deriving it via actual_app_version(baseline_values,
+    values_key, chart_name) (that call is only safe for a component's
+    own primary image, never a sidecar's).
+
+    old_app: the raw baseline_values tag at values_key.image_path first;
+    if that's blank AND chart_dir is given AND this component's chart
+    version hasn't moved since baseline (baseline_dep's own version ==
+    new_chart — the same vendored .tgz backs both baseline and current
+    in that case) also tries actual_app_version's own vendored-subchart
+    fallback, against a dep dict synthesized as {"name": chart_name,
+    "version": new_chart} — deliberately NOT the caller's own current
+    Chart.yaml dependency dict, whose "version" field is whatever this
+    run found on disk BEFORE any Chart.yaml rewrite, whether that
+    happens to be new_chart or not (safe example: a basename bump never
+    touches Chart.yaml at all, so it always coincides; unsafe example: a
+    component bumped 1.0 -> 1.2 earlier this cycle then reconsidered
+    1.2 -> 1.0 this run, landing back on a baseline_dep version that
+    equals new_chart even though the on-disk dep dict momentarily read
+    1.2 — passing THAT would read the wrong vendored artifact's
+    appVersion as if it were the baseline's own). Never attempted when
+    the chart DID change, since that would read a mismatched artifact.
+
+    old_chart: baseline_dep's own version, but ONLY when old_app resolved
+    to a real value above — a component with no real baseline app
+    version at all (verifiably never captured in any prior baseline doc,
+    even though Chart.yaml itself always lists a dependency's own chart
+    version regardless of whether it was ever really tracked, e.g. mi-
+    data's own baseline "1.0.0") gets old_chart forced to None too, so
+    BOTH fields render "(new)" together rather than a misleading
+    "old → new" transition implying a real prior baseline value existed
+    and moved. None outright when baseline_dep is None (no Chart.yaml
+    dependency at the baseline at all)."""
+    raw_old_chart = str(baseline_dep["version"]) if baseline_dep is not None else None
+    baseline_tag = get_path(baseline_values, f"{values_key}.{image_path}.tag") or ""
+    old_app = baseline_tag.split("@", 1)[0] or None
+    if (old_app is None and chart_dir is not None and raw_old_chart is not None
+            and normalize_version(raw_old_chart) == normalize_version(new_chart)):
+        old_app = actual_app_version(baseline_values, values_key, chart_name, chart_dir=chart_dir,
+                                      dep={"name": chart_name, "version": new_chart})
+    old_chart = raw_old_chart if old_app is not None else None
+    return old_app, old_chart
+
+
 def app_version_pin_via_images_baseline(target_values, values_key, component, chart_dir, deps, images_baseline):
     """The CURRENT app version at values_key/component's own image_paths_
     for(component) location — but ONLY when its exact (repo, version,
