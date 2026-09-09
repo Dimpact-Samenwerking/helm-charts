@@ -601,15 +601,24 @@ def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(vp, re
 
 
 def test_sidecar_digest_only_repin_is_not_flagged_as_changed(vp, tmp_path, capsys):
-    """Regression test (real bug, real doc): a sidecar image re-pinned to
-    a NEW digest but the SAME version (e.g. nginx-unprivileged in a
-    chart-wide digest-pinning sweep, #437) must never be reported as
-    "changed vs baseline but has no row" — -upgrade.md documents VERSION
-    changes, never a digest-only re-pin alone (see lib.upgradedoc.
-    compute_changed_components/lib.image_docs.add_missing_sidecar_rows,
-    which already got this fix earlier — this check had its own,
-    independent raw-tag comparison that was never updated to match, so
-    it kept flagging this case forever)."""
+    """A sidecar image re-pinned to a NEW digest but the SAME version
+    (e.g. nginx-unprivileged in a chart-wide digest-pinning sweep, #437)
+    must never be reported as "changed vs baseline but has no row" in
+    -upgrade.md — that doc documents VERSION changes, never a digest-
+    only re-pin alone (see lib.upgradedoc.compute_changed_components/
+    lib.image_docs.add_missing_sidecar_rows, and this same check's own
+    canonical_names loop just below — all three deliberately stay
+    version-only; see each one's own docstring for why. This is the
+    negative case for the images-manifest's own, WIDER comparison
+    (lib.upgradedoc.find_images_manifest_list_diff) checked just below:
+    the two must not agree on this).
+
+    images-4.9.0.yaml is a DIFFERENT story: a real, individually-
+    deliberate digest-only re-pin genuinely belongs there (see find_
+    images_manifest_list_diff's own docstring) — a real case confirmed
+    live (clamav 1.5.4, keycloak-operator's init image), ground-truthed
+    against the real chart to be rare, not a routine sweep flood. So
+    THIS check (unlike the two above) DOES flag the missing entry."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
@@ -655,9 +664,11 @@ def test_sidecar_digest_only_repin_is_not_flagged_as_changed(vp, tmp_path, capsy
 
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
 
-    assert ok is True, detail
+    assert ok is False, detail
     out = capsys.readouterr().out
-    assert "redis-operator - redis" not in out
+    assert 'sidecar/shared image "redis-operator - redis" changed' not in out
+    assert 'redis-operator - redis" but has no row in the "Component versions" table' not in out
+    assert 'image "redis-operator - redis" changed vs 4.8.5 but has no entry' in out
 
 
 KEYCLOAK_SPLIT_CHART_YAML = """\

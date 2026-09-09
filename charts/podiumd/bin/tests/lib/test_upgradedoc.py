@@ -570,22 +570,82 @@ def test_find_images_manifest_list_diff_finds_entry_matching_nothing(libupgraded
     assert unmatched == ["does-not-exist"]
 
 
-def test_find_images_manifest_list_diff_ignores_digest_only_repin(libupgradedoc):
-    """A tag whose VERSION is unchanged but whose digest was re-pinned
-    is NOT reported as missing — a chart-wide digest-pinning sweep (see
-    PR #437) touches virtually every image's digest at once with no app-
-    version change behind any of it; requiring a manifest entry for
-    every single one would defeat the whole point of a curated "what
-    actually changed" list. A deliberate, individually-notable digest-
-    only re-pin (this manifest's own "newly digest-pinned... tag
-    unchanged" convention) stays a judgment call for whoever writes the
-    manifest, not something this check demands."""
+def test_find_images_manifest_list_diff_ignores_digest_only_repin_without_values(libupgradedoc):
+    """Without values/baseline_values (the full trees resolved_digest_pin
+    needs), the digest side of the comparison can never fire at all —
+    collapsing back to the old, version-only behaviour. Every real
+    caller (lib.docs_consistency.check_images_manifest_format) passes
+    both; this is the "opt-out" shape for a caller that doesn't."""
     entries = []
     current_paths = {("zac",): "1.1.0@sha256:newdigest"}
     baseline_paths = {("zac",): "1.1.0@sha256:olddigest"}
     missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set())
     assert missing == []
+    assert stale == []
+    assert unmatched == []
+
+
+def test_find_images_manifest_list_diff_catches_digest_only_repin_when_both_sides_resolvable(libupgradedoc):
+    """A tag whose VERSION is unchanged but whose embedded digest DOES
+    differ IS now reported as missing, given values/baseline_values —
+    real case confirmed live against the real chart (clamav 1.5.4:
+    same version, digest re-pinned) — the images-manifest is about
+    precise mirroring/tracking, where a digest-only re-pin is something
+    worth recording, unlike -upgrade.md/-values-deltas.md (see lib.
+    upgradedoc.compute_changed_components, deliberately unaffected by
+    this — version-only there stays correct)."""
+    entries = []
+    current_paths = {("zac",): "1.1.0@sha256:" + "b" * 64}
+    baseline_paths = {("zac",): "1.1.0@sha256:" + "a" * 64}
+    values = {"zac": {"image": {"repository": "zac", "tag": "1.1.0@sha256:" + "b" * 64}}}
+    baseline_values = {"zac": {"image": {"repository": "zac", "tag": "1.1.0@sha256:" + "a" * 64}}}
+    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set(),
+        values=values, baseline_values=baseline_values)
+    assert missing == [("zac",)]
+    assert stale == []
+    assert unmatched == []
+
+
+def test_find_images_manifest_list_diff_ignores_digest_only_repin_when_only_one_side_resolvable(libupgradedoc):
+    """A bare (non-digest-embedding) tag on one side, with no stored
+    digest to compare against on that side, is left alone even with
+    values/baseline_values given — there is nothing to diff (the
+    "sweep" a version-only image is resolved live against the registry
+    each time, never something this local, git-history-only comparison
+    can see), never treated as "changed" purely because one side
+    happens to lack a recorded digest."""
+    entries = []
+    current_paths = {("zac",): "1.1.0"}
+    baseline_paths = {("zac",): "1.1.0@sha256:" + "a" * 64}
+    values = {"zac": {"image": {"repository": "zac", "tag": "1.1.0"}}}
+    baseline_values = {"zac": {"image": {"repository": "zac", "tag": "1.1.0@sha256:" + "a" * 64}}}
+    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set(),
+        values=values, baseline_values=baseline_values)
+    assert missing == []
+    assert stale == []
+    assert unmatched == []
+
+
+def test_find_images_manifest_list_diff_catches_split_tag_sha_digest_repin(libupgradedoc):
+    """keycloak-operator's own split tag:/sha: convention (see lib.chart.
+    SPLIT_TAG_SHA_PATHS/resolved_digest_pin) never embeds "@sha256" in
+    the tag itself — the digest lives in a sibling "sha:" field instead.
+    A same-version repin there (sha: changed, tag: unchanged) must be
+    caught the exact same way an embedded-digest repin is, since
+    resolved_digest_pin abstracts over both shapes identically."""
+    entries = []
+    path = ("keycloak", "image")
+    current_paths = {path: "26.0.0"}
+    baseline_paths = {path: "26.0.0"}
+    values = {"keycloak": {"image": {"repository": "keycloak/keycloak", "tag": "26.0.0", "sha": "b" * 64}}}
+    baseline_values = {"keycloak": {"image": {"repository": "keycloak/keycloak", "tag": "26.0.0", "sha": "a" * 64}}}
+    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set(),
+        values=values, baseline_values=baseline_values)
+    assert missing == [path]
     assert stale == []
     assert unmatched == []
 
