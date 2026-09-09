@@ -17,14 +17,14 @@ Common Ground,Maykin Media,,Referentielijst,referentielijsten,referentielijsten,
 Common Ground,Worth,,OMC / Notify,notifynl-omc-nodep,omc,,1.17.19,0.14.1,1.17.19,0.14.1
 Common Ground,WeAreFrank,,Zaak Brug,zaakbrug,,zaakbrug,1.26.13,2.3.28,1.26.18,2.3.32
 Common Ground,WeAreFrank,,Frank Gateway,frankgateway,,frank-gateway,104,NATIVE,1.1.0,NATIVE
-Common Ground,Dimpact,,MI Data Export,mi-data,mi,azure-cli,,,,1.1.0
+Common Ground,Dimpact,,MI Data Export,mi-data,mi,azure-cli,,,2.90.0,1.1.0
 Overige,,,Keycloak,keycloak-operator,,,26.6.4,1.12.1,26.7.3,1.13.0
 Overige,,,Clamav,clamav,,clamav,1.5.2,3.7.1,1.5.4,3.7.2
 Overige,,,Redis Operator,redis-operator,,,0.25.0,0.25.0,0.26.0,0.26.1
-Overige,,,Redis,MULTIPLE,MULTIPLE,redis,8.0,,8.0,
-Overige,,,Nginx unprivileged,MULTIPLE,MULTIPLE,nginx-unprivileged,1.31.3,,1.31.4,1.31.4
+Overige,,,Redis,MULTIPLE,MULTIPLE,redis,8.0,,8.10.1,
+Overige,,,Nginx unprivileged,MULTIPLE,MULTIPLE,nginx-unprivileged,1.31.3,,1.31.5,
 Overige,,,Busybox,MULTIPLE,MULTIPLE,busybox,1.38.0-glibc,,1.38.0-glibc,
-Overige,,,Curl,MULTIPLE,MULTIPLE,curl,8.20.0,,8.21.0,
+Overige,,,Curl,MULTIPLE,MULTIPLE,curl,8.20.0,,8.22.0,
 Overige,,,Eck-operator,eck-operator,,,3.4.0,3.4.0,3.5.0,3.5.0
 Overige,,,Eck-stack,eck-stack,kiss-eck,,8.19.3,0.19.0,8.19.19,0.20.0
 Overige,,,Openbao,openbao,,openbao,,,2.5.5,0.28.4
