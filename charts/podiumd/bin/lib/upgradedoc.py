@@ -1335,9 +1335,30 @@ def _header_name_segment(text):
     prefix of "redis-operator - redis-exporter" once punctuation is
     stripped by normalize_name); a startswith check would silently
     accept the wrong sidecar's header as long as it named the RIGHT
-    parent and happened to start with the right basename's own letters."""
+    parent and happened to start with the right basename's own letters.
+
+    A header with NO version pair anywhere (real case: fix-doc-
+    consistency's own "<name> <version> (digest changed)" shape for a
+    same-version/changed-digest re-pin, e.g. "keycloak-operator - python
+    3.14.7-slim (digest changed)" — the first sidecar header shape with
+    no arrow at all) still has a trailing BARE version token stuck right
+    before its "(...)" aside — VERSION_PAIR_RE finds nothing to search
+    for there, so it must be stripped separately, the same atom shape
+    VERSION_PAIR_RE's own source/target groups use. Only attempted when
+    a "(...)" aside is actually present: nothing in this codebase ever
+    writes a bare "<name> <version>" header with no arrow AND no aside,
+    so requiring one here is what keeps this from ever mistaking a real
+    bare-name-only header's own last word (no version at all) for a
+    version token and truncating a real basename by mistake."""
     m = VERSION_PAIR_RE.search(text)
-    name = text[:m.start()] if m else text
+    if m:
+        name = text[:m.start()]
+    elif "(" in text:
+        before_paren = text.split("(", 1)[0].rstrip()
+        bare_version = re.search(r"\s[A-Za-z0-9][\w.\-]*$", before_paren)
+        name = before_paren[:bare_version.start()] if bare_version else text
+    else:
+        name = text
     name = name.split("(", 1)[0]
     return name.rstrip(" \t—-")
 

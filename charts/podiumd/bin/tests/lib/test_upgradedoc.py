@@ -913,6 +913,58 @@ def test_is_primary_image_path_empty_path_is_not_primary(libupgradedoc):
     assert libupgradedoc.is_primary_image_path((), []) is False
 
 
+# --- _header_name_segment ---
+
+def test_header_name_segment_arrow_pair_isolates_name(libupgradedoc):
+    assert libupgradedoc._header_name_segment(
+        "keycloak-operator - operator 26.6.4 -> 26.7.3") == "keycloak-operator - operator"
+
+
+def test_header_name_segment_self_arrow_unchanged_isolates_name(libupgradedoc):
+    """A self-referential "X -> X" pair (unchanged value, still written
+    with an arrow) is handled by the arrow path exactly like a real
+    transition — never falls through to the bare-version branch."""
+    assert libupgradedoc._header_name_segment(
+        "zac - opentelemetry-collector-contrib 0.158.0 -> 0.158.0") == "zac - opentelemetry-collector-contrib"
+    assert libupgradedoc._header_name_segment(
+        "openbao - openbao-csi-provider 2.0.2 -> 2.0.2") == "openbao - openbao-csi-provider"
+
+
+def test_header_name_segment_basename_ending_in_version_shaped_word_with_real_arrow(libupgradedoc):
+    """Regression guard: "openbao - vault-k8s" ends in "k8s", which is
+    version-shaped on its own — but a real arrow pair IS present here
+    ("1.7.2 -> 1.7.2"), so the arrow path must take priority and match
+    at the actual version token, never at "k8s" itself."""
+    assert libupgradedoc._header_name_segment(
+        "openbao - vault-k8s 1.7.2 -> 1.7.2") == "openbao - vault-k8s"
+
+
+def test_header_name_segment_bare_version_before_parenthetical_no_arrow(libupgradedoc):
+    """Real bug, real doc: "keycloak-operator - python 3.14.7-slim
+    (digest changed)" has NO arrow anywhere (fix-doc-consistency's own
+    same-version/changed-digest wording) — VERSION_PAIR_RE finds
+    nothing, so the trailing bare version token "3.14.7-slim" must be
+    stripped separately, immediately before the "(...)" aside, to
+    isolate "keycloak-operator - python" the same way the arrow path
+    already isolates a name."""
+    assert libupgradedoc._header_name_segment(
+        "keycloak-operator - python 3.14.7-slim (digest changed)") == "keycloak-operator - python"
+
+
+def test_header_name_segment_bare_version_no_arrow_generic_case(libupgradedoc):
+    assert libupgradedoc._header_name_segment("clamav 1.5.4 (digest changed)") == "clamav"
+
+
+def test_header_name_segment_no_version_no_parenthetical_never_truncated(libupgradedoc):
+    """No arrow AND no "(...)" aside at all — nothing in this codebase
+    ever actually produces this shape, but if it occurred, the whole
+    text is the name: there's no trailing token to strip, and a real
+    bare-name-only header's own last word (e.g. "python") must never be
+    mistaken for a version token just because it matches the same bare
+    "word-shaped" pattern."""
+    assert libupgradedoc._header_name_segment("keycloak-operator - python") == "keycloak-operator - python"
+
+
 # --- find_images_manifest_faulty_headers ---
 
 REDIS_OPERATOR_DEPS = [{"name": "redis-operator", "version": "1.0.0"}]
@@ -985,6 +1037,30 @@ def test_find_images_manifest_faulty_headers_sidecar_header_naming_wrong_compone
     problems = libupgradedoc.find_images_manifest_faulty_headers(
         entries, entry_line_indices, lines, REDIS_OPERATOR_DEPS, current_paths, repo_map, canonical_names)
     assert problems == [("redis-ha", "redis-operator - redis", "wrong_name")]
+
+
+def test_find_images_manifest_faulty_headers_digest_changed_sidecar_not_flagged(libupgradedoc):
+    """Real bug, real doc (keycloak-operator's own python init image):
+    a correct "#   sidecar: <parent> - <basename> <version> (digest
+    changed)" header — the wording fix-doc-consistency now writes for a
+    same-version/changed-digest re-pin, with no arrow at all — must NOT
+    be flagged as "wrong_name" just because _header_name_segment can't
+    find a version pair to search for."""
+    text = (
+        "#   sidecar: redis-operator - redis 8.6.6 (digest changed)\n"
+        "- name: redis-ha\n"
+        "  version: \"8.6.6\"\n"
+    )
+    lines = text.splitlines()
+    entries = [{"name": "redis-ha", "version": "8.6.6"}]
+    entry_line_indices = _entry_line_indices(lines)
+    current_paths = {("redis-operator", "redis-ha", "image"): "8.6.6"}
+    repo_map = {"redis-ha": ("redis-operator", "redis-ha", "image")}
+    canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
+
+    problems = libupgradedoc.find_images_manifest_faulty_headers(
+        entries, entry_line_indices, lines, REDIS_OPERATOR_DEPS, current_paths, repo_map, canonical_names)
+    assert problems == []
 
 
 def test_find_images_manifest_faulty_headers_primary_entry_never_checked(libupgradedoc):
