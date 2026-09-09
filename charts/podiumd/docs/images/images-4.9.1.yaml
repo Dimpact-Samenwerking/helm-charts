@@ -9,11 +9,11 @@
 #   4. kiss 3.0.0 -> 3.1.1.
 #   5. kiss - kiss-elastic-sync 3.0.0 -> 3.1.1.
 #   6. zac - opentelemetry-collector-contrib 0.158.0 (new).
-#   7. zaakbrug 1.26.15 -> 1.26.18.
-#   8. openbao - openbao-csi-provider 2.0.2 (new).
-#   9. openbao - vault-k8s 1.7.2 (new).
-#   10. openbao - openbao-snapshot-agent 0.3.0 (new).
-#   11. frankgateway 104 -> 1.1.0.
+#   7. frankgateway 104 -> 1.1.0.
+#   8. zaakbrug 1.26.15 -> 1.26.18.
+#   9. openbao - openbao-csi-provider 2.0.2 (new).
+#   10. openbao - vault-k8s 1.7.2 (new).
+#   11. openbao - openbao-snapshot-agent 0.3.0 (new).
 #
 # See docs/_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md for the operator upgrade notes.
 #
@@ -54,6 +54,14 @@
   version: "0.158.0"
   digest: "sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5"
 
+# Frank!Gateway: 104 -> 1.1.0, the first SemVer release of WeAreFrank's build.
+# Still Apache APISIX 3.16.0 (label based-on); the delta is two new plugins
+# (auth-zen, merge-config) and release engineering. `latest` is one commit
+# ahead of 1.1.0 -- never pin it.
+- name: wearefrank/frank-gateway
+  url: ghcr.io/wearefrank/frank-gateway
+  version: "1.1.0"
+  digest: "sha256:2f944fdbc16883e4b586aaa20f04928cd33afc7efc78d37012d2c7acb62f55bd"
 # Zaakbrug 1.26.15 -> 1.26.18 (Helm sub-chart 2.3.28 -> 2.3.32).
 # Opt-in component (zaakbrug.enabled, default false) — only mirrored for
 # gemeentes that run it. Frank!Framework runtime 10.1.0-20260323.042326 ->
@@ -80,11 +88,3 @@
   version: "0.3.0"
   digest: "sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"
 
-# Frank!Gateway: 104 -> 1.1.0, the first SemVer release of WeAreFrank's build.
-# Still Apache APISIX 3.16.0 (label based-on); the delta is two new plugins
-# (auth-zen, merge-config) and release engineering. `latest` is one commit
-# ahead of 1.1.0 -- never pin it.
-- name: wearefrank/frank-gateway
-  url: ghcr.io/wearefrank/frank-gateway
-  version: "1.1.0"
-  digest: "sha256:2f944fdbc16883e4b586aaa20f04928cd33afc7efc78d37012d2c7acb62f55bd"
