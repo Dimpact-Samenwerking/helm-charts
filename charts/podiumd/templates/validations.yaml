@@ -20,6 +20,112 @@
 {{- end -}}
 {{- end -}}
 
+{{- /* Frank!Gateway: `gateway` was the reserved single-instance key before the
+     traffic-class split became the only shape. It no longer resolves to
+     anything — the bare `frankgateway` object names and the `/apisix` etcd
+     prefix are gone — so a values file still setting it would quietly render a
+     fourth instance named `frankgateway-gateway` on prefix `/frankgateway-gateway`,
+     seeding no routes and serving nothing. Fail instead. */ -}}
+{{- /* Frank!Gateway reads every external-API credential from OpenBao at request
+     time (files/frankgateway/openbao-secret-header.lua). There is no env-var
+     fallback any more, so a gateway without OpenBao cannot authenticate to
+     BAG, KVK or any other upstream that needs a key — and it would fail at
+     request time, per call, rather than at deploy time. Couple them here. */ -}}
+{{- if and .Values.frankgateway.enabled (not .Values.openbao.enabled) -}}
+{{- fail "frankgateway requires openbao: external-API keys are fetched from OpenBao at request time and there is no other key path. Set openbao.enabled=true, or frankgateway.enabled=false." -}}
+{{- end -}}
+
+{{- if .Values.frankgateway.enabled -}}
+{{- if hasKey .Values.frankgateway.instances "gateway" -}}
+{{- fail "frankgateway.instances.gateway no longer exists: the traffic-class split (inway/outway/internal) is the only supported shape. Move the overrides under the class they belong to and remove the `gateway` key. See charts/podiumd/docs/apps/frankgateway/frankgateway-traffic-classes.md" -}}
+{{- end -}}
+{{- if .Values.frankgateway.serviceAlias -}}
+{{- fail "frankgateway.serviceAlias no longer exists: the migration alias Service has been removed. Address instances by name (frankgateway-inway / frankgateway-outway / frankgateway-internal)." -}}
+{{- end -}}
+{{- /* Routes, consumers and client certificates are PER INSTANCE. The shared
+     frankgateway block deep-merges into every class, so a map placed there
+     would seed the same routes into inway, outway and internal alike. The
+     chart also ships no route any more: an environment's values are the
+     complete list, so there is nothing for a shared key to add to. */ -}}
+{{- range $k := list "routes" "consumers" "clientCertificates" -}}
+{{- if hasKey $.Values.frankgateway $k -}}
+{{- fail (printf "frankgateway.%s is not a shared key: it would merge into every traffic class. Define it per instance, under frankgateway.instances.<class>.%s. (The former routes.seed / routes.job settings moved to frankgateway.seed.enabled / seed.job, and the chart ships no route files any more — see docs/apps/frankgateway/frankgateway-routes.md.)" $k $k) -}}
+{{- end -}}
+{{- end -}}
+{{- /* The env-var key path (4.9.0 frankgateway.apiKeys -> envFrom -> os.getenv
+     in the route) is gone, not deprecated: keys are read from OpenBao at
+     request time (files/frankgateway/openbao-secret-header.lua). A leftover
+     apiKeys block would otherwise render clean and be ignored, while reading
+     in the values file as though it were still the live key path. */ -}}
+{{- if hasKey .Values.frankgateway "apiKeys" -}}
+{{- fail "frankgateway.apiKeys no longer exists: external-API keys are read from OpenBao at request time by the route's serverless function, not from env vars. Put the values in OpenBao under <frankgateway.openbao.mount>/frankgateway (bag_api_key, kvk_api_key), point the routes at them (docs/apps/frankgateway/frankgateway-routes.md), remove this key, and delete the frankgateway-api-keys Secret and its Key Vault entries once the routes are confirmed working." -}}
+{{- end -}}
+{{- /* A cert-manager Certificate without an issuer is rejected by the API
+     server with a message about the CRD, not about this chart. Say it here.
+
+     The ingressNamespace check below is the same idea applied to a policy: an
+     empty or wrong value produces a NetworkPolicy that compiles, deploys and
+     silently drops every inbound request, with no log line on either side. */ -}}
+{{- range $key, $override := .Values.frankgateway.instances -}}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $key "override" $override) | fromYaml -}}
+{{- $class := include "podiumd.frankgateway.class" (dict "key" $key "instance" $fg) -}}
+{{- if and $fg.enabled (not $class) $.Values.frankgateway.networkPolicies.enabled -}}
+{{- fail (printf "frankgateway.instances.%s has no traffic class, so no NetworkPolicy can be written for it, yet frankgateway.networkPolicies.enabled is true. Silently leaving one instance unrestricted while every other is locked down is worse than refusing to render. Set `class` on it to one of inway/outway/internal, or name the instance after its class." $key) -}}
+{{- end -}}
+{{- if and $fg.enabled (eq $class "inway") $.Values.frankgateway.networkPolicies.enabled (not $.Values.frankgateway.networkPolicies.ingressNamespace) -}}
+{{- fail (printf "frankgateway.networkPolicies.ingressNamespace must be set when the %s instance runs with networkPolicies enabled. It is the namespace of the pod that OPENS connections to the inway — for NGINX Gateway Fabric 2.x that is the per-Gateway DATA plane pod, which runs in the Gateway's own namespace (e.g. ingress-basic), NOT the nginx-gateway namespace where the control plane runs. Find it with: kubectl get pods -A | grep gateway-nginx" $key) -}}
+{{- end -}}
+{{- if and $fg.enabled $fg.tls.enabled $fg.tls.certManager.enabled (not $fg.tls.certManager.issuerRef.name) (not $fg.tls.certManager.issuer.create) -}}
+{{- fail (printf "frankgateway.instances.%s: tls.certManager.enabled needs an issuer — either name one in tls.certManager.issuerRef.name, or set tls.certManager.issuer.create=true to have the chart render an OpenBao-backed Issuer (see frankgateway-BASICS.md for the OpenBao-side setup)" $key) -}}
+{{- end -}}
+{{- /* Route ids become APISIX route ids AND ConfigMap keys, so both charsets
+     apply; a body whose own `id` disagrees with the key would be PUT under the
+     key and rejected by APISIX with a message about the body, not the values. */ -}}
+{{- $certs := $fg.clientCertificates | default dict -}}
+{{- if not (kindIs "map" $certs) -}}
+{{- fail (printf "frankgateway.instances.%s.clientCertificates must be a map of name -> { openbaoPath: <path within the mount> }" $key) -}}
+{{- end -}}
+{{- range $n, $c := $certs -}}
+{{- if not (regexMatch "^[a-zA-Z0-9._-]+$" $n) -}}
+{{- fail (printf "frankgateway.instances.%s.clientCertificates: name %q must match ^[a-zA-Z0-9._-]+$ — it becomes the SSL object id client-%s" $key $n $n) -}}
+{{- end -}}
+{{- if or (not (kindIs "map" $c)) (not $c.openbaoPath) -}}
+{{- fail (printf "frankgateway.instances.%s.clientCertificates.%s.openbaoPath is required: the path within the OpenBao mount holding fields `cert` and `key`, e.g. frankgateway/client-certs/%s" $key $n $n) -}}
+{{- end -}}
+{{- end -}}
+{{- $routes := $fg.routes | default dict -}}
+{{- if not (kindIs "map" $routes) -}}
+{{- fail (printf "frankgateway.instances.%s.routes must be a map of route id -> APISIX route body (see docs/apps/frankgateway/frankgateway-routes.md)" $key) -}}
+{{- end -}}
+{{- range $id, $route := $routes -}}
+{{- if has $id (list "extra" "seed" "job" "dirs") -}}
+{{- fail (printf "frankgateway.instances.%s.routes.%s: `%s` is not a route id. routes.extra / routes.seed / routes.job / routes.dirs no longer exist — `routes` is now the map of routes itself, and the hook Job settings live under frankgateway.seed. See docs/apps/frankgateway/frankgateway-routes.md" $key $id $id) -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-zA-Z0-9._-]+$" $id) -}}
+{{- fail (printf "frankgateway.instances.%s.routes: route id %q must match ^[a-zA-Z0-9._-]+$ — it becomes the APISIX route id and a ConfigMap key" $key $id) -}}
+{{- end -}}
+{{- if not (kindIs "map" $route) -}}
+{{- fail (printf "frankgateway.instances.%s.routes.%s must be an APISIX route body (a map)" $key $id) -}}
+{{- end -}}
+{{- if and (hasKey $route "id") (ne (toString $route.id) $id) -}}
+{{- fail (printf "frankgateway.instances.%s.routes.%s: the body's `id` (%v) differs from the key it is filed under; drop it or make them equal" $key $id $route.id) -}}
+{{- end -}}
+{{- /* A client_cert_id APISIX cannot find is rejected at seed time, per
+     route, with a message about the SSL object; a typo is cheaper here. */ -}}
+{{- $ccid := dig "upstream" "tls" "client_cert_id" "" $route -}}
+{{- if and $ccid (not (and (hasPrefix "client-" $ccid) (hasKey $certs (trimPrefix "client-" $ccid)))) -}}
+{{- fail (printf "frankgateway.instances.%s.routes.%s: upstream.tls.client_cert_id %q names no client certificate of this instance. Declare it under frankgateway.instances.%s.clientCertificates.<name> (the SSL object id is then client-<name>)" $key $id $ccid $key) -}}
+{{- end -}}
+{{- /* The consumer-auth function trusts a header. That is only sound on the
+     inway, behind the front door that sets it; anywhere else the header is
+     whatever the caller says it is. */ -}}
+{{- if and (contains "openbao-consumer-auth" (toJson $route)) (ne $class "inway") -}}
+{{- fail (printf "frankgateway.instances.%s.routes.%s uses openbao-consumer-auth, which trusts the client-certificate identity header set by the front door. Only an inway-class instance sits behind that front door; on %s the header would be caller-controlled. See docs/apps/frankgateway/frankgateway-routes.md" $key $id $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- /* OIDC client secrets are auto-generated by keycloak-podiumd-realm-secrets.yaml when
      neither configuration.secrets.keycloak_client_secret nor configuration.oidcSecret is set,
      so all Keycloak clients are provisioned regardless of whether the component is enabled. */ -}}

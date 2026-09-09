@@ -1,0 +1,321 @@
+{
+  "title": "Frank!Gateway — alert panels",
+  "uid": "frankgateway-alerts",
+  "tags": [
+    "frankgateway",
+    "podiumd",
+    "alerts"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "description": "Threshold panels for Frank!Gateway. Nothing here fires or routes anywhere: production alerting is Datadog, and Alertmanager is disabled in this chart. These panels exist so the conditions worth alerting on are stated in one place, with the thresholds visible, and so a human looking at a suspected gateway problem sees the usual suspects at a glance.",
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Prometheus",
+        "current": {}
+      },
+      {
+        "name": "instance",
+        "label": "Traffic class",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(apisix_http_status, instance_name)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "selected": true,
+          "text": ["All"],
+          "value": ["$__all"]
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Gateways up",
+      "description": "Scrape targets currently up, per traffic class. Below the expected replica count means a pod is down or unscrapeable — and a class at zero is an outage of that direction of travel, not of the gateway as a whole.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (instance_name) (up{job=~\".*frankgateway.*\", instance_name=~\"$instance\"})",
+          "legendFormat": "{{instance_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "green", "value": 2 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 2,
+      "title": "etcd up",
+      "description": "Members of the shared etcd cluster answering. Quorum of three is two: at 2 the cluster still serves but tolerates no further loss, at 1 configuration writes stop for every traffic class at once.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "count(kube_pod_status_ready{namespace=\"podiumd\", pod=~\"frankgateway-etcd-.*\", condition=\"true\"} == 1) or vector(0)",
+          "legendFormat": "members ready"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 2 },
+              { "color": "green", "value": 3 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 3,
+      "title": "5xx rate (per class)",
+      "description": "Upstream and gateway errors per second. A 503 here is what a fail-closed OpenBao read looks like: the gateway answering for itself rather than passing a doomed request upstream.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (instance_name) (rate(apisix_http_status{code=~\"5..\", instance_name=~\"$instance\"}[5m]))",
+          "legendFormat": "{{instance_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.1 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 4,
+      "title": "401/403 rate (per class)",
+      "description": "Rejected calls. A step change here after a deploy is the signature of a credential problem — a route seeded before its consumer, a reader policy scoped to the wrong path, or a key that did not rotate everywhere. It looks the same in all three cases, which is why the auth matrix probe exists.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (instance_name) (rate(apisix_http_status{code=~\"401|403\", instance_name=~\"$instance\"}[5m]))",
+          "legendFormat": "{{instance_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.05 },
+              { "color": "red", "value": 0.5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Certificate — days to expiry",
+      "description": "From cert-manager, for the data-plane certificate. Renewal starts 30 days out, so anything below that means renewal is not happening. Below 7 days, inbound traffic has a date on it. Requires cert-manager's own metrics to be scraped; empty means either no cert-manager Certificate or no scrape.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 5 },
+      "targets": [
+        {
+          "expr": "(min by (name) (certmanager_certificate_expiration_timestamp_seconds{name=~\"frankgateway.*\"}) - time()) / 86400",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 7 },
+              { "color": "green", "value": 30 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Certificate sync — failed runs (24h)",
+      "description": "The ssl-sync CronJob pushes the renewed certificate into etcd. APISIX serves certificates from etcd, not from files, so a failing sync means a valid Secret and an expired gateway — the failure that looks exactly like success. Any non-zero value here needs a person.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 5 },
+      "targets": [
+        {
+          "expr": "sum(kube_job_status_failed{namespace=\"podiumd\", job_name=~\"frankgateway-.*-ssl-sync-.*\"}) or vector(0)",
+          "legendFormat": "failed jobs"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Route seeding — failed runs",
+      "description": "The apply-routes hook Job. A failure here means the gateway is serving whatever was in etcd from last time, which may be nothing at all on a fresh install.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 5 },
+      "targets": [
+        {
+          "expr": "sum(kube_job_status_failed{namespace=\"podiumd\", job_name=~\"frankgateway-.*-apply-routes.*\"}) or vector(0)",
+          "legendFormat": "failed jobs"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 8,
+      "title": "p99 latency by class",
+      "description": "Request latency at the gateway. Included as context rather than a threshold: what counts as slow depends on the upstream a class talks to, and the national registries are not fast.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 10 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, instance_name) (rate(apisix_http_latency_bucket{type=\"request\", instance_name=~\"$instance\"}[5m])))",
+          "legendFormat": "{{instance_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms" },
+        "overrides": []
+      }
+    }
+  ]
+}

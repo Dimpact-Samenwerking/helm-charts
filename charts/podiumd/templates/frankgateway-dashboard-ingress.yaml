@@ -1,22 +1,28 @@
-{{- if and .Values.frankgateway.enabled .Values.frankgateway.dashboard.enabled .Values.frankgateway.dashboard.auth.enabled .Values.frankgateway.dashboard.ingress.enabled }}
+{{- if .Values.frankgateway.enabled }}
 {{- /*
-  Optional public Ingress for the Frank!Gateway dashboard, fronted by
-  oauth2-proxy (Keycloak SSO). For envs still on Traefik/ingress-nginx;
-  Gateway API envs (jim00) leave this off and route deploy-side via HTTPRoute
-  to Service frankgateway-oauth2-proxy:4180.
+  Optional public Ingress for the Frank!Gateway dashboards, fronted by
+  oauth2-proxy (Keycloak SSO), one per enabled instance. For envs still on
+  Traefik/ingress-nginx; Gateway API envs (jim00) leave this off and route
+  deploy-side via HTTPRoute to Service <instance>-oauth2-proxy:4180.
 
-  https://<dashboard.auth.hostname>/ -> frankgateway-oauth2-proxy:4180
-    -> frankgateway-shim:8080 -> frankgateway-dashboard:9000
+  https://<dashboard.auth.hostname>/ -> <instance>-oauth2-proxy:4180
+    -> <instance>-shim:8080 -> <instance>-dashboard:9000
 */ -}}
-{{- $hostname := .Values.frankgateway.dashboard.auth.hostname }}
-{{- $issuer := .Values.frankgateway.dashboard.ingress.clusterIssuer | default "letsencrypt-prod" }}
+{{- $root := . }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if and $fg.enabled $fg.dashboard.enabled $fg.dashboard.auth.enabled $fg.dashboard.ingress.enabled }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+{{- $hostname := $fg.dashboard.auth.hostname }}
+{{- $issuer := $fg.dashboard.ingress.clusterIssuer | default "letsencrypt-prod" }}
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: frankgateway-dashboard-ingress
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-dashboard-ingress
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway-oauth2-proxy
   annotations:
     cert-manager.io/cluster-issuer: {{ $issuer | quote }}
@@ -27,7 +33,7 @@ spec:
   tls:
     - hosts:
         - {{ $hostname | quote }}
-      secretName: frankgateway-dashboard-tls
+      secretName: {{ $name }}-dashboard-tls
   rules:
     - host: {{ $hostname | quote }}
       http:
@@ -36,7 +42,9 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: frankgateway-oauth2-proxy
+                name: {{ $name }}-oauth2-proxy
                 port:
                   number: 4180
+{{- end }}
+{{- end }}
 {{- end }}

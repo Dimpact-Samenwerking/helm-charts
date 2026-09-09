@@ -13,6 +13,7 @@
 #   8. openbao - openbao-csi-provider 2.0.2 (new).
 #   9. openbao - vault-k8s 1.7.2 (new).
 #   10. openbao - openbao-snapshot-agent 0.3.0 (new).
+#   11. frankgateway 104 -> 1.1.0.
 #
 # See docs/_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md for the operator upgrade notes.
 #
@@ -79,3 +80,11 @@
   version: "0.3.0"
   digest: "sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"
 
+# Frank!Gateway: 104 -> 1.1.0, the first SemVer release of WeAreFrank's build.
+# Still Apache APISIX 3.16.0 (label based-on); the delta is two new plugins
+# (auth-zen, merge-config) and release engineering. `latest` is one commit
+# ahead of 1.1.0 -- never pin it.
+- name: wearefrank/frank-gateway
+  url: ghcr.io/wearefrank/frank-gateway
+  version: "1.1.0"
+  digest: "sha256:2f944fdbc16883e4b586aaa20f04928cd33afc7efc78d37012d2c7acb62f55bd"
