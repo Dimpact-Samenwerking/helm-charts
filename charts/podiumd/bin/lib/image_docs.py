@@ -668,5 +668,15 @@ def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline
         lines.append(f"  url: {full_repo}\n")
         lines.append(f'  version: "{new_version}"\n')
         lines.append(f'  digest: "{digest}"\n')
-    images_baseline_path.write_text("".join(lines), encoding="utf-8")
+        lines.append("\n")
+    text = "".join(lines)
+    # A blank line after every entry (including the last) leaves the
+    # file ending in "...\n\n" — one syntactic blank line before EOF.
+    # Collapsed down to a single trailing newline, the same "exactly one
+    # final newline, never a blank line right before EOF" convention
+    # collapse_multiple_blank_lines already enforces for the three
+    # .md docs this script manages.
+    if text.endswith("\n\n"):
+        text = text[:-1]
+    images_baseline_path.write_text(text, encoding="utf-8")
     return len(resolved), skipped

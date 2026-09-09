@@ -517,3 +517,29 @@ def test_regenerate_images_baseline_manifest_wholesale_overwrite(libimagedocs, t
     text = images_baseline_path.read_text(encoding="utf-8")
     assert "infonl/zaakafhandelcomponent" not in text
     assert "openbao/openbao" in text
+
+
+def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_eof(libimagedocs, tmp_path):
+    """A blank line separates each entry (readability), but the file
+    still ends in exactly one trailing newline — never a blank line
+    right before EOF, the same convention collapse_multiple_blank_lines
+    already enforces for the three .md docs this script manages."""
+    deps = [
+        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
+        {"name": "openbao", "version": "2.0.0"},
+    ]
+    values = {
+        "zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}},
+        "openbao": {"image": {"repository": "openbao/openbao", "tag": "2.0.0@sha256:" + "c" * 64}},
+    }
+    images_baseline_path = tmp_path / "images-baseline.yaml"
+
+    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, deps, values, images_baseline_path)
+
+    assert skipped == []
+    assert written == 2
+    text = images_baseline_path.read_text(encoding="utf-8")
+    assert "  digest: \"sha256:" + "a" * 64 + "\"\n\n- name: openbao/openbao\n" in text
+    assert not text.endswith("\n\n")
+    assert text.endswith("\n")
