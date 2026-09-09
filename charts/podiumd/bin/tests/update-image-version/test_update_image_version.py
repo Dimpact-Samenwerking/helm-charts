@@ -315,6 +315,152 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
     assert "1. openbao v2.5.0 -> v2.6.0 (chart 0.28.4, unchanged)." in manifest
 
 
+def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(uiv, tmp_path, monkeypatch):
+    """Regression test (real bug, real doc, mi-data): mi-data's own chart
+    version (1.0.0 -> 1.1.0) AND app version (blank -> 2.71.0) both moved
+    WITHIN this same release cycle, via an earlier separate run, before
+    ever being genuinely captured in any prior baseline doc -- values.yaml
+    had no "mi.image" override at all at the true baseline, just an
+    "enabled: false" stub. A later run bumping mi's own image tag further
+    (2.71.0 -> 2.90.0) must show BOTH its Helm-chart cell AND its Changes-
+    heading app version as "(new)" -- not a "1.0.0 -> 1.1.0" /
+    "2.71.0 -> 2.90.0" transition (implying a real prior baseline value
+    existed and moved, which no doc thread across this whole cycle ever
+    recorded), and not "(unchanged)" either. See update_docs_single_
+    component's own old_chart_str comment for why old_chart is gated by
+    the SAME baseline_app-is-None signal as old_app, not by a raw
+    baseline_dep["version"] git-history read (which would give the
+    real-per-git-history-but-wrong-to-show "1.0.0")."""
+    (tmp_path / "Chart.yaml").write_text(
+        "apiVersion: v2\n"
+        "name: podiumd\n"
+        "version: 4.9.1\n"
+        "dependencies:\n"
+        "  - name: mi-data\n"
+        "    alias: mi\n"
+        "    version: 1.0.0\n"
+        "    repository: \"@mi\"\n",
+        encoding="utf-8",
+    )
+    write_values(tmp_path, "mi:\n  enabled: false\n")
+    commit_baseline_tag(tmp_path, "4.9.0")  # baseline: chart 1.0.0, no image override at all
+
+    # Simulate the earlier, separate in-cycle bump that first introduced
+    # mi's own image override -- chart AND app version both moved, never
+    # captured in any prior doc.
+    (tmp_path / "Chart.yaml").write_text(
+        "apiVersion: v2\n"
+        "name: podiumd\n"
+        "version: 4.9.1\n"
+        "dependencies:\n"
+        "  - name: mi-data\n"
+        "    alias: mi\n"
+        "    version: 1.1.0\n"
+        "    repository: \"@mi\"\n",
+        encoding="utf-8",
+    )
+    values_path = write_values(tmp_path, (
+        "mi:\n"
+        "  enabled: false\n"
+        "  image:\n"
+        "    repository: example/mi-data\n"
+        f'    tag: "2.71.0@sha256:{"a" * 64}"\n'
+    ))
+
+    write_doc(uiv.DOC_DIR, "4.9.0-to-4.9.1-upgrade.md",
+              "# Upgrade guide: PodiumD 4.9.0 → 4.9.1\n\n"
+              "## Component versions (4.9.1 vs 4.9.0)\n\n"
+              "| Component | App version | Helm chart | Notes |\n"
+              "| --- | --- | --- | --- |\n\n"
+              "## Changes\n")
+    write_doc(uiv.DOC_DIR, "4.9.0-to-4.9.1-values-deltas.md",
+              "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\nNo changes.\n")
+
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv", ["update-image-version", "mi", "mi-data", "2.90.0"])
+
+    uiv.main()
+
+    upgrade = (uiv.DOC_DIR / "4.9.0-to-4.9.1-upgrade.md").read_text(encoding="utf-8")
+    assert "None" not in upgrade
+    assert "1.0.0" not in upgrade
+    assert "2.71.0" not in upgrade
+    assert "| mi | 2.90.0 (new) | 1.1.0 (new) | - |" in upgrade
+    assert "### mi 2.90.0 (new) (chart 1.1.0, new)" in upgrade
+
+
+def test_main_shows_real_baseline_chart_transition_when_genuinely_tracked(uiv, tmp_path, monkeypatch):
+    """Counterpart to the mi-data test above: a component that WAS
+    genuinely tracked at the true baseline (a real app version resolves
+    there) gets its real baseline Chart.yaml dependency version as
+    old_chart, same as ever -- only a component with NO real baseline
+    app version at all (see the mi-data test) gets old_chart forced to
+    None too. Here zac's own chart version genuinely moved (1.0.296 ->
+    1.0.297) since the baseline -- must still render that real
+    transition, not "(new)"."""
+    (tmp_path / "Chart.yaml").write_text(
+        "apiVersion: v2\n"
+        "name: podiumd\n"
+        "version: 4.9.1\n"
+        "dependencies:\n"
+        "  - name: zaakafhandelcomponent\n"
+        "    alias: zac\n"
+        "    version: 1.0.296\n"
+        "    repository: \"@zac\"\n",
+        encoding="utf-8",
+    )
+    write_values(tmp_path, (
+        "zac:\n"
+        "  image:\n"
+        "    repository: infonl/zaakafhandelcomponent\n"
+        f'    tag: "5.0.2@sha256:{"a" * 64}"\n'
+    ))
+    commit_baseline_tag(tmp_path, "4.9.0")  # baseline: chart 1.0.296, app 5.0.2
+
+    # Chart bumped (unrelated to this basename bump) since baseline.
+    (tmp_path / "Chart.yaml").write_text(
+        "apiVersion: v2\n"
+        "name: podiumd\n"
+        "version: 4.9.1\n"
+        "dependencies:\n"
+        "  - name: zaakafhandelcomponent\n"
+        "    alias: zac\n"
+        "    version: 1.0.297\n"
+        "    repository: \"@zac\"\n",
+        encoding="utf-8",
+    )
+    values_path = write_values(tmp_path, (
+        "zac:\n"
+        "  image:\n"
+        "    repository: infonl/zaakafhandelcomponent\n"
+        f'    tag: "5.0.2@sha256:{"a" * 64}"\n'
+    ))
+
+    write_doc(uiv.DOC_DIR, "4.9.0-to-4.9.1-upgrade.md",
+              "# Upgrade guide: PodiumD 4.9.0 → 4.9.1\n\n"
+              "## Component versions (4.9.1 vs 4.9.0)\n\n"
+              "| Component | App version | Helm chart | Notes |\n"
+              "| --- | --- | --- | --- |\n\n"
+              "## Changes\n")
+    write_doc(uiv.DOC_DIR, "4.9.0-to-4.9.1-values-deltas.md",
+              "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\nNo changes.\n")
+
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv", ["update-image-version", "zac", "zaakafhandelcomponent", "5.4.3"])
+
+    uiv.main()
+
+    upgrade = (uiv.DOC_DIR / "4.9.0-to-4.9.1-upgrade.md").read_text(encoding="utf-8")
+    assert "None" not in upgrade
+    assert "(new)" not in upgrade
+    assert "| zac | 5.0.2 → 5.4.3 | 1.0.296 → 1.0.297 | - |" in upgrade
+    assert "### zac 5.0.2 → 5.4.3 (chart 1.0.296 → 1.0.297)" in upgrade
+
+
 # --- doc updates: a sidecar bump (not the dependency's own primary image) ---
 # gets a "<values_key> (<basename>)" disambiguated row/section name, since
 # "<values_key>" alone would collide with the dependency's own primary-image
@@ -703,7 +849,12 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(uiv, tmp_pat
     assert "## curl" not in deltas
 
     manifest = (uiv.IMAGES_DIR / "images-1.0.0.yaml").read_text(encoding="utf-8")
-    assert "Zero changes:" in manifest
+    # The header's own wording is never rewritten into a counted form —
+    # same convention lib.component_docs.update_images_manifest already
+    # uses; the fixture's own "# One change:" header stays exactly as it
+    # already was, never rewritten to a false "Zero changes:".
+    assert "# One change:" in manifest
+    assert "Zero changes:" not in manifest
     assert "curl 8.20.0" not in manifest  # the numbered "changes:" list item is gone
     assert "# curl —" not in manifest  # the entry's now-stale source comment is gone too
     assert '"8.20.0"' in manifest  # the entry itself still lists the correct (reset) version
