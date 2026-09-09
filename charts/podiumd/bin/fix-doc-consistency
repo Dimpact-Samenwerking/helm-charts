@@ -99,7 +99,10 @@ from lib.component_docs import (
 )
 from lib.docs_consistency import match_changes_item_to_entry
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
-from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_rows, update_stale_app_version_headings
+from lib.image_docs import (
+    add_missing_changes_sections, add_missing_sidecar_rows, regenerate_images_baseline_manifest,
+    update_stale_app_version_headings,
+)
 from lib.image_repository_check import find_images_without_repository
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
@@ -1442,6 +1445,17 @@ def main():
         print("Review these lines by hand — old baseline text may remain in free-form prose:")
         for name, lines in review_notes:
             print(f"  {name}: line(s) {', '.join(map(str, lines))}")
+
+    written, skipped = regenerate_images_baseline_manifest(
+        CHART_YAML.parent, target_deps, target_values, IMAGES_DIR / "images-baseline.yaml")
+    print()
+    print("=== Regenerating images-baseline.yaml ===")
+    print(f"  wrote {written} entr{'y' if written == 1 else 'ies'}")
+    if skipped:
+        print(f"  could not resolve a full url/digest for {len(skipped)} repositor{'y' if len(skipped) == 1 else 'ies'} "
+              f"— review by hand:")
+        for repo in skipped:
+            print(f"    {repo}")
 
     print()
     print("Done.")
