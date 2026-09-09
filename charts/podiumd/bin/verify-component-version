@@ -70,7 +70,14 @@ def main():
 
     dep = find_dependency(component)
     values = verify_chart_version(CHART_DIR, dep, chart_version)  # exits 1 itself if missing
-    results = check_image_versions(values, image_paths_for(component), app_version)
+    # image_paths_for is keyed by the dependency's own Chart.yaml "name",
+    # never its alias (see lib.chart.COMPONENT_IMAGE_PATHS) — dep["name"]
+    # here, not the raw `component` argument, which find_dependency above
+    # already accepts as EITHER form. Passing the alias straight through
+    # silently missed a real registry entry keyed by name (e.g. "kiss" for
+    # dependency "kiss-chart"), falling back to the generic ["image"]
+    # default and skipping any co-registered lockstep path.
+    results = check_image_versions(values, image_paths_for(dep["name"]), app_version)
 
     print()
     print(f"Checking app version {app_version!r} for {component}:")

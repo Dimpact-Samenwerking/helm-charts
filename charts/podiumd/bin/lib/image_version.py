@@ -9,7 +9,7 @@ version.py's own CLI and update-component-version: a component's app
 version bump resolves to one or more of these basename updates — the
 component name and the image name are not always the same (e.g.
 zgw-office-addin bumps two distinctly-named images, frontend + backend)."""
-from lib.chart import dotted_key_path, replace_scalar_value
+from lib.chart import dotted_key_path, find_dependency, replace_scalar_value
 from lib.image_digests import scan_digest_pins
 from lib.registry import parse_repo, registry_tag_exists
 
@@ -62,6 +62,33 @@ def basenames_under_scope(lines, scope_key):
 # with-podiumd all agree on exactly what "MULTIPLE" means.
 MULTIPLE_KEY = "MULTIPLE"
 GLOBAL_IMAGES_SCOPE = "global"
+
+
+def resolve_key_scope(key, deps):
+    """<key> as given on the CLI, translated to the literal top-level
+    values.yaml key resolve_scoped_matches/find_matches_in_scope actually
+    scan for — accepting EITHER a Chart.yaml dependency's own "name" or
+    its "alias" interchangeably, the same convention update-component-
+    version's own find_dependency-based <component> argument already
+    uses, rather than requiring whichever one happens to literally BE
+    the values.yaml key (real bug: "kiss-chart" — the dependency's real
+    name — used to be rejected outright, only its alias "kiss" worked,
+    with no obvious reason why to anyone not already reading this exact
+    module).
+
+    MULTIPLE_KEY passes through unchanged — resolve_scoped_matches
+    translates it to GLOBAL_IMAGES_SCOPE itself, and it never names a
+    dependency to begin with. A key matching no Chart.yaml dependency at
+    all also passes through unchanged: a lib.chart.NATIVE_COMPONENTS
+    component has no alias distinction to resolve (never in Chart.yaml,
+    no dep to find), and a genuine typo is already caught by resolve_
+    scoped_matches' own "no image pin ... found under" error, just under
+    whatever raw string was actually typed — the right failure either
+    way."""
+    if key == MULTIPLE_KEY:
+        return key
+    dep = find_dependency(deps, key)
+    return (dep.get("alias") or dep["name"]) if dep is not None else key
 
 
 def find_matches_in_scope(lines, scope_key, basename):
