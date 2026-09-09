@@ -903,6 +903,33 @@ def test_fix_changes_heading_app_versions_corrects_wrong_new_dependency_heading(
     assert "Some stale prose here." in new_text
 
 
+def test_fix_changes_heading_app_versions_preserves_headings_own_name_not_rows(cdb):
+    """Real bug found live: the table row's own display name ("mi-data
+    (MI-data exports)") and this same component's own Changes heading
+    ("mi") can legitimately differ — a first version of this fix
+    reconstructed the WHOLE heading using the ROW's own name, silently
+    renaming "### mi ..." to "### mi-data (MI-data exports) ..." even
+    though only the app-version portion was ever supposed to change."""
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| mi-data (MI-data exports) | 2.71.0 → 2.90.0 | 1.0.0 → 1.1.0 | - |\n\n"
+        "## Changes\n\n"
+        "### mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
+        "Some stale prose here.\n"
+    )
+    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
+
+    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+
+    assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
+    assert "### mi 2.90.0 (new) (chart 1.1.0, unchanged)" in new_text
+    assert "mi-data (MI-data exports)" not in new_text.split("## Changes", 1)[1]
+
+
 def test_fix_changes_heading_app_versions_already_correct_heading_untouched(cdb):
     text = (
         "## Component versions (4.9.1 vs 4.9.0)\n\n"
