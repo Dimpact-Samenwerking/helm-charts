@@ -978,16 +978,17 @@ def test_unchanged_sidecar_with_no_row_is_not_flagged(vp, tmp_path, capsys):
     assert "redis-operator - redis-exporter" not in out
 
 
-def test_new_sidecar_row_known_in_images_baseline_is_not_a_warning(vp, tmp_path, capsys):
+def test_new_sidecar_row_known_in_historical_images_manifest_is_not_a_warning(vp, tmp_path, capsys):
     """Regression test: redis-operator's own "k8s" sidecar is added as a
     brand-new nested path this release (baseline has nothing for it at
-    all), but it's pinned to an image already known, byte-for-byte, in
-    docs/images/images-baseline.yaml — resolve_component_row's own
-    images_baseline fallback (see lib.chart.image_pin_matches_images_
-    baseline) resolves its baseline app version anyway, so this is
-    verified clean, not left as an unverifiable warning the way a
-    genuinely new pin would be (see test_new_dependency_unresolvable_
-    baseline_row_is_a_warning_not_a_failure)."""
+    all), but its repository already appears, byte-for-byte at the same
+    version, in an earlier release's own docs/images/images-4.8.0.yaml
+    manifest — resolve_component_row's own historical-images-manifest
+    fallback (see lib.chart.historical_app_version_for_path) resolves
+    its baseline app version anyway, so this is verified clean, not
+    left as an unverifiable warning the way a genuinely new pin would
+    be (see test_new_dependency_unresolvable_baseline_row_is_a_warning_
+    not_a_failure)."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
@@ -1026,7 +1027,7 @@ def test_new_sidecar_row_known_in_images_baseline_is_not_a_warning(vp, tmp_path,
         "# Baseline: podiumd 4.8.5 (test @ 0000000).\n#\n"
         "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n# Zero changes:\n#\n\n[]\n"
     )
-    (images_dir / "images-baseline.yaml").write_text(
+    (images_dir / "images-4.8.0.yaml").write_text(
         "- name: alpine/k8s\n"
         "  url: quay.io/alpine/k8s\n"
         '  version: "1.36.2"\n'

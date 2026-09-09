@@ -11,8 +11,8 @@ import re
 import yaml
 
 from lib.chart import (
-    canonical_sidecar_row_names, global_image_paths, load_images_baseline, load_yaml, paths_by_repository,
-    repo_group_representative, resolved_digest_pin, version_of,
+    canonical_sidecar_row_names, global_image_paths, load_yaml, paths_by_repository, repo_group_representative,
+    resolved_digest_pin, version_of,
 )
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, find_images_manifest_changes_header, find_images_manifest_changes_items,
@@ -617,9 +617,9 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     # all (baseline_values is {} in that case, so baseline_paths is too).
     if baseline_paths and chart_dir is not None:
         unresolvable_paths = set(find_images_without_repository(chart_dir))
-        images_baseline = load_images_baseline(chart_dir)
         missing_paths, stale_entry_names, unmatched_entry_names = find_images_manifest_list_diff(
-            entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths, images_baseline)
+            entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths,
+            chart_dir=chart_dir, upgrade_docs_baseline=upgrade_docs_baseline)
         for path in missing_paths:
             name = path_display_name(path, deps, canonical_names)
             issues.append(f'{images_path.name}: image "{name}" changed vs '
@@ -745,7 +745,6 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     # that's actually new), which changes_heading_has_app_version's own
     # "is some version shown at all" check can never catch.
     baseline_app_by_identity = {}
-    images_baseline = load_images_baseline(chart_dir)
 
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
     is_bare_version = bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline))
@@ -876,7 +875,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             resolved = resolve_component_row(
                 row["name"], chart_dir, canonical_names, deps, values,
                 baseline_deps=baseline_deps if baseline_ref else None, baseline_values=baseline_values,
-                images_baseline=images_baseline,
+                upgrade_docs_baseline=upgrade_docs_baseline if baseline_ref else None,
             )
             if resolved["kind"] == "unmatched":
                 mismatches.append(
@@ -960,7 +959,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 # (almost always a brand-new/changed sidecar nested
                 # under it) already gets its own separate row.
                 resolved = resolve_component_own_version_change(
-                    key, deps, baseline_deps, values, baseline_values, chart_dir, images_baseline)
+                    key, deps, baseline_deps, values, baseline_values, chart_dir, upgrade_docs_baseline)
                 if resolved is not None and resolved[-1]:
                     continue
                 mismatches.append(

@@ -381,46 +381,6 @@ def chart_version(chart_yaml_path):
     return str(load_yaml(chart_yaml_path)["version"])
 
 
-IMAGES_BASELINE_FILE_NAME = "docs/images/images-baseline.yaml"
-
-
-def load_images_baseline(chart_dir):
-    """The parsed contents of chart_dir/docs/images/images-baseline.yaml
-    — the full, CUMULATIVE strip-registry mirror manifest (every image
-    version ever pinned across every release, not just this hop's own
-    changes — see that file's own header comment) — or [] if it doesn't
-    exist, or `chart_dir` itself is None (a caller with no chart_dir to
-    resolve at all — same "nothing to fall back to" convention every
-    other chart_dir-optional lookup here already uses). Entries are
-    {name, url, version, digest} dicts; "name:" is already in the same
-    stripped form (strip_registry(url)) images-<target>.yaml's own
-    "name:"/"url:" fields use (see paths_by_repository), so a manifest
-    entry's own repo string is directly comparable against this file's
-    "name:" without re-deriving anything."""
-    if chart_dir is None:
-        return []
-    path = chart_dir / IMAGES_BASELINE_FILE_NAME
-    if not path.is_file():
-        return []
-    return yaml.safe_load(path.read_text(encoding="utf-8")) or []
-
-
-def image_pin_known_in_images_baseline(images_baseline, repo, version, digest):
-    """Whether this EXACT (repo, version, digest) pin already appears in
-    images_baseline (see load_images_baseline) — the fallback "has this
-    image actually changed" signal for when the git upgrade_docs_
-    baseline has nothing to compare against at all (e.g. a component
-    that didn't exist in Chart.yaml/values.yaml until this release, so
-    there's no prior pinned tag to diff against — see lib.upgradedoc.
-    find_images_manifest_list_diff's own version_changed). A brand-new
-    COMPONENT can still pin an image version that was already mirrored
-    and used elsewhere before (real case: brppersonenmock added in
-    4.9.0, pinned to a brp-personen-mock version already present in
-    images-baseline.yaml from an earlier, unrelated hop) — there's
-    nothing new for the images manifest to track in that case, even
-    though the component itself is new to the chart."""
-    return any(entry.get("name") == repo and entry.get("version") == version
-               and entry.get("digest") == digest for entry in images_baseline)
 
 
 RELEASE_BASELINES_FILE_NAME = "etc/release-baseline.yaml"
@@ -1047,28 +1007,80 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
     return groups
 
 
-def image_pin_matches_images_baseline(chart_dir, deps, values, path, tag, images_baseline):
-    """Whether `path`'s current `tag` — already known to have no prior
-    value to diff against in a git baseline at all (see
-    image_pin_known_in_images_baseline's own real cases: brppersonenmock,
-    redis-operator's own "k8s" sidecar, kiss's own "crawler" dependency,
-    all three added/rearranged in Chart.yaml this release) — is
-    nonetheless a pin already known in images_baseline: genuinely new to
-    THIS path, but not new to the mirror. `path` is resolved to its
-    stripped repository via paths_by_repository's own per-path
-    resolution chain (podiumd's own override, then nested-subchart/
-    version-sibling fallbacks) — a single-path convenience wrapper
-    around it, not a separate resolution rule. False outright when
-    `tag` carries no "@sha256:..." digest at all (nothing to match), or
-    `path` doesn't resolve to any repository."""
-    if not tag or "@" not in tag:
-        return False
-    version, digest = tag.split("@", 1)
+def historical_images_manifest_paths(chart_dir, at_or_before=None):
+    """This chart's own docs/images/images-<version>.yaml files, most-
+    recent-first — every past release's own real, already-committed
+    "what changed that hop" manifest (each one lists ONLY that hop's own
+    changes, never the cumulative state — see any one of their own
+    header comments), the chronological search order for "did this
+    repository ever appear in an earlier release's own manifest".
+    `at_or_before` (a bare "X.Y.Z" string, e.g. upgrade_docs_baseline) —
+    when given, excludes any file whose own version sorts AFTER it,
+    since a component's baseline-fallback search only ever wants
+    releases at or before the release being compared against, never a
+    later one (including the in-progress target's own images-
+    <target>.yaml, which is exactly what a "changed vs baseline but has
+    no entry" finding is checking in the first place — feeding IT back
+    into this search would be circular). Files whose own name doesn't
+    parse as "images-X.Y.Z.yaml" (images-baseline.yaml itself included)
+    are silently skipped — never mistaken for a real release version."""
+    if chart_dir is None:
+        return []
+    images_dir = chart_dir / "docs" / "images"
+    if not images_dir.is_dir():
+        return []
+    limit = tuple(int(p) for p in at_or_before.split(".")) if at_or_before and SEMVER_RE.match(at_or_before) else None
+    dated = []
+    for path in images_dir.glob("images-*.yaml"):
+        m = re.match(r"^images-(\d+\.\d+\.\d+)\.yaml$", path.name)
+        if not m:
+            continue
+        version_tuple = tuple(int(p) for p in m.group(1).split("."))
+        if limit is not None and version_tuple > limit:
+            continue
+        dated.append((version_tuple, path))
+    dated.sort(key=lambda pair: pair[0], reverse=True)
+    return [path for _version_tuple, path in dated]
+
+
+def historical_app_version_for_repository(chart_dir, repo, at_or_before=None):
+    """The most recent version this EXACT repository (already stripped,
+    see strip_registry_host) was pinned to in any of this chart's own
+    past images-<version>.yaml manifests (historical_images_manifest_
+    paths, most-recent-first) — or None if it never appears in any of
+    them. The correct replacement for the removed images-baseline.yaml
+    fallback: "was this image ever tracked by this project before, even
+    though the Chart.yaml dependency/values.yaml block referencing it
+    now is brand new" (real case: brppersonenmock, added in 4.9.0,
+    whose own image had already been mirrored/used by an unrelated,
+    earlier hop) — matched by repository alone (not version+digest),
+    since the question is "has this repository ever been part of this
+    project's own release history at all," not "is this exact pin
+    already known" — the match's own historical `version` field (not
+    necessarily equal to the CURRENT version) is the real answer, a
+    genuine prior version to render an "X → Y" transition against,
+    never forced to "(unchanged)"."""
+    for path in historical_images_manifest_paths(chart_dir, at_or_before):
+        entries = yaml.safe_load(path.read_text(encoding="utf-8")) or []
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if isinstance(entry, dict) and entry.get("name") == repo:
+                return str(entry.get("version"))
+    return None
+
+
+def historical_app_version_for_path(chart_dir, deps, values, path, at_or_before=None):
+    """historical_app_version_for_repository, for `path`'s own resolved
+    repository (see paths_by_repository's own per-path resolution
+    chain) — a single-path convenience wrapper, not a separate
+    resolution rule. None when `path` doesn't resolve to a repository
+    at all."""
     repo_groups = paths_by_repository(chart_dir, deps, values, [path])
     repo = next(iter(repo_groups), None)
     if repo is None:
-        return False
-    return image_pin_known_in_images_baseline(images_baseline, repo, version, digest)
+        return None
+    return historical_app_version_for_repository(chart_dir, repo, at_or_before)
 
 
 def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):

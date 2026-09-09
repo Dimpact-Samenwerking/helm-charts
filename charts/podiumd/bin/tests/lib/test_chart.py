@@ -150,87 +150,107 @@ def test_release_table_baseline_none_when_key_missing(libchart, tmp_path):
     assert libchart.release_table_baseline(tmp_path) is None
 
 
-# --- load_images_baseline / image_pin_known_in_images_baseline ---
+# --- historical_images_manifest_paths / historical_app_version_for_repository ---
+# the replacement for the removed images-baseline.yaml fallback: walks
+# this chart's own past docs/images/images-<version>.yaml manifests,
+# most-recent-first, instead of a separate cumulative side-file.
 
-def test_load_images_baseline_reads_entries(libchart, tmp_path):
-    (tmp_path / "docs" / "images").mkdir(parents=True)
-    (tmp_path / "docs" / "images" / "images-baseline.yaml").write_text(
-        "- name: brp-api/personen-mock\n"
-        "  url: ghcr.io/brp-api/personen-mock\n"
-        '  version: "2.7.0"\n'
-        '  digest: "sha256:aaaa"\n',
+def _write_images_manifest(images_dir, version, entries):
+    images_dir.mkdir(parents=True, exist_ok=True)
+    (images_dir / f"images-{version}.yaml").write_text(
+        "".join(f"- name: {e['name']}\n  url: {e['name']}\n  version: \"{e['version']}\"\n"
+                f"  digest: \"{e['digest']}\"\n" for e in entries),
         encoding="utf-8",
     )
-    entries = libchart.load_images_baseline(tmp_path)
-    assert entries == [{"name": "brp-api/personen-mock", "url": "ghcr.io/brp-api/personen-mock",
-                         "version": "2.7.0", "digest": "sha256:aaaa"}]
 
 
-def test_load_images_baseline_empty_when_file_missing(libchart, tmp_path):
-    assert libchart.load_images_baseline(tmp_path) == []
+def test_historical_images_manifest_paths_sorts_most_recent_first(libchart, tmp_path):
+    images_dir = tmp_path / "docs" / "images"
+    for version in ("4.7.0", "4.9.0", "4.8.5"):
+        _write_images_manifest(images_dir, version, [])
+    paths = libchart.historical_images_manifest_paths(tmp_path)
+    assert [p.name for p in paths] == ["images-4.9.0.yaml", "images-4.8.5.yaml", "images-4.7.0.yaml"]
 
 
-def test_image_pin_known_in_images_baseline_exact_match(libchart):
-    images_baseline = [{"name": "brp-api/personen-mock", "version": "2.7.0", "digest": "sha256:aaaa"}]
-    assert libchart.image_pin_known_in_images_baseline(
-        images_baseline, "brp-api/personen-mock", "2.7.0", "sha256:aaaa") is True
+def test_historical_images_manifest_paths_excludes_versions_after_at_or_before(libchart, tmp_path):
+    images_dir = tmp_path / "docs" / "images"
+    for version in ("4.7.0", "4.8.5", "4.9.0", "4.9.1"):
+        _write_images_manifest(images_dir, version, [])
+    paths = libchart.historical_images_manifest_paths(tmp_path, at_or_before="4.9.0")
+    assert [p.name for p in paths] == ["images-4.9.0.yaml", "images-4.8.5.yaml", "images-4.7.0.yaml"]
 
 
-def test_image_pin_known_in_images_baseline_different_version_not_known(libchart):
-    images_baseline = [{"name": "brp-api/personen-mock", "version": "2.6.0", "digest": "sha256:bbbb"}]
-    assert libchart.image_pin_known_in_images_baseline(
-        images_baseline, "brp-api/personen-mock", "2.7.0", "sha256:aaaa") is False
+def test_historical_images_manifest_paths_ignores_non_semver_names(libchart, tmp_path):
+    """images-baseline.yaml itself (the removed side-file) never parses
+    as a bare "X.Y.Z" version — silently skipped, never mistaken for a
+    real release."""
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    (images_dir / "images-baseline.yaml").write_text("[]\n", encoding="utf-8")
+    _write_images_manifest(images_dir, "4.8.5", [])
+    paths = libchart.historical_images_manifest_paths(tmp_path)
+    assert [p.name for p in paths] == ["images-4.8.5.yaml"]
 
 
-def test_image_pin_known_in_images_baseline_different_repo_not_known(libchart):
-    """The exact same version+digest, but for an UNRELATED image's own
-    name — never a coincidental cross-image match."""
-    images_baseline = [{"name": "some-other/image", "version": "2.7.0", "digest": "sha256:aaaa"}]
-    assert libchart.image_pin_known_in_images_baseline(
-        images_baseline, "brp-api/personen-mock", "2.7.0", "sha256:aaaa") is False
+def test_historical_images_manifest_paths_empty_when_dir_missing(libchart, tmp_path):
+    assert libchart.historical_images_manifest_paths(tmp_path) == []
+    assert libchart.historical_images_manifest_paths(None) == []
 
 
-def test_image_pin_known_in_images_baseline_empty_list_is_false(libchart):
-    assert libchart.image_pin_known_in_images_baseline([], "brp-api/personen-mock", "2.7.0", "sha256:aaaa") is False
+def test_historical_app_version_for_repository_stops_at_most_recent_match(libchart, tmp_path):
+    """Two past manifests both mention the same repository, at DIFFERENT
+    versions — the most recent one (searched first) wins, not the
+    oldest."""
+    images_dir = tmp_path / "docs" / "images"
+    _write_images_manifest(images_dir, "4.7.0", [
+        {"name": "brp-api/personen-mock", "version": "2.5.0", "digest": "sha256:aaaa"}])
+    _write_images_manifest(images_dir, "4.8.5", [
+        {"name": "brp-api/personen-mock", "version": "2.6.0", "digest": "sha256:bbbb"}])
+
+    assert libchart.historical_app_version_for_repository(
+        tmp_path, "brp-api/personen-mock", at_or_before="4.9.0") == "2.6.0"
 
 
-# --- image_pin_matches_images_baseline ---
+def test_historical_app_version_for_repository_none_when_never_mentioned(libchart, tmp_path):
+    images_dir = tmp_path / "docs" / "images"
+    _write_images_manifest(images_dir, "4.8.5", [
+        {"name": "some-other/image", "version": "1.0.0", "digest": "sha256:aaaa"}])
 
-def test_image_pin_matches_images_baseline_resolves_path_and_matches(libchart, tmp_path):
-    dep = {"name": "brppersonenmock", "version": "1.2.9"}
+    assert libchart.historical_app_version_for_repository(
+        tmp_path, "brp-api/personen-mock", at_or_before="4.9.0") is None
+
+
+def test_historical_app_version_for_repository_ignores_manifests_after_at_or_before(libchart, tmp_path):
+    """A repository that only ever appears in a LATER release's own
+    manifest (e.g. the in-progress target's own images-<target>.yaml)
+    is never found — the search never looks forward, avoiding the
+    circularity of a "changed vs baseline" check feeding on its own
+    target manifest."""
+    images_dir = tmp_path / "docs" / "images"
+    _write_images_manifest(images_dir, "4.9.0", [
+        {"name": "brp-api/personen-mock", "version": "2.7.0", "digest": "sha256:bbbb"}])
+
+    assert libchart.historical_app_version_for_repository(
+        tmp_path, "brp-api/personen-mock", at_or_before="4.8.5") is None
+
+
+def test_historical_app_version_for_path_resolves_repo_then_searches(libchart, tmp_path):
+    images_dir = tmp_path / "docs" / "images"
+    _write_images_manifest(images_dir, "4.8.0", [
+        {"name": "brp-api/personen-mock", "version": "2.5.0", "digest": "sha256:aaaa"}])
+    deps = [{"name": "brppersonenmock", "version": "1.2.9"}]
     values = {"brppersonenmock": {"image": {
-        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}}}
-    images_baseline = [{"name": "brp-api/personen-mock", "version": "2.7.0-202606230850", "digest": "sha256:aaaa"}]
+        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}}}
 
-    assert libchart.image_pin_matches_images_baseline(
-        tmp_path, [dep], values, ("brppersonenmock", "image"),
-        "2.7.0-202606230850@sha256:aaaa", images_baseline) is True
+    assert libchart.historical_app_version_for_path(
+        tmp_path, deps, values, ("brppersonenmock", "image"), at_or_before="4.8.5") == "2.5.0"
 
 
-def test_image_pin_matches_images_baseline_different_digest_not_matched(libchart, tmp_path):
-    dep = {"name": "brppersonenmock", "version": "1.2.9"}
-    values = {"brppersonenmock": {"image": {
-        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}}}
-    images_baseline = [{"name": "brp-api/personen-mock", "version": "2.7.0-202606230850", "digest": "sha256:bbbb"}]
-
-    assert libchart.image_pin_matches_images_baseline(
-        tmp_path, [dep], values, ("brppersonenmock", "image"),
-        "2.7.0-202606230850@sha256:aaaa", images_baseline) is False
-
-
-def test_image_pin_matches_images_baseline_no_digest_in_tag_is_false(libchart, tmp_path):
-    """A tag with no "@sha256:..." at all has nothing to match — never
-    even attempts a repository lookup."""
-    assert libchart.image_pin_matches_images_baseline(
-        tmp_path, [], {}, ("brppersonenmock", "image"), "2.7.0-202606230850", []) is False
-
-
-def test_image_pin_matches_images_baseline_unresolvable_path_is_false(libchart, tmp_path):
+def test_historical_app_version_for_path_none_when_path_unresolvable(libchart, tmp_path):
     """No dependency/override resolves a repository for this path at
-    all — paths_by_repository's own group is empty, nothing to match
-    against images_baseline."""
-    assert libchart.image_pin_matches_images_baseline(
-        tmp_path, [], {}, ("brppersonenmock", "image"), "2.7.0-202606230850@sha256:aaaa", []) is False
+    all — nothing to search images-<version>.yaml for."""
+    assert libchart.historical_app_version_for_path(
+        tmp_path, [], {}, ("brppersonenmock", "image"), at_or_before="4.8.5") is None
 
 
 # --- write_release_baselines ---

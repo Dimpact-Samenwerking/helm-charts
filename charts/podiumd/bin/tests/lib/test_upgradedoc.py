@@ -261,75 +261,6 @@ def test_actual_app_version_image_tag_path_tried_before_version_path(libupgraded
     assert libupgradedoc.actual_app_version(values, "widget") == "1.0.0"
 
 
-# --- app_version_pin_via_images_baseline / sidecar_tag_or_images_baseline ---
-
-def test_app_version_pin_via_images_baseline_matches_known_pin(libupgradedoc, tmp_path):
-    dep = {"name": "brppersonenmock", "version": "1.2.9"}
-    target_values = {"brppersonenmock": {"image": {
-        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}}}
-    images_baseline = [{"name": "brp-api/personen-mock", "version": "2.7.0-202606230850", "digest": "sha256:aaaa"}]
-
-    assert libupgradedoc.app_version_pin_via_images_baseline(
-        target_values, "brppersonenmock", "brppersonenmock", tmp_path, [dep], images_baseline
-    ) == "2.7.0-202606230850"
-
-
-def test_app_version_pin_via_images_baseline_unknown_pin_is_none(libupgradedoc, tmp_path):
-    dep = {"name": "brppersonenmock", "version": "1.2.9"}
-    target_values = {"brppersonenmock": {"image": {
-        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}}}
-
-    assert libupgradedoc.app_version_pin_via_images_baseline(
-        target_values, "brppersonenmock", "brppersonenmock", tmp_path, [dep], []
-    ) is None
-
-
-def test_app_version_pin_via_images_baseline_no_tag_at_all_is_none(libupgradedoc, tmp_path):
-    assert libupgradedoc.app_version_pin_via_images_baseline(
-        {"brppersonenmock": {}}, "brppersonenmock", "brppersonenmock", tmp_path, [], []
-    ) is None
-
-
-def test_sidecar_tag_or_images_baseline_falls_back_when_absent_from_baseline(libupgradedoc, tmp_path):
-    """Regression test: redis-operator's own "k8s" sidecar, added in
-    4.9.0 — baseline_values (a non-empty release baseline, just with
-    nothing for THIS path) has nothing for it at all, but its CURRENT
-    pin is already a known, previously-mirrored pin."""
-    dep = {"name": "redis-operator", "version": "1.36.2"}
-    sidecar_path = ("redis-operator", "k8s", "image")
-    baseline_values = {"redis-operator": {"redis-ha": {"image": {"tag": "7.4.2@sha256:dddd"}}}}
-    target_values = {"redis-operator": {"k8s": {"image": {
-        "repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}}}}
-    images_baseline = [{"name": "alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}]
-
-    assert libupgradedoc.sidecar_tag_or_images_baseline(
-        baseline_values, target_values, sidecar_path, tmp_path, [dep], images_baseline
-    ) == "1.36.2"
-
-
-def test_sidecar_tag_or_images_baseline_prefers_real_baseline_tag(libupgradedoc, tmp_path):
-    sidecar_path = ("redis-operator", "k8s", "image")
-    baseline_values = {"redis-operator": {"k8s": {"image": {"tag": "1.36.1@sha256:bbbb"}}}}
-    target_values = {"redis-operator": {"k8s": {"image": {
-        "repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}}}}
-
-    assert libupgradedoc.sidecar_tag_or_images_baseline(
-        baseline_values, target_values, sidecar_path, tmp_path, [], []
-    ) == "1.36.1"
-
-
-def test_sidecar_tag_or_images_baseline_unknown_pin_is_none(libupgradedoc, tmp_path):
-    dep = {"name": "redis-operator", "version": "1.36.2"}
-    sidecar_path = ("redis-operator", "k8s", "image")
-    baseline_values = {"redis-operator": {"redis-ha": {"image": {"tag": "7.4.2@sha256:dddd"}}}}
-    target_values = {"redis-operator": {"k8s": {"image": {
-        "repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}}}}
-
-    assert libupgradedoc.sidecar_tag_or_images_baseline(
-        baseline_values, target_values, sidecar_path, tmp_path, [dep], []
-    ) is None
-
-
 def _make_vendored_tgz(charts_dir, name, version, values, chart_yaml):
     import io
     import tarfile
@@ -688,43 +619,23 @@ def test_find_images_manifest_list_diff_treats_brand_new_path_as_changed(libupgr
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_brand_new_path_known_in_images_baseline_is_not_changed(libupgradedoc):
-    """A path with no baseline entry at all (a component that didn't
-    exist in Chart.yaml/values.yaml until this release) is NOT reported
-    as missing when its EXACT version+digest already appears in
-    images-baseline.yaml — real case: brppersonenmock, added in 4.9.0,
-    pinned to a brp-personen-mock version already mirrored from an
-    earlier, unrelated hop. There's nothing new for the images manifest
-    to track, even though the component itself is new to the chart."""
+def test_find_images_manifest_list_diff_brand_new_path_always_changed_regardless_of_repo_match(libupgradedoc):
+    """Regression test: a path with no baseline entry at all (a
+    component that didn't exist in Chart.yaml/values.yaml until this
+    release, e.g. brppersonenmock, added in 4.9.0) is ALWAYS reported as
+    missing, even when its exact version+digest happens to already be
+    pinned somewhere else via the same repository (repo_map/repo_groups
+    resolve it) — images-baseline.yaml is never consulted as a
+    substitute source of truth for "was this genuinely tracked at the
+    real git baseline" (a different, unrelated question: ACR-mirror
+    digest provenance)."""
     entries = []
     current_paths = {("brppersonenmock", "image"): "2.7.0@sha256:aaaa"}
     baseline_paths = {}
     repo_map = {"brp-api/personen-mock": ("brppersonenmock", "image")}
     repo_groups = {"brp-api/personen-mock": [("brppersonenmock", "image")]}
-    images_baseline = [{"name": "brp-api/personen-mock", "url": "ghcr.io/brp-api/personen-mock",
-                         "version": "2.7.0", "digest": "sha256:aaaa"}]
     missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set(),
-        images_baseline=images_baseline)
-    assert missing == []
-    assert stale == []
-    assert unmatched == []
-
-
-def test_find_images_manifest_list_diff_brand_new_path_not_in_images_baseline_is_changed(libupgradedoc):
-    """Same brand-new-path shape, but the version+digest genuinely isn't
-    in images-baseline.yaml anywhere — still reported as missing, same
-    as when images_baseline is omitted entirely."""
-    entries = []
-    current_paths = {("brppersonenmock", "image"): "2.7.0@sha256:aaaa"}
-    baseline_paths = {}
-    repo_map = {"brp-api/personen-mock": ("brppersonenmock", "image")}
-    repo_groups = {"brp-api/personen-mock": [("brppersonenmock", "image")]}
-    images_baseline = [{"name": "brp-api/personen-mock", "url": "ghcr.io/brp-api/personen-mock",
-                         "version": "2.6.0", "digest": "sha256:bbbb"}]
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set(),
-        images_baseline=images_baseline)
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set())
     assert missing == [("brppersonenmock", "image")]
     assert stale == []
     assert unmatched == []
@@ -2741,45 +2652,38 @@ def test_resolve_component_row_dependency_missing_from_baseline_is_unresolved(li
     assert resolved["baseline_app"] is None
 
 
-def test_resolve_component_row_dependency_baseline_dep_exists_values_entry_missing_falls_back(libupgradedoc, tmp_path):
+def test_resolve_component_row_dependency_baseline_dep_exists_values_entry_missing_renders_new(
+        libupgradedoc, tmp_path):
     """Regression test: brppersonenmock's own Chart.yaml dependency line
     predates 4.9.0 (baseline_dep IS found — baseline_resolved stays
     governed by that alone), but its "image:" block was only added to
-    podiumd's own values.yaml this release, pinned to a version already
-    mirrored from an earlier, unrelated hop — resolves as unchanged via
-    images_baseline instead of appearing to have no baseline app at all."""
+    podiumd's own values.yaml this release — baseline_app is correctly
+    None (the git baseline genuinely has nothing for it), never a
+    fallback to images-baseline.yaml (ACR-mirror digest provenance, a
+    genuinely different, unrelated question)."""
     deps = [{"name": "brppersonenmock", "version": "1.2.9"}]
     baseline_deps = [{"name": "brppersonenmock", "version": "1.2.9"}]
     values = {"brppersonenmock": {"image": {
         "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}}}
     baseline_values = {"zac": {"image": {"tag": "5.1.0@sha256:bbbb"}}}  # no "brppersonenmock" key at all
-    images_baseline = [{"name": "brp-api/personen-mock", "version": "2.7.0-202606230850", "digest": "sha256:aaaa"}]
 
     resolved = libupgradedoc.resolve_component_row(
-        "brppersonenmock", tmp_path, {}, deps, values, baseline_deps=baseline_deps, baseline_values=baseline_values,
-        images_baseline=images_baseline)
+        "brppersonenmock", tmp_path, {}, deps, values, baseline_deps=baseline_deps, baseline_values=baseline_values)
 
     assert resolved["baseline_resolved"] is True
     assert resolved["baseline_chart"] == "1.2.9"
-    assert resolved["baseline_app"] == "2.7.0-202606230850"
+    assert resolved["baseline_app"] is None
 
 
-def test_resolve_component_row_dependency_missing_from_baseline_stays_false_regardless_of_images_baseline(
-        libupgradedoc, tmp_path):
+def test_resolve_component_row_dependency_missing_from_baseline_is_false(libupgradedoc, tmp_path):
     """A genuinely brand-new Chart.yaml dependency (baseline_dep not
-    found AT ALL) always stays baseline_resolved=False — images_baseline
-    never overrides THAT decision here; fix-doc-consistency's own "(new)"
-    cell decision for this exact case checks images_baseline itself,
-    directly, once baseline_resolved is already known False (see
-    fix_component_version_table)."""
+    found AT ALL) stays baseline_resolved=False."""
     deps = [{"name": "brppersonenmock", "version": "1.2.9"}]
     values = {"brppersonenmock": {"image": {
         "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}}}
-    images_baseline = [{"name": "brp-api/personen-mock", "version": "2.7.0-202606230850", "digest": "sha256:aaaa"}]
 
     resolved = libupgradedoc.resolve_component_row(
-        "brppersonenmock", tmp_path, {}, deps, values, baseline_deps=[], baseline_values={},
-        images_baseline=images_baseline)
+        "brppersonenmock", tmp_path, {}, deps, values, baseline_deps=[], baseline_values={})
 
     assert resolved["baseline_resolved"] is False
 
@@ -2827,20 +2731,31 @@ def test_resolve_component_row_native_component_missing_from_baseline_is_unresol
     assert resolved["baseline_app"] is None
 
 
-def test_resolve_component_row_native_component_falls_back_to_images_baseline(libupgradedoc, tmp_path):
-    """frankgateway didn't exist at the baseline ref at all, but its
-    CURRENT pin is already a known, previously-mirrored pin."""
+def test_resolve_component_row_native_component_falls_back_to_historical_images_manifest(libupgradedoc, tmp_path):
+    """frankgateway didn't exist at the baseline ref at all, but its own
+    image repository already appeared in an earlier release's own
+    images-<version>.yaml manifest — that release's own recorded
+    version is the true prior app version, not images-baseline.yaml
+    (removed)."""
     values = {"frankgateway": {"image": {
         "repository": "docker.io/infonl/frankgateway", "tag": "104@sha256:aaaa"}}}
     baseline_values = {"zac": {"image": {"tag": "5.1.0@sha256:bbbb"}}}  # no "frankgateway" key at all
-    images_baseline = [{"name": "infonl/frankgateway", "version": "104", "digest": "sha256:aaaa"}]
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    (images_dir / "images-4.8.0.yaml").write_text(
+        "- name: infonl/frankgateway\n"
+        "  url: docker.io/infonl/frankgateway\n"
+        '  version: "100"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
 
     resolved = libupgradedoc.resolve_component_row(
         "frankgateway", tmp_path, {}, [], values, baseline_deps=[], baseline_values=baseline_values,
-        images_baseline=images_baseline)
+        upgrade_docs_baseline="4.8.5")
 
     assert resolved["baseline_resolved"] is True
-    assert resolved["baseline_app"] == "104"
+    assert resolved["baseline_app"] == "100"
 
 
 def test_resolve_component_row_sidecar_resolved(libupgradedoc):
@@ -2874,25 +2789,35 @@ def test_resolve_component_row_sidecar_missing_baseline_tag_is_unresolved(libupg
     assert resolved["target_app"] == "8.6.6"  # target side resolves fine — this row IS new, not broken
 
 
-def test_resolve_component_row_sidecar_falls_back_to_images_baseline(libupgradedoc, tmp_path):
+def test_resolve_component_row_sidecar_falls_back_to_historical_images_manifest(libupgradedoc, tmp_path):
     """Regression test: redis-operator's own "k8s" sidecar, added in
     4.9.0 — baseline_values has nothing for this path at all, but its
-    CURRENT pin is already a known, previously-mirrored pin, so this
-    resolves as "unchanged" rather than "brand new"."""
+    repository already appeared in an earlier release's own images-
+    <version>.yaml manifest — that release's own recorded version is
+    the true prior app version (a real "X → Y" transition, not
+    images-baseline.yaml, removed, and not forced to "(unchanged)")."""
     target_deps = [{"name": "redis-operator", "version": "1.36.2"}]
     baseline_deps = [{"name": "redis-operator", "version": "1.36.1"}]
     target_values = {"redis-operator": {"k8s": {"image": {
         "repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}}}}
     baseline_values = {"redis-operator": {"redis-ha": {"image": {"tag": "7.4.2@sha256:dddd"}}}}
-    images_baseline = [{"name": "alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}]
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    (images_dir / "images-4.8.0.yaml").write_text(
+        "- name: alpine/k8s\n"
+        "  url: quay.io/alpine/k8s\n"
+        '  version: "1.36.0"\n'
+        '  digest: "sha256:cccc"\n',
+        encoding="utf-8",
+    )
     canonical_names = {"redis-operator - k8s": ("redis-operator", "k8s", "image")}
 
     resolved = libupgradedoc.resolve_component_row(
         "redis-operator - k8s", tmp_path, canonical_names, target_deps, target_values,
-        baseline_deps=baseline_deps, baseline_values=baseline_values, images_baseline=images_baseline)
+        baseline_deps=baseline_deps, baseline_values=baseline_values, upgrade_docs_baseline="4.8.5")
 
     assert resolved["baseline_resolved"] is True
-    assert resolved["baseline_app"] == "1.36.2"
+    assert resolved["baseline_app"] == "1.36.0"
     assert resolved["target_app"] == "1.36.2"
 
 

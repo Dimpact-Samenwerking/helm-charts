@@ -19,8 +19,8 @@ since a bare basename never matches a Chart.yaml dependency by name."""
 import re
 
 from lib.chart import (
-    canonical_sidecar_row_names, get_path, global_image_paths, image_paths_for, image_pin_matches_images_baseline,
-    load_images_baseline, replace_scalar_value, version_of, version_paths_for,
+    canonical_sidecar_row_names, get_path, global_image_paths, historical_app_version_for_path, image_paths_for,
+    replace_scalar_value, version_of, version_paths_for,
 )
 from lib.component_docs import (
     CHANGES_ITEM_RE, dep_for_values_key, find_images_manifest_changes_header, insert_changes_section,
@@ -77,7 +77,8 @@ def make_image_changes_section(basename, target, old_version, new_version, pinne
     return "".join(lines)
 
 
-def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_values, target):
+def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_values, target,
+                              upgrade_docs_baseline=None):
     """Insert a new "Component versions" table row + matching "### ..."
     Changes section for every canonical sidecar/shared-image name (see
     lib.chart.canonical_sidecar_row_names — "<values_key> - <basename>"
@@ -119,7 +120,6 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
     baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
     canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
-    images_baseline = load_images_baseline(chart_dir)
 
     matched_paths = {path for row in parse_upgrade_doc_rows(text)
                       for path in [canonical_names.get(row["name"])] if path is not None}
@@ -133,15 +133,20 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
         if current_tag is None or (baseline_tag is not None and version_of(current_tag) == version_of(baseline_tag)):
             continue
         new_app = current_tag.split("@", 1)[0]
+        # `path` not in baseline_paths at all (real case: redis-operator's
+        # own "k8s" sidecar, added in 4.9.0) means baseline_tag is None —
+        # the git baseline genuinely has nothing to compare against.
+        # Before concluding "genuinely new", check whether this
+        # repository already appears in any of this chart's own PAST
+        # images-<version>.yaml manifests (real, already-committed
+        # per-release documents) — if so, that release's own recorded
+        # version is the true prior app version, even though this exact
+        # sidecar path is new. Never a fallback to the removed images-
+        # baseline.yaml side-file (ACR-mirror digest provenance, a
+        # genuinely different, unrelated question).
         old_app = baseline_tag.split("@", 1)[0] if baseline_tag else None
-        if old_app is None and baseline_values and image_pin_matches_images_baseline(
-                chart_dir, deps, target_values, path, current_tag, images_baseline):
-            # `path` didn't exist in baseline_values at all (real case:
-            # redis-operator's own "k8s" sidecar, added in 4.9.0) — before
-            # concluding "genuinely new", check whether the CURRENT pin is
-            # already a known, previously-mirrored pin in images-
-            # baseline.yaml (see lib.chart.image_pin_matches_images_baseline).
-            old_app = new_app
+        if old_app is None and baseline_values:
+            old_app = historical_app_version_for_path(chart_dir, deps, target_values, path, upgrade_docs_baseline)
 
         text, table_action = update_component_table(text, name, old_app, new_app, None, "-", deps, target_values,
                                                      canonical_names)
