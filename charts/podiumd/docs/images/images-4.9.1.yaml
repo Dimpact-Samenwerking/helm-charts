@@ -4,7 +4,7 @@
 #
 # Changes:
 #   1. mi 2.71.0 -> 2.90.0 (chart 1.1.0, unchanged).
-#   2. redis 8.0 (new).
+#   2. redis 8.0 -> 8.10.1 (new since 4.9.0).
 #   3. curl 8.21.0 -> 8.22.0.
 #   4. keycloak-operator 26.7.2 -> 26.7.3.
 #   5. keycloak-operator - operator 26.6.4 -> 26.7.3.
@@ -16,6 +16,8 @@
 #   11. openbao - openbao-csi-provider 2.0.2 (new).
 #   12. openbao - vault-k8s 1.7.2 (new).
 #   13. openbao - openbao-snapshot-agent 0.3.0 (new).
+#   14. clamav 1.5.4 re-published upstream again; new digest, tag unchanged.
+#   15. keycloak jobs' python 3.14.7-slim re-published upstream; new digest, tag unchanged.
 #
 # See docs/_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md for the operator upgrade notes.
 #
@@ -95,3 +97,17 @@
   version: "0.3.0"
   digest: "sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"
 
+# ClamAV 1.5.4 re-published upstream again since the 4.9.0 pin; new digest,
+# tag unchanged. Confirmed missing from the ACR mirror (ImagePullBackOff on
+# ontw-dim1 with the 4.9.0 digest still pinned).
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
+  version: "1.5.4"
+  digest: "sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"
+
+# Keycloak jobs' python 3.14.7-slim re-published upstream since the 4.9.0
+# pin; new digest, tag unchanged. Same confirmation as clamav above.
+- name: library/python
+  url: docker.io/library/python
+  version: "3.14.7-slim"
+  digest: "sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"

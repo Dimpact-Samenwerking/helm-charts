@@ -50,6 +50,11 @@
   url: ghcr.io/brp-api/personen-mock
   version: "2.7.0-202508211438"
   digest: "sha256:43062e9200a1ae7cb92f1830acf0ab7ca19272dea0756400caaeb4748bed9fa5"
+# 1.5.4 re-published upstream again on 4.9.1; digest differs from the 4.9.0 pin below.
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
+  version: "1.5.4"
+  digest: "sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.5.4"
@@ -197,6 +202,11 @@
   url: docker.io/library/postgres
   version: "16-alpine"
   digest: "sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
+# 3.14.7-slim re-published upstream again on 4.9.1; digest differs from the 4.9.0 pin below.
+- name: library/python
+  url: docker.io/library/python
+  version: "3.14.7-slim"
+  digest: "sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"
 - name: library/python
   url: docker.io/library/python
   version: "3.14.7-slim"
