@@ -14,11 +14,11 @@ global:
   images:
     nginx: &nginxImage
       repository: nginxinc/nginx-unprivileged
-      tag: "1.31.4@sha256:a7caff5bdcb3e3ba5dafacbdfc8f2d6d4d9f256d63f47cfeee9e1f9c289dd833"
+      tag: "1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
-      tag: "8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
+      tag: "8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"
       pullPolicy: IfNotPresent
     busybox: &busyboxImage
       repository: library/busybox
@@ -26,7 +26,7 @@ global:
       pullPolicy: IfNotPresent
     redis: &redisImage
       repository: redis
-      tag: "8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"
+      tag: "8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"
 
 tags:
   eck-operator.enabled: false
@@ -4410,7 +4410,7 @@ mi:
   image:
     registry: "mcr.microsoft.com"
     repository: azure-cli
-    tag: "2.71.0@sha256:18ec5cf02ba6b46e9858ddff1125baaa1f14ba919f77ebc67c918c891f8df4a2"
+    tag: "2.90.0@sha256:e3768dde8142efa45d8f356a317aaac77abd7da15ba3719b0a150e9453f251db"
 
 openbao:
   # OpenBao (openbao.org) — secrets vault. Postgres-backed like the other apps,
