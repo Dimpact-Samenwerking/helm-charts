@@ -915,12 +915,12 @@ def test_is_primary_image_path_empty_path_is_not_primary(libupgradedoc):
 
 # --- header_name_segment ---
 
-def testheader_name_segment_arrow_pair_isolates_name(libupgradedoc):
+def test_header_name_segment_arrow_pair_isolates_name(libupgradedoc):
     assert libupgradedoc.header_name_segment(
         "keycloak-operator - operator 26.6.4 -> 26.7.3") == "keycloak-operator - operator"
 
 
-def testheader_name_segment_self_arrow_unchanged_isolates_name(libupgradedoc):
+def test_header_name_segment_self_arrow_unchanged_isolates_name(libupgradedoc):
     """A self-referential "X -> X" pair (unchanged value, still written
     with an arrow) is handled by the arrow path exactly like a real
     transition — never falls through to the bare-version branch."""
@@ -930,7 +930,7 @@ def testheader_name_segment_self_arrow_unchanged_isolates_name(libupgradedoc):
         "openbao - openbao-csi-provider 2.0.2 -> 2.0.2") == "openbao - openbao-csi-provider"
 
 
-def testheader_name_segment_basename_ending_in_version_shaped_word_with_real_arrow(libupgradedoc):
+def test_header_name_segment_basename_ending_in_version_shaped_word_with_real_arrow(libupgradedoc):
     """Regression guard: "openbao - vault-k8s" ends in "k8s", which is
     version-shaped on its own — but a real arrow pair IS present here
     ("1.7.2 -> 1.7.2"), so the arrow path must take priority and match
@@ -939,7 +939,7 @@ def testheader_name_segment_basename_ending_in_version_shaped_word_with_real_arr
         "openbao - vault-k8s 1.7.2 -> 1.7.2") == "openbao - vault-k8s"
 
 
-def testheader_name_segment_bare_version_before_parenthetical_no_arrow(libupgradedoc):
+def test_header_name_segment_bare_version_before_parenthetical_no_arrow(libupgradedoc):
     """Real bug, real doc: "keycloak-operator - python 3.14.7-slim
     (digest changed)" has NO arrow anywhere (fix-doc-consistency's own
     same-version/changed-digest wording) — VERSION_PAIR_RE finds
@@ -951,11 +951,31 @@ def testheader_name_segment_bare_version_before_parenthetical_no_arrow(libupgrad
         "keycloak-operator - python 3.14.7-slim (digest changed)") == "keycloak-operator - python"
 
 
-def testheader_name_segment_bare_version_no_arrow_generic_case(libupgradedoc):
+def test_header_name_segment_bare_version_no_arrow_generic_case(libupgradedoc):
     assert libupgradedoc.header_name_segment("clamav 1.5.4 (digest changed)") == "clamav"
 
 
-def testheader_name_segment_no_version_no_parenthetical_never_truncated(libupgradedoc):
+def test_header_name_segment_name_with_its_own_embedded_parenthetical_no_arrow(libupgradedoc):
+    """Real bug, real docs: "mi-data (MI-data exports)" is a real
+    component display name that embeds its OWN parenthetical, nowhere
+    near the trailing "(new)"/"(chart ...)" asides — truncating at
+    wherever the FIRST "(" happens to appear (a first version of this
+    fix did exactly that) silently lost everything from "(MI-data" on,
+    leaving just the bare "mi-data". Trailing asides must be stripped
+    from the END of the string, never by finding the first "(" anywhere."""
+    assert libupgradedoc.header_name_segment(
+        "mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)") == "mi-data (MI-data exports)"
+
+
+def test_header_name_segment_name_with_its_own_embedded_parenthetical_with_arrow(libupgradedoc):
+    """Same embedded-parenthetical concern, but for the arrow-present
+    path this time — "Keycloak Operator (server)" is real, current doc
+    text (4.9.0-to-4.9.1-upgrade.md's own heading)."""
+    assert libupgradedoc.header_name_segment(
+        "Keycloak Operator (server) 26.7.2 -> 26.7.3 (chart 1.12.1 -> 1.13.0)") == "Keycloak Operator (server)"
+
+
+def test_header_name_segment_no_version_no_parenthetical_never_truncated(libupgradedoc):
     """No arrow AND no "(...)" aside at all — nothing in this codebase
     ever actually produces this shape, but if it occurred, the whole
     text is the name: there's no trailing token to strip, and a real

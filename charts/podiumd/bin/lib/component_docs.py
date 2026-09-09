@@ -921,9 +921,18 @@ def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_char
     lib.chart.NATIVE_COMPONENTS) with no Chart.yaml dependency/chart
     version at all — the "(chart ...)" clause is dropped entirely rather
     than rendered as the misleading "chart None → -". `old_app`/
-    `old_chart` may be None (nothing resolved at upgrade_docs_baseline,
-    e.g. a component added since then) — treated as "unchanged against
-    the new value" rather than a literal "None → ...".
+    `old_chart` may be None (nothing resolved at upgrade_docs_baseline —
+    a genuinely brand-new component this hop, e.g. mi, real case: the
+    Chart.yaml dependency line predates this release but its own
+    "image:" block was only pinned this hop) — rendered "(new)" via
+    lib.upgradedoc.component_version_cell, the exact same wording family
+    make_changes_section's own app_heading/chart_suffix already use for
+    the identical case (real bug, fixed: this used to silently collapse
+    "old is None" into "old == new" via "old_app or new_app", rendering
+    the equally-wrong "(unchanged)" instead — component_version_cell
+    handles None correctly on its own, so there's no reason for this
+    function to re-derive that logic separately and risk drifting from
+    make_changes_section's own).
 
     Only ever called (see sync_values_delta_sections) when there's a
     real "- Key `...`" line to put under this heading — a section with
@@ -944,13 +953,14 @@ def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_char
         return (f"## {friendly} {chart_bit} — TODO: describe this component's changes; its app "
                 f"version could not be resolved automatically.\n")
 
-    app_changed = normalize_version(old_app or new_app) != normalize_version(new_app)
-    app_bit = f"{old_app or new_app} → {new_app}" if app_changed else f"{new_app} (unchanged)"
+    app_bit = component_version_cell(old_app, new_app)
     if new_chart == "-":
         chart_bit = ""
+    elif old_chart is None:
+        chart_bit = f" (chart {new_chart}, new)"
     else:
-        chart_changed = normalize_version(old_chart or new_chart) != normalize_version(new_chart)
-        chart_bit = f" (chart {old_chart or new_chart} → {new_chart})" if chart_changed \
+        chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
+        chart_bit = f" (chart {old_chart} → {new_chart})" if chart_changed \
             else f" (chart {new_chart}, unchanged)"
     return f"## {friendly} {app_bit}{chart_bit}\n"
 
