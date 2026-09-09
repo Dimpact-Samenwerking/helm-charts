@@ -6,13 +6,13 @@
 #   1. redis 8.0 (new).
 #   2. keycloak-operator 26.7.2 -> 26.7.3.
 #   3. keycloak-operator - operator 26.6.4 -> 26.7.3.
-#   4. zac - opentelemetry-collector-contrib 0.158.0 (new).
-#   5. openbao - openbao-csi-provider 2.0.2 (new).
-#   6. openbao - vault-k8s 1.7.2 (new).
-#   7. openbao - openbao-snapshot-agent 0.3.0 (new).
-#   8. kiss 3.0.0 -> 3.1.1.
-#   9. kiss - kiss-elastic-sync 3.0.0 -> 3.1.1.
-#   10. zaakbrug 1.26.15 -> 1.26.18.
+#   4. kiss 3.0.0 -> 3.1.1.
+#   5. kiss - kiss-elastic-sync 3.0.0 -> 3.1.1.
+#   6. zac - opentelemetry-collector-contrib 0.158.0 (new).
+#   7. zaakbrug 1.26.15 -> 1.26.18.
+#   8. openbao - openbao-csi-provider 2.0.2 (new).
+#   9. openbao - vault-k8s 1.7.2 (new).
+#   10. openbao - openbao-snapshot-agent 0.3.0 (new).
 #   11. frankgateway 104 -> 1.1.0.
 #
 # See docs/_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md for the operator upgrade notes.
@@ -37,28 +37,6 @@
   version: "26.7.3"
   digest: "sha256:e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
 
-#   sidecar: zac - opentelemetry-collector-contrib 0.158.0 (new)
-- name: otel/opentelemetry-collector-contrib
-  url: docker.io/otel/opentelemetry-collector-contrib
-  version: "0.158.0"
-  digest: "sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5"
-
-#   sidecar: openbao - openbao-csi-provider 2.0.2 (new)
-- name: openbao/openbao-csi-provider
-  url: quay.io/openbao/openbao-csi-provider
-  version: "2.0.2"
-  digest: "sha256:3cb312e88c62c926caec03bf69497a16805a29daabb5ad2c7a236ab43bb241db"
-#   sidecar: openbao - vault-k8s 1.7.2 (new)
-- name: hashicorp/vault-k8s
-  url: docker.io/hashicorp/vault-k8s
-  version: "1.7.2"
-  digest: "sha256:ae3d307658b72a1cf35dab9bdf92c995d45cdc7183af0516857714b5bd0ba84d"
-#   sidecar: openbao - openbao-snapshot-agent 0.3.0 (new)
-- name: openbao/openbao-snapshot-agent
-  url: ghcr.io/openbao/openbao-snapshot-agent
-  version: "0.3.0"
-  digest: "sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"
-
 # kiss 3.0.0 -> 3.1.1
 - name: klantinteractie-servicesysteem/kiss-frontend
   url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
@@ -70,7 +48,13 @@
   version: "3.1.1"
   digest: "sha256:f29f8b5f33831580e4da0e0f4885b5ef69068c8391ec97322b749f1970df18e1"
 
-# Zaakbrug: 1.26.15 -> 1.26.18 (Helm sub-chart 2.3.28 -> 2.3.32).
+#   sidecar: zac - opentelemetry-collector-contrib 0.158.0 -> 0.158.0
+- name: otel/opentelemetry-collector-contrib
+  url: otel/opentelemetry-collector-contrib
+  version: "0.158.0"
+  digest: "sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5"
+
+# Zaakbrug 1.26.15 -> 1.26.18 (Helm sub-chart 2.3.28 -> 2.3.32).
 # Opt-in component (zaakbrug.enabled, default false) — only mirrored for
 # gemeentes that run it. Frank!Framework runtime 10.1.0-20260323.042326 ->
 # 10.2.1-20260804.125921 plus two SOAP/JWT bug fixes; no new or changed
@@ -79,6 +63,22 @@
   url: docker.io/wearefrank/zaakbrug
   version: "1.26.18"
   digest: "sha256:255a717ff620b08608db2d8cde24e6993b96896f785ecfb7082054a4cc36bc3b"
+
+#   sidecar: openbao - openbao-csi-provider 2.0.2 -> 2.0.2
+- name: openbao/openbao-csi-provider
+  url: openbao/openbao-csi-provider
+  version: "2.0.2"
+  digest: "sha256:3cb312e88c62c926caec03bf69497a16805a29daabb5ad2c7a236ab43bb241db"
+#   sidecar: openbao - vault-k8s 1.7.2 -> 1.7.2
+- name: hashicorp/vault-k8s
+  url: hashicorp/vault-k8s
+  version: "1.7.2"
+  digest: "sha256:ae3d307658b72a1cf35dab9bdf92c995d45cdc7183af0516857714b5bd0ba84d"
+#   sidecar: openbao - openbao-snapshot-agent 0.3.0 -> 0.3.0
+- name: openbao/openbao-snapshot-agent
+  url: openbao/openbao-snapshot-agent
+  version: "0.3.0"
+  digest: "sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"
 
 # Frank!Gateway: 104 -> 1.1.0, the first SemVer release of WeAreFrank's build.
 # Still Apache APISIX 3.16.0 (label based-on); the delta is two new plugins
