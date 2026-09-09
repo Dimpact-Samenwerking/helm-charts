@@ -73,7 +73,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart import canonical_sidecar_row_names, dotted_key_path, find_dependency, get_path, image_paths_for, load_yaml
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
-    NO_CHANGES_CLAIMED_RE, baseline_doc_paths, images_manifest_path, insert_changes_section,
+    NO_CHANGES_CLAIMED_RE, baseline_doc_paths, dep_for_values_key, images_manifest_path, insert_changes_section,
     insert_values_delta_section, load_baseline_state, load_baseline_values, make_changes_section,
     remove_changes_section, remove_component_from_images_manifest, remove_component_row,
     remove_values_delta_section, update_component_table, update_images_manifest, values_delta_section_heading,
@@ -163,6 +163,7 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
     # hop; a bump that nets out to no change vs upgrade_docs_baseline has nothing left
     # to document at all).
     old_app = group["old_app_by_path"][image_paths[0]]
+    old_chart_str = chart_version_str
     baseline_deps = baseline_values = None
     reset_to_baseline = False
     if upgrade_docs_baseline is not None:
@@ -198,7 +199,50 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
             # heading here even when nothing about it had actually
             # changed.
             baseline_app = actual_app_version(baseline_values, values_key, chart_name, chart_dir=CHART_DIR, dep=dep)
-        old_app = baseline_app or old_app
+        # baseline_app is None here for two DIFFERENT reasons this used to
+        # conflate: actual_app_version's own subchart-fallback deliberately
+        # never guesses for a component with no COMPONENT_IMAGE_PATHS
+        # registration (see its own docstring) — for one of those, a blank
+        # baseline_tag PLUS this None both together mean "verifiably no
+        # override at the true baseline," which should read as a brand-new
+        # override ((new) heading), not "resolution failed, fall back to
+        # whatever old_app already held" (`old_app` at this point is
+        # group["old_app_by_path"]'s own value — whatever this image
+        # happened to be pinned at immediately BEFORE this specific run,
+        # which is not the release baseline at all once ANY earlier bump
+        # already changed it this same cycle — real bug, confirmed live:
+        # mi's own azure-cli pin got a brand-new values.yaml override this
+        # run, baseline never had one, yet the written heading showed a
+        # stale "2.71.0 -> 2.90.0" transition instead of "2.90.0 (new)",
+        # because "2.71.0" was simply whatever this run's own diff saw as
+        # "old", not the baseline). Once a real upgrade_docs_baseline WAS
+        # resolved (this whole `if baseline_deps is not None:` block),
+        # baseline_app is the authoritative answer regardless of whether
+        # it resolved to a real version or None — the exact same value
+        # check-doc's own independent actual_app_version call already
+        # treats as authoritative, so the two never disagree again.
+        old_app = baseline_app
+        # The chart-version side of the SAME gap #1's fix addresses on the
+        # app-version side: dep_for_values_key(baseline_deps, ...) would
+        # always find a Chart.yaml dependency entry (every dependency has
+        # a version field, unlike an image tag, which can be genuinely
+        # blank) — so a raw baseline_dep["version"] read (e.g. mi-data's
+        # git-history "1.0.0") is never None, and can't tell "this
+        # component's chart version was already correctly tracked at the
+        # true baseline" apart from "this component's chart AND app
+        # version both moved together, mid-cycle, via an earlier untracked
+        # run, with no prior doc ever having captured either one as a
+        # real baseline." baseline_app is None is exactly that second
+        # case (see the block above) — reusing it here means a component
+        # that was never really tracked at baseline gets "(new)" for BOTH
+        # its app and chart version, instead of a misleading "1.0.0 ->
+        # 1.1.0" transition implying a real prior baseline value existed
+        # and moved. When baseline_app resolved to a real version instead
+        # (this component WAS genuinely tracked at baseline), the
+        # baseline's own Chart.yaml dependency version is the correct,
+        # real old_chart, same as ever.
+        baseline_dep = dep_for_values_key(baseline_deps, values_key) if baseline_app is not None else None
+        old_chart_str = str(baseline_dep["version"]) if baseline_dep is not None else None
 
     if upgrade_path is None:
         print()
@@ -224,12 +268,12 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
     else:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, table_action = update_component_table(
-            text, friendly, old_app, new_version, chart_version_str, chart_version_str, deps, values,
+            text, friendly, old_app, new_version, old_chart_str, chart_version_str, deps, values,
             canonical_names)
         if table_action is not None:
             new_text, _ = remove_changes_section(new_text, friendly)
             section = make_changes_section(friendly, target, chart_name, values_key, old_app, new_version,
-                                            chart_version_str, chart_version_str, image_paths)
+                                            old_chart_str, chart_version_str, image_paths)
             new_text = insert_changes_section(new_text, section, friendly, deps, values, canonical_names)
             upgrade_path.write_text(new_text, encoding="utf-8")
             print()
@@ -309,7 +353,7 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
         return
 
     changes_action, entry_updates, missing_entries = update_images_manifest(
-        images_path, friendly, values_key, old_app, new_version, chart_version_str, chart_version_str,
+        images_path, friendly, values_key, old_app, new_version, old_chart_str, chart_version_str,
         image_paths, repos, new_tags_by_path, deps=deps, values=values,
     )
     print()
@@ -447,7 +491,8 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
             continue
 
         changes_action, entry_updated = update_image_manifest(
-            images_path, basename, repo_path, old_version, c["new_version"], c["new_digest"])
+            images_path, basename, repo_path, old_version, c["new_version"], c["new_digest"],
+            deps=deps, values=values, canonical_names=canonical_names)
         if changes_action:
             print(f"  {changes_action} 'changes:' list entry")
         if entry_updated:

@@ -23,14 +23,14 @@ from lib.chart import (
     load_images_baseline, replace_scalar_value, version_of, version_paths_for,
 )
 from lib.component_docs import (
-    CHANGES_HEADER_RE, CHANGES_ITEM_RE, NUMBER_WORDS, dep_for_values_key, insert_changes_section,
-    make_changes_section, remove_changes_section, update_component_table,
+    CHANGES_ITEM_RE, dep_for_values_key, find_images_manifest_changes_header, insert_changes_section,
+    insert_images_manifest_header_item, make_changes_section, remove_changes_section, update_component_table,
 )
 from lib.upgradedoc import (
-    actual_app_version, changes_heading_has_app_version, changes_heading_identities, extract_source_version,
-    find_changes_row_correspondence_gaps, find_image_tag_paths, find_preceding_comment_line, normalize_name,
-    normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair,
-    resolve_component_identity,
+    actual_app_version, changes_heading_has_app_version, changes_heading_identities, component_order_key,
+    extract_source_version, find_changes_row_correspondence_gaps, find_image_tag_paths,
+    find_preceding_comment_line, normalize_name, normalize_version, parse_upgrade_doc_changes_blocks,
+    parse_upgrade_doc_rows, replace_version_pair, resolve_component_identity, values_key_order,
 )
 
 
@@ -346,7 +346,8 @@ def resolve_basename_baseline_version(baseline_values, full_paths):
     return next(iter(versions)) if len(versions) == 1 else None
 
 
-def update_image_manifest(images_path, basename, repository, old_version, new_version, digest):
+def update_image_manifest(images_path, basename, repository, old_version, new_version, digest, deps=(), values=None,
+                           canonical_names=None):
     """Update the "# <N> changes:" header list and the images-manifest
     entry for a shared image basename bump — keyed by `repository` (an
     entry's "url:" resolving to it, host-stripped same as the "name:"
@@ -355,15 +356,46 @@ def update_image_manifest(images_path, basename, repository, old_version, new_ve
     entry_updated is False (not an error) when no existing entry's
     "url:" matches this repository; the caller reports the correct
     name/url to add by hand instead, same convention as
-    lib.component_docs.update_images_manifest's own missing_entries."""
+    lib.component_docs.update_images_manifest's own missing_entries.
+
+    deps/values/canonical_names position a BRAND-NEW header item at this
+    basename's own real values.yaml order slot (lib.upgradedoc.
+    component_order_key — the SAME convention update-image-version's own
+    update_docs_shared_image already uses to position this exact
+    basename's "Component versions" table row/"### ..." Changes section
+    in the upgrade doc, via canonical_names' "global" shared-image
+    fallback) — real bug this fixes: this function used to always
+    APPEND a new item at the very end of the existing list regardless of
+    where it really belongs, while lib.component_docs.update_images_
+    manifest (the sibling function for a real Chart.yaml dependency's
+    own bump) already positioned ITS new items by values.yaml order —
+    the two disagreeing on ordering convention meant a component bumped
+    through THIS function (e.g. a shared "global.images" anchor) could
+    land its header item in a position that contradicted another
+    component's own item bumped through the OTHER function in the very
+    same run, scrambling the header list's order relative to the entries
+    below it even though neither individual insert was wrong on its own
+    (confirmed live: images-4.9.1.yaml's own "redis 8.0 (new)." item,
+    always appended last here, ended up AFTER "mi ...unchanged."'s own
+    values.yaml-order-positioned item even though redis's real entry
+    sits earlier). Omit (or pass deps=(), values=None) only where no
+    real ordering context is available at all — falls back to appending
+    at the end, same as before, never crashes."""
     original_text = images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
-    header_idx = None
-    for i, line in enumerate(lines):
-        if CHANGES_HEADER_RE.match(line):
-            header_idx = i
-            break
+    # find_images_manifest_changes_header (not a bare CHANGES_HEADER_RE
+    # scan) — the real, hand-curated images-manifest header is the plain
+    # "# Changes:" form (no count word at all), which CHANGES_HEADER_RE
+    # alone never recognizes (see that function's own docstring for the
+    # identical bug already fixed in update_images_manifest/lib.
+    # component_docs — this was the same gap in THIS function, just never
+    # given the same fix). Silently finding no header at all meant this
+    # whole block — and so the header-list item — was skipped outright
+    # for every MULTIPLE-scope basename bump against a real manifest,
+    # never even reaching the "no existing entry" case a human could act
+    # on.
+    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
 
     changes_action = None
     if header_idx is not None:
@@ -390,14 +422,21 @@ def update_image_manifest(images_path, basename, repository, old_version, new_ve
             m = CHANGES_ITEM_RE.match(lines[match_idx])
             lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
             changes_action = "updated"
+        elif values is not None:
+            # insert_images_manifest_header_item never rewrites the
+            # header's own wording into a counted form ("# Three
+            # changes:") — same bare "# Changes:" convention this
+            # function already matched before this fix.
+            key_order = values_key_order(values)
+            new_key = component_order_key(basename, deps, key_order, canonical_names)
+            insert_images_manifest_header_item(lines, deps, key_order, new_key, item_text)
+            changes_action = "added"
         else:
+            # No ordering context given at all — fall back to the
+            # previous always-append behavior rather than guessing.
             new_num = len(item_indices) + 1
             insert_at = block_end if item_indices else header_idx + 1
             lines.insert(insert_at, f"#   {new_num}. {item_text}\n")
-            count_word = NUMBER_WORDS[new_num] if new_num < len(NUMBER_WORDS) else str(new_num)
-            noun = "change" if new_num == 1 else "changes"
-            header_m = CHANGES_HEADER_RE.match(lines[header_idx])
-            lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
             changes_action = "added"
 
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
@@ -449,11 +488,10 @@ def remove_image_manifest_entry(images_path, basename, repository, new_version, 
     original_text = images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
-    header_idx = None
-    for i, line in enumerate(lines):
-        if CHANGES_HEADER_RE.match(line):
-            header_idx = i
-            break
+    # Same bare-header fix as update_image_manifest above — see its own
+    # comment for why a plain CHANGES_HEADER_RE scan alone never finds
+    # the real manifest's own "# Changes:" header.
+    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
 
     changes_action = None
     if header_idx is not None:
@@ -478,11 +516,8 @@ def remove_image_manifest_entry(images_path, basename, repository, new_version, 
             for new_num, idx in enumerate(remaining_indices, start=1):
                 m = CHANGES_ITEM_RE.match(lines[idx])
                 lines[idx] = f"#   {new_num}. {m.group('rest')}\n"
-            remaining = len(remaining_indices)
-            count_word = NUMBER_WORDS[remaining] if remaining < len(NUMBER_WORDS) else str(remaining)
-            noun = "change" if remaining == 1 else "changes"
-            header_m = CHANGES_HEADER_RE.match(lines[header_idx])
-            lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+            # Never rewrites the header's own wording — see
+            # update_image_manifest's identical comment above.
             changes_action = "removed"
 
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
