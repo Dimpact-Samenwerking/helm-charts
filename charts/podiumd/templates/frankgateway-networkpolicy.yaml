@@ -51,9 +51,8 @@ metadata:
   name: {{ $name }}
   namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" $root | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" $root "name" $name) | nindent 4 }}
     app.kubernetes.io/component: frankgateway
-    app.kubernetes.io/name: {{ $name }}
 spec:
   podSelector:
     matchLabels:

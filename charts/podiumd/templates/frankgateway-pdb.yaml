@@ -38,9 +38,8 @@ metadata:
   name: {{ $name }}
   namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" $root | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" $root "name" $name) | nindent 4 }}
     app.kubernetes.io/component: frankgateway
-    app.kubernetes.io/name: {{ $name }}
 spec:
   maxUnavailable: {{ $pdb.maxUnavailable }}
   {{- with $pdb.unhealthyPodEvictionPolicy }}
@@ -58,9 +57,8 @@ metadata:
   name: {{ $name }}-dashboard
   namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" $root | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" $root "name" (printf "%s-dashboard" $name)) | nindent 4 }}
     app.kubernetes.io/component: frankgateway-dashboard
-    app.kubernetes.io/name: {{ $name }}-dashboard
 spec:
   maxUnavailable: {{ $pdb.maxUnavailable }}
   {{- with $pdb.unhealthyPodEvictionPolicy }}
@@ -79,9 +77,8 @@ metadata:
   name: {{ $name }}-{{ $part }}
   namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" $root | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" $root "name" (printf "%s-%s" $name $part)) | nindent 4 }}
     app.kubernetes.io/component: frankgateway-{{ $part }}
-    app.kubernetes.io/name: {{ $name }}-{{ $part }}
 spec:
   maxUnavailable: {{ $pdb.maxUnavailable }}
   {{- with $pdb.unhealthyPodEvictionPolicy }}
@@ -108,9 +105,8 @@ metadata:
   name: frankgateway-etcd
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-etcd") | nindent 4 }}
     app.kubernetes.io/component: frankgateway-etcd
-    app.kubernetes.io/name: frankgateway-etcd
 spec:
   maxUnavailable: {{ $etcd.podDisruptionBudget.maxUnavailable }}
   {{- with $etcd.podDisruptionBudget.unhealthyPodEvictionPolicy }}

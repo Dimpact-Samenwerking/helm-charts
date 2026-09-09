@@ -69,9 +69,8 @@ metadata:
   name: frankgateway-etcd
   namespace: {{ $ns }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-etcd") | nindent 4 }}
     app.kubernetes.io/component: frankgateway-etcd
-    app.kubernetes.io/name: frankgateway-etcd
 spec:
   serviceName: frankgateway-etcd-headless
   replicas: {{ $replicas }}
