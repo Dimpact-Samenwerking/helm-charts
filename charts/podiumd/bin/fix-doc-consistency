@@ -211,17 +211,63 @@ def update_sibling_doc_refs(text, target, new_baseline):
     return new_text, new_text != text
 
 
+HEADING_LINE_RE = re.compile(r"^#{1,6}\s")
+FENCE_LINE_RE = re.compile(r"^\s*```")
+
+
+def ensure_blank_lines_around_headings(text):
+    """Insert a missing blank line directly above and/or below every real
+    "#"-heading line (pymarkdown's MD022, headings-surrounded-by-blank-
+    lines) — the companion collapse_multiple_blank_lines below never
+    adds, only ever removes EXCESS blank lines. A heading landing
+    directly against non-blank content on either side was never
+    something this script repaired, only ever produced fresh: real case,
+    lib.component_docs.insert_changes_section relocating whatever block
+    currently sorts last in the file used to assume a blank line already
+    separated it from the PRECEDING content, which isn't guaranteed —
+    e.g. this exact function, run on an earlier pass, already collapsed
+    that same trailing blank away as part of its own EOF-quirk fix
+    below, or a reordering pass simply never normalized the seam.
+
+    A "#" line inside a fenced ```...``` code block (a shell comment, a
+    YAML "#" key, ...) is never a real heading and is never touched —
+    tracked with a plain per-line fence toggle rather than lib.
+    upgradedoc.strip_fenced_code_blocks' own text-collapsing substitution,
+    which would desync every line number this function depends on. Never
+    adds a blank line at the very top/bottom of the file — nothing there
+    to separate a heading from."""
+    lines = text.splitlines(keepends=True)
+    result = []
+    in_fence = False
+    for i, line in enumerate(lines):
+        if FENCE_LINE_RE.match(line):
+            in_fence = not in_fence
+            result.append(line)
+            continue
+        if not in_fence and HEADING_LINE_RE.match(line):
+            if result and result[-1].strip():
+                result.append("\n")
+            result.append(line)
+            if i + 1 < len(lines) and lines[i + 1].strip():
+                result.append("\n")
+        else:
+            result.append(line)
+    return "".join(result)
+
+
 def collapse_multiple_blank_lines(text):
-    """Collapse any run of 2+ consecutive blank lines down to exactly one
-    (pymarkdown's MD012, no-multiple-blanks) — never changes a doc's
-    rendered meaning (Markdown treats one blank line and several
-    identically), just removes purely cosmetic byte duplication this
-    script's own splicing (a new stub section inserted between two
-    existing ones, a reordered block leaving a stray blank line behind,
-    ...) can otherwise accumulate. Applied right before writing any of
-    the three standard .md docs this script manages, so a real MD012
-    violation never needs a separate fix-markdown pass afterward for
-    something this script itself introduced.
+    """First inserts any blank line MISSING around a heading (see ensure_
+    blank_lines_around_headings), then collapses any run of 2+
+    consecutive blank lines down to exactly one (pymarkdown's MD012,
+    no-multiple-blanks) — never changes a doc's rendered meaning
+    (Markdown treats one blank line and several identically), just
+    removes purely cosmetic byte duplication this script's own splicing
+    (a new stub section inserted between two existing ones, a reordered
+    block leaving a stray blank line behind, ...) can otherwise
+    accumulate. Applied right before writing any of the three standard
+    .md docs this script manages, so a real MD012/MD022 violation never
+    needs a separate fix-markdown pass afterward for something this
+    script itself introduced.
 
     ALSO collapses any trailing blank line(s) right before EOF down to a
     single final newline — confirmed live against real pymarkdown: it
@@ -229,10 +275,11 @@ def collapse_multiple_blank_lines(text):
     ENDING in "content\n\n" (one syntactic blank line before EOF, no
     triple newline anywhere for the check above to ever catch) already
     reports "Multiple consecutive blank lines: Expected: 1, Actual: 2"
-    at the line right after the last real content line. Both fixes
-    together mean this doc's own trailing blank-line convention matches
-    every other line in it: at most one blank line, ever, anywhere,
-    including right before EOF."""
+    at the line right after the last real content line. All three fixes
+    together mean this doc's own blank-line convention matches
+    everywhere in it: at least one blank line around every heading, at
+    most one blank line ever anywhere (including right before EOF)."""
+    text = ensure_blank_lines_around_headings(text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return re.sub(r"\n+\Z", "\n", text)
 

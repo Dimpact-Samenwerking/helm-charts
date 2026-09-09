@@ -169,6 +169,67 @@ def test_collapse_multiple_blank_lines_single_trailing_newline_untouched(cdb):
     assert cdb.collapse_multiple_blank_lines(text) == text
 
 
+# --- ensure_blank_lines_around_headings ---
+
+def test_ensure_blank_lines_around_headings_adds_missing_blank_above(cdb):
+    """Regression test (real bug, real doc): a "### ..." heading landing
+    directly against non-blank content above it (real case: lib.
+    component_docs.insert_changes_section relocating whatever block
+    currently sorts last in a real upgrade.md, right after another
+    block's own "- Image / digest: ..." line with nothing separating
+    them) is exactly pymarkdown's MD022/MD032 — confirmed live against
+    the real 4.9.0-to-4.9.1-upgrade.md, which had this precise shape."""
+    text = "- Image / digest: see foo.\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
+    assert cdb.ensure_blank_lines_around_headings(text) == (
+        "- Image / digest: see foo.\n\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
+    )
+
+
+def test_ensure_blank_lines_around_headings_adds_missing_blank_below(cdb):
+    text = "### curl 8.21.0 → 8.22.0\nSome prose.\n"
+    assert cdb.ensure_blank_lines_around_headings(text) == "### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
+
+
+def test_ensure_blank_lines_around_headings_already_correct_untouched(cdb):
+    text = "line one.\n\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
+    assert cdb.ensure_blank_lines_around_headings(text) == text
+
+
+def test_ensure_blank_lines_around_headings_never_adds_at_start_of_file(cdb):
+    text = "### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
+    assert cdb.ensure_blank_lines_around_headings(text) == text
+
+
+def test_ensure_blank_lines_around_headings_never_adds_at_end_of_file(cdb):
+    text = "Some prose.\n\n### curl 8.21.0 → 8.22.0\n"
+    assert cdb.ensure_blank_lines_around_headings(text) == text
+
+
+def test_ensure_blank_lines_around_headings_ignores_hash_inside_fenced_code_block(cdb):
+    """A "#" line inside a fenced ```...``` block (a shell/YAML comment in
+    an example) is never a real heading and must never gain a blank
+    line of its own."""
+    text = "line one.\n```\n# not a heading\n```\nline two.\n"
+    assert cdb.ensure_blank_lines_around_headings(text) == text
+
+
+def test_ensure_blank_lines_around_headings_multiple_missing_in_one_doc(cdb):
+    text = "line one.\n## Section A\nline two.\n## Section B\nline three.\n"
+    assert cdb.ensure_blank_lines_around_headings(text) == (
+        "line one.\n\n## Section A\n\nline two.\n\n## Section B\n\nline three.\n"
+    )
+
+
+def test_collapse_multiple_blank_lines_also_fixes_missing_blank_around_heading(cdb):
+    """collapse_multiple_blank_lines itself (not just the standalone
+    ensure_blank_lines_around_headings helper) must apply this fix too —
+    every one of its own call sites in this script relies on it alone."""
+    text = "- Image / digest: see foo.\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
+    assert cdb.collapse_multiple_blank_lines(text) == (
+        "- Image / digest: see foo.\n\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
+    )
+
+
 # --- main() integration, against a real temp git repo ---
 
 @pytest.fixture
