@@ -278,6 +278,17 @@ entries:
     version: 1.0.3
   mi-data:
   - apiVersion: v2
+    appVersion: 1.1.0
+    created: "2026-09-09T16:06:28.23897561Z"
+    description: Management Information (MI) data exports — scheduled per-component
+      Postgres dumps delivered to an external SFTP or FTP(S) server
+    digest: 78df18097a3388a5721eaf782b224431ceaf94860aa732e95b285ac1ad27fb8e
+    name: mi-data
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/mi-data-1.1.0/mi-data-1.1.0.tgz
+    version: 1.1.0
+  - apiVersion: v2
     appVersion: 1.0.0
     created: "2026-07-27T11:23:33.413075569Z"
     description: Management Information (MI) data exports — scheduled per-component
@@ -289,6 +300,46 @@ entries:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/mi-data-1.0.0/mi-data-1.0.0.tgz
     version: 1.0.0
   monitoring-logging:
+  - apiVersion: v2
+    appVersion: 1.0.17
+    created: "2026-09-09T16:06:28.550824829Z"
+    dependencies:
+    - condition: loki.enabled
+      name: loki
+      repository: '@grafana'
+      version: 6.55.0
+    - condition: alloy.enabled
+      name: alloy
+      repository: '@grafana'
+      version: 1.6.2
+    - condition: grafana.enabled
+      name: grafana
+      repository: '@grafana'
+      version: 10.5.15
+    - condition: kube-prometheus-stack.enabled
+      name: kube-prometheus-stack
+      repository: '@prometheus-community'
+      version: 83.0.0
+    - condition: prometheus-pushgateway.enabled
+      name: prometheus-pushgateway
+      repository: '@prometheus-community'
+      version: 3.6.0
+    - condition: tempo.enabled
+      name: tempo
+      repository: '@grafana'
+      version: 1.24.4
+    - condition: opentelemetry-collector.enabled
+      name: opentelemetry-collector
+      repository: '@opentelemetry'
+      version: 0.147.1
+    description: A monitoring stack using Loki, Prometheus, Grafana Alloy, OpenTelemetry
+      Collector, and Grafana. Optionally includes Grafana Tempo for distributed tracing.
+    digest: 7912b326af649edb6a08b94fa61f6f4f1aafc7a76fe025b1854c4b74306e485f
+    name: monitoring-logging
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/monitoring-logging-1.0.17/monitoring-logging-1.0.17.tgz
+    version: 1.0.17
   - apiVersion: v2
     appVersion: 1.0.15
     created: "2026-08-07T07:47:25.058200396Z"
@@ -761,6 +812,136 @@ entries:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/openldap-1.0.0/openldap-1.0.0.tgz
     version: 1.0.0
   podiumd:
+  - apiVersion: v2
+    appVersion: 4.9.1
+    created: "2026-09-09T16:06:29.058856442Z"
+    dependencies:
+    - condition: keycloak-operator.enabled
+      name: keycloak-operator
+      repository: '@adfinis'
+      version: 1.13.0
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      version: 3.7.2
+    - alias: brppersonenmock
+      condition: brppersonenmock.enabled
+      name: brp-personen-mock
+      repository: '@dimpact'
+      version: 1.2.9
+    - alias: mi
+      condition: mi.enabled
+      name: mi-data
+      repository: file://../mi-data
+      version: 1.1.0
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.14.2
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 2.0.0
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.12.1
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.6.1
+    - condition: openarchiefbeheer.enabled
+      name: openarchiefbeheer
+      repository: '@maykinmedia'
+      version: 2.0.0
+    - condition: openklant.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: 1.11.0
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      version: 1.12.0
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      version: 2.4.0
+    - alias: referentielijsten
+      condition: referentielijsten.enabled
+      name: referentielijsten
+      repository: '@maykinmedia'
+      version: 0.1.1
+    - condition: openbeheer.enabled
+      name: openbeheer
+      repository: '@maykinmedia'
+      version: 0.1.3
+    - alias: zac
+      condition: zac.enabled
+      name: zaakafhandelcomponent
+      repository: '@zac'
+      tags:
+      - zaak
+      version: 1.0.297
+    - condition: zaakbrug.enabled
+      name: zaakbrug
+      repository: https://wearefrank.github.io/charts
+      tags:
+      - zaak
+      version: 2.3.32
+    - condition: zgw-office-addin.enabled
+      name: zgw-office-addin
+      repository: '@zgw-office-addin'
+      version: 0.0.89
+    - alias: ita
+      condition: ita.enabled
+      name: internetaakafhandeling
+      repository: oci://ghcr.io/interne-taak-afhandeling
+      version: 3.3.0
+    - alias: kiss
+      condition: kiss.enabled
+      name: kiss-chart
+      repository: oci://ghcr.io/klantinteractie-servicesysteem
+      version: 3.1.1
+    - alias: pabc
+      condition: pabc.enabled
+      name: pabc
+      repository: oci://ghcr.io/platform-autorisatie-beheer-component
+      version: 1.1.1
+    - alias: omc
+      condition: omc.enabled
+      name: notifynl-omc-nodep
+      repository: '@worth-nl'
+      version: 0.14.1
+    - condition: redis-operator.enabled
+      name: redis-operator
+      repository: '@opstree'
+      version: 0.26.1
+    - condition: eck-operator.enabled
+      name: eck-operator
+      repository: https://helm.elastic.co
+      tags:
+      - eck-operator
+      version: 3.5.0
+    - alias: kiss-eck
+      condition: kiss-eck.enabled
+      name: eck-stack
+      repository: https://helm.elastic.co
+      tags:
+      - kiss-eck
+      - contact
+      version: 0.20.0
+    - condition: openbao.enabled
+      name: openbao
+      repository: https://openbao.github.io/openbao-helm
+      version: 0.28.4
+    description: PodiumD Helm chart
+    digest: ad5d08cf6920857ac71d5e5fefcb775776c2f361865bd8c4635b3d8b299120ed
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-4.9.1/podiumd-4.9.1.tgz
+    version: 4.9.1
   - apiVersion: v2
     appVersion: 4.9.1
     created: "2026-09-03T13:02:06.536233934Z"
@@ -24958,4 +25139,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2026-09-03T13:02:06.537613399Z"
+generated: "2026-09-09T16:06:29.0600842Z"
