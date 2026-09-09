@@ -669,6 +669,29 @@ def insert_changes_section(text, section_text, friendly, deps, values, canonical
         idx = insertion_index(new_key, existing_keys)
         insert_at = blocks[idx]["start"] if idx < len(blocks) else section_end
 
+    # Normalize to exactly one blank line immediately before the insertion
+    # point, rather than assuming one is already there — section_text's
+    # own leading edge never supplies it (make_changes_section/make_image_
+    # changes_section both start straight with "### "), and the PRECEDING
+    # content's own trailing blank can legitimately be gone by the time
+    # this runs (e.g. fix-doc-consistency's own EOF-blank-line collapsing
+    # already stripped it — see lib.markdown_check). Real bug this fixes:
+    # re-inserting whatever block currently sorts LAST in the file used to
+    # silently depend on that trailing blank still being there, producing
+    # a "### ..." heading with zero blank lines above it (MD022/MD032)
+    # whenever it wasn't.
+    blank_count = 0
+    i = insert_at - 1
+    while i >= 0 and not lines[i].strip():
+        blank_count += 1
+        i -= 1
+    if blank_count == 0:
+        lines[insert_at:insert_at] = ["\n"]
+        insert_at += 1
+    elif blank_count > 1:
+        del lines[insert_at - (blank_count - 1):insert_at]
+        insert_at -= (blank_count - 1)
+
     lines[insert_at:insert_at] = [section_text]
     return "".join(lines)
 

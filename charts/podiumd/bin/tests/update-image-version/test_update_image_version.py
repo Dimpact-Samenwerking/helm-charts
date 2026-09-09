@@ -485,6 +485,109 @@ def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, t
     assert "updated entry for curlimages/curl" in out
 
 
+def test_main_shared_image_sorts_at_its_real_values_yaml_position_not_last(uiv, tmp_path, monkeypatch):
+    """Regression test (real bug, real doc): a MULTIPLE/shared-image bump
+    (curl, global.images-anchored) used to always land at the very END of
+    both the table and the "## Changes" section — canonical_names (which
+    lets a bare "global"-anchored name sort at its own real values.yaml
+    position, index 0 here since "global:" is the first top-level key)
+    was computed by update_docs() but never actually passed through to
+    update_component_table/insert_changes_section from
+    update_docs_shared_image. keycloak-operator sorts AFTER "global" in
+    values.yaml key order, so curl's row/section must land BEFORE it, not
+    after."""
+    write_chart_yaml(tmp_path, [("keycloak-operator", None)])
+    values_path = write_values(tmp_path, (
+        "global:\n"
+        "  images:\n"
+        "    curl: &curlImage\n"
+        "      repository: curlimages/curl\n"
+        f'      tag: "8.20.0@sha256:{"a" * 64}"\n'
+        "keycloak-operator:\n"
+        "  jobs:\n"
+        "    ensureOperatorSa:\n"
+        "      image: *curlImage\n"
+    ))
+    monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
+              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+              "## Component versions (1.0.0 vs 0.9.0)\n\n"
+              "| Component | App version | Helm chart | Notes |\n"
+              "| --- | --- | --- | --- |\n"
+              "| keycloak-operator | 1.0.0 (unchanged) | 1.0.0 (unchanged) | - |\n\n"
+              "## Changes\n\n"
+              "### keycloak-operator 1.0.0 (unchanged)\n\n"
+              "Some existing prose about keycloak-operator.\n\n"
+              "- Image / digest: see [`images-1.0.0.yaml`](../images/images-1.0.0.yaml).\n")
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
+              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n")
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.21.0"])
+
+    uiv.main()
+
+    upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
+    assert upgrade.index("| curl |") < upgrade.index("| keycloak-operator |")
+    assert upgrade.index("### curl") < upgrade.index("### keycloak-operator")
+
+
+def test_main_shared_image_insertion_gets_blank_line_when_preceding_content_has_none(
+        uiv, tmp_path, monkeypatch):
+    """Regression test (real bug, real doc): insert_changes_section used
+    to assume a blank line already separated the insertion point from
+    whatever precedes it — true only by accident. Real case: aaa-dep's
+    own section here ends with no trailing blank line before EOF (e.g.
+    already collapsed by an earlier fix-doc-consistency run's own EOF-
+    blank-line handling); zzz-dep sorts after it in values.yaml key
+    order, so its new section lands right there — and used to butt
+    straight up against aaa-dep's last line with zero blank lines
+    between them (MD022/MD032), since neither side of the insertion
+    point supplies one on its own (section_text always starts directly
+    with "### ", never a leading blank)."""
+    write_chart_yaml(tmp_path, [("aaa-dep", None), ("zzz-dep", None)])
+    values_path = write_values(tmp_path, (
+        "aaa-dep:\n"
+        "  image:\n"
+        "    repository: example/aaa-dep\n"
+        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
+        "zzz-dep:\n"
+        "  image:\n"
+        "    repository: example/zzz-dep\n"
+        f'    tag: "1.0.0@sha256:{"b" * 64}"\n'
+    ))
+    monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
+              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+              "## Component versions (1.0.0 vs 0.9.0)\n\n"
+              "| Component | App version | Helm chart | Notes |\n"
+              "| --- | --- | --- | --- |\n"
+              "| aaa-dep | 1.0.0 (unchanged) | 1.0.0 (unchanged) | - |\n\n"
+              "## Changes\n\n"
+              "### aaa-dep 1.0.0 (unchanged)\n\n"
+              "Some existing prose about aaa-dep.\n\n"
+              "- Image / digest: see [`images-1.0.0.yaml`](../images/images-1.0.0.yaml).\n")
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
+              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n")
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "c" * 64))
+    monkeypatch.setattr("sys.argv", ["update-image-version", "zzz-dep", "zzz-dep", "1.0.1"])
+
+    uiv.main()
+
+    upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
+    assert "- Image / digest: see [`images-1.0.0.yaml`](../images/images-1.0.0.yaml).\n\n### zzz-dep" in upgrade
+    assert "\n\n\n" not in upgrade
+
+
 # --- shared-image doc updates vs the TRUE git baseline: reset-to-baseline
 # removal, and collapsing more than one bump into a single entry ---
 

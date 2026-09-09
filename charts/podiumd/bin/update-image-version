@@ -223,12 +223,13 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
     else:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, table_action = update_component_table(
-            text, friendly, old_app, new_version, chart_version_str, chart_version_str, deps, values)
+            text, friendly, old_app, new_version, chart_version_str, chart_version_str, deps, values,
+            canonical_names)
         if table_action is not None:
             new_text, _ = remove_changes_section(new_text, friendly)
             section = make_changes_section(friendly, target, chart_name, values_key, old_app, new_version,
                                             chart_version_str, chart_version_str, image_paths)
-            new_text = insert_changes_section(new_text, section, friendly, deps, values)
+            new_text = insert_changes_section(new_text, section, friendly, deps, values, canonical_names)
             upgrade_path.write_text(new_text, encoding="utf-8")
             print()
             print(f"=== Updating {upgrade_path.name} ===")
@@ -385,11 +386,11 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
     else:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, table_action = update_component_table(
-            text, basename, old_version, new_version, None, "-", deps, values)
+            text, basename, old_version, new_version, None, "-", deps, values, canonical_names)
         if table_action is not None:
             new_text, _ = remove_changes_section(new_text, basename)
             section = make_image_changes_section(basename, target, old_version, new_version, pinned)
-            new_text = insert_changes_section(new_text, section, basename, deps, values)
+            new_text = insert_changes_section(new_text, section, basename, deps, values, canonical_names)
             upgrade_path.write_text(new_text, encoding="utf-8")
             print()
             print(f"=== Updating {upgrade_path.name} ===")
