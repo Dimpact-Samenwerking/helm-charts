@@ -924,7 +924,13 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         baseline_tag = baseline_paths.get(path)
         old_version = version_of(baseline_tag) if baseline_tag else new_version
         new_key = order_key(path[0], " - " in name)
-        version_text = f"{name} {old_version} -> {new_version}"
+        # A same-version/changed-digest re-pin (lib.upgradedoc.find_
+        # images_manifest_list_diff's own digest-comparison branch) would
+        # otherwise render as "<name> <version> -> <version>" here — reads
+        # as "nothing changed" even though the digest did. Real case:
+        # clamav 1.5.4, digest re-pinned with no version bump.
+        version_text = (f"{name} {new_version} (digest changed)" if old_version == new_version
+                         else f"{name} {old_version} -> {new_version}")
 
         lines = text.splitlines(keepends=True)
         if lines and not lines[-1].endswith("\n"):

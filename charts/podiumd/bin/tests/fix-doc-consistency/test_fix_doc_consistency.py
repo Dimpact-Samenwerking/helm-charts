@@ -2418,6 +2418,14 @@ def test_add_missing_images_manifest_entries_catches_same_version_changed_digest
     assert added == ["clamav"]
     assert "- name: clamav/clamav" in new_text
     assert f'digest: "sha256:{"b" * 64}"' in new_text
+    # Real bug: "clamav 1.5.4 -> 1.5.4" reads as "nothing changed" even
+    # though the version DID stay the same and only the digest changed —
+    # both the "# Changes:" header item and the per-entry "#" comment
+    # above its own "- name:" block share this SAME version_text
+    # construction, so both must say "(digest changed)" instead of the
+    # degenerate "<version> -> <version>" arrow form.
+    assert "clamav 1.5.4 (digest changed)" in new_text
+    assert "clamav 1.5.4 -> 1.5.4" not in new_text
 
 
 def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_qualified(
@@ -2441,6 +2449,26 @@ def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_quali
     assert added == ["zac"]
     assert "- name: infonl/zaakafhandelcomponent" in new_text
     assert "url: ghcr.io/infonl/zaakafhandelcomponent" in new_text
+
+
+def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wording(
+        cdb, images_manifest_chart_dir):
+    """A genuine version bump (old_version != new_version) still renders
+    the normal "<old> -> <new>" arrow form — the "(digest changed)"
+    wording is ONLY for the same-version case, never a substitute for a
+    real version transition."""
+    text = ""
+    deps = [{"name": "curl", "version": "1.0.0"}]
+    target_values = {"curl": {"image": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:" + "b" * 64}}}
+    baseline_values = {"curl": {"image": {"repository": "curlimages/curl", "tag": "8.21.0@sha256:" + "a" * 64}}}
+
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+
+    assert skipped == []
+    assert added == ["curl"]
+    assert "curl 8.21.0 -> 8.22.0" in new_text
+    assert "digest changed" not in new_text
 
 
 def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_io_host(
