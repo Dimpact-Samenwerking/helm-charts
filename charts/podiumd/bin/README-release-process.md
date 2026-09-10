@@ -66,10 +66,12 @@ python3 -m venv .venv
 - run `create-podiumd-version` to set the version and create (upgrade) docs
 - run `verify-podiumd` to check consistency, if not ok, fix the issues
 - run `export-confluence-release-table` to fetch the input for the release
+- run `verify-release-table-with-podiumd --baseline-only` to check the release baseline matches with confluence
+- update the confluence with the findings reported 
 - commit+push the changes
 
-### When release is rebased on a different baseline
-- rebase the branch on the new baseline
+### When release-branch is rebased on a different baseline-branch
+- rebase the branch on the new baseline branch
 - run `change-podiumd-baseline` to update `charts/podiumd/etc/release-baseline.yaml`'s `upgrade_docs` key and rebase the docs
 - run `verify-podiumd` to check consistency, if not ok, fix the issues
 - commit+push the changes
@@ -80,9 +82,8 @@ A component consists of a helm-chart and a container image.
 - create a branch from the release branch (`podiumd-<version>`), name it `podiumd-<version>-<my_changes>`
 - run `query-release-table vendor <name>` or `query-release-table component <name>`, to show changes
 - per component:
-    - run `show-component-baseline-version` to show both baseline versions, check them in confluence
     - run `update-component-version <component> <app-version> <helm-version>` to update the app+helm version using the queried data
-    - check change docs from the component and add relevant changes to the update docs 
+    - check docs from the component and add relevant changes to `<baseline>-to-<version>-*.md`
     - run `verify-podiumd` to check consistency, if not ok, fix the issues
     - commit+push the changes
 - create a PR to merge the my-changes branch into the release branch
@@ -93,7 +94,6 @@ This updates just a container image version in a release.
 - create a branch from the release branch (`podiumd-<version>`), name it `podiumd-<version>-<my_changes>`
 - run `query-release-table section <overige|technische>` or `query-release-table component <name>`, to show changes
 - per images:
-    - run `show-image-baseline-version` to show both baseline versions, check them in confluence
     - run `update-image-version <image> <version>` to update the app (= image) version using the queried data
     - run `verify-podiumd` to check consistency, if not ok, fix the issues
     - commit+push the changes
@@ -117,8 +117,7 @@ This updates just a container image version in a release.
     - commit+push if changes were made
 - run `verify-podiumd` to check consistency, if not ok, fix the issues or repeat previous steps
 - run `export-confluence-release-table` to fetch the input for the release
-- run `verify-release-table-with-podiumd` to the release contains the expected changes
-- run `list-podiumd-images` to list all images, check that all are mentioned in confluence
+- run `verify-release-table-with-podiumd` to check the release changes match with confluence
 
 ## Tools overview
 Notes: 
