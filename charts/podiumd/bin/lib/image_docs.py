@@ -610,12 +610,7 @@ def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline
     ITS OWN nested dependencies) disabled via condition:/tags: never
     contributes an entry here, e.g. openinwoner's own bundled nested
     eck-operator (globally disabled via tags:) or zaakbrug's own
-    condition-disabled "staging" block. Never combined with
-    SUBCHART_VISIBILITY_EXEMPT — that dict is check_subchart_image_
-    visibility's own "reviewed, doesn't need an override" judgment call,
-    irrelevant here: an exempt image is still a real, live image that
-    belongs in this snapshot regardless of whether podiumd ever pins it
-    directly.
+    condition-disabled "staging" block.
 
     One entry per distinct repository (paths_by_repository/
     repo_group_representative's own dedup convention — a shared anchor

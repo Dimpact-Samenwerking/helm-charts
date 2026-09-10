@@ -341,7 +341,7 @@ def test_unoverridden_floating_subchart_image_is_reported_but_never_fails(vp, tm
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
     assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s), 0 exempt) — report only"
+    assert detail == "1 unresolved (1 floating tag(s)) — report only"
     out = capsys.readouterr().out
     assert "oz.image.tag: '1.14.2' (FLOATING in the sub-chart's own default)" in out
 
@@ -357,7 +357,7 @@ def test_unoverridden_already_pinned_subchart_image_is_reported_as_pinned(vp, tm
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
     assert ok is True
-    assert detail == "1 unresolved (0 floating tag(s), 0 exempt) — report only"
+    assert detail == "1 unresolved (0 floating tag(s)) — report only"
     out = capsys.readouterr().out
     assert f"zac.opentelemetry-collector.image.tag: '0.169.0@sha256:{DIGEST_A}' (pinned in the sub-chart's own default)" in out
 
@@ -418,7 +418,7 @@ def test_multiple_unresolved_images_all_reported(vp, tmp_path, monkeypatch, libd
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
     assert ok is True
-    assert detail == "2 unresolved (2 floating tag(s), 0 exempt) — report only"
+    assert detail == "2 unresolved (2 floating tag(s)) — report only"
     out = capsys.readouterr().out
     assert "openzaak.redis.image.tag" in out
     assert "openklant.redis.image.tag" in out
@@ -438,10 +438,9 @@ def test_condition_disabled_dependency_not_reported_when_its_own_path_never_rend
     """A dependency whose own chart-tree path never rendered at all (e.g.
     zaakbrug's own condition-disabled "staging" mode, or any dependency
     disabled via Helm's condition:/tags: mechanism) must stay silent
-    structurally -- not because of SUBCHART_VISIBILITY_EXEMPT (that dict
-    is for images that DO render but are still not worth a podiumd
-    override), but because the render-gate applies uniformly to every
-    finding, exempt or not."""
+    structurally — the render-gate applies uniformly to every finding,
+    regardless of what the dependency's own vendored default looks
+    like."""
     write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28")])
     make_tgz(tmp_path / "charts", "zaakbrug", "2.3.28",
               {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.9.0"}}})
@@ -471,7 +470,7 @@ def test_null_tag_subchart_default_resolved_via_own_app_version_is_reported(vp, 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
     assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s), 0 exempt) — report only"
+    assert detail == "1 unresolved (1 floating tag(s)) — report only"
     out = capsys.readouterr().out
     assert "eck-operator.image.tag: '3.5.0' (FLOATING in the sub-chart's own default)" in out
 
@@ -548,19 +547,19 @@ def test_nested_subchart_default_reported_when_its_own_path_does_render(vp, tmp_
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
     assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s), 0 exempt) — report only"
+    assert detail == "1 unresolved (1 floating tag(s)) — report only"
     out = capsys.readouterr().out
     assert "eck-operator.image.tag: '3.2.0' (FLOATING in the sub-chart's own default)" in out
 
 
-# --- SUBCHART_VISIBILITY_EXEMPT (staging etc.) ---
+# --- zaakbrug.staging is now an ORDINARY finding (SUBCHART_VISIBILITY_EXEMPT removed) ---
 
-def test_exempted_subchart_visibility_finding_is_printed_by_name_not_just_counted(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
-    """A finding that IS exempt must still be printed by its own {scope_
-    key}.{subpath} name (with a reference to its exempt reason) -- the
-    "OK" branch (no non-exempt findings at all) must not reduce it to a
-    bare count with no way to see which images those are without reading
-    SUBCHART_VISIBILITY_EXEMPT in the source."""
+def test_zaakbrug_staging_is_now_an_ordinary_unexempted_finding(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+    """SUBCHART_VISIBILITY_EXEMPT has been removed entirely: zaakbrug's
+    own "staging" mode is no longer special-cased — once its own
+    chart-tree path actually renders, it's reported exactly like any
+    other unresolved subchart-default image, with no exempt bucket, no
+    exempt count, no special wording."""
     write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28")])
     make_tgz(tmp_path / "charts", "zaakbrug", "2.3.28",
               {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.9.0"}}})
@@ -570,18 +569,16 @@ def test_exempted_subchart_visibility_finding_is_printed_by_name_not_just_counte
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
     assert ok is True
-    assert detail == "0 unresolved (1 exempt)"
+    assert detail == "1 unresolved (1 floating tag(s)) — report only"
     out = capsys.readouterr().out
-    assert "OK: no sub-chart-default images found without a podiumd override (1 exempt)" in out
-    assert "zaakbrug.staging.image.tag: '1.9.0'" in out
-    assert "exempt:" in out
+    assert "zaakbrug.staging.image.tag: '1.9.0' (FLOATING in the sub-chart's own default)" in out
+    assert "exempt" not in out
 
 
-def test_exempted_subchart_visibility_prefix_matches_nested_path_too(vp, tmp_path, monkeypatch, libdigestpinningcheck):
-    """SUBCHART_VISIBILITY_EXEMPT's ("zaakbrug", "staging") entry must also
-    cover staging.apiProxy — a path segment prefix match, not just an
-    exact-path one — since the whole staging deployment mode (main image
-    AND its API proxy sidecar) is what's permanently disabled."""
+def test_zaakbrug_staging_nested_prefix_is_also_an_ordinary_finding(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+    """staging.apiProxy (a nested sibling under the same "staging" key)
+    is likewise just an ordinary finding now — no prefix-match exemption
+    left to apply to it at all."""
     write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28")])
     make_tgz(tmp_path / "charts", "zaakbrug", "2.3.28",
               {"staging": {"apiProxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "stable"}}}})
@@ -591,28 +588,12 @@ def test_exempted_subchart_visibility_prefix_matches_nested_path_too(vp, tmp_pat
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
     assert ok is True
-    assert detail == "0 unresolved (1 exempt)"
-
-
-def test_exemption_is_scoped_to_its_own_dependency_only(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
-    """A DIFFERENT dependency's own "staging"-named key must NOT be
-    silently swallowed by zaakbrug's own exemption — the exemption is
-    keyed on (scope_key, subpath), not a bare rule-name match."""
-    write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
-    make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
-              {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}}})
-    write_values_yaml(tmp_path, "{}\n")
-    stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak"])
-
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
-
-    assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s), 0 exempt) — report only"
+    assert detail == "1 unresolved (1 floating tag(s)) — report only"
     out = capsys.readouterr().out
-    assert "openzaak.staging.image.tag" in out
+    assert "zaakbrug.staging.apiProxy.image.tag" in out
 
 
-def test_exempt_and_non_exempt_findings_mixed(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_multiple_findings_from_different_dependencies_all_reported_plainly(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
     write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28"), make_dep("openzaak", "1.14.2")])
     make_tgz(tmp_path / "charts", "zaakbrug", "2.3.28",
               {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.9.0"}}})
@@ -624,14 +605,11 @@ def test_exempt_and_non_exempt_findings_mixed(vp, tmp_path, monkeypatch, libdige
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
     assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s), 1 exempt) — report only"
+    assert detail == "2 unresolved (2 floating tag(s)) — report only"
     out = capsys.readouterr().out
     assert "openzaak.redis.image.tag" in out
-    assert "1 more already reviewed and exempted" in out
-    # exempt finding is still printed by name, under its own "Exempt" section
-    assert "Exempt (see SUBCHART_VISIBILITY_EXEMPT for why):" in out
-    assert "zaakbrug.staging.image.tag: '1.9.0'" in out
-    assert "exempt:" in out
+    assert "zaakbrug.staging.image.tag" in out
+    assert "exempt" not in out
 
 
 # --- subchart_template_text (structurally unreferenced keys) ---
@@ -677,7 +655,7 @@ def test_referenced_subchart_key_is_still_reported_even_with_templates_present(v
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
     assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s), 0 exempt) — report only"
+    assert detail == "1 unresolved (1 floating tag(s)) — report only"
     out = capsys.readouterr().out
     assert "openzaak.redis.image.tag" in out
 
@@ -696,6 +674,6 @@ def test_unreferenced_key_without_a_templates_dir_at_all_is_still_reported(vp, t
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
     assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s), 0 exempt) — report only"
+    assert detail == "1 unresolved (1 floating tag(s)) — report only"
     out = capsys.readouterr().out
     assert "pabc.web.image.tag" in out
