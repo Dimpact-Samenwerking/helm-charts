@@ -855,6 +855,112 @@ def test_find_images_manifest_list_diff_flags_entry_for_unresolvable_path_as_sta
     assert unmatched == []
 
 
+def test_find_images_manifest_list_diff_deps_given_rejects_stripped_name_collision(libupgradedoc, tmp_path):
+    """Regression test: the same real redis/redis-operator collision
+    lib.chart.historical_app_version_for_path already guards against
+    (see its own docstring) applies equally to this function's OWN
+    historical-manifest fallback (pin_changed, for a brand-new path with
+    no baseline entry at all). global.images.redis (repository bare
+    "redis") strips to the same name as images-4.6.4.yaml's own legacy
+    "name: redis" entry (redis-operator's unrelated quay.io/opstree/
+    redis) — whose recorded version ("8.0") is deliberately made to
+    match the current tag here, so a wrongly-accepted collision would
+    mask this path as "unchanged" and it would never end up in
+    missing_paths, even though there is no manifest entry for it at all.
+    Passing deps (as both real callers now do) cross-checks the
+    historical entry's own "url:" against the CURRENT path's fully-
+    qualified repository (lib.chart.full_repository_for_path) and
+    correctly rejects it, so the path is still reported missing."""
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    (images_dir / "images-4.6.4.yaml").write_text(
+        "- name: redis\n"
+        "  url: quay.io/opstree/redis\n"
+        '  version: "8.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    entries = []
+    current_paths = {("global", "images", "redis"): "8.0@sha256:bbbb"}
+    baseline_paths = {}
+    repo_map = {"redis": ("global", "images", "redis")}
+    repo_groups = {"redis": [("global", "images", "redis")]}
+    values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.0@sha256:bbbb"}}}}
+
+    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set(),
+        chart_dir=tmp_path, deps=[], upgrade_docs_baseline="4.9.0", values=values, baseline_values={})
+    assert missing == [("global", "images", "redis")]
+    assert stale == []
+    assert unmatched == []
+
+
+def test_find_images_manifest_list_diff_without_deps_keeps_old_name_only_behavior(libupgradedoc, tmp_path):
+    """The exact same fixture as the collision test above, but WITHOUT
+    passing deps — this is deliberately preserved old (unsafe) name-only
+    behavior for a caller with no Chart.yaml dependencies of its own to
+    give (see this function's own docstring); both of this function's
+    real callers now always pass deps, so this path is only ever taken
+    by a caller that hasn't been updated. Demonstrates the bug this
+    function's docstring describes really did exist before deps was
+    threaded through: the collision is wrongly accepted and the path is
+    never reported missing at all."""
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    (images_dir / "images-4.6.4.yaml").write_text(
+        "- name: redis\n"
+        "  url: quay.io/opstree/redis\n"
+        '  version: "8.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    entries = []
+    current_paths = {("global", "images", "redis"): "8.0@sha256:bbbb"}
+    baseline_paths = {}
+    repo_map = {"redis": ("global", "images", "redis")}
+    repo_groups = {"redis": [("global", "images", "redis")]}
+    values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.0@sha256:bbbb"}}}}
+
+    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set(),
+        chart_dir=tmp_path, upgrade_docs_baseline="4.9.0", values=values, baseline_values={})
+    assert missing == []
+    assert stale == []
+    assert unmatched == []
+
+
+def test_find_images_manifest_list_diff_deps_given_preserves_real_historical_match(libupgradedoc, tmp_path):
+    """The EXISTING working case (mi/brppersonenmock — same name AND
+    same url, a genuine historical match) must still work unchanged once
+    deps/expected_url cross-checking is active: a brand-new path whose
+    repository genuinely was already recorded, at the same version, in
+    an earlier release's own images-<version>.yaml is correctly treated
+    as unchanged and never reported missing."""
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    (images_dir / "images-4.8.0.yaml").write_text(
+        "- name: brp-api/personen-mock\n"
+        "  url: ghcr.io/brp-api/personen-mock\n"
+        '  version: "2.7.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    entries = []
+    current_paths = {("brppersonenmock", "image"): "2.7.0@sha256:aaaa"}
+    baseline_paths = {}
+    repo_map = {"brp-api/personen-mock": ("brppersonenmock", "image")}
+    repo_groups = {"brp-api/personen-mock": [("brppersonenmock", "image")]}
+    values = {"brppersonenmock": {"image": {
+        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:aaaa"}}}
+
+    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set(),
+        chart_dir=tmp_path, deps=[], upgrade_docs_baseline="4.8.5", values=values, baseline_values={})
+    assert missing == []
+    assert stale == []
+    assert unmatched == []
+
+
 # --- is_primary_image_path ---
 
 def test_is_primary_image_path_default_image_key(libupgradedoc):
