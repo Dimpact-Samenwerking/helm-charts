@@ -799,20 +799,26 @@ def resolve_subchart_default(chart_dir, dep, chart_name, path):
     None when `path`'s own tag isn't null, or when it can't be resolved
     at all (nothing vendored, or no appVersion set); never fabricated.
 
-    Usually `chart_name`/charts/`dep["name"]` (`chart_name` — e.g.
-    "podiumd" — is the OUTER chart's own name, passed in rather than
+    Usually `chart_name`/charts/`dep`'s own VALUES-KEY (`dep.get("alias")
+    or dep["name"]` — Helm's own "# Source:" annotations name a chart-
+    tree directory by its ALIAS when the dependency declares one, never
+    the underlying chart's real name; confirmed live against the real
+    chart: eck-stack, aliased "kiss-eck", renders under "podiumd/charts/
+    kiss-eck/...", never "podiumd/charts/eck-stack/..." — `chart_name`,
+    e.g. "podiumd", is the OUTER chart's own name, passed in rather than
     hardcoded here to keep this module free of any single chart's own
     identity) plus dep's OWN Chart.yaml appVersion — but if path[0]
     matches one of dep's OWN declared Chart.yaml dependencies (name or
     alias — see subchart_dependencies), the image actually belongs to
     THAT NESTED dependency instead: Helm resolves ITS tag against ITS
     OWN Chart.yaml, and Helm's own "# Source:" annotations always name
-    the innermost chart that actually owns a template — real case:
+    the innermost chart that actually owns a template, by THAT nested
+    dependency's own alias-or-name the same way — real case:
     openinwoner's own bundled "eck-operator" (a SEPARATE, same-named
     nested dependency of openinwoner's own Chart.yaml, distinct from
     the top-level "eck-operator" dependency) — so both halves come from
     the nested dependency's own files in that case, not dep's."""
-    base_path = f"{chart_name}/charts/{dep['name']}"
+    base_path = f"{chart_name}/charts/{dep.get('alias') or dep['name']}"
     nested = next((d for d in subchart_dependencies(chart_dir, dep)
                     if path and path[0] in (d.get("alias"), d["name"])), None)
     if nested is None:
@@ -821,7 +827,8 @@ def resolve_subchart_default(chart_dir, dep, chart_name, path):
     nested_chart_text = nested_subchart_raw_text(chart_dir, dep, nested["name"], "Chart.yaml")
     nested_chart_yaml = yaml.safe_load(nested_chart_text) if nested_chart_text else None
     version = (nested_chart_yaml or {}).get("appVersion") if nested_chart_yaml else None
-    return f"{base_path}/charts/{nested['name']}", version
+    nested_key = nested.get("alias") or nested["name"]
+    return f"{base_path}/charts/{nested_key}", version
 
 
 def resolve_chart_values(chart_dir, dep, version, allow_pull=True):

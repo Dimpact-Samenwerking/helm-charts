@@ -252,7 +252,9 @@ def test_component_version_rows_resolves_eck_stack_nested_subchart_images(lpi, t
         "eck-enterprise-search": {"version": "8.19.19"},
     }
 
-    rows = lpi.component_version_rows(dep, "kiss-eck", merged, [dep], {}, {"podiumd/charts/eck-stack"})
+    # chart-tree path is keyed by dep's own alias ("kiss-eck"), never
+    # its real chart name ("eck-stack").
+    rows = lpi.component_version_rows(dep, "kiss-eck", merged, [dep], {}, {"podiumd/charts/kiss-eck"})
 
     assert sorted(rows) == sorted([
         ("kiss-eck", "eck-elasticsearch.version", "docker.elastic.co/elasticsearch/elasticsearch", "8.19.19", False),
@@ -277,7 +279,7 @@ def test_component_version_rows_unresolvable_repository_is_skipped(lpi):
     missing repository."""
     dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
     merged = {"eck-elasticsearch": {"version": "8.19.19"}}
-    assert lpi.component_version_rows(dep, "kiss-eck", merged, [dep], {}, {"podiumd/charts/eck-stack"}) == []
+    assert lpi.component_version_rows(dep, "kiss-eck", merged, [dep], {}, {"podiumd/charts/kiss-eck"}) == []
 
 
 def test_component_version_rows_irrelevant_for_unregistered_component(lpi):
@@ -501,9 +503,10 @@ def test_main_full_offline_flow(lpi, tmp_path, monkeypatch, capsys):
     # Overrides the autouse stub_render_chart default (which reports
     # every chart-tree path as rendered) — this test specifically
     # exercises the render-gate's own "condition:-disabled dependency"
-    # case: only zac's own path actually rendered.
+    # case: only zac's own path actually rendered. Keyed by zac's own
+    # alias, never its real chart name ("zaakafhandelcomponent").
     monkeypatch.setattr(lpi, "rendered_chart_paths",
-                         lambda stdout: {"podiumd/charts/zaakafhandelcomponent"})
+                         lambda stdout: {"podiumd/charts/zac"})
 
     run_main(lpi, monkeypatch)
     out = capsys.readouterr().out
