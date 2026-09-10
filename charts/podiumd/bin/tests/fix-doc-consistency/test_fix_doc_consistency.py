@@ -776,10 +776,16 @@ def test_fix_component_version_table_new_sidecar_app_annotated_new_chart_cell_un
 
 
 def _write_historical_images_manifest(chart_dir, version, entries):
+    """`url` defaults to `name` when an entry doesn't give one of its own
+    — a real images-manifest entry's own "url:" is always fully host-
+    qualified, unlike a bare "name:" (see lib.chart.historical_app_
+    version_for_path's own url cross-check), so a test relying on that
+    fallback (rather than passing a realistic "url" explicitly) only
+    ever works for a caller that doesn't cross-check it."""
     images_dir = chart_dir / "docs" / "images"
     images_dir.mkdir(parents=True, exist_ok=True)
     (images_dir / f"images-{version}.yaml").write_text(
-        "".join(f"- name: {e['name']}\n  url: {e['name']}\n  version: \"{e['version']}\"\n"
+        "".join(f"- name: {e['name']}\n  url: {e.get('url', e['name'])}\n  version: \"{e['version']}\"\n"
                 f"  digest: \"{e['digest']}\"\n" for e in entries),
         encoding="utf-8",
     )
@@ -794,7 +800,8 @@ def test_fix_component_version_table_new_dependency_known_in_historical_manifest
     reads "(new)", since the Chart.yaml dependency line genuinely is
     new. Not the removed images-baseline.yaml side-file."""
     _write_historical_images_manifest(tmp_path, "4.8.0", [
-        {"name": "brp-api/personen-mock", "version": "2.7.0-202606230850", "digest": "sha256:aaaa"}])
+        {"name": "brp-api/personen-mock", "url": "ghcr.io/brp-api/personen-mock",
+         "version": "2.7.0-202606230850", "digest": "sha256:aaaa"}])
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -821,7 +828,7 @@ def test_fix_component_version_table_new_sidecar_known_in_historical_manifest_is
     rewritten regardless of annotation text — the value under test is
     what it gets rewritten TO."""
     _write_historical_images_manifest(tmp_path, "4.8.0", [
-        {"name": "alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}])
+        {"name": "alpine/k8s", "url": "quay.io/alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}])
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -849,7 +856,7 @@ def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matchi
     would treat this row as already "matching" and never touch it,
     silently leaving the wrong annotation in place forever."""
     _write_historical_images_manifest(tmp_path, "4.8.0", [
-        {"name": "alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}])
+        {"name": "alpine/k8s", "url": "quay.io/alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}])
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
