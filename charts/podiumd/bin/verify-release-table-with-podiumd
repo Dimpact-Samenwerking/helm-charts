@@ -509,6 +509,34 @@ def missing_image_hint(rows, scope_key, component, basename, versions, primary):
     return f"Confluence: add row to {where} — {what}, App version (currently) {version_text}"
 
 
+def pin_already_special_cased(lines, pins, special_path):
+    """True if any of `pins` (see basenames_under_scope_any_tag) is
+    pinned at EXACTLY `special_path` (a SPECIAL_CASE_COMPONENT_TAG_
+    PATHS value, e.g. "omc.image.tag") — i.e. this is the SAME tag pin
+    check_images' own row loop already verifies (via check_special_
+    case_version, keyed by COMPONENT rather than basename, for exactly
+    the images-manifest-invisible-column reason SPECIAL_CASE_COMPONENT_
+    TAG_PATHS/its own module docstring describe), not some OTHER,
+    genuinely-untracked basename that merely happens to belong to the
+    same component's own scope.
+
+    Real bug this closes: omc's own "notifynl-omc" basename resolves
+    fine via scan_version_pins's own digest-optional scan (unlike
+    export-confluence-release-table's digest-REQUIRED scan, which
+    can't see it at all and correctly left its own release-table.csv
+    row's image_basename column blank — see SPECIAL_CASE_COMPONENT_TAG_
+    PATHS' own module docstring) — check_images' own bottom "basename
+    genuinely never mentioned by any row" loop has no notion of a blank-
+    basename row's own special-cased path at all, so it wrongly reported
+    a basename ALREADY tracked (and already version-verified) via the
+    row loop's own special-case branch as "missing_from_release_table"
+    a second time, under a different name. Matched by the pin's own
+    dotted values-tree path (dotted_key_path), not just component
+    identity — a component could plausibly have OTHER, genuinely-
+    untracked basenames beyond its own special-cased primary path."""
+    return any(dotted_key_path(lines, pin["line"] - 1) == special_path for pin in pins)
+
+
 def check_images(scope_key, component, rows, lines, findings, values, dep=None, chart_dir=None):
     actual_basenames = basenames_under_scope_any_tag(lines, scope_key)
     csv_basenames = set()
@@ -596,6 +624,11 @@ def check_images(scope_key, component, rows, lines, findings, values, dep=None, 
     for basename in actual_basenames:
         if basename not in csv_basenames:
             pins = actual_basenames[basename]
+            if component_special_path and pin_already_special_cased(lines, pins, component_special_path):
+                # Already tracked (and already version-verified) above,
+                # via the row loop's own blank-image_basename special
+                # case — not a second, genuinely-untracked basename.
+                continue
             versions = {p["version"] for p in pins}
             primary = component != MULTIPLE_KEY and basename == primary_basename
             hint = missing_image_hint(rows, scope_key, component, basename, versions, primary)

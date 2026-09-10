@@ -982,6 +982,62 @@ def test_compare_omc_special_case_image_matching_passes(vrt):
     assert findings == {}
 
 
+# omc's own "image:" tag has no ACTIVE "repository:" key at all (a
+# commented-out sibling instead) — export-confluence-release-table's own
+# digest-REQUIRED scan can't resolve a basename for it, hence its own
+# release-table.csv row's image_basename column is genuinely blank BY
+# DESIGN (see SPECIAL_CASE_COMPONENT_TAG_PATHS' own module docstring). But
+# THIS script's own digest-OPTIONAL scanner (scan_version_pins, via
+# resolve_pin_repo's own commented-out-sibling fallback) CAN resolve a
+# real basename ("notifynl-omc") for it regardless — real values.yaml
+# shape, not a synthetic one.
+OMC_BLOCK = (
+    "omc:\n"
+    "  image:\n"
+    "    # repository: docker.io/worthnl/notifynl-omc\n"
+    '    tag: "1.17.19"\n'
+)
+
+
+def test_compare_omc_special_case_image_not_double_reported_as_missing(vrt):
+    """Regression test (real bug, real user report): check_images' own
+    bottom "basename never mentioned by any row" loop had no notion of
+    the row loop's own blank-image_basename special case (SPECIAL_CASE_
+    COMPONENT_TAG_PATHS) — so it wrongly reported omc's own basename,
+    ALREADY tracked and already version-verified above via check_
+    special_case_version, as "missing_from_release_table" a second
+    time, under a name ("notifynl-omc") no row's own image_basename
+    column ever claims (it's genuinely blank there, by design)."""
+    deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
+    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", target_app="1.17.19", target_helm="0.14.1")]
+    values = {"omc": {"image": {"tag": "1.17.19"}}}
+
+    findings, _ = vrt.compare(rows, deps, values, values_lines(OMC_BLOCK))
+    assert findings == {}
+
+
+def test_compare_omc_special_case_still_catches_genuinely_untracked_sibling_basename(vrt):
+    """Negative case: a DIFFERENT, genuinely-untracked basename under
+    the same component's own scope must still be reported as missing —
+    the special-case skip is precise (matched by the pin's own dotted
+    values-tree path, never blanket component identity), so it can
+    never silently swallow an unrelated sidecar just because its parent
+    component has one special-cased primary path."""
+    deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
+    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", target_app="1.17.19", target_helm="0.14.1")]
+    values = {"omc": {"image": {"tag": "1.17.19"}}}
+    omc_block_with_sidecar = OMC_BLOCK + (
+        "  sidecar:\n"
+        "    image:\n"
+        "      repository: example/some-other-image\n"
+        f'      tag: "2.0.0@sha256:{"a" * 64}"\n'
+    )
+
+    findings, _ = vrt.compare(rows, deps, values, values_lines(omc_block_with_sidecar))
+    assert any("'some-other-image' is pinned in values.yaml but not tracked" in m
+               for m in findings["missing_from_release_table"])
+
+
 # --- print_report(): output is sorted per category ---
 
 def test_print_report_sorts_findings_within_each_section(vrt, capsys):
