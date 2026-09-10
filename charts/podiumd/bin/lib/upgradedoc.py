@@ -5,8 +5,8 @@ import re
 import yaml
 
 from lib.chart import (
-    COMPONENT_IMAGE_PATHS, NATIVE_COMPONENTS, get_path, global_image_paths, historical_app_version_for_path,
-    historical_app_version_for_repository, image_paths_for, is_primary_image_path,
+    COMPONENT_IMAGE_PATHS, NATIVE_COMPONENTS, full_repository_for_path, get_path, global_image_paths,
+    historical_app_version_for_path, historical_app_version_for_repository, image_paths_for, is_primary_image_path,
     nested_subchart_registered_paths, resolved_digest_pin, subchart_app_version, version_of, version_paths_for,
 )
 
@@ -1449,7 +1449,7 @@ def find_images_manifest_faulty_headers(entries, entry_line_indices, lines, deps
 
 
 def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_map, repo_groups,
-                                    unresolvable_paths, chart_dir=None, upgrade_docs_baseline=None,
+                                    unresolvable_paths, chart_dir=None, deps=None, upgrade_docs_baseline=None,
                                     values=None, baseline_values=None):
     """(missing_paths, extra_entry_names) — the images-manifest's own
     "list of changed images" checked against the FULL, actual set of
@@ -1488,6 +1488,19 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     real values tree, not just the bare tag strings current_paths/
     baseline_paths already hold), collapsing this back to the old
     version-only behaviour. Every real caller passes both.
+
+    deps (Chart.yaml's own "dependencies:" list) is likewise optional,
+    but for a different reason: without it there's no way to compute
+    lib.chart.full_repository_for_path's fully-qualified repository for
+    a brand-new path, so the historical-manifest lookup below falls
+    back to matching a candidate entry's stripped "name:" alone — the
+    exact same collision lib.chart.historical_app_version_for_path's own
+    "expected_url" cross-check exists to prevent (real case: global.
+    images.redis, added in 4.9.1, colliding with images-4.6.4.yaml's own
+    legacy "name: redis" entry for redis-operator's unrelated quay.io/
+    opstree/redis). Every real caller passes deps too, so this fallback
+    is only ever exercised by a caller with no Chart.yaml dependencies
+    of its own to give.
 
     Each entry is matched to its values-tree path via resolve_entry_
     image_path — repo_map's exact "name: is a stripped repository"
@@ -1591,7 +1604,20 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
         repo = path_to_repo.get(path)
         if repo is None:
             return True
-        historical_version = historical_app_version_for_repository(chart_dir, repo, upgrade_docs_baseline)
+        if deps is not None:
+            # See this function's own docstring: cross-check against
+            # `path`'s CURRENT fully-qualified repository, the same
+            # collision guard lib.chart.historical_app_version_for_path
+            # already applies — never fall back to the unsafe name-only
+            # match below just because THIS path's own repository can't
+            # be resolved.
+            expected_url = full_repository_for_path(chart_dir, deps, values, path)
+            if expected_url is None:
+                return True
+            historical_version = historical_app_version_for_repository(
+                chart_dir, repo, upgrade_docs_baseline, expected_url=expected_url)
+        else:
+            historical_version = historical_app_version_for_repository(chart_dir, repo, upgrade_docs_baseline)
         if historical_version is None:
             return True
         return version_of(tag) != version_of(historical_version)

@@ -619,7 +619,7 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
         unresolvable_paths = set(find_images_without_repository(chart_dir))
         missing_paths, stale_entry_names, unmatched_entry_names = find_images_manifest_list_diff(
             entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths,
-            chart_dir=chart_dir, upgrade_docs_baseline=upgrade_docs_baseline,
+            chart_dir=chart_dir, deps=deps, upgrade_docs_baseline=upgrade_docs_baseline,
             values=values, baseline_values=baseline_values)
         for path in missing_paths:
             name = path_display_name(path, deps, canonical_names)
