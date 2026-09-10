@@ -1,6 +1,6 @@
 # monitoring-logging
 
-![Version: 1.0.18](https://img.shields.io/badge/Version-1.0.18-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.18](https://img.shields.io/badge/AppVersion-1.0.18-informational?style=flat-square)
+![Version: 1.0.19](https://img.shields.io/badge/Version-1.0.19-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.19](https://img.shields.io/badge/AppVersion-1.0.19-informational?style=flat-square)
 
 A monitoring stack using Loki, Prometheus, Grafana Alloy, OpenTelemetry Collector, and Grafana. Optionally includes Grafana Tempo for distributed tracing.
 
@@ -51,13 +51,13 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 
 | Repository | Name | Version |
 |------------|------|---------|
-| @grafana | alloy | 1.6.2 |
+| @grafana | alloy | 1.12.1 |
 | @grafana | grafana | 10.5.15 |
 | @grafana | loki | 6.55.0 |
 | @grafana | tempo | 1.24.4 |
 | @opentelemetry | opentelemetry-collector | 0.147.1 |
-| @prometheus-community | kube-prometheus-stack | 83.0.0 |
-| @prometheus-community | prometheus-pushgateway | 3.6.0 |
+| @prometheus-community | kube-prometheus-stack | 90.0.0 |
+| @prometheus-community | prometheus-pushgateway | 3.8.0 |
 
 ## Values
 
