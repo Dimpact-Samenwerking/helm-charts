@@ -1,5 +1,0 @@
-apiVersion: v2
-name: kiss
-description: KISS Helm chart
-version: 1.1.0
-appVersion: "latest"
