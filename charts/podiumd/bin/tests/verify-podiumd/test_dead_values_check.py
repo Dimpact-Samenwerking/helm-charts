@@ -129,10 +129,29 @@ def test_candidate_leaf_paths_skips_null_values(libdeadvaluescheck):
 
 
 def test_candidate_leaf_paths_skips_subchart_visibility_exempt(libdeadvaluescheck):
+    """Still excluded from the render-tested candidate pool entirely —
+    re-rendering a subtree that never renders regardless (zaakbrug's own
+    "staging" toggle, permanently off by policy) would be pure waste.
+    See policy_exempt_leaf_paths below for these SURFACED separately,
+    in check_dead_values's own report, rather than silently vanishing."""
     values = {"zaakbrug": {"staging": {"apiProxy": {"tag": "stable"}}, "other": "x"}}
     paths = libdeadvaluescheck.candidate_leaf_paths(values)
     assert ("zaakbrug", "staging", "apiProxy", "tag") not in paths
     assert ("zaakbrug", "other") in paths
+
+
+def test_policy_exempt_leaf_paths_finds_subchart_visibility_exempt_leaves(libdeadvaluescheck):
+    values = {"zaakbrug": {"staging": {"apiProxy": {"tag": "stable"}}, "other": "x"}}
+    paths = libdeadvaluescheck.policy_exempt_leaf_paths(values)
+    assert paths == [("zaakbrug", "staging", "apiProxy", "tag")]
+
+
+def test_policy_exempt_leaf_paths_skips_null_values(libdeadvaluescheck):
+    """A policy-exempt leaf that's already null carries no new
+    information either way — same "nothing to learn" skip candidate_
+    leaf_paths applies."""
+    values = {"zaakbrug": {"staging": {"apiProxy": {"tag": None}}}}
+    assert libdeadvaluescheck.policy_exempt_leaf_paths(values) == []
 
 
 def test_candidate_leaf_paths_skips_exempt_full_paths(libdeadvaluescheck):
@@ -231,6 +250,66 @@ def test_check_dead_values_nothing_dead_prints_ok(libdeadvaluescheck, tmp_path, 
     assert ok is True
     assert detail == "0/1 dead"
     assert "OK: no dead values.yaml entries found" in capsys.readouterr().out
+
+
+def test_check_dead_values_reports_policy_exempt_leaves_alongside_dead_ones(
+        libdeadvaluescheck, tmp_path, monkeypatch, capsys):
+    """The user's own ask: zaakbrug.staging is dead by permanent policy,
+    not by this render's own finding — that's still real, reviewed
+    information worth surfacing, in its own clearly labeled section,
+    never silently dropped just because it's already a settled answer."""
+    values = (
+        "foo:\n"
+        '  used: "abc"\n'
+        '  dead: "xyz"\n'
+        "required:\n"
+        '  field: "present"\n'
+        "zaakbrug:\n"
+        "  staging:\n"
+        "    apiProxy:\n"
+        '      tag: "stable"\n'
+    )
+    chart_dir = make_chart_dir(tmp_path, values=values)
+    monkeypatch.setattr(libdeadvaluescheck, "run", fake_run())
+
+    ok, detail = libdeadvaluescheck.check_dead_values(chart_dir, [])
+
+    assert ok is True
+    # "zaakbrug.staging.apiProxy.tag" never counts toward "total" (never
+    # actually null-tested) -- same 3 candidates as the plain dead-leaf case.
+    assert detail == "1/3 dead (report only), 1 policy-exempt"
+    out = capsys.readouterr().out
+    assert "foo.dead" in out
+    assert "zaakbrug.staging.apiProxy.tag" in out
+    assert "excluded by policy" in out
+    expected_reason = libdeadvaluescheck.subchart_visibility_exempt_reason("zaakbrug", "staging.apiProxy.tag")
+    assert expected_reason in out
+
+
+def test_check_dead_values_policy_exempt_only_still_prints_ok_and_its_own_section(
+        libdeadvaluescheck, tmp_path, monkeypatch, capsys):
+    """Nothing genuinely dead was found (foo.used is read), but a policy-
+    exempt leaf still exists — the "OK" line and the policy-exempt
+    section must both show up, neither swallowing the other."""
+    values = (
+        "foo:\n"
+        '  used: "abc"\n'
+        "zaakbrug:\n"
+        "  staging:\n"
+        "    apiProxy:\n"
+        '      tag: "stable"\n'
+    )
+    chart_dir = make_chart_dir(tmp_path, values=values)
+    monkeypatch.setattr(libdeadvaluescheck, "run", fake_run())
+
+    ok, detail = libdeadvaluescheck.check_dead_values(chart_dir, [])
+
+    assert ok is True
+    assert detail == "0/1 dead, 1 policy-exempt"
+    out = capsys.readouterr().out
+    assert "OK: no dead values.yaml entries found (1 checked, 1 policy-exempt)" in out
+    assert "zaakbrug.staging.apiProxy.tag" in out
+    assert "excluded by policy" in out
 
 
 def test_check_dead_values_baseline_render_failure_is_skipped_not_failed(libdeadvaluescheck, tmp_path, monkeypatch):
