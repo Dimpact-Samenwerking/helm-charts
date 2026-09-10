@@ -87,22 +87,16 @@ component just can't be resolved yet (see primary_image_basename) — the
 same "not pulling" tradeoff verify-component-version makes explicitly,
 just silent here.
 
-Two images can't be found via the normal "tag:" scan (lib.image_version.
+One image can't be found via the normal "tag:" scan (lib.image_version.
 basenames_under_scope_any_tag, via lib.image_digests.scan_version_pins)
-at all, digest-pinned or not — the exact same two exceptions lib.
-digest_pinning_check.EXEMPT_PATHS documents for its own, different check
-(whether a tag IS digest-pinned, not what its version is):
-  - keycloak-operator's own actual Keycloak SERVER image lives at
-    operator.config.keycloakImage as a split "tag:"/"sha:" field pair —
-    not a plain "image: {repository, tag}" block, so scan_version_pins
-    can't see it structurally at all, regardless of scope. Its plain
-    "tag:" value (already just the version, no digest suffix) is read
-    directly instead — see SPECIAL_CASE_BASENAME_TAG_PATHS.
-  - omc's own image tag intentionally carries no digest at all (its
-    subchart can't handle one), so export-confluence-release-table
-    itself never resolves an image_basename for its row — checked here
-    independently of that blank column, keyed by component instead — see
-    SPECIAL_CASE_COMPONENT_TAG_PATHS.
+at all — the exact same exception lib.digest_pinning_check.EXEMPT_PATHS
+documents for its own, different check (whether a tag IS digest-pinned,
+not what its version is): keycloak-operator's own actual Keycloak SERVER
+image lives at operator.config.keycloakImage as a split "tag:"/"sha:"
+field pair — not a plain "image: {repository, tag}" block, so
+scan_version_pins can't see it structurally at all, regardless of scope.
+Its plain "tag:" value (already just the version, no digest suffix) is
+read directly instead — see SPECIAL_CASE_BASENAME_TAG_PATHS.
 
 Also compares version text literally, not semantically: a "v" prefix
 difference between the two sides (e.g. release-table "1.89.0" vs
@@ -151,14 +145,6 @@ SPECIAL_CASE_BASENAME_TAG_PATHS = {
     "keycloak": "keycloak-operator.operator.config.keycloakImage.tag",
 }
 
-# component (Chart.yaml dependency name) -> dotted values.yaml path to its
-# own plain "tag:" value, for a component export-confluence-release-
-# table.py could never resolve an image_basename for at all (its row's
-# image_basename column is blank) — see module docstring.
-SPECIAL_CASE_COMPONENT_TAG_PATHS = {
-    "notifynl-omc-nodep": "omc.image.tag",
-}
-
 
 def load_release_table(path):
     with path.open(newline="", encoding="utf-8") as f:
@@ -186,11 +172,10 @@ def report_mismatch(findings, tag, row, label, target, actual, actual_source):
 
 def check_special_case_version(row, findings, actual, label):
     """Compares row["target_version_app"] against `actual` (the plain
-    "tag:" value already read from a SPECIAL_CASE_BASENAME_TAG_PATHS/
-    SPECIAL_CASE_COMPONENT_TAG_PATHS path), for an image
-    basenames_under_scope structurally can't see at all. `label` is what
-    a mismatch message calls the image (e.g. "keycloak-operator.keycloak"
-    or "notifynl-omc-nodep"). No-op if `actual` couldn't be resolved
+    "tag:" value already read from a SPECIAL_CASE_BASENAME_TAG_PATHS
+    path), for an image basenames_under_scope structurally can't see at
+    all. `label` is what a mismatch message calls the image (e.g.
+    "keycloak-operator.keycloak"). No-op if `actual` couldn't be resolved
     (get_path found nothing at that path) or target is blank/UNKNOWN."""
     target = row["target_version_app"]
     if actual is not None and is_verifiable_target(target) and actual != target:
@@ -200,11 +185,11 @@ def check_special_case_version(row, findings, actual, label):
 def check_special_case_version_source(row, findings, actual, label):
     """The SOURCE-side sibling of check_special_case_version — compares
     row["source_version_app"] against `actual` (the plain "tag:" value
-    already read from the SAME SPECIAL_CASE_*_TAG_PATHS path, but at the
-    release_table baseline ref instead of current values.yaml). No-op if
-    `actual` couldn't be resolved there at all (get_path found nothing —
-    e.g. this special-case path didn't exist yet at that baseline) or
-    source is blank/UNKNOWN."""
+    already read from the SAME SPECIAL_CASE_BASENAME_TAG_PATHS path, but
+    at the release_table baseline ref instead of current values.yaml).
+    No-op if `actual` couldn't be resolved there at all (get_path found
+    nothing — e.g. this special-case path didn't exist yet at that
+    baseline) or source is blank/UNKNOWN."""
     source = row["source_version_app"]
     if actual is not None and is_verifiable_target(source) and actual != source:
         findings["mismatches"].append(
@@ -253,8 +238,7 @@ def is_primary_image(component, lines, pin):
     addin's own frontend+backend (both primary), or keycloak-operator's
     own non-standard split-path SERVER image (invisible to
     basenames_under_scope in the first place, so never actually reaches
-    this check — see SPECIAL_CASE_BASENAME_TAG_PATHS/
-    SPECIAL_CASE_COMPONENT_TAG_PATHS instead).
+    this check — see SPECIAL_CASE_BASENAME_TAG_PATHS instead).
 
     Anything NOT in that list — a sidecar/init-container image nested
     elsewhere, e.g. "zac.opentelemetry-collector.image.tag" or
@@ -509,38 +493,9 @@ def missing_image_hint(rows, scope_key, component, basename, versions, primary):
     return f"Confluence: add row to {where} — {what}, App version (currently) {version_text}"
 
 
-def pin_already_special_cased(lines, pins, special_path):
-    """True if any of `pins` (see basenames_under_scope_any_tag) is
-    pinned at EXACTLY `special_path` (a SPECIAL_CASE_COMPONENT_TAG_
-    PATHS value, e.g. "omc.image.tag") — i.e. this is the SAME tag pin
-    check_images' own row loop already verifies (via check_special_
-    case_version, keyed by COMPONENT rather than basename, for exactly
-    the images-manifest-invisible-column reason SPECIAL_CASE_COMPONENT_
-    TAG_PATHS/its own module docstring describe), not some OTHER,
-    genuinely-untracked basename that merely happens to belong to the
-    same component's own scope.
-
-    Real bug this closes: omc's own "notifynl-omc" basename resolves
-    fine via scan_version_pins's own digest-optional scan (unlike
-    export-confluence-release-table's digest-REQUIRED scan, which
-    can't see it at all and correctly left its own release-table.csv
-    row's image_basename column blank — see SPECIAL_CASE_COMPONENT_TAG_
-    PATHS' own module docstring) — check_images' own bottom "basename
-    genuinely never mentioned by any row" loop has no notion of a blank-
-    basename row's own special-cased path at all, so it wrongly reported
-    a basename ALREADY tracked (and already version-verified) via the
-    row loop's own special-case branch as "missing_from_release_table"
-    a second time, under a different name. Matched by the pin's own
-    dotted values-tree path (dotted_key_path), not just component
-    identity — a component could plausibly have OTHER, genuinely-
-    untracked basenames beyond its own special-cased primary path."""
-    return any(dotted_key_path(lines, pin["line"] - 1) == special_path for pin in pins)
-
-
 def check_images(scope_key, component, rows, lines, findings, values, dep=None, chart_dir=None):
     actual_basenames = basenames_under_scope_any_tag(lines, scope_key)
     csv_basenames = set()
-    component_special_path = SPECIAL_CASE_COMPONENT_TAG_PATHS.get(component)
     # Resolved once per component (not per pin) — see primary_image_basename;
     # only ever consulted below for a basename release-table.csv doesn't
     # track yet, to decide whether it's this component's own primary image
@@ -552,8 +507,6 @@ def check_images(scope_key, component, rows, lines, findings, values, dep=None, 
         target = row["target_version_app"]
         basenames = split_basenames(row["image_basename"])
         if not basenames:
-            if component_special_path:
-                check_special_case_version(row, findings, get_path(values, component_special_path), component)
             continue
 
         for basename in basenames:
@@ -624,11 +577,6 @@ def check_images(scope_key, component, rows, lines, findings, values, dep=None, 
     for basename in actual_basenames:
         if basename not in csv_basenames:
             pins = actual_basenames[basename]
-            if component_special_path and pin_already_special_cased(lines, pins, component_special_path):
-                # Already tracked (and already version-verified) above,
-                # via the row loop's own blank-image_basename special
-                # case — not a second, genuinely-untracked basename.
-                continue
             versions = {p["version"] for p in pins}
             primary = component != MULTIPLE_KEY and basename == primary_basename
             hint = missing_image_hint(rows, scope_key, component, basename, versions, primary)
@@ -715,7 +663,6 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
     actively wrong: something WAS pinned, this just couldn't confirm
     what) and never a crash."""
     baseline_basenames = basenames_under_scope_any_tag(baseline_lines, scope_key)
-    component_special_path = SPECIAL_CASE_COMPONENT_TAG_PATHS.get(component)
     baseline_dep = (find_dependency(baseline_deps, dep["name"])
                      if dep is not None and baseline_deps is not None else None)
     subchart_repos_state = None  # lazily filled: (repos, error) from primary_image_repositories, at most once
@@ -748,9 +695,6 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
             continue
         basenames = split_basenames(row["image_basename"])
         if not basenames:
-            if component_special_path:
-                check_special_case_version_source(
-                    row, findings, get_path(baseline_values, component_special_path), component)
             continue
 
         for basename in basenames:

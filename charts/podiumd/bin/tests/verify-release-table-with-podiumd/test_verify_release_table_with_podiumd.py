@@ -962,35 +962,17 @@ def test_compare_image_source_vendored_subchart_default_resolution_failure_is_re
     assert not any("wasn't pinned anywhere" in m for m in findings.get("mismatches", []))
 
 
-def test_compare_checks_omc_special_case_image(vrt):
-    """omc's own image tag intentionally carries no digest at all, so
-    export-confluence-release-table never resolves an image_basename
-    for its row (blank column) — checked here independently, keyed by
-    component instead (see SPECIAL_CASE_COMPONENT_TAG_PATHS)."""
-    deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
-    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", target_app="1.17.20", target_helm="0.14.1")]
-    values = {"omc": {"image": {"tag": "1.17.19"}}}
-    findings, _ = vrt.compare(rows, deps, values, [])
-    assert any("target 1.17.20 != values.yaml 1.17.19" in m for m in findings["mismatches"])
-
-
-def test_compare_omc_special_case_image_matching_passes(vrt):
-    deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
-    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", target_app="1.17.19", target_helm="0.14.1")]
-    values = {"omc": {"image": {"tag": "1.17.19"}}}
-    findings, _ = vrt.compare(rows, deps, values, [])
-    assert findings == {}
-
-
 # omc's own "image:" tag has no ACTIVE "repository:" key at all (a
-# commented-out sibling instead) — export-confluence-release-table's own
-# digest-REQUIRED scan can't resolve a basename for it, hence its own
-# release-table.csv row's image_basename column is genuinely blank BY
-# DESIGN (see SPECIAL_CASE_COMPONENT_TAG_PATHS' own module docstring). But
+# commented-out sibling instead) — its subchart can't handle a digest,
+# so export-confluence-release-table's own resolve_image_basenames now
+# falls back to the digest-OPTIONAL scanner for it, and its release-
+# table.csv row's image_basename column is a real, non-blank
+# "notifynl-omc" (see export-confluence-release-table's own module
+# docstring) — the exact same row shape every other component's row
+# already has, no special-casing needed anywhere downstream any more.
 # THIS script's own digest-OPTIONAL scanner (scan_version_pins, via
-# resolve_pin_repo's own commented-out-sibling fallback) CAN resolve a
-# real basename ("notifynl-omc") for it regardless — real values.yaml
-# shape, not a synthetic one.
+# resolve_pin_repo's own commented-out-sibling fallback) resolves the
+# same basename regardless — real values.yaml shape, not a synthetic one.
 OMC_BLOCK = (
     "omc:\n"
     "  image:\n"
@@ -999,33 +981,68 @@ OMC_BLOCK = (
 )
 
 
-def test_compare_omc_special_case_image_not_double_reported_as_missing(vrt):
-    """Regression test (real bug, real user report): check_images' own
-    bottom "basename never mentioned by any row" loop had no notion of
-    the row loop's own blank-image_basename special case (SPECIAL_CASE_
-    COMPONENT_TAG_PATHS) — so it wrongly reported omc's own basename,
-    ALREADY tracked and already version-verified above via check_
-    special_case_version, as "missing_from_release_table" a second
-    time, under a name ("notifynl-omc") no row's own image_basename
-    column ever claims (it's genuinely blank there, by design)."""
+def test_compare_omc_image_matches_via_ordinary_basename_path(vrt):
+    """omc's row now round-trips through the completely standard
+    basename-matching path check_images already applies to every other
+    component — no special-casing at all, just a real, non-blank
+    image_basename column ("notifynl-omc")."""
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
-    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", target_app="1.17.19", target_helm="0.14.1")]
-    values = {"omc": {"image": {"tag": "1.17.19"}}}
-
-    findings, _ = vrt.compare(rows, deps, values, values_lines(OMC_BLOCK))
+    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", image_basename="notifynl-omc",
+                     target_app="1.17.19", target_helm="0.14.1")]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(OMC_BLOCK))
     assert findings == {}
 
 
-def test_compare_omc_special_case_still_catches_genuinely_untracked_sibling_basename(vrt):
+def test_compare_omc_image_mismatch_via_ordinary_basename_path(vrt):
+    """Same ordinary path, but the target version genuinely disagrees
+    with what's actually pinned — must still be caught as a real
+    [IMAGE] mismatch, exactly like any other component's row."""
+    deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
+    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", image_basename="notifynl-omc",
+                     target_app="1.17.20", target_helm="0.14.1")]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(OMC_BLOCK))
+    assert any("[IMAGE]" in m and "target 1.17.20 != values.yaml 1.17.19" in m for m in findings["mismatches"])
+
+
+def test_compare_omc_image_source_matches_via_ordinary_basename_path(vrt):
+    """The baseline/source-side sibling (check_images_source) — omc's
+    row round-trips there too, with no special-casing needed."""
+    deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
+    baseline_deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.0"}]
+    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", image_basename="notifynl-omc",
+                     source_app="1.17.19", target_helm="0.14.1")]
+    findings, _ = vrt.compare(
+        rows, deps, {}, values_lines(OMC_BLOCK),
+        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=values_lines(OMC_BLOCK))
+    assert findings == {}
+
+
+def test_compare_omc_image_source_mismatch_via_ordinary_basename_path(vrt):
+    deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
+    baseline_deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.0"}]
+    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", image_basename="notifynl-omc",
+                     source_app="1.17.18")]
+    omc_baseline_block = (
+        "omc:\n"
+        "  image:\n"
+        "    # repository: docker.io/worthnl/notifynl-omc\n"
+        '    tag: "1.17.19"\n'
+    )
+    findings, _ = vrt.compare(
+        rows, deps, {}, values_lines(OMC_BLOCK),
+        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=values_lines(omc_baseline_block))
+    assert any("[IMAGE-SOURCE]" in m and "source 1.17.18 != baseline values.yaml 1.17.19" in m
+               for m in findings["mismatches"])
+
+
+def test_compare_omc_still_catches_genuinely_untracked_sibling_basename(vrt):
     """Negative case: a DIFFERENT, genuinely-untracked basename under
     the same component's own scope must still be reported as missing —
-    the special-case skip is precise (matched by the pin's own dotted
-    values-tree path, never blanket component identity), so it can
-    never silently swallow an unrelated sidecar just because its parent
-    component has one special-cased primary path."""
+    unaffected by omc's own row now having a real, non-blank
+    image_basename."""
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
-    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", target_app="1.17.19", target_helm="0.14.1")]
-    values = {"omc": {"image": {"tag": "1.17.19"}}}
+    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", image_basename="notifynl-omc",
+                     target_app="1.17.19", target_helm="0.14.1")]
     omc_block_with_sidecar = OMC_BLOCK + (
         "  sidecar:\n"
         "    image:\n"
@@ -1033,7 +1050,7 @@ def test_compare_omc_special_case_still_catches_genuinely_untracked_sibling_base
         f'      tag: "2.0.0@sha256:{"a" * 64}"\n'
     )
 
-    findings, _ = vrt.compare(rows, deps, values, values_lines(omc_block_with_sidecar))
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(omc_block_with_sidecar))
     assert any("'some-other-image' is pinned in values.yaml but not tracked" in m
                for m in findings["missing_from_release_table"])
 
