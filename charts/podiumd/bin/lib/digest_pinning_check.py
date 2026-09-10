@@ -265,11 +265,11 @@ def check_subchart_image_visibility(chart_dir, extra_args):
     if findings:
         unpinned = [f for f in findings if not f[3]]
         print(f"Found {len(findings)} image(s) defined only in a vendored sub-chart's own "
-              f"default values.yaml, with no podiumd override — invisible to the digest-"
-              f"pinning check above ({len(unpinned)} of these use a floating tag in that "
-              f"default; {len(exempt_findings)} more already reviewed and exempted, see "
-              f"SUBCHART_VISIBILITY_EXEMPT). Not a failure: decide per image whether it "
-              f"warrants an override.")
+              f"default values.yaml, with no podiumd override\n"
+              f"invisible to the digest-pinning check above ({len(unpinned)} of these use a "
+              f"floating tag in that default; {len(exempt_findings)} more already reviewed "
+              f"and exempted, see SUBCHART_VISIBILITY_EXEMPT). Not a failure: decide per "
+              f"image whether it warrants an override.")
         for scope_key, subpath, tag, pinned in sorted(findings):
             _print_subchart_image_finding(scope_key, subpath, tag, pinned)
     else:
