@@ -70,12 +70,21 @@ def basenames_under_scope_any_tag(lines, scope_key):
     """The SAME grouping basenames_under_scope does, but over scan_
     version_pins instead of scan_digest_pins — see find_matches_any_tag's
     own docstring for why, and when this one (vs. the digest-required
-    original) is the right choice: EXCLUSIVELY verify-release-table-with-
-    podiumd's own checks, never export-confluence-release-table's (which
-    stays on the original, digest-required basenames_under_scope — the
-    CURRENT chart state it reads from is always fully digest-pinned in
-    practice, so there's nothing this widening would ever add for it,
-    and no reason to touch a working call site)."""
+    original) is the right choice: verify-release-table-with-podiumd's
+    own checks always use this one directly (release-table.csv itself
+    never records a digest, so whether a chart pin happens to be
+    digest-pinned is irrelevant to any comparison that script makes).
+    export-confluence-release-table's own resolve_image_basenames stays
+    on the digest-required basenames_under_scope as its PRIMARY scan —
+    the current chart state it reads from is almost always fully
+    digest-pinned in practice, so there's nothing this widening would
+    usually add — but falls back to this one specifically when the
+    primary scan finds NOTHING at all for a component's own scope: real
+    case, omc's own image tag genuinely has no digest at all (its
+    subchart can't handle one), so its own release-table.csv row's
+    image_basename column used to come out blank even though the
+    basename IS resolvable locally via this exact scan (see that
+    function's own docstring)."""
     result = {}
     for pin in scan_version_pins(lines):
         if not pin["repository"]:

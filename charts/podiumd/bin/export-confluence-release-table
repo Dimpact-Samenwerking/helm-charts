@@ -34,7 +34,7 @@ from lib.confluence_tables import (
     find_versie_groups, header_paths, is_semver_compatible, major_minor,
     missing_required_release_columns, select_release_columns, tables_under_headings,
 )
-from lib.image_version import basenames_under_scope, image_basename
+from lib.image_version import basenames_under_scope, basenames_under_scope_any_tag, image_basename
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_OUTPUT = CHART_DIR / "etc" / "release-table.csv"
@@ -114,15 +114,25 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--url", required=True, help="Confluence page URL")
-    parser.add_argument("--user", required=True, help="Atlassian account email")
+    parser.add_argument("--url", help="Confluence page URL (required unless --recompute-basenames)")
+    parser.add_argument("--user", help="Atlassian account email (required unless --recompute-basenames)")
     parser.add_argument("--token", help="API token (prefer --token-file or CONFLUENCE_API_TOKEN instead)")
     parser.add_argument("--token-file", help="path to a file containing just the API token")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help=f"CSV output path (default: {DEFAULT_OUTPUT})")
     parser.add_argument("--heading", action="append",
                          help="only use table(s) directly under this heading (repeatable; "
                               f"default: {', '.join(DEFAULT_HEADINGS)})")
-    return parser.parse_args()
+    parser.add_argument("--recompute-basenames", action="store_true",
+                         help="Recompute ONLY the image_basename column of the CSV already at "
+                              "--output, from the rows it already has — no Confluence fetch, no "
+                              "--url/--user needed. Goes through the exact same resolve_image_"
+                              "basenames real exports use, against chart_dir's CURRENT values.yaml, "
+                              "so a values.yaml-only change can be picked up without needing "
+                              "Confluence credentials at all. Every other column is left untouched.")
+    args = parser.parse_args()
+    if not args.recompute_basenames and not (args.url and args.user):
+        parser.error("--url and --user are required unless --recompute-basenames is set")
+    return args
 
 
 def normalize_version(value):
@@ -548,7 +558,18 @@ def resolve_image_basenames(rows, chart_dir):
     global_image_keys) — never through a component's own scope, since by
     definition it isn't owned by any single one. "" wherever nothing
     can be resolved (component UNKNOWN/blank, or a genuinely ambiguous
-    or missing match) — never a guess."""
+    or missing match) — never a guess.
+
+    basenames_under_scope (digest-required) is the PRIMARY scan for
+    "available" basenames under a component's own scope; a component
+    whose scope resolves NOTHING at all via that scan alone falls back
+    to basenames_under_scope_any_tag (digest-optional) instead — real
+    case: omc's own image tag genuinely has no digest at all (its
+    subchart can't handle one), so the digest-required scan can never
+    see it, even though its basename ("notifynl-omc") IS resolvable
+    locally. Only ever a fallback for a component that comes up
+    completely empty, never a wholesale switch — every other
+    component's own resolution stays exactly as precise as before."""
     values_path = chart_dir / "values.yaml"
     if not values_path.is_file():
         return ["" for _ in rows]
@@ -573,6 +594,28 @@ def resolve_image_basenames(rows, chart_dir):
         for scope_key in scope_keys:
             for basename, pins in basenames_under_scope(lines, scope_key).items():
                 available.setdefault(basename, []).extend(pins)
+        if not available:
+            # The digest-required scan found NOTHING at all under this
+            # component's own scope (every scope_key) — before
+            # concluding "genuinely unresolvable", fall back to the
+            # digest-OPTIONAL sibling scan (lib.image_version.
+            # basenames_under_scope_any_tag) for a component whose own
+            # tag genuinely has no digest at all (real case: omc — its
+            # subchart can't handle one at all, see SPECIAL_CASE_
+            # COMPONENT_TAG_PATHS' own history in verify-release-table-
+            # with-podiumd, removed now that this closes the gap at its
+            # source). Deliberately only a FALLBACK, tried once per
+            # component and only when the digest-required scan came up
+            # completely empty — never a replacement for it (see lib.
+            # image_version.basenames_under_scope_any_tag's own
+            # docstring): this export's normal case genuinely is
+            # "always fully digest-pinned in practice", and weakening
+            # every other component's own resolution to the looser,
+            # digest-optional scan would be a real regression risk for
+            # no benefit.
+            for scope_key in scope_keys:
+                for basename, pins in basenames_under_scope_any_tag(lines, scope_key).items():
+                    available.setdefault(basename, []).extend(pins)
 
         sub_indices = [i for i in info["indices"] if rows[i][2]]
         primary_indices = [i for i in info["indices"] if not rows[i][2]]
@@ -609,6 +652,59 @@ def resolve_image_basenames(rows, chart_dir):
             result[i] = image_basename(repo)
 
     return result
+
+
+def recompute_image_basenames(csv_path, chart_dir):
+    """Rewrites ONLY the "image_basename" column of the CSV already at
+    `csv_path`, in place — every other column (every version, and every
+    other already-resolved column) is carried through completely
+    unchanged. Never fetches Confluence: reads the rows `csv_path`
+    already has and re-derives each row's image_basename by calling
+    resolve_image_basenames (the exact same function a real export
+    uses) against `chart_dir`'s CURRENT values.yaml — so a values.yaml-
+    only change (e.g. a component whose image gains/loses a digest pin)
+    can be picked up without Confluence credentials or a page re-scrape
+    at all. Never fabricates a value itself; whatever resolve_image_
+    basenames can't resolve stays/becomes blank exactly like a real
+    export.
+
+    Returns [(name, component, old, new), ...] for every row whose
+    image_basename actually changed, in file order — [] if nothing did.
+    Raises SystemExit if csv_path doesn't exist, or its header doesn't
+    match CSV_HEADER — this only ever operates on a CSV this same
+    script wrote."""
+    if not csv_path.is_file():
+        raise SystemExit(f"error: {csv_path} does not exist — nothing to recompute")
+    with csv_path.open(newline="", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        header = next(reader, None)
+        if header != CSV_HEADER:
+            raise SystemExit(f"error: {csv_path}'s header doesn't match the expected CSV_HEADER — "
+                              f"refusing to recompute a file this script didn't write")
+        rows = list(reader)
+
+    # resolve_image_basenames expects rows shaped exactly like extract_
+    # release_rows' own rows_out — i.e. WITHOUT the image_basename column
+    # (it inserts that itself, by position) — so strip it out here and
+    # re-insert only the (possibly new) value at that same position below.
+    basename_idx = CSV_HEADER.index("image_basename")
+    stripped = [row[:basename_idx] + row[basename_idx + 1:] for row in rows]
+    new_basenames = resolve_image_basenames(stripped, chart_dir)
+
+    name_idx, component_idx = CSV_HEADER.index("name"), CSV_HEADER.index("component")
+    changes = []
+    for row, new_basename in zip(rows, new_basenames):
+        old_basename = row[basename_idx]
+        if new_basename != old_basename:
+            changes.append((row[name_idx], row[component_idx], old_basename, new_basename))
+            row[basename_idx] = new_basename
+
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f, lineterminator="\n")
+        writer.writerow(CSV_HEADER)
+        writer.writerows(rows)
+
+    return changes
 
 
 def apply_native_helm_marker(rows):
@@ -794,6 +890,17 @@ def extract_release_rows(html, headings=None, chart_dir=None):
 
 def main():
     args = parse_args()
+
+    if args.recompute_basenames:
+        changes = recompute_image_basenames(Path(args.output), CHART_DIR)
+        if changes:
+            print(f"Recomputed image_basename for {len(changes)} row(s) in {args.output}:")
+            for name, component, old, new in changes:
+                print(f'  {component} ("{name}"): {old!r} -> {new!r}')
+        else:
+            print(f"No image_basename values changed in {args.output}.")
+        return
+
     token = resolve_token(args)
 
     html = fetch_page_html(args.url, args.user, token)
