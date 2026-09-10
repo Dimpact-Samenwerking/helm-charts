@@ -816,11 +816,64 @@ def find_wrong_or_duplicate_dependency_claims(names, deps):
     return duplicate_names, wrong_fuzzy_names
 
 
+def version_change_suffix(old, new, digest_only_change=False):
+    """The bracketed status suffix alone for a version transition —
+    "(new)" when there's no real baseline value at all (`old` falsy);
+    "(digest changed)" when the version itself didn't change but its
+    embedded digest did (`digest_only_change`); "(unchanged)" when the
+    version is identical and nothing else did either; None when the
+    version genuinely differs — nothing to render as a bare suffix, the
+    caller renders the transition itself ("<old> <arrow> <new>", or
+    "<old> -> <new>") instead.
+
+    THE one place this exact four-way decision is made — real bug this
+    closes: at least half a dozen call sites across this codebase used
+    to hand-roll their own copy of it (some correctly, some not) —
+    -upgrade.md's own table cell (canonical_version_cell/new_component_
+    version_cell below), its own "### ..." Changes heading (lib.
+    component_docs.make_changes_section's own app_heading/pin_suffix),
+    a shared-image basename's own Changes heading (lib.image_docs.
+    make_image_changes_section's own heading_suffix/per-path bullets),
+    and the images-manifest's own per-entry comment/header-list item
+    (image_manifest_version_text below, lib.image_docs.
+    update_image_manifest's own item_text, lib.component_docs.
+    update_images_manifest's own item_text, fix-doc-consistency's own
+    add_missing_images_manifest_entries) — with two of those (update_
+    image_manifest's own item_text; add_missing_images_manifest_
+    entries' own version_text, which used a bare "no baseline_tag ->
+    fall back to new_version itself" sentinel that made an "old ==
+    new" DIGEST-only-change check wrongly fire for a genuinely brand-
+    new image too, confirmed live: images-4.9.1.yaml's own zac otel
+    sidecar comment read "0.158.0 -> 0.158.0" instead of "0.158.0
+    (new)") actually getting it WRONG. Every caller now delegates here
+    instead — see image_manifest_version_text (images-manifest's own
+    ascii "->" arrow house style) and canonical_version_cell (-upgrade.
+    md's own unicode "→" style) for the two current thin wrappers."""
+    if not old:
+        return "(new)"
+    if normalize_version(old) == normalize_version(new):
+        return "(digest changed)" if digest_only_change else "(unchanged)"
+    return None
+
+
+def image_manifest_version_text(old, new, digest_only_change=False):
+    """The images-manifest's own house style for a version-change
+    comment (an entry's own preceding comment, or a "# Changes:" header
+    list item's own embedded version fragment) — ascii "->" arrow,
+    matching this file type's own existing convention (as opposed to
+    -upgrade.md's unicode "→" — see canonical_version_cell). See
+    version_change_suffix for the shared new/unchanged/digest-changed
+    decision both delegate to."""
+    suffix = version_change_suffix(old, new, digest_only_change)
+    return f"{new} {suffix}" if suffix else f"{old} -> {new}"
+
+
 def canonical_version_cell(actual_source, actual_target):
     """A "Component versions" table cell in the established style:
     "<target> (unchanged)" when source==target, else "<source> → <target>"."""
-    if normalize_version(actual_source) == normalize_version(actual_target):
-        return f"{actual_target} (unchanged)"
+    suffix = version_change_suffix(actual_source, actual_target)
+    if suffix:
+        return f"{actual_target} {suffix}"
     return f"{actual_source} → {actual_target}"
 
 
@@ -829,7 +882,7 @@ def new_component_version_cell(actual_target):
     version at all — brand new this hop: "<target> (new)", the third
     member of canonical_version_cell's own "<target> (unchanged)" /
     "<source> → <target>" family."""
-    return f"{actual_target} (new)"
+    return f"{actual_target} {version_change_suffix(None, actual_target)}"
 
 
 def component_version_cell(old, new):
@@ -859,14 +912,31 @@ VERSION_PAIR_RE = re.compile(
 )
 
 
+VERSION_SPEC_RE = re.compile(
+    r"[A-Za-z0-9][\w.\-]*\s*(?:→|->)\s*[A-Za-z0-9][\w.\-]*"
+    r"|[A-Za-z0-9][\w.\-]*\s*\((?:new|unchanged|digest changed)\)"
+)
+
+
 def find_preceding_comment_line(lines, entry_line_index):
-    """Index of the closest comment line above entry_line_index that states
-    a "<source> -> <target>" version pair, or None — stops at the first
-    blank/non-comment line, so it doesn't reach into the previous entry's
-    comment."""
+    """Index of the closest comment line above entry_line_index that
+    states a version spec — a "<source> -> <target>" pair, OR a bare
+    "<version> (new)"/"(unchanged)"/"(digest changed)" (see VERSION_
+    SPEC_RE) — or None. Stops at the first blank/non-comment line, so it
+    doesn't reach into the previous entry's comment.
+
+    Real bug this closes: only recognizing an ARROW pair used to mean a
+    comment ALREADY correctly written in the bracketed "(new)"/
+    "(unchanged)"/"(digest changed)" form (no arrow at all) was never
+    even recognized as a comment here in the first place — confirmed
+    live: images-4.9.1.yaml's own keycloak-operator - python sidecar,
+    already correctly reading "(digest changed)", was reported
+    "unresolved" by every caller here forever, not because its own
+    version was actually wrong, but because this function itself could
+    never even SEE it to compare against."""
     j = entry_line_index - 1
     while j >= 0 and lines[j].strip().startswith("#"):
-        if VERSION_PAIR_RE.search(lines[j]):
+        if VERSION_SPEC_RE.search(lines[j]):
             return j
         j -= 1
     return None
@@ -879,6 +949,30 @@ def replace_version_pair(line, new_source, new_target):
     def repl(m):
         return f"{new_source} {m.group('arrow')} {new_target}"
     new_line, count = VERSION_PAIR_RE.subn(repl, line, count=1)
+    return new_line if count else line
+
+
+def replace_version_spec(line, new_spec):
+    """Replace the first version-spec substring in `line` — either an
+    "<source> -> <target>" (or "→") arrow pair (see replace_version_
+    pair/VERSION_PAIR_RE), or a "<version> (new)"/"(unchanged)"/"(digest
+    changed)" bracketed form (see image_manifest_version_text) — with
+    the literal text `new_spec`, preserving everything else (name,
+    prefix, em-dash, trailing newline) untouched. `line` unchanged
+    (count 0) if it has neither shape at all — a genuinely free-form
+    comment this was never meant to touch.
+
+    The images-manifest's own per-entry comment analogue of replace_
+    version_pair, generalized to ALSO replace a bracketed-suffix spec,
+    not just an arrow pair — needed since the CORRECT text for an entry
+    can switch from one shape to the other (e.g. a wrongly-written
+    arrow "X -> X" must become the bracketed "X (new)" — real bug, real
+    doc: images-4.9.1.yaml's own zac otel sidecar comment). Deliberately
+    whole-string replacement (never capture-group reassembly like
+    replace_version_pair's own `repl`) since the caller already has the
+    FULL desired text from image_manifest_version_text, not just its
+    two endpoints."""
+    new_line, count = VERSION_SPEC_RE.subn(lambda m: new_spec, line, count=1)
     return new_line if count else line
 
 
@@ -2056,13 +2150,31 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     Applied regardless of whether anything moved, since it's a separate
     formatting concern from ordering.
 
+    Also NORMALIZES the blank-line separator BETWEEN two different-
+    component runs to exactly one, whether or not anything actually
+    moved — a group's own captured span (images_manifest_block_start)
+    never includes a LEADING blank line (that's the PRECEDING group's
+    own trailing space instead — see that function's own docstring),
+    so a group that originally had NO trailing blank line at all (a
+    real pre-existing formatting defect, not something reordering
+    caused) previously stayed permanently separator-less once spliced
+    next to whatever new neighbor it landed beside — this function only
+    ever COLLAPSED an excess (see _collapse_group_internal_blank_lines),
+    never inserted a missing one. Real bug, real doc: images-4.9.1.yaml
+    had zero blank lines between its own redis entry and keycloak-
+    operator's, and between frankgateway's and zaakbrug's — confirmed
+    live, traced to a historical (now-superseded) reordering commit that
+    spliced blocks together without ever re-establishing this separator,
+    and never caught since because nothing ever re-normalized it
+    afterward, only ever collapsed a run's own INTERNAL blanks.
+
     Returns (new_text, moved) where moved is [(display_name, old_
     position, new_position)] (1-based, among just the manifest's own
     groups) for every group whose position actually changed — empty
     list, but new_text may still differ from text if only blank lines
-    were collapsed; both text and moved are exactly (text, []) only when
-    NEITHER changed anything — e.g. isn't valid YAML, or has fewer than
-    2 entries total."""
+    were collapsed/normalized; both text and moved are exactly (text,
+    []) only when NEITHER changed anything — e.g. isn't valid YAML, or
+    has fewer than 2 entries total."""
     lines = text.splitlines(keepends=True)
     try:
         entries = yaml.safe_load(text)
@@ -2103,7 +2215,18 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
         at_end = i == len(ordered_texts)
         if at_end or ordered_components[i] is None or ordered_components[i] != ordered_components[run_start]:
             run_text = "".join(ordered_texts[run_start:i])
-            merged_texts.append(_collapse_group_internal_blank_lines(run_text) if i - run_start > 1 else run_text)
+            run_text = _collapse_group_internal_blank_lines(run_text) if i - run_start > 1 else run_text
+            if not at_end:
+                # Exactly one blank line before the NEXT run — never
+                # zero (a group's own captured span never includes a
+                # LEADING blank line, so a pre-existing "no separator at
+                # all" defect otherwise survives forever once spliced
+                # next to a new neighbor — see this function's own
+                # docstring) and never more than one (a run's own
+                # INTERNAL blanks are already handled above; this is
+                # purely its own trailing edge).
+                run_text = run_text.rstrip("\n") + "\n\n"
+            merged_texts.append(run_text)
             run_start = i
 
     prefix = "".join(lines[:starts[0]])

@@ -2727,24 +2727,11 @@ def test_main_new_component_row_annotated_unchanged_when_known_in_historical_man
     assert "| brppersonenmock | 2.7.0 (unchanged) | 1.2.9 (new) | - |" in upgrade_doc
 
 
-# --- replace_version_pair ---
-
-def test_replace_version_pair_arrow_form(cdb):
-    assert cdb.replace_version_pair("# ZAC — 5.0.1 -> 5.1.0\n", "5.0.2", "5.1.0") == \
-        "# ZAC — 5.0.2 -> 5.1.0\n"
-
-
-def test_replace_version_pair_unicode_arrow_preserved(cdb):
-    assert cdb.replace_version_pair("# ZAC — 5.0.1 → 5.1.0\n", "5.0.2", "5.1.0") == \
-        "# ZAC — 5.0.2 → 5.1.0\n"
-
-
-def test_replace_version_pair_no_match_returns_unchanged(cdb):
-    line = "# no version pair here\n"
-    assert cdb.replace_version_pair(line, "1.0.0", "2.0.0") == line
-
-
 # --- resolve_entry_version ---
+# replace_version_pair itself (no longer imported into this module — see
+# fix_images_manifest_entries' own docstring for why it now uses lib.
+# upgradedoc.replace_version_spec instead) is already fully tested in
+# tests/lib/test_upgradedoc.py; no duplicate coverage needed here.
 
 def test_resolve_entry_version_finds_matching_path(cdb):
     paths = {("zac",): "5.1.0@sha256:aaaa", ("zgw-office-addin", "frontend"): "v0.9.352@sha256:bbbb"}
@@ -2779,7 +2766,7 @@ def test_fix_images_manifest_entries_corrects_stale_source(cdb):
     target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, [], target_values, baseline_values)
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, baseline_values)
     assert unresolved == []
     assert changed == [("zac", "5.0.2", "5.1.0")]
     assert "# ZAC — 5.0.2 -> 5.1.0" in new_text
@@ -2795,7 +2782,7 @@ def test_fix_images_manifest_entries_leaves_correct_entry_untouched(cdb):
     target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, [], target_values, baseline_values)
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, baseline_values)
     assert changed == []
     assert new_text == text
 
@@ -2803,7 +2790,7 @@ def test_fix_images_manifest_entries_leaves_correct_entry_untouched(cdb):
 def test_fix_images_manifest_entries_reports_missing_comment(cdb):
     text = "- name: zgw-office-addin-backend\n  version: \"v0.9.352\"\n"
     target_values = {"zgw-office-addin": {"backend": {"image": {"tag": "v0.9.352@sha256:aaaa"}}}}
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, [], target_values, {})
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, {})
     assert changed == []
     assert unresolved == ["zgw-office-addin-backend"]
     assert new_text == text
@@ -2812,7 +2799,7 @@ def test_fix_images_manifest_entries_reports_missing_comment(cdb):
 def test_fix_images_manifest_entries_reports_unresolvable_baseline(cdb):
     text = "# ZAC — 5.0.1 -> 5.1.0\n- name: zac\n  version: \"5.1.0\"\n"
     target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, [], target_values, {})
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, {})
     assert changed == []
     assert unresolved == ["zac"]
     assert new_text == text
@@ -2834,14 +2821,14 @@ def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(c
     repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image")}
 
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, [], target_values, baseline_values, repo_map)
+        text, None, [], target_values, baseline_values, repo_map)
     assert unresolved == []
     assert changed == [("infonl/zaakafhandelcomponent", "5.0.2", "5.1.0")]
     assert "# ZAC — 5.0.2 -> 5.1.0" in new_text
 
     # without repo_map, the same entry is unresolved -- proves repo_map is
     # what makes the difference, not some other fixture quirk
-    new_text2, changed2, unresolved2 = cdb.fix_images_manifest_entries(text, [], target_values, baseline_values)
+    new_text2, changed2, unresolved2 = cdb.fix_images_manifest_entries(text, None, [], target_values, baseline_values)
     assert changed2 == []
     assert unresolved2 == ["infonl/zaakafhandelcomponent"]
 
@@ -2868,11 +2855,183 @@ def test_fix_images_manifest_entries_fixes_shared_group_comment_via_either_entry
         "backend": {"image": {"tag": "v0.9.313@sha256:dddd"}},
     }}
 
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, [], target_values, baseline_values)
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, baseline_values)
     assert unresolved == []
     assert changed == [("zgw-office-addin-frontend", "v0.9.313", "v0.9.352")]
     assert "# ZGW Office Add-in — v0.9.313 -> v0.9.352" in new_text
     assert "v0.9.300" not in new_text
+
+
+def test_fix_images_manifest_entries_corrects_stale_arrow_to_new(cdb):
+    """Regression test (real bug, real doc): a path with NO baseline
+    value at all used to always report the entry as unresolved and
+    leave its comment untouched FOREVER — no verifier/fixer ever re-
+    checked an EXISTING entry's own comment for staleness once written.
+    Confirmed live: images-4.9.1.yaml's own zac otel sidecar comment
+    read "0.158.0 -> 0.158.0" (a nonsensical arrow self-transition an
+    earlier, now-superseded reordering pass wrote) instead of "0.158.0
+    (new)". `baseline_values` here is a REAL, non-empty resolved
+    baseline state that simply has nothing for this path — the case
+    that must now resolve to "(new)", unlike a genuinely-unresolvable
+    baseline (see test_fix_images_manifest_entries_reports_
+    unresolvable_baseline, unchanged behavior)."""
+    text = (
+        "#   sidecar: zac - opentelemetry-collector-contrib 0.158.0 -> 0.158.0\n"
+        "- name: otel/opentelemetry-collector-contrib\n"
+        "  url: docker.io/otel/opentelemetry-collector-contrib\n"
+        '  version: "0.158.0"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    target_values = {"zac": {"opentelemetry-collector": {"image": {
+        "repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:aaaa"}}}}
+    # A real, resolved baseline state — zac itself existed, just not this
+    # sidecar (genuinely new this hop).
+    baseline_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                                          "tag": "5.4.2@sha256:eeee"}}}
+
+    repo_map = {"otel/opentelemetry-collector-contrib": ("zac", "opentelemetry-collector", "image")}
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+        text, None, deps, target_values, baseline_values, repo_map)
+    assert unresolved == []
+    assert changed == [("otel/opentelemetry-collector-contrib", None, "0.158.0")]
+    assert "opentelemetry-collector-contrib 0.158.0 (new)" in new_text
+    assert "0.158.0 -> 0.158.0" not in new_text
+
+
+def test_fix_images_manifest_entries_finds_historical_baseline_for_new_path(cdb, tmp_path):
+    """The historical-images-manifest fallback (same one resolve_
+    component_row's own sidecar branch already uses) applies here too:
+    a path with no CURRENT baseline value that nonetheless already
+    appears in an earlier images-<version>.yaml manifest gets a real
+    "<old> -> <new>" transition, not just "(new)"."""
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    (images_dir / "images-4.8.0.yaml").write_text(
+        "- name: brp-api/personen-mock\n"
+        "  url: ghcr.io/brp-api/personen-mock\n"
+        '  version: "2.6.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    text = (
+        "# brppersonenmock 2.6.0 -> 2.7.0\n"
+        "- name: brp-api/personen-mock\n"
+        "  url: ghcr.io/brp-api/personen-mock\n"
+        '  version: "2.7.0"\n'
+        '  digest: "sha256:bbbb"\n'
+    )
+    deps = [{"name": "brp-personen-mock", "alias": "brppersonenmock", "version": "1.2.9"}]
+    target_values = {"brppersonenmock": {"image": {
+        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}}}
+    baseline_values = {"unrelated": {"image": {"repository": "example/other", "tag": "1.0.0@sha256:cccc"}}}
+
+    repo_map = {"brp-api/personen-mock": ("brppersonenmock", "image")}
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+        text, tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5")
+    assert unresolved == []
+    assert changed == []  # already correctly reads "2.6.0 -> 2.7.0"
+    assert new_text == text
+
+
+def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched(cdb):
+    """A same-version, changed-digest re-pin already correctly annotated
+    "(digest changed)" must survive re-verification unchanged — this
+    function must actually independently confirm it (via resolved_
+    digest_pin, the same comparison find_images_manifest_list_diff's
+    own digest_changed closure uses), not merely leave it alone because
+    a plain arrow/bracket regex happens not to match it."""
+    text = (
+        "#   sidecar: keycloak-operator - python 3.14.7-slim (digest changed)\n"
+        "- name: python\n"
+        "  url: docker.io/library/python\n"
+        '  version: "3.14.7-slim"\n'
+        '  digest: "sha256:' + "b" * 64 + '"\n'
+    )
+    deps = [{"name": "keycloak-operator", "version": "1.13.0"}]
+    target_values = {"keycloak-operator": {"jobs": {"ensurePodiumdAdminUser": {"initImage": {
+        "repository": "docker.io/library/python", "tag": "3.14.7-slim@sha256:" + "b" * 64}}}}}
+    baseline_values = {"keycloak-operator": {"jobs": {"ensurePodiumdAdminUser": {"initImage": {
+        "repository": "docker.io/library/python", "tag": "3.14.7-slim@sha256:" + "a" * 64}}}}}
+
+    repo_map = {"python": ("keycloak-operator", "jobs", "ensurePodiumdAdminUser", "initImage")}
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+        text, None, deps, target_values, baseline_values, repo_map)
+    assert unresolved == []
+    assert changed == []
+    assert new_text == text
+
+
+# --- fix_images_manifest_entry_urls ---
+
+def test_fix_images_manifest_entry_urls_restores_stripped_host(cdb, tmp_path):
+    """Regression test (real bug, real doc): a historical (now-
+    superseded) reordering commit silently stripped the registry host
+    off several "url:" fields while moving their own entry blocks —
+    confirmed live: images-4.9.1.yaml's own zac otel sidecar ("otel/
+    opentelemetry-collector-contrib" instead of "docker.io/otel/
+    opentelemetry-collector-contrib"). Nothing ever re-verified an
+    EXISTING entry's own url against what it should actually be."""
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"opentelemetry-collector": {"image": {
+            "repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:aaaa"}}},
+    }))
+    text = (
+        "#   sidecar: zac - opentelemetry-collector-contrib 0.158.0 (new)\n"
+        "- name: otel/opentelemetry-collector-contrib\n"
+        "  url: otel/opentelemetry-collector-contrib\n"
+        '  version: "0.158.0"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    target_values = {"zac": {"opentelemetry-collector": {"image": {
+        "repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:aaaa"}}}}
+
+    repo_map = {"otel/opentelemetry-collector-contrib": ("zac", "opentelemetry-collector", "image")}
+    new_text, changed, unresolved = cdb.fix_images_manifest_entry_urls(
+        text, tmp_path, deps, target_values, repo_map)
+
+    assert unresolved == []
+    assert changed == [("otel/opentelemetry-collector-contrib",
+                         "otel/opentelemetry-collector-contrib", "docker.io/otel/opentelemetry-collector-contrib")]
+    assert "url: docker.io/otel/opentelemetry-collector-contrib" in new_text
+    assert "url: otel/opentelemetry-collector-contrib\n" not in new_text
+
+
+def test_fix_images_manifest_entry_urls_leaves_correct_url_untouched(cdb, images_manifest_chart_dir):
+    text = (
+        "# zac 5.0.2 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                                        "tag": "5.1.0@sha256:aaaa"}}}
+
+    repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image")}
+    new_text, changed, unresolved = cdb.fix_images_manifest_entry_urls(
+        text, images_manifest_chart_dir, deps, target_values, repo_map)
+    assert changed == []
+    assert unresolved == []
+    assert new_text == text
+
+
+def test_fix_images_manifest_entry_urls_reports_unresolvable_entry(cdb, tmp_path):
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({"dependencies": []}))
+    write(tmp_path / "values.yaml", yaml.safe_dump({}))
+    text = "- name: totally-unknown\n  url: example.com/totally-unknown\n  version: \"1.0.0\"\n"
+
+    new_text, changed, unresolved = cdb.fix_images_manifest_entry_urls(text, tmp_path, [], {})
+    assert changed == []
+    assert unresolved == ["totally-unknown"]
+    assert new_text == text
 
 
 # --- add_missing_images_manifest_entries ---
@@ -2914,6 +3073,31 @@ def test_add_missing_images_manifest_entries_appends_new_entry(cdb, images_manif
     assert "url: ghcr.io/infonl/zaakafhandelcomponent" in new_text
     assert 'version: "5.1.0"' in new_text
     assert 'digest: "sha256:aaaa"' in new_text
+
+
+def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(cdb, images_manifest_chart_dir):
+    """Regression test (real bug, real doc): a genuinely brand-new image
+    (no baseline value at all, and no historical images-<version>.yaml
+    manifest ever records it either) used to fall back to `old_version =
+    new_version` as a fake "old" value, which made the "same version ->
+    (digest changed)" branch fire wrongly — confirmed live: images-
+    4.9.1.yaml's own zac otel sidecar comment read "0.158.0 -> 0.158.0"
+    instead of "0.158.0 (new)". Must render "(new)", never a nonsensical
+    self-transition or a false "(digest changed)"."""
+    text = "# Baseline: podiumd 4.8.5.\n"
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    target_values = {"zac": {"opentelemetry-collector": {"image": {
+        "repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:" + "a" * 64}}}}
+    baseline_values = {}
+
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+
+    assert skipped == []
+    assert added == ["zac - opentelemetry-collector-contrib"]
+    assert "opentelemetry-collector-contrib 0.158.0 (new)" in new_text
+    assert "0.158.0 -> 0.158.0" not in new_text
+    assert "(digest changed)" not in new_text
 
 
 def test_add_missing_images_manifest_entries_catches_same_version_changed_digest(cdb, images_manifest_chart_dir):

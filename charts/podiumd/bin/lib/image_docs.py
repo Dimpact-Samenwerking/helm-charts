@@ -31,9 +31,10 @@ from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
     actual_app_version, changes_heading_has_app_version, changes_heading_identities, component_order_key,
     extract_source_version, find_all_image_and_version_paths, find_changes_row_correspondence_gaps,
-    find_image_tag_paths, find_preceding_comment_line, images_manifest_entry_order_key, normalize_name,
-    normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair,
-    resolve_component_identity, values_key_order,
+    find_image_tag_paths, find_preceding_comment_line, image_manifest_version_text,
+    images_manifest_entry_order_key, normalize_name, normalize_version, parse_upgrade_doc_changes_blocks,
+    parse_upgrade_doc_rows, replace_version_pair, resolve_component_identity, values_key_order,
+    version_change_suffix,
 )
 
 
@@ -59,21 +60,21 @@ def make_image_changes_section(basename, target, old_version, new_version, pinne
     <version>" self-transition — same reasoning throughout: this doc is
     about version changes, and there isn't one to report in either
     case."""
+    suffix = version_change_suffix(old_version, new_version)
     if old_version is None:
-        heading_suffix = f"{new_version} (new)"
+        heading_suffix = f"{new_version} {suffix}"
         intro = f"PodiumD {target} introduces the shared **{basename}** image at {new_version},\n"
-    elif normalize_version(old_version) == normalize_version(new_version):
-        heading_suffix = f"{new_version} (unchanged)"
+    elif suffix:
+        heading_suffix = f"{new_version} {suffix}"
         intro = f"PodiumD {target} keeps the shared **{basename}** image at {new_version},\n"
     else:
         heading_suffix = f"{old_version} → {new_version}"
         intro = f"PodiumD {target} upgrades the shared **{basename}** image to {new_version},\n"
     lines = [f"### {basename} {heading_suffix}\n\n", intro, "pinned at:\n\n"]
     for path, path_old_version in pinned:
-        if path_old_version is None:
-            lines.append(f"- `{path}` `{new_version}` (new)\n")
-        elif normalize_version(path_old_version) == normalize_version(new_version):
-            lines.append(f"- `{path}` `{new_version}` (unchanged)\n")
+        path_suffix = version_change_suffix(path_old_version, new_version)
+        if path_suffix:
+            lines.append(f"- `{path}` `{new_version}` {path_suffix}\n")
         else:
             lines.append(f"- `{path}` `{path_old_version}` → `{new_version}`\n")
     lines.append(f"\n- Image / digest: see [`images-{target}.yaml`](../images/images-{target}.yaml).\n\n")
@@ -424,7 +425,7 @@ def update_image_manifest(images_path, basename, repository, old_version, new_ve
                 match_idx = idx
                 break
 
-        item_text = f"{basename} {old_version} -> {new_version}."
+        item_text = f"{basename} {image_manifest_version_text(old_version, new_version)}."
 
         if match_idx is not None:
             m = CHANGES_ITEM_RE.match(lines[match_idx])

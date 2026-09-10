@@ -29,10 +29,11 @@ from lib.release_baseline import resolve_baseline_chart_state
 from lib.upgradedoc import (
     _word_aligned_spans, actual_app_version, append_to_doc,
     changes_heading_identities, component_order_key, component_version_cell, COMPONENT_VERSIONS_HEADING_RE,
-    extract_source_version, find_grouped_preceding_comment_line, insertion_index,
+    extract_source_version, find_grouped_preceding_comment_line, image_manifest_version_text, insertion_index,
     match_dependency_excluding_sidecar_names, match_native_component, missing_key_change_lines_by_key,
     normalize_name, normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
     parse_values_delta_sections, replace_version_pair, resolve_entry_path, values_key_order, values_tree_position,
+    version_change_suffix,
 )
 
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
@@ -635,12 +636,8 @@ def make_changes_section(friendly, target, chart_name, values_key, old_app, new_
     else:
         chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
         chart_suffix = f" (chart {old_chart} → {new_chart})" if chart_changed else f" (chart {new_chart}, unchanged)"
-    if old_app is None:
-        app_heading = f"{new_app} (new)"
-    elif normalize_version(old_app) == normalize_version(new_app):
-        app_heading = f"{new_app} (unchanged)"
-    else:
-        app_heading = f"{old_app} → {new_app}"
+    app_suffix = version_change_suffix(old_app, new_app)
+    app_heading = f"{new_app} {app_suffix}" if app_suffix else f"{old_app} → {new_app}"
     lines = [f"### {friendly} {app_heading}{chart_suffix}\n\n"]
     if old_app is None:
         lines.append(f"PodiumD {target} introduces **{friendly}** at app version {new_app}.\n\n")
@@ -649,12 +646,7 @@ def make_changes_section(friendly, target, chart_name, values_key, old_app, new_
     else:
         lines.append(f"PodiumD {target} upgrades **{friendly}** from app version {old_app}\n")
         lines.append(f"to {new_app}.\n\n")
-    if old_app is None:
-        pin_suffix = f"`{new_app}` (new)"
-    elif normalize_version(old_app) == normalize_version(new_app):
-        pin_suffix = f"`{new_app}` (unchanged)"
-    else:
-        pin_suffix = f"`{old_app}` → `{new_app}`"
+    pin_suffix = f"`{new_app}` {app_suffix}" if app_suffix else f"`{old_app}` → `{new_app}`"
     if chart_changed:
         lines.append(f"- Helm chart `{chart_name}` `{old_chart}` → `{new_chart}` in\n")
         lines.append("  `charts/podiumd/Chart.yaml`.\n")
@@ -1299,11 +1291,11 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
         if new_chart == "-":
             # NATIVE_COMPONENTS component (see lib.chart.NATIVE_COMPONENTS)
             # — no chart at all, so no "(chart ...)" clause to render.
-            item_text = f"{friendly} {old_app} -> {new_app}."
+            item_text = f"{friendly} {image_manifest_version_text(old_app, new_app)}."
         else:
             chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
             chart_bit = f"{old_chart} -> {new_chart}" if chart_changed else f"{new_chart}, unchanged"
-            item_text = f"{friendly} {old_app} -> {new_app} (chart {chart_bit})."
+            item_text = f"{friendly} {image_manifest_version_text(old_app, new_app)} (chart {chart_bit})."
 
         if match_idx is not None:
             m = CHANGES_ITEM_RE.match(lines[match_idx])

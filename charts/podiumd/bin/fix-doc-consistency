@@ -88,7 +88,7 @@ from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import (
     canonical_sidecar_row_names, chart_version, documented_repository_for_path, full_repository_for_path,
     global_image_paths, historical_app_version_for_path, image_paths_for, paths_by_repository,
-    repo_group_representative, resolved_digest_pin, version_of,
+    repo_group_representative, replace_scalar_value, resolved_digest_pin, version_of,
 )
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
@@ -110,11 +110,12 @@ from lib.upgradedoc import (
     component_version_cell,
     compute_changed_components, extract_source_version, extract_target_version, find_all_image_and_version_paths,
     find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff,
-    header_name_segment, images_manifest_block_start, images_manifest_display_name_positions,
+    header_name_segment, image_manifest_version_text, images_manifest_block_start,
+    images_manifest_display_name_positions,
     images_manifest_entries_share_group, images_manifest_entry_positions, insertion_index, is_primary_image_path,
     match_changes_item_display_name,
     normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, parse_values_delta_sections,
-    path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
+    path_display_name, replace_version_spec, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
     sort_images_manifest_entries, sort_upgrade_doc_rows, sort_values_delta_sections, values_key_order,
 )
 
@@ -796,7 +797,8 @@ def resolve_entry_version(entry, paths, repo_map=None):
     return tag.split("@")[0] if tag else None
 
 
-def fix_images_manifest_entries(text, deps, target_values, baseline_values, repo_map=None):
+def fix_images_manifest_entries(text, chart_dir, deps, target_values, baseline_values, repo_map=None,
+                                 upgrade_docs_baseline=None):
     """Rewrite each images-manifest entry's preceding comment to state the
     actual source (baseline) and target versions for the image at its
     matched values-tree path. An entry is only rewritten when both ends are
@@ -815,7 +817,39 @@ def fix_images_manifest_entries(text, deps, target_values, baseline_values, repo
     that matters for a component whose current strip-registry-shaped
     manifest name (e.g. "infonl/zaakafhandelcomponent") no longer
     resembles its values.yaml key ("zac") the way the old hand-
-    translated slug did."""
+    translated slug did.
+
+    Real bug this closes: a path with NO baseline value at all (no
+    matching entry in baseline_paths) used to always report the entry as
+    unresolved and leave its comment untouched, FOREVER — there was no
+    verifier/fixer that ever re-checked an EXISTING entry's own comment
+    for staleness once written, the same structural gap already found
+    and fixed for -upgrade.md/-values-deltas.md HEADINGS (_resolved_
+    rows_by_values_key/_fix_heading_app_versions) but never extended to
+    images-<version>.yaml's own per-entry comments. Confirmed live:
+    images-4.9.1.yaml's own zac otel sidecar comment read "0.158.0 ->
+    0.158.0" (and three of openbao's own sidecars similarly) — a
+    nonsensical arrow self-transition an earlier, now-superseded
+    reordering pass wrote, never corrected since. Now, when actual_
+    baseline can't be resolved directly AND `baseline_values` is a REAL,
+    resolved baseline state (never when it's falsy — see resolve_
+    component_row's own sidecar branch for the identical "genuinely
+    resolved but empty at this path" vs "couldn't resolve a baseline at
+    all" distinction), this checks whether the repository already
+    appears in any of this chart's own PAST images-<version>.yaml
+    manifests (historical_app_version_for_path) before concluding
+    "genuinely new" — either way, the comment's own version-spec portion
+    (see lib.upgradedoc.replace_version_spec) is now recomputed via
+    image_manifest_version_text (also detecting a same-version, changed-
+    digest re-pin the same way find_images_manifest_list_diff's own
+    digest-comparison branch does) — correctly downgrading a stale
+    "(digest changed)"/"(new)"/"(unchanged)" claim back to whatever it
+    should actually say too, not just a stale arrow pair. Deliberately
+    replaces ONLY that version-spec substring, same as before — the
+    comment's own name/prefix text (which may be hand-styled, e.g. "#
+    ZAC — ...", not necessarily the auto-written "# <canonical name>
+    ..." convention) is never touched or re-derived; verifying THAT is a
+    different, not-yet-built check."""
     lines = text.splitlines(keepends=True)
     try:
         entries = yaml.safe_load(text)
@@ -843,12 +877,28 @@ def fix_images_manifest_entries(text, deps, target_values, baseline_values, repo
             unresolved_names.append(name)
             continue
 
+        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
         actual_target = resolve_entry_version(entry, current_paths, repo_map)
-        actual_baseline = resolve_entry_version(entry, baseline_paths, repo_map)
-
-        if actual_target is None or actual_baseline is None:
+        if path is None or actual_target is None:
             unresolved_names.append(name)
             continue
+
+        actual_baseline = resolve_entry_version(entry, baseline_paths, repo_map)
+        if actual_baseline is None:
+            if not baseline_values:
+                unresolved_names.append(name)
+                continue
+            actual_baseline = historical_app_version_for_path(chart_dir, deps, target_values, path,
+                                                                upgrade_docs_baseline)
+
+        digest_only_change = False
+        if actual_baseline is not None and normalize_version(actual_baseline) == normalize_version(actual_target):
+            current_tag, baseline_tag = current_paths.get(path), baseline_paths.get(path)
+            if current_tag and baseline_tag:
+                current_digest = resolved_digest_pin(target_values, path, current_tag)
+                baseline_digest = resolved_digest_pin(baseline_values, path, baseline_tag)
+                if current_digest and baseline_digest:
+                    digest_only_change = current_digest.split("@", 1)[1] != baseline_digest.split("@", 1)[1]
 
         if comment_idx in fixed_comment_versions:
             prev_baseline, prev_target = fixed_comment_versions[comment_idx]
@@ -856,21 +906,89 @@ def fix_images_manifest_entries(text, deps, target_values, baseline_values, repo
                     normalize_version(prev_target) != normalize_version(actual_target):
                 unresolved_names.append(name)
             continue
-
-        comment_line = lines[comment_idx]
-        doc_source = extract_source_version(comment_line)
-        doc_target = extract_target_version(comment_line)
         fixed_comment_versions[comment_idx] = (actual_baseline, actual_target)
-        if normalize_version(doc_source) == normalize_version(actual_baseline) and \
-                normalize_version(doc_target) == normalize_version(actual_target):
-            continue
 
-        lines[comment_idx] = replace_version_pair(comment_line, actual_baseline, actual_target)
-        changed_entries.append((name, actual_baseline, actual_target))
+        new_spec = image_manifest_version_text(actual_baseline, actual_target, digest_only_change)
+        new_comment_line = replace_version_spec(lines[comment_idx], new_spec)
+        if new_comment_line != lines[comment_idx]:
+            lines[comment_idx] = new_comment_line
+            changed_entries.append((name, actual_baseline, actual_target))
 
     return "".join(lines), changed_entries, unresolved_names
 
 
+def fix_images_manifest_entry_urls(text, chart_dir, deps, target_values, repo_map=None):
+    """Rewrite each images-manifest entry's own "url:" field to the REAL,
+    fully host-qualified repository for its matched values-tree path
+    (lib.chart.full_repository_for_path — the same convention add_
+    missing_images_manifest_entries's own url-qualification already
+    uses when writing a BRAND NEW entry), when it doesn't already match.
+
+    Real bug this closes: a historical (now-superseded) reordering
+    commit silently stripped the registry host off several "url:"
+    fields while moving their own entry blocks — confirmed live:
+    images-4.9.1.yaml's own zac otel sidecar ("otel/opentelemetry-
+    collector-contrib" instead of "docker.io/otel/opentelemetry-
+    collector-contrib") and three of openbao's own sidecars (vault-k8s/
+    openbao-csi-provider/openbao-snapshot-agent) similarly — never
+    caught since, since nothing ever re-verified an EXISTING entry's own
+    url against what it should actually be, only ever a freshly-added
+    entry's own url at write time.
+
+    allow_pull is deliberately not exposed here — always offline
+    (full_repository_for_path's own default), same reasoning as
+    regenerate_images_baseline_manifest's own: a real chart always has
+    every dependency already vendored, so this never needs a fresh
+    `helm pull`.
+
+    Returns (new_text, changed_names, unresolved_names) — changed_names
+    is [(name, old_url, new_url), ...] for every entry actually
+    rewritten; unresolved_names is every entry whose own values-tree
+    path (or full_repository_for_path result) couldn't be resolved at
+    all, or that has no "url:" field to check — never guessed at, same
+    "report it, don't touch it" discipline every other fixer here uses."""
+    lines = text.splitlines(keepends=True)
+    try:
+        entries = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return text, [], []
+    if not isinstance(entries, list):
+        return text, [], []
+
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    current_paths = dict(find_all_image_and_version_paths(target_values, deps))
+    current_paths.update(global_image_paths(target_values))
+
+    changed_names, unresolved_names = [], []
+    for entry, line_idx in zip(entries, entry_line_indices):
+        name = entry["name"]
+        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
+        full_repo = full_repository_for_path(chart_dir, deps, target_values, path) if path is not None else None
+        if full_repo is None:
+            unresolved_names.append(name)
+            continue
+
+        block_end = len(lines)
+        for j in range(line_idx + 1, len(lines)):
+            if re.match(r"^-\s*name:", lines[j]) or not lines[j].strip():
+                block_end = j
+                break
+        url_idx = None
+        for j in range(line_idx, block_end):
+            if re.match(r"^\s*url:\s*\S", lines[j]):
+                url_idx = j
+                break
+        if url_idx is None:
+            unresolved_names.append(name)
+            continue
+
+        current_url = re.match(r"^\s*url:\s*(\S+)\s*$", lines[url_idx]).group(1)
+        if current_url == full_repo:
+            continue
+        lines[url_idx] = replace_scalar_value(lines[url_idx], full_repo)
+        changed_names.append((name, current_url, full_repo))
+
+    return "".join(lines), changed_names, unresolved_names
 
 
 def _images_manifest_changes_header_text(lines):
@@ -1221,15 +1339,32 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
 
         new_version, digest = pinned_tag.split("@", 1)
         baseline_tag = baseline_paths.get(path)
-        old_version = version_of(baseline_tag) if baseline_tag else new_version
+        digest_only_change = False
+        if baseline_tag:
+            old_version = version_of(baseline_tag)
+            # A same-version/changed-digest re-pin (lib.upgradedoc.find_
+            # images_manifest_list_diff's own digest-comparison branch)
+            # would otherwise render as "<name> <version> -> <version>"
+            # here — reads as "nothing changed" even though the digest
+            # did. Real case: clamav 1.5.4, digest re-pinned with no
+            # version bump.
+            if normalize_version(old_version) == normalize_version(new_version):
+                baseline_pinned_tag = resolved_digest_pin(baseline_values, path, baseline_tag)
+                if baseline_pinned_tag:
+                    digest_only_change = pinned_tag.split("@", 1)[1] != baseline_pinned_tag.split("@", 1)[1]
+        else:
+            # No baseline value for this path at all — before concluding
+            # "genuinely new" (never falling back to `new_version` itself
+            # as a fake "old" value, which would wrongly render "(digest
+            # changed)" for a brand-new image instead of "(new)" — real
+            # bug, real doc: images-4.9.1.yaml's own zac otel sidecar
+            # comment read "0.158.0 -> 0.158.0"), check this chart's own
+            # PAST images-<version>.yaml manifests the same way resolve_
+            # component_row's own sidecar branch already does.
+            old_version = historical_app_version_for_path(chart_dir, deps, target_values, path,
+                                                            upgrade_docs_baseline)
         new_key = order_key(path, " - " in name)
-        # A same-version/changed-digest re-pin (lib.upgradedoc.find_
-        # images_manifest_list_diff's own digest-comparison branch) would
-        # otherwise render as "<name> <version> -> <version>" here — reads
-        # as "nothing changed" even though the digest did. Real case:
-        # clamav 1.5.4, digest re-pinned with no version bump.
-        version_text = (f"{name} {new_version} (digest changed)" if old_version == new_version
-                         else f"{name} {old_version} -> {new_version}")
+        version_text = f"{name} {image_manifest_version_text(old_version, new_version, digest_only_change)}"
 
         lines = text.splitlines(keepends=True)
         if lines and not lines[-1].endswith("\n"):
@@ -1603,7 +1738,8 @@ def main():
                     for repo, group_paths in repo_groups.items()}
         canonical_names = canonical_sidecar_row_names(CHART_YAML.parent, target_deps, target_values, target_paths)
         new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
-            text, target_deps, target_values, baseline_values, repo_map
+            text, CHART_YAML.parent, target_deps, target_values, baseline_values, repo_map,
+            upgrade_docs_baseline=new_baseline
         )
         if changed_entries:
             images_path.write_text(new_text, encoding="utf-8")
@@ -1618,6 +1754,24 @@ def main():
                   f"values-tree path, or baseline {new_baseline} doesn't resolve to a git ref. "
                   f"Left as-is; review by hand.")
             for name in unresolved_entry_names:
+                print(f"  {name}")
+
+        text = images_path.read_text(encoding="utf-8")
+        new_text, changed_urls, unresolved_url_names = fix_images_manifest_entry_urls(
+            text, CHART_YAML.parent, target_deps, target_values, repo_map
+        )
+        if changed_urls:
+            images_path.write_text(new_text, encoding="utf-8")
+            print()
+            print(f"=== Correcting entry url(s) in {images_path.name} ===")
+            for name, old_url, new_url in changed_urls:
+                print(f"  {name}: {old_url} -> {new_url}")
+        if unresolved_url_names:
+            print()
+            print(f"Could not verify the fully host-qualified url for {len(unresolved_url_names)} "
+                  f"entry(s) in {images_path.name} — unresolvable values-tree path or repository. "
+                  f"Left as-is; review by hand.")
+            for name in unresolved_url_names:
                 print(f"  {name}")
 
         if baseline_values:
