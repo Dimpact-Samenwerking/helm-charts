@@ -37,16 +37,23 @@ INTERNAL toggle inside the zaakbrug sub-chart's own values (not a
 Chart.yaml dependency condition at all), permanently off by hard policy
 regardless of what "everything enabled" means elsewhere (see
 lib.digest_pinning_check's docstring), so its leaves are excluded from
-this check's scope entirely rather than reported as a fresh "dead" find
-every time (same exemption check_subchart_image_visibility already
-applies, reused here via subchart_visibility_exempt_reason rather than
-re-deriving the same prefix-match logic). Any OTHER internal, non-
-Chart.yaml-condition toggle inside a sub-chart's own values (this repo
-has a few, e.g. objecten's own demo-data flag) is deliberately left
-alone — telling a real per-component feature flag apart from an
-ordinary boolean config value with no name-based heuristic isn't
-something this check tries to do; a leaf gated behind one of those is
-the one remaining case the "human call" caveat below covers.
+the actual null-testing entirely (re-rendering a subtree that never
+renders regardless would be pure waste — same exemption check_
+subchart_image_visibility already applies, reused here via subchart_
+visibility_exempt_reason rather than re-deriving the same prefix-match
+logic) — see policy_exempt_leaf_paths. Untested is NOT unreported,
+though: check_dead_values still surfaces these in their own clearly
+labeled section, by full path with their exemption reason — "this
+subtree is dead by permanent policy" is itself real, interesting
+information a reader may want to see, just already-reviewed and settled
+rather than a fresh "human call" the way an actual candidate_leaf_
+paths-found dead leaf is. Any OTHER internal, non-Chart.yaml-condition
+toggle inside a sub-chart's own values (this repo has a few, e.g.
+objecten's own demo-data flag) is deliberately left alone — telling a
+real per-component feature flag apart from an ordinary boolean config
+value with no name-based heuristic isn't something this check tries to
+do; a leaf gated behind one of those is the one remaining case the
+"human call" caveat below covers.
 
 Cost control has two independent halves:
 
@@ -217,10 +224,15 @@ def _candidate_leaves(node, path, exempt_full_paths=frozenset()):
     """flatten_leaves(node, path), minus a value that's already null
     (nulling a null is a no-op — nothing to learn), any path
     SUBCHART_VISIBILITY_EXEMPT already has a standing, reviewed answer
-    for (see this module's docstring), and any path in exempt_full_paths
-    (see _condition_leaf_paths — a dependency's own Chart.yaml
-    "condition:" leaf, already known live by construction, never worth
-    testing at all)."""
+    for (see this module's docstring — known DEAD by permanent policy;
+    excluded from testing here for the same real, valid performance/
+    correctness reason as ever, but see policy_exempt_leaf_paths below
+    for these SURFACED as their own, separately-reported bucket rather
+    than silently vanishing), and any path in exempt_full_paths (see
+    _condition_leaf_paths — a dependency's own Chart.yaml "condition:"
+    leaf, known LIVE by construction — a completely different reason,
+    deliberately never reported at all: it isn't "known dead", it's
+    "can't be honestly tested this way")."""
     for leaf_path, value in flatten_leaves(node, path):
         if value is None or not leaf_path:
             continue
@@ -235,8 +247,37 @@ def candidate_leaf_paths(values, exempt_full_paths=frozenset()):
     """Every path _candidate_leaves finds in podiumd's own values.yaml
     worth null-testing — the full, flat list (used for the "N checked"
     count; the actual search walks the same candidates hierarchically,
-    scope by scope, rather than through this flat list)."""
+    scope by scope, rather than through this flat list). Deliberately
+    does NOT include a SUBCHART_VISIBILITY_EXEMPT-matched leaf (see
+    policy_exempt_leaf_paths — reported separately, as genuinely NOT
+    checked) or a Chart.yaml "condition:" leaf (see _condition_leaf_
+    paths — never reported at all, known live by construction) — "N
+    checked" only ever counts a leaf this check actually rendered and
+    judged."""
     return list(_candidate_leaves(values, (), exempt_full_paths))
+
+
+def policy_exempt_leaf_paths(values):
+    """Every values.yaml leaf path SUBCHART_VISIBILITY_EXEMPT already
+    has a standing, reviewed answer for (e.g. zaakbrug.staging.*) —
+    collected SEPARATELY from candidate_leaf_paths (which still drops
+    these from the render-tested pool entirely, for the same real,
+    valid reason the exemption exists at all: a permanently-disabled
+    subtree that never renders regardless of what "everything enabled"
+    means elsewhere — re-rendering it would be pure waste). Surfaced
+    here purely for check_dead_values's own report: "this subtree is
+    dead by permanent policy" is itself interesting, reviewed
+    information a reader may want to see, not something to silently
+    hide just because it's already a known, settled answer — distinct
+    from a candidate_leaf_paths leaf actually null-tested and found
+    dead, which is a FRESH, unreviewed human call.
+
+    Same "value already null is uninteresting" skip candidate_leaf_
+    paths applies — nothing informative about a leaf that's already
+    empty either way."""
+    return [leaf_path for leaf_path, value in flatten_leaves(values, ())
+            if value is not None and leaf_path
+            and subchart_visibility_exempt_reason(leaf_path[0], ".".join(leaf_path[1:]))]
 
 
 def _condition_leaf_paths(chart_dir):
@@ -740,6 +781,7 @@ def _confirm_against_full_chart(executor, full_scope, candidates):
 def check_dead_values(chart_dir, extra_args):
     values = load_yaml(chart_dir / "values.yaml") or {}
     condition_paths = _condition_leaf_paths(chart_dir)
+    policy_exempt = sorted(policy_exempt_leaf_paths(values))
     total = len(candidate_leaf_paths(values, condition_paths))
 
     print(f"Null-testing {total} values.yaml leaf(ves) against the baseline render "
@@ -798,13 +840,24 @@ def check_dead_values(chart_dir, extra_args):
     dead.sort()
 
     if not dead:
-        print(f"OK: no dead values.yaml entries found ({total} checked)")
-        return True, f"0/{total} dead"
+        exempt_note = f", {len(policy_exempt)} policy-exempt" if policy_exempt else ""
+        print(f"OK: no dead values.yaml entries found ({total} checked{exempt_note})")
+    else:
+        print(f"Found {len(dead)} values.yaml leaf(ves) whose value never surfaces in the "
+              f"rendered chart (nulling it made no difference to the maximal render) — "
+              f"report only, a human call whether it's genuinely removable:")
+        for path in dead:
+            print(f"  {'.'.join(path)}")
 
-    print(f"Found {len(dead)} values.yaml leaf(ves) whose value never surfaces in the "
-          f"rendered chart (nulling it made no difference to the maximal render) — "
-          f"report only, a human call whether it's genuinely removable:")
-    for path in dead:
-        print(f"  {'.'.join(path)}")
+    if policy_exempt:
+        print(f"{len(policy_exempt)} leaf(ves) excluded by policy (SUBCHART_VISIBILITY_EXEMPT) — "
+              f"never rendered by design, not re-tested here (already reviewed — not a fresh human "
+              f"call the way the list above is):")
+        for path in policy_exempt:
+            reason = subchart_visibility_exempt_reason(path[0], ".".join(path[1:]))
+            print(f"  {'.'.join(path)} (exempt: {reason})")
 
-    return True, f"{len(dead)}/{total} dead (report only)"
+    exempt_suffix = f", {len(policy_exempt)} policy-exempt" if policy_exempt else ""
+    if not dead:
+        return True, f"0/{total} dead{exempt_suffix}"
+    return True, f"{len(dead)}/{total} dead (report only){exempt_suffix}"
