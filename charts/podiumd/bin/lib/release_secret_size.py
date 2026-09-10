@@ -20,11 +20,16 @@ cluster does.
 This is an estimate, not a byte-exact reproduction: it doesn't split hook
 resources out of the manifest into a separate `hooks` array the way a real
 `helm install` does (small metadata overhead is under-counted), it doesn't
-account for `Release.Info.Notes` (rendered NOTES.txt — neither podiumd nor
-monitoring-logging has a root templates/NOTES.txt today, so this is
-currently a no-op gap, not a live discrepancy), and Python's gzip vs Go's
-may differ by a small amount for the same input. Treat the percentage as
-directionally accurate, not to the byte.
+account for `Release.Info.Notes` (rendered NOTES.txt — podiumd has a root
+templates/NOTES.txt, so this is a live, current under-count for it, not
+just a theoretical gap; monitoring-logging has none, so it's unaffected
+there) — see build_release()'s own NOTES.txt warning for why this can't
+be fixed by rendering it here (confirmed: even `helm install --dry-run=
+client` on Helm 3.13+ still requires a reachable cluster for this command
+specifically — helm/helm#12740 — so there's no offline path to a real,
+Helm-rendered NOTES.txt at all, not just a version gap) — and Python's
+gzip vs Go's may differ by a small amount for the same input. Treat the
+percentage as directionally accurate, not to the byte.
 
 The JSON shape built by build_release() is a hand-reimplementation of
 encodeRelease()'s Go structs (helm.sh/helm/v4/pkg/release + pkg/chart),
@@ -195,10 +200,8 @@ def build_release(chart_dir, values_override, manifest, name, namespace):
     warnings = list(check_subchart_freshness(chart_dir, metadata))
     if "templates/NOTES.txt" in paths:
         warnings.append(
-            "this chart has a root templates/NOTES.txt. Rendering it into Release.Info.Notes the "
-            "way `helm install` does requires Go template evaluation this doesn't perform, so the "
-            "estimate below omits it entirely — treat the reported size as an under-count for this "
-            "chart."
+            "this chart has a root templates/NOTES.txt, which isn't rendered into the estimate "
+            "below — treat the reported size as an under-count for this chart."
         )
 
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
