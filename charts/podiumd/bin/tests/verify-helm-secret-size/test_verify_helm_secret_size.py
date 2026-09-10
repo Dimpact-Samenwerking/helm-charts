@@ -93,6 +93,52 @@ def test_main_no_values_file_means_no_config_override(vhss, monkeypatch, tmp_pat
     assert captured["values_override"] is None
 
 
+def test_main_falls_back_when_helm_predates_skip_schema_validation(vhss, monkeypatch, tmp_path):
+    """Real bug caught live: this repo's own environment (Helm 3.9.0, no
+    --skip-schema-validation flag at all) failed outright with "unknown
+    flag" before this fallback existed -- verify-podiumd's own render
+    (lib.render_scope.render_chart) never needed the flag either, so an
+    older `helm` must still work here, not hard-fail on it."""
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        if "--skip-schema-validation" in cmd:
+            return SimpleNamespace(returncode=1, stdout="", stderr="Error: unknown flag: --skip-schema-validation")
+        return SimpleNamespace(returncode=0, stdout="manifest", stderr="")
+
+    monkeypatch.setattr(vhss, "run", fake_run)
+    monkeypatch.setattr(vhss, "build_release", lambda *a, **kw: ({}, "1.0.0", []))
+    monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path)])
+
+    vhss.main()  # must not raise / must not sys.exit
+
+    assert len(calls) == 2
+    assert "--skip-schema-validation" in calls[0]
+    assert "--skip-schema-validation" not in calls[1]
+
+
+def test_main_other_render_failure_is_not_retried(vhss, monkeypatch, tmp_path, capsys):
+    """A real render failure unrelated to --skip-schema-validation (a
+    genuine template error) must NOT be silently retried/swallowed --
+    only the specific "unknown flag" case falls back."""
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        return SimpleNamespace(returncode=1, stdout="", stderr="Error: real template error")
+
+    monkeypatch.setattr(vhss, "run", fake_run)
+    monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path)])
+
+    with pytest.raises(SystemExit) as exc_info:
+        vhss.main()
+
+    assert exc_info.value.code == 1
+    assert len(calls) == 1  # never retried
+    assert "real template error" in capsys.readouterr().err
+
+
 def test_main_render_failure_exits_one(vhss, monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=1, stdout="", stderr="boom"))
     monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path)])
