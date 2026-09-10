@@ -132,6 +132,141 @@ def test_compare_no_findings_when_everything_matches(vrt):
     assert unresolved == []
 
 
+# --- check_chart_version_source / check_images_source ---
+
+ZAC_BASELINE_BLOCK = (
+    "zac:\n"
+    "  image:\n"
+    "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+    f'    tag: "5.0.2@sha256:{DIGEST}"\n'
+)
+
+
+def test_compare_reports_chart_version_source_mismatch(vrt):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
+    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
+                     source_helm="1.0.250", target_helm="1.0.297")]
+    findings, unresolved = vrt.compare(
+        rows, deps, {}, values_lines(ZAC_BLOCK),
+        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=values_lines(ZAC_BASELINE_BLOCK))
+    assert any("[CHART-SOURCE]" in m and "source 1.0.250 != baseline Chart.yaml 1.0.251" in m
+               for m in findings["mismatches"])
+    assert unresolved == []
+
+
+def test_compare_reports_image_version_source_mismatch(vrt):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
+                     source_app="5.0.1")]
+    findings, _ = vrt.compare(
+        rows, deps, {}, values_lines(ZAC_BLOCK),
+        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=values_lines(ZAC_BASELINE_BLOCK))
+    assert any("[IMAGE-SOURCE]" in m and "source 5.0.1 != baseline values.yaml 5.0.2" in m
+               for m in findings["mismatches"])
+
+
+def test_compare_source_checks_skipped_when_baseline_not_given(vrt):
+    """baseline_deps=None (the default) — never attempted at all, not
+    'attempted and empty' — so a row with an otherwise-mismatching
+    source is never flagged when no baseline was resolved."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
+                     source_app="5.0.1", source_helm="1.0.250", target_app="5.4.3", target_helm="1.0.297")]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    assert not any("SOURCE" in m for m in findings.get("mismatches", []))
+
+
+def test_compare_new_dependency_at_baseline_with_blank_source_not_flagged(vrt):
+    """A brand-new Chart.yaml dependency this release (not in baseline_deps
+    at all) with a BLANK source (nothing recorded yet, the normal case for
+    something genuinely new) must NOT be flagged — only a row that
+    actually CLAIMS a real source version is ever checked against the
+    baseline at all (see is_verifiable_target)."""
+    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    baseline_deps = []  # mi-data didn't exist at the release_table baseline yet
+    rows = [csv_row("MI-data exports", "mi-data", alias="mi", image_basename="azure-cli",
+                     target_app="2.90.0", target_helm="1.1.0")]
+    mi_block = (
+        "mi:\n"
+        "  image:\n"
+        "    repository: mcr.microsoft.com/azure-cli\n"
+        f'    tag: "2.90.0@sha256:{DIGEST}"\n'
+    )
+    findings, _ = vrt.compare(
+        rows, deps, {}, values_lines(mi_block),
+        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[])
+    assert not any("SOURCE" in m for m in findings.get("mismatches", []))
+
+
+def test_compare_new_dependency_at_baseline_with_real_source_is_flagged(vrt):
+    """The mirror-image case: a row DOES claim a real source chart/app
+    version for a dependency that genuinely didn't exist at the
+    release_table baseline at all — that claim can't be right no matter
+    what it says, so it's flagged, distinct from the ordinary mismatch
+    case (there's nothing to compare the claimed value AGAINST)."""
+    deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
+    baseline_deps = []
+    rows = [csv_row("MI-data exports", "mi-data", alias="mi", image_basename="azure-cli",
+                     source_app="2.71.0", source_helm="1.0.0", target_app="2.90.0", target_helm="1.1.0")]
+    mi_block = (
+        "mi:\n"
+        "  image:\n"
+        "    repository: mcr.microsoft.com/azure-cli\n"
+        f'    tag: "2.90.0@sha256:{DIGEST}"\n'
+    )
+    findings, _ = vrt.compare(
+        rows, deps, {}, values_lines(mi_block),
+        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[])
+    assert any("[CHART-SOURCE]" in m and "didn't exist at the release_table baseline yet" in m
+               for m in findings["mismatches"])
+    assert any("[IMAGE-SOURCE]" in m and "wasn't pinned anywhere" in m and "release_table baseline yet" in m
+               for m in findings["mismatches"])
+
+
+def test_main_unresolvable_release_table_baseline_warns_and_keeps_target_checks(vrt, tmp_path, monkeypatch, capsys):
+    """A baseline-resolution failure must never suppress the EXISTING
+    target-checks — only the new source-checks are skipped, with exactly
+    one clear warning, no crash."""
+    import csv as csv_module
+
+    chart_dir = tmp_path / "chart"
+    chart_dir.mkdir()
+    chart_yaml = chart_dir / "Chart.yaml"
+    values_yaml = chart_dir / "values.yaml"
+    release_table = chart_dir / "etc" / "release-table.csv"
+    release_table.parent.mkdir()
+
+    chart_yaml.write_text(
+        "dependencies:\n"
+        "  - name: zaakafhandelcomponent\n"
+        "    version: 1.0.298\n"
+        "    alias: zac\n",
+        encoding="utf-8",
+    )
+    values_yaml.write_text(ZAC_BLOCK, encoding="utf-8")
+    with release_table.open("w", newline="", encoding="utf-8") as f:
+        writer = csv_module.DictWriter(f, fieldnames=list(csv_row("x", "y").keys()))
+        writer.writeheader()
+        writer.writerow(csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac",
+                                 image_basename="zaakafhandelcomponent", target_app="5.4.3", target_helm="1.0.297"))
+
+    monkeypatch.setattr(vrt, "CHART_DIR", chart_dir)
+    monkeypatch.setattr(vrt, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(vrt, "VALUES_YAML", values_yaml)
+    monkeypatch.setattr(vrt, "RELEASE_TABLE_CSV", release_table)
+    monkeypatch.setattr(vrt, "release_table_baseline", lambda chart_dir: "9.9.9")
+
+    code = run_main(vrt, monkeypatch, [])
+    out = capsys.readouterr().out
+    assert 'WARNING: release_table baseline "9.9.9"' in out
+    assert out.count("WARNING:") == 1
+    assert code == 1
+    assert "Version mismatches" in out
+    assert "1.0.297 != Chart.yaml 1.0.298" in out
+
+
 def test_compare_reports_chart_version_never_tracked(vrt):
     """openbao's real-world case: its own Chart.yaml dependency has TWO
     rows in release-table.csv (its own "OpenBao" row, plus a sibling
