@@ -18,6 +18,7 @@ import lib.image_docs as image_docs
 import lib.image_version as image_version
 import lib.procutil as procutil
 import lib.registry as registry
+import lib.release_baseline as release_baseline
 import lib.repo_access as repo_access
 import lib.repo_access_cache as repo_access_cache
 import lib.upgradedoc as upgradedoc
@@ -66,6 +67,11 @@ def libconfluencetables():
 @pytest.fixture(scope="session")
 def libgitutil():
     return gitutil
+
+
+@pytest.fixture(scope="session")
+def librelease_baseline():
+    return release_baseline
 
 
 @pytest.fixture(scope="session")

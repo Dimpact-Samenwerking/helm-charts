@@ -25,6 +25,7 @@ from lib.chart import (
     NATIVE_COMPONENTS, historical_app_version_for_path, image_paths_for, replace_scalar_value, version_paths_for,
 )
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
+from lib.release_baseline import resolve_baseline_chart_state
 from lib.upgradedoc import (
     _word_aligned_spans, actual_app_version, append_to_doc,
     changes_heading_identities, component_order_key, component_version_cell, COMPONENT_VERSIONS_HEADING_RE,
@@ -396,7 +397,20 @@ def load_baseline_values(values_path, upgrade_docs_baseline):
     during the hop that edit happened. Returns None if the upgrade_docs_baseline can't
     be resolved (e.g. that release hasn't been tagged yet) — callers then
     skip key-change detection rather than comparing against nothing
-    meaningful."""
+    meaningful.
+
+    Deliberately NOT built on lib.release_baseline.resolve_baseline_chart_
+    state (unlike load_baseline_state just below, which shares its own
+    exact "also needs Chart.yaml" shape with it) — that function treats an
+    unreadable Chart.yaml at the resolved ref as a hard failure (matching
+    lib.docs_consistency's own convention), but THIS function has always
+    been values.yaml-only and never required Chart.yaml to exist at all
+    (real test fixture, tests/update-component-version's own load_
+    baseline_values tests: a repo with values.yaml committed but no
+    Chart.yaml at all still resolves here). Wrapping it around the shared
+    function anyway would silently start requiring Chart.yaml too — a real
+    behavior regression this docstring exists to head off, not an
+    oversight."""
     repo_root = find_repo_root(values_path.parent)
     if repo_root is None:
         return None
@@ -419,21 +433,23 @@ def load_baseline_state(chart_yaml_path, values_path, upgrade_docs_baseline):
     once in one release cycle still shows upgrade_docs_baseline → final, not
     each-intermediate-hop → final) or whether there's no longer any change
     left to document. Returns (None, None) if the upgrade_docs_baseline can't be
-    resolved (e.g. that release hasn't been tagged yet) — callers then
-    fall back to their own before-this-run comparison instead."""
-    repo_root = find_repo_root(values_path.parent)
-    if repo_root is None:
-        return None, None
-    ref = resolve_git_ref(repo_root, baseline_ref_candidates(upgrade_docs_baseline))
-    if ref is None:
-        return None, None
-    rel_chart_yaml = chart_yaml_path.relative_to(repo_root)
-    baseline_chart_yaml = git_show_yaml(repo_root, ref, str(rel_chart_yaml))
-    if baseline_chart_yaml is None:
-        return None, None
-    rel_values_path = values_path.relative_to(repo_root)
-    baseline_values = git_show_yaml(repo_root, ref, str(rel_values_path)) or {}
-    return baseline_chart_yaml.get("dependencies", []), baseline_values
+    resolved (e.g. that release hasn't been tagged yet), OR if Chart.yaml
+    can't be read at the ref that WAS resolved — callers then fall back to
+    their own before-this-run comparison instead.
+
+    A thin wrapper around lib.release_baseline.resolve_baseline_chart_state
+    (see its own docstring) — chart_yaml_path is accepted only to keep this
+    function's own existing signature (and its callers) unchanged; the
+    shared function derives Chart.yaml's own path from chart_dir (=
+    values_path.parent) directly, since the two always sit side by side in
+    the same directory. Translates that function's own "always []/{}/[]
+    on failure" convention into this function's own pre-existing
+    "(None, None) on failure" one, so update-component-version/update-
+    image-version (this function's own callers, which check `is None`)
+    need no changes of their own."""
+    _ref, baseline_deps, baseline_values, _lines, error = resolve_baseline_chart_state(
+        values_path.parent, upgrade_docs_baseline)
+    return (None, None) if error else (baseline_deps, baseline_values)
 
 
 def find_component_row(rows, friendly):

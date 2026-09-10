@@ -18,8 +18,8 @@ from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, find_images_manifest_changes_header, find_images_manifest_changes_items,
     find_values_delta_section, images_manifest_changes_count_word, resolve_component_own_version_change,
 )
-from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_repository_check import find_images_without_repository
+from lib.release_baseline import resolve_baseline_chart_state
 from lib.upgradedoc import (
     actual_app_version, changes_heading_has_app_version, changes_heading_identities, component_version_cell,
     compute_changed_components, diff_keys, extract_source_version, extract_target_version,
@@ -799,27 +799,18 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             print(f'WARNING: upgrade_docs_baseline "{upgrade_docs_baseline}" is not a bare version — cannot check '
                   f'for matching gemeente-specific / values-deltas docs')
 
-    baseline_ref, baseline_chart_yaml, baseline_values = None, None, {}
+    baseline_ref, baseline_deps, baseline_values = None, [], {}
     if upgrade_docs_baseline:
-        repo_root = find_repo_root(chart_dir)
-        candidates = baseline_ref_candidates(upgrade_docs_baseline)
-        if not repo_root:
-            mismatches.append(f'upgrade_docs_baseline "{upgrade_docs_baseline}": {chart_dir} is not inside a git repository')
-        else:
-            baseline_ref = resolve_git_ref(repo_root, candidates)
-            if not baseline_ref:
-                mismatches.append(f'upgrade_docs_baseline "{upgrade_docs_baseline}": could not resolve to a git ref '
-                                   f'(tried {", ".join(candidates)})')
-            else:
-                rel_chart_dir = chart_dir.relative_to(repo_root)
-                baseline_chart_yaml = git_show_yaml(repo_root, baseline_ref, f"{rel_chart_dir}/Chart.yaml")
-                baseline_values = git_show_yaml(repo_root, baseline_ref, f"{rel_chart_dir}/values.yaml") or {}
-                if baseline_chart_yaml is None:
-                    mismatches.append(f'upgrade_docs_baseline "{upgrade_docs_baseline}" (ref {baseline_ref}): '
-                                       f'could not read Chart.yaml at that ref')
-                    baseline_ref = None
+        # resolve_baseline_chart_state is shared with lib.component_docs'
+        # own load_baseline_state/load_baseline_values (and, new,
+        # verify-release-table-with-podiumd's own release_table_baseline
+        # lookup) — see its own docstring for why (a real bug in this
+        # exact resolution used to need fixing in three places at once).
+        baseline_ref, baseline_deps, baseline_values, _baseline_lines, baseline_error = \
+            resolve_baseline_chart_state(chart_dir, upgrade_docs_baseline)
+        if baseline_error:
+            mismatches.append(f'upgrade_docs_baseline "{upgrade_docs_baseline}": {baseline_error}')
 
-    baseline_deps = baseline_chart_yaml.get("dependencies", []) if baseline_chart_yaml else []
     # Ground truth for "did this component actually change" — independent of
     # what the docs currently say, so it also catches a component that
     # changed but was never added to any doc at all.
