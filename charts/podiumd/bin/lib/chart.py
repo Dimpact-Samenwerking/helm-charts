@@ -1166,7 +1166,7 @@ def historical_images_manifest_paths(chart_dir, at_or_before=None):
     return [path for _version_tuple, path in dated]
 
 
-def historical_app_version_for_repository(chart_dir, repo, at_or_before=None):
+def historical_app_version_for_repository(chart_dir, repo, at_or_before=None, expected_url=None):
     """The most recent version this EXACT repository (already stripped,
     see strip_registry_host) was pinned to in any of this chart's own
     past images-<version>.yaml manifests (historical_images_manifest_
@@ -1182,14 +1182,41 @@ def historical_app_version_for_repository(chart_dir, repo, at_or_before=None):
     already known" — the match's own historical `version` field (not
     necessarily equal to the CURRENT version) is the real answer, a
     genuine prior version to render an "X → Y" transition against,
-    never forced to "(unchanged)"."""
+    never forced to "(unchanged)".
+
+    expected_url (see lib.chart.full_repository_for_path — the CURRENT
+    path's own fully-qualified repository), when given, cross-checks
+    each candidate entry's own "url:" field too, not just its stripped
+    "name:" — real bug, real data: two genuinely DIFFERENT images can
+    share the exact same stripped name purely by historical accident.
+    Confirmed live: global.images.redis (added in 4.9.1, repository
+    bare "redis") and redis-operator's own quay.io/opstree/redis both
+    strip to "redis" — but images-4.6.4.yaml's own "redis" entry
+    (url: quay.io/opstree/redis) is redis-operator's OWN old version,
+    recorded under a bare "name:" from before this repo's own strip-
+    registry naming convention was consistently applied everywhere (see
+    docs/images/acr-mirror-naming.md's own header) — an exact `name:`
+    match alone wrongly returned it as if it were global.images.redis's
+    own history. An entry whose own "url:" doesn't match expected_url
+    is never a match, even though its "name:" does; an entry missing
+    "url:" entirely (shouldn't happen in a real manifest — every entry
+    checked has one — but never trusted blindly) is likewise never
+    treated as a match once expected_url is given, the same "can't
+    verify, skip this candidate" convention used elsewhere rather than
+    guessing it's fine. expected_url=None (the default) preserves the
+    exact previous name-only behavior, for a caller with no path/deps/
+    values of its own to resolve one from — still a fully deterministic,
+    exact comparison either way, never a heuristic."""
     for path in historical_images_manifest_paths(chart_dir, at_or_before):
         entries = yaml.safe_load(path.read_text(encoding="utf-8")) or []
         if not isinstance(entries, list):
             continue
         for entry in entries:
-            if isinstance(entry, dict) and entry.get("name") == repo:
-                return str(entry.get("version"))
+            if not isinstance(entry, dict) or entry.get("name") != repo:
+                continue
+            if expected_url is not None and entry.get("url") != expected_url:
+                continue
+            return str(entry.get("version"))
     return None
 
 
@@ -1198,12 +1225,25 @@ def historical_app_version_for_path(chart_dir, deps, values, path, at_or_before=
     repository (see paths_by_repository's own per-path resolution
     chain) — a single-path convenience wrapper, not a separate
     resolution rule. None when `path` doesn't resolve to a repository
-    at all."""
+    at all.
+
+    Cross-checks each candidate historical entry's own "url:" against
+    `path`'s own CURRENT fully-qualified repository (lib.chart.full_
+    repository_for_path) — see historical_app_version_for_repository's
+    own docstring for why (a stripped "name:" alone can collide between
+    two genuinely different images purely by historical accident).
+    Returns None outright — never silently falling back to the old
+    name-only behavior — when full_repository_for_path itself can't
+    resolve a fully-qualified repository for `path` at all: there's
+    nothing safe to cross-check a candidate against in that case."""
     repo_groups = paths_by_repository(chart_dir, deps, values, [path])
     repo = next(iter(repo_groups), None)
     if repo is None:
         return None
-    return historical_app_version_for_repository(chart_dir, repo, at_or_before)
+    expected_url = full_repository_for_path(chart_dir, deps, values, path)
+    if expected_url is None:
+        return None
+    return historical_app_version_for_repository(chart_dir, repo, at_or_before, expected_url=expected_url)
 
 
 def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
