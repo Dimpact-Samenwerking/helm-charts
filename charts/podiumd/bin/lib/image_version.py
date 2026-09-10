@@ -10,7 +10,7 @@ version bump resolves to one or more of these basename updates — the
 component name and the image name are not always the same (e.g.
 zgw-office-addin bumps two distinctly-named images, frontend + backend)."""
 from lib.chart import dotted_key_path, find_dependency, replace_scalar_value
-from lib.image_digests import scan_digest_pins
+from lib.image_digests import scan_digest_pins, scan_version_pins
 from lib.registry import parse_repo, registry_tag_exists
 
 
@@ -32,6 +32,20 @@ def find_matches(lines, basename):
     return [p for p in scan_digest_pins(lines) if p["repository"] and image_basename(p["repository"]) == basename]
 
 
+def find_matches_any_tag(lines, basename):
+    """The SAME search find_matches does, but over scan_version_pins
+    instead of scan_digest_pins — matches a bare (non-digest-pinned) tag
+    too, not just a digest-pinned one. Exists EXCLUSIVELY for verify-
+    release-table-with-podiumd's own comparisons (see scan_version_pins'
+    own docstring for why: release-table.csv only ever records version
+    strings, never digests) — update-image-version/verify-image-version/
+    show-image-baseline-version all keep using find_matches (digest-
+    required) unchanged, since a WRITE or a real digest-pinning
+    verification must never treat a bare tag as if it were already
+    correctly pinned."""
+    return [p for p in scan_version_pins(lines) if p["repository"] and image_basename(p["repository"]) == basename]
+
+
 def basenames_under_scope(lines, scope_key):
     """{basename: [pin, ...]} for every literal digest pin (see
     scan_digest_pins) whose values.yaml path starts with scope_key and
@@ -43,6 +57,27 @@ def basenames_under_scope(lines, scope_key):
     release-table.csv involved either way."""
     result = {}
     for pin in scan_digest_pins(lines):
+        if not pin["repository"]:
+            continue
+        path = dotted_key_path(lines, pin["line"] - 1).split(".")
+        if path[0] != scope_key or path[-1] != "tag":
+            continue
+        result.setdefault(image_basename(pin["repository"]), []).append(pin)
+    return result
+
+
+def basenames_under_scope_any_tag(lines, scope_key):
+    """The SAME grouping basenames_under_scope does, but over scan_
+    version_pins instead of scan_digest_pins — see find_matches_any_tag's
+    own docstring for why, and when this one (vs. the digest-required
+    original) is the right choice: EXCLUSIVELY verify-release-table-with-
+    podiumd's own checks, never export-confluence-release-table's (which
+    stays on the original, digest-required basenames_under_scope — the
+    CURRENT chart state it reads from is always fully digest-pinned in
+    practice, so there's nothing this widening would ever add for it,
+    and no reason to touch a working call site)."""
+    result = {}
+    for pin in scan_version_pins(lines):
         if not pin["repository"]:
             continue
         path = dotted_key_path(lines, pin["line"] - 1).split(".")

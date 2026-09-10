@@ -208,6 +208,58 @@ def test_scan_digest_pins_combined_style(libimagedigests):
     assert pins[0]["repository"] == "org/repo"
 
 
+# --- scan_version_pins ---
+# Deliberately a SEPARATE scanner from scan_digest_pins (see VERSION_PIN_RE's
+# own docstring) — verify-release-table-with-podiumd's own comparisons need
+# it (release-table.csv never records digests at all), every other caller
+# (update-image-version/verify-image-version/show-image-baseline-version)
+# stays on scan_digest_pins, digest-required, completely untouched — see the
+# "still digest-required" tests just above this section, all still passing
+# unchanged.
+
+def test_scan_version_pins_finds_bare_tag_with_no_digest(libimagedigests):
+    """The exact real-world case that motivated this: podiumd-4.8.5 (this
+    chart's own real, historical release_table baseline as of this
+    writing) pinned zaakbrug/pabc/ita with plain, non-digest-pinned tags
+    — scan_digest_pins is structurally blind to these (see
+    test_scan_digest_pins_ignores_non_digest_tags just above), but a
+    real, comparable version string is genuinely there."""
+    lines = ["  image:", "    repository: wearefrank/zaakbrug", '    tag: "1.26.15"']
+    pins = libimagedigests.scan_version_pins(lines)
+    assert [(p["version"], p["digest"], p["repository"]) for p in pins] == [
+        ("1.26.15", None, "wearefrank/zaakbrug"),
+    ]
+
+
+def test_scan_version_pins_still_finds_digest_pinned_tags(libimagedigests):
+    """A real digest pin still works exactly as before — VERSION_PIN_RE is
+    a strict superset of DIGEST_PIN_RE, never a replacement that could
+    accidentally stop matching the digest-pinned case."""
+    lines = [
+        "  a:",
+        "    repository: org/repo-a",
+        '    tag: "1.0.0@sha256:' + "a" * 64 + '"',
+        "  b:",
+        "    repository: org/repo-b",
+        "    tag: 2.0.0@sha256:" + "b" * 64,
+    ]
+    pins = libimagedigests.scan_version_pins(lines)
+    assert [(p["version"], p["digest"], p["repository"]) for p in pins] == [
+        ("1.0.0", "a" * 64, "org/repo-a"),
+        ("2.0.0", "b" * 64, "org/repo-b"),
+    ]
+
+
+def test_scan_version_pins_unquoted_bare_tag(libimagedigests):
+    lines = ["  image:", "    repository: org/repo", "    tag: 1.26.15"]
+    pins = libimagedigests.scan_version_pins(lines)
+    assert (pins[0]["version"], pins[0]["digest"]) == ("1.26.15", None)
+
+
+def test_scan_version_pins_ignores_non_tag_lines(libimagedigests):
+    assert libimagedigests.scan_version_pins(["  repository: org/repo", "  enabled: true"]) == []
+
+
 # --- find_inconsistent_version_pins ---
 
 def test_find_inconsistent_version_pins_flags_same_repo_different_versions(libimagedigests):

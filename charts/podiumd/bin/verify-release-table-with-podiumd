@@ -31,19 +31,29 @@ by export-confluence-release-table — this reads them directly rather
 than re-deriving anything from free-form text (component is always a
 literal Chart.yaml dependency name, or a values.yaml top-level key for a
 no-separate-chart component). The image lookup tries two lib.
-image_version calls in the same order update-image-version/verify-
+image_version calls in the same ORDER update-image-version/verify-
 image-version/show-image-baseline-version's own <key> <basename>
 resolution does (lib.image_version.resolve_scoped_matches): first
-basenames_under_scope, scoped to the component's own values.yaml subtree
-(fast, and the common case); if that misses, a plain find_matches search
-across the WHOLE file, since a basename is a real repository identity,
-not a values.yaml path, and can legitimately be pinned under a sibling
-scope instead (e.g. keycloak-config-cli lives under top-level
-"keycloak", not its own component's "keycloak-operator") — this script
-reports that as a finding either way, rather than requiring an exact
-<key> match the way those other tools do. The chart-version lookup is a
-plain Chart.yaml dependency read, the same one update-component-
-version's own pre-write gate uses.
+basenames_under_scope_any_tag, scoped to the component's own values.yaml
+subtree (fast, and the common case); if that misses, a plain find_
+matches_any_tag search across the WHOLE file, since a basename is a real
+repository identity, not a values.yaml path, and can legitimately be
+pinned under a sibling scope instead (e.g. keycloak-config-cli lives
+under top-level "keycloak", not its own component's "keycloak-operator")
+— this script reports that as a finding either way, rather than
+requiring an exact <key> match the way those other tools do. Deliberately
+the "_any_tag" siblings, not the plain (digest-required)
+basenames_under_scope/find_matches those other tools themselves use:
+release-table.csv only ever records a version string, never a digest, so
+whether an image happens to be digest-pinned is irrelevant to every
+comparison THIS script makes — on either the current-values.yaml side or
+the release_table-baseline side (see check_images_source below). A chart
+old enough to predate this repo's own digest-pinning convention (real
+case: podiumd-4.8.5, this chart's own release_table baseline as of this
+writing) still compares correctly on version alone. The chart-version
+lookup is a plain Chart.yaml dependency read, the same one update-
+component-version's own pre-write gate uses — never touches either tag
+scanner at all, digest-required or not.
 
 A row whose component is "MULTIPLE" is a shared base image hoisted into
 values.yaml's top-level global.images map (see export-confluence-release-
@@ -77,14 +87,14 @@ component just can't be resolved yet (see primary_image_basename) — the
 same "not pulling" tradeoff verify-component-version makes explicitly,
 just silent here.
 
-Two images can't be found via the normal digest-pinned "tag:" scan
-(lib.image_version.basenames_under_scope, via lib.image_digests.
-scan_digest_pins) at all — the exact same two exceptions lib.
+Two images can't be found via the normal "tag:" scan (lib.image_version.
+basenames_under_scope_any_tag, via lib.image_digests.scan_version_pins)
+at all, digest-pinned or not — the exact same two exceptions lib.
 digest_pinning_check.EXEMPT_PATHS documents for its own, different check
 (whether a tag IS digest-pinned, not what its version is):
   - keycloak-operator's own actual Keycloak SERVER image lives at
     operator.config.keycloakImage as a split "tag:"/"sha:" field pair —
-    not a plain "image: {repository, tag}" block, so scan_digest_pins
+    not a plain "image: {repository, tag}" block, so scan_version_pins
     can't see it structurally at all, regardless of scope. Its plain
     "tag:" value (already just the version, no digest suffix) is read
     directly instead — see SPECIAL_CASE_BASENAME_TAG_PATHS.
@@ -119,7 +129,9 @@ from lib.chart import (
     dotted_key_path, find_dependency, get_path, image_paths_for, load_yaml, primary_image_repositories,
     release_table_baseline,
 )
-from lib.image_version import GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, basenames_under_scope, find_matches, image_basename
+from lib.image_version import (
+    GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, basenames_under_scope_any_tag, find_matches_any_tag, image_basename,
+)
 from lib.release_baseline import resolve_baseline_chart_state
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -228,7 +240,7 @@ def confluence_table_hint(rows, component):
 
 
 def is_primary_image(component, lines, pin):
-    """True if `pin` (one of basenames_under_scope()'s own pins, with its
+    """True if `pin` (one of basenames_under_scope_any_tag()'s own pins, with its
     own "line") sits at one of `component`'s own primary application
     image path(s) — see lib.chart.image_paths_for/COMPONENT_IMAGE_PATHS/
     DEFAULT_IMAGE_PATHS, the EXACT SAME registry update-component-
@@ -288,7 +300,7 @@ def primary_image_basename(chart_dir, lines, scope_key, component, dep, values):
     claiming to be primary, which shouldn't happen given image_paths_
     for's own paths are always distinct, but is never guessed at
     regardless."""
-    primaries = {basename for basename, pins in basenames_under_scope(lines, scope_key).items()
+    primaries = {basename for basename, pins in basenames_under_scope_any_tag(lines, scope_key).items()
                  if any(is_primary_image(component, lines, pin) for pin in pins)}
     if primaries:
         return next(iter(primaries)) if len(primaries) == 1 else None
@@ -497,7 +509,7 @@ def missing_image_hint(rows, scope_key, component, basename, versions, primary):
 
 
 def check_images(scope_key, component, rows, lines, findings, values, dep=None, chart_dir=None):
-    actual_basenames = basenames_under_scope(lines, scope_key)
+    actual_basenames = basenames_under_scope_any_tag(lines, scope_key)
     csv_basenames = set()
     component_special_path = SPECIAL_CASE_COMPONENT_TAG_PATHS.get(component)
     # Resolved once per component (not per pin) — see primary_image_basename;
@@ -528,7 +540,7 @@ def check_images(scope_key, component, rows, lines, findings, values, dep=None, 
                 # pinned under a sibling scope instead (e.g. keycloak-
                 # config-cli lives under top-level "keycloak", not
                 # "keycloak-operator").
-                pins = find_matches(lines, basename) or None
+                pins = find_matches_any_tag(lines, basename) or None
             if pins is not None:
                 versions = {p["version"] for p in pins}
                 if len(versions) > 1:
@@ -606,7 +618,7 @@ def check_images_source(scope_key, component, rows, baseline_lines, baseline_val
     direction check_images' own second loop does — that's inherently a
     target-side-only concept (a baseline snapshot has no release-
     table.csv row of its own to compare a whole CSV against)."""
-    baseline_basenames = basenames_under_scope(baseline_lines, scope_key)
+    baseline_basenames = basenames_under_scope_any_tag(baseline_lines, scope_key)
     component_special_path = SPECIAL_CASE_COMPONENT_TAG_PATHS.get(component)
 
     for row in rows:
@@ -623,7 +635,7 @@ def check_images_source(scope_key, component, rows, baseline_lines, baseline_val
         for basename in basenames:
             pins = baseline_basenames.get(basename)
             if pins is None:
-                pins = find_matches(baseline_lines, basename) or None
+                pins = find_matches_any_tag(baseline_lines, basename) or None
             if pins is not None:
                 versions = {p["version"] for p in pins}
                 if len(versions) > 1:
