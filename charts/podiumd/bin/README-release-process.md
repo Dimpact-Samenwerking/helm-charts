@@ -17,14 +17,21 @@
 ## Setup
 
 ### Required external tools
-`verify-podiumd` needs each of these for its checks:
-- `helm-docs` — Helm doc
-- `yamllint` — yamllint check
-- `kubeconform` — kubeconform check
-- `shellcheck` — shellcheck check
-- `kube-score` — kube-score check
-- `docker` — CVE scan (optional — missing docker just reports the scan as skipped, never blocks a run)
-- `python3-venv` (Debian only — see below) — to create the `.venv`
+`verify-podiumd` needs each of these for its checks. No script here checks or enforces a
+minimum version for any of them, so the versions below are "known-working, verified in a
+real dev environment," not a tested lower bound — an older or newer version may well work
+fine too:
+- `helm` — the Helm CLI itself; required by virtually every script here (lint/template/
+  dependency management/etc.), not just `verify-podiumd` (known-working: v3.22.0; also
+  confirmed working, apart from `--dry-run=client`-dependent features, on v3.9.0)
+- `helm-docs` — Helm doc (known-working: 1.14.2)
+- `yamllint` — yamllint check (known-working: 1.29.0)
+- `kubeconform` — kubeconform check (known-working: v0.8.0)
+- `shellcheck` — shellcheck check (known-working: 0.9.0)
+- `kube-score` — kube-score check (known-working: 1.20.0)
+- `docker` — CVE scan (optional — missing docker just reports the scan as skipped, never
+  blocks a run) (known-working: 29.8.0)
+- `python3-venv` (Debian only — see below) — to create the `.venv` (known-working: Python 3.11)
 
 ### Debian setup
 `helm`/`helm-docs`/`kubeconform`/`kube-score` have no Debian package — installed straight from their own GitHub releases.
