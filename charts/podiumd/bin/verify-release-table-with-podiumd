@@ -105,8 +105,29 @@ version is the same — the release-table column and the values.yaml pin
 are supposed to record the identical string, so a drift there is itself
 worth surfacing rather than silently normalized away.
 
+--baseline-only skips every target-side check (check_chart_version/
+check_images — no target_version_app/target_version_helm comparison at
+all) and runs only the source-side ones (check_chart_version_source/
+check_images_source), against the release_table baseline. It ALSO widens
+those two source-side checks themselves: normally, a row with a blank
+source_version_app/source_version_helm is silently skipped entirely — "no
+value recorded yet" is assumed to mean "this item didn't exist yet at the
+release_table baseline", never verified. Under --baseline-only, that
+assumption itself is checked: a blank source is only left silent if the
+item genuinely can't be found (via every tier the non-blank comparison
+already uses) at the release_table baseline; if it turns out the item
+DID already exist there, that's a real finding (a "...
+-PRESENCE" tag) — the CSV should have recorded a source version for it
+but didn't. Default (no flag) behavior — both the target-side checks and
+the blank-source short-circuit — is completely unaffected.
+
+If the release_table baseline itself can't be resolved at all (see the
+WARNING this prints either way), --baseline-only has nothing left to
+check — the CLI errors out (exit 1) rather than silently reporting "OK".
+
 Usage:
     verify-release-table-with-podiumd
+    verify-release-table-with-podiumd --baseline-only
 
 Exit code is non-zero if any version mismatch, missing-from-release-table,
 or missing-from-chart-or-values item was found.
@@ -180,21 +201,6 @@ def check_special_case_version(row, findings, actual, label):
     target = row["target_version_app"]
     if actual is not None and is_verifiable_target(target) and actual != target:
         report_mismatch(findings, "IMAGE", row, label, target, actual, "values.yaml")
-
-
-def check_special_case_version_source(row, findings, actual, label):
-    """The SOURCE-side sibling of check_special_case_version — compares
-    row["source_version_app"] against `actual` (the plain "tag:" value
-    already read from the SAME SPECIAL_CASE_BASENAME_TAG_PATHS path, but
-    at the release_table baseline ref instead of current values.yaml).
-    No-op if `actual` couldn't be resolved there at all (get_path found
-    nothing — e.g. this special-case path didn't exist yet at that
-    baseline) or source is blank/UNKNOWN."""
-    source = row["source_version_app"]
-    if actual is not None and is_verifiable_target(source) and actual != source:
-        findings["mismatches"].append(
-            f"[IMAGE-SOURCE] {row['name']} ({label}): release-table source {source} != baseline values.yaml {actual}"
-        )
 
 
 # Printed as a "missing_from_release_table" finding's own second line
@@ -409,7 +415,7 @@ def check_chart_version(dep, scope_key, rows, lines, values, chart_dir, findings
         )
 
 
-def check_chart_version_source(dep, rows, baseline_deps, findings):
+def check_chart_version_source(dep, rows, baseline_deps, findings, strict_presence=False):
     """The SOURCE-side sibling of check_chart_version: for every row with
     a verifiable source_version_helm (see is_verifiable_target — never
     just "blank, no prior value recorded yet"), compares it against
@@ -422,11 +428,28 @@ def check_chart_version_source(dep, rows, baseline_deps, findings):
     dependency this release) is a distinct finding — that source value
     can't be right no matter what it says, since there was nothing to
     record a source FROM at the baseline release_table itself was
-    written against."""
+    written against.
+
+    `strict_presence` (only ever True under --baseline-only — see module
+    docstring) additionally verifies the OTHER direction for a row whose
+    source_version_helm is genuinely blank (never "UNKNOWN" — that's an
+    unparseable value that WAS recorded, a different problem entirely,
+    not "nothing recorded"): that blank is only left silent (the default,
+    every-invocation behavior) if `dep` genuinely didn't exist yet at the
+    release_table baseline; if baseline_dep resolves anyway, the blank is
+    NOT justified — release-table.csv should have recorded a source
+    version for this dependency but never did, reported as its own
+    "-PRESENCE" finding."""
     baseline_dep = find_dependency(baseline_deps, dep["name"])
     for row in rows:
         source = row["source_version_helm"]
         if not is_verifiable_target(source):
+            if strict_presence and source == "" and baseline_dep is not None:
+                findings["mismatches"].append(
+                    f"[CHART-SOURCE-PRESENCE] {row['name']} ({dep['name']}): release-table source_version_helm "
+                    f"is blank, but this dependency already existed at the release_table baseline (version "
+                    f"{baseline_dep['version']}) — source_version_helm was never filled in"
+                )
             continue
         if baseline_dep is None:
             findings["mismatches"].append(
@@ -587,7 +610,7 @@ def check_images(scope_key, component, rows, lines, findings, values, dep=None, 
 
 
 def check_images_source(scope_key, component, rows, lines, baseline_lines, baseline_values, findings,
-                         dep=None, baseline_deps=None, chart_dir=None):
+                         dep=None, baseline_deps=None, chart_dir=None, strict_presence=False):
     """The SOURCE-side sibling of check_images — mirrors its own two-tier
     resolution (basenames_under_scope, falling back to a plain find_
     matches search) exactly, but against baseline_lines/baseline_values
@@ -597,10 +620,25 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
     (see is_verifiable_target) — a blank/UNKNOWN source means "nothing
     recorded yet at the release_table baseline", not a failure, so a
     genuinely-new-at-baseline image with a blank source is silently
-    skipped, never flagged. Never reports the "pinned but not tracked"
-    direction check_images' own second loop does — that's inherently a
-    target-side-only concept (a baseline snapshot has no release-
-    table.csv row of its own to compare a whole CSV against).
+    skipped, never flagged (unless `strict_presence` — see below). Never
+    reports the "pinned but not tracked" direction check_images' own
+    second loop does — that's inherently a target-side-only concept (a
+    baseline snapshot has no release-table.csv row of its own to compare
+    a whole CSV against).
+
+    `strict_presence` (only ever True under --baseline-only — see module
+    docstring) widens the blank-source case specifically (never
+    "UNKNOWN" — an unparseable value that WAS recorded, a different
+    problem, not "nothing recorded"): instead of skipping it outright,
+    runs the exact SAME resolve_at_baseline tier resolution the
+    verifiable-source case below already uses, and reports a new
+    "-PRESENCE" finding if the basename resolves anyway (release-
+    table.csv should have recorded a source version for it but never
+    did) — silent only when it genuinely doesn't resolve at baseline (the
+    correctly-justified blank) OR resolution itself couldn't be confirmed
+    either way (the SPECIAL_CASE_BASENAME_TAG_PATHS-with-no-value and
+    ambiguous-pull-failure tiers below — "can't verify" is never treated
+    as "confirmed justified").
 
     `lines` (the CURRENT values.yaml text, same as check_images' own)
     guards the baseline-side UNSCOPED fallback specifically: unlike the
@@ -689,64 +727,102 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
             return None, error
         return None, None
 
+    def resolve_at_baseline(basename):
+        """The full tier resolution for `basename` at the release_table
+        baseline, shared by both the verifiable-source comparison and the
+        strict_presence blank-source check below (so the two can never
+        drift apart on what "resolves at baseline" means): ("found",
+        version, source_label) once a real value is confirmed pinned
+        somewhere (source_label distinguishes a real values.yaml pin from
+        the subchart-default fallback, only for the mismatch message's own
+        wording — see the two call sites); ("ambiguous", message) when
+        resolution itself couldn't be confirmed either way (more than one
+        distinct version pinned, or a subchart `helm pull` failure) —
+        never treated as "confirmed absent" by either caller; ("special_
+        case_silent",) when basename is a SPECIAL_CASE_BASENAME_TAG_PATHS
+        entry with no value at that path — stops here either way, exactly
+        like the plain verifiable-source path always has (no further
+        tiers tried for it), silent for strict_presence too, since "no
+        value there" isn't proof the item was truly absent at baseline,
+        just that this basename's own known special-case path had
+        nothing; ("absent",) only once every tier — scoped scan,
+        cross-scope find_matches_any_tag with the repo cross-check, the
+        special-case path, and the subchart-default fallback — has come
+        up with nothing at all."""
+        pins = baseline_basenames.get(basename)
+        if pins is None:
+            fallback_pins = find_matches_any_tag(baseline_lines, basename)
+            if fallback_pins:
+                current_repo = repository_for_basename_in_scope(lines, scope_key, basename)
+                fallback_pins = [
+                    p for p in fallback_pins if current_repo is not None and p["repository"]
+                    and strip_registry_host(p["repository"]) == strip_registry_host(current_repo)
+                ]
+            pins = fallback_pins or None
+        if pins is not None:
+            versions = {p["version"] for p in pins}
+            if len(versions) > 1:
+                return ("ambiguous",
+                        f"'{basename}' under '{scope_key}' is pinned at {len(versions)} different versions at "
+                        f"the release_table baseline ({', '.join(sorted(versions))}) -- can't compare")
+            return ("found", next(iter(versions)), "values.yaml")
+
+        basename_special_path = SPECIAL_CASE_BASENAME_TAG_PATHS.get(basename)
+        if basename_special_path:
+            value = get_path(baseline_values, basename_special_path)
+            if value is None:
+                return ("special_case_silent",)
+            return ("found", value, "values.yaml")
+
+        subchart_actual, subchart_error = resolve_subchart_source(basename)
+        if subchart_error:
+            return ("ambiguous",
+                    f"'{basename}' under '{scope_key}' relies entirely on its vendored subchart's own default "
+                    f"repository at the release_table baseline (no override in values.yaml there), but its "
+                    f"historical chart version {baseline_dep['version']} couldn't be resolved to verify: "
+                    f"{subchart_error}")
+        if subchart_actual is not None:
+            return ("found", subchart_actual, "subchart-default values.yaml")
+        return ("absent",)
+
     for row in rows:
         source = row["source_version_app"]
-        if not is_verifiable_target(source):
-            continue
         basenames = split_basenames(row["image_basename"])
         if not basenames:
             continue
+        verifiable_source = is_verifiable_target(source)
+        if not verifiable_source and not (strict_presence and source == ""):
+            continue
 
         for basename in basenames:
-            pins = baseline_basenames.get(basename)
-            if pins is None:
-                fallback_pins = find_matches_any_tag(baseline_lines, basename)
-                if fallback_pins:
-                    current_repo = repository_for_basename_in_scope(lines, scope_key, basename)
-                    fallback_pins = [
-                        p for p in fallback_pins if current_repo is not None and p["repository"]
-                        and strip_registry_host(p["repository"]) == strip_registry_host(current_repo)
-                    ]
-                pins = fallback_pins or None
-            if pins is not None:
-                versions = {p["version"] for p in pins}
-                if len(versions) > 1:
-                    findings["ambiguous"].append(
-                        f"[IMAGE-SOURCE] '{basename}' under '{scope_key}' is pinned at {len(versions)} different "
-                        f"versions at the release_table baseline ({', '.join(sorted(versions))}) -- can't compare"
+            result = resolve_at_baseline(basename)
+            tag = result[0]
+            if tag == "ambiguous":
+                findings["ambiguous"].append(f"[IMAGE-SOURCE] {result[1]}")
+                continue
+            if not verifiable_source:
+                # strict_presence blank-source check: "found" means the
+                # blank wasn't justified; "absent"/"special_case_silent"
+                # both mean stay silent (genuinely absent, or can't tell).
+                if tag == "found":
+                    _, actual, label = result
+                    findings["mismatches"].append(
+                        f"[IMAGE-SOURCE-PRESENCE] {row['name']} ({component}.{basename}): release-table "
+                        f"source_version_app is blank, but '{basename}' already existed at the release_table "
+                        f"baseline ({label} {actual}) — source_version_app was never filled in for this image"
                     )
-                    continue
-                actual = next(iter(versions))
+                continue
+
+            if tag == "special_case_silent":
+                continue
+            if tag == "found":
+                _, actual, label = result
                 if actual != source:
                     findings["mismatches"].append(
                         f"[IMAGE-SOURCE] {row['name']} ({component}.{basename}): release-table source {source} "
-                        f"!= baseline values.yaml {actual}"
+                        f"!= baseline {label} {actual}"
                     )
                 continue
-
-            basename_special_path = SPECIAL_CASE_BASENAME_TAG_PATHS.get(basename)
-            if basename_special_path:
-                check_special_case_version_source(
-                    row, findings, get_path(baseline_values, basename_special_path), f"{component}.{basename}")
-                continue
-
-            subchart_actual, subchart_error = resolve_subchart_source(basename)
-            if subchart_error:
-                findings["ambiguous"].append(
-                    f"[IMAGE-SOURCE] '{basename}' under '{scope_key}' relies entirely on its vendored subchart's "
-                    f"own default repository at the release_table baseline (no override in values.yaml there), "
-                    f"but its historical chart version {baseline_dep['version']} couldn't be resolved to "
-                    f"verify: {subchart_error}"
-                )
-                continue
-            if subchart_actual is not None:
-                if subchart_actual != source:
-                    findings["mismatches"].append(
-                        f"[IMAGE-SOURCE] {row['name']} ({component}.{basename}): release-table source {source} "
-                        f"!= baseline subchart-default values.yaml {subchart_actual}"
-                    )
-                continue
-
             findings["mismatches"].append(
                 f"[IMAGE-SOURCE] {row['name']} ({component}.{basename}): release-table claims source version "
                 f"{source}, but this image wasn't pinned anywhere under '{scope_key}' at the release_table "
@@ -754,7 +830,8 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
             )
 
 
-def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, baseline_values=None, baseline_lines=None):
+def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, baseline_values=None, baseline_lines=None,
+            baseline_only=False):
     """{"mismatches", "ambiguous", "missing_from_release_table",
     "missing_from_chart"}: str -> [str, ...], plus the separate list of
     rows whose component export-confluence-release-table never
@@ -781,7 +858,15 @@ def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, basel
     row with a false "didn't exist at baseline"/"wasn't pinned at
     baseline" finding instead of just skipping the new checks, exactly
     the silent-flood main() must never let happen (see its own module
-    docstring)."""
+    docstring).
+
+    `baseline_only` (see module docstring's own --baseline-only) skips
+    every target-side check_chart_version/check_images call in all three
+    of this function's own loops below, and passes strict_presence=True
+    through to check_chart_version_source/check_images_source instead of
+    the default False — never changes whether those source-side checks
+    run at all (still gated purely on baseline_deps being resolved), only
+    what they additionally verify once they do run."""
     findings = defaultdict(list)
     unresolved = []
     values = values if isinstance(values, dict) else {}
@@ -800,10 +885,11 @@ def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, basel
     # Called unconditionally (even with zero multiple_rows) so a global
     # image nobody's row ever resolved to at all still surfaces as
     # missing-from-release-table, not just silently unchecked.
-    check_images(GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, multiple_rows, lines, findings, values)
+    if not baseline_only:
+        check_images(GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, multiple_rows, lines, findings, values)
     if baseline_deps is not None:
         check_images_source(GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, multiple_rows, lines, baseline_lines,
-                             baseline_values, findings)
+                             baseline_values, findings, strict_presence=baseline_only)
 
     checked_components = set()
     for dep in deps:
@@ -820,12 +906,15 @@ def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, basel
             )
             continue
         scope_key = dep.get("alias") or component
-        check_chart_version(dep, scope_key, rows_for_component, lines, values, chart_dir, findings)
-        check_images(scope_key, component, rows_for_component, lines, findings, values, dep, chart_dir)
+        if not baseline_only:
+            check_chart_version(dep, scope_key, rows_for_component, lines, values, chart_dir, findings)
+            check_images(scope_key, component, rows_for_component, lines, findings, values, dep, chart_dir)
         if baseline_deps is not None:
-            check_chart_version_source(dep, rows_for_component, baseline_deps, findings)
+            check_chart_version_source(dep, rows_for_component, baseline_deps, findings,
+                                        strict_presence=baseline_only)
             check_images_source(scope_key, component, rows_for_component, lines, baseline_lines, baseline_values,
-                                 findings, dep=dep, baseline_deps=baseline_deps, chart_dir=chart_dir)
+                                 findings, dep=dep, baseline_deps=baseline_deps, chart_dir=chart_dir,
+                                 strict_presence=baseline_only)
 
     for component, rows_for_component in rows_by_component.items():
         if component in checked_components:
@@ -836,10 +925,11 @@ def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, basel
             # the plain text scan (see primary_image_basename); only the
             # subchart-default fallback is unavailable here, since there's
             # no vendored chart to resolve one from.
-            check_images(component, component, rows_for_component, lines, findings, values)
+            if not baseline_only:
+                check_images(component, component, rows_for_component, lines, findings, values)
             if baseline_deps is not None:
                 check_images_source(component, component, rows_for_component, lines, baseline_lines,
-                                     baseline_values, findings)
+                                     baseline_values, findings, strict_presence=baseline_only)
         else:
             for row in rows_for_component:
                 findings["missing_from_chart"].append(
@@ -880,12 +970,14 @@ def print_report(findings, unresolved):
 
 
 def main():
-    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+    args = sys.argv[1:]
+    if args in (["-h"], ["--help"]):
         print(__doc__)
         sys.exit(0)
-    if len(sys.argv) != 1:
+    if args not in ([], ["--baseline-only"]):
         print(__doc__)
         sys.exit(1)
+    baseline_only = args == ["--baseline-only"]
 
     if not RELEASE_TABLE_CSV.is_file():
         print(f"error: {RELEASE_TABLE_CSV} not found")
@@ -918,9 +1010,14 @@ def main():
         else:
             baseline_deps, baseline_values, baseline_lines = resolved_deps, resolved_values, resolved_lines
 
+    if baseline_only and baseline_deps is None:
+        print("error: --baseline-only has nothing to check — the release_table baseline could not be "
+              "resolved (see the WARNING above)")
+        sys.exit(1)
+
     findings, unresolved = compare(rows, deps, values, lines, CHART_DIR,
                                     baseline_deps=baseline_deps, baseline_values=baseline_values,
-                                    baseline_lines=baseline_lines)
+                                    baseline_lines=baseline_lines, baseline_only=baseline_only)
     any_findings = print_report(findings, unresolved)
     sys.exit(1 if any_findings else 0)
 
