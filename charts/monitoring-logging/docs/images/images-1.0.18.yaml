@@ -1,0 +1,17 @@
+# Images added or changed in monitoring-logging 1.0.18 (relative to 1.0.17).
+# Renovate-tracked bumps folded into this release branch (PRs #299, #318, #376).
+
+- name: kube-webhook-certgen
+  url: ghcr.io/jkroepke/kube-webhook-certgen
+  version: "1.8.8"
+  digest: "sha256:cd85a621724cd9043a5b46a784578fa159437712f920166389fce830554e1c44"
+
+- name: pushgateway
+  url: quay.io/prometheus/pushgateway
+  version: "v1.11.3"
+  digest: "sha256:74fa117cef2d7e383112d25139ff1c2d2e309c35389a9e0554a47136a1482e48"
+
+- name: alloy
+  url: docker.io/grafana/alloy
+  version: "v1.19.2"
+  digest: "sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839"
