@@ -127,10 +127,11 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import (
     dotted_key_path, find_dependency, get_path, image_paths_for, load_yaml, primary_image_repositories,
-    release_table_baseline,
+    release_table_baseline, strip_registry_host, version_of,
 )
 from lib.image_version import (
     GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, basenames_under_scope_any_tag, find_matches_any_tag, image_basename,
+    repository_for_basename_in_scope,
 )
 from lib.release_baseline import resolve_baseline_chart_state
 
@@ -604,7 +605,8 @@ def check_images(scope_key, component, rows, lines, findings, values, dep=None, 
             )
 
 
-def check_images_source(scope_key, component, rows, baseline_lines, baseline_values, findings):
+def check_images_source(scope_key, component, rows, lines, baseline_lines, baseline_values, findings,
+                         dep=None, baseline_deps=None, chart_dir=None):
     """The SOURCE-side sibling of check_images — mirrors its own two-tier
     resolution (basenames_under_scope, falling back to a plain find_
     matches search) exactly, but against baseline_lines/baseline_values
@@ -617,9 +619,95 @@ def check_images_source(scope_key, component, rows, baseline_lines, baseline_val
     skipped, never flagged. Never reports the "pinned but not tracked"
     direction check_images' own second loop does — that's inherently a
     target-side-only concept (a baseline snapshot has no release-
-    table.csv row of its own to compare a whole CSV against)."""
+    table.csv row of its own to compare a whole CSV against).
+
+    `lines` (the CURRENT values.yaml text, same as check_images' own)
+    guards the baseline-side UNSCOPED fallback specifically: unlike the
+    scoped tier (genuinely scoped to this component, never ambiguous
+    across components), a bare find_matches_any_tag search is a
+    whole-file basename search with no scope at all — legitimate for a
+    real image that simply lives under a sibling scope at the baseline
+    too (e.g. keycloak-config-cli, always under top-level "keycloak"),
+    but NOT a license to accept any repository sharing that basename by
+    coincidence (real bug, real data: global.images.redis, genuinely
+    absent from values.yaml at podiumd-4.8.5, used to wrongly resolve to
+    redis-operator's own, completely unrelated quay.io/opstree/redis
+    pin at that same baseline, purely because both reduce to bare
+    basename "redis" — see lib.image_version.repository_for_basename_
+    in_scope's own docstring). Before accepting an unscoped baseline
+    match, this resolves <scope_key, basename>'s own real repository in
+    the CURRENT chart (repository_for_basename_in_scope, the same
+    scoped-then-unscoped tier, against `lines` instead of baseline_
+    lines) and only keeps a baseline candidate whose OWN repository
+    matches it (stripped, see lib.chart.strip_registry_host — same
+    convention historical_app_version_for_path's own expected_url cross-
+    check uses, applied here to two raw values.yaml pins instead of a
+    values-tree path and a historical manifest entry). No trustworthy
+    CURRENT-side repository to check against at all (nothing resolves,
+    or more than one distinct repository does) rejects the fallback
+    outright — never falls back to the old, unguarded whole-file match,
+    the same "can't verify, don't guess" discipline the other two
+    collision fixes already apply.
+
+    `dep`/`baseline_deps`/`chart_dir` (all None by default — a caller
+    with no Chart.yaml dependency at all, e.g. a MULTIPLE row or a bare
+    top-level values.yaml key, simply never needs this) enable ONE more
+    fallback, after both the scoped and unscoped tiers above have found
+    nothing: real cases confirmed live at podiumd-4.8.5 (brp-personen-
+    mock, clamav, kiss's own crawler, objecten, open-klant, zaakbrug)
+    had only an explicit "tag:" for their own primary image at that
+    baseline, no "repository:" override at all — relying entirely on
+    their vendored subchart's own default repository (the exact same
+    fallback primary_image_basename already uses on the CURRENT side,
+    via lib.chart.primary_image_repositories) — so neither basenames_
+    under_scope_any_tag nor find_matches_any_tag can compute a basename
+    for that pin at all (both require a resolvable "repository:" to
+    derive one from — see find_matches' own docstring), even though a
+    real, comparable version genuinely is sitting right there in
+    baseline_values's own text. Before concluding "wasn't pinned
+    anywhere", this resolves `baseline_dep`'s own primary image
+    repositories at ITS OWN historical chart version (baseline_dep
+    ["version"], resolved by primary_image_repositories via resolve_
+    chart_values — allow_pull=True, UNLIKE the current-side lookup: the
+    baseline's own historical chart version usually isn't vendored under
+    chart_dir/charts any more, so a live `helm pull` is the only way to
+    ever resolve it, same as update-component-version's own pre-write
+    verification gate); if one of those paths' own repository resolves
+    to this exact `basename`, the ACTUAL version comes from PODIUMD's
+    OWN baseline_values at that same path's "tag" field (never the
+    subchart's own default tag — that's not what was actually pinned).
+    A pull failure (no network, or the version genuinely doesn't exist
+    any more) is reported as its own "ambiguous" finding — can't verify,
+    never silently forced into "wasn't pinned anywhere" (which would be
+    actively wrong: something WAS pinned, this just couldn't confirm
+    what) and never a crash."""
     baseline_basenames = basenames_under_scope_any_tag(baseline_lines, scope_key)
     component_special_path = SPECIAL_CASE_COMPONENT_TAG_PATHS.get(component)
+    baseline_dep = (find_dependency(baseline_deps, dep["name"])
+                     if dep is not None and baseline_deps is not None else None)
+    subchart_repos_state = None  # lazily filled: (repos, error) from primary_image_repositories, at most once
+
+    def resolve_subchart_source(basename):
+        nonlocal subchart_repos_state
+        if baseline_dep is None:
+            return None, None
+        if subchart_repos_state is None:
+            subchart_repos_state = primary_image_repositories(chart_dir, baseline_dep, baseline_values,
+                                                                allow_pull=True)
+        repos, error = subchart_repos_state
+        matching_paths = [p for p, repo in repos.items() if repo and image_basename(repo) == basename]
+        if matching_paths:
+            tag = get_path(baseline_values, f"{scope_key}.{matching_paths[0]}.tag")
+            return (version_of(tag) if isinstance(tag, str) and tag else None), None
+        if error and all(not get_path(baseline_values, f"{scope_key}.{p}.repository")
+                          for p in image_paths_for(baseline_dep["name"])):
+            # No path resolved to `basename`, but the resolution itself
+            # failed AND this dependency has no explicit override for
+            # ANY of its own primary paths at this baseline — plausibly
+            # THIS basename, genuinely unverifiable, never silently
+            # treated as "confirmed absent".
+            return None, error
+        return None, None
 
     for row in rows:
         source = row["source_version_app"]
@@ -635,7 +723,14 @@ def check_images_source(scope_key, component, rows, baseline_lines, baseline_val
         for basename in basenames:
             pins = baseline_basenames.get(basename)
             if pins is None:
-                pins = find_matches_any_tag(baseline_lines, basename) or None
+                fallback_pins = find_matches_any_tag(baseline_lines, basename)
+                if fallback_pins:
+                    current_repo = repository_for_basename_in_scope(lines, scope_key, basename)
+                    fallback_pins = [
+                        p for p in fallback_pins if current_repo is not None and p["repository"]
+                        and strip_registry_host(p["repository"]) == strip_registry_host(current_repo)
+                    ]
+                pins = fallback_pins or None
             if pins is not None:
                 versions = {p["version"] for p in pins}
                 if len(versions) > 1:
@@ -656,6 +751,23 @@ def check_images_source(scope_key, component, rows, baseline_lines, baseline_val
             if basename_special_path:
                 check_special_case_version_source(
                     row, findings, get_path(baseline_values, basename_special_path), f"{component}.{basename}")
+                continue
+
+            subchart_actual, subchart_error = resolve_subchart_source(basename)
+            if subchart_error:
+                findings["ambiguous"].append(
+                    f"[IMAGE-SOURCE] '{basename}' under '{scope_key}' relies entirely on its vendored subchart's "
+                    f"own default repository at the release_table baseline (no override in values.yaml there), "
+                    f"but its historical chart version {baseline_dep['version']} couldn't be resolved to "
+                    f"verify: {subchart_error}"
+                )
+                continue
+            if subchart_actual is not None:
+                if subchart_actual != source:
+                    findings["mismatches"].append(
+                        f"[IMAGE-SOURCE] {row['name']} ({component}.{basename}): release-table source {source} "
+                        f"!= baseline subchart-default values.yaml {subchart_actual}"
+                    )
                 continue
 
             findings["mismatches"].append(
@@ -713,8 +825,8 @@ def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, basel
     # missing-from-release-table, not just silently unchecked.
     check_images(GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, multiple_rows, lines, findings, values)
     if baseline_deps is not None:
-        check_images_source(GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, multiple_rows, baseline_lines, baseline_values,
-                             findings)
+        check_images_source(GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, multiple_rows, lines, baseline_lines,
+                             baseline_values, findings)
 
     checked_components = set()
     for dep in deps:
@@ -735,7 +847,8 @@ def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, basel
         check_images(scope_key, component, rows_for_component, lines, findings, values, dep, chart_dir)
         if baseline_deps is not None:
             check_chart_version_source(dep, rows_for_component, baseline_deps, findings)
-            check_images_source(scope_key, component, rows_for_component, baseline_lines, baseline_values, findings)
+            check_images_source(scope_key, component, rows_for_component, lines, baseline_lines, baseline_values,
+                                 findings, dep=dep, baseline_deps=baseline_deps, chart_dir=chart_dir)
 
     for component, rows_for_component in rows_by_component.items():
         if component in checked_components:
@@ -748,8 +861,8 @@ def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, basel
             # no vendored chart to resolve one from.
             check_images(component, component, rows_for_component, lines, findings, values)
             if baseline_deps is not None:
-                check_images_source(component, component, rows_for_component, baseline_lines, baseline_values,
-                                     findings)
+                check_images_source(component, component, rows_for_component, lines, baseline_lines,
+                                     baseline_values, findings)
         else:
             for row in rows_for_component:
                 findings["missing_from_chart"].append(

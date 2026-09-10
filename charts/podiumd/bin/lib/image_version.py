@@ -87,6 +87,41 @@ def basenames_under_scope_any_tag(lines, scope_key):
     return result
 
 
+def repository_for_basename_in_scope(lines, scope_key, basename):
+    """The single real repository <scope_key>.<basename> resolves to in
+    THIS chart state (these `lines`) — basenames_under_scope_any_tag's
+    own scoped result when it has one (authoritative: this basename
+    really is pinned somewhere inside this component's own subtree),
+    falling back to the same cross-scope find_matches_any_tag search
+    verify-release-table-with-podiumd's own check_images/check_images_
+    source already use for a basename genuinely pinned under a SIBLING
+    scope instead (e.g. keycloak-config-cli under top-level "keycloak",
+    not "keycloak-operator"). None when nothing resolves at all, or when
+    more than one DISTINCT repository shares this exact basename at
+    whichever tier matched — this is meant to be used as a TRUSTED
+    anchor (see check_images_source's own cross-check against it), never
+    a guess.
+
+    Exists because a plain find_matches_any_tag search is deliberately
+    UNSCOPED — real bug, real data: two genuinely different images can
+    share the same bare basename purely by coincidence (confirmed live:
+    global.images.redis and redis-operator's own quay.io/opstree/redis
+    both reduce to basename "redis"). Fine for THIS chart state alone,
+    where the scoped tier already resolves the real one when it exists
+    (global.images.redis's own scoped pin) and the unscoped fallback is
+    only ever reached for a basename that genuinely isn't under this
+    scope at all — but unsafe to trust blindly across TWO different
+    chart states (current vs. a release_table baseline) without first
+    confirming they name the same real repository (see check_images_
+    source)."""
+    scoped = basenames_under_scope_any_tag(lines, scope_key).get(basename)
+    pins = scoped if scoped else find_matches_any_tag(lines, basename)
+    if not pins:
+        return None
+    repos = {p["repository"] for p in pins if p["repository"]}
+    return next(iter(repos)) if len(repos) == 1 else None
+
+
 # release-table.csv's own convention (see export-confluence-release-
 # table's component_and_alias) for a base image shared across several
 # unrelated components via values.yaml's global.images anchor block

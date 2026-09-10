@@ -456,3 +456,59 @@ pabc:
     assert libimageversion.find_matches(lines, "pabc-api") == []
     matches = libimageversion.find_matches_any_tag(lines, "pabc-api")
     assert [(m["version"], m["digest"]) for m in matches] == [("1.1.0", None)]
+
+
+# --- repository_for_basename_in_scope ---
+# EXCLUSIVELY for verify-release-table-with-podiumd's own check_images_
+# source, to cross-check its baseline-side unscoped fallback against
+# what the CURRENT chart's own real repository for the same <scope,
+# basename> actually is — see that function's own docstring for the
+# real redis/redis-operator collision this guards against.
+
+def test_repository_for_basename_in_scope_uses_scoped_hit(libimageversion, tmp_path):
+    values_path = write_values(tmp_path, """\
+global:
+  images:
+    redis:
+      repository: redis
+      tag: "8.0@sha256:""" + "a" * 64 + '"\n')
+    lines = values_path.read_text(encoding="utf-8").splitlines()
+    assert libimageversion.repository_for_basename_in_scope(lines, "global", "redis") == "redis"
+
+
+def test_repository_for_basename_in_scope_falls_back_to_unscoped(libimageversion, tmp_path):
+    """The legitimate cross-scope case (keycloak-config-cli, a real image
+    under top-level "keycloak", not "keycloak-operator") — the scoped
+    tier finds nothing under "keycloak-operator", so the unscoped
+    fallback's own single, unambiguous hit is trusted instead."""
+    values_path = write_values(tmp_path, """\
+keycloak:
+  keycloakConfigCli:
+    image:
+      repository: adorsys/keycloak-config-cli
+      tag: "6.5.1-26@sha256:""" + "c" * 64 + '"\n')
+    lines = values_path.read_text(encoding="utf-8").splitlines()
+    assert libimageversion.repository_for_basename_in_scope(
+        lines, "keycloak-operator", "keycloak-config-cli") == "adorsys/keycloak-config-cli"
+
+
+def test_repository_for_basename_in_scope_none_when_nothing_resolves(libimageversion):
+    assert libimageversion.repository_for_basename_in_scope([], "keycloak-operator", "keycloak-config-cli") is None
+
+
+def test_repository_for_basename_in_scope_none_when_ambiguous(libimageversion, tmp_path):
+    """Two genuinely different repositories sharing the same basename,
+    both outside `scope_key` — no trustworthy single answer, so this
+    returns None rather than guessing (the same "can't verify, don't
+    guess" discipline check_images_source's own cross-check relies on)."""
+    values_path = write_values(tmp_path, """\
+a:
+  image:
+    repository: some/redis
+    tag: "1.0.0@sha256:""" + "a" * 64 + '"\n' + """
+b:
+  image:
+    repository: other/redis
+    tag: "2.0.0@sha256:""" + "b" * 64 + '"\n')
+    lines = values_path.read_text(encoding="utf-8").splitlines()
+    assert libimageversion.repository_for_basename_in_scope(lines, "nowhere", "redis") is None

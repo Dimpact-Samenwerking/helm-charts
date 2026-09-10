@@ -803,6 +803,165 @@ def test_compare_sibling_scope_basename_matching_passes(vrt):
     assert findings == {}
 
 
+def test_compare_image_source_sibling_scope_basename_still_matches(vrt):
+    """The EXISTING working case (keycloak-config-cli, a real image
+    pinned under a SIBLING scope — see test_compare_finds_basename_
+    pinned_under_a_sibling_scope) must still resolve correctly once the
+    baseline-side unscoped fallback gets its own cross-check against the
+    CURRENT chart's own real repository for the same <scope, basename>:
+    this is the legitimate case the fallback exists for, and must never
+    regress just because a DIFFERENT, coincidental collision (see below)
+    now gets rejected."""
+    current_block = (
+        "keycloak:\n"
+        "  keycloakConfigCli:\n"
+        "    image:\n"
+        "      repository: adorsys/keycloak-config-cli\n"
+        f'      tag: "6.5.2-27@sha256:{"c" * 64}"\n'
+    )
+    baseline_block = (
+        "keycloak:\n"
+        "  keycloakConfigCli:\n"
+        "    image:\n"
+        "      repository: adorsys/keycloak-config-cli\n"
+        f'      tag: "6.5.1-26@sha256:{"c" * 64}"\n'
+    )
+    deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
+    baseline_deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.0"}]
+    rows = [csv_row("Keycloak Config CLI", "keycloak-operator", image_basename="keycloak-config-cli",
+                     source_app="6.5.1-26", target_app="6.5.2-27",
+                     source_helm="1.12.0", target_helm="1.12.1")]
+    findings, _ = vrt.compare(
+        rows, deps, {}, values_lines(current_block),
+        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=values_lines(baseline_block))
+    assert findings == {}
+
+
+def test_compare_image_source_rejects_stripped_name_collision(vrt):
+    """Regression test: the same real redis/redis-operator basename
+    collision fixed twice already today (lib.chart.historical_app_
+    version_for_repository/find_images_manifest_list_diff, commits
+    c3b27bed/9b9680c1) applies equally to THIS function's own unscoped
+    find_matches_any_tag fallback. global.images.redis genuinely doesn't
+    exist yet at this baseline; redis-operator's own, completely
+    unrelated quay.io/opstree/redis pin (which also reduces to bare
+    basename "redis") must never be accepted as if it were global.
+    images.redis's own baseline value — the baseline is correctly
+    reported as never having had this image pinned at all, not silently
+    matched to the wrong one."""
+    current_block = (
+        "global:\n"
+        "  images:\n"
+        "    redis:\n"
+        "      repository: redis\n"
+        f'      tag: "8.0@sha256:{"d" * 64}"\n'
+    )
+    baseline_block = (
+        "redis-operator:\n"
+        "  redis-ha:\n"
+        "    image:\n"
+        "      repository: quay.io/opstree/redis\n"
+        f'      tag: "v8.6.2@sha256:{"e" * 64}"\n'
+    )
+    rows = [csv_row("Redis", "MULTIPLE", alias="MULTIPLE", image_basename="redis", source_app="8.0")]
+    findings, _ = vrt.compare(
+        rows, [], {}, values_lines(current_block),
+        baseline_deps=[], baseline_values={}, baseline_lines=values_lines(baseline_block))
+    assert any("[IMAGE-SOURCE]" in m and "wasn't pinned anywhere" in m and "release_table baseline yet" in m
+               for m in findings["mismatches"])
+    assert not any("8.6.2" in m for m in findings["mismatches"])
+
+
+# --- check_images_source: vendored-subchart-default fallback ---
+# Real bug, real chart: at podiumd-4.8.5, brp-personen-mock/clamav/kiss's own
+# crawler/objecten/open-klant/zaakbrug each had only an explicit "tag:" for
+# their own primary image, no "repository:" override at all — relying
+# entirely on their vendored subchart's own default repository, exactly like
+# primary_image_basename's own CURRENT-side fallback already handles (see
+# lib.chart.primary_image_repositories). primary_image_repositories itself
+# is monkeypatched here (rather than vendoring a real .tgz or hitting the
+# network) — its own pull/vendored-tgz resolution already has its own test
+# coverage elsewhere; these tests are purely about check_images_source's own
+# NEW consumption of it (matching a resolved repository to `basename`,
+# reading the ACTUAL pinned tag from baseline_values, and degrading
+# gracefully on failure).
+
+CLAMAV_CURRENT_BLOCK = (
+    "clamav:\n"
+    "  image:\n"
+    "    repository: docker.io/clamav/clamav\n"
+    f'    tag: "1.5.3@sha256:{"a" * 64}"\n'
+)
+CLAMAV_BASELINE_BLOCK = (
+    "clamav:\n"
+    "  image:\n"
+    '    tag: "1.5.2"\n'  # no repository override at all — the real 4.8.5 shape
+)
+CLAMAV_BASELINE_VALUES = {"clamav": {"image": {"tag": "1.5.2"}}}
+
+
+def test_compare_image_source_falls_back_to_vendored_subchart_default(vrt, monkeypatch):
+    """Regression test: the vendored-subchart-default fallback resolves a
+    real, comparable baseline version instead of reporting "wasn't pinned
+    anywhere" — the matching source_app must be accepted as OK."""
+    monkeypatch.setattr(vrt, "primary_image_repositories",
+                         lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"},
+                                                                           None))
+    dep = {"name": "clamav", "version": "3.9.0"}
+    baseline_dep = {"name": "clamav", "version": "3.7.1"}
+    rows = [csv_row("ClamAV", "clamav", image_basename="clamav", source_app="1.5.2", target_app="1.5.3",
+                     source_helm="3.7.1", target_helm="3.9.0")]
+    findings, _ = vrt.compare(
+        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir="/fake/chart/dir",
+        baseline_deps=[baseline_dep], baseline_values=CLAMAV_BASELINE_VALUES,
+        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK))
+    assert findings == {}
+
+
+def test_compare_image_source_vendored_subchart_default_still_catches_mismatch(vrt, monkeypatch):
+    """The mirror-image case: the vendored-subchart-default fallback DOES
+    resolve a real baseline version, and it genuinely disagrees with
+    release-table.csv's own claimed source — still reported, just via a
+    distinctly-worded finding (never silently accepted just because it
+    took a different resolution path than the plain text scan)."""
+    monkeypatch.setattr(vrt, "primary_image_repositories",
+                         lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"},
+                                                                           None))
+    dep = {"name": "clamav", "version": "3.9.0"}
+    baseline_dep = {"name": "clamav", "version": "3.7.1"}
+    rows = [csv_row("ClamAV", "clamav", image_basename="clamav", source_app="1.5.9", target_app="1.5.3",
+                     source_helm="3.7.1", target_helm="3.9.0")]
+    findings, _ = vrt.compare(
+        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir="/fake/chart/dir",
+        baseline_deps=[baseline_dep], baseline_values=CLAMAV_BASELINE_VALUES,
+        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK))
+    assert any("[IMAGE-SOURCE]" in m and "source 1.5.9" in m and "baseline subchart-default values.yaml 1.5.2" in m
+               for m in findings["mismatches"])
+    assert not any("wasn't pinned anywhere" in m for m in findings.get("mismatches", []))
+
+
+def test_compare_image_source_vendored_subchart_default_resolution_failure_is_reported_honestly(vrt, monkeypatch):
+    """A pull failure (no network, or the historical chart version
+    genuinely no longer exists) must never be silently forced into
+    "wasn't pinned anywhere" (actively wrong: something WAS pinned, this
+    just couldn't confirm what) or crash — it's a distinct, honest
+    "can't verify" finding instead."""
+    monkeypatch.setattr(vrt, "primary_image_repositories",
+                         lambda chart_dir, dep, values, allow_pull=True:
+                             ({"image": None}, "helm pull failed: no such chart version"))
+    dep = {"name": "clamav", "version": "3.9.0"}
+    baseline_dep = {"name": "clamav", "version": "3.7.1"}
+    rows = [csv_row("ClamAV", "clamav", image_basename="clamav", source_app="1.5.2", target_app="1.5.3",
+                     source_helm="3.7.1", target_helm="3.9.0")]
+    findings, _ = vrt.compare(
+        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir="/fake/chart/dir",
+        baseline_deps=[baseline_dep], baseline_values=CLAMAV_BASELINE_VALUES,
+        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK))
+    assert any("[IMAGE-SOURCE]" in m and "couldn't be resolved to verify" in m and
+               "helm pull failed: no such chart version" in m for m in findings["ambiguous"])
+    assert not any("wasn't pinned anywhere" in m for m in findings.get("mismatches", []))
+
+
 def test_compare_checks_omc_special_case_image(vrt):
     """omc's own image tag intentionally carries no digest at all, so
     export-confluence-release-table never resolves an image_basename
