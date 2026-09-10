@@ -63,41 +63,6 @@ EXEMPT_PATHS = {
     ("omc", "image"),
 }
 
-# (scope_key, subpath prefix) for every vendored-subchart-default image
-# find_unresolved_subchart_images() would otherwise flag, already
-# reviewed and confirmed to never warrant a podiumd override — see
-# check_subchart_image_visibility. A finding matches if its own subpath
-# equals the prefix exactly or starts with "<prefix>.". Scoped per
-# dependency rather than a bare rule-name match (e.g. "any 'staging'
-# anywhere") so an unrelated future dependency introducing its own,
-# differently-motivated "staging" toggle still gets a fresh look instead
-# of silently inheriting this one's reasoning.
-SUBCHART_VISIBILITY_EXEMPT = {
-    ("zaakbrug", "staging"): (
-        "permanently disabled by hard Dimpact policy, not just \"not "
-        "currently used\": enabling it pulls in the sub-chart's bundled "
-        "bitnami/redis transitive dependency, which policy forbids "
-        "outright (see the values.yaml comment on zaakbrug.staging, and "
-        "commit 85041ad). Anything gated behind this toggle is never "
-        "going to be enabled in this chart's use case, so it's never "
-        "worth a podiumd override regardless of what upstream changes "
-        "about it."
-    ),
-}
-
-
-def subchart_visibility_exempt_reason(scope_key, subpath):
-    """The SUBCHART_VISIBILITY_EXEMPT reason string if (scope_key, subpath)
-    matches an exempt prefix for that same dependency, else None. Public —
-    also reused by lib.dead_values_check to keep the same permanently-
-    unreachable subtrees out of ITS findings too, rather than duplicating
-    this same prefix-match logic."""
-    for (exempt_scope, exempt_prefix), reason in SUBCHART_VISIBILITY_EXEMPT.items():
-        if scope_key == exempt_scope and (subpath == exempt_prefix or subpath.startswith(exempt_prefix + ".")):
-            return reason
-    return None
-
-
 def check_digest_pinning(chart_dir):
     values_path = chart_dir / "values.yaml"
     if not values_path.is_file():
@@ -175,9 +140,8 @@ def find_unresolved_subchart_images(chart_dir, deps, own_values, rendered_paths)
     referenced anywhere in that same sub-chart's own templates/ (see
     subchart_template_text) -- e.g. pabc's own "web"/"poller" keys, which
     no template in the pabc chart reads at all: setting a podiumd override
-    there would be structurally inert regardless of value, so it is not
-    even a judgment call the way SUBCHART_VISIBILITY_EXEMPT's entries are.
-    Only applied when templates/ was actually readable (non-None) -- a
+    there would be structurally inert regardless of value, so it isn't
+    even a judgment call. Only applied when templates/ was actually readable (non-None) -- a
     dependency with no readable templates/ at all (an unusually-shaped
     chart, or a test fixture that only vendors values.yaml) can't be told
     apart from "genuinely unreferenced" by an empty haystack, so every
@@ -218,31 +182,22 @@ def find_unresolved_subchart_images(chart_dir, deps, own_values, rendered_paths)
     return findings
 
 
-def _print_subchart_image_finding(scope_key, subpath, tag, pinned, exempt_reason=None):
+def _print_subchart_image_finding(scope_key, subpath, tag, pinned):
     own_image_tag_path = f"{scope_key}.{subpath}.tag"
     marker = "pinned" if pinned else "FLOATING"
-    suffix = f" (exempt: {exempt_reason})" if exempt_reason else ""
-    print(f"  {own_image_tag_path}: {tag!r} ({marker} in the sub-chart's own default){suffix}")
+    print(f"  {own_image_tag_path}: {tag!r} ({marker} in the sub-chart's own default)")
 
 
 def check_subchart_image_visibility(chart_dir, extra_args):
     """Report-only: lists every image find_unresolved_subchart_images()
-    finds — minus whatever SUBCHART_VISIBILITY_EXEMPT already has a
-    reviewed answer for — so a NEW one introduced by a dependency bump
-    doesn't silently stay invisible to the pinning discipline the rest of
-    this chart follows. Never fails the run (except a render failure
-    itself — see below): whether a given sub-chart-default image actually
-    warrants a podiumd override (vs. being fine left as dead config, a
-    permanently-disabled feature, or a generic default nobody needs to
-    touch) is a per-case judgment call this scan can't make on its own; a
-    human decides that from the report, once, and it's recorded in
-    SUBCHART_VISIBILITY_EXEMPT from then on.
-
-    Every exempt item is still printed by name (with its own reason),
-    right alongside the non-exempt findings (or alone, under the "OK"
-    line, when there are no non-exempt findings at all) — never just a
-    bare count with no way to see which images those are without reading
-    SUBCHART_VISIBILITY_EXEMPT in the source.
+    finds, so a NEW one introduced by a dependency bump doesn't silently
+    stay invisible to the pinning discipline the rest of this chart
+    follows. Never fails the run (except a render failure itself — see
+    below): whether a given sub-chart-default image actually warrants a
+    podiumd override (vs. being fine left as dead config, a permanently-
+    disabled feature, or a generic default nobody needs to touch) is a
+    per-case judgment call this scan can't make on its own — a human
+    decides that from the report.
 
     Renders via lib.render_scope.render_chart (this check's OWN new need
     for a render — see rendered_chart_paths) to compute the render-gate
@@ -257,31 +212,20 @@ def check_subchart_image_visibility(chart_dir, extra_args):
 
     chart_yaml = load_yaml(chart_dir / "Chart.yaml")
     own_values = load_yaml(chart_dir / "values.yaml") or {}
-    all_findings = find_unresolved_subchart_images(chart_dir, chart_yaml.get("dependencies", []), own_values, rendered_paths)
-    exempt = [(f, subchart_visibility_exempt_reason(f[0], f[1])) for f in all_findings]
-    exempt_findings = [(f, reason) for f, reason in exempt if reason]
-    findings = [f for f, reason in exempt if not reason]
+    findings = find_unresolved_subchart_images(chart_dir, chart_yaml.get("dependencies", []), own_values, rendered_paths)
 
     if findings:
         unpinned = [f for f in findings if not f[3]]
         print(f"Found {len(findings)} image(s) defined only in a vendored sub-chart's own "
               f"default values.yaml, with no podiumd override\n"
               f"invisible to the digest-pinning check above ({len(unpinned)} of these use a "
-              f"floating tag in that default; {len(exempt_findings)} more already reviewed "
-              f"and exempted, see SUBCHART_VISIBILITY_EXEMPT). Not a failure: decide per "
-              f"image whether it warrants an override.")
+              f"floating tag in that default). Not a failure: decide per image whether it "
+              f"warrants an override.")
         for scope_key, subpath, tag, pinned in sorted(findings):
             _print_subchart_image_finding(scope_key, subpath, tag, pinned)
     else:
-        suffix = f" ({len(exempt_findings)} exempt)" if exempt_findings else ""
-        print(f"OK: no sub-chart-default images found without a podiumd override{suffix}")
-
-    if exempt_findings:
-        print("Exempt (see SUBCHART_VISIBILITY_EXEMPT for why):")
-        for (scope_key, subpath, tag, pinned), reason in sorted(exempt_findings):
-            _print_subchart_image_finding(scope_key, subpath, tag, pinned, exempt_reason=reason)
+        print("OK: no sub-chart-default images found without a podiumd override")
 
     if not findings:
-        return True, f"0 unresolved ({len(exempt_findings)} exempt)" if exempt_findings else "0 unresolved"
-    return True, (f"{len(findings)} unresolved ({len(unpinned)} floating tag(s), "
-                  f"{len(exempt_findings)} exempt) — report only")
+        return True, "0 unresolved"
+    return True, f"{len(findings)} unresolved ({len(unpinned)} floating tag(s)) — report only"
