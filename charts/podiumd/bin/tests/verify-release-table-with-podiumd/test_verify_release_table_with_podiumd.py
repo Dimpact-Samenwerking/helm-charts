@@ -167,6 +167,36 @@ def test_compare_reports_image_version_source_mismatch(vrt):
                for m in findings["mismatches"])
 
 
+def test_compare_reports_image_version_source_mismatch_bare_baseline_tag(vrt):
+    """Real bug, real chart: podiumd-4.8.5 (this chart's own actual
+    release_table baseline) pinned zaakbrug/pabc/ita with a BARE
+    (non-digest-pinned) tag — invisible to the plain digest-required
+    scanner, silently skipping every such image instead of comparing it.
+    check_images_source must still find and compare it (via lib.
+    image_version's own *_any_tag siblings)."""
+    deps = [{"name": "zaakbrug", "version": "1.1.0"}]
+    baseline_deps = [{"name": "zaakbrug", "version": "1.0.0"}]
+    rows = [csv_row("Zaak Brug", "zaakbrug", image_basename="zaakbrug", source_app="1.26.13")]
+    zaakbrug_current = (
+        "zaakbrug:\n"
+        "  image:\n"
+        "    repository: wearefrank/zaakbrug\n"
+        f'    tag: "1.26.18@sha256:{DIGEST}"\n'
+    )
+    zaakbrug_baseline_bare_tag = (
+        "zaakbrug:\n"
+        "  image:\n"
+        "    repository: wearefrank/zaakbrug\n"
+        '    tag: "1.26.15"\n'  # bare, no digest — the real 4.8.5 shape
+    )
+    findings, _ = vrt.compare(
+        rows, deps, {}, values_lines(zaakbrug_current),
+        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=values_lines(zaakbrug_baseline_bare_tag))
+    assert any("[IMAGE-SOURCE]" in m and "source 1.26.13 != baseline values.yaml 1.26.15" in m
+               for m in findings["mismatches"])
+    assert not any("wasn't pinned anywhere" in m for m in findings.get("mismatches", []))
+
+
 def test_compare_source_checks_skipped_when_baseline_not_given(vrt):
     """baseline_deps=None (the default) — never attempted at all, not
     'attempted and empty' — so a row with an otherwise-mismatching
@@ -429,7 +459,7 @@ def test_is_primary_image_default_path(vrt):
     """DEFAULT_IMAGE_PATHS (["image"]) covers the common single-image
     component -- zac's own "zaakafhandelcomponent" pin, at zac.image.tag."""
     lines = values_lines(ZAC_BLOCK)
-    pins = vrt.basenames_under_scope(lines, "zac")["zaakafhandelcomponent"]
+    pins = vrt.basenames_under_scope_any_tag(lines, "zac")["zaakafhandelcomponent"]
     assert vrt.is_primary_image("zaakafhandelcomponent", lines, pins[0]) is True
 
 
@@ -437,7 +467,7 @@ def test_is_primary_image_false_for_sidecar(vrt):
     """A sidecar image nested elsewhere is never the component's primary
     one, no matter how deep or shallow the nesting."""
     lines = values_lines(ZAC_WITH_SIDECAR_BLOCK)
-    pins = vrt.basenames_under_scope(lines, "zac")["opentelemetry-collector-contrib"]
+    pins = vrt.basenames_under_scope_any_tag(lines, "zac")["opentelemetry-collector-contrib"]
     assert vrt.is_primary_image("zaakafhandelcomponent", lines, pins[0]) is False
 
 
@@ -456,7 +486,7 @@ def test_is_primary_image_multi_image_component_override(vrt):
         "      repository: ghcr.io/infonl/zgw-office-addin-backend\n"
         f'      tag: "1.0.0@sha256:{DIGEST}"\n'
     )
-    available = vrt.basenames_under_scope(lines, "zgw-office-addin")
+    available = vrt.basenames_under_scope_any_tag(lines, "zgw-office-addin")
     frontend_pin = available["zgw-office-addin-frontend"][0]
     backend_pin = available["zgw-office-addin-backend"][0]
     assert vrt.is_primary_image("zgw-office-addin", lines, frontend_pin) is True

@@ -11,6 +11,31 @@ from lib.registry import UNVERIFIABLE_HOSTS, is_sliding_tag, parse_repo, registr
 DIGEST_PIN_RE = re.compile(
     r'^(?P<indent>\s*)tag:\s*"?(?P<version>[\w][\w.\-]*)@sha256:(?P<digest>[0-9a-f]{64})"?\s*(?:#.*)?$'
 )
+# The SAME "tag:" pin shape DIGEST_PIN_RE matches, but with the "@sha256:
+# <digest>" suffix made OPTIONAL rather than required — re-derived from
+# DIGEST_PIN_RE itself (same indent/quote-handling) rather than written
+# fresh, so the two can never subtly diverge on what counts as a valid
+# "tag:" line. `digest` is None (never a match failure) for a bare,
+# non-digest-pinned tag. Deliberately a SEPARATE regex/scanner (see
+# scan_version_pins below), not a change to DIGEST_PIN_RE/scan_digest_pins
+# themselves: this chart's own real digest-pinning convention (enforced
+# for anything that actually gets deployed — see lib.digest_pinning_check)
+# must stay exactly as strict as it already is for every caller that needs
+# it (update-image-version/verify-image-version/show-image-baseline-
+# version, and every upgrade_docs_baseline-driven doc-consistency check).
+# Only verify-release-table-with-podiumd (via lib.image_version's own
+# *_any_tag siblings) uses this one — release-table.csv itself has no
+# concept of digests at all, so digest-pinning status was never something
+# ITS OWN comparisons should have cared about; that script only ever
+# inherited "digest required" as an accidental side effect of reusing
+# scan_digest_pins, never a deliberate choice for its own purpose. Real
+# case, confirmed live: podiumd-4.8.5 (this chart's own release_table
+# baseline as of this writing) still had zaakbrug/pabc/ita pinned with
+# bare, non-digest tags — invisible to DIGEST_PIN_RE, even though a real,
+# comparable version string genuinely was there.
+VERSION_PIN_RE = re.compile(
+    r'^(?P<indent>\s*)tag:\s*"?(?P<version>[\w][\w.\-]*)(?:@sha256:(?P<digest>[0-9a-f]{64}))?"?\s*(?:#.*)?$'
+)
 # An active (uncommented) sibling "repository:" key.
 ACTIVE_REPO_RE = re.compile(
     r'^(?P<indent>\s*)repository:\s*"?(?P<repo>[\w][\w.\-]*(?:/[\w.\-]+)*)"?\s*(?:#.*)?$'
@@ -152,6 +177,34 @@ def scan_digest_pins(lines):
     pins = []
     for i, raw in enumerate(lines):
         m = DIGEST_PIN_RE.match(raw)
+        if not m:
+            continue
+        indent = len(m.group("indent"))
+        pins.append({
+            "line": i + 1,
+            "version": m.group("version"),
+            "digest": m.group("digest"),
+            "repository": resolve_pin_repo(lines, i, indent),
+        })
+    return pins
+
+
+def scan_version_pins(lines):
+    """The SAME shape scan_digest_pins returns, but for EVERY "tag:" pin
+    (see VERSION_PIN_RE) whether or not it's digest-pinned — "digest" is
+    None for a bare tag, never a reason to skip it. Exists solely for
+    verify-release-table-with-podiumd (via lib.image_version's own
+    *_any_tag functions): release-table.csv only ever records version
+    strings, never digests, so a real, comparable version pin that simply
+    isn't digest-pinned (yet, or by convention at an old release_table
+    baseline) must still be found, not silently invisible the way
+    scan_digest_pins' own digest-required scan would leave it. Every OTHER
+    caller keeps using scan_digest_pins unchanged — this is strictly
+    additive, never a replacement for the real digest-pinning guarantee
+    those enforce."""
+    pins = []
+    for i, raw in enumerate(lines):
+        m = VERSION_PIN_RE.match(raw)
         if not m:
             continue
         indent = len(m.group("indent"))

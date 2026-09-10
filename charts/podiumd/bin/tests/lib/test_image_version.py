@@ -402,3 +402,57 @@ openzaak:
 """)
     lines = values_path.read_text(encoding="utf-8").splitlines()
     assert set(libimageversion.basenames_under_scope(lines, "zac")) == {"zaakafhandelcomponent"}
+
+
+# --- basenames_under_scope_any_tag / find_matches_any_tag ---
+# EXCLUSIVELY for verify-release-table-with-podiumd — see lib.image_digests.
+# VERSION_PIN_RE/scan_version_pins' own docstring for why a bare (non-
+# digest-pinned) tag must be found here, unlike the plain basenames_under_
+# scope/find_matches every OTHER caller (update-image-version/verify-
+# image-version/show-image-baseline-version/export-confluence-release-
+# table) keeps using unchanged.
+
+def test_basenames_under_scope_any_tag_finds_bare_tag_pin(libimageversion, tmp_path):
+    """Real case: podiumd-4.8.5 (this chart's own real, historical
+    release_table baseline) pinned zaakbrug with a bare tag, no digest at
+    all — invisible to plain basenames_under_scope (see the digest-
+    required test just above), but a real, comparable version genuinely
+    is there."""
+    values_path = write_values(tmp_path, """\
+zaakbrug:
+  image:
+    repository: wearefrank/zaakbrug
+    tag: "1.26.15"
+""")
+    lines = values_path.read_text(encoding="utf-8").splitlines()
+    assert libimageversion.basenames_under_scope(lines, "zaakbrug") == {}
+    available = libimageversion.basenames_under_scope_any_tag(lines, "zaakbrug")
+    assert set(available) == {"zaakbrug"}
+    assert available["zaakbrug"][0]["version"] == "1.26.15"
+    assert available["zaakbrug"][0]["digest"] is None
+
+
+def test_basenames_under_scope_any_tag_still_finds_digest_pinned_pins(libimageversion, tmp_path):
+    values_path = write_values(tmp_path, f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zaakafhandelcomponent
+    tag: "5.0.0@sha256:{"a" * 64}"
+""")
+    lines = values_path.read_text(encoding="utf-8").splitlines()
+    available = libimageversion.basenames_under_scope_any_tag(lines, "zac")
+    assert available["zaakafhandelcomponent"][0]["version"] == "5.0.0"
+    assert available["zaakafhandelcomponent"][0]["digest"] == "a" * 64
+
+
+def test_find_matches_any_tag_finds_bare_tag_pin(libimageversion, tmp_path):
+    values_path = write_values(tmp_path, """\
+pabc:
+  image:
+    repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-api
+    tag: 1.1.0
+""")
+    lines = values_path.read_text(encoding="utf-8").splitlines()
+    assert libimageversion.find_matches(lines, "pabc-api") == []
+    matches = libimageversion.find_matches_any_tag(lines, "pabc-api")
+    assert [(m["version"], m["digest"]) for m in matches] == [("1.1.0", None)]
