@@ -3,44 +3,43 @@
 # Images new or changed in podiumd 4.9.1 vs 4.9.0.
 #
 # Changes:
-#   1. mi 2.71.0 -> 2.90.0 (chart 1.1.0, unchanged).
-#   2. redis 8.0 -> 8.10.1 (new since 4.9.0).
-#   3. curl 8.21.0 -> 8.22.0.
+#   1. nginx-unprivileged 1.31.4 -> 1.31.5.
+#   2. curl 8.21.0 -> 8.22.0.
+#   3. redis 8.0 (new).
 #   4. keycloak-operator 26.7.2 -> 26.7.3.
 #   5. keycloak-operator - operator 26.6.4 -> 26.7.3.
-#   6. kiss 3.0.0 -> 3.1.1.
-#   7. kiss - kiss-elastic-sync 3.0.0 -> 3.1.1.
-#   8. zac - opentelemetry-collector-contrib 0.158.0 (new).
-#   9. frankgateway 104 -> 1.1.0.
-#   10. zaakbrug 1.26.15 -> 1.26.18.
-#   11. openbao - openbao-csi-provider 2.0.2 (new).
-#   12. openbao - vault-k8s 1.7.2 (new).
-#   13. openbao - openbao-snapshot-agent 0.3.0 (new).
-#   14. clamav 1.5.4 re-published upstream again; new digest, tag unchanged.
-#   15. keycloak jobs' python 3.14.7-slim re-published upstream; new digest, tag unchanged.
-#   16. nginx-unprivileged 1.31.4 -> 1.31.5.
+#   6. keycloak-operator - python 3.14.7-slim (digest changed).
+#   7. kiss 3.0.0 -> 3.1.1.
+#   8. kiss - kiss-elastic-sync 3.0.0 -> 3.1.1.
+#   9. zac - opentelemetry-collector-contrib 0.158.0 (new).
+#   10. clamav 1.5.4 (digest changed).
+#   11. frankgateway 104 -> 1.1.0.
+#   12. zaakbrug 1.26.15 -> 1.26.18.
+#   13. mi 2.71.0 -> 2.90.0 (chart 1.1.0, unchanged).
+#   14. openbao - vault-k8s 1.7.2 (new).
+#   15. openbao - openbao-csi-provider 2.0.2 (new).
+#   16. openbao - openbao-snapshot-agent 0.3.0 (new).
 #
 # See docs/_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-# mi (azure-cli) 2.71.0 -> 2.90.0 (chart 1.1.0, unchanged)
-- name: azure-cli
-  url: mcr.microsoft.com/azure-cli
-  version: "2.90.0"
-  digest: "sha256:e3768dde8142efa45d8f356a317aaac77abd7da15ba3719b0a150e9453f251db"
-
-# redis 8.0 -> 8.10.1 (new since 4.9.0)
-- name: redis
-  url: docker.io/library/redis
-  version: "8.10.1"
-  digest: "sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"
+# nginx-unprivileged 1.31.4 -> 1.31.5
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.5"
+  digest: "sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"
 # curl 8.21.0 -> 8.22.0
 - name: curlimages/curl
   url: docker.io/curlimages/curl
   version: "8.22.0"
   digest: "sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"
+# redis 8.10.1 (new)
+- name: redis
+  url: docker.io/library/redis
+  version: "8.10.1"
+  digest: "sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"
 
 # keycloak-operator 26.7.2 -> 26.7.3
 - name: keycloak/keycloak
@@ -52,6 +51,11 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.7.3"
   digest: "sha256:e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
+#   sidecar: keycloak-operator - python 3.14.7-slim (digest changed)
+- name: python
+  url: docker.io/library/python
+  version: "3.14.7-slim"
+  digest: "sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"
 
 # kiss 3.0.0 -> 3.1.1
 - name: klantinteractie-servicesysteem/kiss-frontend
@@ -64,11 +68,17 @@
   version: "3.1.1"
   digest: "sha256:f29f8b5f33831580e4da0e0f4885b5ef69068c8391ec97322b749f1970df18e1"
 
-#   sidecar: zac - opentelemetry-collector-contrib 0.158.0 -> 0.158.0
+#   sidecar: zac - opentelemetry-collector-contrib 0.158.0 (new)
 - name: otel/opentelemetry-collector-contrib
-  url: otel/opentelemetry-collector-contrib
+  url: docker.io/otel/opentelemetry-collector-contrib
   version: "0.158.0"
   digest: "sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5"
+
+# clamav 1.5.4 (digest changed)
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
+  version: "1.5.4"
+  digest: "sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"
 
 # Frank!Gateway: 104 -> 1.1.0, the first SemVer release of WeAreFrank's build.
 # Still Apache APISIX 3.16.0 (label based-on); the delta is two new plugins
@@ -78,6 +88,7 @@
   url: ghcr.io/wearefrank/frank-gateway
   version: "1.1.0"
   digest: "sha256:2f944fdbc16883e4b586aaa20f04928cd33afc7efc78d37012d2c7acb62f55bd"
+
 # Zaakbrug 1.26.15 -> 1.26.18 (Helm sub-chart 2.3.28 -> 2.3.32).
 # Opt-in component (zaakbrug.enabled, default false) — only mirrored for
 # gemeentes that run it. Frank!Framework runtime 10.1.0-20260323.042326 ->
@@ -88,39 +99,25 @@
   version: "1.26.18"
   digest: "sha256:255a717ff620b08608db2d8cde24e6993b96896f785ecfb7082054a4cc36bc3b"
 
-#   sidecar: openbao - openbao-csi-provider 2.0.2 -> 2.0.2
-- name: openbao/openbao-csi-provider
-  url: openbao/openbao-csi-provider
-  version: "2.0.2"
-  digest: "sha256:3cb312e88c62c926caec03bf69497a16805a29daabb5ad2c7a236ab43bb241db"
-#   sidecar: openbao - vault-k8s 1.7.2 -> 1.7.2
+# mi 2.90.0 (new)
+- name: azure-cli
+  url: mcr.microsoft.com/azure-cli
+  version: "2.90.0"
+  digest: "sha256:e3768dde8142efa45d8f356a317aaac77abd7da15ba3719b0a150e9453f251db"
+
+#   sidecar: openbao - vault-k8s 1.7.2 (new)
 - name: hashicorp/vault-k8s
-  url: hashicorp/vault-k8s
+  url: docker.io/hashicorp/vault-k8s
   version: "1.7.2"
   digest: "sha256:ae3d307658b72a1cf35dab9bdf92c995d45cdc7183af0516857714b5bd0ba84d"
-#   sidecar: openbao - openbao-snapshot-agent 0.3.0 -> 0.3.0
+#   sidecar: openbao - openbao-csi-provider 2.0.2 (new)
+- name: openbao/openbao-csi-provider
+  url: quay.io/openbao/openbao-csi-provider
+  version: "2.0.2"
+  digest: "sha256:3cb312e88c62c926caec03bf69497a16805a29daabb5ad2c7a236ab43bb241db"
+#   sidecar: openbao - openbao-snapshot-agent 0.3.0 (new)
 - name: openbao/openbao-snapshot-agent
-  url: openbao/openbao-snapshot-agent
+  url: ghcr.io/openbao/openbao-snapshot-agent
   version: "0.3.0"
   digest: "sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"
 
-# ClamAV 1.5.4 re-published upstream again since the 4.9.0 pin; new digest,
-# tag unchanged. Confirmed missing from the ACR mirror (ImagePullBackOff on
-# ontw-dim1 with the 4.9.0 digest still pinned).
-- name: clamav/clamav
-  url: docker.io/clamav/clamav
-  version: "1.5.4"
-  digest: "sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"
-
-# Keycloak jobs' python 3.14.7-slim re-published upstream since the 4.9.0
-# pin; new digest, tag unchanged. Same confirmation as clamav above.
-- name: library/python
-  url: docker.io/library/python
-  version: "3.14.7-slim"
-  digest: "sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"
-
-# nginx-unprivileged 1.31.4 -> 1.31.5
-- name: nginxinc/nginx-unprivileged
-  url: docker.io/nginxinc/nginx-unprivileged
-  version: "1.31.5"
-  digest: "sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"
