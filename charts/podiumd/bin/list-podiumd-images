@@ -46,7 +46,10 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import find_images, load_yaml, local_chart_dir, pulled_chart_dir, version_of
+from lib.chart import (
+    find_images, full_repository_for_path, get_path, load_yaml, local_chart_dir,
+    nested_subchart_registered_paths, pulled_chart_dir, version_of, version_paths_for,
+)
 from lib.chart import pull_chart as _pull_chart
 from lib.image_version import MULTIPLE_KEY, image_basename, resolve_scoped_matches
 
@@ -152,6 +155,60 @@ def print_image_lines(rows, values_lines):
         print(f"      {repo}:{tag}")
 
 
+def component_version_rows(dep, key, merged, deps, root_values):
+    """Extra (key, path, repo, tag) rows for `dep`'s own lib.chart.
+    COMPONENT_VERSION_PATHS/COMPONENT_VERSION_PATH_NESTED_SUBCHARTS-
+    registered bare version fields — the ONE image shape find_images'
+    generic "{repository, tag}" dict match structurally can never see at
+    all (redis-operator's own split imageName/imageTag sibling fields;
+    eck-stack's own eck-elasticsearch/eck-kibana/eck-enterprise-search
+    CRD-version-only fields), the exact same registry lib.upgradedoc.
+    find_component_version_tags/lib.chart.paths_by_repository already
+    resolve for the doc-generation side — reused here via the SAME
+    resolution functions, never re-derived.
+
+    Tag comes from `merged` (chart defaults + podiumd's own overrides,
+    for THIS one dependency) rather than root_values alone — unlike the
+    doc-generation side, which only ever cares about podiumd's own
+    explicit overrides, this tool's whole point is the full EFFECTIVE
+    image set, chart defaults included.
+
+    Repository comes from full_repository_for_path — the exact same
+    per-path resolution chain paths_by_repository uses (podiumd's own
+    override, then a registered sibling field, then a registered nested
+    subchart's own documented default, then the dependency's own
+    vendored subchart default) — called against VENDORED_DIR.parent
+    (podiumd's own chart root, where every dependency's vendored .tgz
+    actually lives — read via VENDORED_DIR, not the module-level
+    PODIUMD_DIR constant directly, so this stays correct under whatever
+    tests/conftest.py's own `lpi` fixture repoints VENDORED_DIR to,
+    exactly like load_chart's own vendored-.tgz lookup already does) and
+    root_values (podiumd's own, unmerged values.yaml): the exact shape
+    those functions were built for, NOT this script's own per-dependency
+    tmproot-extracted chart_dir (a different directory entirely, one
+    level further in — the SUBCHART's own root). Never pulls
+    (allow_pull=False, matching paths_by_repository's own default):
+    whatever `load_chart` already resolved for this dependency's OWN
+    chart version is enough; a bare version field with no resolvable
+    repository anywhere (not the case for either real field registered
+    today, but always possible in principle) is silently skipped — same
+    "not every image has a resolvable repository" philosophy paths_by_
+    repository's own docstring already documents, rather than printing
+    a row with no real repository."""
+    rows = []
+    rels = sorted(set(version_paths_for(dep["name"])) | set(nested_subchart_registered_paths(dep["name"])))
+    for rel in rels:
+        tag = get_path(merged, rel)
+        if not (isinstance(tag, str) and tag):
+            continue
+        path = (key,) + tuple(rel.split("."))
+        repo = full_repository_for_path(VENDORED_DIR.parent, deps, root_values, path, allow_pull=False)
+        if not repo:
+            continue
+        rows.append((key, rel, repo, tag))
+    return rows
+
+
 def is_enabled(condition, root_values):
     if not condition:
         return True
@@ -208,9 +265,10 @@ def main():
 
             overrides = root_values.get(key, {})
             merged = deep_merge(defaults, overrides)
-            images = find_images(merged)
-            if images:
-                print_image_lines([(key, path, repo, tag) for path, repo, tag in images], values_lines)
+            rows = [(key, path, repo, tag) for path, repo, tag in find_images(merged)]
+            rows.extend(component_version_rows(dep, key, merged, deps, root_values))
+            if rows:
+                print_image_lines(rows, values_lines)
             else:
                 print("  (no image references found)")
             print()

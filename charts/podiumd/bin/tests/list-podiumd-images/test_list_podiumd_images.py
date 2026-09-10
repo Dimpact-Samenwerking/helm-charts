@@ -24,12 +24,23 @@ def write_pulled_chart(dest, name, chart_yaml, values_yaml):
     (chart_dir / "values.yaml").write_text(yaml.safe_dump(values_yaml))
 
 
-def make_vendored_tgz(vendored_dir, tmp_path, name, version, chart_yaml, values_yaml):
+def make_vendored_tgz(vendored_dir, tmp_path, name, version, chart_yaml, values_yaml, raw_files=None):
+    """`raw_files`, if given (a {path relative to the chart root: text}
+    dict, e.g. "charts/eck-elasticsearch/values.yaml") — writes each
+    verbatim, in addition to Chart.yaml/values.yaml — for a nested
+    sub-subchart's own commented-out "# image: ..." documentation (see
+    lib.chart.nested_subchart_documented_image_repository), where the
+    content isn't real structured YAML so yaml.safe_dump can't produce
+    it (same convention tests/lib/test_chart.py's own make_tgz uses)."""
     staging = tmp_path / f"stage-{name}-{version}"
     chart_dir = staging / name
     chart_dir.mkdir(parents=True)
     (chart_dir / "Chart.yaml").write_text(yaml.safe_dump(chart_yaml))
     (chart_dir / "values.yaml").write_text(yaml.safe_dump(values_yaml))
+    for rel_path, text in (raw_files or {}).items():
+        file_path = chart_dir / rel_path
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(text)
     tgz_path = vendored_dir / f"{name}-{version}.tgz"
     with tarfile.open(tgz_path, "w:gz") as tf:
         tf.add(chart_dir, arcname=name)
@@ -151,6 +162,112 @@ def test_print_image_lines_puts_note_on_first_line_not_the_detail_line(lpi, caps
     first_line, detail_line = capsys.readouterr().out.splitlines()
     assert "use MULTIPLE curl" in first_line
     assert "—" not in detail_line
+
+
+# --- component_version_rows ---
+# lib.chart.COMPONENT_VERSION_PATHS/COMPONENT_VERSION_PATH_NESTED_SUBCHARTS-
+# registered bare version fields — the ONE image shape find_images'
+# generic "{repository, tag}" dict match structurally can never see at
+# all: redis-operator's own split imageName:/imageTag: sibling fields,
+# and eck-stack's own eck-elasticsearch/eck-kibana/eck-enterprise-search
+# CRD-version-only fields (repository only ever documented in the nested
+# sub-subchart's own vendored values.yaml — see lib.chart.
+# nested_subchart_documented_image_repository). Real gap, confirmed
+# empirically against the real chart: all 4 of these images are in
+# docs/images/images-baseline.yaml but were entirely absent from
+# list-podiumd-images's own output before this fix.
+
+def test_component_version_rows_resolves_redis_operator_split_image_fields(lpi):
+    """redis-operator's own controller image is never nested under an
+    "image:"/"...Image:" dict at all — a split "imageName:"/"imageTag:"
+    sibling-field pair instead (lib.chart.COMPONENT_VERSION_PATHS)."""
+    dep = {"name": "redis-operator", "version": "0.26.1"}
+    digest = "a" * 64
+    merged = {"redisOperator": {
+        "imageName": "quay.io/opstree/redis-operator",
+        "imageTag": f"v0.26.0@sha256:{digest}",
+    }}
+    root_values = {"redis-operator": {"redisOperator": {"imageName": "quay.io/opstree/redis-operator"}}}
+
+    rows = lpi.component_version_rows(dep, "redis-operator", merged, [dep], root_values)
+
+    assert rows == [("redis-operator", "redisOperator.imageTag",
+                      "quay.io/opstree/redis-operator", f"v0.26.0@sha256:{digest}")]
+
+
+def test_component_version_rows_uses_merged_tree_not_just_podiumd_overrides(lpi):
+    """Unlike the doc-generation side (lib.upgradedoc.find_component_
+    version_tags), which only ever looks at podiumd's own values.yaml,
+    this tool's whole point is the full EFFECTIVE image set — a tag that
+    ONLY exists in the chart default (never overridden by podiumd) must
+    still show up here."""
+    dep = {"name": "redis-operator", "version": "0.26.1"}
+    digest = "b" * 64
+    merged = {"redisOperator": {
+        "imageName": "quay.io/opstree/redis-operator",
+        "imageTag": f"v0.25.0@sha256:{digest}",  # chart default, no podiumd override at all
+    }}
+    root_values = {"redis-operator": {"redisOperator": {"imageName": "quay.io/opstree/redis-operator"}}}
+
+    rows = lpi.component_version_rows(dep, "redis-operator", merged, [dep], root_values)
+
+    assert rows == [("redis-operator", "redisOperator.imageTag",
+                      "quay.io/opstree/redis-operator", f"v0.25.0@sha256:{digest}")]
+
+
+def test_component_version_rows_resolves_eck_stack_nested_subchart_images(lpi, tmp_path):
+    """eck-stack's own eck-elasticsearch/eck-kibana/eck-enterprise-search
+    fields are bare CRD "version:" scalars with no repository sibling
+    anywhere in podiumd's own values.yaml at all — the real repository
+    is only ever documented in the nested sub-subchart's own vendored
+    values.yaml."""
+    dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
+    make_vendored_tgz(
+        lpi.VENDORED_DIR, tmp_path, "eck-stack", "0.20.0",
+        {"name": "eck-stack", "version": "0.20.0"}, {},
+        raw_files={
+            "charts/eck-elasticsearch/values.yaml": "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n",
+            "charts/eck-kibana/values.yaml": "# image: docker.elastic.co/kibana/kibana:9.5.0\n",
+            "charts/eck-enterprise-search/values.yaml":
+                "# image: docker.elastic.co/enterprise-search/enterprise-search:9.5.0\n",
+        },
+    )
+    merged = {
+        "eck-elasticsearch": {"version": "8.19.19"},
+        "eck-kibana": {"version": "8.19.19"},
+        "eck-enterprise-search": {"version": "8.19.19"},
+    }
+
+    rows = lpi.component_version_rows(dep, "kiss-eck", merged, [dep], {})
+
+    assert sorted(rows) == sorted([
+        ("kiss-eck", "eck-elasticsearch.version", "docker.elastic.co/elasticsearch/elasticsearch", "8.19.19"),
+        ("kiss-eck", "eck-enterprise-search.version", "docker.elastic.co/enterprise-search/enterprise-search",
+         "8.19.19"),
+        ("kiss-eck", "eck-kibana.version", "docker.elastic.co/kibana/kibana", "8.19.19"),
+    ])
+
+
+def test_component_version_rows_blank_tag_is_skipped(lpi):
+    dep = {"name": "redis-operator", "version": "0.26.1"}
+    merged = {"redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": ""}}
+    root_values = {"redis-operator": {"redisOperator": {"imageName": "quay.io/opstree/redis-operator"}}}
+    assert lpi.component_version_rows(dep, "redis-operator", merged, [dep], root_values) == []
+
+
+def test_component_version_rows_unresolvable_repository_is_skipped(lpi):
+    """A registered version field with a real tag but no resolvable
+    repository anywhere (no podiumd override, no vendored nested
+    sub-subchart) is silently skipped — never a row with a fabricated or
+    missing repository."""
+    dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
+    merged = {"eck-elasticsearch": {"version": "8.19.19"}}
+    assert lpi.component_version_rows(dep, "kiss-eck", merged, [dep], {}) == []
+
+
+def test_component_version_rows_irrelevant_for_unregistered_component(lpi):
+    dep = {"name": "zaakafhandelcomponent", "version": "1.0.297"}
+    assert lpi.component_version_rows(dep, "zac", {"image": {"tag": "5.4.3"}}, [dep], {}) == []
 
 
 # --- is_enabled ---
@@ -392,3 +509,61 @@ def test_main_reports_and_continues_on_load_failure(lpi, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "=== broken-dep (broken-dep 1.0.0) ===" in out
     assert "does not exist" in out
+
+
+def test_main_includes_component_version_path_images(lpi, tmp_path, monkeypatch, capsys):
+    """Regression test for the real gap (confirmed empirically against
+    the real chart): redis-operator's own controller image (split
+    imageName:/imageTag: fields) and eck-stack's own eck-elasticsearch/
+    eck-kibana/eck-enterprise-search (bare CRD "version:" fields,
+    repository only documented in the nested sub-subchart's own
+    vendored values.yaml) were BOTH entirely invisible to
+    list-podiumd-images before this fix — find_images' generic
+    "{repository, tag}" dict match structurally can't see either shape
+    at all. Also confirms no double-counting: each basename appears
+    exactly once in the whole run's output."""
+    digest = "a" * 64
+    lpi.CHART_YAML.write_text(yaml.safe_dump({"dependencies": [
+        {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
+        {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0", "repository": "https://helm.elastic.co"},
+    ]}))
+    lpi.VALUES_YAML.write_text(yaml.safe_dump({
+        "redis-operator": {"redisOperator": {
+            "imageName": "quay.io/opstree/redis-operator",
+            "imageTag": f"v0.26.0@sha256:{digest}",
+        }},
+        "kiss-eck": {
+            "eck-elasticsearch": {"version": "8.19.19"},
+            "eck-kibana": {"version": "8.19.19"},
+            "eck-enterprise-search": {"version": "8.19.19"},
+        },
+    }))
+    make_vendored_tgz(
+        lpi.VENDORED_DIR, tmp_path, "redis-operator", "0.26.1",
+        {"name": "redis-operator", "version": "0.26.1"}, {},
+    )
+    make_vendored_tgz(
+        lpi.VENDORED_DIR, tmp_path, "eck-stack", "0.20.0",
+        {"name": "eck-stack", "version": "0.20.0"}, {},
+        raw_files={
+            "charts/eck-elasticsearch/values.yaml": "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n",
+            "charts/eck-kibana/values.yaml": "# image: docker.elastic.co/kibana/kibana:9.5.0\n",
+            "charts/eck-enterprise-search/values.yaml":
+                "# image: docker.elastic.co/enterprise-search/enterprise-search:9.5.0\n",
+        },
+    )
+
+    run_main(lpi, monkeypatch)
+    out = capsys.readouterr().out
+
+    assert f"quay.io/opstree/redis-operator:v0.26.0@sha256:{digest}" in out
+    assert "docker.elastic.co/elasticsearch/elasticsearch:8.19.19" in out
+    assert "docker.elastic.co/kibana/kibana:8.19.19" in out
+    assert "docker.elastic.co/enterprise-search/enterprise-search:8.19.19" in out
+
+    # no double-counting: each basename's own first-line key+basename
+    # column shows up exactly once across the whole run.
+    assert out.count("redis-operator  redis-operator ") == 1
+    assert out.count("kiss-eck  elasticsearch ") == 1
+    assert out.count("kiss-eck  kibana ") == 1
+    assert out.count("kiss-eck  enterprise-search ") == 1
