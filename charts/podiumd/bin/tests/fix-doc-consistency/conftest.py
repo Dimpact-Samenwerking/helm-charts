@@ -3,6 +3,7 @@ normally) as a module named `cdb` so tests can call its functions directly."""
 import importlib.util
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -38,3 +39,23 @@ def stub_registry_tag_exists(cdb, monkeypatch):
     same as any other autouse default."""
     import lib.image_docs as image_docs
     monkeypatch.setattr(image_docs, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "0" * 64))
+
+
+@pytest.fixture(autouse=True)
+def stub_render_chart(cdb, monkeypatch):
+    """cdb.main()'s own new render_chart() call (feeding regenerate_
+    images_baseline_manifest's own render-gate for subchart-default-only
+    images — see lib.digest_pinning_check.find_unresolved_subchart_
+    images) would otherwise invoke a REAL `helm template` against
+    whatever CHART_YAML/VALUES_YAML a given test has monkeypatched —
+    usually a synthetic tmp_path fixture with no real vendored chart
+    structure behind it at all. Stubbed to a successful, EMPTY render by
+    default (no chart-tree path "rendered" — so no subchart-default
+    image is ever pulled into images-baseline.yaml this way, exactly the
+    same as this render-gate's behavior before it existed): a test that
+    specifically wants to exercise the new subchart-default augmentation
+    overrides this via its own monkeypatch.setattr, same convention
+    stub_registry_tag_exists above already uses — patched on cdb's own
+    module globals (where main() actually calls it from)."""
+    monkeypatch.setattr(cdb, "render_chart",
+                         lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="", stderr=""))

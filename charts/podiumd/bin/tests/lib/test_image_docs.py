@@ -3,6 +3,10 @@ doc-update helpers used by update-image-version when a basename bump
 touches more than one Chart.yaml component. Convention confirmed against
 docs/_UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md (curl/nginx-unprivileged/
 busybox each got their own table row + "### <name> ..." Changes block)."""
+import io
+import tarfile
+
+import yaml
 
 
 # --- add_missing_sidecar_rows ---
@@ -419,7 +423,7 @@ def test_regenerate_images_baseline_manifest_full_enumeration_and_sort_order(lib
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path)
+        tmp_path, deps, values, images_baseline_path, set())
 
     assert skipped == []
     assert written == 3
@@ -455,7 +459,7 @@ def test_regenerate_images_baseline_manifest_global_images_use_their_own_real_su
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path)
+        tmp_path, deps, values, images_baseline_path, set())
 
     assert skipped == []
     assert written == 4
@@ -484,7 +488,7 @@ def test_regenerate_images_baseline_manifest_collapses_shared_repository(libimag
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path)
+        tmp_path, deps, values, images_baseline_path, set())
 
     assert skipped == []
     assert written == 2
@@ -505,7 +509,7 @@ def test_regenerate_images_baseline_manifest_embedded_digest_used_directly(libim
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", fail_if_called)
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path)
+        tmp_path, deps, values, images_baseline_path, set())
 
     assert skipped == []
     assert written == 1
@@ -530,7 +534,7 @@ def test_regenerate_images_baseline_manifest_live_lookup_for_bare_tag(libimagedo
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", fake_registry_tag_exists)
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path)
+        tmp_path, deps, values, images_baseline_path, set())
 
     assert skipped == []
     assert written == 1
@@ -549,7 +553,7 @@ def test_regenerate_images_baseline_manifest_skips_when_live_lookup_fails(libima
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path)
+        tmp_path, deps, values, images_baseline_path, set())
 
     assert written == 0
     assert skipped == ["openbao/openbao"]
@@ -564,13 +568,13 @@ def test_regenerate_images_baseline_manifest_wholesale_overwrite(libimagedocs, t
     images_baseline_path = tmp_path / "images-baseline.yaml"
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
-    libimagedocs.regenerate_images_baseline_manifest(tmp_path, deps, values, images_baseline_path)
+    libimagedocs.regenerate_images_baseline_manifest(tmp_path, deps, values, images_baseline_path, set())
     assert "infonl/zaakafhandelcomponent" in images_baseline_path.read_text(encoding="utf-8")
 
     new_deps = [{"name": "openbao", "version": "2.0.0"}]
     new_values = {"openbao": {"image": {"repository": "openbao/openbao", "tag": "2.0.0@sha256:" + "f" * 64}}}
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, new_deps, new_values, images_baseline_path)
+        tmp_path, new_deps, new_values, images_baseline_path, set())
 
     assert skipped == []
     assert written == 1
@@ -595,13 +599,13 @@ def test_regenerate_images_baseline_manifest_second_identical_run_does_not_rewri
     values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
 
     written1, skipped1, changed1 = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path)
+        tmp_path, deps, values, images_baseline_path, set())
     assert changed1 is True
     text_after_first = images_baseline_path.read_text(encoding="utf-8")
     mtime_after_first = images_baseline_path.stat().st_mtime_ns
 
     written2, skipped2, changed2 = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path)
+        tmp_path, deps, values, images_baseline_path, set())
 
     assert written2 == written1 == 1
     assert skipped2 == []
@@ -626,7 +630,7 @@ def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_e
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path)
+        tmp_path, deps, values, images_baseline_path, set())
 
     assert skipped == []
     assert written == 2
@@ -634,3 +638,110 @@ def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_e
     assert "  digest: \"sha256:" + "a" * 64 + "\"\n\n- name: openbao/openbao\n" in text
     assert not text.endswith("\n\n")
     assert text.endswith("\n")
+
+
+# --- regenerate_images_baseline_manifest — subchart-default-only images (render-gate) ---
+#
+# eck-operator's own top-level "image:" block relies entirely on its
+# vendored default (null tag -> Chart.yaml appVersion) — podiumd has NO
+# override for it at all, so find_all_image_and_version_paths(values,
+# deps) alone can never see it (it only ever walks podiumd's OWN
+# values.yaml). These tests exercise the added lib.digest_pinning_check.
+# find_unresolved_subchart_images augmentation, gated on rendered_paths
+# (see lib.render_scope.rendered_chart_paths) exactly the same way
+# check_subchart_image_visibility's own findings are gated.
+
+def make_subchart_tgz(charts_dir, name, version, values, chart_yaml=None):
+    """A minimal vendored <name>-<version>.tgz containing <name>/
+    values.yaml and, if given, <name>/Chart.yaml (needed for lib.chart.
+    subchart_app_version's own null-tag resolution) — same shape as
+    tests/verify-podiumd/test_digest_pinning.py's own make_tgz, kept
+    separate/local here rather than shared since each test file already
+    keeps its own copy of this convention."""
+    charts_dir.mkdir(parents=True, exist_ok=True)
+    tgz_path = charts_dir / f"{name}-{version}.tgz"
+    data = yaml.safe_dump(values).encode("utf-8")
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        info = tarfile.TarInfo(name=f"{name}/values.yaml")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+        if chart_yaml is not None:
+            cy_data = yaml.safe_dump(chart_yaml).encode("utf-8")
+            cy_info = tarfile.TarInfo(name=f"{name}/Chart.yaml")
+            cy_info.size = len(cy_data)
+            tar.addfile(cy_info, io.BytesIO(cy_data))
+
+
+def test_regenerate_images_baseline_manifest_includes_subchart_default_only_image_when_rendered(
+        libimagedocs, tmp_path, monkeypatch):
+    """A dependency's own top-level image with NO podiumd override at
+    all (null tag in its own vendored default, resolved to that
+    dependency's own Chart.yaml appVersion) gets a real entry once its
+    own chart-tree path actually rendered — otherwise permanently
+    invisible to this regeneration, the same way it's invisible to
+    check_digest_pinning."""
+    deps = [{"name": "eck-operator", "version": "3.5.0"}]
+    values = {}
+    make_subchart_tgz(tmp_path / "charts", "eck-operator", "3.5.0",
+                       {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}},
+                       chart_yaml={"name": "eck-operator", "version": "3.5.0", "appVersion": "3.5.0"})
+    images_baseline_path = tmp_path / "images-baseline.yaml"
+    monkeypatch.setattr(libimagedocs, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "a" * 64))
+
+    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, deps, values, images_baseline_path, {"podiumd/charts/eck-operator"})
+
+    assert skipped == []
+    assert written == 1
+    text = images_baseline_path.read_text(encoding="utf-8")
+    assert "- name: eck/eck-operator" in text
+    assert "url: docker.elastic.co/eck/eck-operator" in text
+    assert 'version: "3.5.0"' in text
+
+
+def test_regenerate_images_baseline_manifest_excludes_subchart_default_only_image_when_not_rendered(
+        libimagedocs, tmp_path):
+    """The flip side: the exact same vendored default, but its own
+    chart-tree path never rendered (a dependency — or one of ITS OWN
+    nested dependencies — disabled via Helm's condition:/tags:
+    mechanism, e.g. openinwoner's own bundled nested eck-operator, or
+    zaakbrug's own condition-disabled "staging" block) must never get an
+    entry here, same render-gate check_subchart_image_visibility's own
+    findings are already subject to."""
+    deps = [{"name": "eck-operator", "version": "3.5.0"}]
+    values = {}
+    make_subchart_tgz(tmp_path / "charts", "eck-operator", "3.5.0",
+                       {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}},
+                       chart_yaml={"name": "eck-operator", "version": "3.5.0", "appVersion": "3.5.0"})
+    images_baseline_path = tmp_path / "images-baseline.yaml"
+
+    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, deps, values, images_baseline_path, set())
+
+    assert skipped == []
+    assert written == 0
+
+
+def test_regenerate_images_baseline_manifest_blank_tag_override_not_treated_as_subchart_default_finding(
+        libimagedocs, tmp_path):
+    """openbao.server.image style regression: podiumd DOES override this
+    path, just with an explicit BLANK "tag: ''" (a deliberate "use the
+    sub-chart's own appVersion" convention, not "no override at all").
+    find_unresolved_subchart_images's own "already has an own_tag" guard
+    (get_path(...) is not None) already treats "" as a real override, so
+    the new augmentation must not add a separate/duplicate/fabricated
+    entry for it here — this exact case must keep behaving exactly as
+    it did before this render-gate augmentation existed."""
+    deps = [{"name": "openbao", "version": "0.28.4"}]
+    values = {"openbao": {"server": {"image": {"repository": "openbao/openbao", "tag": ""}}}}
+    make_subchart_tgz(tmp_path / "charts", "openbao", "0.28.4",
+                       {"server": {"image": {"repository": "openbao/openbao", "tag": "2.5.5"}}},
+                       chart_yaml={"name": "openbao", "version": "0.28.4", "appVersion": "2.5.5"})
+    images_baseline_path = tmp_path / "images-baseline.yaml"
+
+    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, deps, values, images_baseline_path, {"podiumd/charts/openbao"})
+
+    assert skipped == []
+    assert written == 0

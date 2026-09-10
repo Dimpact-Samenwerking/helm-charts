@@ -992,6 +992,100 @@ def test_nested_subchart_documented_image_repository_no_comment_returns_none(lib
     assert libchart.nested_subchart_documented_image_repository(tmp_path, dep, "eck-kibana") is None
 
 
+# --- subchart_dependencies ---
+
+def test_subchart_dependencies_reads_own_chart_yaml(libchart, tmp_path):
+    dep = {"name": "openinwoner", "version": "2.4.0"}
+    make_tgz(tmp_path / "charts", "openinwoner", "2.4.0", {}, chart_yaml={
+        "name": "openinwoner", "version": "2.4.0",
+        "dependencies": [
+            {"name": "eck-operator", "version": "3.2.0", "repository": "https://helm.elastic.co"},
+            {"name": "redis", "version": "18.0.0", "repository": "https://charts.bitnami.com/bitnami"},
+        ],
+    })
+    deps = libchart.subchart_dependencies(tmp_path, dep)
+    assert [d["name"] for d in deps] == ["eck-operator", "redis"]
+
+
+def test_subchart_dependencies_missing_tgz_returns_empty_list(libchart, tmp_path):
+    dep = {"name": "openinwoner", "version": "2.4.0"}
+    assert libchart.subchart_dependencies(tmp_path, dep) == []
+
+
+def test_subchart_dependencies_no_dependencies_key_returns_empty_list(libchart, tmp_path):
+    dep = {"name": "zac", "version": "1.0.297"}
+    make_tgz(tmp_path / "charts", "zac", "1.0.297", {}, chart_yaml={"name": "zac", "version": "1.0.297"})
+    assert libchart.subchart_dependencies(tmp_path, dep) == []
+
+
+# --- resolve_subchart_default ---
+
+def test_resolve_subchart_default_top_level_uses_deps_own_app_version(libchart, tmp_path):
+    dep = {"name": "eck-operator", "version": "3.5.0"}
+    make_tgz(tmp_path / "charts", "eck-operator", "3.5.0", {}, chart_yaml={
+        "name": "eck-operator", "version": "3.5.0", "appVersion": "3.5.0",
+    })
+    chart_tree_path, version = libchart.resolve_subchart_default(tmp_path, dep, "podiumd", ("image",))
+    assert chart_tree_path == "podiumd/charts/eck-operator"
+    assert version == "3.5.0"
+
+
+def test_resolve_subchart_default_nested_dependency_uses_its_own_chart_yaml(libchart, tmp_path):
+    """openinwoner's own bundled eck-operator (3.2.0) is a SEPARATE,
+    same-named nested dependency of openinwoner's own Chart.yaml,
+    distinct from the top-level "eck-operator" dependency (3.5.0) —
+    both the chart-tree path and the version must come from the NESTED
+    dependency's own files, not openinwoner's."""
+    dep = {"name": "openinwoner", "version": "2.4.0"}
+    make_tgz(tmp_path / "charts", "openinwoner", "2.4.0", {}, chart_yaml={
+        "name": "openinwoner", "version": "2.4.0",
+        "dependencies": [{"name": "eck-operator", "version": "3.2.0", "repository": "https://helm.elastic.co"}],
+    }, raw_files={
+        "openinwoner/charts/eck-operator/Chart.yaml": yaml.safe_dump(
+            {"name": "eck-operator", "version": "3.2.0", "appVersion": "3.2.0"}),
+    })
+    chart_tree_path, version = libchart.resolve_subchart_default(
+        tmp_path, dep, "podiumd", ("eck-operator", "image"))
+    assert chart_tree_path == "podiumd/charts/openinwoner/charts/eck-operator"
+    assert version == "3.2.0"
+
+
+def test_resolve_subchart_default_no_nested_match_falls_back_to_top_level(libchart, tmp_path):
+    """path[0] not matching any of dep's own nested dependencies — e.g.
+    zac's own "opa" sidecar — stays at dep's own top-level path (opa
+    isn't a real Chart.yaml dependency, just a values sub-key)."""
+    dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
+    make_tgz(tmp_path / "charts", "zaakafhandelcomponent", "1.0.297", {}, chart_yaml={
+        "name": "zaakafhandelcomponent", "version": "1.0.297", "appVersion": "5.4.3",
+    })
+    chart_tree_path, version = libchart.resolve_subchart_default(
+        tmp_path, dep, "podiumd", ("opa", "image"))
+    assert chart_tree_path == "podiumd/charts/zaakafhandelcomponent"
+    assert version == "5.4.3"
+
+
+def test_resolve_subchart_default_matches_nested_dependency_by_alias_too(libchart, tmp_path):
+    dep = {"name": "openinwoner", "version": "2.4.0"}
+    make_tgz(tmp_path / "charts", "openinwoner", "2.4.0", {}, chart_yaml={
+        "name": "openinwoner", "version": "2.4.0",
+        "dependencies": [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0",
+                           "repository": "https://helm.elastic.co"}],
+    }, raw_files={
+        "openinwoner/charts/eck-stack/Chart.yaml": yaml.safe_dump(
+            {"name": "eck-stack", "version": "0.20.0", "appVersion": "unused"}),
+    })
+    chart_tree_path, _version = libchart.resolve_subchart_default(
+        tmp_path, dep, "podiumd", ("kiss-eck", "image"))
+    assert chart_tree_path == "podiumd/charts/openinwoner/charts/eck-stack"
+
+
+def test_resolve_subchart_default_version_none_when_not_vendored(libchart, tmp_path):
+    dep = {"name": "eck-operator", "version": "3.5.0"}
+    chart_tree_path, version = libchart.resolve_subchart_default(tmp_path, dep, "podiumd", ("image",))
+    assert chart_tree_path == "podiumd/charts/eck-operator"
+    assert version is None
+
+
 # --- resolve_chart_values ---
 
 def test_resolve_chart_values_prefers_vendored_over_pulling(libchart, tmp_path, monkeypatch):

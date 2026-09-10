@@ -2,9 +2,14 @@
 template` render: scoping a finding to this chart's own templates/ vs. a
 vendored sub-chart, classifying a vendored sub-chart as a "friendly"
 partner vendor worth per-item detail, splitting/mapping the render back to
-its source templates, and the common grouped-findings printer. Used by
-check_render (verify-podiumd) and check_yamllint/check_kubeconform/
-check_shellcheck/check_kube_score (lib/*_check.py)."""
+its source templates, the common grouped-findings printer, and — for a
+caller that needs to know whether a given dependency (or nested
+dependency) actually renders anything at all right now, not just
+whether it's vendored on disk — rendered_chart_paths. Used by
+check_render (verify-podiumd), check_yamllint/check_kubeconform/
+check_shellcheck/check_kube_score (lib/*_check.py), and (rendered_chart_
+paths specifically) check_subchart_image_visibility (lib.
+digest_pinning_check) and list-podiumd-images."""
 import re
 from collections import Counter
 
@@ -79,9 +84,31 @@ def report_largest_templates(rendered_text):
         print(f"  {n:6d}  {path}")
 
 
+# The full chart-tree directory a "# Source: <path>" annotation (or any
+# other text embedding the same "<tree>/templates/<file>" shape, e.g. a
+# helm error message) belongs to — e.g. "podiumd/charts/openinwoner/
+# charts/eck-operator" out of ".../charts/openinwoner/charts/
+# eck-operator/templates/x.yaml". The ONE place this parsing happens:
+# rendered_chart_paths (below) keeps the FULL path — only the full path
+# can tell a top-level dependency apart from a same-named NESTED one at
+# any depth (e.g. openinwoner's own bundled "eck-operator" vs. the
+# separate top-level "eck-operator" dependency) — while report_errors_
+# by_subchart/chart_name_from_source only ever want the LEAF chart name
+# (the last path segment) for their own per-chart counting/grouping.
+CHART_TREE_PATH_RE = re.compile(r"([A-Za-z0-9_./\-]+)/templates/")
+
+
+def chart_tree_paths(text):
+    """Every distinct chart_tree_path match in `text` (a full render, or
+    an error-output blob with one or more embedded "<tree>/templates/
+    ..." paths) — in match order, duplicates included; callers reduce
+    as fits their own purpose (report_errors_by_subchart counts by leaf
+    name, rendered_chart_paths keeps the full paths as a set)."""
+    return CHART_TREE_PATH_RE.findall(text)
+
+
 def report_errors_by_subchart(error_text):
-    chart_re = re.compile(r"([A-Za-z0-9_.\-]+)/templates/")
-    counts = Counter(chart_re.findall(error_text))
+    counts = Counter(path.rsplit("/", 1)[-1] for path in chart_tree_paths(error_text))
     if not counts:
         return
     print("Errors by sub-chart:")
@@ -89,15 +116,44 @@ def report_errors_by_subchart(error_text):
         print(f"  {chart}: {n}")
 
 
-# Same pattern as report_errors_by_subchart — the chart name immediately
-# preceding "/templates/" in a "# Source:" path, e.g. "zac" out of
-# "podiumd/charts/zac/templates/configmap-nginx.yaml".
-SOURCE_CHART_RE = re.compile(r"([A-Za-z0-9_.\-]+)/templates/")
-
-
 def chart_name_from_source(source):
-    m = SOURCE_CHART_RE.search(source or "")
-    return m.group(1) if m else (source or "(unknown source)")
+    m = CHART_TREE_PATH_RE.search(source or "")
+    return m.group(1).rsplit("/", 1)[-1] if m else (source or "(unknown source)")
+
+
+def rendered_chart_paths(rendered_text):
+    """Every distinct chart-tree directory that actually produced at
+    least one rendered resource in `rendered_text` (a full `helm
+    template` render) — e.g. {"podiumd", "podiumd/charts/zac",
+    "podiumd/charts/openinwoner", "podiumd/charts/eck-operator", ...}.
+    Parsed from each "# Source: <path>" line's own chart_tree_path (see
+    above) — the ONE ground-truth oracle for "did chart-tree path X
+    actually render anything at all right now."
+
+    Exists because Helm's condition:/tags: mechanism (on a Chart.yaml
+    dependency directly, or transitively — a NESTED dependency's own
+    "tags:" entry in ITS OWN Chart.yaml, or a nested dependency's own
+    "condition:" overridden at "<parent>.<nested>.enabled" in podiumd's
+    values.yaml) can leave a real-looking image/version default sitting
+    inert in a vendored sub-chart's own values.yaml with NOTHING ever
+    actually rendering it — e.g. openinwoner's own bundled eck-operator
+    (globally disabled via ITS OWN Chart.yaml "tags: [eck-operator.
+    enabled]", set false in podiumd's own top-level values.yaml "tags:"
+    block) or any Maykin chart's own bundled bitnami/redis (same "tags:"
+    mechanism, disabled the same way). Asking Helm itself what actually
+    rendered — rather than re-implementing its own condition/tags
+    precedence rules by hand — avoids a real risk of subtle bugs and
+    Helm-version drift for a comparatively rare, easy-to-get-wrong
+    algorithm (confirmed the hard way: even reasoning through a single
+    2-dependency example by hand took several wrong turns before landing
+    on the right answer via a real `helm template` render).
+
+    Used by lib.digest_pinning_check.check_subchart_image_visibility and
+    list-podiumd-images to gate a finding/entry/row on whether its own
+    owning dependency (or nested dependency — see lib.chart.
+    resolve_subchart_default) genuinely renders right now, instead of
+    just being vendored on disk."""
+    return set(chart_tree_paths(rendered_text))
 
 
 # Vendored sub-charts from these upstream orgs are close/collaborative

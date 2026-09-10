@@ -744,9 +744,10 @@ def main():
     run_step("Doc consistency", "Checking versions against upgrade docs",
              check_docs_consistency, chart_dir, upgrade_docs_baseline)
 
+    extra_args = lint_args_for(chart_dir)
     run_step("Subchart image visibility",
              "Checking for images defined only in a vendored sub-chart's own default values.yaml",
-             check_subchart_image_visibility, chart_dir)
+             check_subchart_image_visibility, chart_dir, extra_args)
 
     run_step("Image repository", "Checking every image tag block resolves to a repository",
              check_image_repository, chart_dir)
@@ -754,7 +755,6 @@ def main():
     run_step("Image digests", "Checking image digests against upstream registries",
              check_image_digests, chart_dir)
 
-    extra_args = lint_args_for(chart_dir)
     run_step("Helm lint", "helm lint", check_lint, chart_dir, extra_args)
     run_step("Full render", "Full render", check_render, chart_dir, extra_args)
     run_step("yamllint", "yamllint (rendered output)", check_yamllint, chart_dir, extra_args)

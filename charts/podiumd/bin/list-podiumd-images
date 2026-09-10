@@ -48,10 +48,11 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import (
     find_images, full_repository_for_path, get_path, load_yaml, local_chart_dir,
-    nested_subchart_registered_paths, pulled_chart_dir, version_of, version_paths_for,
+    nested_subchart_registered_paths, pulled_chart_dir, subchart_dependencies, version_of, version_paths_for,
 )
 from lib.chart import pull_chart as _pull_chart
 from lib.image_version import MULTIPLE_KEY, image_basename, resolve_scoped_matches
+from lib.render_scope import CHART_NAME, lint_args_for, render_chart, rendered_chart_paths
 
 PODIUMD_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = PODIUMD_DIR / "Chart.yaml"
@@ -129,34 +130,60 @@ def resolution_note(values_lines, key, basename):
 
 
 def print_image_lines(rows, values_lines):
-    """rows: [(key, path, repo, tag), ...]. Prints two lines per row (see
-    module docstring): a short, column-aligned "<key> <basename>
-    <version>  (path: ...)" line — <key> <basename> <version> is exactly
-    the copy/paste-able input for update-image-version/verify-image-
-    version/show-image-baseline-version, plus any resolution_note right
-    there since that's precisely what decides whether this row's <key>
-    <basename> is real input for those scripts — followed by an indented
-    line with the full "<repo>:<tag>" (digest included, never truncated),
-    for Confluence or manual lookup."""
+    """rows: [(key, path, repo, tag, disabled), ...] — `disabled` is True
+    when this row's own chart-tree path (see lib.render_scope.
+    rendered_chart_paths and row_chart_tree_path below) never actually
+    rendered: a dependency (or one of ITS OWN nested dependencies —
+    e.g. a Maykin chart's own bundled bitnami/redis, globally disabled
+    via podiumd's top-level "tags: {redis: false}") disabled via Helm's
+    condition:/tags: mechanism. Prints two lines per row (see module
+    docstring): a short, column-aligned "<key> <basename> <version>
+    (path: ...)" line — <key> <basename> <version> is exactly the
+    copy/paste-able input for update-image-version/verify-image-
+    version/show-image-baseline-version, plus a trailing "disabled"
+    hint (never silently indistinguishable from a real, live image) and
+    any resolution_note, since that's precisely what decides whether
+    this row's <key> <basename> is real input for those scripts —
+    followed by an indented line with the full "<repo>:<tag>" (digest
+    included, never truncated), for Confluence or manual lookup."""
     entries = []
-    for key, path, repo, tag in rows:
-        entries.append((key, image_basename(repo), version_of(tag), repo, tag, path))
+    for key, path, repo, tag, disabled in rows:
+        entries.append((key, image_basename(repo), version_of(tag), repo, tag, path, disabled))
     entries.sort(key=lambda e: (e[0], e[5]))
     kwidth = max(len(e[0]) for e in entries)
     bwidth = max(len(e[1]) for e in entries)
     vwidth = max(len(e[2]) for e in entries)
-    for key, basename, version, repo, tag, path in entries:
+    for key, basename, version, repo, tag, path, disabled in entries:
         note = resolution_note(values_lines, key, basename)
         line = (f"  {key.ljust(kwidth)}  {basename.ljust(bwidth)}  {version.ljust(vwidth)}  "
                 f"(path: {path})")
-        if note:
-            line += f"  — {note}"
+        hints = (["disabled"] if disabled else []) + ([note] if note else [])
+        if hints:
+            line += "  — " + "; ".join(hints)
         print(line)
         print(f"      {repo}:{tag}")
 
 
-def component_version_rows(dep, key, merged, deps, root_values):
-    """Extra (key, path, repo, tag) rows for `dep`'s own lib.chart.
+def row_chart_tree_path(chart_dir, dep, first_segment):
+    """The chart-tree path (see lib.render_scope.rendered_chart_paths)
+    that actually OWNS a row nested under `dep`'s own scope at
+    `first_segment` (the row's own dep-relative path's first segment,
+    e.g. "redis" for a Maykin chart's own bundled bitnami/redis sidecar,
+    or "eck-elasticsearch" for eck-stack's own nested eck-elasticsearch
+    sub-subchart) — `dep`'s own top-level chart-tree path normally, but
+    the path of one of `dep`'s OWN declared Chart.yaml dependencies
+    instead when `first_segment` matches one of them (name or alias) —
+    same convention lib.chart.resolve_subchart_default already uses for
+    this exact question (there, for a subchart-default-only image;
+    here, for any row regardless of where its tag actually came from)."""
+    nested = next((d for d in subchart_dependencies(chart_dir, dep)
+                    if first_segment in (d.get("alias"), d["name"])), None)
+    base = f"{CHART_NAME}/charts/{dep['name']}"
+    return f"{base}/charts/{nested['name']}" if nested else base
+
+
+def component_version_rows(dep, key, merged, deps, root_values, rendered_paths):
+    """Extra (key, path, repo, tag, disabled) rows for `dep`'s own lib.chart.
     COMPONENT_VERSION_PATHS/COMPONENT_VERSION_PATH_NESTED_SUBCHARTS-
     registered bare version fields — the ONE image shape find_images'
     generic "{repository, tag}" dict match structurally can never see at
@@ -194,7 +221,16 @@ def component_version_rows(dep, key, merged, deps, root_values):
     today, but always possible in principle) is silently skipped — same
     "not every image has a resolvable repository" philosophy paths_by_
     repository's own docstring already documents, rather than printing
-    a row with no real repository."""
+    a row with no real repository.
+
+    `rendered_paths` (see lib.render_scope.rendered_chart_paths) gates
+    each row's own `disabled` flag (see print_image_lines) against ITS
+    OWN owning chart-tree path — row_chart_tree_path, which may be a
+    NESTED path when `rel`'s own first segment matches one of `dep`'s
+    OWN declared Chart.yaml dependencies (e.g. eck-stack's own
+    eck-elasticsearch/eck-kibana/eck-enterprise-search sub-subcharts) —
+    never just `dep`'s own top-level enabled/disabled status, which a
+    per-field toggle can disagree with independently."""
     rows = []
     rels = sorted(set(version_paths_for(dep["name"])) | set(nested_subchart_registered_paths(dep["name"])))
     for rel in rels:
@@ -205,19 +241,9 @@ def component_version_rows(dep, key, merged, deps, root_values):
         repo = full_repository_for_path(VENDORED_DIR.parent, deps, root_values, path, allow_pull=False)
         if not repo:
             continue
-        rows.append((key, rel, repo, tag))
+        chart_tree_path = row_chart_tree_path(VENDORED_DIR.parent, dep, rel.split(".", 1)[0])
+        rows.append((key, rel, repo, tag, chart_tree_path not in rendered_paths))
     return rows
-
-
-def is_enabled(condition, root_values):
-    if not condition:
-        return True
-    node = root_values
-    for part in condition.split("."):
-        if not isinstance(node, dict) or part not in node:
-            return True  # no explicit override; assume chart default (enabled)
-        node = node[part]
-    return bool(node)
 
 
 def main():
@@ -231,13 +257,31 @@ def main():
     dep_keys = {dep.get("alias", dep["name"]) for dep in deps}
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
 
+    # Real ground truth for "is this dependency (or one of ITS OWN nested
+    # dependencies) actually enabled" — Helm's own condition:/tags:
+    # mechanism (either can apply transitively to a nested dependency
+    # too, e.g. a Maykin chart's own bundled bitnami/redis, globally
+    # disabled via podiumd's top-level "tags: {redis: false}") is asked
+    # directly via a real render, rather than re-implemented here (see
+    # row_chart_tree_path/component_version_rows below). Rendered
+    # against VENDORED_DIR.parent, not PODIUMD_DIR directly, same
+    # reason component_version_rows already does — stays correct under
+    # whatever tests/conftest.py's own `lpi` fixture repoints
+    # VENDORED_DIR to.
+    chart_dir = VENDORED_DIR.parent
+    extra_args = lint_args_for(chart_dir)
+    render_result = render_chart(chart_dir, extra_args)
+    if render_result.returncode != 0:
+        raise SystemExit(f"error: helm template failed to render\n{render_result.stderr}")
+    rendered_paths = rendered_chart_paths(render_result.stdout)
+
     tmproot = Path(tempfile.mkdtemp(prefix="list-podiumd-images-"))
     try:
         # Top-level values not tied to any dependency (e.g. global.images.*)
         top_level_images = []
         for key, value in root_values.items():
             if key not in dep_keys:
-                top_level_images.extend((key, path, repo, tag) for path, repo, tag in find_images(value))
+                top_level_images.extend((key, path, repo, tag, False) for path, repo, tag in find_images(value))
         if top_level_images:
             print("=== podiumd top-level values (not part of a dependency) ===")
             print_image_lines(top_level_images, values_lines)
@@ -245,7 +289,8 @@ def main():
 
         for dep in deps:
             key = dep.get("alias", dep["name"])
-            enabled = is_enabled(dep.get("condition"), root_values)
+            dep_chart_tree_path = f"{CHART_NAME}/charts/{dep['name']}"
+            enabled = dep_chart_tree_path in rendered_paths
             status = "" if enabled else "  [disabled]"
             print(f"=== {key} ({dep['name']} {dep['version']}){status} ===")
 
@@ -265,8 +310,14 @@ def main():
 
             overrides = root_values.get(key, {})
             merged = deep_merge(defaults, overrides)
-            rows = [(key, path, repo, tag) for path, repo, tag in find_images(merged)]
-            rows.extend(component_version_rows(dep, key, merged, deps, root_values))
+            rows = []
+            for path, repo, tag in find_images(merged):
+                # find_images' own path is a dotted STRING (e.g.
+                # "redis.image"), not a tuple — its first dotted segment
+                # is what row_chart_tree_path needs.
+                chart_tree_path = row_chart_tree_path(VENDORED_DIR.parent, dep, path.split(".", 1)[0])
+                rows.append((key, path, repo, tag, chart_tree_path not in rendered_paths))
+            rows.extend(component_version_rows(dep, key, merged, deps, root_values, rendered_paths))
             if rows:
                 print_image_lines(rows, values_lines)
             else:

@@ -105,6 +105,7 @@ from lib.image_docs import (
 )
 from lib.image_repository_check import find_images_without_repository
 from lib.registry import parse_repo, registry_tag_exists
+from lib.render_scope import render_chart, rendered_chart_paths
 from lib.upgradedoc import (
     append_to_doc, canonical_version_cell, changes_heading_has_app_version, changes_heading_identities,
     component_version_cell,
@@ -1938,10 +1939,19 @@ def main():
         for name, lines in review_notes:
             print(f"  {name}: line(s) {', '.join(map(str, lines))}")
 
-    written, skipped, changed = regenerate_images_baseline_manifest(
-        CHART_YAML.parent, target_deps, target_values, IMAGES_DIR / "images-baseline.yaml")
     print()
     print("=== Regenerating images-baseline.yaml ===")
+    render_result = render_chart(CHART_YAML.parent, [])
+    if render_result.returncode != 0:
+        print("  error: helm template failed to render — can't check for images defined only "
+              "in a vendored sub-chart's own default values.yaml (see check_subchart_image_"
+              "visibility); fix the render first")
+        print(render_result.stderr)
+        sys.exit(1)
+    rendered_paths = rendered_chart_paths(render_result.stdout)
+
+    written, skipped, changed = regenerate_images_baseline_manifest(
+        CHART_YAML.parent, target_deps, target_values, IMAGES_DIR / "images-baseline.yaml", rendered_paths)
     if changed:
         print(f"  wrote {written} entr{'y' if written == 1 else 'ies'}")
     else:

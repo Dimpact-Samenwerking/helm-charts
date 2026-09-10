@@ -27,6 +27,7 @@ from lib.component_docs import (
     CHANGES_ITEM_RE, dep_for_values_key, find_images_manifest_changes_header, insert_changes_section,
     insert_images_manifest_header_item, make_changes_section, remove_changes_section, update_component_table,
 )
+from lib.digest_pinning_check import find_unresolved_subchart_images
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
     actual_app_version, changes_heading_has_app_version, changes_heading_identities, component_order_key,
@@ -587,7 +588,7 @@ IMAGES_BASELINE_HEADER = (
 )
 
 
-def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline_path):
+def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline_path, rendered_paths):
     """Overwrite docs/images/images-baseline.yaml WHOLESALE with a full,
     CURRENT snapshot of every image pinned anywhere in the chart right
     now — every component's own primary image, every sidecar, every
@@ -595,7 +596,28 @@ def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline
     paths(values, deps) + global_image_paths(values), the SAME
     enumeration images-<target>.yaml's own diffing already uses, just
     never filtered down to "changed since baseline" — every path,
-    always). One entry per distinct repository (paths_by_repository/
+    always) PLUS every image find_unresolved_subchart_images(chart_dir,
+    rendered_paths) finds: a genuinely-live image defined only in a
+    vendored dependency's own default values.yaml, with no podiumd
+    override at all (e.g. eck-operator's own top-level "image:", null
+    tag, resolved to the dependency's own Chart.yaml appVersion — see
+    lib.chart.resolve_subchart_default) — otherwise invisible to this
+    regeneration the same way it's invisible to check_digest_pinning,
+    since neither one ever looks past podiumd's own values.yaml on its
+    own. `rendered_paths` (see lib.render_scope.rendered_chart_paths, a
+    real `helm template` render) gates these exactly as check_subchart_
+    image_visibility's own findings are gated — a dependency (or one of
+    ITS OWN nested dependencies) disabled via condition:/tags: never
+    contributes an entry here, e.g. openinwoner's own bundled nested
+    eck-operator (globally disabled via tags:) or zaakbrug's own
+    condition-disabled "staging" block. Never combined with
+    SUBCHART_VISIBILITY_EXEMPT — that dict is check_subchart_image_
+    visibility's own "reviewed, doesn't need an override" judgment call,
+    irrelevant here: an exempt image is still a real, live image that
+    belongs in this snapshot regardless of whether podiumd ever pins it
+    directly.
+
+    One entry per distinct repository (paths_by_repository/
     repo_group_representative's own dedup convention — a shared anchor
     like global.images.nginx, aliased by several components, collapses
     to ONE entry, same as images-<target>.yaml already does), sorted by
@@ -646,6 +668,8 @@ def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline
     changed."""
     current_paths = dict(find_all_image_and_version_paths(values, deps))
     current_paths.update(global_image_paths(values))
+    for scope_key, subpath, tag, _already_pinned in find_unresolved_subchart_images(chart_dir, deps, values, rendered_paths):
+        current_paths.setdefault((scope_key, *subpath.split(".")), tag)
     repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys())
     key_order = values_key_order(values)
 
