@@ -433,7 +433,26 @@ def write_release_baselines(chart_dir, upgrade_docs=None, release_table=None):
     Creates the etc/ directory first if it doesn't exist yet — true on
     the real chart (etc/ is a permanent fixture there), but a synthetic
     test chart_dir has no reason to pre-create a directory this is the
-    only thing that ever writes into."""
+    only thing that ever writes into.
+
+    Each value is written double-quoted (e.g. `upgrade_docs: "4.9.1"`),
+    matching this codebase's own established YAML-writing convention
+    (e.g. images-<version>.yaml's own `version: "3.1.1"`) — plain
+    yaml.safe_dump(data, ...) only quotes a scalar when it's ambiguous
+    with another YAML type (int/float/bool/null); a version string like
+    "4.9.1" (two dots, never a valid number) is never ambiguous, so it
+    would otherwise come out bare. Composed key-by-key (keys stay bare,
+    never quoted — only the values are) rather than dumping the whole
+    dict at once, since yaml.safe_dump has no "quote every string
+    scalar" option of its own to ask for directly. Each value's own
+    quoted-and-escaped form comes from yaml.safe_dump(value,
+    default_style='"') itself (stripped of the single trailing
+    newline it always appends) — never hand-rolled string
+    interpolation: a value containing a literal backslash or an
+    embedded double-quote character needs YAML's own backslash-escape
+    rules applied correctly (the same general idea most languages'
+    double-quoted string escaping already uses), which only PyYAML's
+    own scalar emitter can be trusted to get right."""
     path = chart_dir / RELEASE_BASELINES_FILE_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
     data = _release_baselines(chart_dir)
@@ -441,7 +460,11 @@ def write_release_baselines(chart_dir, upgrade_docs=None, release_table=None):
         data["upgrade_docs"] = upgrade_docs
     if release_table is not None:
         data["release_table"] = release_table
-    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    lines = []
+    for key, value in data.items():
+        quoted_value = yaml.safe_dump(value, default_style='"').rstrip("\n")
+        lines.append(f"{key}: {quoted_value}\n")
+    path.write_text("".join(lines), encoding="utf-8")
 
 
 def get_path(node, dotted_path):

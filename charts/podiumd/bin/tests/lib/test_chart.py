@@ -338,6 +338,37 @@ def test_write_release_baselines_no_args_leaves_both_unchanged(libchart, tmp_pat
     assert libchart.release_table_baseline(tmp_path) == "4.8.5"
 
 
+def test_write_release_baselines_values_are_double_quoted(libchart, tmp_path):
+    """Real bug, confirmed live: plain yaml.safe_dump only quotes a
+    scalar when it's ambiguous with another YAML type (int/float/bool/
+    null) — a version string like "4.9.1" (two dots, never a valid
+    number) is never ambiguous, so it came out bare ("upgrade_docs:
+    4.9.1", no quotes) — inconsistent with this codebase's own
+    established YAML-writing convention (e.g. images-<version>.yaml's
+    own `version: "3.1.1"`). Keys stay bare — only the values are
+    quoted."""
+    libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.1", release_table="4.8.5")
+    text = (tmp_path / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
+    assert text == 'upgrade_docs: "4.9.1"\nrelease_table: "4.8.5"\n'
+
+
+def test_write_release_baselines_escapes_backslash_and_double_quote_correctly(libchart, tmp_path):
+    """The quoting must come from PyYAML's own scalar emitter, never
+    hand-rolled string interpolation (f'{key}: "{value}"\\n') — a value
+    containing a literal backslash or an embedded double-quote
+    character needs YAML's own backslash-escape rules applied
+    correctly, or the file becomes invalid (or silently wrong-meaning)
+    YAML. Round-tripped through the real read path (upgrade_docs_
+    baseline, which calls yaml.safe_load) to prove it, not just
+    eyeballing the written text."""
+    pathological = 'has "quotes" and a \\ backslash'
+    libchart.write_release_baselines(tmp_path, upgrade_docs=pathological)
+    assert libchart.upgrade_docs_baseline(tmp_path) == pathological
+
+    text = (tmp_path / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
+    assert text == 'upgrade_docs: "has \\"quotes\\" and a \\\\ backslash"\n'
+
+
 # --- find_dependency ---
 
 def test_find_dependency_by_name(libchart):
