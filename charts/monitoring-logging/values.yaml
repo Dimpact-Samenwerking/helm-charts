@@ -357,11 +357,11 @@ kube-prometheus-stack:
         pullPolicy: IfNotPresent
       patch:
         # -- kube-webhook-certgen image for admission webhook TLS certificate provisioning
-        # ghcr.io/jkroepke/kube-webhook-certgen:1.8.0
+        # ghcr.io/jkroepke/kube-webhook-certgen:1.8.8
         image:
           registry: ghcr.io
           repository: jkroepke/kube-webhook-certgen
-          tag: "1.8.0"
+          tag: "1.8.8"
           pullPolicy: IfNotPresent
     # -- prometheus-config-reloader image settings (injected into Prometheus StatefulSet by the operator)
     # quay.io/prometheus-operator/prometheus-config-reloader:v0.90.1
@@ -410,7 +410,7 @@ kube-prometheus-stack:
       tag: v2.17.0
 
 # -- Pushgateway: separate dependency (not bundled in kube-prometheus-stack).
-# quay.io/prometheus/pushgateway:v1.11.1
+# quay.io/prometheus/pushgateway:v1.11.3
 prometheus-pushgateway:
   enabled: true
   resources:
@@ -423,7 +423,7 @@ prometheus-pushgateway:
   image:
     repository: quay.io/prometheus/pushgateway
     pullPolicy: IfNotPresent
-    tag: v1.11.1
+    tag: v1.11.3
 
 alloy:
   enabled: true
@@ -553,11 +553,11 @@ alloy:
         cpu: 100m
         memory: 256Mi
   # -- alloy image settings
-  # docker.io/grafana/alloy:v1.14.0
+  # docker.io/grafana/alloy:v1.19.2
   image:
     registry: docker.io
     repository: grafana/alloy
-    tag: v1.14.0
+    tag: v1.19.2
     pullPolicy: IfNotPresent
   configReloader:
     # -- config-reloader sidecar image settings (Alloy hot-reload, separate from the operator's config-reloader)
