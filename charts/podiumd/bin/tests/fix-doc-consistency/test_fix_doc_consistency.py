@@ -1077,6 +1077,90 @@ def test_fix_changes_heading_app_versions_real_version_bump_still_corrected(cdb)
     assert "### zac 5.4.0 → 5.5.0 (chart 1.0.297, unchanged)" in new_text
 
 
+def test_fix_changes_heading_app_versions_corrects_stale_bare_sidecar_heading(cdb):
+    """Regression test: a canonical sidecar/MULTIPLE-scope heading (a
+    bare global.images anchor like "redis", not a real Chart.yaml
+    dependency) can go stale the exact same way a "dep" heading can —
+    proven wrong live: today's redis/redis-operator historical-manifest
+    collision fix changed what resolve_component_row now resolves for
+    "redis" (correctly rewriting the TABLE row to "8.10.1 (new)"), but
+    the heading, previously never even considered here at all, was left
+    showing the stale "8.0 → 8.10.1" transition implying a real prior
+    version that never existed."""
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis | 8.10.1 (new) | - | - |\n\n"
+        "## Changes\n\n"
+        "### redis 8.0 → 8.10.1\n\n"
+        "Some stale prose here.\n"
+    )
+    deps = []
+    target_values = {"global": {"images": {"redis": {
+        "repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
+
+    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+
+    assert updated_headings == ["redis 8.0 → 8.10.1"]
+    assert "### redis 8.10.1 (new)" in new_text
+    assert "8.0 →" not in new_text
+    assert "Some stale prose here." in new_text  # body left as-is, not regenerated
+
+
+def test_fix_changes_heading_app_versions_corrects_stale_real_sidecar_heading(cdb):
+    """The general case, not just the bare global-anchor shape above: a
+    real sidecar nested under an owning dependency ("redis-operator -
+    redis") can go stale the same way — proves the fix isn't specific
+    to redis's own MULTIPLE/global shape. Also proves match_dependency's
+    own fuzzy leading-word match (which would otherwise treat this as
+    plain "redis-operator", an unrelated identity — see lib.chart.
+    canonical_sidecar_row_names' own docstring) never fires here: the
+    canonical sidecar match always takes precedence."""
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator - redis | 8.6.2 → 8.6.6 | - | ACR mirror only |\n\n"
+        "## Changes\n\n"
+        "### redis-operator - redis 8.6.1 → 8.6.6 (chart 0.25.0, unchanged)\n\n"
+        "Some stale prose here.\n"
+    )
+    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
+
+    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+        text, None, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.8.5")
+
+    assert updated_headings == ["redis-operator - redis 8.6.1 → 8.6.6 (chart 0.25.0, unchanged)"]
+    assert "### redis-operator - redis 8.6.2 → 8.6.6 (chart 0.25.0, unchanged)" in new_text
+
+
+def test_fix_changes_heading_app_versions_already_correct_sidecar_heading_untouched(cdb):
+    """Negative case: an already-correct sidecar heading (name AND
+    app-version wording both already right) must never be spuriously
+    rewritten — same discipline as the existing "dep"-kind untouched
+    test above, now proven for sidecar kind too."""
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis | 8.10.1 (new) | - | - |\n\n"
+        "## Changes\n\n"
+        "### redis 8.10.1 (new)\n\n"
+        "Some prose here.\n"
+    )
+    deps = []
+    target_values = {"global": {"images": {"redis": {
+        "repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
+
+    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+
+    assert updated_headings == []
+    assert new_text == text
+
+
 # --- fix_values_delta_heading_app_versions ---
 
 MI_UPGRADE_DOC_TEXT = (
@@ -1124,6 +1208,35 @@ def test_fix_values_delta_heading_app_versions_already_correct_heading_untouched
 
     assert updated_headings == []
     assert new_text == values_deltas_text
+
+
+def test_fix_values_delta_heading_app_versions_corrects_stale_sidecar_heading(cdb):
+    """Confirms the shared _fix_heading_app_versions/_resolved_rows_by_
+    values_key fix ALSO closes this exact gap for -values-deltas.md's
+    own "## ..." section headings, not just -upgrade.md's "### ..."
+    ones — both callers share the same core, so the fix landing there
+    fixes both docs at once (verified directly here, not assumed)."""
+    redis_upgrade_doc_text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis | 8.10.1 (new) | - | - |\n"
+    )
+    values_deltas_text = (
+        "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
+        "## redis 8.0 → 8.10.1\n\n"
+        "- `global.images.redis` added.\n"
+    )
+    deps = []
+    target_values = {"global": {"images": {"redis": {
+        "repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
+
+    new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
+        redis_upgrade_doc_text, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+
+    assert updated_headings == ["redis 8.0 → 8.10.1"]
+    assert "## redis 8.10.1 (new)" in new_text
+    assert "- `global.images.redis` added." in new_text  # body left as-is
 
 
 def test_fix_values_delta_heading_app_versions_bare_hand_written_heading_never_touched(cdb):
