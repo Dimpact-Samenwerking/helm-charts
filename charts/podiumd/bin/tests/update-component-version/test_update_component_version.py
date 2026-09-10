@@ -1191,6 +1191,37 @@ def test_update_images_manifest_creates_missing_header(ucv, tmp_path):
     assert "1. zac 5.1.0 -> 5.4.3 (chart 1.0.297, unchanged)." in text
 
 
+def test_update_images_manifest_no_baseline_app_renders_new(ucv, tmp_path):
+    """Regression test: update_images_manifest's own item_text used to
+    ALWAYS hardcode "<old_app> -> <new_app>" with no (new)/(unchanged)/
+    (digest changed) branch at all — a genuinely brand-new component
+    (no baseline app version at all, old_app=None) rendered as a
+    nonsensical "<new_app> -> <new_app>" instead of "<new_app> (new)"."""
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
+        "#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
+        "#\n"
+        "# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n"
+        "#\n\n"
+        "# ZAC — 5.0.2 -> 5.1.0\n"
+        "- name: zac\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    changes_action, entry_updates, missing = ucv.update_images_manifest(
+        images_path, "redis", "redis", None, "8.10.1", "-", "-",
+        ["image"], {"image": "redis"}, {"image": "8.10.1@sha256:cccc"},
+        [], {},
+    )
+    assert changes_action == "added"
+    text = images_path.read_text(encoding="utf-8")
+    assert "redis 8.10.1 (new)." in text
+    assert "8.10.1 -> 8.10.1" not in text
+
+
 def test_update_images_manifest_updates_existing_entry(ucv, tmp_path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(

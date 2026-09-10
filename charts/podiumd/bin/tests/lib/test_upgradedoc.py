@@ -1372,6 +1372,39 @@ def test_sort_images_manifest_entries_already_ordered_reports_nothing(libupgrade
     assert new_text == text
 
 
+def test_sort_images_manifest_entries_inserts_missing_blank_line_between_groups(libupgradedoc):
+    """Regression test (real bug, real doc): a group's own captured span
+    never includes a LEADING blank line (that's the PRECEDING group's
+    own trailing space instead) — a pre-existing "zero blank lines
+    between these two groups" formatting defect therefore survived
+    forever once spliced next to a new neighbor, since this function
+    only ever COLLAPSED an excess, never inserted a missing one.
+    Confirmed live: images-4.9.1.yaml had no blank line at all between
+    its own redis entry and keycloak-operator's, and between
+    frankgateway's and zaakbrug's — already in the CORRECT relative
+    order here (no `moved` at all), proving this is a pure formatting
+    fix, independent of reordering."""
+    text = (
+        "# zac 5.0.2 -> 5.4.4\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  version: \"5.4.4\"\n"
+        "# redis-operator 0.25.0 -> 0.26.0\n"  # no blank line above this comment
+        "- name: opstree/redis-operator\n"
+        "  version: \"0.26.0\"\n"
+    )
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
+            {"name": "redis-operator", "version": "1.0.0"}]
+    values = {"zac": {"image": {"tag": "5.4.4"}}, "redis-operator": {"image": {"tag": "0.26.0"}}}
+    repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image"),
+                "opstree/redis-operator": ("redis-operator", "image")}
+
+    new_text, moved = libupgradedoc.sort_images_manifest_entries(text, deps, values, repo_map, canonical_names={})
+
+    assert moved == []
+    assert "  version: \"5.4.4\"\n\n# redis-operator 0.25.0 -> 0.26.0\n" in new_text
+    assert "\"5.4.4\"\n# redis-operator" not in new_text  # the original, separator-less join is gone
+
+
 def test_sort_images_manifest_entries_moves_shared_group_as_one_unit(libupgradedoc):
     """A group of entries sharing ONE header (e.g. zgw-office-addin's
     frontend + backend, both primaries of the same dependency) moves
@@ -2183,6 +2216,76 @@ def test_replace_version_pair_preserves_prefix_and_arrow_style(libupgradedoc):
 def test_replace_version_pair_no_match_returns_unchanged(libupgradedoc):
     line = "# no version pair here\n"
     assert libupgradedoc.replace_version_pair(line, "1.0.0", "2.0.0") == line
+
+
+# --- version_change_suffix / image_manifest_version_text ---
+
+def test_version_change_suffix_no_baseline_is_new(libupgradedoc):
+    assert libupgradedoc.version_change_suffix(None, "8.10.1") == "(new)"
+
+
+def test_version_change_suffix_equal_versions_is_unchanged(libupgradedoc):
+    assert libupgradedoc.version_change_suffix("1.5.4", "1.5.4") == "(unchanged)"
+
+
+def test_version_change_suffix_equal_versions_digest_only_change(libupgradedoc):
+    assert libupgradedoc.version_change_suffix("1.5.4", "1.5.4", digest_only_change=True) == "(digest changed)"
+
+
+def test_version_change_suffix_real_transition_is_none(libupgradedoc):
+    """None (never a bracketed suffix) when the version genuinely
+    differs — the caller renders the transition itself."""
+    assert libupgradedoc.version_change_suffix("5.0.2", "5.1.0") is None
+
+
+def test_image_manifest_version_text_new(libupgradedoc):
+    assert libupgradedoc.image_manifest_version_text(None, "0.158.0") == "0.158.0 (new)"
+
+
+def test_image_manifest_version_text_transition_uses_ascii_arrow(libupgradedoc):
+    """Real bug this guards against: images-4.9.1.yaml's own zac otel
+    sidecar comment read "0.158.0 -> 0.158.0" (a same-value fake "old"
+    fallback masking a genuinely-new image) instead of "0.158.0 (new)"
+    — see fix-doc-consistency's own add_missing_images_manifest_
+    entries/fix_images_manifest_entries, both migrated onto this exact
+    function."""
+    assert libupgradedoc.image_manifest_version_text("8.20.0", "8.21.0") == "8.20.0 -> 8.21.0"
+
+
+def test_image_manifest_version_text_digest_changed(libupgradedoc):
+    assert libupgradedoc.image_manifest_version_text("1.5.4", "1.5.4", digest_only_change=True) == \
+        "1.5.4 (digest changed)"
+
+
+# --- replace_version_spec ---
+
+def test_replace_version_spec_replaces_arrow_pair(libupgradedoc):
+    assert libupgradedoc.replace_version_spec(
+        "#   sidecar: zac - opentelemetry-collector-contrib 0.158.0 -> 0.158.0\n", "0.158.0 (new)") == \
+        "#   sidecar: zac - opentelemetry-collector-contrib 0.158.0 (new)\n"
+
+
+def test_replace_version_spec_replaces_bracketed_suffix(libupgradedoc):
+    assert libupgradedoc.replace_version_spec("# redis 8.0 (new)\n", "8.10.1 (new)") == "# redis 8.10.1 (new)\n"
+
+
+def test_replace_version_spec_preserves_em_dash_prefix(libupgradedoc):
+    assert libupgradedoc.replace_version_spec("# ZAC — 5.0.1 -> 5.1.0\n", "5.0.2 -> 5.1.0") == \
+        "# ZAC — 5.0.2 -> 5.1.0\n"
+
+
+def test_replace_version_spec_no_match_returns_unchanged(libupgradedoc):
+    line = "# no version spec here\n"
+    assert libupgradedoc.replace_version_spec(line, "1.0.0 (new)") == line
+
+
+def test_replace_version_spec_literal_replacement_not_backslash_processed(libupgradedoc):
+    """new_spec is substituted as a literal string, never interpreted as
+    a regex backreference/escape (re.sub's own replacement-string
+    quirk) — matters if a version string ever contained a backslash-
+    like sequence."""
+    assert libupgradedoc.replace_version_spec("# name 1.0.0 -> 2.0.0\n", r"\1.0.0 (new)") == \
+        "# name \\1.0.0 (new)\n"
 
 
 # --- compute_changed_components ---

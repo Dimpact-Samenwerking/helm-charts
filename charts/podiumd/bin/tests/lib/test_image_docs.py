@@ -223,6 +223,33 @@ def test_update_image_manifest_adds_new_changes_item_when_absent(libimagedocs, t
     assert "#   2. curl 8.20.0 -> 8.21.0." in text
 
 
+def test_update_image_manifest_new_item_no_baseline_renders_new(libimagedocs, tmp_path):
+    """Regression test: update_image_manifest's own item_text used to
+    ALWAYS hardcode "<old> -> <new>" with no (new)/(unchanged)/(digest
+    changed) branch at all — a genuinely brand-new image (no baseline
+    version at all, old_version=None) rendered as a nonsensical
+    "<new> -> <new>" instead of "<new> (new)"."""
+    path = tmp_path / "images-4.9.1.yaml"
+    write_manifest(path, (
+        "# Baseline: podiumd 4.9.0.\n"
+        "#\n"
+        "# One change:\n"
+        "#   1. curl 8.20.0 -> 8.21.0.\n"
+        "#\n\n"
+        "- name: curlimages/curl\n"
+        "  url: curlimages/curl\n"
+        '  version: "8.21.0"\n'
+        '  digest: "sha256:bbbb"\n'
+    ))
+    changes_action, entry_updated = libimagedocs.update_image_manifest(
+        path, "redis", "redis", None, "8.10.1", "sha256:cccc")
+    assert changes_action == "added"
+    assert entry_updated is False
+    text = path.read_text(encoding="utf-8")
+    assert "redis 8.10.1 (new)." in text
+    assert "8.10.1 -> 8.10.1" not in text
+
+
 def test_update_image_manifest_new_item_uses_values_yaml_order_not_append(libimagedocs, tmp_path):
     """Regression test (real bug, real doc): update_image_manifest used to
     always APPEND a brand-new header item at the very end of the
