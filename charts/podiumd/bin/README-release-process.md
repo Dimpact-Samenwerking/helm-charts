@@ -145,6 +145,7 @@ Tools:
 - `update-component-version`: update the version of component, given component name, app-version and helm-version
 - `update-image-version`: update the version of image, given image name and version
 - `verify-component-version`: verify that a component's helm-chart version AND app image version(s) exist, given component name, app-version and chart-version (same shape as `update-component-version`) — pre-flight check for that command
+- `verify-helm-secret-size`: estimate the size of the Helm release Secret a chart would produce vs Kubernetes' 1 MiB limit, given a chart directory (`--record` appends/updates a row in `<chart>/docs/release-secret-size.md`) — also runs automatically as part of `verify-podiumd`'s own "Release secret size" step for podiumd itself; this standalone tool is what covers any other chart (e.g. `charts/monitoring-logging`)
 - `verify-image-version`: verify that an image version exists for an already-pinned image, given image name and version (same shape as `update-image-version`) — pre-flight check for that command, no chart involved
 - `verify-podiumd`: verify podiumd's consistency, references, policies 
 - `verify-release-table-with-podiumd`: verify the confluence exported release table against podiumd's implementation

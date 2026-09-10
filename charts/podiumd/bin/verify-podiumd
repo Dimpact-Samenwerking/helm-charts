@@ -137,14 +137,28 @@ trip:
       Neither ever fails the check yet, though: the backlog is untriaged
       and partly upstream-blocked (see lib.kube_score_check)
 
-  21. every unique digest-pinned image has its own newest same-variant tag
+  21. estimates the size of the Kubernetes Secret Helm would persist for
+      this release (base64(gzip(json.Marshal(release))), the same payload
+      shape `helm install`/`upgrade` itself stores — see helm.sh/helm/v4/
+      pkg/storage/driver/util.go's encodeRelease()) against the apiserver's
+      hard 1 MiB Secret/ConfigMap limit — fails once the estimate reaches
+      90% of that limit, a real risk of a future release failing outright
+      with "request entity too large". Needs its own `helm package` call
+      (bundling whatever charts/*.tgz step 13 already vendored) on top of
+      the render every other step in this cluster already needed, so it's
+      the last of the render-based steps rather than grouped with 17-20
+      (see lib.release_secret_size — also the shared core the standalone
+      verify-helm-secret-size CLI builds on, for any OTHER chart, or a
+      manual --record run of this same estimate)
+
+  22. every unique digest-pinned image has its own newest same-variant tag
       looked up on its upstream registry (a tag-list call, no image pull —
       cached by (repository, version), see lib.image_upgrade_check) —
       "upgradable" if a numerically-newer tag is currently published,
-      regardless of whether it fixes anything (that's step 22's job).
+      regardless of whether it fixes anything (that's step 23's job).
       Report-only, never fails (see lib.image_upgrade_check)
 
-  22. every unique digest-pinned image is scanned for known CVEs with a fix
+  23. every unique digest-pinned image is scanned for known CVEs with a fix
       available, via a per-image `docker run aquasec/trivy:latest` (same
       tool this repo already scans images with in
       .github/workflows/trivy-vuln-scanner.yaml). Deliberately last: pulling
@@ -154,7 +168,7 @@ trip:
       a HIGH/CRITICAL finding is a triage decision for a human, not a
       chart-correctness fact (see lib.cve_check)
 
-  23. every component registered as "lockstep" in lib.chart — either a
+  24. every component registered as "lockstep" in lib.chart — either a
       COMPONENT_IMAGE_PATHS/COMPONENT_VERSION_PATHS entry with 2+ paths
       (e.g. kiss-chart's frontend "image" + its own settings.syncJobs.
       image), or a CHART_VERSION_LOCKSTEP_COMPONENTS entry (kiss-chart,
@@ -183,7 +197,7 @@ yamllint/kubeconform/shellcheck/kube-score/none (just network)/
 docker+trivy, respectively) beyond helm — run --help for exactly which
 binary/package each one needs, and add its step to --skip= to bypass a
 missing one (skipping means that check doesn't run, not that it passes;
-step 22 is the one exception — a missing docker makes it report itself
+step 23 is the one exception — a missing docker makes it report itself
 skipped rather than failed, since it was designed as non-blocking even
 before it joined the regular --skip=/--include= pipeline). Steps 4-7 and
 12 are pure-Python (step 12 uses only the standard library's own urllib,
@@ -234,12 +248,12 @@ Usage:
         # digest-pinning, vendored-tgz, release-baseline, doc-consistency,
         # helm-doc, markdown, repo-access, dependencies, subchart-images,
         # image-repository, image-digests, helm-lint, full-render,
-        # yamllint, kubeconform, shellcheck, kube-score, image-upgrades,
-        # cve-scan.
+        # yamllint, kubeconform, shellcheck, kube-score, release-secret-size,
+        # image-upgrades, cve-scan.
         # See --help for the full list.
         # Note: cve-scan is the one most worth skipping day to day if you
         # just want a normal run WITHOUT pulling every image via Docker —
-        # step 22 runs by default like every other step (no separate
+        # step 23 runs by default like every other step (no separate
         # opt-in flag).
     verify-podiumd --include=kube-score
         # the inverse of --skip=: run ONLY the named step(s) (plus whatever
@@ -302,6 +316,7 @@ from lib.yamllint_check import check_yamllint
 from lib.kubeconform_check import check_kubeconform
 from lib.shellcheck_check import check_shellcheck
 from lib.kube_score_check import check_kube_score
+from lib.release_secret_size import check_release_secret_size
 
 DEFAULT_CHART_DIR = SCRIPT_DIR.parent
 
@@ -512,6 +527,7 @@ SKIPPABLE_STEPS = [
     ("kubeconform", "kubeconform"),
     ("shellcheck", "shellcheck"),
     ("kube-score", "kube-score"),
+    ("release-secret-size", "Release secret size"),
     ("image-upgrades", "Image upgrades"),
     ("cve-scan", "CVE scan"),
 ]
@@ -522,7 +538,12 @@ SKIPPABLE_STEPS = [
 # needs "Dependencies" to have populated charts/*.tgz first, or its own
 # `helm template`/`helm lint` call fails on unresolved sub-charts — "Image
 # upgrades" and "CVE scan" each do their own `helm template` call
-# internally for the same reason. "Image digests" also needs it, but for a
+# internally for the same reason. "Release secret size" needs it for the
+# same reason twice over: its own `helm template` render (lib.render_scope.
+# render_chart) fails the same way, AND its own `helm package` call (see
+# lib.release_secret_size.packaged_files) bundles charts/*.tgz as-is — an
+# empty/stale charts/ there would silently size the estimate against the
+# wrong (or no) subchart tree. "Image digests" also needs it, but for a
 # cheaper reason: a pin with no "repository:" of its own falls back to
 # reading the vendored subchart's own default straight out of its .tgz
 # (lib.chart.subchart_default_repository) — charts/*.tgz is gitignored, so
@@ -561,6 +582,7 @@ STEP_PREREQUISITES = {
     "kubeconform": ("Dependencies",),
     "shellcheck": ("Dependencies",),
     "kube-score": ("Dependencies",),
+    "Release secret size": ("Dependencies",),
     "Image upgrades": ("Dependencies",),
     "CVE scan": ("Dependencies", "Image upgrades"),
 }
@@ -739,6 +761,8 @@ def main():
     run_step("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
     run_step("shellcheck", "shellcheck (embedded shell scripts)", check_shellcheck, chart_dir, extra_args)
     run_step("kube-score", "kube-score (resource requests/limits)", check_kube_score, chart_dir, extra_args)
+    run_step("Release secret size", "Estimating the Helm release Secret size",
+             check_release_secret_size, chart_dir, extra_args)
     run_step("Image upgrades", "Checking for newer published tags", check_image_upgrades, chart_dir, extra_args)
     run_step("CVE scan", "Scanning pinned images for known CVEs (trivy)", check_cves, chart_dir, extra_args,
               args.detail_cve_check)
