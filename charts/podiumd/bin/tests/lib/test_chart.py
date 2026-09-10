@@ -440,8 +440,8 @@ def test_find_dependency_not_found_returns_none(libchart):
 
 
 # --- find_app_versions ---
-# shared by show-component-baseline-version and show-image-baseline-
-# version, via component_state_at_ref below.
+# used by show-component-baseline-version, via component_state_at_baseline
+# below.
 
 def test_find_app_versions_single_image(libchart):
     values = {"zac": {"image": {"tag": "5.0.2@sha256:abc"}}}
@@ -466,52 +466,60 @@ def test_find_app_versions_empty_tag_is_skipped(libchart):
     assert libchart.find_app_versions(values, "zac", ["image"]) == []
 
 
-# --- component_state_at_ref ---
-# the full "resolve a component's baseline state via git show" pipeline
-# shared by show-component-baseline-version and show-image-baseline-
-# version. git_show_yaml itself (and the real `git show` it wraps) is
-# lib.gitutil's own — see tests/lib/test_gitutil.py — these tests mock it
-# out and only exercise this function's own glue: reading Chart.yaml,
-# finding the dependency, and looking up its app version(s).
+# --- component_state_at_baseline ---
+# the full "resolve a component's baseline state via the shared release-
+# baseline primitive" pipeline shared by show-component-baseline-version
+# (show-image-baseline-version resolves a single image pin directly
+# instead — see find_app_versions' own docstring). lib.release_baseline.
+# resolve_baseline_chart_state itself (and the real git plumbing it
+# wraps) has its own test coverage (tests/lib/test_release_baseline.py)
+# — these tests mock IT out and only exercise this function's own glue:
+# finding the dependency and looking up its app version(s) on top of
+# whatever resolve_baseline_chart_state returns.
 
-def test_component_state_at_ref_success(libchart, monkeypatch):
-    def fake_git_show_yaml(repo_root, ref, relpath):
-        if relpath.endswith("Chart.yaml"):
-            return {"dependencies": [
-                {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
-            ]}
-        return {"zac": {"image": {"tag": "5.0.2@sha256:abc"}}}
+def test_component_state_at_baseline_success(libchart, monkeypatch):
+    monkeypatch.setattr(
+        libchart, "resolve_baseline_chart_state",
+        lambda chart_dir, baseline: (
+            "podiumd-4.8.5",
+            [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}],
+            {"zac": {"image": {"tag": "5.0.2@sha256:abc"}}},
+            ["zac:", "  image:", '    tag: "5.0.2@sha256:abc"'],
+            None,
+        ))
 
-    monkeypatch.setattr(libchart, "git_show_yaml", fake_git_show_yaml)
-
-    dep, values_key, image_paths, app_versions, error = libchart.component_state_at_ref(
-        "repo_root", "podiumd-4.8.5", "charts/podiumd", "zac")
+    ref, dep, values_key, image_paths, app_versions, error = libchart.component_state_at_baseline(
+        "chart_dir", "charts/podiumd", "4.8.5", "zac")
 
     assert error is None
+    assert ref == "podiumd-4.8.5"
     assert dep["name"] == "zaakafhandelcomponent"
     assert values_key == "zac"
     assert image_paths == ["image"]
     assert app_versions == [("image", "5.0.2@sha256:abc")]
 
 
-def test_component_state_at_ref_unreadable_chart_yaml(libchart, monkeypatch):
-    monkeypatch.setattr(libchart, "git_show_yaml", lambda repo_root, ref, relpath: None)
+def test_component_state_at_baseline_propagates_resolve_baseline_chart_state_error(libchart, monkeypatch):
+    monkeypatch.setattr(
+        libchart, "resolve_baseline_chart_state",
+        lambda chart_dir, baseline: (None, [], {}, [], "could not resolve baseline '9.9.9' to a git ref (tried ...)"))
 
-    dep, values_key, image_paths, app_versions, error = libchart.component_state_at_ref(
-        "repo_root", "podiumd-4.8.5", "charts/podiumd", "zac")
+    ref, dep, values_key, image_paths, app_versions, error = libchart.component_state_at_baseline(
+        "chart_dir", "charts/podiumd", "9.9.9", "zac")
 
-    assert dep is values_key is image_paths is app_versions is None
-    assert error == "could not read charts/podiumd/Chart.yaml at podiumd-4.8.5"
+    assert ref is dep is values_key is image_paths is app_versions is None
+    assert error == "could not resolve baseline '9.9.9' to a git ref (tried ...)"
 
 
-def test_component_state_at_ref_dependency_not_found(libchart, monkeypatch):
-    monkeypatch.setattr(libchart, "git_show_yaml",
-                         lambda repo_root, ref, relpath: {"dependencies": []} if relpath.endswith("Chart.yaml") else {})
+def test_component_state_at_baseline_dependency_not_found(libchart, monkeypatch):
+    monkeypatch.setattr(
+        libchart, "resolve_baseline_chart_state",
+        lambda chart_dir, baseline: ("podiumd-4.8.5", [], {}, [], None))
 
-    dep, values_key, image_paths, app_versions, error = libchart.component_state_at_ref(
-        "repo_root", "podiumd-4.8.5", "charts/podiumd", "totally-unknown")
+    ref, dep, values_key, image_paths, app_versions, error = libchart.component_state_at_baseline(
+        "chart_dir", "charts/podiumd", "4.8.5", "totally-unknown")
 
-    assert dep is values_key is image_paths is app_versions is None
+    assert ref is dep is values_key is image_paths is app_versions is None
     assert error == ("no dependency named or aliased 'totally-unknown' "
                       "in charts/podiumd/Chart.yaml at podiumd-4.8.5")
 

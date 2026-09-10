@@ -1,10 +1,11 @@
 """main() integration against a real, hermetic temp git repo, plus the
 find_repo_root wrapper. find_dependency/get_path/find_app_versions and
-component_state_at_ref (which wires them together with git_show_yaml)
-are lib.chart's own (see tests/lib/test_chart.py) — baseline_ref_
-candidates/resolve_git_ref are lib.gitutil's own (see
-tests/lib/test_gitutil.py) — this script only calls through
-resolve_baseline_ref/component_state_at_ref, exercised here via main().
+component_state_at_baseline (which wires them together with lib.
+release_baseline.resolve_baseline_chart_state) are lib.chart's own (see
+tests/lib/test_chart.py) — baseline_ref_candidates/resolve_git_ref are
+lib.gitutil's own (see tests/lib/test_gitutil.py) — this script only
+calls through component_state_at_baseline (via lib.baseline_report.
+show_baseline_section), exercised here via main().
 
 No <baseline> CLI argument anymore — main() always shows state at BOTH
 release-baseline.yaml baselines (upgrade_docs, release_table)."""

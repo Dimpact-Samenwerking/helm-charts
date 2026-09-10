@@ -7,8 +7,11 @@ finding out what a release actually shipped before writing an upgrade
 doc's "source" column, without checking out that release or digging
 through git history by hand. For just the image side (no Helm chart
 version), see show-image-baseline-version instead — same shape, and
-both scripts resolve the component's baseline state via the same
-lib.chart.component_state_at_ref.
+both scripts build on the same lib.release_baseline.resolve_baseline_
+chart_state for the underlying ref-resolution + `git show` work
+(lib.chart.component_state_at_baseline layers this script's own
+dependency/app-version lookup on top of it; show-image-baseline-version
+resolves a single image pin directly off the same primitive instead).
 
 Usage:
     show-component-baseline-version <component>
@@ -32,10 +35,10 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import component_state_at_ref
+from lib.baseline_report import show_baseline_section
+from lib.chart import component_state_at_baseline
 from lib.chart import release_table_baseline as read_release_table_baseline
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.gitutil import resolve_baseline_ref
 from lib.gitutil import find_repo_root as _find_repo_root
 
 RELATIVE_CHART_DIR = "charts/podiumd"
@@ -48,43 +51,33 @@ def find_repo_root():
     return repo_root
 
 
-def show_at_baseline(repo_root, label, baseline, component):
+def show_at_baseline(chart_dir, label, baseline, component):
     """Prints this component's state at `baseline` (labeled `label`,
-    "upgrade_docs" or "release_table"), or a one-line note instead if
-    `baseline` is None or doesn't resolve/apply. Returns True if the
-    component's state was actually shown."""
-    print(f"=== {label} baseline ===")
-    if baseline is None:
-        print(f"  (release-baseline.yaml has no {label} key — skipping)")
-        print()
-        return False
+    "upgrade_docs" or "release_table") — see lib.baseline_report.
+    show_baseline_section for the shared "skip if None / print the
+    error / blank line" wrapper this only needs to supply its own
+    resolve-and-print body for. Returns True if the component's state
+    was actually shown."""
+    def resolve(baseline_value):
+        ref, dep, values_key, image_paths, app_versions, error = component_state_at_baseline(
+            chart_dir, RELATIVE_CHART_DIR, baseline_value, component)
+        if error:
+            return f"error: {error}"
 
-    ref, error = resolve_baseline_ref(repo_root, baseline)
-    if error:
-        print(f"  error: {error}")
-        print()
-        return False
+        print(f"  Component: {component} (Chart.yaml dependency: {dep['name']}, values key: {values_key})")
+        print(f"  Baseline: {baseline_value} (resolved to {ref})")
+        print(f"  Helm chart version: {dep['version']}")
+        if app_versions:
+            print("  App version(s):")
+            for name, tag in app_versions:
+                version = tag.split("@", 1)[0]
+                print(f"    {name}: {version}  ({tag})")
+        else:
+            print(f"  App version: no tag override found at {', '.join(image_paths)} "
+                  f"under '{values_key}:' — chart default applies")
+        return None
 
-    dep, values_key, image_paths, app_versions, error = component_state_at_ref(
-        repo_root, ref, RELATIVE_CHART_DIR, component)
-    if error:
-        print(f"  error: {error}")
-        print()
-        return False
-
-    print(f"  Component: {component} (Chart.yaml dependency: {dep['name']}, values key: {values_key})")
-    print(f"  Baseline: {baseline} (resolved to {ref})")
-    print(f"  Helm chart version: {dep['version']}")
-    if app_versions:
-        print("  App version(s):")
-        for name, tag in app_versions:
-            version = tag.split("@", 1)[0]
-            print(f"    {name}: {version}  ({tag})")
-    else:
-        print(f"  App version: no tag override found at {', '.join(image_paths)} "
-              f"under '{values_key}:' — chart default applies")
-    print()
-    return True
+    return show_baseline_section(label, baseline, resolve)
 
 
 def main():
@@ -102,8 +95,8 @@ def main():
     upgrade_docs = read_upgrade_docs_baseline(chart_dir)
     release_table = read_release_table_baseline(chart_dir)
 
-    shown_upgrade_docs = show_at_baseline(repo_root, "upgrade_docs", upgrade_docs, component)
-    shown_release_table = show_at_baseline(repo_root, "release_table", release_table, component)
+    shown_upgrade_docs = show_at_baseline(chart_dir, "upgrade_docs", upgrade_docs, component)
+    shown_release_table = show_at_baseline(chart_dir, "release_table", release_table, component)
 
     if not shown_upgrade_docs and not shown_release_table:
         sys.exit(1)
