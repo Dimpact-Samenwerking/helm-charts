@@ -14,7 +14,7 @@ Common Ground,Maykin Media,,Open Notificaties,opennotificaties,,,1.16.1,2.0.0,1.
 Common Ground,ICATT,,Platform Autorisatie Beheer Component (PABC),pabc,pabc,"pabc-api,pabc-migrations",1.1.1,1.1.1,1.1.1,1.1.1
 Common Ground,Maykin Media,,Open Beheer (LBI),openbeheer,,open-beheer,0.9.1,0.1.3,0.9.1,0.1.3
 Common Ground,Maykin Media,,Referentielijst,referentielijsten,referentielijsten,referentielijsten-api,0.7.3,0.1.1,0.7.3,0.1.1
-Common Ground,Worth,,OMC / Notify,notifynl-omc-nodep,omc,,1.17.19,0.14.1,1.17.19,0.14.1
+Common Ground,Worth,,OMC / Notify,notifynl-omc-nodep,omc,notifynl-omc,1.17.19,0.14.1,1.17.19,0.14.1
 Common Ground,WeAreFrank,,Zaak Brug,zaakbrug,,zaakbrug,1.26.13,2.3.28,1.26.18,2.3.32
 Common Ground,WeAreFrank,,Frank Gateway,frankgateway,,frank-gateway,104,NATIVE,1.1.0,NATIVE
 Common Ground,Dimpact,,MI Data Export,mi-data,mi,azure-cli,,,2.90.0,1.1.0
