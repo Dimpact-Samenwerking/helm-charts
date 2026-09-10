@@ -167,6 +167,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
     monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
+    monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
 
@@ -181,7 +182,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
                     "release-baseline", "lockstep", "helm-docs", "markdown", "repo-access", "deps", "docs",
                     "subchart-images", "digests", "yamllint", "kubeconform", "shellcheck",
-                    "kube-score", "image-upgrades", "cves"]
+                    "kube-score", "release-secret-size", "image-upgrades", "cves"]
     out = capsys.readouterr().out
     assert "Helm lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
@@ -209,7 +210,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
                  "check_release_baseline", "check_lockstep_versions", "check_helm_docs", "check_markdown",
                  "check_subchart_image_visibility", "check_image_repository",
                  "check_yamllint", "check_kubeconform", "check_shellcheck", "check_kube_score",
-                 "check_image_upgrades", "check_cves"):
+                 "check_release_secret_size", "check_image_upgrades", "check_cves"):
         monkeypatch.setattr(vp, name, ok)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -259,6 +260,7 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
     monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
+    monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
 
@@ -272,7 +274,7 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
                     "release-baseline", "lockstep", "helm-docs", "markdown", "repo-access", "deps", "docs",
                     "subchart-images", "image-repository", "digests", "helm-lint", "full-render",
                     "yamllint", "kubeconform", "shellcheck", "kube-score",
-                    "image-upgrades", "cves"]
+                    "release-secret-size", "image-upgrades", "cves"]
     out = capsys.readouterr().out
     assert "UTF-8 format" in out and "FAIL" in out
     assert "One or more checks failed" in out
@@ -307,7 +309,8 @@ def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys)
     monkeypatch.setattr(vp, "check_dependencies", lambda *a: (False, "helm dependency update failed"))
     for name in ("check_docs_consistency", "check_subchart_image_visibility", "check_image_repository",
                  "check_image_digests", "check_lint", "check_render", "check_yamllint", "check_kubeconform",
-                 "check_shellcheck", "check_kube_score", "check_image_upgrades", "check_cves"):
+                 "check_shellcheck", "check_kube_score", "check_release_secret_size", "check_image_upgrades",
+                 "check_cves"):
         monkeypatch.setattr(vp, name, fail_if_called)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -324,6 +327,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys)
 def test_prerequisites_for_render_based_check_needs_dependencies(vp):
     assert vp.prerequisites_for("kube-score") == {"Dependencies", "Repo access"}
     assert vp.prerequisites_for("Helm lint") == {"Dependencies", "Repo access"}
+    assert vp.prerequisites_for("Release secret size") == {"Dependencies", "Repo access"}
 
 
 def test_prerequisites_for_image_digests_needs_dependencies(vp):
@@ -401,6 +405,7 @@ def _stub_all_checks(vp, monkeypatch, ran):
     monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
     monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
+    monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
 
@@ -560,6 +565,31 @@ def test_include_image_upgrades_runs_it_plus_dependencies(vp, monkeypatch):
     vp.main()
 
     assert ran == ["repo-access", "deps", "image-upgrades"]
+
+
+def test_skip_release_secret_size_skips_it(vp, monkeypatch, capsys):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=release-secret-size"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert "release-secret-size" not in ran
+    out = capsys.readouterr().out
+    assert "Release secret size" in out and "SKIP" in out
+
+
+def test_include_release_secret_size_runs_it_plus_dependencies(vp, monkeypatch):
+    """Like kube-score/image-upgrades, its own render (and, additionally,
+    its own `helm package` call) needs "Dependencies" to have populated
+    charts/*.tgz first."""
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=release-secret-size"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert ran == ["repo-access", "deps", "release-secret-size"]
 
 
 def test_skip_helm_doc_skips_it(vp, monkeypatch, capsys):

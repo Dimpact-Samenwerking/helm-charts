@@ -40,6 +40,7 @@ import lib.lockstep_check as lockstep_check
 import lib.markdown_check as markdown_check
 import lib.node_selector_check as node_selector_check
 import lib.registry as registry
+import lib.release_secret_size as release_secret_size
 import lib.render_scope as render_scope
 import lib.shellcheck_check as shellcheck_check
 import lib.upgradedoc as upgradedoc
@@ -103,6 +104,11 @@ def libshellcheckcheck():
 @pytest.fixture(scope="session")
 def libkubescorecheck():
     return kube_score_check
+
+
+@pytest.fixture(scope="session")
+def librelease_secret_size():
+    return release_secret_size
 
 
 @pytest.fixture(scope="session")
