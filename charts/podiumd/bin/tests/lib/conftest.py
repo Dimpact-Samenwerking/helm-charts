@@ -8,6 +8,7 @@ import pytest
 SCRIPTS_DIR = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
+import lib.baseline_report as baseline_report
 import lib.chart as chart
 import lib.component_docs as component_docs
 import lib.confluence_tables as confluence_tables
@@ -37,6 +38,11 @@ def libregistry():
 @pytest.fixture(scope="session")
 def libchart():
     return chart
+
+
+@pytest.fixture(scope="session")
+def libbaselinereport():
+    return baseline_report
 
 
 @pytest.fixture(scope="session")

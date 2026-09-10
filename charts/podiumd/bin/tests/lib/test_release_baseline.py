@@ -101,6 +101,73 @@ def test_resolve_baseline_chart_state_error_when_chart_yaml_unreadable_at_ref(li
     assert "could not read Chart.yaml at that ref" in error
 
 
+def test_resolve_baseline_values_resolves_real_baseline(librelease_baseline, repo):
+    ref, values, lines, error = librelease_baseline.resolve_baseline_values(repo, "4.8.5")
+    assert error is None
+    assert ref == "podiumd-4.8.5"
+    assert values == {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
+    assert lines == ['zac:', '  image:', '    tag: "5.0.2@sha256:aaaa"']
+
+
+def test_resolve_baseline_values_error_when_ref_unresolvable(librelease_baseline, repo):
+    ref, values, lines, error = librelease_baseline.resolve_baseline_values(repo, "9.9.9")
+    assert ref is None
+    assert values == {}
+    assert lines == []
+    assert "could not resolve baseline '9.9.9' to a git ref" in error
+
+
+def test_resolve_baseline_values_error_outside_git_repo(librelease_baseline, tmp_path):
+    outside = tmp_path / "not-a-repo"
+    outside.mkdir()
+    ref, values, lines, error = librelease_baseline.resolve_baseline_values(outside, "4.8.5")
+    assert ref is None
+    assert values == {}
+    assert lines == []
+    assert "is not inside a git repository" in error
+
+
+def test_resolve_baseline_values_error_when_values_yaml_unreadable_at_ref(librelease_baseline, tmp_path):
+    """Unlike resolve_baseline_chart_state (where a missing values.yaml
+    is NOT itself a failure — Chart.yaml alone is still a usable
+    result), this function has nothing else to fall back on: a values-
+    only lookup whose only reason for being called can't be read at all
+    is a real failure here."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+    (tmp_path / "README.md").write_text("no values.yaml here yet\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "no values.yaml yet", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    ref, values, lines, error = librelease_baseline.resolve_baseline_values(tmp_path, "4.8.5")
+    assert ref is None
+    assert values == {}
+    assert lines == []
+    assert error == "could not read ./values.yaml at podiumd-4.8.5"
+
+
+def test_resolve_baseline_values_never_requires_chart_yaml(librelease_baseline, tmp_path):
+    """The whole point of this sibling: a ref with values.yaml but no
+    Chart.yaml at all (impossible for THIS chart in practice, but
+    exactly what show-image-baseline-version's own test fixture models
+    — it never needed Chart.yaml before this function existed either)
+    must still resolve fine."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+    (tmp_path / "values.yaml").write_text('zac:\n  image:\n    tag: "5.0.2@sha256:aaaa"\n')
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "values.yaml, no Chart.yaml", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    ref, values, lines, error = librelease_baseline.resolve_baseline_values(tmp_path, "4.8.5")
+    assert error is None
+    assert ref == "podiumd-4.8.5"
+    assert values == {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
+
+
 def test_resolve_baseline_chart_state_empty_dependencies_is_not_a_failure(librelease_baseline, tmp_path):
     """A chart with zero Chart.yaml dependencies at the baseline ref is a
     real, valid state — never itself treated as an error."""

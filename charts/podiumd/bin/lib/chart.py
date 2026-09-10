@@ -10,9 +10,9 @@ from pathlib import Path
 
 import yaml
 
-from lib.gitutil import git_show_yaml
 from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
+from lib.release_baseline import resolve_baseline_chart_state
 
 # A BOM breaks YAML tooling that doesn't expect one. Shared by
 # verify-podiumd (detects and reports it — a verify script never writes
@@ -503,9 +503,11 @@ def find_app_versions(values, values_key, image_paths):
     """[(image_path, tag), ...] for every image_paths entry (see
     image_paths_for) that has an explicit tag override under
     values[values_key] — empty if the component relies entirely on its
-    chart's own image defaults. Shared by show-component-baseline-version
-    and show-image-baseline-version (which this lets delegate its own
-    image-only lookup to, via component_state_at_ref below)."""
+    chart's own image defaults. Used by show-component-baseline-version,
+    via component_state_at_baseline below — show-image-baseline-version
+    resolves a single image pin directly instead (lib.image_version.
+    resolve_scoped_matches), never a whole component's app-version list,
+    so it has no need for this."""
     base = values.get(values_key, {}) if isinstance(values, dict) else {}
     versions = []
     for path in image_paths:
@@ -515,29 +517,48 @@ def find_app_versions(values, values_key, image_paths):
     return versions
 
 
-def component_state_at_ref(repo_root, ref, chart_dir_relpath, component):
-    """(dep, values_key, image_paths, app_versions, error) for
-    `component`'s Chart.yaml dependency entry + declared image tag(s) as
-    they were at ref, via `git show` (no checkout needed) — every path
-    show-component-baseline-version and show-image-baseline-version each
-    need to look up a component's baseline state, since neither ever
-    needs Chart.yaml/values.yaml without the other. On failure, error is
-    a ready-to-print reason (no "error: " prefix — callers format that
-    themselves) and the other four are None; on success error is None.
-    Never raises: a caller-facing lookup like this treats "not found" as
-    an ordinary, reportable outcome, not an exceptional one."""
-    chart_yaml = git_show_yaml(repo_root, ref, f"{chart_dir_relpath}/Chart.yaml")
-    if chart_yaml is None:
-        return None, None, None, None, f"could not read {chart_dir_relpath}/Chart.yaml at {ref}"
-    dep = find_dependency(chart_yaml.get("dependencies", []), component)
+def component_state_at_baseline(chart_dir, chart_dir_relpath, baseline, component):
+    """(baseline_ref, dep, values_key, image_paths, app_versions, error)
+    for `component`'s Chart.yaml dependency entry + declared image
+    tag(s) at release-baseline.yaml value `baseline`, resolved against
+    chart_dir's own git history — the shared lookup show-component-
+    baseline-version needs (show-image-baseline-version resolves a
+    single image pin directly instead, straight off lib.release_
+    baseline.resolve_baseline_chart_state's own baseline_lines — see
+    find_app_versions' own docstring for why it has no need for THIS
+    function at all).
+
+    Wraps lib.release_baseline.resolve_baseline_chart_state for the
+    actual ref-resolution + git-show work (the part every baseline-
+    reading caller now shares — see that module's own docstring), then
+    does the component-specific dependency/app-version lookup on top of
+    the baseline_deps/baseline_values it returns. `chart_dir_relpath`
+    is only ever used for this function's OWN "no dependency" message
+    below (e.g. "charts/podiumd") — resolve_baseline_chart_state derives
+    its own equivalent internally from chart_dir, never exposed back out.
+
+    On failure, error is a ready-to-print reason (no "error: " prefix —
+    callers format that themselves) and the other five are None;
+    baseline_ref is None whenever error is set too (matches resolve_
+    baseline_chart_state's own "None on ANY failure" convention). error
+    is resolve_baseline_chart_state's own message verbatim for a
+    ref-resolution/Chart.yaml-read failure, or this function's own "no
+    dependency named or aliased ...' message once the baseline itself
+    resolved fine but `component` doesn't match anything there. Never
+    raises: a caller-facing lookup like this treats "not found" as an
+    ordinary, reportable outcome, not an exceptional one."""
+    baseline_ref, baseline_deps, baseline_values, _baseline_lines, error = resolve_baseline_chart_state(
+        chart_dir, baseline)
+    if error:
+        return None, None, None, None, None, error
+    dep = find_dependency(baseline_deps, component)
     if not dep:
-        return None, None, None, None, (f"no dependency named or aliased '{component}' "
-                                         f"in {chart_dir_relpath}/Chart.yaml at {ref}")
-    values = git_show_yaml(repo_root, ref, f"{chart_dir_relpath}/values.yaml") or {}
+        return None, None, None, None, None, (f"no dependency named or aliased '{component}' "
+                                                f"in {chart_dir_relpath}/Chart.yaml at {baseline_ref}")
     values_key = dep.get("alias", dep["name"])
     image_paths = image_paths_for(component)
-    app_versions = find_app_versions(values, values_key, image_paths)
-    return dep, values_key, image_paths, app_versions, None
+    app_versions = find_app_versions(baseline_values, values_key, image_paths)
+    return baseline_ref, dep, values_key, image_paths, app_versions, None
 
 
 def chart_ref(dep):
