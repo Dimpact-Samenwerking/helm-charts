@@ -3530,7 +3530,7 @@ ita:
   poller:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "3.3.0@sha256:7690650687047c43f08c4f8320b77d821d3551d18478de9a600a2f828600c865"
+      tag: "3.3.1@sha256:69ffc0e9a36e47623517776becb23c3c7437500f1bca1d91cc65e868beefe3bc"
       pullPolicy: IfNotPresent
 
     resources:
