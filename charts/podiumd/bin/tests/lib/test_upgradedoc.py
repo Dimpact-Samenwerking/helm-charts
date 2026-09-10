@@ -1551,6 +1551,46 @@ def test_sort_images_manifest_entries_global_entry_sorts_first_not_last(libupgra
     assert new_text.index("curlimages/curl") < new_text.index("opstree/redis-operator")
 
 
+def test_sort_images_manifest_entries_multiple_global_images_use_their_own_real_suborder(libupgradedoc):
+    """Regression test: the real redis/nginx/curl/busybox bug, for
+    images-<version>.yaml's own ENTRY list. FOUR "global.images.*" peers,
+    scrambled — must reorder to values.yaml's own true nginx/curl/
+    busybox/redis order, not just "global sorts before everything
+    else" (already covered by the test above)."""
+    text = (
+        "# redis 8.0 -> 8.10.1\n"
+        "- name: redis\n"
+        "  version: \"8.10.1\"\n"
+        "\n"
+        "# curl 8.21.0 -> 8.22.0\n"
+        "- name: curlimages/curl\n"
+        "  version: \"8.22.0\"\n"
+        "\n"
+        "# nginx-unprivileged 1.31.4 -> 1.31.5\n"
+        "- name: nginxinc/nginx-unprivileged\n"
+        "  version: \"1.31.5\"\n"
+        "\n"
+        "# busybox 1.37.0 -> 1.38.0-glibc\n"
+        "- name: library/busybox\n"
+        "  version: \"1.38.0-glibc\"\n"
+    )
+    repo_map = {
+        "redis": ("global", "images", "redis"),
+        "curlimages/curl": ("global", "images", "curl"),
+        "nginxinc/nginx-unprivileged": ("global", "images", "nginx"),
+        "library/busybox": ("global", "images", "busybox"),
+    }
+
+    new_text, moved = libupgradedoc.sort_images_manifest_entries(
+        text, [], GLOBAL_IMAGES_VALUES, repo_map, canonical_names=GLOBAL_IMAGES_CANONICAL_NAMES)
+
+    names_in_order = [line.split("name: ", 1)[1].strip() for line in new_text.splitlines()
+                       if line.startswith("- name:")]
+    assert names_in_order == [
+        "nginxinc/nginx-unprivileged", "curlimages/curl", "library/busybox", "redis",
+    ]
+
+
 def test_images_manifest_display_name_positions_matches_entry_positions_order(libupgradedoc):
     """Real bug scenario: "kiss"'s own image basename ("kiss-frontend")
     shares no word with its display name ("kiss"), and "kiss-eck"'s two
@@ -2484,6 +2524,84 @@ def test_component_order_key_sidecar_sorts_after_its_own_parent_row(libupgradedo
         {"name": "redis-operator", "version": "0.26.0"}], KEY_ORDER + ["redis-operator"]) == (3, 1)
 
 
+# --- values_tree_position ---
+
+GLOBAL_IMAGES_VALUES = {
+    "global": {"images": {
+        "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.5@sha256:" + "a" * 64},
+        "curl": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:" + "b" * 64},
+        "busybox": {"repository": "library/busybox", "tag": "1.38.0-glibc@sha256:" + "c" * 64},
+        "redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "d" * 64},
+    }},
+    "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:" + "e" * 64}},
+}
+GLOBAL_IMAGES_CANONICAL_NAMES = {
+    "nginx-unprivileged": ("global", "images", "nginx"),
+    "curl": ("global", "images", "curl"),
+    "busybox": ("global", "images", "busybox"),
+    "redis": ("global", "images", "redis"),
+}
+
+
+def test_values_tree_position_walks_full_nested_structure(libupgradedoc):
+    """Real bug this closes: nginx/curl/busybox/redis are all genuinely
+    different, independently-orderable images sharing the exact same
+    "global.images.*" prefix — every existing sort-key function only
+    ever resolved a path down to its TOP-LEVEL key, tying all four at
+    the same index and leaving their own relative order to whatever a
+    stable sort happened to preserve (confirmed live: four documents,
+    four different, individually wrong orderings). This walks the FULL
+    path, one index per level."""
+    assert libupgradedoc.values_tree_position(
+        GLOBAL_IMAGES_VALUES, ("global", "images", "nginx")) == (0, 0, 0)
+    assert libupgradedoc.values_tree_position(
+        GLOBAL_IMAGES_VALUES, ("global", "images", "curl")) == (0, 0, 1)
+    assert libupgradedoc.values_tree_position(
+        GLOBAL_IMAGES_VALUES, ("global", "images", "busybox")) == (0, 0, 2)
+    assert libupgradedoc.values_tree_position(
+        GLOBAL_IMAGES_VALUES, ("global", "images", "redis")) == (0, 0, 3)
+    assert libupgradedoc.values_tree_position(GLOBAL_IMAGES_VALUES, ("zac", "image")) == (1, 0)
+
+
+def test_values_tree_position_shorter_prefix_always_sorts_first(libupgradedoc):
+    """A dependency's own bare 1-tuple identity (never resolved down
+    into whichever specific image path its app version came from) is a
+    genuine PREFIX of any of its own nested sidecar paths — Python's own
+    tuple-comparison rule makes it sort first regardless of what the
+    sidecar's own deeper indices happen to be, with no separate is-
+    sidecar bit needed at this level."""
+    assert libupgradedoc.values_tree_position(GLOBAL_IMAGES_VALUES, ("zac",)) \
+        < libupgradedoc.values_tree_position(GLOBAL_IMAGES_VALUES, ("zac", "image"))
+
+
+def test_values_tree_position_unresolvable_segment_sorts_last_never_crashes(libupgradedoc):
+    assert libupgradedoc.values_tree_position(GLOBAL_IMAGES_VALUES, ("global", "images", "mystery")) == (0, 0, 4)
+    assert libupgradedoc.values_tree_position(GLOBAL_IMAGES_VALUES, ("totally", "absent")) == (2,)
+
+
+def test_component_order_key_distinguishes_multiple_global_images_given_values(libupgradedoc):
+    """Regression test: the real redis/nginx/curl/busybox bug. Without
+    `values`, all four canonical "global" shared-image names tie at the
+    exact same (index, is_sidecar) key (see test_component_order_key_
+    global_shared_image_uses_its_own_values_position — the pre-existing
+    behavior this must never change). Given `values`, they resolve to
+    their own real, distinct sub-positions instead, matching values.
+    yaml's own true nginx/curl/busybox/redis order."""
+    key_order = ["global", "zac"]
+    without_values = [
+        libupgradedoc.component_order_key(name, [], key_order, GLOBAL_IMAGES_CANONICAL_NAMES)
+        for name in ("nginx-unprivileged", "curl", "busybox", "redis")
+    ]
+    assert without_values == [(0, 0)] * 4  # the pre-existing, now-fixed tie
+
+    with_values = [
+        libupgradedoc.component_order_key(name, [], key_order, GLOBAL_IMAGES_CANONICAL_NAMES, GLOBAL_IMAGES_VALUES)
+        for name in ("nginx-unprivileged", "curl", "busybox", "redis")
+    ]
+    assert with_values == sorted(with_values)  # already in the correct order
+    assert len(set(with_values)) == 4  # no longer tied
+
+
 # --- find_out_of_order_names ---
 
 def test_find_out_of_order_names_correctly_ordered_is_empty(libupgradedoc):
@@ -2674,6 +2792,40 @@ def test_sort_upgrade_doc_rows_global_row_sorts_to_its_own_real_position(libupgr
     assert lines[6].startswith("| Open Inwoner")
 
 
+def test_sort_upgrade_doc_rows_multiple_global_images_use_their_own_real_suborder(libupgradedoc):
+    """Regression test: the real redis/nginx/curl/busybox bug. FOUR
+    canonical "global" shared-image rows (all peers under values.yaml's
+    own "global.images.*") plus one real dependency ("zac") — given
+    `values`, they must reorder to values.yaml's own true order
+    (nginx-unprivileged, curl, busybox, redis), with "zac" still
+    correctly sorting after "global" as a whole (its own top-level key
+    comes second in values.yaml)."""
+    text = (
+        COMPONENT_VERSIONS_HEADING +
+        "| Component | App version | Helm chart |\n"
+        "| --- | --- | --- |\n"
+        "| redis | 8.0 → 8.10.1 | - |\n"
+        "| Zaak - ZAC | 5.4.2 → 5.4.3 | - |\n"
+        "| curl | 8.21.0 → 8.22.0 | - |\n"
+        "| nginx-unprivileged | 1.31.4 → 1.31.5 | - |\n"
+        "| busybox | 1.37.0 → 1.38.0-glibc | - |\n"
+    )
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+
+    new_text, moved = libupgradedoc.sort_upgrade_doc_rows(
+        text, deps, GLOBAL_IMAGES_VALUES, GLOBAL_IMAGES_CANONICAL_NAMES)
+
+    lines = [line for line in new_text.splitlines() if line.startswith("|") and "Component" not in line
+              and "---" not in line]
+    assert lines == [
+        "| nginx-unprivileged | 1.31.4 → 1.31.5 | - |",
+        "| curl | 8.21.0 → 8.22.0 | - |",
+        "| busybox | 1.37.0 → 1.38.0-glibc | - |",
+        "| redis | 8.0 → 8.10.1 | - |",
+        "| Zaak - ZAC | 5.4.2 → 5.4.3 | - |",
+    ]
+
+
 # --- sort_changes_blocks ---
 
 def test_sort_changes_blocks_reorders_and_preserves_block_content(libupgradedoc):
@@ -2743,6 +2895,32 @@ def test_sort_changes_blocks_global_block_sorts_to_its_own_real_position(libupgr
 
     assert new_text.index("### nginx-unprivileged") < new_text.index("### Open Zaak") \
         < new_text.index("### Open Inwoner")
+
+
+def test_sort_changes_blocks_multiple_global_images_use_their_own_real_suborder(libupgradedoc):
+    """The Changes-heading shape of the same real redis/nginx/curl/
+    busybox regression test above."""
+    text = (
+        "## Changes\n\n"
+        "### redis 8.0 → 8.10.1\n\nRedis details.\n\n"
+        "### Zaak - ZAC 5.4.2 → 5.4.3\n\nZaak details.\n\n"
+        "### curl 8.21.0 → 8.22.0\n\nCurl details.\n\n"
+        "### nginx-unprivileged 1.31.4 → 1.31.5\n\nNginx details.\n\n"
+        "### busybox 1.37.0 → 1.38.0-glibc\n\nBusybox details.\n"
+    )
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+
+    new_text, moved = libupgradedoc.sort_changes_blocks(
+        text, deps, GLOBAL_IMAGES_VALUES, GLOBAL_IMAGES_CANONICAL_NAMES)
+
+    headings = [line for line in new_text.splitlines() if line.startswith("### ")]
+    assert headings == [
+        "### nginx-unprivileged 1.31.4 → 1.31.5",
+        "### curl 8.21.0 → 8.22.0",
+        "### busybox 1.37.0 → 1.38.0-glibc",
+        "### redis 8.0 → 8.10.1",
+        "### Zaak - ZAC 5.4.2 → 5.4.3",
+    ]
 
 
 def test_sort_changes_blocks_fewer_than_two_blocks_is_unchanged(libupgradedoc):
@@ -2846,6 +3024,30 @@ def test_sort_values_delta_sections_reorders_hand_written_sections_too(libupgrad
         "## ZAC 5.0.2 → 5.4.4 — required edits\n\nSome hand-written prose.\n\n"
         "## openinwoner 2.4.2 → 2.4.3\n\n- Key `openinwoner.a` was added.\n"
     )
+
+
+def test_sort_values_delta_sections_multiple_global_images_use_their_own_real_suborder(libupgradedoc):
+    """The values-deltas.md shape of the same real redis/nginx/curl/
+    busybox regression test above — confirms the identical fix applies
+    to this THIRD consumer too, not just -upgrade.md's own table/
+    Changes shapes."""
+    text = (
+        "## redis 8.0 → 8.10.1\n\n- `global.images.redis.tag` bumped.\n\n"
+        "## curl 8.21.0 → 8.22.0\n\n- `global.images.curl.tag` bumped.\n\n"
+        "## nginx-unprivileged 1.31.4 → 1.31.5\n\n- `global.images.nginx.tag` bumped.\n\n"
+        "## busybox 1.37.0 → 1.38.0-glibc\n\n- `global.images.busybox.tag` bumped.\n"
+    )
+
+    new_text, moved = libupgradedoc.sort_values_delta_sections(
+        text, [], GLOBAL_IMAGES_VALUES, GLOBAL_IMAGES_CANONICAL_NAMES)
+
+    headings = [line for line in new_text.splitlines() if line.startswith("## ")]
+    assert headings == [
+        "## nginx-unprivileged 1.31.4 → 1.31.5",
+        "## curl 8.21.0 → 8.22.0",
+        "## busybox 1.37.0 → 1.38.0-glibc",
+        "## redis 8.0 → 8.10.1",
+    ]
 
 
 # --- resolve_component_row ---

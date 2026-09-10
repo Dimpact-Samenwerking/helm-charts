@@ -436,7 +436,7 @@ def update_image_manifest(images_path, basename, repository, old_version, new_ve
             # changes:") — same bare "# Changes:" convention this
             # function already matched before this fix.
             key_order = values_key_order(values)
-            new_key = component_order_key(basename, deps, key_order, canonical_names)
+            new_key = component_order_key(basename, deps, key_order, canonical_names, values)
             insert_images_manifest_header_item(lines, deps, key_order, new_key, item_text)
             changes_action = "added"
         else:
@@ -657,7 +657,7 @@ def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline
                 skipped.append(repo)
                 continue
 
-        sort_key = images_manifest_entry_order_key(representative, deps, key_order)
+        sort_key = images_manifest_entry_order_key(representative, deps, key_order, values)
         resolved.append((sort_key, repo, full_repo, new_version, digest))
 
     resolved.sort(key=lambda entry: entry[0])

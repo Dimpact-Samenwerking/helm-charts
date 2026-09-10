@@ -128,6 +128,37 @@ def test_renumber_images_manifest_changes_items_no_header_is_a_noop(libcomponent
     assert libcomponentdocs.renumber_images_manifest_changes_items(lines) is False
 
 
+# --- images_manifest_order_key ---
+
+def test_images_manifest_order_key_bare_string_unaffected_by_values(libcomponentdocs):
+    """A bare STRING values_key (the historical shape — top-level key
+    only) keeps the exact prior (index, is_sidecar) behavior, even when
+    `values` is given — it's only ever deepened when the caller passes
+    a full path TUPLE instead."""
+    key_order = ["global", "zac"]
+    values = {"global": {"images": {"nginx": {}, "curl": {}}}, "zac": {}}
+    assert libcomponentdocs.images_manifest_order_key(key_order, "global", False, values) == (0, 0)
+    assert libcomponentdocs.images_manifest_order_key(key_order, "global", True, values) == (0, 1)
+
+
+def test_images_manifest_order_key_path_tuple_resolves_full_nested_position(libcomponentdocs):
+    """Regression test: given a full values-tree path TUPLE (not just
+    its own top-level key string) and `values`, this resolves the SAME
+    real redis/nginx/curl/busybox sub-order the other two sort-key
+    functions already do — the shared lib.upgradedoc.values_tree_
+    position primitive, not a fourth, independent implementation."""
+    key_order = ["global"]
+    values = {"global": {"images": {
+        "nginx": {}, "curl": {}, "busybox": {}, "redis": {},
+    }}}
+    keys = [
+        libcomponentdocs.images_manifest_order_key(key_order, ("global", "images", name), True, values)
+        for name in ("nginx", "curl", "busybox", "redis")
+    ]
+    assert keys == sorted(keys)
+    assert len(set(keys)) == 4
+
+
 # --- insert_images_manifest_header_item ---
 
 def test_insert_images_manifest_header_item_at_correct_position(libcomponentdocs):
