@@ -105,7 +105,7 @@ from lib.image_docs import (
 )
 from lib.image_repository_check import find_images_without_repository
 from lib.registry import parse_repo, registry_tag_exists
-from lib.render_scope import render_chart, rendered_chart_paths
+from lib.render_scope import lint_args_for, render_chart, rendered_chart_paths
 from lib.upgradedoc import (
     append_to_doc, canonical_version_cell, changes_heading_has_app_version, changes_heading_identities,
     component_version_cell,
@@ -1941,7 +1941,13 @@ def main():
 
     print()
     print("=== Regenerating images-baseline.yaml ===")
-    render_result = render_chart(CHART_YAML.parent, [])
+    # Rendered with ci/lint-values.yaml (same convention every other
+    # render-based check in this codebase already uses) — a bare
+    # `values.yaml` render fails outright: several sub-charts declare
+    # required fields (JSON-schema "minLength", etc.) only ever
+    # satisfied by that CI overlay, which a real deploy always supplies
+    # via its own environment-specific values anyway.
+    render_result = render_chart(CHART_YAML.parent, lint_args_for(CHART_YAML.parent))
     if render_result.returncode != 0:
         print("  error: helm template failed to render — can't check for images defined only "
               "in a vendored sub-chart's own default values.yaml (see check_subchart_image_"

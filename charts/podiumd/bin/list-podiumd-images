@@ -175,11 +175,20 @@ def row_chart_tree_path(chart_dir, dep, first_segment):
     instead when `first_segment` matches one of them (name or alias) —
     same convention lib.chart.resolve_subchart_default already uses for
     this exact question (there, for a subchart-default-only image;
-    here, for any row regardless of where its tag actually came from)."""
+    here, for any row regardless of where its tag actually came from).
+
+    Each level is keyed by that dependency's own VALUES-KEY (alias if
+    it declares one, else its real name) — Helm's own "# Source:"
+    annotations name a chart-tree directory by alias when present,
+    confirmed live against the real chart (eck-stack, aliased
+    "kiss-eck", renders under "podiumd/charts/kiss-eck/...", never
+    ".../eck-stack/...")."""
     nested = next((d for d in subchart_dependencies(chart_dir, dep)
                     if first_segment in (d.get("alias"), d["name"])), None)
-    base = f"{CHART_NAME}/charts/{dep['name']}"
-    return f"{base}/charts/{nested['name']}" if nested else base
+    base = f"{CHART_NAME}/charts/{dep.get('alias') or dep['name']}"
+    if nested is None:
+        return base
+    return f"{base}/charts/{nested.get('alias') or nested['name']}"
 
 
 def component_version_rows(dep, key, merged, deps, root_values, rendered_paths):
@@ -289,7 +298,7 @@ def main():
 
         for dep in deps:
             key = dep.get("alias", dep["name"])
-            dep_chart_tree_path = f"{CHART_NAME}/charts/{dep['name']}"
+            dep_chart_tree_path = f"{CHART_NAME}/charts/{key}"
             enabled = dep_chart_tree_path in rendered_paths
             status = "" if enabled else "  [disabled]"
             print(f"=== {key} ({dep['name']} {dep['version']}){status} ===")

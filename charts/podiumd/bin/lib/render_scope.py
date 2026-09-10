@@ -122,13 +122,24 @@ def chart_name_from_source(source):
 
 
 def rendered_chart_paths(rendered_text):
-    """Every distinct chart-tree directory that actually produced at
-    least one rendered resource in `rendered_text` (a full `helm
-    template` render) — e.g. {"podiumd", "podiumd/charts/zac",
-    "podiumd/charts/openinwoner", "podiumd/charts/eck-operator", ...}.
-    Parsed from each "# Source: <path>" line's own chart_tree_path (see
-    above) — the ONE ground-truth oracle for "did chart-tree path X
-    actually render anything at all right now."
+    """Every distinct chart-tree directory that either produced at least
+    one rendered resource of its OWN in `rendered_text` (a full `helm
+    template` render), or has at least one rendered DESCENDANT — e.g.
+    {"podiumd", "podiumd/charts/zac", "podiumd/charts/openinwoner",
+    "podiumd/charts/eck-operator", ...}. Parsed from each "# Source:
+    <path>" line's own chart_tree_path (see above) — the ONE ground-
+    truth oracle for "is chart-tree path X genuinely live right now" —
+    PLUS every proper ancestor of each such path (splitting on
+    "/charts/" segments): a dependency can be a pure "umbrella" chart
+    with no templates/ of its own at all, bundling only NESTED
+    dependencies that do all the actual rendering (real, confirmed live
+    case: eck-stack/"kiss-eck" itself never appears in any "# Source:"
+    line — only its own nested eck-elasticsearch/eck-kibana do — yet
+    kiss-eck is very much enabled) — without ancestor inference, such a
+    dependency would look indistinguishable from a genuinely-disabled
+    one to every consumer below, a real bug caught only by testing
+    against the real chart rather than a synthetic one where every
+    dependency happens to own at least one template directly.
 
     Exists because Helm's condition:/tags: mechanism (on a Chart.yaml
     dependency directly, or transitively — a NESTED dependency's own
@@ -148,12 +159,25 @@ def rendered_chart_paths(rendered_text):
     2-dependency example by hand took several wrong turns before landing
     on the right answer via a real `helm template` render).
 
+    Ancestor inference never widens the set beyond genuinely-live
+    subtrees: a SIBLING or descendant path (e.g. openinwoner's own
+    disabled nested eck-operator, a sibling of its own enabled nested
+    eck-elasticsearch) is never added just because another child of the
+    same parent happens to render — only actual ancestors of an
+    actually-rendered path are added.
+
     Used by lib.digest_pinning_check.check_subchart_image_visibility and
     list-podiumd-images to gate a finding/entry/row on whether its own
     owning dependency (or nested dependency — see lib.chart.
     resolve_subchart_default) genuinely renders right now, instead of
     just being vendored on disk."""
-    return set(chart_tree_paths(rendered_text))
+    paths = set(chart_tree_paths(rendered_text))
+    ancestors = set()
+    for path in paths:
+        segments = path.split("/charts/")
+        for depth in range(2, len(segments)):
+            ancestors.add("/charts/".join(segments[:depth]))
+    return paths | ancestors
 
 
 # Vendored sub-charts from these upstream orgs are close/collaborative

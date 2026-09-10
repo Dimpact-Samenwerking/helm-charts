@@ -8,6 +8,9 @@ THEIR existing behavior."""
 # --- rendered_chart_paths ---
 
 def test_rendered_chart_paths_top_level_and_nested(librenderscope):
+    """The nested eck-elasticsearch path also implies its own ANCESTOR
+    ("podiumd/charts/openinwoner") is live -- see the dedicated umbrella-
+    chart test below for why that inference exists at all."""
     rendered = (
         "---\n# Source: podiumd/templates/a.yaml\nkind: X\n"
         "---\n# Source: podiumd/charts/zac/templates/b.yaml\nkind: Y\n"
@@ -16,8 +19,35 @@ def test_rendered_chart_paths_top_level_and_nested(librenderscope):
     assert librenderscope.rendered_chart_paths(rendered) == {
         "podiumd",
         "podiumd/charts/zac",
+        "podiumd/charts/openinwoner",
         "podiumd/charts/openinwoner/charts/eck-elasticsearch",
     }
+
+
+def test_rendered_chart_paths_umbrella_chart_with_no_own_templates_counts_as_rendered(librenderscope):
+    """The real bug this ancestor inference fixes, confirmed live: eck-
+    stack (aliased "kiss-eck") is a pure umbrella chart with NO
+    templates/ of its own at all — only its own nested eck-elasticsearch/
+    eck-kibana render anything. Without ancestor inference, "podiumd/
+    charts/kiss-eck" would never appear in this set at all, making a
+    perfectly enabled dependency indistinguishable from a disabled one
+    to every consumer of this set."""
+    rendered = (
+        "---\n# Source: podiumd/charts/kiss-eck/charts/eck-elasticsearch/templates/elasticsearch.yaml\nkind: X\n"
+        "---\n# Source: podiumd/charts/kiss-eck/charts/eck-kibana/templates/kibana.yaml\nkind: Y\n"
+    )
+    paths = librenderscope.rendered_chart_paths(rendered)
+    assert "podiumd/charts/kiss-eck" in paths
+
+
+def test_rendered_chart_paths_ancestor_inference_never_leaks_to_siblings(librenderscope):
+    """openinwoner's own disabled nested eck-operator must NOT be
+    inferred as live just because its own SIBLING (eck-elasticsearch,
+    nested under the same parent) does render — ancestor inference only
+    ever adds actual ancestors of a rendered path, never siblings."""
+    rendered = "---\n# Source: podiumd/charts/openinwoner/charts/eck-elasticsearch/templates/c.yaml\nkind: Z\n"
+    paths = librenderscope.rendered_chart_paths(rendered)
+    assert "podiumd/charts/openinwoner/charts/eck-operator" not in paths
 
 
 def test_rendered_chart_paths_distinguishes_top_level_from_same_named_nested(librenderscope):

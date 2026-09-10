@@ -1053,18 +1053,25 @@ def test_resolve_subchart_default_nested_dependency_uses_its_own_chart_yaml(libc
 def test_resolve_subchart_default_no_nested_match_falls_back_to_top_level(libchart, tmp_path):
     """path[0] not matching any of dep's own nested dependencies — e.g.
     zac's own "opa" sidecar — stays at dep's own top-level path (opa
-    isn't a real Chart.yaml dependency, just a values sub-key)."""
+    isn't a real Chart.yaml dependency, just a values sub-key). The
+    chart-tree path itself is keyed by dep's own alias ("zac"), never
+    its real chart name ("zaakafhandelcomponent") — confirmed live
+    against the real chart: Helm's own "# Source:" annotations name a
+    chart-tree directory by alias when the dependency declares one."""
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
     make_tgz(tmp_path / "charts", "zaakafhandelcomponent", "1.0.297", {}, chart_yaml={
         "name": "zaakafhandelcomponent", "version": "1.0.297", "appVersion": "5.4.3",
     })
     chart_tree_path, version = libchart.resolve_subchart_default(
         tmp_path, dep, "podiumd", ("opa", "image"))
-    assert chart_tree_path == "podiumd/charts/zaakafhandelcomponent"
+    assert chart_tree_path == "podiumd/charts/zac"
     assert version == "5.4.3"
 
 
 def test_resolve_subchart_default_matches_nested_dependency_by_alias_too(libchart, tmp_path):
+    """The NESTED dependency's own chart-tree segment is likewise keyed
+    by ITS OWN alias ("kiss-eck"), not its real chart name ("eck-stack")
+    — same convention, one level deeper."""
     dep = {"name": "openinwoner", "version": "2.4.0"}
     make_tgz(tmp_path / "charts", "openinwoner", "2.4.0", {}, chart_yaml={
         "name": "openinwoner", "version": "2.4.0",
@@ -1076,7 +1083,7 @@ def test_resolve_subchart_default_matches_nested_dependency_by_alias_too(libchar
     })
     chart_tree_path, _version = libchart.resolve_subchart_default(
         tmp_path, dep, "podiumd", ("kiss-eck", "image"))
-    assert chart_tree_path == "podiumd/charts/openinwoner/charts/eck-stack"
+    assert chart_tree_path == "podiumd/charts/openinwoner/charts/kiss-eck"
 
 
 def test_resolve_subchart_default_version_none_when_not_vendored(libchart, tmp_path):

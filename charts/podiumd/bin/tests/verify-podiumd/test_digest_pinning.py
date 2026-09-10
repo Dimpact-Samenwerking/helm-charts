@@ -333,7 +333,10 @@ def test_unoverridden_floating_subchart_image_is_reported_but_never_fails(vp, tm
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
               {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}})
     write_values_yaml(tmp_path, "{}\n")
-    stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak"])
+    # chart-tree path is keyed by the dependency's own alias ("oz"),
+    # never its real chart name ("openzaak") — Helm's own "# Source:"
+    # annotations name a chart-tree directory by alias when declared.
+    stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/oz"])
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
