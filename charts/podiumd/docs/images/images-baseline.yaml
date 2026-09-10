@@ -16,6 +16,11 @@
 # "NOT INCLUDED" exclusion notes, no stale dual-version entries. Editing this
 # file by hand is pointless — the next run overwrites it entirely.
 
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.5"
+  digest: "sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"
+
 - name: curlimages/curl
   url: docker.io/curlimages/curl
   version: "8.22.0"
@@ -30,11 +35,6 @@
   url: docker.io/library/redis
   version: "8.10.1"
   digest: "sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"
-
-- name: nginxinc/nginx-unprivileged
-  url: docker.io/nginxinc/nginx-unprivileged
-  version: "1.31.5"
-  digest: "sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"
 
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
@@ -131,15 +131,15 @@
   version: "0.9.1"
   digest: "sha256:7c1dfaff1d069afe5d45e421f813078d8112b13c3cf65b5f547e866f6aad4e31"
 
-- name: kibana/kibana
-  url: docker.elastic.co/kibana/kibana
-  version: "8.19.19"
-  digest: "sha256:cc1f9f8c09e2fe0869965ccbf4008a4af0b2691b370fe189dfb8e19f516215c7"
-
 - name: elasticsearch/elasticsearch
   url: docker.elastic.co/elasticsearch/elasticsearch
   version: "8.19.19"
   digest: "sha256:5dbf405a97e008f3024cf6f8f4a314d91b765d82954530893dcc13f8e87d21f4"
+
+- name: kibana/kibana
+  url: docker.elastic.co/kibana/kibana
+  version: "8.19.19"
+  digest: "sha256:cc1f9f8c09e2fe0869965ccbf4008a4af0b2691b370fe189dfb8e19f516215c7"
 
 - name: enterprise-search/enterprise-search
   url: docker.elastic.co/enterprise-search/enterprise-search
@@ -196,15 +196,15 @@
   version: "9.10.1-slim"
   digest: "sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb"
 
-- name: pravega/zookeeper-operator
-  url: docker.io/pravega/zookeeper-operator
-  version: "0.2.15"
-  digest: "sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"
-
 - name: lachlanevenson/k8s-kubectl
   url: docker.io/lachlanevenson/k8s-kubectl
   version: "v1.25.4"
   digest: "sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc"
+
+- name: pravega/zookeeper-operator
+  url: docker.io/pravega/zookeeper-operator
+  version: "0.2.15"
+  digest: "sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"
 
 - name: pravega/zookeeper
   url: docker.io/pravega/zookeeper
