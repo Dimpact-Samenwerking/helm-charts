@@ -1784,11 +1784,14 @@ def main():
         for name, lines in review_notes:
             print(f"  {name}: line(s) {', '.join(map(str, lines))}")
 
-    written, skipped = regenerate_images_baseline_manifest(
+    written, skipped, changed = regenerate_images_baseline_manifest(
         CHART_YAML.parent, target_deps, target_values, IMAGES_DIR / "images-baseline.yaml")
     print()
     print("=== Regenerating images-baseline.yaml ===")
-    print(f"  wrote {written} entr{'y' if written == 1 else 'ies'}")
+    if changed:
+        print(f"  wrote {written} entr{'y' if written == 1 else 'ies'}")
+    else:
+        print(f"  unchanged ({written} entr{'y' if written == 1 else 'ies'})")
     if skipped:
         print(f"  could not resolve a full url/digest for {len(skipped)} repositor{'y' if len(skipped) == 1 else 'ies'} "
               f"— review by hand:")

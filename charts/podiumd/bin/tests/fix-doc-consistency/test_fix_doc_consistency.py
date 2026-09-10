@@ -1402,6 +1402,34 @@ def test_main_images_manifest_already_at_baseline_is_noop(cdb, repo, monkeypatch
     assert "images-4.9.0.yaml: already baseline 4.8.2 — unchanged" in out
 
 
+def test_main_images_baseline_manifest_second_run_reports_unchanged(cdb, repo, monkeypatch, capsys):
+    """Regression test: regenerate_images_baseline_manifest used to
+    unconditionally rewrite (and report on) images-baseline.yaml every
+    single run, even when nothing about the chart actually changed —
+    the ONE doc-writer in this script without the same write-gating
+    every OTHER doc type it manages already has (see e.g. the
+    "already baseline ... — unchanged" test right above this one). A
+    second run with no underlying chart change must report "unchanged"
+    instead of "wrote N entries", and must not touch the file's own
+    mtime at all — no spurious write, no spurious git-diff churn."""
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
+    cdb.main()
+    out1 = capsys.readouterr().out
+    assert "=== Regenerating images-baseline.yaml ===" in out1
+    assert "wrote 0 entries" in out1  # zac has no "repository:" override in this fixture — nothing resolvable
+
+    images_baseline_path = repo.parent / "images" / "images-baseline.yaml"
+    mtime_after_first = images_baseline_path.stat().st_mtime_ns
+    text_after_first = images_baseline_path.read_text(encoding="utf-8")
+
+    cdb.main()
+    out2 = capsys.readouterr().out
+    assert "unchanged (0 entries)" in out2
+    assert "wrote" not in out2
+    assert images_baseline_path.stat().st_mtime_ns == mtime_after_first
+    assert images_baseline_path.read_text(encoding="utf-8") == text_after_first
+
+
 # --- main() integration: end-to-end component-version-table correction ---
 
 @pytest.fixture

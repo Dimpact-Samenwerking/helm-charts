@@ -626,12 +626,23 @@ def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline
     synthetic/test dependency with no real Helm repository behind it
     would otherwise make every run of this attempt one regardless.
 
-    Returns (written, skipped) — written is the number of entries
-    actually written; skipped is [repo, ...] for every repository group
-    whose full url couldn't be resolved, or whose digest couldn't be
-    resolved at all (no embedded digest AND the live registry lookup
-    failed) — never silently dropped without a trace, same "report it,
-    don't guess" convention every other entry-writer here uses."""
+    Returns (written, skipped, changed) — written is the number of
+    entries in the freshly-computed snapshot (whether or not it was
+    actually written to disk this run); skipped is [repo, ...] for
+    every repository group whose full url couldn't be resolved, or
+    whose digest couldn't be resolved at all (no embedded digest AND
+    the live registry lookup failed) — never silently dropped without
+    a trace, same "report it, don't guess" convention every other
+    entry-writer here uses; changed is True only when the freshly-
+    computed content actually differs from what's already on disk (or
+    the file doesn't exist yet) — write_text is only ever called in
+    that case, the same "no spurious write, no spurious mtime/git-diff
+    churn" gating fix-doc-consistency's own main() already applies to
+    every OTHER doc it manages (upgrade.md/images-<target>.yaml/
+    values-deltas.md's own write_needed-style checks) — this was the
+    one exception, confirmed live: every run rewrote (and reported on)
+    this file regardless of whether anything about it actually
+    changed."""
     current_paths = dict(find_all_image_and_version_paths(values, deps))
     current_paths.update(global_image_paths(values))
     repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys())
@@ -678,5 +689,8 @@ def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline
     # .md docs this script manages.
     if text.endswith("\n\n"):
         text = text[:-1]
-    images_baseline_path.write_text(text, encoding="utf-8")
-    return len(resolved), skipped
+    current_text = images_baseline_path.read_text(encoding="utf-8") if images_baseline_path.is_file() else None
+    changed = text != current_text
+    if changed:
+        images_baseline_path.write_text(text, encoding="utf-8")
+    return len(resolved), skipped, changed

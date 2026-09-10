@@ -391,7 +391,7 @@ def test_regenerate_images_baseline_manifest_full_enumeration_and_sort_order(lib
     }
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
-    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path)
 
     assert skipped == []
@@ -427,7 +427,7 @@ def test_regenerate_images_baseline_manifest_global_images_use_their_own_real_su
     }}}
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
-    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path)
 
     assert skipped == []
@@ -456,7 +456,7 @@ def test_regenerate_images_baseline_manifest_collapses_shared_repository(libimag
     }
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
-    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path)
 
     assert skipped == []
@@ -477,7 +477,7 @@ def test_regenerate_images_baseline_manifest_embedded_digest_used_directly(libim
 
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", fail_if_called)
 
-    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path)
 
     assert skipped == []
@@ -502,7 +502,7 @@ def test_regenerate_images_baseline_manifest_live_lookup_for_bare_tag(libimagedo
 
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", fake_registry_tag_exists)
 
-    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path)
 
     assert skipped == []
@@ -521,7 +521,7 @@ def test_regenerate_images_baseline_manifest_skips_when_live_lookup_fails(libima
 
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
-    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path)
 
     assert written == 0
@@ -542,14 +542,45 @@ def test_regenerate_images_baseline_manifest_wholesale_overwrite(libimagedocs, t
 
     new_deps = [{"name": "openbao", "version": "2.0.0"}]
     new_values = {"openbao": {"image": {"repository": "openbao/openbao", "tag": "2.0.0@sha256:" + "f" * 64}}}
-    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, new_deps, new_values, images_baseline_path)
 
     assert skipped == []
     assert written == 1
+    assert changed is True
     text = images_baseline_path.read_text(encoding="utf-8")
     assert "infonl/zaakafhandelcomponent" not in text
     assert "openbao/openbao" in text
+
+
+def test_regenerate_images_baseline_manifest_second_identical_run_does_not_rewrite(libimagedocs, tmp_path):
+    """Regression test: the user found every fix-doc-consistency run
+    rewriting (and reporting on) this file even when nothing about it
+    actually changed — real bug, since this was the ONE writer in this
+    codebase not gated on an actual content difference (every other
+    doc type fix-doc-consistency manages already has its own write_
+    needed-style check). A second run with IDENTICAL underlying data
+    must leave the file's mtime/content untouched and report changed=
+    False, the same "no spurious write, no spurious git-diff churn"
+    guarantee those other writers already give."""
+    images_baseline_path = tmp_path / "images-baseline.yaml"
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
+
+    written1, skipped1, changed1 = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, deps, values, images_baseline_path)
+    assert changed1 is True
+    text_after_first = images_baseline_path.read_text(encoding="utf-8")
+    mtime_after_first = images_baseline_path.stat().st_mtime_ns
+
+    written2, skipped2, changed2 = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, deps, values, images_baseline_path)
+
+    assert written2 == written1 == 1
+    assert skipped2 == []
+    assert changed2 is False
+    assert images_baseline_path.read_text(encoding="utf-8") == text_after_first
+    assert images_baseline_path.stat().st_mtime_ns == mtime_after_first
 
 
 def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_eof(libimagedocs, tmp_path):
@@ -567,7 +598,7 @@ def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_e
     }
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
-    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path)
 
     assert skipped == []
