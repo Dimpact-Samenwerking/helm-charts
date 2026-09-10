@@ -1233,6 +1233,30 @@ def test_compare_chart_version_source_blank_but_unjustified_reports_presence_fin
                for m in findings["mismatches"])
 
 
+def test_compare_chart_version_source_presence_finding_fires_once_per_dependency_not_per_sidecar_row(vrt):
+    """Real bug caught live against the actual chart: a Helm chart
+    version only ever belongs on ONE of a dependency's own rows (its
+    primary row -- structurally, a sidecar row's own source_version_helm
+    is ALWAYS blank, by design, same as chart_version_ever_tracked's own
+    target-side check already assumes) -- the presence check must mirror
+    that per-DEPENDENCY granularity, never fire once per sidecar row."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
+    rows = [
+        csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
+                 target_app="5.4.3", target_helm="1.0.297"),  # primary row, source_helm blank too
+        {**csv_row("Gotenberg", "zaakafhandelcomponent", alias="zac", image_basename="gotenberg"),
+         "section": "Technische"},
+        {**csv_row("Solr", "zaakafhandelcomponent", alias="zac", image_basename="solr"), "section": "Technische"},
+    ]
+    findings, _ = vrt.compare(
+        rows, deps, {}, values_lines(ZAC_BLOCK), baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[],
+        baseline_only=True)
+    presence_findings = [m for m in findings["mismatches"] if "[CHART-SOURCE-PRESENCE]" in m]
+    assert len(presence_findings) == 1
+    assert "zaakafhandelcomponent" in presence_findings[0]
+
+
 def test_compare_chart_version_source_blank_unjustified_case_silent_by_default(vrt):
     """Same fixture as the presence finding above, but WITHOUT
     baseline_only -- default behavior is completely unaffected: the blank

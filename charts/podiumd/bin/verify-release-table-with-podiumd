@@ -431,26 +431,28 @@ def check_chart_version_source(dep, rows, baseline_deps, findings, strict_presen
     written against.
 
     `strict_presence` (only ever True under --baseline-only — see module
-    docstring) additionally verifies the OTHER direction for a row whose
-    source_version_helm is genuinely blank (never "UNKNOWN" — that's an
-    unparseable value that WAS recorded, a different problem entirely,
-    not "nothing recorded"): that blank is only left silent (the default,
-    every-invocation behavior) if `dep` genuinely didn't exist yet at the
-    release_table baseline; if baseline_dep resolves anyway, the blank is
-    NOT justified — release-table.csv should have recorded a source
-    version for this dependency but never did, reported as its own
-    "-PRESENCE" finding."""
+    docstring) additionally verifies the OTHER direction: a Helm chart
+    version only ever belongs on ONE of a dependency's own rows (its
+    primary row — see chart_version_ever_tracked, the exact same
+    per-DEPENDENCY, not per-row, granularity this mirrors), so instead of
+    checking each row's own source_version_helm in isolation, this checks
+    whether ANY row recorded a verifiable one at all (never "UNKNOWN" —
+    that's a value that WAS recorded but couldn't be parsed, a different
+    problem, not "nothing recorded"). That blank-across-every-row case is
+    only left silent (the default, every-invocation behavior) if `dep`
+    genuinely didn't exist yet at the release_table baseline; if
+    baseline_dep resolves anyway, the blank is NOT justified —
+    release-table.csv should have recorded a source version for this
+    dependency somewhere but never did, reported as its own single
+    "-PRESENCE" finding (never one per sidecar row, which structurally
+    never carries a chart version at all — see is_primary_image)."""
     baseline_dep = find_dependency(baseline_deps, dep["name"])
+    any_source_recorded = False
     for row in rows:
         source = row["source_version_helm"]
         if not is_verifiable_target(source):
-            if strict_presence and source == "" and baseline_dep is not None:
-                findings["mismatches"].append(
-                    f"[CHART-SOURCE-PRESENCE] {row['name']} ({dep['name']}): release-table source_version_helm "
-                    f"is blank, but this dependency already existed at the release_table baseline (version "
-                    f"{baseline_dep['version']}) — source_version_helm was never filled in"
-                )
             continue
+        any_source_recorded = True
         if baseline_dep is None:
             findings["mismatches"].append(
                 f"[CHART-SOURCE] {row['name']} ({dep['name']}): release-table claims source chart version "
@@ -463,6 +465,12 @@ def check_chart_version_source(dep, rows, baseline_deps, findings, strict_presen
                 f"[CHART-SOURCE] {row['name']} ({dep['name']}): release-table source {source} != "
                 f"baseline Chart.yaml {actual}"
             )
+    if strict_presence and not any_source_recorded and baseline_dep is not None:
+        findings["mismatches"].append(
+            f"[CHART-SOURCE-PRESENCE] Chart.yaml dependency '{dep['name']}' has release-table.csv row(s), but "
+            f"none records a source_version_helm, even though it already existed at the release_table baseline "
+            f"(version {baseline_dep['version']})"
+        )
 
 
 def missing_image_hint(rows, scope_key, component, basename, versions, primary):
