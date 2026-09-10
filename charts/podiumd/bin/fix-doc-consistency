@@ -522,20 +522,35 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
 
 def _resolved_rows_by_values_key(upgrade_doc_text, chart_dir, target_deps, target_values, baseline_deps,
                                   baseline_values, upgrade_docs_baseline, canonical_names):
-    """{values_key: (row_name, resolved)} for every "dep"-kind row (see
-    resolve_component_row) in -upgrade.md's own "Component versions"
-    table (`upgrade_doc_text`) - the SINGLE source both fix_changes_
-    heading_app_versions (the SAME doc) and fix_values_delta_heading_
-    app_versions (a DIFFERENT doc, -values-deltas.md, which has no
-    table of its own at all) key their own heading correction against,
-    so the row's own display name (see add_missing_component_rows' own
+    """{values_key: (row_name, resolved)} for every resolvable row (see
+    resolve_component_row - "dependency", "native", AND "sidecar" kind
+    alike; only "unmatched" or a row with no resolvable target_app at
+    all is excluded) in -upgrade.md's own "Component versions" table
+    (`upgrade_doc_text`) - the SINGLE source both fix_changes_heading_
+    app_versions (the SAME doc) and fix_values_delta_heading_app_
+    versions (a DIFFERENT doc, -values-deltas.md, which has no table of
+    its own at all) key their own heading correction against, so the
+    row's own display name (see add_missing_component_rows' own
     docstring - the same "friendly" value passed to both the table row
     and its own Changes heading when freshly written together) is
     authoritative for BOTH docs' own headings, not just whichever one
     happens to share a file with the table. `upgrade_doc_text` is "" -
     parse_upgrade_doc_rows("") is [] - when -upgrade.md itself doesn't
     exist yet; there is nothing to resolve against in that case, same
-    as any other row this table doesn't (yet) have."""
+    as any other row this table doesn't (yet) have.
+
+    A "sidecar"-kind row's own resolved["values_key"] is already the
+    SAME dotted-string shape (".".join(sidecar_path), see resolve_
+    component_row's own sidecar branch) real bug, real data proved this
+    map must include too: a sidecar/MULTIPLE-scope Changes heading (e.g.
+    "### redis 8.0 → 8.10.1") CAN go stale exactly the same way a "dep"
+    heading can - confirmed live when today's redis/redis-operator
+    historical-manifest collision fix changed what resolve_component_row
+    itself now resolves for "redis", but nothing had ever revisited its
+    own already-written heading. _fix_heading_app_versions is the one
+    that reconciles a sidecar heading's own dotted-tuple identity (from
+    changes_heading_identities) against this dotted-STRING key - see its
+    own docstring."""
     resolved_by_values_key = {}
     for row in parse_upgrade_doc_rows(upgrade_doc_text):
         resolved = resolve_component_row(
@@ -543,7 +558,7 @@ def _resolved_rows_by_values_key(upgrade_doc_text, chart_dir, target_deps, targe
             baseline_deps=baseline_deps, baseline_values=baseline_values,
             upgrade_docs_baseline=upgrade_docs_baseline,
         )
-        if resolved["kind"] not in ("unmatched", "sidecar") and resolved["target_app"] is not None:
+        if resolved["kind"] != "unmatched" and resolved["target_app"] is not None:
             resolved_by_values_key[resolved["values_key"]] = (row["name"], resolved)
     return resolved_by_values_key
 
@@ -563,7 +578,35 @@ def _fix_heading_app_versions(text, chart_dir, target_deps, target_values, resol
     delta_sections) and heading marker ("###" or "##") apply. Returns
     (new_text, updated_headings) - updated_headings is the ORIGINAL
     (pre-fix) heading text for every heading actually rewritten (a wrong
-    name, a wrong app-version transition, or both at once)."""
+    name, a wrong app-version transition, or both at once).
+
+    A "sidecar"-identity heading (changes_heading_identities' own
+    ("sidecar", sidecar_path) - sidecar_path a values-tree path TUPLE,
+    e.g. ("global", "images", "redis")) is looked up in resolved_by_
+    values_key via ".".join(sidecar_path) - the exact dotted-STRING form
+    resolve_component_row's own sidecar branch already uses as its own
+    values_key, so no restructuring of that map's own key convention is
+    needed, just a matching join on this side. Real bug this closes:
+    a sidecar/MULTIPLE-scope heading (e.g. bare "redis", or "redis-
+    operator - redis" for a real sidecar under a real dependency) was
+    previously NEVER revisited here at all - the deliberate design this
+    replaces assumed such a heading is "only ever written once its own
+    tag is already known," proven wrong live (today's redis/redis-
+    operator collision fix changed what resolve_component_row now
+    resolves for "redis", and the already-written heading was never
+    updated to match).
+
+    canonical_names' own {name: path} map also gives this the CORRECT
+    "is this still the bare, uncustomized name" comparison for a sidecar
+    heading - see corrected_name below: unlike "dep" kind (whose
+    resolved["values_key"] IS its own bare/uncustomized name, e.g. "mi"),
+    a sidecar's resolved["values_key"] is a dotted VALUES-TREE PATH
+    ("global.images.redis") that a real heading's own name is never
+    going to equal - the real bare/uncustomized comparison for a sidecar
+    is against ITS OWN canonical name (canonical_names' own dict KEY
+    for this exact path, e.g. "redis" or "redis-operator - redis"),
+    found via a reverse lookup, never the dotted path itself."""
+    canonical_path_to_name = {path: name for name, path in canonical_names.items()}
     lines = text.splitlines(keepends=True)
     updated_headings = []
     for block in blocks:
@@ -582,9 +625,17 @@ def _fix_heading_app_versions(text, chart_dir, target_deps, target_values, resol
         if len(idents) != 1:
             continue
         kind, values_key = next(iter(idents))
-        if kind != "dep" or values_key not in resolved_by_values_key:
+        if kind == "sidecar":
+            lookup_key = ".".join(values_key)
+            expected_bare_name = canonical_path_to_name.get(values_key)
+        elif kind == "dep":
+            lookup_key = values_key
+            expected_bare_name = values_key
+        else:
             continue
-        row_name, resolved = resolved_by_values_key[values_key]
+        if lookup_key not in resolved_by_values_key:
+            continue
+        row_name, resolved = resolved_by_values_key[lookup_key]
 
         if resolved["baseline_resolved"] is False:
             old_app = _dep_old_app_for_new_dependency(
@@ -597,8 +648,8 @@ def _fix_heading_app_versions(text, chart_dir, target_deps, target_values, resol
         expected_app_heading = component_version_cell(old_app, resolved["target_app"])
         without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
         current_name = header_name_segment(heading)
-        # The name is corrected ONLY when it's precisely the bare
-        # values_key add_missing_component_rows' own auto-write
+        # The name is corrected ONLY when it's precisely the bare,
+        # uncustomized name add_missing_component_rows' own auto-write
         # convention uses (see its own docstring: the same "friendly"
         # value passed to BOTH the row and its own heading when freshly
         # written together) — unambiguously stale once a human later
@@ -612,7 +663,7 @@ def _fix_heading_app_versions(text, chart_dir, target_deps, target_values, resol
         # must never overwrite just because it happens to differ from
         # the row's own text — a first version of this fix did exactly
         # that, silently clobbering real, hand-written doc content.
-        corrected_name = row_name if current_name == values_key else current_name
+        corrected_name = row_name if current_name == expected_bare_name else current_name
         if expected_app_heading in without_chart_clause and corrected_name == current_name:
             continue
 
@@ -669,20 +720,25 @@ def fix_changes_heading_app_versions(text, chart_dir, target_deps, target_values
     component_version_table's own row loop uses for its APP cell, so a
     freshly-fixed row and its own heading can never disagree.
 
-    Only ever touches a heading naming EXACTLY ONE real "dep" identity
-    (see resolve_component_identity/changes_heading_identities - a real
-    Chart.yaml dependency or a lib.chart.NATIVE_COMPONENTS component,
-    never a sidecar: a canonical sidecar heading is only ever written
-    once its own tag is already known, so this "wrong content" gap
-    doesn't apply to it) whose row resolves to a real, non-None target
-    app version; a heading that's ambiguous, orphaned, whose row has no
+    Only ever touches a heading naming EXACTLY ONE real identity (see
+    resolve_component_identity/changes_heading_identities - a real
+    Chart.yaml dependency, a lib.chart.NATIVE_COMPONENTS component, OR a
+    canonical sidecar/MULTIPLE-scope image, e.g. "redis" or "redis-
+    operator - redis") whose row resolves to a real, non-None target app
+    version; a heading that's ambiguous, orphaned, whose row has no
     resolvable app version at all, whose baseline genuinely can't be
     checked (upgrade_docs_baseline itself doesn't resolve to a git ref),
     or that's already correct (name AND app-version wording both agree)
     is left exactly as-is - never a spurious rewrite when nothing is
-    actually wrong. Returns (new_text, updated_headings) - updated_
-    headings is the ORIGINAL (pre-fix) heading text for every heading
-    actually rewritten."""
+    actually wrong. (A canonical sidecar heading was previously assumed
+    to never need this at all - "only ever written once its own tag is
+    already known" - proven wrong live: today's redis/redis-operator
+    historical-manifest collision fix changed what resolve_component_row
+    now resolves for "redis" itself, and nothing had ever revisited the
+    already-written heading to match; see _fix_heading_app_versions'
+    own docstring for the mechanism.) Returns (new_text, updated_
+    headings) - updated_headings is the ORIGINAL (pre-fix) heading text
+    for every heading actually rewritten."""
     current_paths = dict(find_image_tag_paths(target_values))
     current_paths.update(global_image_paths(target_values))
     canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
