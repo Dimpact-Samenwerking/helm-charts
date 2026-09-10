@@ -1180,7 +1180,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         values=target_values, baseline_values=baseline_values)
 
     def order_key(values_key, is_sidecar):
-        return images_manifest_order_key(key_order, values_key, is_sidecar)
+        return images_manifest_order_key(key_order, values_key, is_sidecar, target_values)
 
     added_names, skipped_names = [], []
     for path in missing_paths:
@@ -1222,7 +1222,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         new_version, digest = pinned_tag.split("@", 1)
         baseline_tag = baseline_paths.get(path)
         old_version = version_of(baseline_tag) if baseline_tag else new_version
-        new_key = order_key(path[0], " - " in name)
+        new_key = order_key(path, " - " in name)
         # A same-version/changed-digest re-pin (lib.upgradedoc.find_
         # images_manifest_list_diff's own digest-comparison branch) would
         # otherwise render as "<name> <version> -> <version>" here — reads
@@ -1279,7 +1279,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
                 entry_keys.append((len(key_order), 0))
                 continue
             entry_display = path_display_name(entry_path, deps, canonical_names)
-            entry_keys.append(order_key(entry_path[0], " - " in entry_display))
+            entry_keys.append(order_key(entry_path, " - " in entry_display))
 
         header_prefix = "# " if is_primary_image_path(path, deps) else "#   sidecar: "
         block_lines = [
@@ -1341,7 +1341,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
             break
 
         entry_path, entry_name, entry_old, entry_new = target
-        new_key = order_key(entry_path[0], " - " in entry_name)
+        new_key = order_key(entry_path, " - " in entry_name)
         insert_images_manifest_header_item(lines, deps, key_order, new_key, f"{entry_name} {entry_old} -> {entry_new}.")
         text = "".join(lines)
         backfilled_names.append(entry_name)

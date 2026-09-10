@@ -32,7 +32,7 @@ from lib.upgradedoc import (
     extract_source_version, find_grouped_preceding_comment_line, insertion_index,
     match_dependency_excluding_sidecar_names, match_native_component, missing_key_change_lines_by_key,
     normalize_name, normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
-    parse_values_delta_sections, replace_version_pair, resolve_entry_path, values_key_order,
+    parse_values_delta_sections, replace_version_pair, resolve_entry_path, values_key_order, values_tree_position,
 )
 
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
@@ -198,7 +198,7 @@ def renumber_images_manifest_changes_items(lines):
     return changed
 
 
-def images_manifest_order_key(key_order, values_key, is_sidecar):
+def images_manifest_order_key(key_order, values_key, is_sidecar, values=None):
     """(index-in-key_order, 0-or-1-for-sidecar) sort key for an images-
     manifest "# Changes:" item belonging to `values_key` — an unknown
     values_key (not in key_order at all) sorts LAST, never crashes.
@@ -206,11 +206,30 @@ def images_manifest_order_key(key_order, values_key, is_sidecar):
     to values.yaml's own top-level component order (update_images_
     manifest below, lib.image_docs.update_image_manifest, fix-doc-
     consistency's own add_missing_images_manifest_entries) so they can
-    never independently drift on what "in order" means."""
+    never independently drift on what "in order" means.
+
+    `values_key` may ALSO be a full values-tree PATH TUPLE, not just its
+    own bare top-level-key string — when it is, and `values` (the real
+    parsed values.yaml dict) is also given, this resolves the item's own
+    FULL nested position (see lib.upgradedoc.values_tree_position) once
+    it's past its own top-level index, rather than tying every non-
+    primary item under the same top-level key to one identical key —
+    real bug this fixes: every "global.images.*" item (nginx/curl/
+    busybox/redis, all genuinely different, independently-orderable
+    images) used to tie at the exact same (values_key_index, is_
+    sidecar), leaving their own relative order to whatever a stable
+    sort happened to preserve. A bare STRING values_key (the historical
+    shape), or values=None, keeps the exact prior top-level-only
+    behavior unchanged — every existing caller not yet passing a real
+    path/values is never worse off than before."""
+    path = values_key if isinstance(values_key, tuple) else (values_key,)
     try:
-        return (key_order.index(values_key), 1 if is_sidecar else 0)
+        idx = key_order.index(path[0])
     except ValueError:
         return (len(key_order), 1 if is_sidecar else 0)
+    if values is not None and len(path) > 1:
+        return (idx,) + values_tree_position(values, path)[1:]
+    return (idx, 1 if is_sidecar else 0)
 
 
 def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_text):
@@ -517,8 +536,8 @@ def update_component_table(text, friendly, old_app, new_app, old_chart, new_char
     new_row_line = f"| {friendly} | {app_cell} | {chart_cell} | - |\n"
     if rows:
         key_order = values_key_order(values)
-        new_key = component_order_key(friendly, deps, key_order, canonical_names)
-        existing_keys = [component_order_key(r["name"], deps, key_order, canonical_names) for r in rows]
+        new_key = component_order_key(friendly, deps, key_order, canonical_names, values)
+        existing_keys = [component_order_key(r["name"], deps, key_order, canonical_names, values) for r in rows]
         idx = insertion_index(new_key, existing_keys)
         insert_at = rows[idx]["line_index"] if idx < len(rows) else rows[-1]["line_index"] + 1
     else:
@@ -681,8 +700,8 @@ def insert_changes_section(text, section_text, friendly, deps, values, canonical
         insert_at = section_end
     else:
         key_order = values_key_order(values)
-        new_key = component_order_key(friendly, deps, key_order, canonical_names)
-        existing_keys = [component_order_key(b["heading"], deps, key_order, canonical_names) for b in blocks]
+        new_key = component_order_key(friendly, deps, key_order, canonical_names, values)
+        existing_keys = [component_order_key(b["heading"], deps, key_order, canonical_names, values) for b in blocks]
         idx = insertion_index(new_key, existing_keys)
         insert_at = blocks[idx]["start"] if idx < len(blocks) else section_end
 
@@ -1021,8 +1040,8 @@ def insert_values_delta_section(text, friendly, heading_line, body_lines, deps, 
         return text + section_text
 
     key_order = values_key_order(values)
-    new_key = component_order_key(friendly, deps, key_order, canonical_names)
-    existing_keys = [component_order_key(s["heading"], deps, key_order, canonical_names) for s in sections]
+    new_key = component_order_key(friendly, deps, key_order, canonical_names, values)
+    existing_keys = [component_order_key(s["heading"], deps, key_order, canonical_names, values) for s in sections]
     idx = insertion_index(new_key, existing_keys)
     insert_at = sections[idx]["start"] if idx < len(sections) else len(lines)
     if insert_at > 0 and lines[insert_at - 1].strip():

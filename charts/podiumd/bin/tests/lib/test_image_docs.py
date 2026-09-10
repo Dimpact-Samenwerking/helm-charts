@@ -406,6 +406,39 @@ def test_regenerate_images_baseline_manifest_full_enumeration_and_sort_order(lib
     assert f'digest: "sha256:{"a" * 64}"' in text
 
 
+def test_regenerate_images_baseline_manifest_global_images_use_their_own_real_suborder(libimagedocs, tmp_path):
+    """Regression test: the real redis/nginx/curl/busybox bug — FOUR
+    peers under "global.images.*" (all genuinely different,
+    independently-orderable images) used to tie at the exact same sort
+    key (their shared top-level "global" index, both "not primary" —
+    wait, actually BOTH considered "primary" here since neither has an
+    owning dependency — either way, tied), leaving their own relative
+    order to arbitrary repo_groups dict-iteration order rather than
+    values.yaml's own real nginx/curl/busybox/redis sub-order —
+    confirmed live: images-baseline.yaml's own real order disagreed
+    with BOTH values.yaml AND images-<version>.yaml's own order for
+    these same four images."""
+    deps = []
+    values = {"global": {"images": {
+        "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.5@sha256:" + "a" * 64},
+        "curl": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:" + "b" * 64},
+        "busybox": {"repository": "library/busybox", "tag": "1.38.0-glibc@sha256:" + "c" * 64},
+        "redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "d" * 64},
+    }}}
+    images_baseline_path = tmp_path / "images-baseline.yaml"
+
+    written, skipped = libimagedocs.regenerate_images_baseline_manifest(
+        tmp_path, deps, values, images_baseline_path)
+
+    assert skipped == []
+    assert written == 4
+    text = images_baseline_path.read_text(encoding="utf-8")
+    names_in_order = [line.split("name: ", 1)[1].strip() for line in text.splitlines() if line.startswith("- name:")]
+    assert names_in_order == [
+        "nginxinc/nginx-unprivileged", "curlimages/curl", "library/busybox", "redis",
+    ]
+
+
 def test_regenerate_images_baseline_manifest_collapses_shared_repository(libimagedocs, tmp_path):
     """A repository shared by more than one path (e.g. a "global.images"
     anchor aliased into several components' own sidecars) collapses to

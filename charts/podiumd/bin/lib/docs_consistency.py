@@ -587,7 +587,8 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     if chart_dir is not None:
         key_order = values_key_order(values)
         for name_a, name_b in find_images_manifest_out_of_order_names(
-                entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names, key_order):
+                entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names, key_order,
+                values):
             issues.append(f'{images_path.name}: entry "{name_b}" is listed right after "{name_a}", but '
                            f'values.yaml lists {name_b} before {name_a} — entries should follow values.yaml\'s '
                            f'own component order')
@@ -990,7 +991,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
 
         key_order = values_key_order(values)
         row_names = [row["name"] for row in parse_upgrade_doc_rows(doc_path)]
-        for name_a, name_b in find_out_of_order_names(row_names, deps, key_order, canonical_names):
+        for name_a, name_b in find_out_of_order_names(row_names, deps, key_order, canonical_names, values):
             mismatches.append(
                 f'{doc_path.name}: "Component versions" table lists "{name_b}" right after "{name_a}", '
                 f'but values.yaml lists {name_b} before {name_a} — rows should follow values.yaml\'s '
@@ -999,7 +1000,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
 
         doc_text = doc_path.read_text(encoding="utf-8")
         changes_headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(doc_text)]
-        for name_a, name_b in find_out_of_order_names(changes_headings, deps, key_order, canonical_names):
+        for name_a, name_b in find_out_of_order_names(changes_headings, deps, key_order, canonical_names, values):
             mismatches.append(
                 f'{doc_path.name}: "## Changes" section has "### {name_b}" right after "### {name_a}", '
                 f'but values.yaml lists the {name_b} component before {name_a} — Changes blocks should '
@@ -1165,7 +1166,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         deltas_headings = [s["heading"] for s in parse_values_delta_sections(
             values_deltas_path.read_text(encoding="utf-8"))]
         for name_a, name_b in find_out_of_order_names(deltas_headings, deps, deltas_key_order,
-                                                        canonical_names_for_deltas):
+                                                        canonical_names_for_deltas, values):
             mismatches.append(
                 f'{values_deltas_path.name}: "## {name_b}" section comes right after "## {name_a}", '
                 f'but values.yaml lists the {name_b} component before {name_a} — sections should follow '
