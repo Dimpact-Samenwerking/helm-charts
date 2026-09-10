@@ -759,6 +759,71 @@ def subchart_app_version(chart_dir, dep, version=None):
         return None
 
 
+def subchart_dependencies(chart_dir, dep, version=None):
+    """`dep`'s own vendored Chart.yaml "dependencies" list (parsed, same
+    shape as a top-level chart's own chart_yaml.get("dependencies", [])
+    — each entry's own "name"/"alias"/... as declared there) — read
+    straight out of its .tgz under chart_dir/charts/, same vendored-
+    .tgz-only lookup subchart_values/subchart_app_version already use.
+    [] if that exact version isn't vendored, its Chart.yaml can't be
+    read, or it declares no dependencies of its own — never None, so a
+    caller can always safely iterate it without an extra check."""
+    version = version or dep["version"]
+    tgz_path = chart_dir / "charts" / f"{dep['name']}-{version}.tgz"
+    if not tgz_path.is_file():
+        return []
+    try:
+        with tarfile.open(tgz_path) as tar:
+            member = tar.extractfile(f"{dep['name']}/Chart.yaml")
+            if member is None:
+                return []
+            chart_yaml = yaml.safe_load(member.read()) or {}
+            return chart_yaml.get("dependencies") or []
+    except (KeyError, tarfile.TarError):
+        return []
+
+
+def resolve_subchart_default(chart_dir, dep, chart_name, path):
+    """(chart_tree_path, version) for `path` (a lib.upgradedoc.
+    find_image_tag_paths result — usually from its own include_null_
+    tags=True mode — over `dep`'s own vendored default values.yaml).
+
+    chart_tree_path is the chart-tree directory (see lib.render_scope.
+    rendered_chart_paths) that actually OWNS `path` — needed for the
+    render-gate regardless of whether this path's own tag is a real,
+    explicit one or a null/missing one (a genuinely-vendored .tgz
+    doesn't mean Helm actually installs it — e.g. zaakbrug's own
+    condition-disabled "staging" block). version is the EFFECTIVE
+    version Helm's own ".tag | default .Chart.AppVersion" template
+    convention would resolve for a null/missing "tag:" specifically —
+    None when `path`'s own tag isn't null, or when it can't be resolved
+    at all (nothing vendored, or no appVersion set); never fabricated.
+
+    Usually `chart_name`/charts/`dep["name"]` (`chart_name` — e.g.
+    "podiumd" — is the OUTER chart's own name, passed in rather than
+    hardcoded here to keep this module free of any single chart's own
+    identity) plus dep's OWN Chart.yaml appVersion — but if path[0]
+    matches one of dep's OWN declared Chart.yaml dependencies (name or
+    alias — see subchart_dependencies), the image actually belongs to
+    THAT NESTED dependency instead: Helm resolves ITS tag against ITS
+    OWN Chart.yaml, and Helm's own "# Source:" annotations always name
+    the innermost chart that actually owns a template — real case:
+    openinwoner's own bundled "eck-operator" (a SEPARATE, same-named
+    nested dependency of openinwoner's own Chart.yaml, distinct from
+    the top-level "eck-operator" dependency) — so both halves come from
+    the nested dependency's own files in that case, not dep's."""
+    base_path = f"{chart_name}/charts/{dep['name']}"
+    nested = next((d for d in subchart_dependencies(chart_dir, dep)
+                    if path and path[0] in (d.get("alias"), d["name"])), None)
+    if nested is None:
+        return base_path, subchart_app_version(chart_dir, dep)
+
+    nested_chart_text = nested_subchart_raw_text(chart_dir, dep, nested["name"], "Chart.yaml")
+    nested_chart_yaml = yaml.safe_load(nested_chart_text) if nested_chart_text else None
+    version = (nested_chart_yaml or {}).get("appVersion") if nested_chart_yaml else None
+    return f"{base_path}/charts/{nested['name']}", version
+
+
 def resolve_chart_values(chart_dir, dep, version, allow_pull=True):
     """(values, source, error) for `dep` at `version` — preferring an
     already-vendored charts/<name>-<version>.tgz (source "vendored", via

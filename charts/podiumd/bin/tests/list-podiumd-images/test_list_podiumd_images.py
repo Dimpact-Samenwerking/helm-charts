@@ -1,4 +1,4 @@
-"""deep_merge, version_of, find_images, is_enabled, load_chart,
+"""deep_merge, version_of, find_images, row_chart_tree_path, load_chart,
 pull_chart, and main() — offline throughout. load_chart's normal path reads a
 locally vendored .tgz (exactly like a real `helm dependency update` output),
 so most of this needs neither `helm` nor network access; the few tests that
@@ -134,7 +134,7 @@ def test_print_image_lines_leads_with_key_basename_version_and_path(lpi, capsys)
         "    repository: ghcr.io/x/pabc-api",
         f'    tag: "1.1.1@sha256:{"a" * 64}"',
     ]
-    lpi.print_image_lines([("pabc", "image", "ghcr.io/x/pabc-api", f"1.1.1@sha256:{'a' * 64}")], lines)
+    lpi.print_image_lines([("pabc", "image", "ghcr.io/x/pabc-api", f"1.1.1@sha256:{'a' * 64}", False)], lines)
     first_line, detail_line = capsys.readouterr().out.splitlines()
     assert "pabc  pabc-api  1.1.1  (path: image)" in first_line
     assert "—" not in first_line  # resolvable -- no trailing note
@@ -142,9 +142,21 @@ def test_print_image_lines_leads_with_key_basename_version_and_path(lpi, capsys)
 
 
 def test_print_image_lines_appends_note_when_not_resolvable(lpi, capsys):
-    lpi.print_image_lines([("openbeheer", "image", "maykinmedia/open-beheer", "0.9.0")], [])
+    lpi.print_image_lines([("openbeheer", "image", "maykinmedia/open-beheer", "0.9.0", False)], [])
     out = capsys.readouterr().out
     assert "unresolvable" in out
+
+
+def test_print_image_lines_appends_disabled_hint_for_a_never_rendered_row(lpi, capsys):
+    """A row whose own chart-tree path never rendered (e.g. a Maykin
+    chart's own bundled bitnami/redis, globally disabled via podiumd's
+    top-level "tags: {redis: false}") is labeled "disabled" — no longer
+    indistinguishable from a real, live image — rather than being
+    silently dropped. Combined with an unresolvable resolution_note
+    (empty values_lines here), both hints show up, disabled first."""
+    lpi.print_image_lines([("openzaak", "redis.image", "redis", "8.0", True)], [])
+    first_line, _detail_line = capsys.readouterr().out.splitlines()
+    assert "disabled; unresolvable" in first_line
 
 
 def test_print_image_lines_puts_note_on_first_line_not_the_detail_line(lpi, capsys):
@@ -158,7 +170,7 @@ def test_print_image_lines_puts_note_on_first_line_not_the_detail_line(lpi, caps
         "      repository: curlimages/curl",
         f'      tag: "8.21.0@sha256:{"a" * 64}"',
     ]
-    lpi.print_image_lines([("zac", "global.curlImage", "curlimages/curl", f"8.21.0@sha256:{'a' * 64}")], lines)
+    lpi.print_image_lines([("zac", "global.curlImage", "curlimages/curl", f"8.21.0@sha256:{'a' * 64}", False)], lines)
     first_line, detail_line = capsys.readouterr().out.splitlines()
     assert "use MULTIPLE curl" in first_line
     assert "—" not in detail_line
@@ -189,10 +201,11 @@ def test_component_version_rows_resolves_redis_operator_split_image_fields(lpi):
     }}
     root_values = {"redis-operator": {"redisOperator": {"imageName": "quay.io/opstree/redis-operator"}}}
 
-    rows = lpi.component_version_rows(dep, "redis-operator", merged, [dep], root_values)
+    rows = lpi.component_version_rows(dep, "redis-operator", merged, [dep], root_values,
+                                       {"podiumd/charts/redis-operator"})
 
     assert rows == [("redis-operator", "redisOperator.imageTag",
-                      "quay.io/opstree/redis-operator", f"v0.26.0@sha256:{digest}")]
+                      "quay.io/opstree/redis-operator", f"v0.26.0@sha256:{digest}", False)]
 
 
 def test_component_version_rows_uses_merged_tree_not_just_podiumd_overrides(lpi):
@@ -209,10 +222,11 @@ def test_component_version_rows_uses_merged_tree_not_just_podiumd_overrides(lpi)
     }}
     root_values = {"redis-operator": {"redisOperator": {"imageName": "quay.io/opstree/redis-operator"}}}
 
-    rows = lpi.component_version_rows(dep, "redis-operator", merged, [dep], root_values)
+    rows = lpi.component_version_rows(dep, "redis-operator", merged, [dep], root_values,
+                                       {"podiumd/charts/redis-operator"})
 
     assert rows == [("redis-operator", "redisOperator.imageTag",
-                      "quay.io/opstree/redis-operator", f"v0.25.0@sha256:{digest}")]
+                      "quay.io/opstree/redis-operator", f"v0.25.0@sha256:{digest}", False)]
 
 
 def test_component_version_rows_resolves_eck_stack_nested_subchart_images(lpi, tmp_path):
@@ -238,13 +252,13 @@ def test_component_version_rows_resolves_eck_stack_nested_subchart_images(lpi, t
         "eck-enterprise-search": {"version": "8.19.19"},
     }
 
-    rows = lpi.component_version_rows(dep, "kiss-eck", merged, [dep], {})
+    rows = lpi.component_version_rows(dep, "kiss-eck", merged, [dep], {}, {"podiumd/charts/eck-stack"})
 
     assert sorted(rows) == sorted([
-        ("kiss-eck", "eck-elasticsearch.version", "docker.elastic.co/elasticsearch/elasticsearch", "8.19.19"),
+        ("kiss-eck", "eck-elasticsearch.version", "docker.elastic.co/elasticsearch/elasticsearch", "8.19.19", False),
         ("kiss-eck", "eck-enterprise-search.version", "docker.elastic.co/enterprise-search/enterprise-search",
-         "8.19.19"),
-        ("kiss-eck", "eck-kibana.version", "docker.elastic.co/kibana/kibana", "8.19.19"),
+         "8.19.19", False),
+        ("kiss-eck", "eck-kibana.version", "docker.elastic.co/kibana/kibana", "8.19.19", False),
     ])
 
 
@@ -252,7 +266,8 @@ def test_component_version_rows_blank_tag_is_skipped(lpi):
     dep = {"name": "redis-operator", "version": "0.26.1"}
     merged = {"redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": ""}}
     root_values = {"redis-operator": {"redisOperator": {"imageName": "quay.io/opstree/redis-operator"}}}
-    assert lpi.component_version_rows(dep, "redis-operator", merged, [dep], root_values) == []
+    assert lpi.component_version_rows(dep, "redis-operator", merged, [dep], root_values,
+                                       {"podiumd/charts/redis-operator"}) == []
 
 
 def test_component_version_rows_unresolvable_repository_is_skipped(lpi):
@@ -262,30 +277,58 @@ def test_component_version_rows_unresolvable_repository_is_skipped(lpi):
     missing repository."""
     dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
     merged = {"eck-elasticsearch": {"version": "8.19.19"}}
-    assert lpi.component_version_rows(dep, "kiss-eck", merged, [dep], {}) == []
+    assert lpi.component_version_rows(dep, "kiss-eck", merged, [dep], {}, {"podiumd/charts/eck-stack"}) == []
 
 
 def test_component_version_rows_irrelevant_for_unregistered_component(lpi):
     dep = {"name": "zaakafhandelcomponent", "version": "1.0.297"}
-    assert lpi.component_version_rows(dep, "zac", {"image": {"tag": "5.4.3"}}, [dep], {}) == []
+    assert lpi.component_version_rows(dep, "zac", {"image": {"tag": "5.4.3"}}, [dep], {},
+                                       {"podiumd/charts/zaakafhandelcomponent"}) == []
 
 
-# --- is_enabled ---
+def test_component_version_rows_marks_row_disabled_when_its_own_path_never_rendered(lpi):
+    """The render-gate applies here too, independent of the merged
+    tag/repository resolution above it: a registered version field with
+    a real, resolvable tag+repository still gets a "disabled" row when
+    its own chart-tree path never rendered — the exact same mechanism
+    that fixes the 9 Maykin-chart redis rows in find_images-derived rows
+    below, just for the split-field shape instead."""
+    dep = {"name": "redis-operator", "version": "0.26.1"}
+    digest = "a" * 64
+    merged = {"redisOperator": {
+        "imageName": "quay.io/opstree/redis-operator",
+        "imageTag": f"v0.26.0@sha256:{digest}",
+    }}
+    root_values = {"redis-operator": {"redisOperator": {"imageName": "quay.io/opstree/redis-operator"}}}
 
-def test_is_enabled_no_condition_defaults_true(lpi):
-    assert lpi.is_enabled(None, {}) is True
+    rows = lpi.component_version_rows(dep, "redis-operator", merged, [dep], root_values, set())
+
+    assert rows == [("redis-operator", "redisOperator.imageTag",
+                      "quay.io/opstree/redis-operator", f"v0.26.0@sha256:{digest}", True)]
 
 
-def test_is_enabled_missing_override_defaults_true(lpi):
-    assert lpi.is_enabled("zac.enabled", {}) is True
+# --- row_chart_tree_path ---
+
+def test_row_chart_tree_path_defaults_to_the_dependency_own_top_level_path(lpi):
+    dep = {"name": "openzaak", "version": "1.14.2"}
+    assert lpi.row_chart_tree_path(lpi.VENDORED_DIR.parent, dep, "redis") == "podiumd/charts/openzaak"
 
 
-def test_is_enabled_explicit_false(lpi):
-    assert lpi.is_enabled("zac.enabled", {"zac": {"enabled": False}}) is False
-
-
-def test_is_enabled_explicit_true(lpi):
-    assert lpi.is_enabled("zac.enabled", {"zac": {"enabled": True}}) is True
+def test_row_chart_tree_path_resolves_a_nested_chart_yaml_dependency(lpi, tmp_path):
+    """openzaak's own bundled bitnami/redis (a real, separate Chart.yaml
+    dependency OF openzaak itself, tagged "redis" in openzaak's own
+    Chart.yaml "tags:" list) must resolve to ITS OWN nested chart-tree
+    path — not openzaak's own top-level one — so podiumd's own top-level
+    "tags: {redis: false}" (which disables ONLY this nested path, not
+    openzaak itself) is reflected correctly."""
+    dep = {"name": "openzaak", "version": "1.14.2"}
+    make_vendored_tgz(
+        lpi.VENDORED_DIR, tmp_path, "openzaak", "1.14.2",
+        {"name": "openzaak", "version": "1.14.2",
+         "dependencies": [{"name": "redis", "version": "18.0.0", "repository": "@bitnami"}]},
+        {},
+    )
+    assert lpi.row_chart_tree_path(lpi.VENDORED_DIR.parent, dep, "redis") == "podiumd/charts/openzaak/charts/redis"
 
 
 # --- load_chart ---
@@ -455,6 +498,12 @@ def test_main_full_offline_flow(lpi, tmp_path, monkeypatch, capsys):
         {"name": "openbeheer", "version": "0.1.3", "appVersion": "0.1.0"},
         {"image": {"repository": "maykinmedia/open-beheer", "tag": "0.9.0"}},
     )
+    # Overrides the autouse stub_render_chart default (which reports
+    # every chart-tree path as rendered) — this test specifically
+    # exercises the render-gate's own "condition:-disabled dependency"
+    # case: only zac's own path actually rendered.
+    monkeypatch.setattr(lpi, "rendered_chart_paths",
+                         lambda stdout: {"podiumd/charts/zaakafhandelcomponent"})
 
     run_main(lpi, monkeypatch)
     out = capsys.readouterr().out
@@ -468,6 +517,47 @@ def test_main_full_offline_flow(lpi, tmp_path, monkeypatch, capsys):
     assert "5.0.0-default" not in out
 
     assert "=== openbeheer (openbeheer 0.1.3)  [disabled] ===" in out
+
+
+def test_main_nested_tags_disabled_sidecar_is_labeled_disabled_not_dropped(lpi, tmp_path, monkeypatch, capsys):
+    """The real bug this task fixes: a Maykin-style chart bundles its own
+    bitnami/redis as a SEPARATE nested Chart.yaml dependency of its own,
+    globally disabled via podiumd's own top-level "tags: {redis: false}"
+    — the dependency itself (openzaak) is very much enabled and renders
+    fine, but its own nested redis sidecar never renders. The redis row
+    must be labeled "disabled", not silently look like a live image —
+    while openzaak's own header and its own real image stay unaffected."""
+    lpi.CHART_YAML.write_text(yaml.safe_dump({"dependencies": [
+        {"name": "openzaak", "version": "1.14.2", "repository": "@openzaak"},
+    ]}))
+    lpi.VALUES_YAML.write_text(yaml.safe_dump({"tags": {"redis": False}}))
+    make_vendored_tgz(
+        lpi.VENDORED_DIR, tmp_path, "openzaak", "1.14.2",
+        {"name": "openzaak", "version": "1.14.2",
+         "dependencies": [{"name": "redis", "version": "18.0.0", "repository": "@bitnami", "tags": ["redis"]}]},
+        {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"},
+         "redis": {"image": {"repository": "docker.io/bitnami/redis", "tag": "8.0.0"}}},
+    )
+    # openzaak's own path rendered; its own nested redis sub-subchart did not.
+    monkeypatch.setattr(lpi, "rendered_chart_paths", lambda stdout: {"podiumd/charts/openzaak"})
+
+    run_main(lpi, monkeypatch)
+    out = capsys.readouterr().out
+
+    assert "=== openzaak (openzaak 1.14.2) ===" in out  # enabled -- no [disabled] header
+    assert "openzaak/open-zaak:1.14.2" in out
+
+    redis_line = next(line for line in out.splitlines() if "redis.image" in line)
+    assert "disabled" in redis_line
+
+
+def test_main_render_failure_raises(lpi, monkeypatch):
+    lpi.CHART_YAML.write_text(yaml.safe_dump({"dependencies": []}))
+    lpi.VALUES_YAML.write_text("{}\n")
+    monkeypatch.setattr(lpi, "render_chart",
+                         lambda chart_dir, extra_args: SimpleNamespace(returncode=1, stdout="", stderr="boom"))
+    with pytest.raises(SystemExit, match="helm template failed to render"):
+        run_main(lpi, monkeypatch)
 
 
 def test_main_refresh_flag_forces_pull(lpi, tmp_path, monkeypatch):

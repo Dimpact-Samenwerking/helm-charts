@@ -1279,7 +1279,7 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
     return result
 
 
-def find_image_tag_paths(node, path=()):
+def find_image_tag_paths(node, path=(), include_null_tags=False):
     """Yield (path, tag) for every "<key>: {tag: ...}" block anywhere in a
     values tree, where <key> is "image" or ends with "Image" (e.g.
     "initImage", alongside "image" in the very same job, for a component
@@ -1303,18 +1303,45 @@ def find_image_tag_paths(node, path=()):
     (unlike this function's earlier "image"-only shape, which omitted
     it since every caller could safely assume ".image.tag") — a caller
     reconstructing a dotted values.yaml reference must use path[-1],
-    not a hardcoded ".image.tag" suffix."""
+    not a hardcoded ".image.tag" suffix.
+
+    include_null_tags=True (default False, so every existing caller's
+    behavior is exactly unchanged) ALSO yields (path, None) for a block
+    whose own "tag:" is missing or explicit YAML null, but which DOES
+    have a truthy "repository:" — Helm's own template convention for an
+    image relying entirely on its OWN chart's "appVersion" default
+    (".tag | default .Chart.AppVersion") instead of an explicit
+    override (e.g. eck-operator's own vendored default — podiumd has no
+    override for it at all). This function stays purely structural (no
+    I/O) either way — resolving None into a real, effective version is
+    a SEPARATE step a caller does itself (see lib.chart.
+    resolve_subchart_default, the one place both real consumers —
+    lib.digest_pinning_check.find_unresolved_subchart_images and
+    lib.image_docs.regenerate_images_baseline_manifest — do that
+    resolution, so it's never re-derived twice).
+
+    Deliberately does NOT relax an explicit blank-string "tag: ''" the
+    same way — a different, already-handled case elsewhere (e.g.
+    openbao's own "server.image.tag", resolved via lib.chart.
+    subchart_app_version through lib.upgradedoc.actual_app_version's own
+    values.yaml lookup) that must keep behaving exactly as it does
+    today; only a tag that's None (missing key, or explicit YAML "null")
+    ever counts as a candidate here."""
     if isinstance(node, dict):
         for key, value in node.items():
-            if (key == "image" or key.endswith("Image")) and isinstance(value, dict) and value.get("tag"):
-                yield path + (key,), value["tag"]
+            if (key == "image" or key.endswith("Image")) and isinstance(value, dict):
+                tag = value.get("tag")
+                if tag:
+                    yield path + (key,), tag
+                elif include_null_tags and tag is None and value.get("repository"):
+                    yield path + (key,), None
         for key, value in node.items():
             if key == "image" or key.endswith("Image"):
                 continue
-            yield from find_image_tag_paths(value, path + (str(key),))
+            yield from find_image_tag_paths(value, path + (str(key),), include_null_tags)
     elif isinstance(node, list):
         for i, item in enumerate(node):
-            yield from find_image_tag_paths(item, path + (str(i),))
+            yield from find_image_tag_paths(item, path + (str(i),), include_null_tags)
 
 
 def find_component_version_tags(values, deps):

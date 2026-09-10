@@ -370,6 +370,58 @@ def test_find_image_tag_paths_excludes_plural_images_container(libupgradedoc):
     assert dict(libupgradedoc.find_image_tag_paths(values)) == {}
 
 
+# --- find_image_tag_paths: include_null_tags ---
+
+def test_find_image_tag_paths_default_still_ignores_null_tag(libupgradedoc):
+    """include_null_tags defaults False -- every existing caller (find_
+    all_image_and_version_paths, find_unresolved_subchart_images before
+    this task) must see EXACTLY the same result as before."""
+    values = {"eck-operator": {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}}}
+    assert dict(libupgradedoc.find_image_tag_paths(values)) == {}
+
+
+def test_find_image_tag_paths_include_null_tags_yields_none_for_null_tag_with_repository(libupgradedoc):
+    values = {"eck-operator": {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}}}
+    paths = dict(libupgradedoc.find_image_tag_paths(values, include_null_tags=True))
+    assert paths == {("eck-operator", "image"): None}
+
+
+def test_find_image_tag_paths_include_null_tags_yields_none_for_missing_tag_key(libupgradedoc):
+    """A missing "tag:" key entirely is the same "rely on chart default"
+    case as an explicit null -- dict.get("tag") returns None either
+    way, and Helm's own template treats them identically."""
+    values = {"eck-operator": {"image": {"repository": "docker.elastic.co/eck/eck-operator"}}}
+    paths = dict(libupgradedoc.find_image_tag_paths(values, include_null_tags=True))
+    assert paths == {("eck-operator", "image"): None}
+
+
+def test_find_image_tag_paths_include_null_tags_skips_block_with_no_repository(libupgradedoc):
+    """A null tag with no repository at all has nothing to resolve a
+    basename from either way -- never worth yielding as a candidate."""
+    values = {"eck-operator": {"image": {"tag": None}}}
+    assert dict(libupgradedoc.find_image_tag_paths(values, include_null_tags=True)) == {}
+
+
+def test_find_image_tag_paths_include_null_tags_still_excludes_blank_string_tag(libupgradedoc):
+    """A DIFFERENT, already-handled case (e.g. openbao's own "server.
+    image.tag") -- must stay excluded even with include_null_tags=True,
+    never conflated with a genuinely null/missing tag."""
+    values = {"openbao": {"server": {"image": {"repository": "openbao/openbao", "tag": ""}}}}
+    assert dict(libupgradedoc.find_image_tag_paths(values, include_null_tags=True)) == {}
+
+
+def test_find_image_tag_paths_include_null_tags_does_not_affect_real_tags(libupgradedoc):
+    """A real, explicit tag elsewhere in the SAME tree must still come
+    through as itself, unaffected by include_null_tags."""
+    values = {
+        "eck-operator": {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}},
+        "zac": {"image": {"tag": "5.1.0@sha256:aaaa"}},
+    }
+    paths = dict(libupgradedoc.find_image_tag_paths(values, include_null_tags=True))
+    assert paths[("zac", "image")] == "5.1.0@sha256:aaaa"
+    assert paths[("eck-operator", "image")] is None
+
+
 # --- find_component_version_tags / find_all_image_and_version_paths ---
 # Real bug this closes: redis-operator's own image is pinned as flat
 # sibling scalars ("redisOperator.imageTag"/"imageName", registered in
