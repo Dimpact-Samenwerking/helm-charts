@@ -79,8 +79,8 @@ per-gemeente environment deployment (ADO `ExternalsPodiumD`) — not by this
 chart. Backend is the app's ClusterIP service `objecttypen` on port 80 (the
 subchart has no nginx service; the route name just follows the environment
 naming convention). `objecttypen.settings.allowedHosts` must include the
-public hostname (chart default only lists
-`objecttypen.podiumd.svc.cluster.local`).
+public hostname (chart default only lists the namespace-agnostic wildcard
+`.svc.cluster.local`).
 
 ### Other dependencies
 

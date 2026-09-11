@@ -70,7 +70,8 @@ Public at `<env>-objecten.dimpact.nl` (e.g. `ontw-objecten.dimpact.nl`) via HTTP
 gatewayClass `nginx`). The HTTPRoute is created by the per-gemeente environment
 deployment (ADO `ExternalsPodiumD`), not by this chart, and points at the Objecten
 ClusterIP service. In-cluster the app answers on
-`objecten.podiumd.svc.cluster.local` (`objecten.settings.allowedHosts`).
+`objecten.<namespace>.svc.cluster.local`, allowed via the namespace-agnostic
+`.svc.cluster.local` wildcard (`objecten.settings.allowedHosts`).
 
 ### Other dependencies
 

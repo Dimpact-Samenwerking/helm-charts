@@ -83,7 +83,7 @@ Public. Hostname pattern `<env>-openzaak.dimpact.nl` (e.g.
 by the per-gemeente environment deployment (ADO `ExternalsPodiumD`), not by
 this chart. Backend: service `openzaak-nginx`. Keep
 `openzaak.settings.allowedHosts` in sync with the public hostname (chart
-default is only the in-cluster name `openzaak-nginx.podiumd.svc.cluster.local`).
+default is only the namespace-agnostic in-cluster wildcard `.svc.cluster.local`).
 
 ### Other dependencies
 

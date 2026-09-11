@@ -137,7 +137,7 @@ with production workload measurements.
         image:
           repository: acrprodmgmt.azurecr.io/nginxinc/nginx-unprivileged
       settings:
-        allowedHosts: "openbeheer.example.nl,openbeheer-nginx.podiumd.svc.cluster.local"
+        allowedHosts: "openbeheer.example.nl,.svc.cluster.local"
         database:
           name: openbeheer
           username: openbeheer

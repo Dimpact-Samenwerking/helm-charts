@@ -1,0 +1,44 @@
+# Namespace-scope override for deploying podiumd to a namespace other than `podiumd`.
+#
+# WHY THIS FILE EXISTS
+# Most cluster-internal references in the chart are namespace-agnostic and follow the
+# release namespace automatically:
+#   * Redis         -> bare service name `redis-ha-master` (resolves in the pod's own namespace)
+#   * allowedHosts  -> `.svc.cluster.local` (Django + nginx leading-dot wildcard)
+#   * ClamAV        -> bare service name `clamav`
+#   * Kibana (KISS) -> bare service name `kiss-kb-http`
+#
+# The three operator watch-scopes below are the exception: an operator watches either a
+# specific namespace or ALL namespaces, and Helm cannot template values.yaml with
+# `.Release.Namespace`. The chart deliberately uses namespace-scoped RBAC
+# (eck-operator.createClusterScopedResources: false), so "all namespaces" is not a safe
+# default. They must therefore be set to the namespace you deploy into.
+#
+# HOW TO USE
+#   1. Copy this file and replace every <namespace> with your target namespace.
+#   2. Deploy with it, and make sure -n matches:
+#
+#        helm upgrade --install podiumd charts/podiumd \
+#          -f <your-env-values>.yaml \
+#          -f charts/podiumd/ci/values-namespace-scope.example.yaml \
+#          -n <namespace>
+#
+# For pipelines you can skip the file and pass the same values on the command line:
+#
+#   NS=<namespace>
+#   helm upgrade --install podiumd charts/podiumd -f <your-env-values>.yaml -n "$NS" \
+#     --set "eck-operator.managedNamespaces={$NS}" \
+#     --set "zac.solr-operator.watchNamespaces=$NS" \
+#     --set "zac.solr-operator.zookeeper-operator.watchNamespace=$NS"
+#
+# If you deploy to the `podiumd` namespace you do NOT need this file — the defaults already match.
+
+eck-operator:
+  managedNamespaces:
+    - <namespace>
+
+zac:
+  solr-operator:
+    watchNamespaces: "<namespace>"
+    zookeeper-operator:
+      watchNamespace: "<namespace>"

@@ -111,7 +111,7 @@ not peaks. `resource-overview.md` also recommends a PodDisruptionBudget with
 2. **Set chart values** in the per-gemeente values file:
    - `openklant.image.tag` — pin the release (chart default `2.15.0`).
    - `openklant.settings.allowedHosts` — add the public hostname next to the
-     cluster-internal default `openklant.podiumd.svc.cluster.local`.
+     cluster-internal default `.svc.cluster.local` (namespace-agnostic wildcard).
    - `openklant.persistentVolume.volumeAttributeShareName` — Azure Files
      share (default `openklant`); create the share up front.
    - Leave `openklant.settings.cache` / `openklant.settings.celery` on Redis
