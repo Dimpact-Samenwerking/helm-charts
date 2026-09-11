@@ -33,7 +33,9 @@ Yes — one PVC for the signature database:
 
 ### Routing / exposure (NGINX Gateway Fabric)
 
-**Cluster-internal only.** No HTTPRoute, no public hostname. Consumers reach it at `clamav.podiumd.svc.cluster.local:3310` (clamd TCP protocol).
+**Cluster-internal only.** No HTTPRoute, no public hostname. Consumers reach it at the bare
+service name `clamav:3310` (which resolves to `clamav.<namespace>.svc.cluster.local:3310`,
+clamd TCP protocol).
 
 ### Other dependencies
 
