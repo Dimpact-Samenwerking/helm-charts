@@ -19,7 +19,9 @@ deployed via Elastic's official Helm charts from `https://helm.elastic.co`:
 
 - **`eck-operator`** (chart 3.4.0, image `elastic/eck-operator:3.4.0`) — the
   central operator, one `elastic-operator` StatefulSet (1 pod) that watches the
-  `podiumd` namespace (`eck-operator.managedNamespaces: [podiumd]`) and
+  release namespace (`eck-operator.managedNamespaces`, default `[podiumd]` — set
+  this to the namespace you deploy into; see
+  [deploying-to-a-custom-namespace.md](../../misc/deploying-to-a-custom-namespace.md)) and
   reconciles all `Elasticsearch` and `Kibana` custom resources there
   (`EnterpriseSearch` CRDs remain installed but no KISS CR is deployed since
   KISS 3.0.0). The chart also installs the 12 `*.k8s.elastic.co` CRDs
@@ -85,9 +87,10 @@ Kibana and the operator itself are stateless (no PVC).
 Cluster-internal only — no HTTPRoute and no public hostname. Other apps reach
 the stack via the ECK-generated ClusterIP services:
 
-- `kiss-es-http.podiumd.svc.cluster.local:9200` (HTTPS, ECK self-signed cert)
-- `kiss-kb-http.podiumd.svc.cluster.local:5601` (Kibana)
-- `openinwoner-elasticsearch-es-http.podiumd.svc.cluster.local:9200`
+- `kiss-es-http.<namespace>.svc.cluster.local:9200` (HTTPS, ECK self-signed cert)
+- `kiss-kb-http.<namespace>.svc.cluster.local:5601` (Kibana) — the chart wires
+  this by the bare service name `kiss-kb-http:5601` so it follows the namespace
+- `openinwoner-elasticsearch-es-http.<namespace>.svc.cluster.local:9200`
   (HTTP — self-signed TLS is disabled for this CR in the chart)
 
 ### Other dependencies
@@ -147,8 +150,8 @@ cluster does not install another operator, it only adds an `Elasticsearch`
 custom resource (the Open Inwoner pattern).
 
 1. **Ensure the central operator is enabled** for the environment:
-   `eck-operator.enabled: true` with `eck-operator.managedNamespaces:
-   [podiumd]` (must include the namespace where the new CR will live). On
+   `eck-operator.enabled: true` with `eck-operator.managedNamespaces` set to the
+   namespace where the new CR will live (default `[podiumd]`). On
    clusters with pre-existing ECK CRDs, run
    `charts/podiumd/scripts/pre-upgrade-prep-4.8.0.sh --context <ctx>` once
    before deploying; verify afterwards with
