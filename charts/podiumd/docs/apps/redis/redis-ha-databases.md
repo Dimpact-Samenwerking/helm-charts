@@ -4,11 +4,17 @@ PodiumD uses a single shared Redis HA cluster (3 replicas, managed by the OT Red
 instead of per-component Redis subcharts. Each component is assigned one or two dedicated
 logical databases within Redis, identified by the `/N` suffix in the connection URL.
 
-The Redis HA service is reachable at:
+The Redis HA service is reachable at the bare service name, which resolves to the
+`redis-ha-master` Service in the pod's own namespace (i.e. the namespace the chart is
+deployed to). This keeps the connection strings namespace-agnostic:
 
 ```text
-redis-ha-master.podiumd.svc.cluster.local:6379
+redis-ha-master:6379
 ```
+
+> The fully-qualified form is `redis-ha-master.<namespace>.svc.cluster.local:6379`. The
+> connection strings in `values.yaml` deliberately use the short name so the chart works in
+> any namespace without per-environment overrides.
 
 The cluster is configured with **32 logical databases** (`databases: 32` in `values.yaml`).
 This is set via an initContainer because `databases` is a startup-only parameter and the OT
@@ -72,9 +78,9 @@ Django-based components use two types of Redis connections:
 
 | Type | URL format | Example |
 |------|-----------|---------|
-| Cache | `host:port/N` | `redis-ha-master.podiumd.svc.cluster.local:6379/4` |
-| Celery broker | `redis://host:port/N` | `redis://redis-ha-master.podiumd.svc.cluster.local:6379/5` |
-| Celery result backend | `redis://host:port/N` | `redis://redis-ha-master.podiumd.svc.cluster.local:6379/5` |
+| Cache | `host:port/N` | `redis-ha-master:6379/4` |
+| Celery broker | `redis://host:port/N` | `redis://redis-ha-master:6379/5` |
+| Celery result backend | `redis://host:port/N` | `redis://redis-ha-master:6379/5` |
 
 Cache URLs do **not** include the `redis://` prefix — Django's cache backend adds this
 internally. Celery URLs **must** include the `redis://` prefix.
@@ -95,11 +101,11 @@ When adding a new Django-based component to the chart, follow these steps:
    future-component:
      settings:
        cache:
-         default: redis-ha-master.podiumd.svc.cluster.local:6379/19
-         axes: redis-ha-master.podiumd.svc.cluster.local:6379/19
+         default: redis-ha-master:6379/19
+         axes: redis-ha-master:6379/19
        celery:
-         brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/20
-         resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/20
+         brokerUrl: redis://redis-ha-master:6379/20
+         resultBackendl: redis://redis-ha-master:6379/20
    ```
 
    > **Note:** The `resultBackendl` key has a typo (extra `l`) — this is intentional to match
