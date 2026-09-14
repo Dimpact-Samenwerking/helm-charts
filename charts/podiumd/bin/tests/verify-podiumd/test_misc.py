@@ -171,6 +171,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
+    monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))
 
     def fail_if_called(*args):
         raise AssertionError("this check should have been skipped")
@@ -183,7 +184,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
                     "release-baseline", "lockstep", "helm-docs", "markdown", "repo-access", "deps", "docs",
                     "subchart-images", "shared-image-usage", "digests", "yamllint", "kubeconform", "shellcheck",
-                    "kube-score", "release-secret-size", "image-upgrades", "cves"]
+                    "kube-score", "release-secret-size", "image-upgrades", "cves", "cve-diff"]
     out = capsys.readouterr().out
     assert "Helm lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
@@ -211,7 +212,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
                  "check_release_baseline", "check_lockstep_versions", "check_helm_docs", "check_markdown",
                  "check_subchart_image_visibility", "check_shared_image_usage", "check_image_repository",
                  "check_yamllint", "check_kubeconform", "check_shellcheck", "check_kube_score",
-                 "check_release_secret_size", "check_image_upgrades", "check_cves"):
+                 "check_release_secret_size", "check_image_upgrades", "check_cves", "check_cve_diff"):
         monkeypatch.setattr(vp, name, ok)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -265,6 +266,7 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
+    monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))
 
     with pytest.raises(SystemExit) as exc_info:
         vp.main()
@@ -276,7 +278,7 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
                     "release-baseline", "lockstep", "helm-docs", "markdown", "repo-access", "deps", "docs",
                     "subchart-images", "shared-image-usage", "image-repository", "digests", "helm-lint",
                     "full-render", "yamllint", "kubeconform", "shellcheck", "kube-score",
-                    "release-secret-size", "image-upgrades", "cves"]
+                    "release-secret-size", "image-upgrades", "cves", "cve-diff"]
     out = capsys.readouterr().out
     assert "UTF-8 format" in out and "FAIL" in out
     assert "One or more checks failed" in out
@@ -312,7 +314,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys)
     for name in ("check_docs_consistency", "check_subchart_image_visibility", "check_shared_image_usage",
                  "check_image_repository", "check_image_digests", "check_lint", "check_render",
                  "check_yamllint", "check_kubeconform", "check_shellcheck", "check_kube_score",
-                 "check_release_secret_size", "check_image_upgrades", "check_cves"):
+                 "check_release_secret_size", "check_image_upgrades", "check_cves", "check_cve_diff"):
         monkeypatch.setattr(vp, name, fail_if_called)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -411,6 +413,7 @@ def _stub_all_checks(vp, monkeypatch, ran):
     monkeypatch.setattr(vp, "check_release_secret_size", make_check("release-secret-size"))
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
+    monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))
 
 
 def test_include_flag_runs_target_plus_its_prerequisite(vp, monkeypatch, capsys):
@@ -548,6 +551,34 @@ def test_include_cve_scan_runs_it_plus_dependencies_and_image_upgrades(vp, monke
     assert ran == ["repo-access", "deps", "image-upgrades", "cves"]
 
 
+def test_skip_cve_diff_skips_it(vp, monkeypatch, capsys):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=cve-diff"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert "cve-diff" not in ran
+    out = capsys.readouterr().out
+    assert "CVE diff" in out and "SKIP" in out
+
+
+def test_include_cve_diff_runs_it_plus_its_prerequisites(vp, monkeypatch):
+    """"CVE diff" needs "Image upgrades" (reads that cache to find its own
+    "has_newer" candidates) AND "Image digests" (calls lib.image_digests.
+    find_sliding_pins, which needs Dependencies-populated charts/*.tgz for
+    the same subchart-default-repository fallback "Image digests" itself
+    needs it for) — a bare --include=cve-diff must pull in all three, run
+    in the pipeline's own fixed order."""
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=cve-diff"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert ran == ["repo-access", "deps", "digests", "image-upgrades", "cve-diff"]
+
+
 def test_skip_image_upgrades_skips_it(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=image-upgrades"])
     ran = []
@@ -647,6 +678,40 @@ def test_detail_flag_true_is_passed_to_check_cves(vp, monkeypatch):
         return True, "ok"
 
     monkeypatch.setattr(vp, "check_cves", fake_check_cves)
+
+    vp.main()
+
+    assert captured["args"][-1] is True
+
+
+def test_detail_cve_diff_flag_defaults_false_and_is_passed_to_check_cve_diff(vp, monkeypatch):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=cve-diff"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+    captured = {}
+
+    def fake_check_cve_diff(*a):
+        captured["args"] = a
+        return True, "ok"
+
+    monkeypatch.setattr(vp, "check_cve_diff", fake_check_cve_diff)
+
+    vp.main()
+
+    assert captured["args"][-1] is False
+
+
+def test_detail_cve_diff_flag_true_is_passed_to_check_cve_diff(vp, monkeypatch):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=cve-diff", "--detail-cve-diff"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+    captured = {}
+
+    def fake_check_cve_diff(*a):
+        captured["args"] = a
+        return True, "ok"
+
+    monkeypatch.setattr(vp, "check_cve_diff", fake_check_cve_diff)
 
     vp.main()
 
