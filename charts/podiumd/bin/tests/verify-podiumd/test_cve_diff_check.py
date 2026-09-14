@@ -6,6 +6,7 @@ tests — run_trivy/load_upgrade_cache/find_sliding_pins are all mocked
 directly on lib.cve_diff_check's own module bindings (the module that
 actually owns them, per this test suite's own convention), never on
 lib.cve_check/lib.image_digests/lib.image_upgrade_cache themselves."""
+import urllib.error
 from datetime import datetime, timedelta, timezone
 
 DIGEST_A = "a" * 64
@@ -73,6 +74,7 @@ zac:
     monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
                          lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [vuln("CRITICAL", "CVE-1", "openssl"), vuln("HIGH", "CVE-2", "libxml2")],
@@ -104,6 +106,7 @@ zac:
     monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
                          lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
     calls = []
     monkeypatch.setattr(libcvediffcheck, "run_trivy", make_run_trivy({}, calls))
@@ -171,6 +174,115 @@ openzaak:
     assert "closed: 1 CRIT" in out
 
 
+# --- check_cve_diff: caching the PROPOSED side ---
+
+def test_sliding_candidate_proposed_side_caches_across_runs(libcvediffcheck, tmp_path, monkeypatch):
+    """A sliding candidate's own proposed digest is already known (see
+    gather_candidates' own "proposed_digest" field) -- no registry call
+    is needed to make it cache-eligible, and a second run reuses the
+    cached scan instead of re-invoking trivy."""
+    write_values_yaml(tmp_path, f"""\
+openzaak:
+  redis:
+    image:
+      repository: redis
+      tag: "8.0@sha256:{DIGEST_A}"
+""")
+    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache", lambda chart_dir: {})
+    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins",
+                         lambda chart_dir: [("redis", "8.0", DIGEST_A, f"sha256:{DIGEST_B}")])
+
+    calls = []
+    vulns_by_ref = {
+        f"redis@sha256:{DIGEST_A}": [vuln("CRITICAL", "CVE-1", "openssl")],
+        f"redis@sha256:{DIGEST_B}": [vuln("HIGH", "CVE-2", "libxml2")],
+    }
+    monkeypatch.setattr(libcvediffcheck, "run_trivy", make_run_trivy(vulns_by_ref, calls))
+
+    libcvediffcheck.check_cve_diff(tmp_path, [])
+    assert calls.count(f"redis@sha256:{DIGEST_B}") == 1  # first run: a real scan
+
+    calls.clear()
+    libcvediffcheck.check_cve_diff(tmp_path, [])
+    assert f"redis@sha256:{DIGEST_B}" not in calls  # second run: cache hit, no new scan
+
+
+def test_upgrade_candidate_proposed_side_resolves_digest_then_caches_across_runs(
+        libcvediffcheck, tmp_path, monkeypatch):
+    """An "upgrade" candidate's own proposed side is a bare tag -- its
+    digest is resolved via ONE registry_tag_exists manifest lookup
+    (never a docker pull), called with exactly (host, repo_path,
+    newest-tag). Once resolved, a second run reuses the cached scan
+    instead of re-invoking trivy, the same as the sliding case."""
+    write_values_yaml(tmp_path, f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zac
+    tag: "1.0.0@sha256:{DIGEST_A}"
+""")
+    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
+                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+
+    resolve_calls = []
+
+    def fake_registry_tag_exists(host, repo, tag):
+        resolve_calls.append((host, repo, tag))
+        return True, f"sha256:{DIGEST_B}"
+
+    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", fake_registry_tag_exists)
+
+    trivy_calls = []
+    vulns_by_ref = {
+        "ghcr.io/infonl/zac:1.0.0": [],
+        "ghcr.io/infonl/zac:1.1.0": [vuln("CRITICAL", "CVE-1", "openssl")],
+    }
+    monkeypatch.setattr(libcvediffcheck, "run_trivy", make_run_trivy(vulns_by_ref, trivy_calls))
+
+    libcvediffcheck.check_cve_diff(tmp_path, [])
+    assert resolve_calls == [("ghcr.io", "infonl/zac", "1.1.0")]
+    assert trivy_calls.count("ghcr.io/infonl/zac:1.1.0") == 1  # first run: a real scan
+
+    trivy_calls.clear()
+    libcvediffcheck.check_cve_diff(tmp_path, [])
+    assert "ghcr.io/infonl/zac:1.1.0" not in trivy_calls  # second run: cache hit, no new scan
+
+
+def test_upgrade_candidate_resolve_failure_falls_back_to_uncached_scan(
+        libcvediffcheck, tmp_path, monkeypatch, capsys):
+    """A network error while resolving the proposed tag's digest must
+    never abort the candidate or count as a scan error -- it just falls
+    back to an uncached run_trivy call, same as if caching were never
+    attempted at all."""
+    write_values_yaml(tmp_path, f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zac
+    tag: "1.0.0@sha256:{DIGEST_A}"
+""")
+    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
+                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+
+    def failing_resolve(host, repo, tag):
+        raise urllib.error.URLError("network down")
+
+    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", failing_resolve)
+
+    vulns_by_ref = {
+        "ghcr.io/infonl/zac:1.0.0": [],
+        "ghcr.io/infonl/zac:1.1.0": [vuln("CRITICAL", "CVE-1", "openssl")],
+    }
+    monkeypatch.setattr(libcvediffcheck, "run_trivy", make_run_trivy(vulns_by_ref))
+
+    ok, detail = libcvediffcheck.check_cve_diff(tmp_path, [])
+
+    assert ok is True
+    assert "0 scan error(s)" in detail
+    out = capsys.readouterr().out
+    assert "introduced: 1 CRIT" in out
+
+
 # --- check_cve_diff: no flagged candidate at all ---
 
 def test_no_flagged_upgrade_or_slide_never_scans_anything(libcvediffcheck, tmp_path, monkeypatch, capsys):
@@ -208,6 +320,7 @@ zac:
     monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
                          lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [],
@@ -234,6 +347,7 @@ zac:
     monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
                          lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [],
@@ -261,6 +375,7 @@ zac:
     monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
                          lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [],
@@ -298,3 +413,12 @@ redis-thing:
 
     kinds = sorted(c["kind"] for c in candidates)
     assert kinds == ["sliding digest", "upgrade"]
+
+    by_kind = {c["kind"]: c for c in candidates}
+    # sliding digest already has its own resolved digest -- bare hex, no
+    # "sha256:" prefix (see _bare_digest/cache_key) -- no extra call
+    # needed to cache its proposed side.
+    assert by_kind["sliding digest"]["proposed_digest"] == DIGEST_B
+    # upgrade's own proposed side is a bare tag -- genuinely unresolved
+    # until _scan_proposed actually needs it.
+    assert by_kind["upgrade"]["proposed_digest"] is None

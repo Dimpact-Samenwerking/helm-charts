@@ -53,18 +53,30 @@ twice, once under each heading — a rare enough overlap in practice that
 merging the two into one combined diff isn't worth the added complexity
 it would take to do correctly.
 
-Caching: the CURRENT side of each candidate reuses lib.cve_check's own
+Caching: BOTH sides of each candidate reuse lib.cve_check's own
 digest-keyed cve-scan-cache.json directly (same cache_key/load_cache/
-save_cache/cache_entry_is_fresh check_cves itself uses) — since the
-pinned digest is already known from values.yaml, and check_cves (which
-runs immediately before this step in the default pipeline) already
-scanned every currently-pinned image, the current side is typically a
-free cache hit, not a second docker pull. The PROPOSED side has no
-persisted cache of its own: its digest isn't known ahead of time without
-an extra registry round trip this check doesn't bother making, so it's
-always scanned fresh via run_trivy — an accepted cost, since it's the
-one truly new pull per flagged candidate design decision #2 above already
-budgeted for."""
+save_cache/cache_entry_is_fresh check_cves itself uses) — but the two
+sides, and the two candidate KINDS, get there differently:
+- The CURRENT side is always cache-eligible immediately: its digest is
+  already known from values.yaml, and check_cves (which runs
+  immediately before this step in the default pipeline) already scanned
+  every currently-pinned image, so this side is typically a free cache
+  hit, not a second docker pull.
+- A "sliding digest" candidate's PROPOSED side is ALSO free: find_
+  sliding_pins already resolved the new upstream digest itself (a
+  registry call check_image_digests' own work already made, not a new
+  one this module triggers) — see gather_candidates' own
+  "proposed_digest" field.
+- An "upgrade" candidate's PROPOSED side is a bare TAG (lib.
+  image_upgrade_check never records the digest, only the tag string) —
+  its digest genuinely isn't known ahead of time, so caching it costs
+  ONE extra registry_tag_exists manifest lookup (a cheap tag->digest
+  resolve, NOT a docker pull) before the scan. If that resolve call
+  itself fails, this candidate's proposed side just falls back to an
+  uncached run_trivy — never treated as a scan failure on its own, the
+  same tolerance the tag-check that produced the candidate in the first
+  place already has for its own failed lookups."""
+import urllib.error
 from collections import Counter
 from datetime import datetime, timezone
 
@@ -76,7 +88,7 @@ from lib.image_digests import find_sliding_pins, unique_digest_pin_targets
 from lib.image_upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
 from lib.image_upgrade_cache import cache_key as upgrade_cache_key
 from lib.image_upgrade_cache import load_cache as load_upgrade_cache
-from lib.registry import parse_repo
+from lib.registry import parse_repo, registry_tag_exists
 
 
 def _vuln_key(v):
@@ -96,11 +108,28 @@ def diff_vulns(current_vulns, proposed_vulns):
     return closed, introduced
 
 
+def _bare_digest(digest_ref):
+    """"sha256:<hex>" -> "<hex>" — lib.cve_check.cache_key expects the
+    bare hex digest (it prepends "sha256:" itself), but every digest this
+    module gets handed back (find_sliding_pins, registry_tag_exists) has
+    the full "sha256:" prefix already on it."""
+    prefix = "sha256:"
+    return digest_ref[len(prefix):] if digest_ref.startswith(prefix) else digest_ref
+
+
 def gather_candidates(chart_dir):
     """[{"kind", "repository", "version", "current_ref", "current_digest",
-    "proposed_label", "proposed_ref"}] — see this module's own docstring
-    for exactly what each of the two candidate sources means and why
-    each ref is built the way it is."""
+    "proposed_label", "proposed_ref", "proposed_digest"}] — see this
+    module's own docstring for exactly what each of the two candidate
+    sources means and why each ref is built the way it is.
+
+    "proposed_digest" is the one field that genuinely differs by kind:
+    a "sliding digest" candidate's new upstream digest is already known
+    (find_sliding_pins' own registry lookup resolved it), set here
+    directly, no extra call. An "upgrade" candidate's proposed side is
+    only ever a bare TAG (lib.image_upgrade_check never records a
+    digest) — left None here, resolved lazily by _scan_proposed only if
+    the candidate actually needs scanning."""
     values_path = chart_dir / "values.yaml"
     values_lines = values_path.read_text(encoding="utf-8").splitlines()
     targets = unique_digest_pin_targets(values_lines)
@@ -119,6 +148,7 @@ def gather_candidates(chart_dir):
                 "current_digest": digest,
                 "proposed_label": entry["newest"],
                 "proposed_ref": f"{host}/{repo_path}:{entry['newest']}",
+                "proposed_digest": None,
             })
 
     for repository, version, pinned_digest, digest in find_sliding_pins(chart_dir):
@@ -130,27 +160,68 @@ def gather_candidates(chart_dir):
             "current_digest": pinned_digest,
             "proposed_label": digest,
             "proposed_ref": f"{repository}@{digest}",
+            "proposed_digest": _bare_digest(digest),
         })
 
     return candidates
 
 
-def _scan_current(chart_dir, candidate, old_cache, new_cache):
-    """The CURRENT side of one candidate, via lib.cve_check's own
-    digest-keyed cache — a free hit whenever check_cves already scanned
-    this exact digest (see this module's own docstring)."""
-    key = cache_key(candidate["repository"], candidate["current_digest"])
-    cached = old_cache.get(key)
-    if cached and cache_entry_is_fresh(cached):
-        new_cache[key] = cached
-        return cached["vulnerabilities"]
+def _scan_cached(chart_dir, repository, digest, ref, old_cache, new_cache):
+    """Scan `ref` via trivy, reusing lib.cve_check's own digest-keyed
+    cve-scan-cache.json whenever `digest` (bare hex, see _bare_digest) is
+    known — shared by _scan_current (always has one) and _scan_proposed
+    (only sometimes does, see its own docstring). `digest=None` skips the
+    cache entirely, straight through to run_trivy — used when a proposed
+    tag's digest couldn't be resolved. Returns None if trivy's own scan
+    failed or produced unparseable output."""
+    key = cache_key(repository, digest) if digest is not None else None
+    if key is not None:
+        cached = old_cache.get(key)
+        if cached and cache_entry_is_fresh(cached):
+            new_cache[key] = cached
+            return cached["vulnerabilities"]
 
-    vulns = run_trivy(candidate["current_ref"])
+    vulns = run_trivy(ref)
     if vulns is None:
         return None
-    new_cache[key] = {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": vulns}
-    save_cache(chart_dir, new_cache)
+
+    if key is not None:
+        new_cache[key] = {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": vulns}
+        save_cache(chart_dir, new_cache)
     return vulns
+
+
+def _scan_current(chart_dir, candidate, old_cache, new_cache):
+    """The CURRENT side of one candidate — always cache-eligible, its
+    pinned digest is already known from values.yaml (see _scan_cached),
+    a free hit whenever check_cves already scanned this exact digest."""
+    return _scan_cached(chart_dir, candidate["repository"], candidate["current_digest"],
+                         candidate["current_ref"], old_cache, new_cache)
+
+
+def _scan_proposed(chart_dir, candidate, old_cache, new_cache):
+    """The PROPOSED side of one candidate. A "sliding digest" candidate
+    already carries its own resolved digest (see gather_candidates) — no
+    extra call needed, straight to _scan_cached. An "upgrade" candidate's
+    own proposed_ref is a bare tag — resolve its digest first via ONE
+    cheap registry_tag_exists manifest lookup (not a docker pull) so it
+    can join the same cache. If that resolve call itself fails/errors,
+    fall back to an uncached scan (digest=None) rather than treating the
+    whole candidate as a failure — the tag-check that produced this
+    candidate in the first place already tolerates the same kind of
+    lookup failure without giving up on the candidate outright."""
+    digest = candidate["proposed_digest"]
+    if digest is None:
+        host, repo_path = parse_repo(candidate["repository"])
+        try:
+            exists, resolved = registry_tag_exists(host, repo_path, candidate["proposed_label"])
+            if exists and resolved:
+                digest = _bare_digest(resolved)
+        except (urllib.error.URLError, OSError):
+            digest = None
+
+    return _scan_cached(chart_dir, candidate["repository"], digest, candidate["proposed_ref"],
+                         old_cache, new_cache)
 
 
 def _severity_counts(vulns):
@@ -202,8 +273,8 @@ def check_cve_diff(chart_dir, extra_args, detail=False):
             continue
 
         print(f"  [{i}/{len(candidates)}] scanning proposed {candidate['proposed_ref']} "
-              f"(docker pull + trivy)...", flush=True)
-        proposed_vulns = run_trivy(candidate["proposed_ref"])
+              f"(docker pull + trivy, unless cached)...", flush=True)
+        proposed_vulns = _scan_proposed(chart_dir, candidate, old_cache, new_cache)
         if proposed_vulns is None:
             scan_errors.append(candidate["proposed_ref"])
             print(f"  [SCAN-ERR] {candidate['proposed_ref']}  trivy scan failed or produced "
