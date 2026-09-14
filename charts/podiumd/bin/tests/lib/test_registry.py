@@ -426,6 +426,38 @@ def test_find_newest_same_variant_tag_non_numeric_version_returns_itself(libregi
     assert libregistry.find_newest_same_variant_tag("docker.io", "org/repo", "latest") == "latest"
 
 
+def test_find_newest_same_variant_tag_ignores_bare_ci_run_id_tags(libregistry, monkeypatch):
+    """Regression test for a real bug, confirmed live against ghcr.io/
+    wearefrank/frank-gateway: alongside real 3-component releases and an
+    old pre-semver 1-component build-number scheme, this repo ALSO
+    publishes dozens of bare GitHub Actions run-ID tags with no suffix —
+    e.g. "12294937630". Plain tuple comparison ((12294937630,) > (1, 1,
+    0)) let a run-ID tag "win" purely because it parses to a SHORTER
+    numeric tuple whose first component happens to be huge — the
+    component-count guard must reject it outright, regardless of value,
+    leaving the real newest same-arity release as the answer."""
+    monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: [
+        "57", "104",  # old pre-semver build-number scheme (1 component)
+        "1.0.0", "1.1.0",  # real releases (3 components) — same as version's own arity
+        "10617868164", "12294937630",  # bare CI run-ID tags (1 component, no suffix)
+    ])
+    assert libregistry.find_newest_same_variant_tag(
+        "ghcr.io", "wearefrank/frank-gateway", "1.1.0") == "1.1.0"
+
+
+def test_find_newest_same_variant_tag_still_finds_newer_release_among_ci_run_id_tags(libregistry, monkeypatch):
+    """Same shape as the regression above, but with a genuinely newer
+    same-arity release ALSO published — it must still be found, not
+    masked by the presence of the bare run-ID tags."""
+    monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: [
+        "57", "104",
+        "1.0.0", "1.1.0", "1.2.0",
+        "10617868164", "12294937630",
+    ])
+    assert libregistry.find_newest_same_variant_tag(
+        "ghcr.io", "wearefrank/frank-gateway", "1.1.0") == "1.2.0"
+
+
 # --- is_sliding_tag ---
 
 def test_is_sliding_tag_true_from_history_alone(libregistry, values_repo, monkeypatch):
