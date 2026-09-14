@@ -1,14 +1,23 @@
 """JSON cache for check_repo_access's own existence/reachability checks
 (<repo-root>/.cache/repo-access-cache.json — same gitignored, personal,
-per-checkout convention as lib.image_upgrade_cache) — deliberately NOT
-shared with check_image_digests or anything else that needs the actual
-digest value: this cache only ever records "reachable, as of this
-timestamp" (a bool), never a digest, so a stale hit can never mask real
-digest drift somewhere else. Worst case a hit just means check_repo_access
-is up to REPO_ACCESS_CACHE_TTL_MINUTES behind on a repo/image that's
-since gone away — "Image digests"/"Dependencies" (both uncached, and
-each already the authoritative check for their own concern) still catch
-that fresh regardless.
+per-checkout convention as lib.image_upgrade_cache).
+
+Also shared, as of the same fix that added lib.image_digests._cached_
+tag_exists' own disk tier: an entry here can ALSO carry a "digest" field
+alongside "checked_at" — check_repo_access itself never sets or reads
+that field (it only ever needed a bare reachability bool), but check_
+image_digests/find_sliding_pins (via _cached_tag_exists) both read AND
+write it, for a "registry:" entry specifically, so the two no longer
+each independently re-query the registry for the same pin within one
+verify-podiumd run. Same cache_key/load_cache/save_cache/cache_entry_
+is_fresh functions, same file, same TTL — genuinely one cache, not two
+parallel ones that happen to use the same format. Worst case a hit just
+means whichever caller reads it is up to REPO_ACCESS_CACHE_TTL_MINUTES
+behind on a repo/image (or digest) that's since changed — "Dependencies"
+(uncached, and the authoritative check for its own concern) still
+catches that fresh regardless, and check_image_digests' own [DIGEST-
+GONE] follow-up check is deliberately never routed through this cache
+at all (see lib.image_digests' own docstring there).
 
 Also only ever caches a SUCCESS. A failure is never written to the
 cache and always re-checked next run — caching a failure risks

@@ -3,9 +3,14 @@ upstream registry digest — report-only, never writes to values.yaml (see
 fix-image-digests for that)."""
 import re
 import urllib.error
+from datetime import datetime, timezone
 
 from lib.chart import load_yaml, subchart_default_repository
 from lib.registry import UNVERIFIABLE_HOSTS, is_sliding_tag, parse_repo, registry_tag_exists
+from lib.repo_access_cache import cache_entry_is_fresh as repo_access_entry_is_fresh
+from lib.repo_access_cache import cache_key as repo_access_cache_key
+from lib.repo_access_cache import load_cache as load_repo_access_cache
+from lib.repo_access_cache import save_cache as save_repo_access_cache
 
 # One "tag: <version>@sha256:<digest>" pin per match, quoted or bare.
 DIGEST_PIN_RE = re.compile(
@@ -268,40 +273,74 @@ def resolve_pin_targets(chart_dir):
 _tag_exists_cache = {}
 
 
-def _cached_tag_exists(repository, host, repo_path, version):
-    """Memoized in-process wrapper around lib.registry.registry_tag_exists
-    for the tag-level lookup check_image_digests' own loop (below) and
-    find_sliding_pins both make for the same pin — keyed on (repository,
-    version), the same key resolve_pin_targets' own grouping already
-    uses. "CVE diff" lists "Image digests" as a STEP_PREREQUISITES entry
-    specifically so charts/*.tgz is vendored first; without this, a
-    --include=cve-diff run would make check_image_digests' own loop and
-    check_cve_diff's own gather_candidates (via find_sliding_pins) each
-    independently re-query the registry for every unique pin in the SAME
-    process — doubling real network cost for no reason, same class of
-    redundancy render_chart's own in-process cache already fixed for
-    `helm template`.
+def _cached_tag_exists(chart_dir, repository, host, repo_path, version):
+    """Wrapper around lib.registry.registry_tag_exists for the tag-level
+    lookup check_image_digests' own loop (below) and find_sliding_pins
+    both make for the same pin — keyed on (repository, version), the
+    same key resolve_pin_targets' own grouping already uses. "CVE diff"
+    lists "Image digests" as a STEP_PREREQUISITES entry specifically so
+    charts/*.tgz is vendored first; without this, a --include=cve-diff
+    run would make check_image_digests' own loop and check_cve_diff's
+    own gather_candidates (via find_sliding_pins) each independently
+    re-query the registry for every unique pin in the SAME process —
+    doubling real network cost for no reason, same class of redundancy
+    render_chart's own in-process cache already fixed for `helm
+    template`.
 
-    Deliberately scoped here rather than a blanket cache on registry_
-    tag_exists itself: lib.repo_access/lib.image_version/lib.chart/
-    lib.image_docs all call that function too, for genuinely different
-    purposes (reachability checks, resolving a NEW version's tag before
-    writing it) that were never part of this specific redundancy and
-    shouldn't silently change behavior just because this fix exists.
+    Two tiers, checked in order:
+    1. An in-process dict (_tag_exists_cache) — the fastest path, avoids
+       even a disk read for a pin already seen this process.
+    2. lib.repo_access_cache's own disk-persisted, TTL-based store
+       (<repo-root>/.cache/repo-access-cache.json) — the EXACT same
+       cache_key/load_cache/save_cache/cache_entry_is_fresh check_repo_
+       access itself uses, so a fresh entry either one writes is
+       directly usable by the other, byte-for-byte, no format
+       translation. (repo_access_cache's own docstring used to say this
+       cache was "deliberately NOT shared" with anything needing a
+       digest, since it only ever recorded a bare reachability bool —
+       that's now out of date: this function extends its OWN entries
+       with a "digest" field precisely so it CAN be shared. The 30-
+       minute REPO_ACCESS_CACHE_TTL_MINUTES this relies on was already
+       short by design, chosen for exactly this kind of live-value
+       staleness tradeoff.)
 
-    Only a SUCCESSFUL lookup (found or genuinely not found — both are
-    real, deterministic answers) is cached; an exception propagates
-    uncached, so check_image_digests' own retry-on-transient-network-
-    error loop still genuinely retries over the network rather than
-    replaying a cached failure. Not persisted to disk (unlike the
-    trivy/image-upgrade caches) — purely an intra-process dedup for one
-    verify-podiumd invocation, not something that needs to survive
-    across separate runs."""
+    On a genuine miss (both tiers), makes the real registry_tag_exists
+    call. A "not found" result is cached in-process only, matching
+    _tag_exists_cache's own existing behavior — but NOT persisted to
+    disk, matching repo_access_cache's own established "only ever cache
+    a SUCCESS" policy (a 404 might be a transient rate-limit response;
+    perpetuating that past whatever caused it, across separate runs, is
+    exactly what that policy already exists to avoid — see that
+    module's own docstring). Only a found tag (exists=True) is written
+    to disk, alongside its digest.
+
+    An exception is never cached at either tier — it propagates
+    straight through, so check_image_digests' own retry-on-transient-
+    network-error loop still genuinely retries over the network rather
+    than replaying a cached failure."""
     key = (repository, version)
     if key in _tag_exists_cache:
         return _tag_exists_cache[key]
+
+    disk_key = repo_access_cache_key("registry", (host, repo_path, version))
+    disk_cache = load_repo_access_cache(chart_dir)
+    disk_entry = disk_cache.get(disk_key)
+    if disk_entry and repo_access_entry_is_fresh(disk_entry) and "digest" in disk_entry:
+        result = (True, disk_entry["digest"])
+        _tag_exists_cache[key] = result
+        return result
+
     result = registry_tag_exists(host, repo_path, version)
     _tag_exists_cache[key] = result
+
+    exists, digest = result
+    if exists:
+        disk_cache[disk_key] = {
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "digest": digest,
+        }
+        save_repo_access_cache(chart_dir, disk_cache)
+
     return result
 
 
@@ -334,7 +373,7 @@ def find_sliding_pins(chart_dir):
         host, repo_path = parse_repo(repository)
         pinned_digest = group[0]["digest"]
         try:
-            exists, digest = _cached_tag_exists(repository, host, repo_path, version)
+            exists, digest = _cached_tag_exists(chart_dir, repository, host, repo_path, version)
         except (urllib.error.URLError, OSError):
             continue
         if not exists or not digest or digest == f"sha256:{pinned_digest}":
@@ -445,7 +484,7 @@ def check_image_digests(chart_dir):
         digest, error = None, None
         for _attempt in range(2):
             try:
-                exists, digest = _cached_tag_exists(repository, host, repo_path, version)
+                exists, digest = _cached_tag_exists(chart_dir, repository, host, repo_path, version)
                 error = None if exists else "tag not found upstream"
                 break
             except (urllib.error.URLError, OSError) as e:
