@@ -371,7 +371,9 @@ from lib.lockstep_check import check_lockstep_versions
 from lib.helm_docs_check import check_helm_docs
 from lib.markdown_check import check_markdown
 from lib.vendored_tgz_check import check_vendored_tgz_extraction
-from lib.render_scope import CHART_NAME, lint_args_for, report_errors_by_subchart, report_largest_templates
+from lib.render_scope import (
+    CHART_NAME, lint_args_for, render_chart, report_errors_by_subchart, report_largest_templates,
+)
 from lib.yamllint_check import check_yamllint
 from lib.kubeconform_check import check_kubeconform
 from lib.shellcheck_check import check_shellcheck
@@ -530,8 +532,7 @@ def check_lint(chart_dir, extra_args):
 
 
 def check_render(chart_dir, extra_args):
-    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
-                 capture_output=True, text=True)
+    result = render_chart(chart_dir, extra_args)
 
     if result.returncode != 0:
         print(result.stderr, end="" if result.stderr.endswith("\n") else "\n")

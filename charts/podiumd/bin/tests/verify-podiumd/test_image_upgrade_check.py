@@ -86,12 +86,13 @@ def make_chart_dir(tmp_path, values=VALUES_YAML, chart_yaml=CHART_YAML):
 
 
 def template_run(rendered=RENDERED, returncode=0):
-    """The actual helm template render — the only `run` call this check
-    makes; every per-image lookup goes through find_newest_same_variant_tag,
-    not `run`."""
-    def run(cmd, **kwargs):
+    """The actual helm template render — check_image_upgrades gets this via
+    lib.render_scope.render_chart(chart_dir, extra_args), not a `run` call
+    of its own; every per-image lookup goes through
+    find_newest_same_variant_tag, not a render at all."""
+    def render_chart(chart_dir, extra_args):
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
-    return run
+    return render_chart
 
 
 def newest_tag_for(**by_repo_path):
@@ -133,7 +134,7 @@ def test_save_and_load_cache_roundtrip(libimageupgradecheck, tmp_path):
 
 def test_check_image_upgrades_render_failure_fails(vp, libimageupgradecheck, tmp_path, monkeypatch):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "run", template_run(returncode=1))
+    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run(returncode=1))
     ok, detail = vp.check_image_upgrades(chart_dir, [])
     assert ok is False
     assert "failed to render" in detail
@@ -145,7 +146,7 @@ def test_check_image_upgrades_splits_own_partner_other_and_never_fails(
     vp, libimageupgradecheck, tmp_path, monkeypatch, capsys,
 ):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "run", template_run())
+    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag",
                          newest_tag_for(**{"wearefrank/frank-gateway": "999"}))
 
@@ -172,7 +173,7 @@ def test_check_image_upgrades_partner_upgrade_shown_with_vendor_label(
     vp, libimageupgradecheck, tmp_path, monkeypatch, capsys,
 ):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "run", template_run())
+    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag",
                          newest_tag_for(**{"maykinmedia/objects-api": "2.0.0"}))
 
@@ -186,7 +187,7 @@ def test_check_image_upgrades_partner_upgrade_shown_with_vendor_label(
 
 def test_check_image_upgrades_other_vendor_aggregate_line(vp, libimageupgradecheck, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "run", template_run())
+    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag",
                          newest_tag_for(**{"alpine/k8s": "1.37.0"}))
 
@@ -201,7 +202,7 @@ def test_check_image_upgrades_other_vendor_aggregate_line(vp, libimageupgradeche
 
 def test_check_image_upgrades_nothing_upgradable_prints_ok(vp, libimageupgradecheck, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "run", template_run())
+    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag", newest_tag_for())
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
@@ -218,7 +219,7 @@ def test_check_image_upgrades_fetch_error_reported_but_still_passes(
     import urllib.error
 
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "run", template_run())
+    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
 
     def find(host, repo_path, version):
         if repo_path == "wearefrank/frank-gateway":
@@ -239,7 +240,7 @@ def test_check_image_upgrades_fetch_error_reported_but_still_passes(
 
 def test_check_image_upgrades_cache_miss_scans_and_persists(vp, libimageupgradecheck, tmp_path, monkeypatch):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "run", template_run())
+    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag", newest_tag_for())
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
@@ -250,7 +251,7 @@ def test_check_image_upgrades_cache_miss_scans_and_persists(vp, libimageupgradec
 
 def test_check_image_upgrades_cache_hit_skips_registry_call(vp, libimageupgradecheck, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "run", template_run())
+    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     key = libimageupgradecheck.cache_key("ghcr.io/wearefrank/frank-gateway", "104")
     libimageupgradecheck.save_cache(chart_dir, {
         key: {"checked_at": datetime.now(timezone.utc).isoformat(), "newest": "999"},
@@ -273,7 +274,7 @@ def test_check_image_upgrades_cache_hit_skips_registry_call(vp, libimageupgradec
 
 def test_check_image_upgrades_expired_cache_entry_rechecks(vp, libimageupgradecheck, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "run", template_run())
+    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     key = libimageupgradecheck.cache_key("ghcr.io/wearefrank/frank-gateway", "104")
     stale = datetime.now(timezone.utc) - timedelta(days=libimageupgradecheck.IMAGE_UPGRADE_CACHE_TTL_DAYS + 1)
     libimageupgradecheck.save_cache(chart_dir, {
@@ -290,7 +291,7 @@ def test_check_image_upgrades_expired_cache_entry_rechecks(vp, libimageupgradech
 
 def test_check_image_upgrades_prunes_entries_for_unpinned_images(vp, libimageupgradecheck, tmp_path, monkeypatch):
     chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libimageupgradecheck, "run", template_run())
+    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag", newest_tag_for())
     stale_key = "org/gone:1.0.0"
     libimageupgradecheck.save_cache(chart_dir, {
@@ -312,7 +313,7 @@ def test_check_image_upgrades_heuristic_fallback_for_disabled_component(
         "apiproxy:\n  image:\n    repository: org/apiproxy\n" f'    tag: "1.0.0@sha256:{"d" * 64}"\n'
     )
     chart_dir = make_chart_dir(tmp_path, values=values)
-    monkeypatch.setattr(libimageupgradecheck, "run", template_run())
+    monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag",
                          newest_tag_for(**{"org/apiproxy": "2.0.0"}))
 
