@@ -81,17 +81,21 @@ def _parse_bearer_challenge(header_value):
     return params if "realm" in params else None
 
 
-def _get_with_dynamic_auth(url, repo, headers, timeout=None):
-    """GETs url, retrying once with a bearer token if the registry demands
-    one via a WWW-Authenticate challenge that TOKEN_ENDPOINTS didn't already
+def _get_with_dynamic_auth(url, repo, headers, timeout=None, method="GET"):
+    """Requests url (GET by default; registry_tag_exists passes "HEAD" — see
+    there), retrying once with a bearer token if the registry demands one
+    via a WWW-Authenticate challenge that TOKEN_ENDPOINTS didn't already
     anticipate — confirmed 2026-08-26 this is exactly what docker.elastic.co
     needs: a direct anonymous manifest GET 401s, but the challenge names its
     own token realm (docker-auth.elastic.co), and a token from THAT realm is
     accepted same as any other OCI registry. Re-raises unchanged if the 401
     carries no Bearer challenge at all (a real auth wall — see
-    UNVERIFIABLE_HOSTS) or retrying still fails."""
+    UNVERIFIABLE_HOSTS) or retrying still fails. method is threaded through
+    BOTH the initial request and the post-challenge retry — the retry is
+    the exact same request, just with a token attached, so it must use the
+    same HTTP method as the first attempt."""
     try:
-        return _urlopen(urllib.request.Request(url, headers=headers), timeout=timeout)
+        return _urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
     except urllib.error.HTTPError as e:
         if e.code != 401:
             raise
@@ -104,7 +108,7 @@ def _get_with_dynamic_auth(url, repo, headers, timeout=None):
         token = _read_token(_urlopen(
             f"{challenge['realm']}?{urllib.parse.urlencode(query)}", timeout=timeout))
         headers = {**headers, "Authorization": f"Bearer {token}"}
-        return _urlopen(urllib.request.Request(url, headers=headers), timeout=timeout)
+        return _urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
 
 
 # Hosts that reject even an anonymous manifest read outright — not
@@ -136,12 +140,43 @@ def parse_repo(repository):
     return "docker.io", repository
 
 
+def _fetch_manifest_digest(url, repo, headers, timeout, method):
+    """One manifest request via the given HTTP method, returning (exists,
+    digest) — a 404 is a genuine "tag doesn't exist" answer regardless of
+    method, not an error. Any other HTTPError (or URLError/OSError)
+    propagates unchanged, for registry_tag_exists's own caller to handle."""
+    try:
+        with _get_with_dynamic_auth(url, repo, headers, timeout=timeout, method=method) as resp:
+            return True, resp.headers.get("Docker-Content-Digest")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return False, None
+        raise
+
+
 def registry_tag_exists(registry_host, repo, tag, timeout=None):
     """Return (exists, digest) for <repo>:<tag> on the given registry host,
     using an anonymous pull token where the registry requires one — same
     flow as /fetch-image-digest. timeout (seconds) bounds every request
     made here; omit it to wait indefinitely, same as before this param
-    existed."""
+    existed.
+
+    Issues a HEAD request, not GET — this only ever reads the response's
+    Docker-Content-Digest header, never the body, and Docker Hub's own
+    documented pull-rate-limit policy counts a manifest GET fully against
+    the anonymous quota while a HEAD does not (confirmed live 2026-09-14
+    against docker.io and ghcr.io: identical Docker-Content-Digest header
+    on both). Every call this whole toolset makes to check whether a tag
+    exists, or to fetch its current digest, goes through here, so this one
+    change is what actually relieves the rate-limit pressure that lib.
+    repo_access_cache and _cached_tag_exists's own disk cache (see lib.
+    image_digests) can only ever paper over between runs.
+
+    Falls back to GET for this one call if the registry answers HEAD with
+    405 Method Not Allowed — a genuine "this registry doesn't support HEAD
+    on this endpoint" signal, not something to guess at for other status
+    codes (a 404 is a real answer either way; anything else is a real
+    problem that should surface as one, not be silently retried)."""
     headers = {"Accept": MANIFEST_ACCEPT}
     token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
     if token_url_tmpl:
@@ -150,12 +185,11 @@ def registry_tag_exists(registry_host, repo, tag, timeout=None):
     api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
     url = f"https://{api_host}/v2/{repo}/manifests/{tag}"
     try:
-        with _get_with_dynamic_auth(url, repo, headers, timeout=timeout) as resp:
-            return True, resp.headers.get("Docker-Content-Digest")
+        return _fetch_manifest_digest(url, repo, headers, timeout, "HEAD")
     except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return False, None
-        raise
+        if e.code != 405:
+            raise
+        return _fetch_manifest_digest(url, repo, headers, timeout, "GET")
 
 
 HISTORICAL_DIGEST_RE_TMPL = r'tag:\s*"?{version}@sha256:([0-9a-f]{{64}})'

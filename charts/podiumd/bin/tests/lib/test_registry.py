@@ -169,6 +169,117 @@ def test_registry_tag_exists_401_without_challenge_reraises(libregistry, monkeyp
     assert exc_info.value.code == 401
 
 
+def test_registry_tag_exists_issues_a_head_request(libregistry, monkeypatch):
+    """Docker Hub's own documented pull-rate-limit policy counts a manifest
+    GET fully against the anonymous quota but not a HEAD (docs.docker.com/
+    docker-hub/usage/pulls/) — confirmed live 2026-09-14 against docker.io
+    and ghcr.io (identical Docker-Content-Digest header on both). This
+    only ever reads response headers, never the body, so it must issue
+    HEAD, not GET."""
+    seen = {}
+
+    def fake_urlopen(req):
+        seen["method"] = req.get_method()
+        return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
+    assert seen["method"] == "HEAD"
+
+
+def test_registry_tag_exists_falls_back_to_get_on_405(libregistry, monkeypatch):
+    """A registry that doesn't support HEAD on the manifest endpoint
+    answers 405 Method Not Allowed — registry_tag_exists must retry that
+    one call with GET rather than treating it as a hard failure, and still
+    return the correct result."""
+    calls = []
+
+    def fake_urlopen(req):
+        calls.append(req.get_method())
+        if req.get_method() == "HEAD":
+            raise urllib.error.HTTPError(req.full_url, 405, "Method Not Allowed", {}, BytesIO(b""))
+        return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    exists, digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
+    assert exists is True
+    assert digest == "sha256:" + "a" * 64
+    assert calls == ["HEAD", "GET"]
+
+
+def test_registry_tag_exists_404_on_head_returns_false_without_get_fallback(libregistry, monkeypatch):
+    """A 404 is a genuine "tag doesn't exist" answer regardless of method —
+    must NOT trigger the 405 GET-fallback path, which is specifically for
+    "this registry doesn't support HEAD here", a different condition than
+    "not found"."""
+    def fake_urlopen(req):
+        assert req.get_method() == "HEAD"
+        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, BytesIO(b""))
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    exists, digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "nonexistent")
+    assert exists is False
+    assert digest is None
+
+
+def test_registry_tag_exists_500_on_head_reraises_without_get_fallback(libregistry, monkeypatch):
+    """Only a 405 means "try GET instead" — any other error (a real server
+    problem, say) must surface as itself, not be masked by a speculative
+    retry under a different method."""
+    def fake_urlopen(req):
+        assert req.get_method() == "HEAD"
+        raise urllib.error.HTTPError(req.full_url, 500, "Server Error", {}, BytesIO(b""))
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
+    assert exc_info.value.code == 500
+
+
+def test_registry_tag_exists_head_method_threaded_through_bearer_challenge_retry(libregistry, monkeypatch):
+    """_get_with_dynamic_auth's post-401-challenge retry (see that test
+    above for the non-HEAD version of this flow) must reuse the SAME HTTP
+    method as the original request — a HEAD request that 401s and gets a
+    token should retry as HEAD again, not silently upgrade to GET."""
+    calls = []
+
+    def fake_urlopen(arg):
+        url = arg if isinstance(arg, str) else arg.full_url
+        if "docker-auth.elastic.co" in url:
+            return FakeResponse(body=json.dumps({"token": "elastictoken"}).encode())
+        calls.append(arg.get_method())
+        if arg.headers.get("Authorization") == "Bearer elastictoken":
+            return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "e" * 64})
+        raise urllib.error.HTTPError(
+            url, 401, "Unauthorized",
+            {"WWW-Authenticate": 'Bearer realm="https://docker-auth.elastic.co/auth",'
+                                  'service="token-service",'
+                                  'scope="repository:integrations/crawler:pull"'},
+            BytesIO(b""),
+        )
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    exists, digest = libregistry.registry_tag_exists("docker.elastic.co", "integrations/crawler", "1.0.0")
+    assert exists is True
+    assert digest == "sha256:" + "e" * 64
+    assert calls == ["HEAD", "HEAD"]
+
+
+def test_list_tags_still_issues_a_get_request(libregistry, monkeypatch):
+    """list_tags genuinely reads the response body (the "tags" list) — it
+    must stay GET, unaffected by registry_tag_exists's own switch to
+    HEAD."""
+    seen = {}
+
+    def fake_urlopen(req):
+        seen["method"] = req.get_method()
+        return FakeResponse(body=json.dumps({"tags": ["1.0.0"]}).encode())
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    libregistry.list_tags("quay.io", "coreos/etcd")
+    assert seen["method"] == "GET"
+
+
 # --- historical_digests_for_tag ---
 
 def git(*args, cwd):
