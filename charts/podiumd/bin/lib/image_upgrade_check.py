@@ -46,7 +46,7 @@ import urllib.error
 from datetime import datetime, timezone
 
 from lib.cve_check import bucket_of, classify_by_key, dependency_names, render_image_labels, top_level_key_for_line
-from lib.image_digests import scan_digest_pins
+from lib.image_digests import unique_digest_pin_targets
 from lib.image_upgrade_cache import (
     IMAGE_UPGRADE_CACHE_TTL_DAYS, cache_entry_is_fresh, cache_key, load_cache, save_cache,
 )
@@ -67,15 +67,7 @@ def check_image_upgrades(chart_dir, extra_args):
 
     values_path = chart_dir / "values.yaml"
     values_lines = values_path.read_text(encoding="utf-8").splitlines()
-    pins = scan_digest_pins(values_lines)
-
-    # First (digest, line) seen per (repository, version) — same convention
-    # as check_image_digests/check_cves.
-    targets = {}
-    for p in pins:
-        if p["repository"]:
-            targets.setdefault((p["repository"], p["version"]), (p["digest"], p["line"]))
-    targets = sorted(targets.items())
+    targets = sorted(unique_digest_pin_targets(values_lines).items())
 
     old_cache = load_cache(chart_dir)
     new_cache = {}

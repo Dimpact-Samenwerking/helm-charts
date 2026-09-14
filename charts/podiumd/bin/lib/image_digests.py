@@ -217,6 +217,95 @@ def scan_version_pins(lines):
     return pins
 
 
+def unique_digest_pin_targets(values_lines):
+    """{(repository, version): (digest, line)} for the FIRST occurrence
+    of every digest pin whose repository resolves from values.yaml
+    ITSELF (an active sibling "repository:"/"registry:" pair, or one of
+    the comment-based fallbacks resolve_pin_repo already tries) — no
+    vendored-subchart-default fallback here (see resolve_pin_targets,
+    below, for the richer version check_image_digests itself needs,
+    which DOES apply that fallback). Shared by check_image_upgrades,
+    check_cves, and check_cve_diff — all three only ever need this
+    simpler resolution, so factored out here once rather than each
+    hand-rolling the same "first (digest, line) wins per unique
+    (repository, version)" grouping a third and fourth time."""
+    pins = scan_digest_pins(values_lines)
+    targets = {}
+    for p in pins:
+        if p["repository"]:
+            targets.setdefault((p["repository"], p["version"]), (p["digest"], p["line"]))
+    return targets
+
+
+def resolve_pin_targets(chart_dir):
+    """pins (repository resolved via resolve_pin_repo, falling back to
+    the vendored subchart's own default via subchart_default_repository
+    when values.yaml has no active "repository:" of its own — the
+    richer resolution check_image_digests' own loop needs, unlike
+    unique_digest_pin_targets above) and the {(repository, version):
+    [pin, ...]} grouping built from them. Factored out of check_image_
+    digests' own setup so find_sliding_pins (below) can reuse the exact
+    same subchart-default-fallback resolution rather than re-deriving
+    it a second time."""
+    values_path = chart_dir / "values.yaml"
+    lines = values_path.read_text(encoding="utf-8").splitlines()
+    pins = scan_digest_pins(lines)
+
+    chart_yaml_path = chart_dir / "Chart.yaml"
+    deps = load_yaml(chart_yaml_path).get("dependencies", []) if chart_yaml_path.is_file() else []
+    subchart_cache = {}
+    for p in pins:
+        if not p["repository"]:
+            p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
+
+    targets = {}
+    for p in pins:
+        if p["repository"]:
+            targets.setdefault((p["repository"], p["version"]), []).append(p)
+    return pins, targets
+
+
+def find_sliding_pins(chart_dir):
+    """[(repository, version, pinned_digest, digest)] for every unique
+    digest pin whose live upstream digest has SLID (see check_image_
+    digests' own docstring for the sliding-vs-genuine-drift
+    distinction) — the exact same per-pin registry lookup (registry_
+    tag_exists + is_sliding_tag) check_image_digests' own loop already
+    performs, built on the same resolve_pin_targets(...) grouping,
+    factored out here so lib.cve_diff_check.check_cve_diff can gather
+    its own "digest has slid" scan candidates without re-deriving that
+    lookup. A genuine (non-sliding) MISMATCH, a fetch error, or an
+    unverifiable pin is NOT returned here — check_image_digests remains
+    the one authoritative place those get reported; this function
+    exists solely to answer "which pins have a slid digest" for a
+    caller that doesn't care about the rest.
+
+    Makes its OWN real registry call per unique pin — check_image_
+    digests deliberately has no cache of its own to share (see its own
+    docstring: every unique pin always makes a real registry call), so
+    calling both this and check_image_digests in the same verify-
+    podiumd run costs two lookups per pin, not one. An accepted,
+    deliberate cost: each lookup is a cheap manifest HEAD, not a docker
+    pull. Silent — no per-pin progress printed here; check_image_
+    digests' own run already announces each one."""
+    values_path = chart_dir / "values.yaml"
+    _pins, targets = resolve_pin_targets(chart_dir)
+
+    sliding = []
+    for (repository, version), group in sorted(targets.items()):
+        host, repo_path = parse_repo(repository)
+        pinned_digest = group[0]["digest"]
+        try:
+            exists, digest = registry_tag_exists(host, repo_path, version)
+        except (urllib.error.URLError, OSError):
+            continue
+        if not exists or not digest or digest == f"sha256:{pinned_digest}":
+            continue
+        if is_sliding_tag(values_path, host, repo_path, version, digest):
+            sliding.append((repository, version, pinned_digest, digest))
+    return sliding
+
+
 def check_image_digests(chart_dir):
     """Report-only: verify every digest-pinned image in values.yaml against
     its live upstream registry digest, to catch pins that are stale (tag
@@ -260,21 +349,8 @@ def check_image_digests(chart_dir):
     the same version pinned with a different digest, e.g. a sliding tag
     refreshed at one spot but not the other)."""
     values_path = chart_dir / "values.yaml"
-    lines = values_path.read_text(encoding="utf-8").splitlines()
-    pins = scan_digest_pins(lines)
-
-    chart_yaml_path = chart_dir / "Chart.yaml"
-    deps = load_yaml(chart_yaml_path).get("dependencies", []) if chart_yaml_path.is_file() else []
-    subchart_cache = {}
-    for p in pins:
-        if not p["repository"]:
-            p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
-
+    pins, targets = resolve_pin_targets(chart_dir)
     unresolved = [p for p in pins if not p["repository"]]
-    targets = {}
-    for p in pins:
-        if p["repository"]:
-            targets.setdefault((p["repository"], p["version"]), []).append(p)
 
     print(f"Found {len(pins)} digest-pinned image(s), {len(targets)} unique image:tag to check "
           f"({len(unresolved)} unresolved, skipped)")

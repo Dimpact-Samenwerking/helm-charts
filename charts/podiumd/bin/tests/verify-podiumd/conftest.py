@@ -24,6 +24,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 SCRIPT_PATH = SCRIPTS_DIR / "verify-podiumd"
 
 import lib.cve_check as cve_check
+import lib.cve_diff_check as cve_diff_check
 import lib.dead_values_check as dead_values_check
 import lib.digest_pinning_check as digest_pinning_check
 import lib.docs_consistency as docs_consistency
@@ -144,6 +145,11 @@ def libvendoredtgzcheck():
 @pytest.fixture(scope="session")
 def libcvecheck():
     return cve_check
+
+
+@pytest.fixture(scope="session")
+def libcvediffcheck():
+    return cve_diff_check
 
 
 @pytest.fixture(scope="session")

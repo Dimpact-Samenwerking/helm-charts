@@ -89,7 +89,7 @@ from datetime import datetime, timedelta, timezone
 
 from lib.chart import load_yaml
 from lib.gitutil import find_repo_root
-from lib.image_digests import scan_digest_pins
+from lib.image_digests import unique_digest_pin_targets
 from lib.image_upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
 from lib.image_upgrade_cache import cache_key as upgrade_cache_key
 from lib.image_upgrade_cache import load_cache as load_upgrade_cache
@@ -288,16 +288,7 @@ def check_cves(chart_dir, extra_args, detail=False):
 
     values_path = chart_dir / "values.yaml"
     values_lines = values_path.read_text(encoding="utf-8").splitlines()
-    pins = scan_digest_pins(values_lines)
-
-    # First (digest, line) seen per (repository, version) — same
-    # convention as check_image_digests, which assumes every occurrence of
-    # a given (repository, version) pin shares one digest.
-    targets = {}
-    for p in pins:
-        if p["repository"]:
-            targets.setdefault((p["repository"], p["version"]), (p["digest"], p["line"]))
-    targets = sorted(targets.items())
+    targets = sorted(unique_digest_pin_targets(values_lines).items())
 
     old_cache = load_cache(chart_dir)
     new_cache = {}
