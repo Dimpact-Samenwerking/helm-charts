@@ -48,10 +48,30 @@ def lint_args_for(chart_dir):
     return []
 
 
+_render_cache = {}
+
+
 def render_chart(chart_dir, extra_args):
     """Run `helm template <CHART_NAME> <chart_dir> <extra_args>`. Returns
     the raw subprocess result; every caller decides for itself what a
     non-zero returncode means and how to report it.
+
+    Memoized in-process, keyed on (str(chart_dir), tuple(extra_args)) —
+    `extra_args` is an ordinary list at every call site, not hashable on
+    its own, so the tuple conversion happens here rather than pushing it
+    onto every caller. verify-podiumd's own check_subchart_image_
+    visibility/check_shared_image_usage/check_release_secret_size all
+    call this with the EXACT same chart_dir/extra_args (verify-podiumd's
+    own already-computed lint_args_for(chart_dir) result — confirmed,
+    not assumed), so within one verify-podiumd run they now share a
+    SINGLE real `helm template` subprocess instead of three independent
+    ones. A genuine failure (non-zero returncode) is cached too, not
+    just success — calling again with the identical args would
+    deterministically fail the same way, and verify-podiumd runs once
+    per process and exits, so there's no long-running-process staleness
+    concern to worry about here. No "force fresh" escape hatch: nothing
+    today needs one, since every existing caller already shares the
+    same args on purpose.
 
     Not used by the existing check_render/check_yamllint/check_kubeconform/
     check_shellcheck/check_kube_score — each of those has its own inline
@@ -62,8 +82,13 @@ def render_chart(chart_dir, extra_args):
     silently breaking that mocking — out of scope for a change those checks
     didn't ask for. New callers (e.g. render-podiumd) are free to use
     this directly."""
-    return run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
-               capture_output=True, text=True)
+    key = (str(chart_dir), tuple(extra_args))
+    if key in _render_cache:
+        return _render_cache[key]
+    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
+                 capture_output=True, text=True)
+    _render_cache[key] = result
+    return result
 
 
 def report_largest_templates(rendered_text):
