@@ -166,21 +166,28 @@ def gather_candidates(chart_dir):
     return candidates
 
 
-def _scan_cached(chart_dir, repository, digest, ref, old_cache, new_cache):
+def _scan_cached(chart_dir, repository, digest, ref, old_cache, new_cache, side):
     """Scan `ref` via trivy, reusing lib.cve_check's own digest-keyed
     cve-scan-cache.json whenever `digest` (bare hex, see _bare_digest) is
     known — shared by _scan_current (always has one) and _scan_proposed
     (only sometimes does, see its own docstring). `digest=None` skips the
     cache entirely, straight through to run_trivy — used when a proposed
-    tag's digest couldn't be resolved. Returns None if trivy's own scan
-    failed or produced unparseable output."""
+    tag's digest couldn't be resolved. `side` ("current"/"proposed") is
+    only for the printed line identifying which half of the candidate
+    this call is — same "served from cache"/"docker pull + trivy"
+    vocabulary lib.cve_check/lib.image_upgrade_check already use for
+    their own cache-hit reporting, just per-side here instead of a
+    single end-of-run aggregate. Returns None if trivy's own scan failed
+    or produced unparseable output."""
     key = cache_key(repository, digest) if digest is not None else None
     if key is not None:
         cached = old_cache.get(key)
         if cached and cache_entry_is_fresh(cached):
             new_cache[key] = cached
+            print(f"  {side}: served from cache — {ref}")
             return cached["vulnerabilities"]
 
+    print(f"  {side}: scanning fresh (docker pull + trivy) — {ref}...", flush=True)
     vulns = run_trivy(ref)
     if vulns is None:
         return None
@@ -196,7 +203,7 @@ def _scan_current(chart_dir, candidate, old_cache, new_cache):
     pinned digest is already known from values.yaml (see _scan_cached),
     a free hit whenever check_cves already scanned this exact digest."""
     return _scan_cached(chart_dir, candidate["repository"], candidate["current_digest"],
-                         candidate["current_ref"], old_cache, new_cache)
+                         candidate["current_ref"], old_cache, new_cache, "current")
 
 
 def _scan_proposed(chart_dir, candidate, old_cache, new_cache):
@@ -221,7 +228,7 @@ def _scan_proposed(chart_dir, candidate, old_cache, new_cache):
             digest = None
 
     return _scan_cached(chart_dir, candidate["repository"], digest, candidate["proposed_ref"],
-                         old_cache, new_cache)
+                         old_cache, new_cache, "proposed")
 
 
 def _severity_counts(vulns):
@@ -240,9 +247,12 @@ def _print_direction(label, vulns, detail):
             print_package_line(pkg, vulns_for_pkg)
 
 
-def print_candidate_report(candidate, closed, introduced, detail):
-    print(f"{candidate['repository']}: {candidate['version']} -> {candidate['proposed_label']}  "
-          f"[{candidate['kind']}]")
+def _print_candidate_header(i, total, candidate):
+    print(f"[{i}/{total}] {candidate['repository']}: {candidate['version']} -> "
+          f"{candidate['proposed_label']}  [{candidate['kind']}]")
+
+
+def print_candidate_result(closed, introduced, detail):
     _print_direction("closed", closed, detail)
     _print_direction("introduced", introduced, detail)
     print()
@@ -265,6 +275,8 @@ def check_cve_diff(chart_dir, extra_args, detail=False):
     scan_errors = []
 
     for i, candidate in enumerate(candidates, 1):
+        _print_candidate_header(i, len(candidates), candidate)
+
         current_vulns = _scan_current(chart_dir, candidate, old_cache, new_cache)
         if current_vulns is None:
             scan_errors.append(candidate["current_ref"])
@@ -272,8 +284,6 @@ def check_cve_diff(chart_dir, extra_args, detail=False):
                   f"unparseable output")
             continue
 
-        print(f"  [{i}/{len(candidates)}] scanning proposed {candidate['proposed_ref']} "
-              f"(docker pull + trivy, unless cached)...", flush=True)
         proposed_vulns = _scan_proposed(chart_dir, candidate, old_cache, new_cache)
         if proposed_vulns is None:
             scan_errors.append(candidate["proposed_ref"])
@@ -284,7 +294,7 @@ def check_cve_diff(chart_dir, extra_args, detail=False):
         closed, introduced = diff_vulns(current_vulns, proposed_vulns)
         total_closed += len(closed)
         total_introduced += len(introduced)
-        print_candidate_report(candidate, closed, introduced, detail)
+        print_candidate_result(closed, introduced, detail)
 
     save_cache(chart_dir, new_cache)
 
