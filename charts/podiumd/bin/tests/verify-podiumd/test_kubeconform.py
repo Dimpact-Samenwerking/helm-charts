@@ -13,6 +13,8 @@ invocation happens in these tests."""
 import json
 from types import SimpleNamespace
 
+import pytest
+
 
 def kc_result(resources, returncode=1):
     return SimpleNamespace(
@@ -42,24 +44,40 @@ RENDERED = (
 )
 
 
-def sequenced_run(own_resources, vendored_resources_by_chart=None, rendered=RENDERED, kc_returncode=1):
-    """Simulates: helm template --help, helm template (render), one
-    kubeconform call for this chart's own text, then one kubeconform call
-    per distinct vendored chart found in the render (in
+def fake_render_chart(rendered=RENDERED, returncode=0):
+    def render_chart(chart_dir, extra_args):
+        return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
+    return render_chart
+
+
+@pytest.fixture(autouse=True)
+def _default_render(libkubeconformcheck, monkeypatch):
+    """check_kubeconform now gets its render via lib.render_scope.render_
+    chart(chart_dir, extra_args), not a run([...]) call of its own —
+    default every test in this file to the standard RENDERED fixture
+    text; a test needing different rendered content (or a render
+    failure) overrides this via its own monkeypatch.setattr(
+    libkubeconformcheck, "render_chart", ...) call."""
+    monkeypatch.setattr(libkubeconformcheck, "render_chart", fake_render_chart(RENDERED))
+
+
+def sequenced_run(own_resources, vendored_resources_by_chart=None, kc_returncode=1):
+    """check_kubeconform's own remaining run([...]) calls are ALL
+    "kubeconform" now (the render moved to render_chart, see
+    _default_render above): one for this chart's own text, then one per
+    distinct vendored chart found in the render (in
     vendored_resources_by_chart, keyed by chart name, e.g. {"zac": [...]})."""
     vendored_resources_by_chart = vendored_resources_by_chart or {}
     calls = {"n": 0}
 
     def run(cmd, **kwargs):
-        if cmd[0] == "kubeconform":
-            calls["n"] += 1
-            if calls["n"] == 1:
-                return kc_result(own_resources, returncode=kc_returncode)
-            chart_calls = sorted(vendored_resources_by_chart.keys())
-            chart = chart_calls[calls["n"] - 2] if calls["n"] - 2 < len(chart_calls) else None
-            resources = vendored_resources_by_chart.get(chart, [])
-            return kc_result(resources, returncode=kc_returncode)
-        return SimpleNamespace(returncode=0, stdout=rendered, stderr="")
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return kc_result(own_resources, returncode=kc_returncode)
+        chart_calls = sorted(vendored_resources_by_chart.keys())
+        chart = chart_calls[calls["n"] - 2] if calls["n"] - 2 < len(chart_calls) else None
+        resources = vendored_resources_by_chart.get(chart, [])
+        return kc_result(resources, returncode=kc_returncode)
 
     return run
 
@@ -269,11 +287,7 @@ def test_check_kubeconform_missing_binary_fails(vp, tmp_path, monkeypatch):
 
 def test_check_kubeconform_render_failure_fails(vp, libkubeconformcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
-
-    def run(cmd, **kwargs):
-        return SimpleNamespace(returncode=1, stdout="", stderr="Error: broke")
-
-    monkeypatch.setattr(libkubeconformcheck, "run", run)
+    monkeypatch.setattr(libkubeconformcheck, "render_chart", fake_render_chart("", returncode=1))
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is False
     assert "failed to render" in detail
@@ -284,9 +298,7 @@ def test_check_kubeconform_unparseable_own_output_fails(vp, libkubeconformcheck,
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
 
     def run(cmd, **kwargs):
-        if cmd[0] == "kubeconform":
-            return SimpleNamespace(returncode=1, stdout="not json", stderr="")
-        return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
+        return SimpleNamespace(returncode=1, stdout="not json", stderr="")
 
     monkeypatch.setattr(libkubeconformcheck, "run", run)
     ok, detail = vp.check_kubeconform(tmp_path, [])
@@ -303,12 +315,10 @@ def test_check_kubeconform_unparseable_vendored_output_fails(vp, libkubeconformc
     calls = {"n": 0}
 
     def run(cmd, **kwargs):
-        if cmd[0] == "kubeconform":
-            calls["n"] += 1
-            if calls["n"] == 1:
-                return kc_result([])
-            return SimpleNamespace(returncode=1, stdout="not json", stderr="")
-        return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return kc_result([])
+        return SimpleNamespace(returncode=1, stdout="not json", stderr="")
 
     monkeypatch.setattr(libkubeconformcheck, "run", run)
     ok, detail = vp.check_kubeconform(tmp_path, [])

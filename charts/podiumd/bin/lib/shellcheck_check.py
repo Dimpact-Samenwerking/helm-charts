@@ -12,8 +12,8 @@ import yaml
 
 from lib.procutil import run
 from lib.render_scope import (
-    CHART_NAME, OWN_TEMPLATES_PREFIX, build_resource_locations, chart_name_from_source,
-    friendly_vendor_charts, print_grouped_findings, resource_line, split_rendered_by_source,
+    OWN_TEMPLATES_PREFIX, build_resource_locations, chart_name_from_source, friendly_vendor_charts,
+    print_grouped_findings, render_chart, resource_line, split_rendered_by_source,
 )
 
 # Any container invoking one of these as its `command`, with "-c" somewhere
@@ -167,8 +167,7 @@ def check_shellcheck(chart_dir, extra_args):
     if shutil.which("shellcheck") is None:
         return False, "shellcheck is not installed (see --skip-shellcheck to bypass)"
 
-    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
-                 capture_output=True, text=True)
+    result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
         return False, "helm template failed to render"
 

@@ -14,6 +14,8 @@ tests."""
 import json
 from types import SimpleNamespace
 
+import pytest
+
 
 def sc_result(comments, returncode=1):
     return SimpleNamespace(
@@ -159,18 +161,34 @@ def test_extract_shell_scripts_skips_unparseable_doc(libshellcheckcheck):
 
 # --- check_shellcheck ---
 
-def sequenced_run(own_comments, vendored_comments=None, rendered=RENDERED, sc_returncode=1):
-    """helm template --help, helm template (render), then one shellcheck
-    call per embedded script found — own scripts first (in render order),
-    then vendored."""
+def fake_render_chart(rendered=RENDERED, returncode=0):
+    def render_chart(chart_dir, extra_args):
+        return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
+    return render_chart
+
+
+@pytest.fixture(autouse=True)
+def _default_render(libshellcheckcheck, monkeypatch):
+    """check_shellcheck now gets its render via lib.render_scope.render_
+    chart(chart_dir, extra_args), not a run([...]) call of its own —
+    default every test in this file to the standard RENDERED fixture
+    text; a test needing different rendered content (or a render
+    failure) overrides this via its own monkeypatch.setattr(
+    libshellcheckcheck, "render_chart", ...) call."""
+    monkeypatch.setattr(libshellcheckcheck, "render_chart", fake_render_chart(RENDERED))
+
+
+def sequenced_run(own_comments, vendored_comments=None, sc_returncode=1):
+    """check_shellcheck's own remaining run([...]) calls are ALL
+    "shellcheck" now (the render moved to render_chart, see
+    _default_render above) — one call per embedded script found, own
+    scripts first (in render order), then vendored."""
     calls = {"n": 0}
 
     def run(cmd, **kwargs):
-        if cmd[0] == "shellcheck":
-            calls["n"] += 1
-            comments = own_comments if calls["n"] == 1 else (vendored_comments or [])
-            return sc_result(comments, returncode=sc_returncode)
-        return SimpleNamespace(returncode=0, stdout=rendered, stderr="")
+        calls["n"] += 1
+        comments = own_comments if calls["n"] == 1 else (vendored_comments or [])
+        return sc_result(comments, returncode=sc_returncode)
 
     return run
 
@@ -271,28 +289,28 @@ def test_check_shellcheck_repeated_root_cause_is_grouped(vp, libshellcheckcheck,
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
 
+    # two own scripts with the identical shellcheck finding
+    rendered = (
+        "---\n"
+        "# Source: podiumd/templates/a.yaml\n"
+        "spec:\n"
+        "  containers:\n"
+        "    - command: [\"/bin/sh\", \"-c\"]\n"
+        "      args: [\"set -euo pipefail\\necho a\"]\n"
+        "---\n"
+        "# Source: podiumd/templates/b.yaml\n"
+        "spec:\n"
+        "  containers:\n"
+        "    - command: [\"/bin/sh\", \"-c\"]\n"
+        "      args: [\"set -euo pipefail\\necho b\"]\n"
+    )
+    monkeypatch.setattr(libshellcheckcheck, "render_chart", fake_render_chart(rendered))
+
     def run(cmd, **kwargs):
-        if cmd[0] == "shellcheck":
-            return sc_result([
-                {"level": "warning", "code": 3040, "line": 1,
-                 "message": "In POSIX sh, set option pipefail is undefined."},
-            ])
-        # two own scripts with the identical shellcheck finding
-        rendered = (
-            "---\n"
-            "# Source: podiumd/templates/a.yaml\n"
-            "spec:\n"
-            "  containers:\n"
-            "    - command: [\"/bin/sh\", \"-c\"]\n"
-            "      args: [\"set -euo pipefail\\necho a\"]\n"
-            "---\n"
-            "# Source: podiumd/templates/b.yaml\n"
-            "spec:\n"
-            "  containers:\n"
-            "    - command: [\"/bin/sh\", \"-c\"]\n"
-            "      args: [\"set -euo pipefail\\necho b\"]\n"
-        )
-        return SimpleNamespace(returncode=0, stdout=rendered, stderr="")
+        return sc_result([
+            {"level": "warning", "code": 3040, "line": 1,
+             "message": "In POSIX sh, set option pipefail is undefined."},
+        ])
 
     monkeypatch.setattr(libshellcheckcheck, "run", run)
     ok, detail = vp.check_shellcheck(tmp_path, [])
@@ -350,11 +368,11 @@ def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(
 def test_check_shellcheck_no_scripts_found_passes(vp, libshellcheckcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(libshellcheckcheck, "render_chart",
+                         fake_render_chart("---\n# Source: podiumd/templates/x.yaml\nkind: ConfigMap\n"))
 
     def run(cmd, **kwargs):
-        if cmd[0] == "shellcheck":
-            raise AssertionError("shellcheck should never be invoked — no scripts to check")
-        return SimpleNamespace(returncode=0, stdout="---\n# Source: podiumd/templates/x.yaml\nkind: ConfigMap\n", stderr="")
+        raise AssertionError("shellcheck should never be invoked — no scripts to check")
 
     monkeypatch.setattr(libshellcheckcheck, "run", run)
     ok, detail = vp.check_shellcheck(tmp_path, [])
@@ -371,11 +389,7 @@ def test_check_shellcheck_missing_binary_fails(vp, tmp_path, monkeypatch):
 
 def test_check_shellcheck_render_failure_fails(vp, libshellcheckcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
-
-    def run(cmd, **kwargs):
-        return SimpleNamespace(returncode=1, stdout="", stderr="Error: broke")
-
-    monkeypatch.setattr(libshellcheckcheck, "run", run)
+    monkeypatch.setattr(libshellcheckcheck, "render_chart", fake_render_chart("", returncode=1))
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
     assert "failed to render" in detail
@@ -386,9 +400,7 @@ def test_check_shellcheck_unparseable_output_fails(vp, libshellcheckcheck, tmp_p
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
 
     def run(cmd, **kwargs):
-        if cmd[0] == "shellcheck":
-            return SimpleNamespace(returncode=1, stdout="not json", stderr="")
-        return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
+        return SimpleNamespace(returncode=1, stdout="not json", stderr="")
 
     monkeypatch.setattr(libshellcheckcheck, "run", run)
     ok, detail = vp.check_shellcheck(tmp_path, [])

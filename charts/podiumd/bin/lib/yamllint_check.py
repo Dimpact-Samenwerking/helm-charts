@@ -7,8 +7,8 @@ from collections import Counter
 
 from lib.procutil import run
 from lib.render_scope import (
-    CHART_NAME, OWN_TEMPLATES_PREFIX, build_line_sources, chart_name_from_source,
-    friendly_vendor_charts, print_grouped_findings,
+    OWN_TEMPLATES_PREFIX, build_line_sources, chart_name_from_source, friendly_vendor_charts,
+    print_grouped_findings, render_chart,
 )
 
 # yamllint config, tuned against this repo's own real findings (not
@@ -67,8 +67,7 @@ def check_yamllint(chart_dir, extra_args):
     if shutil.which("yamllint") is None:
         return False, "yamllint is not installed (see --skip-yamllint to bypass)"
 
-    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
-                 capture_output=True, text=True)
+    result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
         return False, "helm template failed to render"
 

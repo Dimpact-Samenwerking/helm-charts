@@ -14,12 +14,19 @@ use tmp_path (no real Chart.yaml) — no real yamllint or helm invocation
 happens in these tests."""
 from types import SimpleNamespace
 
+import pytest
 
 
 def fake_run(returncode=0, stdout="", stderr=""):
     def run(cmd, **kwargs):
         return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
     return run
+
+
+def fake_render_chart(rendered="", returncode=0):
+    def render_chart(chart_dir, extra_args):
+        return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
+    return render_chart
 
 
 def no_friendly_vendors(libyamllintcheck, monkeypatch):
@@ -50,11 +57,23 @@ RENDERED = (
 #  8 kind: ConfigMap
 
 
-def sequenced_run(yamllint_stdout, yamllint_returncode=1, rendered=RENDERED):
+@pytest.fixture(autouse=True)
+def _default_render(libyamllintcheck, monkeypatch):
+    """check_yamllint now gets its render via lib.render_scope.render_
+    chart(chart_dir, extra_args), not a run([...]) call of its own —
+    default every test in this file to the standard RENDERED fixture
+    text; a test needing different rendered content overrides this via
+    its own monkeypatch.setattr(libyamllintcheck, "render_chart", ...)
+    call, same as before this migration."""
+    monkeypatch.setattr(libyamllintcheck, "render_chart", fake_render_chart(RENDERED))
+
+
+def sequenced_run(yamllint_stdout, yamllint_returncode=1):
+    """The yamllint call is check_yamllint's own ONLY remaining `run([...])`
+    call (the render moved to render_chart, see _default_render above),
+    so no cmd[0] dispatch is needed here any more."""
     def run(cmd, **kwargs):
-        if cmd[0] == "yamllint":
-            return SimpleNamespace(returncode=yamllint_returncode, stdout=yamllint_stdout, stderr="")
-        return SimpleNamespace(returncode=0, stdout=rendered, stderr="")  # helm template
+        return SimpleNamespace(returncode=yamllint_returncode, stdout=yamllint_stdout, stderr="")
     return run
 
 
@@ -231,7 +250,8 @@ def test_check_yamllint_repeated_own_finding_in_one_file_is_grouped(vp, libyamll
         '  8:5      error    duplication of key "app.kubernetes.io/name" in mapping  (key-duplicates)\n'
         '  14:5     error    duplication of key "app.kubernetes.io/name" in mapping  (key-duplicates)\n'
     )
-    monkeypatch.setattr(libyamllintcheck, "run", sequenced_run(yamllint_out, rendered=rendered))
+    monkeypatch.setattr(libyamllintcheck, "render_chart", fake_render_chart(rendered))
+    monkeypatch.setattr(libyamllintcheck, "run", sequenced_run(yamllint_out))
 
     ok, detail = vp.check_yamllint(tmp_path, [])
     assert ok is False
@@ -252,11 +272,7 @@ def test_check_yamllint_missing_binary_fails(vp, tmp_path, monkeypatch):
 
 def test_check_yamllint_render_failure_fails(vp, libyamllintcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
-
-    def run(cmd, **kwargs):
-        return SimpleNamespace(returncode=1, stdout="", stderr="Error: broke")
-
-    monkeypatch.setattr(libyamllintcheck, "run", run)
+    monkeypatch.setattr(libyamllintcheck, "render_chart", fake_render_chart("", returncode=1))
     ok, detail = vp.check_yamllint(tmp_path, [])
     assert ok is False
     assert "failed to render" in detail
