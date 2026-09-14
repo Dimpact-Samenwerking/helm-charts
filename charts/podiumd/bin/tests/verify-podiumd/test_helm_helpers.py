@@ -14,6 +14,19 @@ def fake_run(returncode=0, stdout="", stderr=""):
     return _run
 
 
+def fake_render_chart(returncode=0, stdout="", stderr=""):
+    """check_render now gets its render via lib.render_scope.render_chart
+    (chart_dir, extra_args) -> result, not a direct run([...]) call of its
+    own — mock that shared function itself (vp's own binding, since
+    check_render lives in verify-podiumd and resolves the bare name
+    "render_chart" via vp's own globals at call time) rather than
+    re-testing render_chart's own caching/subprocess behavior here, which
+    already has its own dedicated tests."""
+    def _render_chart(chart_dir, extra_args):
+        return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
+    return _render_chart
+
+
 # --- check_lint ---
 
 def test_check_lint_passes_on_clean_output(vp, tmp_path, monkeypatch):
@@ -47,21 +60,21 @@ def test_check_lint_counts_warnings_without_failing(vp, tmp_path, monkeypatch):
 
 def test_check_render_success(vp, tmp_path, monkeypatch):
     rendered = "---\n# Source: podiumd/templates/a.yaml\nkind: Foo\n---\n# Source: podiumd/templates/b.yaml\nkind: Bar\n"
-    monkeypatch.setattr(vp, "run", fake_run(0, rendered, ""))
+    monkeypatch.setattr(vp, "render_chart", fake_render_chart(0, rendered, ""))
     ok, detail = vp.check_render(tmp_path, [])
     assert ok is True
     assert detail == "2 manifests"
 
 
 def test_check_render_failure_reports_error(vp, tmp_path, monkeypatch):
-    monkeypatch.setattr(vp, "run", fake_run(1, "", "Error: something broke"))
+    monkeypatch.setattr(vp, "render_chart", fake_render_chart(1, "", "Error: something broke"))
     ok, detail = vp.check_render(tmp_path, [])
     assert ok is False
     assert "failed to render" in detail
 
 
 def test_check_render_zero_manifests_fails(vp, tmp_path, monkeypatch):
-    monkeypatch.setattr(vp, "run", fake_run(0, "", ""))
+    monkeypatch.setattr(vp, "render_chart", fake_render_chart(0, "", ""))
     ok, detail = vp.check_render(tmp_path, [])
     assert ok is False
     assert "0 manifests" in detail

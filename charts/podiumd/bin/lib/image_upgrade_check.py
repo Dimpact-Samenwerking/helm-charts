@@ -50,14 +50,12 @@ from lib.image_digests import unique_digest_pin_targets
 from lib.image_upgrade_cache import (
     IMAGE_UPGRADE_CACHE_TTL_DAYS, cache_entry_is_fresh, cache_key, load_cache, save_cache,
 )
-from lib.procutil import run
 from lib.registry import find_newest_same_variant_tag, parse_repo
-from lib.render_scope import CHART_NAME, friendly_vendor_charts
+from lib.render_scope import friendly_vendor_charts, render_chart
 
 
 def check_image_upgrades(chart_dir, extra_args):
-    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
-                 capture_output=True, text=True)
+    result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
         return False, "helm template failed to render"
 
