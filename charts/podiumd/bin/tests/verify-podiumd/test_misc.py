@@ -156,6 +156,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
     monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
     monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
+    monkeypatch.setattr(vp, "check_shared_image_usage", make_check("shared-image-usage"))
     monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
     monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
@@ -181,7 +182,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
                     "release-baseline", "lockstep", "helm-docs", "markdown", "repo-access", "deps", "docs",
-                    "subchart-images", "digests", "yamllint", "kubeconform", "shellcheck",
+                    "subchart-images", "shared-image-usage", "digests", "yamllint", "kubeconform", "shellcheck",
                     "kube-score", "release-secret-size", "image-upgrades", "cves"]
     out = capsys.readouterr().out
     assert "Helm lint" in out and "SKIP" in out
@@ -208,7 +209,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
     for name in ("check_repo_access", "check_duplicate_keys", "check_dry", "check_image_references",
                  "check_node_selector", "check_digest_pinning", "check_vendored_tgz_extraction",
                  "check_release_baseline", "check_lockstep_versions", "check_helm_docs", "check_markdown",
-                 "check_subchart_image_visibility", "check_image_repository",
+                 "check_subchart_image_visibility", "check_shared_image_usage", "check_image_repository",
                  "check_yamllint", "check_kubeconform", "check_shellcheck", "check_kube_score",
                  "check_release_secret_size", "check_image_upgrades", "check_cves"):
         monkeypatch.setattr(vp, name, ok)
@@ -246,6 +247,7 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
     monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
     monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
+    monkeypatch.setattr(vp, "check_shared_image_usage", make_check("shared-image-usage"))
     monkeypatch.setattr(vp, "check_image_repository", make_check("image-repository"))
     monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
@@ -272,8 +274,8 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
     # none of them are in "UTF-8 format"'s own STEP_PREREQUISITES chain.
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
                     "release-baseline", "lockstep", "helm-docs", "markdown", "repo-access", "deps", "docs",
-                    "subchart-images", "image-repository", "digests", "helm-lint", "full-render",
-                    "yamllint", "kubeconform", "shellcheck", "kube-score",
+                    "subchart-images", "shared-image-usage", "image-repository", "digests", "helm-lint",
+                    "full-render", "yamllint", "kubeconform", "shellcheck", "kube-score",
                     "release-secret-size", "image-upgrades", "cves"]
     out = capsys.readouterr().out
     assert "UTF-8 format" in out and "FAIL" in out
@@ -307,10 +309,10 @@ def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys)
         raise AssertionError("this check should have been skipped as a prerequisite's dependent")
 
     monkeypatch.setattr(vp, "check_dependencies", lambda *a: (False, "helm dependency update failed"))
-    for name in ("check_docs_consistency", "check_subchart_image_visibility", "check_image_repository",
-                 "check_image_digests", "check_lint", "check_render", "check_yamllint", "check_kubeconform",
-                 "check_shellcheck", "check_kube_score", "check_release_secret_size", "check_image_upgrades",
-                 "check_cves"):
+    for name in ("check_docs_consistency", "check_subchart_image_visibility", "check_shared_image_usage",
+                 "check_image_repository", "check_image_digests", "check_lint", "check_render",
+                 "check_yamllint", "check_kubeconform", "check_shellcheck", "check_kube_score",
+                 "check_release_secret_size", "check_image_upgrades", "check_cves"):
         monkeypatch.setattr(vp, name, fail_if_called)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -392,6 +394,7 @@ def _stub_all_checks(vp, monkeypatch, ran):
     monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
     monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
     monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
+    monkeypatch.setattr(vp, "check_shared_image_usage", make_check("shared-image-usage"))
     monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
     monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))

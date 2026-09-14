@@ -38,33 +38,17 @@ Three known exceptions:
   comment says the OMC subchart itself can't handle a digest-pinned
   tag; the tag must contain ONLY the version.
 
-check_digest_pinning also prints a shared-image-usage report after its
-own pass/fail result (see _print_shared_image_usage), built from the
-exact same path enumeration + grouping lib.image_docs.regenerate_
-images_baseline_manifest already uses (find_all_image_and_version_paths
-+ global_image_paths, fed into lib.chart.paths_by_repository) rather
-than re-deriving it — every consuming path annotated with lib.chart.
-resolve_values_path_source (which real Chart.yaml dependency it belongs
-to, or which of podiumd's own local template file(s) reference it).
-Mostly purely informational, with ONE real pass/fail consequence:
-- a global.images.* entry (see lib.chart.global_image_paths — the
-  deliberate "this is meant to be shared" mechanism: nginx, curl,
-  busybox, redis today) with 0 or 1 real ALIASING consumer (any OTHER
-  path resolving to the same repository, excluding the global.images.*
-  definition path itself) FAILS the check — the shared-anchor mechanism
-  itself is pointless there, and should be inlined directly instead.
-  One genuinely shared (2+ consumers) stays report only, as before.
-- any OTHER repository incidentally shared across 2+ paths that is
-  NOT a global.images.* registration at all (e.g. keycloak/keycloak,
-  alpine/k8s — nobody declared these "meant to be shared", they just
-  happen to be reused) never fails, regardless of consumer count —
-  purely informational, exactly like the original version of this
-  report."""
+check_digest_pinning is deliberately a fast, filesystem-only,
+no-Dependencies-needed scan — nothing here ever renders or looks past
+podiumd's own values.yaml. See check_shared_image_usage (below) for a
+SEPARATE, render-based check this module also hosts, and check_
+subchart_image_visibility for a third."""
 import re
 
 from lib.chart import (
-    get_path, global_image_paths, load_yaml, paths_by_repository, resolve_subchart_default,
-    resolve_values_path_source, strip_registry_host, subchart_template_text, subchart_values,
+    find_dependency, get_path, global_image_paths, load_yaml, paths_by_repository,
+    resolve_subchart_default, resolve_values_path_source, strip_registry_host, subchart_template_text,
+    subchart_values,
 )
 from lib.render_scope import CHART_NAME, render_chart, rendered_chart_paths
 from lib.upgradedoc import find_all_image_and_version_paths, find_image_tag_paths
@@ -91,8 +75,7 @@ EXEMPT_PATHS = {
 
 def _deps_from_chart_yaml(chart_dir):
     """Chart.yaml's own "dependencies" list, read fresh (chart_dir is all
-    this module has handy) — [] if Chart.yaml doesn't exist yet (this
-    check runs early, before "Dependencies" vendors anything), same
+    this module has handy) — [] if Chart.yaml doesn't exist yet, same
     "nothing to fall back to" tolerance paths_by_repository's own
     per-dependency subchart-default tier already has."""
     chart_yaml_path = chart_dir / "Chart.yaml"
@@ -106,13 +89,59 @@ def _repository_groups(chart_dir, values, deps):
     image_docs.regenerate_images_baseline_manifest already uses for
     images-baseline.yaml (find_all_image_and_version_paths(values,
     deps) + global_image_paths(values)), fed into lib.chart.paths_by_
-    repository — the ONE shared grouping both the "genuinely shared"
-    report and the global.images.* under-use check below are built
-    from, so the two can never disagree about what a "consumer" of a
-    given repository even is."""
+    repository. A purely STATIC scan — every path values.yaml
+    structurally pins, with no idea whether Helm's own condition:/tags:
+    mechanism actually renders it right now or not. See
+    _live_repository_groups (check_shared_image_usage's own caller) for
+    the render-gated version this static grouping alone is never safe
+    to report consumer counts from."""
     all_paths = dict(find_all_image_and_version_paths(values, deps))
     all_paths.update(global_image_paths(values))
     return paths_by_repository(chart_dir, deps, values, all_paths.keys())
+
+
+def _path_chart_tree_path(chart_dir, deps, path):
+    """The chart-tree path (see lib.render_scope.rendered_chart_paths)
+    that would need to have rendered for `path` to be a genuinely LIVE
+    consumer — reuses lib.chart.resolve_subchart_default's own
+    alias-keyed, nested-dependency-aware resolution (the exact same one
+    find_unresolved_subchart_images/check_subchart_image_visibility
+    already use above), rather than re-deriving it. A path whose
+    top-level key is NOT a real Chart.yaml dependency at all (a native
+    podiumd top-level block — apiproxy, frankgateway, keycloak — or the
+    "global.images.*" anchor itself) is always considered live: it's
+    part of podiumd's own top-level chart-tree path (CHART_NAME itself),
+    which trivially renders whenever anything does."""
+    dep = find_dependency(deps, path[0])
+    if dep is None:
+        return CHART_NAME
+    chart_tree_path, _version = resolve_subchart_default(chart_dir, dep, CHART_NAME, path[1:])
+    return chart_tree_path
+
+
+def _live_repository_groups(chart_dir, deps, values, rendered_paths):
+    """_repository_groups(...), with every consuming path whose own
+    chart-tree path never actually rendered filtered out entirely —
+    both from the count AND from the printed list, never just one or
+    the other. The real bug this fixes (confirmed empirically against
+    the real chart): every Maykin chart's own "<name>.redis.image"
+    override (e.g. openzaak.redis.image) configures that chart's OWN
+    NESTED bitnami/redis sub-dependency, globally disabled via "tags:
+    {redis: false}" — zero resources ever render from any of their own
+    charts/redis/. A purely static values.yaml scan (_repository_
+    groups alone) can never tell that apart from a genuinely live
+    consumer, silently inflating global.images.redis's own reported
+    consumer count from its TRUE value (zero — nothing aliases it
+    live) up to 10 dead paths. A repository left with zero live paths
+    at all (even its own global.images.* definition, in principle) is
+    dropped entirely — nothing left worth reporting."""
+    raw = _repository_groups(chart_dir, values, deps)
+    live = {}
+    for repo, paths in raw.items():
+        live_paths = [p for p in paths if _path_chart_tree_path(chart_dir, deps, p) in rendered_paths]
+        if live_paths:
+            live[repo] = live_paths
+    return live
 
 
 def _global_image_usage(values, repo_groups):
@@ -160,12 +189,12 @@ def _print_path_list(chart_dir, deps, paths):
 
 
 def _print_shared_image_usage(chart_dir, deps, values, repo_groups, global_usage):
-    """Prints up to three sections, in order, after check_digest_
-    pinning's own pass/fail result:
+    """Prints up to three sections, in order, after check_shared_image_
+    usage's own render:
     1. FAILING — a global.images.* entry with 0 or 1 real consumer(s):
        the shared-anchor mechanism itself is pointless there, inline it
-       instead. Changes check_digest_pinning's own ok computation (the
-       one exception to this whole feature otherwise being purely
+       instead. Changes check_shared_image_usage's own ok computation
+       (the one exception to this whole check otherwise being purely
        informational).
     2. Report only — a global.images.* entry genuinely shared (2+ real
        consumers): working as intended, still worth seeing the full
@@ -179,10 +208,17 @@ def _print_shared_image_usage(chart_dir, deps, values, repo_groups, global_usage
     (the real Chart.yaml dependency chart+version it belongs to, or
     which of podiumd's own local template file(s) reference it) so a
     reader knows exactly where to look. Returns the FAILING dict (used
-    by check_digest_pinning to fold this into its own ok/detail)."""
+    by check_shared_image_usage to fold this into its own ok/detail).
+    `repo_groups`/`global_usage` are expected to already be render-gated
+    (see _live_repository_groups) — this function itself does no
+    render-gating of its own, only presentation."""
     underused = {p: c for p, c in global_usage.items() if len(c) <= 1}
     well_used = {p: c for p, c in global_usage.items() if len(c) >= 2}
     plain_shared = _non_global_shared_repo_groups(values, repo_groups, global_usage)
+
+    if not underused and not well_used and not plain_shared:
+        print("OK: no shared-image concerns found")
+        return underused
 
     if underused:
         print()
@@ -233,25 +269,76 @@ def check_digest_pinning(chart_dir):
     if not missing:
         print(f"OK: all {len(images)} image tag(s) in values.yaml are digest-pinned "
               f"({len(EXEMPT_PATHS)} exempt)")
-        ok, detail = True, f"{len(images)} pin(s), 0 unpinned"
-    else:
-        print(f"Found {len(missing)} image tag(s) not digest-pinned "
-              f"(missing \"@sha256:<64 hex chars>\"):")
-        for path, tag in sorted(missing):
-            print(f"  {'.'.join(path)}.tag: {tag!r}")
-        ok, detail = False, f"{len(missing)}/{len(images)} image(s) not digest-pinned"
+        return True, f"{len(images)} pin(s), 0 unpinned"
 
+    print(f"Found {len(missing)} image tag(s) not digest-pinned "
+          f"(missing \"@sha256:<64 hex chars>\"):")
+    for path, tag in sorted(missing):
+        print(f"  {'.'.join(path)}.tag: {tag!r}")
+
+    return False, f"{len(missing)}/{len(images)} image(s) not digest-pinned"
+
+
+def check_shared_image_usage(chart_dir, extra_args):
+    """A SEPARATE, render-based check (unlike check_digest_pinning
+    above, which is a fast, filesystem-only scan): every values.yaml
+    repository shared across 2+ paths, with the full list of paths
+    aliasing it — the real blast radius of bumping that one shared
+    image — built from the exact same path enumeration + grouping lib.
+    image_docs.regenerate_images_baseline_manifest already uses
+    (find_all_image_and_version_paths + global_image_paths, fed into
+    lib.chart.paths_by_repository) rather than re-deriving it. Every
+    consuming path annotated with lib.chart.resolve_values_path_source
+    (which real Chart.yaml dependency it belongs to, or which of
+    podiumd's own local template file(s) reference it).
+
+    Renders via lib.render_scope.render_chart (same pattern as check_
+    subchart_image_visibility) to gate every consuming path on whether
+    its own owning chart-tree path (see _path_chart_tree_path, reusing
+    lib.chart.resolve_subchart_default rather than re-deriving that
+    resolution) actually rendered right now — a real, confirmed bug in
+    an earlier, purely-static version of this check: every Maykin
+    chart's own "<name>.redis.image" override configures that chart's
+    OWN nested bitnami/redis sub-dependency, globally disabled via
+    "tags: {redis: false}" (zero resources ever render from any of
+    their own charts/redis/), yet a static values.yaml scan counted
+    all 10 of those as real consumers of global.images.redis — its
+    TRUE live consumer count is zero. A render failure here fails the
+    step outright, same as check_subchart_image_visibility.
+
+    Mostly purely informational, with ONE real pass/fail consequence:
+    - a global.images.* entry (see lib.chart.global_image_paths — the
+      deliberate "this is meant to be shared" mechanism: nginx, curl,
+      busybox, redis today) with 0 or 1 real ALIASING consumer (any
+      OTHER live path resolving to the same repository, excluding the
+      global.images.* definition path itself) FAILS the check — the
+      shared-anchor mechanism itself is pointless there, and should be
+      inlined directly instead. 2+ real consumers stays report only.
+    - any OTHER repository incidentally shared across 2+ live paths
+      that is NOT a global.images.* registration at all (e.g.
+      keycloak/keycloak, alpine/k8s — nobody declared these "meant to
+      be shared", they just happen to be reused) never fails,
+      regardless of consumer count — purely informational."""
+    values_path = chart_dir / "values.yaml"
+    if not values_path.is_file():
+        print("OK: no values.yaml found — nothing to check")
+        return True, "nothing to check"
+
+    result = render_chart(chart_dir, extra_args)
+    if result.returncode != 0:
+        return False, "helm template failed to render"
+    rendered_paths = rendered_chart_paths(result.stdout)
+
+    values = load_yaml(values_path) or {}
     deps = _deps_from_chart_yaml(chart_dir)
-    repo_groups = _repository_groups(chart_dir, values, deps)
+    repo_groups = _live_repository_groups(chart_dir, deps, values, rendered_paths)
     global_usage = _global_image_usage(values, repo_groups)
     underused = _print_shared_image_usage(chart_dir, deps, values, repo_groups, global_usage)
 
     if underused:
-        ok = False
         noun = "entry" if len(underused) == 1 else "entries"
-        detail += f"; {len(underused)} global.images.* {noun} under-used (failing)"
-
-    return ok, detail
+        return False, f"{len(underused)} global.images.* {noun} under-used (failing)"
+    return True, "every global.images.* entry has 2+ real consumers"
 
 
 def find_unresolved_subchart_images(chart_dir, deps, own_values, rendered_paths):
