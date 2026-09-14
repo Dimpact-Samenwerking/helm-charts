@@ -319,11 +319,14 @@ def check_image_digests(chart_dir):
     (only if that's inconclusive) the registry currently has a more
     specific sibling tag at the same digest; see lib.registry.
     is_sliding_tag. Otherwise it's a component's own release tag, which
-    should never legitimately change once published. Either way the pin
-    is stale and FAILS the check — "expected" only means the drift itself
-    isn't surprising, not that the stale pin should be left alone; run
-    fix-image-digests to refresh it (sliding or not, it always
-    rewrites every stale pin it finds).
+    should never legitimately change once published. Sliding is now only
+    a WARNING, not a failure — "expected" here really does mean routine,
+    ongoing drift a floating base tag is supposed to have, not a stale
+    pin that needs fixing before this repo's own content is trustworthy.
+    A non-sliding mismatch (a component's own release tag changed digest,
+    which should never legitimately happen) still FAILS. Either way, run
+    fix-image-digests to refresh the pin — sliding or not, it always
+    rewrites every stale pin it finds.
 
     A pin whose "tag:" has no resolvable "repository:" of its own in
     values.yaml (resolve_pin_repo) falls back to the same component's
@@ -339,6 +342,29 @@ def check_image_digests(chart_dir):
     unverifiable rather than a genuine FETCH-ERR, and never fails the
     check on its own — it can't succeed from an unprivileged environment
     regardless of whether the pin itself is correct.
+
+    A SECOND, genuinely different question, checked for any pin whose tag
+    came back sliding/mismatch/fetch-error/unverifiable-no-digest-header
+    (never for a matched pin — its live digest already equals the pinned
+    one, so it's trivially still there; never for a host already in
+    UNVERIFIABLE_HOSTS — no point attempting what's already known to fail
+    anonymously): is the EXACT digest values.yaml pins TODAY
+    ("<repo>@sha256:<pinned_digest>") still resolvable on the registry AT
+    ALL? Unlike a sliding/stale TAG (the tag now points somewhere else,
+    but the image this repo actually deploys is still whatever's pinned),
+    a registry that has garbage-collected/deleted that specific manifest
+    means `helm install`/`upgrade` would fail outright right now — a real,
+    hard failure, reported as [DIGEST-GONE] and FAILING regardless of
+    whether the tag-level finding above it was only a warning. Reuses
+    lib.registry.registry_tag_exists unchanged: its manifest URL accepts
+    a digest string in exactly the same position a tag goes, so no new
+    registry-layer code is needed, just a second call with
+    "sha256:<pinned_digest>" instead of the version. A genuine network
+    error while making THIS call (as opposed to a confirmed 404) is
+    tracked and FAILS separately from an ordinary tag-check FETCH-ERR —
+    two independent network calls per pin can each fail independently,
+    and conflating their counts would make either one's own count
+    misleading.
 
     Any repository pinned literally in more than one place in values.yaml
     (see find_inconsistent_version_pins) FAILS the check, one of two ways:
@@ -360,6 +386,8 @@ def check_image_digests(chart_dir):
     sliding_mismatches = []
     fetch_errors = []
     unverifiable = []
+    digest_gone = []
+    digest_check_errors = []
 
     sorted_targets = sorted(targets.items())
     for i, ((repository, version), group) in enumerate(sorted_targets, 1):
@@ -381,12 +409,15 @@ def check_image_digests(chart_dir):
             except (urllib.error.URLError, OSError) as e:
                 error = str(e)
 
+        needs_digest_check = False
+
         if error and host in UNVERIFIABLE_HOSTS:
             unverifiable.append((repository, version, error, lines_str))
             print(f"  [UNVERIFIABLE] {host}/{repo_path}:{version}  {error}  (values.yaml:{lines_str})")
         elif error:
             fetch_errors.append((repository, version, error, lines_str))
             print(f"  [FETCH-ERR] {host}/{repo_path}:{version}  {error}  (values.yaml:{lines_str})")
+            needs_digest_check = True
         elif digest and digest != f"sha256:{pinned_digest}":
             sliding = is_sliding_tag(values_path, host, repo_path, version, digest)
             if sliding:
@@ -402,6 +433,7 @@ def check_image_digests(chart_dir):
                 print(f"      pinned:   sha256:{pinned_digest}")
                 print(f"      upstream: {digest}")
                 print(f"      lines:    values.yaml:{lines_str}")
+            needs_digest_check = True
         elif not digest:
             # Tag exists, but the manifest response carried no
             # Docker-Content-Digest header (some registries/media types, a
@@ -413,8 +445,32 @@ def check_image_digests(chart_dir):
             reason = "registry returned no digest header"
             unverifiable.append((repository, version, reason, lines_str))
             print(f"  [UNVERIFIABLE] {host}/{repo_path}:{version}  {reason}  (values.yaml:{lines_str})")
+            needs_digest_check = True
         else:
             matched += 1
+
+        if needs_digest_check and host not in UNVERIFIABLE_HOSTS:
+            digest_ref = f"sha256:{pinned_digest}"
+            digest_exists, digest_error = None, None
+            for _attempt in range(2):
+                try:
+                    digest_exists, _ = registry_tag_exists(host, repo_path, digest_ref)
+                    digest_error = None
+                    break
+                except (urllib.error.URLError, OSError) as e:
+                    digest_error = str(e)
+
+            if digest_error:
+                digest_check_errors.append((repository, version, digest_error, lines_str))
+                print(f"  [FETCH-ERR] {host}/{repo_path}@{digest_ref}  {digest_error}  (while "
+                      f"confirming the currently-pinned digest is still pullable, "
+                      f"values.yaml:{lines_str})")
+            elif not digest_exists:
+                digest_gone.append((repository, version, pinned_digest, lines_str))
+                print(f"  [DIGEST-GONE] {host}/{repo_path}@{digest_ref}  the EXACT digest "
+                      f"values.yaml pins TODAY is no longer resolvable upstream at all — "
+                      f"helm install/upgrade would fail outright right now "
+                      f"(values.yaml:{lines_str})")
 
     print()
     if unresolved:
@@ -431,10 +487,13 @@ def check_image_digests(chart_dir):
         print()
 
     if sliding_mismatches:
-        print(f"Run fix-image-digests to refresh the {len(sliding_mismatches)} "
-              f"sliding digest(s) above.")
+        print(f"{len(sliding_mismatches)} sliding digest(s) above are routine, expected drift "
+              f"(not counted as a failure) — still worth running fix-image-digests to refresh them.")
     if mismatches:
         print(f"Run fix-image-digests to refresh the {len(mismatches)} stale pinned digest(s) above.")
+    if digest_gone:
+        print(f"{len(digest_gone)} pinned digest(s) above are no longer resolvable upstream at all — "
+              f"run fix-image-digests to re-pin against a digest that still exists.")
 
     inconsistent = find_inconsistent_version_pins(pins)
     duplicates = {r: f for r, f in inconsistent.items() if f["kind"] == "duplicate"}
@@ -455,10 +514,11 @@ def check_image_digests(chart_dir):
             lines_str = ", ".join(str(n) for n in pin_lines)
             print(f"      {version}@sha256:{digest}  (values.yaml:{lines_str})")
 
-    detail = (f"{matched}/{len(targets)} matched, {len(sliding_mismatches)} sliding (stale), "
+    detail = (f"{matched}/{len(targets)} matched, {len(sliding_mismatches)} sliding (warning), "
               f"{len(mismatches)} stale, {len(fetch_errors)} fetch error(s), "
               f"{len(unverifiable)} unverifiable, "
+              f"{len(digest_gone)} pinned digest(s) gone, {len(digest_check_errors)} digest fetch error(s), "
               f"{len(duplicates)} duplicate pin(s), {len(drifted)} version-drift finding(s)")
-    if mismatches or sliding_mismatches or fetch_errors or inconsistent:
+    if mismatches or fetch_errors or digest_gone or digest_check_errors or inconsistent:
         return False, detail
     return True, detail

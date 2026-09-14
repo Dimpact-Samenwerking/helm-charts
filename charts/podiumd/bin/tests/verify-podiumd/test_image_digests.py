@@ -605,10 +605,11 @@ TWO_IMAGES_VALUES = (
 )
 
 
-def test_check_image_digests_sliding_drift_fails(vp, libimagedigests, tmp_path, monkeypatch, capsys):
-    """A tag known to slide drifting is routine, expected drift -- but the
-    pin is still stale, so it must fail the check like any other stale
-    pin (just labeled/reported differently, pointing at --all)."""
+def test_check_image_digests_sliding_drift_warns_but_passes(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    """A tag known to slide drifting is routine, expected drift -- and,
+    as long as the OLD pinned digest is still independently pullable
+    (see the [DIGEST-GONE] check), no longer a failure at all -- just a
+    reported warning pointing at fix-image-digests."""
     write_values(tmp_path, TWO_IMAGES_VALUES)
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (
         (True, f"sha256:{'c' * 64}") if repo == "nginxinc/nginx-unprivileged"
@@ -617,11 +618,12 @@ def test_check_image_digests_sliding_drift_fails(vp, libimagedigests, tmp_path, 
     monkeypatch.setattr(libimagedigests, "is_sliding_tag",
                          lambda values_path, host, repo, version, live_digest: repo == "nginxinc/nginx-unprivileged")
     ok, detail = vp.check_image_digests(tmp_path)
-    assert ok is False
+    assert ok is True
     assert "1 sliding" in detail
     assert "0 stale" in detail
     out = capsys.readouterr().out
     assert "[SLIDING  ]" in out
+    assert "[DIGEST-GONE]" not in out
     assert "MISMATCH" not in out
 
 
@@ -642,6 +644,174 @@ def test_check_image_digests_pinned_drift_still_fails(vp, libimagedigests, tmp_p
     out = capsys.readouterr().out
     assert "[MISMATCH ]" in out
     assert "zaakafhandelcomponent" in out
+
+
+# --- check_image_digests: [DIGEST-GONE] — is the EXACT pinned digest
+# still pullable at all? A genuinely different, harder question than
+# whether the TAG has drifted (sliding or not) — see registry_tag_exists,
+# whose manifest URL accepts a digest string in exactly the tag position,
+# so no new registry-layer code is needed, just a second call.
+
+def test_check_image_digests_matched_pin_never_gets_a_second_call(vp, libimagedigests, tmp_path, monkeypatch):
+    """A matched pin's live digest already equals the pinned one -- it's
+    trivially still there, so no second (digest-liveness) call is ever
+    made for it."""
+    write_values(tmp_path, (
+        "a:\n"
+        "  image:\n"
+        "    repository: org/repo\n"
+        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
+    ))
+    calls = []
+
+    def spy(host, repo, tag):
+        calls.append(tag)
+        return True, f"sha256:{'a' * 64}"
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    assert calls == ["1.0.0"]  # exactly one call, the tag check — no digest-liveness follow-up
+
+
+def test_check_image_digests_sliding_with_digest_still_pullable_only_warns(
+        vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    """The OLD pinned digest independently resolves upstream — the tag
+    merely slid, nothing this repo actually deploys is at risk. Warns
+    (via [SLIDING], not a failure) and never reports [DIGEST-GONE]."""
+    digest_a = "a" * 64
+    write_values(tmp_path, (
+        "nginx:\n"
+        "  image:\n"
+        "    repository: nginxinc/nginx-unprivileged\n"
+        f'    tag: "1.31.3@sha256:{digest_a}"\n'
+    ))
+    calls = []
+
+    def spy(host, repo, tag):
+        calls.append(tag)
+        if tag == f"sha256:{digest_a}":
+            return True, f"sha256:{digest_a}"  # the OLD digest still resolves
+        return True, f"sha256:{'c' * 64}"  # the TAG now points elsewhere
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
+    monkeypatch.setattr(libimagedigests, "is_sliding_tag", lambda *a, **k: True)
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    assert calls == ["1.31.3", f"sha256:{digest_a}"]  # tag check, then the digest-liveness follow-up
+    out = capsys.readouterr().out
+    assert "[SLIDING  ]" in out
+    assert "[DIGEST-GONE]" not in out
+
+
+def test_check_image_digests_sliding_with_digest_gone_fails(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    """The tag slid AND the OLD digest this repo actually still pins has
+    since been garbage-collected upstream — a real, hard failure: helm
+    install/upgrade would fail outright right now, regardless of the
+    tag-level slide itself only being a warning."""
+    digest_a = "a" * 64
+    write_values(tmp_path, (
+        "nginx:\n"
+        "  image:\n"
+        "    repository: nginxinc/nginx-unprivileged\n"
+        f'    tag: "1.31.3@sha256:{digest_a}"\n'
+    ))
+
+    def spy(host, repo, tag):
+        if tag == f"sha256:{digest_a}":
+            return False, None  # the OLD digest is gone
+        return True, f"sha256:{'c' * 64}"
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
+    monkeypatch.setattr(libimagedigests, "is_sliding_tag", lambda *a, **k: True)
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is False
+    assert "1 pinned digest(s) gone" in detail
+    out = capsys.readouterr().out
+    assert "[SLIDING  ]" in out
+    assert "[DIGEST-GONE]" in out
+    assert f"sha256:{digest_a}" in out
+
+
+def test_check_image_digests_mismatch_with_digest_gone_fails(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    """A non-sliding MISMATCH whose old pinned digest is also gone —
+    still just one failure category ([DIGEST-GONE]) added on top of the
+    pre-existing [MISMATCH] failure, not a special case."""
+    digest_a = "a" * 64
+    write_values(tmp_path, (
+        "a:\n"
+        "  image:\n"
+        "    repository: org/repo\n"
+        f'    tag: "1.0.0@sha256:{digest_a}"\n'
+    ))
+
+    def spy(host, repo, tag):
+        if tag == f"sha256:{digest_a}":
+            return False, None
+        return True, f"sha256:{'c' * 64}"
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
+    monkeypatch.setattr(libimagedigests, "is_sliding_tag", lambda *a, **k: False)
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is False
+    assert "1 pinned digest(s) gone" in detail
+    out = capsys.readouterr().out
+    assert "[MISMATCH ]" in out
+    assert "[DIGEST-GONE]" in out
+
+
+def test_check_image_digests_fetch_error_with_digest_gone_fails(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    """The tag check itself couldn't be confirmed (a genuine fetch error,
+    not an UNVERIFIABLE_HOSTS one) — the old digest is STILL checked, and
+    found gone here too."""
+    digest_a = "a" * 64
+    write_values(tmp_path, (
+        "a:\n"
+        "  image:\n"
+        "    repository: org/repo\n"
+        f'    tag: "1.0.0@sha256:{digest_a}"\n'
+    ))
+
+    def spy(host, repo, tag):
+        if tag == "1.0.0":
+            raise urllib.error.URLError("tag check failed")
+        return False, None  # the digest-liveness check: gone
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is False
+    assert "1 fetch error" in detail
+    assert "1 pinned digest(s) gone" in detail
+    out = capsys.readouterr().out
+    assert "[FETCH-ERR]" in out
+    assert "[DIGEST-GONE]" in out
+
+
+def test_check_image_digests_unverifiable_host_skips_digest_liveness_check_entirely(
+        vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    """A host in UNVERIFIABLE_HOSTS is skipped for the SECOND call too —
+    no point attempting what's already known to fail anonymously."""
+    write_values(tmp_path, (
+        "pabc:\n"
+        "  image:\n"
+        "    repository: firewalled-registry.example.com/platform-autorisatie-beheer-component/pabc-api\n"
+        f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(libimagedigests, "UNVERIFIABLE_HOSTS", {"firewalled-registry.example.com"})
+    calls = []
+
+    def spy(host, repo, tag):
+        calls.append(tag)
+        raise urllib.error.HTTPError("https://firewalled-registry.example.com/v2/...", 401, "Unauthorized", {}, None)
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    # the tag check retries once on its own network error -- both attempts
+    # are still just the TAG check; no digest-liveness follow-up at all.
+    assert calls == ["1.1.1", "1.1.1"]
+    out = capsys.readouterr().out
+    assert "[DIGEST-GONE]" not in out
 
 
 # --- check_image_digests: split registry:/repository: style resolution ---
