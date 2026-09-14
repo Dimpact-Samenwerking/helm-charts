@@ -246,7 +246,21 @@ def find_newest_same_variant_tag(registry_host, repo, version):
     available yet." Deliberately a different relation than
     _is_more_specific_tag (which requires candidate to REFINE version,
     e.g. "3.14.7-slim" for "3.14-slim") — this instead wants any newer
-    same-variant release, refinement or not."""
+    same-variant release, refinement or not.
+
+    A candidate's numeric prefix must also have the SAME NUMBER of
+    dot-separated components as version's own, or it's skipped outright —
+    plain tuple comparison (`key > best_key`) only looks at the first
+    differing element, so a shorter tuple can "win" purely because ITS
+    first component happens to be huge, regardless of how many components
+    either tag actually has. Confirmed live against ghcr.io/wearefrank/
+    frank-gateway: alongside real releases ("1.0.0", "1.1.0") and an old
+    pre-semver build-number scheme ("57"-"104"), this repo also publishes
+    dozens of bare GitHub Actions run-ID tags (e.g. "12294937630") with no
+    suffix — same empty suffix as a real version, so the existing suffix
+    filter alone doesn't catch it. (12294937630,) > (1, 1, 0) is True in
+    plain Python tuple comparison, so without this guard a run-ID tag
+    would incorrectly "win" as the newest same-variant release."""
     ver_num, ver_suffix = _numeric_prefix_and_suffix(version)
     if ver_num is None:
         return version
@@ -254,10 +268,11 @@ def find_newest_same_variant_tag(registry_host, repo, version):
     def numeric_tuple(num):
         return tuple(int(p) for p in num.split("."))
 
+    ver_parts = ver_num.split(".")
     best, best_key = version, numeric_tuple(ver_num)
     for tag in list_tags(registry_host, repo):
         num, suffix = _numeric_prefix_and_suffix(tag)
-        if num is None or suffix != ver_suffix:
+        if num is None or suffix != ver_suffix or len(num.split(".")) != len(ver_parts):
             continue
         key = numeric_tuple(num)
         if key > best_key:
