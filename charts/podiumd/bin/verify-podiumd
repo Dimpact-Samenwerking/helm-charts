@@ -26,7 +26,13 @@ trip:
      release-table.csv's own export script rely on can actually see the
      pin at all. One known, deliberate exception: keycloak-operator's own
      "operator.image" field, which uses the adfinis chart's own separate
-     "tag" + sibling "sha:" convention instead (see lib.digest_pinning_check)
+     "tag" + sibling "sha:" convention instead. Also prints a second,
+     purely informational (never affects pass/fail) section afterward:
+     every repository shared across 2+ values.yaml paths (e.g. the
+     global.images.* YAML-anchor-aliased base images — nginx, curl,
+     busybox, redis), with the full list of paths aliasing it — the
+     real blast radius of bumping that one shared image (see
+     lib.digest_pinning_check)
   7. no vendored sub-chart under charts/podiumd/charts/ has BOTH a pinned
      .tgz package and an extracted directory of the same name sitting next
      to it — Helm silently prefers the extracted (possibly stale/modified)

@@ -282,6 +282,86 @@ global:
     assert detail == "0 pin(s), 0 unpinned"
 
 
+# --- shared (2+ consuming path) image reporting (report-only, additive) ---
+
+def test_check_digest_pinning_reports_shared_image_with_all_consuming_paths(vp, tmp_path, capsys):
+    """global.images.nginx aliased into two components' own sidecars —
+    3 total consuming paths for the same repository — all three must be
+    listed under the one shared-image heading."""
+    write_values_yaml(tmp_path, f"""\
+global:
+  images:
+    nginx:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+zac:
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+frankgateway:
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+""")
+    ok, detail = vp.check_digest_pinning(tmp_path)
+
+    assert ok is True  # purely informational -- never changes pass/fail
+    out = capsys.readouterr().out
+    assert "1 image(s) shared across 2+ values.yaml paths" in out
+    assert "nginxinc/nginx-unprivileged (3 consumers):" in out
+    assert "global.images.nginx" in out
+    assert "zac.nginx.image" in out
+    assert "frankgateway.nginx.image" in out
+
+
+def test_check_digest_pinning_does_not_report_a_single_use_repository_as_shared(vp, tmp_path, capsys):
+    """A repository pinned at exactly one path isn't "shared" in any
+    interesting sense -- no false-positive noise for the common case."""
+    write_values_yaml(tmp_path, f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zaakafhandelcomponent
+    tag: "5.0.0@sha256:{DIGEST_A}"
+""")
+    ok, detail = vp.check_digest_pinning(tmp_path)
+
+    assert ok is True
+    out = capsys.readouterr().out
+    assert "shared across" not in out
+
+
+def test_shared_image_repo_groups_excludes_single_use_repos(libdigestpinningcheck, tmp_path):
+    write_values_yaml(tmp_path, f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zaakafhandelcomponent
+    tag: "5.0.0@sha256:{DIGEST_A}"
+""")
+    values = libdigestpinningcheck.load_yaml(tmp_path / "values.yaml")
+    assert libdigestpinningcheck._shared_image_repo_groups(tmp_path, values) == {}
+
+
+def test_shared_image_repo_groups_finds_multi_path_repos(libdigestpinningcheck, tmp_path):
+    write_values_yaml(tmp_path, f"""\
+global:
+  images:
+    curl:
+      repository: curlimages/curl
+      tag: "8.21.0@sha256:{DIGEST_A}"
+zac:
+  curl:
+    image:
+      repository: curlimages/curl
+      tag: "8.21.0@sha256:{DIGEST_A}"
+""")
+    values = libdigestpinningcheck.load_yaml(tmp_path / "values.yaml")
+    shared = libdigestpinningcheck._shared_image_repo_groups(tmp_path, values)
+    assert set(shared) == {"curlimages/curl"}
+    assert sorted(".".join(p) for p in shared["curlimages/curl"]) == ["global.images.curl", "zac.curl.image"]
+
+
 # --- check_subchart_image_visibility / find_unresolved_subchart_images ---
 #
 # Every call now also renders (see lib.render_scope.rendered_chart_paths)

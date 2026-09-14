@@ -36,12 +36,27 @@ Three known exceptions:
   structurally still applies.
 - omc's own image can't be digest-pinned at all — its values.yaml
   comment says the OMC subchart itself can't handle a digest-pinned
-  tag; the tag must contain ONLY the version."""
+  tag; the tag must contain ONLY the version.
+
+check_digest_pinning also prints a second, purely informational section
+after its own pass/fail result (see _print_shared_image_usage): every
+values.yaml repository shared across 2+ consuming paths (e.g. the
+global.images.* YAML-anchor-aliased base images — nginx, curl, busybox,
+redis), with the full list of paths aliasing it — the real blast radius
+of bumping that one shared image, built from the exact same path
+enumeration + grouping lib.image_docs.regenerate_images_baseline_
+manifest already uses (find_all_image_and_version_paths + global_
+image_paths, fed into lib.chart.paths_by_repository) rather than
+re-deriving it. Never affects this check's own pass/fail semantics —
+purely additive."""
 import re
 
-from lib.chart import get_path, load_yaml, resolve_subchart_default, subchart_template_text, subchart_values
+from lib.chart import (
+    get_path, global_image_paths, load_yaml, paths_by_repository, resolve_subchart_default,
+    subchart_template_text, subchart_values,
+)
 from lib.render_scope import CHART_NAME, render_chart, rendered_chart_paths
-from lib.upgradedoc import find_image_tag_paths
+from lib.upgradedoc import find_all_image_and_version_paths, find_image_tag_paths
 
 # "@sha256:<64 hex chars>" at the end of a tag value — the same shape
 # lib.image_digests.DIGEST_PIN_RE requires, checked here as a suffix
@@ -63,6 +78,53 @@ EXEMPT_PATHS = {
     ("omc", "image"),
 }
 
+def _shared_image_repo_groups(chart_dir, values):
+    """{repo: [path, ...]} (see lib.chart.paths_by_repository), minus
+    every repository with only a single consuming path — a repository
+    aliased at just one place isn't "shared" in any interesting sense.
+    Built from the exact same full path enumeration lib.image_docs.
+    regenerate_images_baseline_manifest already uses for images-
+    baseline.yaml (find_all_image_and_version_paths(values, deps) +
+    global_image_paths(values)), reusing paths_by_repository's own
+    grouping rather than re-deriving it — no new computation, just a
+    different presentation of data this codebase already computes.
+    Chart.yaml is read fresh here (chart_dir is all this function has
+    handy) — {} deps if it doesn't exist yet (this check runs early,
+    before "Dependencies" vendors anything), same "nothing to fall
+    back to" tolerance paths_by_repository's own per-dependency
+    subchart-default tier already has."""
+    chart_yaml_path = chart_dir / "Chart.yaml"
+    chart_yaml = load_yaml(chart_yaml_path) if chart_yaml_path.is_file() else {}
+    deps = (chart_yaml or {}).get("dependencies", [])
+
+    all_paths = dict(find_all_image_and_version_paths(values, deps))
+    all_paths.update(global_image_paths(values))
+    repo_groups = paths_by_repository(chart_dir, deps, values, all_paths.keys())
+    return {repo: paths for repo, paths in repo_groups.items() if len(paths) > 1}
+
+
+def _print_shared_image_usage(chart_dir, values):
+    """Report-only informational output, printed after check_digest_
+    pinning's own pass/fail result (never changes it): every shared
+    repository (e.g. values.yaml's global.images.* anchors — nginx,
+    curl, busybox, redis) actually aliased at 2+ values-tree paths,
+    with the full list of consuming paths — the real blast radius of
+    bumping that one shared image, visible in one place instead of
+    grepping values.yaml by hand."""
+    shared = _shared_image_repo_groups(chart_dir, values)
+    if not shared:
+        return
+
+    print()
+    print(f"{len(shared)} image(s) shared across 2+ values.yaml paths "
+          f"(bumping one affects every path listed under it):")
+    for repo in sorted(shared):
+        paths = sorted(".".join(path) for path in shared[repo])
+        print(f"  {repo} ({len(paths)} consumers):")
+        for path in paths:
+            print(f"    {path}")
+
+
 def check_digest_pinning(chart_dir):
     values_path = chart_dir / "values.yaml"
     if not values_path.is_file():
@@ -78,14 +140,17 @@ def check_digest_pinning(chart_dir):
     if not missing:
         print(f"OK: all {len(images)} image tag(s) in values.yaml are digest-pinned "
               f"({len(EXEMPT_PATHS)} exempt)")
-        return True, f"{len(images)} pin(s), 0 unpinned"
+        ok, detail = True, f"{len(images)} pin(s), 0 unpinned"
+    else:
+        print(f"Found {len(missing)} image tag(s) not digest-pinned "
+              f"(missing \"@sha256:<64 hex chars>\"):")
+        for path, tag in sorted(missing):
+            print(f"  {'.'.join(path)}.tag: {tag!r}")
+        ok, detail = False, f"{len(missing)}/{len(images)} image(s) not digest-pinned"
 
-    print(f"Found {len(missing)} image tag(s) not digest-pinned "
-          f"(missing \"@sha256:<64 hex chars>\"):")
-    for path, tag in sorted(missing):
-        print(f"  {'.'.join(path)}.tag: {tag!r}")
+    _print_shared_image_usage(chart_dir, values)
 
-    return False, f"{len(missing)}/{len(images)} image(s) not digest-pinned"
+    return ok, detail
 
 
 def find_unresolved_subchart_images(chart_dir, deps, own_values, rendered_paths):
