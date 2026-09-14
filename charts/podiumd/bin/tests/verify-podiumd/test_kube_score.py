@@ -25,6 +25,8 @@ real kube-score or helm invocation happens in these tests."""
 import json
 from types import SimpleNamespace
 
+import pytest
+
 
 def ks_object(kind, name, checks):
     return {"object_name": f"{kind}/apps/v1//{name}", "checks": checks}
@@ -75,22 +77,38 @@ RENDERED = (
 )
 
 
-def sequenced_run(own_objects, vendored_objects_by_chart=None, rendered=RENDERED, ks_returncode=1):
-    """helm template --help, helm template (render), one kube-score call
-    for this chart's own text, then one kube-score call per distinct
-    vendored chart found in the render."""
+def fake_render_chart(rendered=RENDERED, returncode=0):
+    def render_chart(chart_dir, extra_args):
+        return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
+    return render_chart
+
+
+@pytest.fixture(autouse=True)
+def _default_render(libkubescorecheck, monkeypatch):
+    """check_kube_score now gets its render via lib.render_scope.render_
+    chart(chart_dir, extra_args), not a run([...]) call of its own —
+    default every test in this file to the standard RENDERED fixture
+    text; a test needing different rendered content (or a render
+    failure) overrides this via its own monkeypatch.setattr(
+    libkubescorecheck, "render_chart", ...) call."""
+    monkeypatch.setattr(libkubescorecheck, "render_chart", fake_render_chart(RENDERED))
+
+
+def sequenced_run(own_objects, vendored_objects_by_chart=None, ks_returncode=1):
+    """check_kube_score's own remaining run([...]) calls are ALL
+    "kube-score" now (the render moved to render_chart, see
+    _default_render above): one call for this chart's own text, then one
+    per distinct vendored chart found in the render."""
     vendored_objects_by_chart = vendored_objects_by_chart or {}
     calls = {"n": 0}
 
     def run(cmd, **kwargs):
-        if cmd[0] == "kube-score":
-            calls["n"] += 1
-            if calls["n"] == 1:
-                return ks_result(own_objects, returncode=ks_returncode)
-            chart_calls = sorted(vendored_objects_by_chart.keys())
-            chart = chart_calls[calls["n"] - 2] if calls["n"] - 2 < len(chart_calls) else None
-            return ks_result(vendored_objects_by_chart.get(chart, []), returncode=ks_returncode)
-        return SimpleNamespace(returncode=0, stdout=rendered, stderr="")
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return ks_result(own_objects, returncode=ks_returncode)
+        chart_calls = sorted(vendored_objects_by_chart.keys())
+        chart = chart_calls[calls["n"] - 2] if calls["n"] - 2 < len(chart_calls) else None
+        return ks_result(vendored_objects_by_chart.get(chart, []), returncode=ks_returncode)
 
     return run
 
@@ -256,9 +274,7 @@ def test_check_kube_score_crd_only_vendored_chart_is_not_a_failure(vp, libkubesc
     no_friendly_vendors(libkubescorecheck, monkeypatch)
 
     def run(cmd, **kwargs):
-        if cmd[0] == "kube-score":
-            return SimpleNamespace(returncode=0, stdout="null", stderr="")
-        return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
+        return SimpleNamespace(returncode=0, stdout="null", stderr="")
 
     monkeypatch.setattr(libkubescorecheck, "run", run)
     ok, detail = vp.check_kube_score(tmp_path, [])
@@ -275,11 +291,7 @@ def test_check_kube_score_missing_binary_fails(vp, tmp_path, monkeypatch):
 
 def test_check_kube_score_render_failure_fails(vp, libkubescorecheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
-
-    def run(cmd, **kwargs):
-        return SimpleNamespace(returncode=1, stdout="", stderr="Error: broke")
-
-    monkeypatch.setattr(libkubescorecheck, "run", run)
+    monkeypatch.setattr(libkubescorecheck, "render_chart", fake_render_chart("", returncode=1))
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is False
     assert "failed to render" in detail
@@ -289,9 +301,7 @@ def test_check_kube_score_unparseable_own_output_fails(vp, libkubescorecheck, tm
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
 
     def run(cmd, **kwargs):
-        if cmd[0] == "kube-score":
-            return SimpleNamespace(returncode=1, stdout="not json", stderr="")
-        return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
+        return SimpleNamespace(returncode=1, stdout="not json", stderr="")
 
     monkeypatch.setattr(libkubescorecheck, "run", run)
     ok, detail = vp.check_kube_score(tmp_path, [])
@@ -305,12 +315,10 @@ def test_check_kube_score_unparseable_vendored_output_fails(vp, libkubescorechec
     calls = {"n": 0}
 
     def run(cmd, **kwargs):
-        if cmd[0] == "kube-score":
-            calls["n"] += 1
-            if calls["n"] == 1:
-                return ks_result([])
-            return SimpleNamespace(returncode=1, stdout="not json", stderr="")
-        return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return ks_result([])
+        return SimpleNamespace(returncode=1, stdout="not json", stderr="")
 
     monkeypatch.setattr(libkubescorecheck, "run", run)
     ok, detail = vp.check_kube_score(tmp_path, [])

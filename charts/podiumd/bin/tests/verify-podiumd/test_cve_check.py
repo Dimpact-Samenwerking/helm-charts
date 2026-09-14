@@ -19,6 +19,8 @@ import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import pytest
+
 
 def trivy_result(returncode=0, stdout="", stderr=""):
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
@@ -113,17 +115,33 @@ def make_chart_dir(tmp_path, values=VALUES_YAML, chart_yaml=CHART_YAML):
     return tmp_path
 
 
-def sequenced_run(rendered=RENDERED, trivy_by_image=None, ks_returncode=0):
-    """helm template (render), then one docker/trivy call per
-    check_cves(...) invocation, in target order (sorted by
-    (repository, version))."""
+def fake_render_chart(rendered=RENDERED, returncode=0):
+    def render_chart(chart_dir, extra_args):
+        return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
+    return render_chart
+
+
+@pytest.fixture(autouse=True)
+def _default_render(libcvecheck, monkeypatch):
+    """check_cves now gets its render via lib.render_scope.render_chart
+    (chart_dir, extra_args), not a run([...]) call of its own — default
+    every test in this file to the standard RENDERED fixture text; a
+    test needing different rendered content (or a render failure)
+    overrides this via its own monkeypatch.setattr(libcvecheck,
+    "render_chart", ...) call."""
+    monkeypatch.setattr(libcvecheck, "render_chart", fake_render_chart(RENDERED))
+
+
+def sequenced_run(trivy_by_image=None, ks_returncode=0):
+    """check_cves's own remaining run([...]) calls are ALL "docker"
+    (trivy) now (the render moved to render_chart, see _default_render
+    above) — one call per check_cves(...) invocation, in target order
+    (sorted by (repository, version))."""
     trivy_by_image = trivy_by_image or {}
 
     def run(cmd, **kwargs):
-        if cmd[0] == "docker":
-            image_ref = cmd[-1]
-            return trivy_by_image.get(image_ref, trivy_result(stdout="{}", returncode=ks_returncode))
-        return SimpleNamespace(returncode=0, stdout=rendered, stderr="")
+        image_ref = cmd[-1]
+        return trivy_by_image.get(image_ref, trivy_result(stdout="{}", returncode=ks_returncode))
 
     return run
 
@@ -283,11 +301,7 @@ def test_check_cves_no_docker_passes_and_skips(vp, tmp_path, monkeypatch):
 def test_check_cves_render_failure_fails(vp, libcvecheck, tmp_path, monkeypatch):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
-
-    def run(cmd, **kw):
-        return SimpleNamespace(returncode=1, stdout="", stderr="Error: broke")
-
-    monkeypatch.setattr(libcvecheck, "run", run)
+    monkeypatch.setattr(libcvecheck, "render_chart", fake_render_chart("", returncode=1))
     ok, detail = vp.check_cves(chart_dir, [])
     assert ok is False
     assert "failed to render" in detail
@@ -550,11 +564,9 @@ def test_check_cves_cache_hit_skips_scanning(vp, libcvecheck, tmp_path, monkeypa
     })
 
     def fail_if_scanned(cmd, **kw):
-        if cmd[0] == "docker" and "frank-gateway" in cmd[-1]:
+        if "frank-gateway" in cmd[-1]:
             raise AssertionError("frank-gateway should have been served from cache")
-        if cmd[0] == "docker":
-            return trivy_result(stdout="{}")
-        return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
+        return trivy_result(stdout="{}")
 
     monkeypatch.setattr(libcvecheck, "run", fail_if_scanned)
     ok, detail = vp.check_cves(chart_dir, [])
