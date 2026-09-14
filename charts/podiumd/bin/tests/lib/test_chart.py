@@ -1093,6 +1093,48 @@ def test_resolve_subchart_default_version_none_when_not_vendored(libchart, tmp_p
     assert version is None
 
 
+# --- own_template_files_referencing / resolve_values_path_source ---
+
+def test_own_template_files_referencing_finds_a_literal_values_reference(libchart, tmp_path):
+    (tmp_path / "templates").mkdir()
+    (tmp_path / "templates" / "frankgateway-nginx.yaml").write_text(
+        "image: {{ .Values.frankgateway.nginx.image.repository }}\n", encoding="utf-8")
+    (tmp_path / "templates" / "unrelated.yaml").write_text(
+        "image: {{ .Values.apiproxy.image.repository }}\n", encoding="utf-8")
+    files = libchart.own_template_files_referencing(tmp_path, "frankgateway")
+    assert files == ["templates/frankgateway-nginx.yaml"]
+
+
+def test_own_template_files_referencing_no_templates_dir_returns_empty(libchart, tmp_path):
+    assert libchart.own_template_files_referencing(tmp_path, "frankgateway") == []
+
+
+def test_own_template_files_referencing_no_match_returns_empty(libchart, tmp_path):
+    (tmp_path / "templates").mkdir()
+    (tmp_path / "templates" / "unrelated.yaml").write_text(
+        "image: {{ .Values.apiproxy.image.repository }}\n", encoding="utf-8")
+    assert libchart.own_template_files_referencing(tmp_path, "frankgateway") == []
+
+
+def test_resolve_values_path_source_real_dependency_shows_chart_and_version(libchart, tmp_path):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    source = libchart.resolve_values_path_source(tmp_path, deps, ("zac", "nginx", "image"))
+    assert source == "chart zaakafhandelcomponent@1.0.297"
+
+
+def test_resolve_values_path_source_orphan_key_shows_local_template(libchart, tmp_path):
+    (tmp_path / "templates").mkdir()
+    (tmp_path / "templates" / "frankgateway-nginx.yaml").write_text(
+        "image: {{ .Values.frankgateway.nginx.image.repository }}\n", encoding="utf-8")
+    source = libchart.resolve_values_path_source(tmp_path, [], ("frankgateway", "nginx", "image"))
+    assert source == "local: templates/frankgateway-nginx.yaml"
+
+
+def test_resolve_values_path_source_orphan_key_no_match_says_so(libchart, tmp_path):
+    source = libchart.resolve_values_path_source(tmp_path, [], ("global", "images", "nginx"))
+    assert source == "local: no referencing template found"
+
+
 # --- resolve_chart_values ---
 
 def test_resolve_chart_values_prefers_vendored_over_pulling(libchart, tmp_path, monkeypatch):

@@ -269,25 +269,88 @@ def test_plural_images_container_not_treated_as_an_image_block(vp, tmp_path):
     """"images" (plural, a container of several named templates, e.g.
     global.images.nginx) must not itself be flagged — it doesn't end in
     "Image" (capital I), so only its own literally-"image"/"...Image"-
-    keyed children would ever be."""
-    write_values_yaml(tmp_path, """\
+    keyed children would ever be. Two real consumers given here purely
+    so the (unrelated) global.images.* under-use check introduced later
+    doesn't also fail this — see its own dedicated tests below."""
+    write_values_yaml(tmp_path, f"""\
 global:
   images:
     nginx:
       repository: nginxinc/nginx-unprivileged
       tag: "1.31.4"
+zac:
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+frankgateway:
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
 """)
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is True
-    assert detail == "0 pin(s), 0 unpinned"
+    assert detail == "2 pin(s), 0 unpinned"
 
 
-# --- shared (2+ consuming path) image reporting (report-only, additive) ---
+# --- global.images.* shared-anchor usage (a REAL pass/fail consequence) ---
+#
+# For each global.images.* registered entry (lib.chart.global_image_paths
+# — the deliberate "this is meant to be shared" mechanism), 0 or 1 real
+# aliasing consumer (any OTHER path resolving to the same repository,
+# excluding the global.images.<name> definition path itself) now FAILS
+# check_digest_pinning — the shared-anchor mechanism itself is pointless
+# there. 2+ real consumers stays report only, as it always was. A
+# repository that's shared incidentally (not a global.images.*
+# registration at all) never fails, regardless of consumer count.
 
-def test_check_digest_pinning_reports_shared_image_with_all_consuming_paths(vp, tmp_path, capsys):
-    """global.images.nginx aliased into two components' own sidecars —
-    3 total consuming paths for the same repository — all three must be
-    listed under the one shared-image heading."""
+def test_global_image_with_zero_consumers_fails(vp, tmp_path, capsys):
+    write_values_yaml(tmp_path, f"""\
+global:
+  images:
+    nginx:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+""")
+    ok, detail = vp.check_digest_pinning(tmp_path)
+
+    assert ok is False
+    assert "1 global.images.* entry under-used (failing)" in detail
+    out = capsys.readouterr().out
+    assert "FAILING: 1 global.images.* entry registered as a shared image" in out
+    assert "global.images.nginx (0 real consumer(s)):" in out
+
+
+def test_global_image_with_exactly_one_consumer_fails(vp, tmp_path, capsys):
+    """Exactly one real consumer is still under-used — a shared anchor
+    with only one alias site is no different from just setting the
+    value directly there."""
+    write_values_yaml(tmp_path, f"""\
+global:
+  images:
+    curl:
+      repository: curlimages/curl
+      tag: "8.21.0@sha256:{DIGEST_A}"
+zac:
+  curl:
+    image:
+      repository: curlimages/curl
+      tag: "8.21.0@sha256:{DIGEST_A}"
+""")
+    ok, detail = vp.check_digest_pinning(tmp_path)
+
+    assert ok is False
+    assert "1 global.images.* entry under-used (failing)" in detail
+    out = capsys.readouterr().out
+    assert "FAILING: 1 global.images.* entry registered as a shared image" in out
+    assert "global.images.curl (1 real consumer(s)):" in out
+    assert "zac.curl.image" in out
+
+
+def test_global_image_with_two_or_more_consumers_passes(vp, tmp_path, capsys):
+    """2+ real consumers is genuinely shared -- working as intended,
+    still worth seeing the full consumer list for, but report only."""
     write_values_yaml(tmp_path, f"""\
 global:
   images:
@@ -307,13 +370,41 @@ frankgateway:
 """)
     ok, detail = vp.check_digest_pinning(tmp_path)
 
-    assert ok is True  # purely informational -- never changes pass/fail
+    assert ok is True  # 2+ consumers -- purely informational, never fails
+    assert "under-used" not in detail
     out = capsys.readouterr().out
-    assert "1 image(s) shared across 2+ values.yaml paths" in out
-    assert "nginxinc/nginx-unprivileged (3 consumers):" in out
-    assert "global.images.nginx" in out
+    assert "FAILING" not in out
+    assert "1 global.images.* entry genuinely shared (2+ real consumers) — report only:" in out
+    assert "global.images.nginx (2 real consumers):" in out
     assert "zac.nginx.image" in out
     assert "frankgateway.nginx.image" in out
+
+
+def test_non_global_repository_shared_at_two_or_more_paths_never_fails(vp, tmp_path, capsys):
+    """A repository shared incidentally (NOT a global.images.*
+    registration at all -- e.g. keycloak/keycloak-shaped) is never a
+    failure, regardless of consumer count -- purely informational,
+    exactly like before this feature's pass/fail split existed."""
+    write_values_yaml(tmp_path, f"""\
+keycloak-operator:
+  operator:
+    config:
+      keycloakImage:
+        repository: quay.io/keycloak/keycloak
+        tag: "26.7.3@sha256:{DIGEST_A}"
+keycloak:
+  image:
+    repository: quay.io/keycloak/keycloak
+    tag: "26.7.3@sha256:{DIGEST_A}"
+""")
+    ok, detail = vp.check_digest_pinning(tmp_path)
+
+    assert ok is True
+    assert "under-used" not in detail
+    out = capsys.readouterr().out
+    assert "FAILING" not in out
+    assert "1 other image(s) incidentally shared across 2+ values.yaml paths" in out
+    assert "keycloak/keycloak (2 consumers):" in out
 
 
 def test_check_digest_pinning_does_not_report_a_single_use_repository_as_shared(vp, tmp_path, capsys):
@@ -330,9 +421,10 @@ zac:
     assert ok is True
     out = capsys.readouterr().out
     assert "shared across" not in out
+    assert "FAILING" not in out
 
 
-def test_shared_image_repo_groups_excludes_single_use_repos(libdigestpinningcheck, tmp_path):
+def test_global_image_usage_excludes_single_use_repos(libdigestpinningcheck, tmp_path):
     write_values_yaml(tmp_path, f"""\
 zac:
   image:
@@ -340,10 +432,13 @@ zac:
     tag: "5.0.0@sha256:{DIGEST_A}"
 """)
     values = libdigestpinningcheck.load_yaml(tmp_path / "values.yaml")
-    assert libdigestpinningcheck._shared_image_repo_groups(tmp_path, values) == {}
+    deps = []
+    repo_groups = libdigestpinningcheck._repository_groups(tmp_path, values, deps)
+    assert libdigestpinningcheck._global_image_usage(values, repo_groups) == {}
+    assert libdigestpinningcheck._non_global_shared_repo_groups(values, repo_groups, {}) == {}
 
 
-def test_shared_image_repo_groups_finds_multi_path_repos(libdigestpinningcheck, tmp_path):
+def test_global_image_usage_finds_multi_path_repos(libdigestpinningcheck, tmp_path):
     write_values_yaml(tmp_path, f"""\
 global:
   images:
@@ -357,9 +452,74 @@ zac:
       tag: "8.21.0@sha256:{DIGEST_A}"
 """)
     values = libdigestpinningcheck.load_yaml(tmp_path / "values.yaml")
-    shared = libdigestpinningcheck._shared_image_repo_groups(tmp_path, values)
-    assert set(shared) == {"curlimages/curl"}
-    assert sorted(".".join(p) for p in shared["curlimages/curl"]) == ["global.images.curl", "zac.curl.image"]
+    deps = []
+    repo_groups = libdigestpinningcheck._repository_groups(tmp_path, values, deps)
+    usage = libdigestpinningcheck._global_image_usage(values, repo_groups)
+    assert set(usage) == {("global", "images", "curl")}
+    assert usage[("global", "images", "curl")] == [("zac", "curl", "image")]
+
+
+# --- resolve_values_path_source (chart-name-or-local-file attribution) ---
+
+def test_shared_image_usage_annotates_a_real_dependency_path_with_its_chart(vp, tmp_path, capsys):
+    write_chart_yaml(tmp_path, [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")])
+    write_values_yaml(tmp_path, f"""\
+global:
+  images:
+    nginx:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+zac:
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+frankgateway:
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+""")
+    ok, detail = vp.check_digest_pinning(tmp_path)
+
+    assert ok is True
+    out = capsys.readouterr().out
+    assert "zac.nginx.image  [chart zaakafhandelcomponent@1.0.297]" in out
+
+
+def test_shared_image_usage_annotates_an_orphan_path_with_its_local_template(vp, tmp_path, capsys):
+    """"frankgateway" has no Chart.yaml dependency of its own at all --
+    it's a native, directly-templated top-level block. The local
+    template file that actually references ".Values.frankgateway" must
+    be named, deterministically (a literal text search, not a guess)."""
+    write_chart_yaml(tmp_path, [])
+    (tmp_path / "templates").mkdir()
+    (tmp_path / "templates" / "frankgateway-nginx.yaml").write_text(
+        "image: {{ .Values.frankgateway.nginx.image.repository }}:{{ .Values.frankgateway.nginx.image.tag }}\n",
+        encoding="utf-8",
+    )
+    write_values_yaml(tmp_path, f"""\
+global:
+  images:
+    nginx:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+frankgateway:
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+zac:
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+""")
+    ok, detail = vp.check_digest_pinning(tmp_path)
+
+    assert ok is True
+    out = capsys.readouterr().out
+    assert "frankgateway.nginx.image  [local: templates/frankgateway-nginx.yaml]" in out
 
 
 # --- check_subchart_image_visibility / find_unresolved_subchart_images ---
@@ -428,6 +588,26 @@ def test_unoverridden_floating_subchart_image_fails_the_check(vp, tmp_path, monk
     out = capsys.readouterr().out
     assert "FAILING:" in out
     assert "oz.image.tag: '1.14.2' (FLOATING in the sub-chart's own default)" in out
+
+
+def test_subchart_image_visibility_finding_annotated_with_its_owning_chart(
+        vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+    """Every finding is annotated via the SAME shared resolver
+    (lib.chart.resolve_values_path_source) _print_shared_image_usage
+    uses — scope_key here is always a real Chart.yaml dependency's own
+    alias-or-name by construction, so this can only ever hit the
+    resolver's "chart X@Y" branch, never the local-file one."""
+    write_chart_yaml(tmp_path, [make_dep("eck-operator", "3.5.0")])
+    make_tgz(tmp_path / "charts", "eck-operator", "3.5.0",
+              {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": "3.5.0"}})
+    write_values_yaml(tmp_path, "{}\n")
+    stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/eck-operator"])
+
+    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+
+    assert ok is False
+    out = capsys.readouterr().out
+    assert "eck-operator.image.tag: '3.5.0' (FLOATING in the sub-chart's own default)  [chart eck-operator@3.5.0]" in out
 
 
 def test_unoverridden_already_pinned_subchart_image_never_fails(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):

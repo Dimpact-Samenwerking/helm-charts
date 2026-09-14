@@ -499,6 +499,54 @@ def find_dependency(deps, name_or_alias):
     return None
 
 
+def own_template_files_referencing(chart_dir, key):
+    """Sorted paths (relative to chart_dir) of every file under podiumd's
+    OWN templates/ that contains a literal ".Values.<key>" reference —
+    deterministic text search, the same convention lib.dead_values_
+    check._own_template_subchart_refs already uses for the analogous
+    ".Subcharts.<name>" question, just the other direction (which FILES
+    reference a given top-level key, rather than which keys a file
+    references) and for the far more common ".Values.<key>" access
+    pattern. Deliberately coarse: a hit means the file references this
+    top-level key SOMEWHERE, not necessarily the exact nested path a
+    caller is asking about — real per-subpath attribution would need an
+    actual template parse (Helm's own `include`/helper indirection
+    defeats a plain text search at that finer granularity), so this
+    stops at "which file(s) reference this top-level key at all" rather
+    than guess any more precisely than that. [] if templates/ doesn't
+    exist or nothing matches — never fabricated."""
+    templates_dir = chart_dir / "templates"
+    if not templates_dir.is_dir():
+        return []
+    pattern = re.compile(rf"\.Values\.{re.escape(key)}\b")
+    return [str(path.relative_to(chart_dir)) for path in sorted(templates_dir.rglob("*.yaml"))
+            if path.is_file() and pattern.search(path.read_text(encoding="utf-8", errors="replace"))]
+
+
+def resolve_values_path_source(chart_dir, deps, path):
+    """A short, human-readable description of WHERE a values-tree
+    `path`'s own top-level key actually comes from — the real Chart.yaml
+    dependency chart+version it belongs to (matching alias or name, via
+    find_dependency), or, for a native/orphan top-level key with no
+    owning dependency at all (directly templated in podiumd's OWN
+    templates/*.yaml — e.g. "apiproxy", "frankgateway", "keycloak",
+    "global"), which of podiumd's own local template file(s) actually
+    reference it (see own_template_files_referencing) — so a reader
+    knows exactly where to look instead of grepping by hand,
+    deterministically either way, never a name-based guess. Shared by
+    every caller that needs to attribute a values-tree path back to its
+    source (lib.digest_pinning_check's own shared-image-usage report and
+    check_subchart_image_visibility's findings) so the two can never
+    describe the same thing differently."""
+    dep = find_dependency(deps, path[0])
+    if dep is not None:
+        return f"chart {dep['name']}@{dep['version']}"
+    files = own_template_files_referencing(chart_dir, path[0])
+    if files:
+        return f"local: {', '.join(files)}"
+    return "local: no referencing template found"
+
+
 def find_app_versions(values, values_key, image_paths):
     """[(image_path, tag), ...] for every image_paths entry (see
     image_paths_for) that has an explicit tag override under
