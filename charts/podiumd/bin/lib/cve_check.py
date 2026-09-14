@@ -96,7 +96,7 @@ from lib.image_upgrade_cache import load_cache as load_upgrade_cache
 from lib.procutil import run
 from lib.registry import parse_repo
 from lib.render_scope import (
-    CHART_NAME, OWN_TEMPLATES_PREFIX, chart_name_from_source, friendly_vendor_charts,
+    OWN_TEMPLATES_PREFIX, chart_name_from_source, friendly_vendor_charts, render_chart,
     split_rendered_by_source,
 )
 
@@ -277,8 +277,7 @@ def check_cves(chart_dir, extra_args, detail=False):
     if shutil.which("docker") is None:
         return True, "docker is not installed — skipped (see --help)"
 
-    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
-                 capture_output=True, text=True)
+    result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
         return False, "helm template failed to render"
 

@@ -3,6 +3,7 @@ report_errors_by_subchart — with `helm`/`git` subprocess calls mocked out
 via vp.run, so these tests need neither tool installed nor network access.
 check_dependencies now lives in lib.dependencies (also used by
 fix-image-digests) — see tests/lib/test_dependencies.py."""
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -293,6 +294,43 @@ def test_render_chart_different_extra_args_is_a_distinct_cache_entry(librendersc
     librenderscope.render_chart(tmp_path, [])
     librenderscope.render_chart(tmp_path, ["-f", "values.yaml"])
     assert len(calls) == 2
+
+
+# --- render consolidation cross-check ---
+#
+# All 7 checks that used to make their own independent `helm template`
+# call (check_render itself plus check_yamllint/check_kubeconform/
+# check_shellcheck/check_kube_score/check_image_upgrades/check_cves) now
+# go through the shared, cached render_chart. This is the end-to-end
+# proof: calling several of them back to back (as e.g. --include=
+# full-render,yamllint,kubeconform would) makes exactly ONE real `helm
+# template` subprocess call, not one per check.
+
+def test_render_consolidation_one_real_render_across_three_checks(
+        vp, librenderscope, libyamllintcheck, libkubeconformcheck, tmp_path, monkeypatch):
+    rendered = "---\n# Source: podiumd/templates/a.yaml\nkind: ConfigMap\n"
+    calls = []
+
+    def _run(cmd, **kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout=rendered, stderr="")
+
+    monkeypatch.setattr(librenderscope, "run", _run)
+    monkeypatch.setattr(vp.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(libyamllintcheck, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="", stderr=""))
+    monkeypatch.setattr(libyamllintcheck, "friendly_vendor_charts", lambda chart_dir: {})
+    monkeypatch.setattr(libkubeconformcheck, "run", lambda cmd, **kw: SimpleNamespace(
+        returncode=0, stdout=json.dumps({"resources": [], "summary": {}}), stderr=""))
+    monkeypatch.setattr(libkubeconformcheck, "friendly_vendor_charts", lambda chart_dir: {})
+
+    extra_args = []
+    ok1, _ = vp.check_render(tmp_path, extra_args)
+    ok2, _ = vp.check_yamllint(tmp_path, extra_args)
+    ok3, _ = vp.check_kubeconform(tmp_path, extra_args)
+
+    assert (ok1, ok2, ok3) == (True, True, True)
+    render_calls = [c for c in calls if c[:2] == ["helm", "template"]]
+    assert len(render_calls) == 1  # one real render shared by all three, not three
 
 
 # --- lint_args_for (moved from verify-podiumd — see also
