@@ -144,7 +144,14 @@ def version_paths_for(component):
 # vendors a THIRD PARTY app at whatever version it happens to package
 # (e.g. keycloak-operator, eck-stack), where the chart's own version and
 # the app version it ships are two independent numbers by design.
-CHART_VERSION_LOCKSTEP_COMPONENTS = frozenset({"kiss-chart", "pabc"})
+#
+# eck-operator is the same "chart version == image version" shape as
+# kiss-chart/pabc, NOT the "vendors a third-party app at its own
+# independent version" shape keycloak-operator/eck-stack are — the
+# elastic eck-operator chart IS the operator image, released together
+# at one version number (observed: Chart.yaml "version: 3.5.0" and
+# values.yaml "eck-operator.image.tag: \"3.5.0\"" agree today).
+CHART_VERSION_LOCKSTEP_COMPONENTS = frozenset({"kiss-chart", "pabc", "eck-operator"})
 
 
 # COMPONENT_IMAGE_PATHS path (as the tuple find_image_tag_paths/

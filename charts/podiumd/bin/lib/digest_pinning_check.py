@@ -9,7 +9,7 @@ string, and so lib.image_digests' own duplicate/drift check and
 release-table.csv's image_basename resolution (both regex/text-based)
 can actually see the pin at all.
 
-Three known exceptions:
+Four known exceptions:
 - keycloak-operator's own "operator.image" field uses the adfinis
   keycloak-operator chart's own convention instead — a separate sibling
   "sha:" field the chart's own template appends onto the tag at render
@@ -37,6 +37,14 @@ Three known exceptions:
 - omc's own image can't be digest-pinned at all — its values.yaml
   comment says the OMC subchart itself can't handle a digest-pinned
   tag; the tag must contain ONLY the version.
+- eck-operator's own "image" field uses the upstream elastic chart's
+  own separate "tag:"/"digest:" convention instead (confirmed against
+  the vendored eck-operator-3.5.0.tgz's own templates/_helpers.tpl:
+  "{{ printf "%s:%s@%s" $repo $tag .Values.image.digest }}" when
+  "image.digest" is set) — same "embedding @sha256 in tag would
+  produce an invalid double digest" reasoning as keycloak-operator's
+  two fields above, just a differently-named sibling field ("digest:"
+  rather than "sha:").
 
 check_digest_pinning is deliberately a fast, filesystem-only,
 no-Dependencies-needed scan — nothing here ever renders or looks past
@@ -71,6 +79,7 @@ EXEMPT_PATHS = {
     # the exact same split shape, not the ordinary embedded-digest one.
     ("keycloak", "image"),
     ("omc", "image"),
+    ("eck-operator", "image"),
 }
 
 def _deps_from_chart_yaml(chart_dir):

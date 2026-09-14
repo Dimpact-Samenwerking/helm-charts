@@ -185,6 +185,23 @@ omc:
     assert detail == "1 pin(s), 0 unpinned"
 
 
+def test_eck_operator_own_image_is_exempt(vp, tmp_path):
+    """eck-operator.image uses the upstream elastic chart's own split
+    tag/digest convention (confirmed against eck-operator-3.5.0.tgz's
+    own templates/_helpers.tpl) -- embedding @sha256 in tag there too
+    would produce a double digest. Must never be flagged, regardless of
+    what its own tag looks like."""
+    write_values_yaml(tmp_path, """\
+eck-operator:
+  image:
+    tag: "3.5.0"
+    digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
+""")
+    ok, detail = vp.check_digest_pinning(tmp_path)
+    assert ok is True
+    assert detail == "1 pin(s), 0 unpinned"
+
+
 def test_keycloak_operator_exemption_does_not_hide_other_violations(vp, tmp_path):
     write_values_yaml(tmp_path, """\
 keycloak-operator:
