@@ -283,6 +283,43 @@ zac:
     assert "introduced: 1 CRIT" in out
 
 
+def test_cache_hit_and_fresh_scan_are_both_reported_per_side(
+        libcvediffcheck, tmp_path, monkeypatch, capsys):
+    """The current side hits a pre-populated cache entry; the proposed
+    side doesn't -- the printed output must say so explicitly, per side
+    (not a single blanket "unless cached" caveat that never says which
+    side actually hit)."""
+    write_values_yaml(tmp_path, f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zac
+    tag: "1.0.0@sha256:{DIGEST_A}"
+""")
+    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
+                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
+
+    # pre-populate the shared cve-scan cache for the CURRENT side only
+    libcvediffcheck.save_cache(tmp_path, {
+        libcvediffcheck.cache_key("ghcr.io/infonl/zac", DIGEST_A): {
+            "scanned_at": datetime.now(timezone.utc).isoformat(),
+            "vulnerabilities": [],
+        },
+    })
+
+    trivy_calls = []
+    vulns_by_ref = {"ghcr.io/infonl/zac:1.1.0": [vuln("CRITICAL", "CVE-1", "openssl")]}
+    monkeypatch.setattr(libcvediffcheck, "run_trivy", make_run_trivy(vulns_by_ref, trivy_calls))
+
+    libcvediffcheck.check_cve_diff(tmp_path, [])
+
+    out = capsys.readouterr().out
+    assert "current: served from cache" in out
+    assert "proposed: scanning fresh (docker pull + trivy)" in out
+    assert "ghcr.io/infonl/zac:1.0.0" not in trivy_calls  # current side never actually scanned
+
+
 # --- check_cve_diff: no flagged candidate at all ---
 
 def test_no_flagged_upgrade_or_slide_never_scans_anything(libcvediffcheck, tmp_path, monkeypatch, capsys):

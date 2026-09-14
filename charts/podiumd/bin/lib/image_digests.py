@@ -265,6 +265,46 @@ def resolve_pin_targets(chart_dir):
     return pins, targets
 
 
+_tag_exists_cache = {}
+
+
+def _cached_tag_exists(repository, host, repo_path, version):
+    """Memoized in-process wrapper around lib.registry.registry_tag_exists
+    for the tag-level lookup check_image_digests' own loop (below) and
+    find_sliding_pins both make for the same pin — keyed on (repository,
+    version), the same key resolve_pin_targets' own grouping already
+    uses. "CVE diff" lists "Image digests" as a STEP_PREREQUISITES entry
+    specifically so charts/*.tgz is vendored first; without this, a
+    --include=cve-diff run would make check_image_digests' own loop and
+    check_cve_diff's own gather_candidates (via find_sliding_pins) each
+    independently re-query the registry for every unique pin in the SAME
+    process — doubling real network cost for no reason, same class of
+    redundancy render_chart's own in-process cache already fixed for
+    `helm template`.
+
+    Deliberately scoped here rather than a blanket cache on registry_
+    tag_exists itself: lib.repo_access/lib.image_version/lib.chart/
+    lib.image_docs all call that function too, for genuinely different
+    purposes (reachability checks, resolving a NEW version's tag before
+    writing it) that were never part of this specific redundancy and
+    shouldn't silently change behavior just because this fix exists.
+
+    Only a SUCCESSFUL lookup (found or genuinely not found — both are
+    real, deterministic answers) is cached; an exception propagates
+    uncached, so check_image_digests' own retry-on-transient-network-
+    error loop still genuinely retries over the network rather than
+    replaying a cached failure. Not persisted to disk (unlike the
+    trivy/image-upgrade caches) — purely an intra-process dedup for one
+    verify-podiumd invocation, not something that needs to survive
+    across separate runs."""
+    key = (repository, version)
+    if key in _tag_exists_cache:
+        return _tag_exists_cache[key]
+    result = registry_tag_exists(host, repo_path, version)
+    _tag_exists_cache[key] = result
+    return result
+
+
 def find_sliding_pins(chart_dir):
     """[(repository, version, pinned_digest, digest)] for every unique
     digest pin whose live upstream digest has SLID (see check_image_
@@ -280,14 +320,12 @@ def find_sliding_pins(chart_dir):
     exists solely to answer "which pins have a slid digest" for a
     caller that doesn't care about the rest.
 
-    Makes its OWN real registry call per unique pin — check_image_
-    digests deliberately has no cache of its own to share (see its own
-    docstring: every unique pin always makes a real registry call), so
-    calling both this and check_image_digests in the same verify-
-    podiumd run costs two lookups per pin, not one. An accepted,
-    deliberate cost: each lookup is a cheap manifest HEAD, not a docker
-    pull. Silent — no per-pin progress printed here; check_image_
-    digests' own run already announces each one."""
+    Shares _cached_tag_exists' own in-process memoization with check_
+    image_digests' loop (see that function's own docstring) — whichever
+    of the two runs first in a given verify-podiumd invocation pays the
+    real registry cost per pin, the other gets a free hit. Silent either
+    way — no per-pin progress printed here; check_image_digests' own run
+    already announces each one."""
     values_path = chart_dir / "values.yaml"
     _pins, targets = resolve_pin_targets(chart_dir)
 
@@ -296,7 +334,7 @@ def find_sliding_pins(chart_dir):
         host, repo_path = parse_repo(repository)
         pinned_digest = group[0]["digest"]
         try:
-            exists, digest = registry_tag_exists(host, repo_path, version)
+            exists, digest = _cached_tag_exists(repository, host, repo_path, version)
         except (urllib.error.URLError, OSError):
             continue
         if not exists or not digest or digest == f"sha256:{pinned_digest}":
@@ -395,15 +433,19 @@ def check_image_digests(chart_dir):
         pinned_digest = group[0]["digest"]
         lines_str = ", ".join(str(p["line"]) for p in group)
 
-        # No cache here (unlike check_cves/check_image_upgrades) — every
-        # unique pin always makes a real registry call, so this is worth
-        # announcing for every single one, not just a slow subset.
+        # No per-run cache of its own here (unlike check_cves/check_image_
+        # upgrades) — this always makes a real registry call the first
+        # time THIS process sees a given pin, so it's worth announcing for
+        # every single one, not just a slow subset. _cached_tag_exists
+        # still shares that one real call with find_sliding_pins, should
+        # this same pin get asked about again later in the same run (e.g.
+        # a --include=cve-diff invocation, which needs both).
         print(f"  [{i}/{len(sorted_targets)}] checking {host}/{repo_path}:{version}...", flush=True)
 
         digest, error = None, None
         for _attempt in range(2):
             try:
-                exists, digest = registry_tag_exists(host, repo_path, version)
+                exists, digest = _cached_tag_exists(repository, host, repo_path, version)
                 error = None if exists else "tag not found upstream"
                 break
             except (urllib.error.URLError, OSError) as e:
