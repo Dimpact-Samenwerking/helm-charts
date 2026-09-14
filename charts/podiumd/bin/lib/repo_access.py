@@ -21,8 +21,8 @@ import urllib.request
 from datetime import datetime, timezone
 
 from lib.chart import load_yaml
-from lib.image_digests import scan_digest_pins
-from lib.registry import parse_repo, registry_tag_exists
+from lib.image_digests import cached_tag_exists, scan_digest_pins
+from lib.registry import parse_repo
 from lib.render_scope import resolve_dependency_repo
 from lib.repo_access_cache import cache_entry_is_fresh, cache_key, load_cache, save_cache
 
@@ -129,14 +129,21 @@ def _check_http_repo(url):
         return False, f"{getattr(e, 'reason', e)} fetching {index_url}"
 
 
-def _check_registry_repo(host, repo_path, version):
+def _check_registry_repo(chart_dir, host, repo_path, version):
     """Same manifest-existence check check_image_digests uses for a live
-    image (lib.registry.registry_tag_exists, dynamic bearer-token discovery
-    included) — an OCI-based Helm chart is just another tagged artifact on
-    the same registry API a container image is, so a missing/unauthorized/
-    unreachable chart or image fails exactly the same way."""
+    image — an OCI-based Helm chart is just another tagged artifact on the
+    same registry API a container image is, so a missing/unauthorized/
+    unreachable chart or image fails exactly the same way. Routed through
+    lib.image_digests.cached_tag_exists, the SAME shared primitive check_
+    image_digests/find_sliding_pins use — a pin already resolved (fresh, on
+    disk — see lib.repo_access_cache) by one of those in this same run (or
+    a recent prior one) is served from there instead of a second real
+    registry hit, and vice versa. timeout=TIMEOUT_SECONDS is still threaded
+    through to the real call on a miss, preserving this check's own reason
+    for existing: a fast, bounded preflight, not a call that could hang."""
     try:
-        exists, _ = registry_tag_exists(host, repo_path, version, timeout=TIMEOUT_SECONDS)
+        exists, _ = cached_tag_exists(chart_dir, f"{host}/{repo_path}", host, repo_path, version,
+                                       timeout=TIMEOUT_SECONDS)
     except (urllib.error.URLError, OSError) as e:
         return False, f"{getattr(e, 'reason', e)}"
     if not exists:
@@ -173,7 +180,12 @@ def check_repo_access(chart_dir):
 
     A successful entry is cached for a short window and printed as
     "(cached)" on a hit — see lib.repo_access_cache for the TTL and why a
-    failure is deliberately never cached."""
+    failure is deliberately never cached. A "chart"/registry or "image"
+    entry's cache write happens inside lib.image_digests.cached_tag_exists
+    itself (same disk-persisted store, same key format) rather than here —
+    only a "chart"/http entry (a classic Helm repo's index.yaml) still
+    writes its own cache entry directly in this function, since cached_
+    tag_exists has no notion of that check at all."""
     chart_deps = dependency_repos(chart_dir)
     values_path = chart_dir / "values.yaml"
     img_targets = image_repos(values_path) if values_path.is_file() else []
@@ -206,9 +218,6 @@ def check_repo_access(chart_dir):
     print(f"Checking access to {len(entries)} unique repo(s)/image(s) "
           f"for {total_refs} network-resolved reference(s)...")
 
-    cache = load_cache(chart_dir)
-    cache_dirty = False
-
     failures = []
     denied = []
     for kind, description, test_kind, target in entries:
@@ -221,23 +230,30 @@ def check_repo_access(chart_dir):
                   f"that environment's own podiumd.yml, not here")
             continue
 
+        # Re-loaded fresh on every entry (a small JSON file — cheap) rather
+        # than once at the top: a "registry" kind entry's own real check
+        # (below) writes straight to this SAME disk file via cached_tag_
+        # exists, mid-loop — a single cache snapshot taken once up front
+        # and saved once at the end would silently clobber whatever that
+        # wrote in between.
+        cache = load_cache(chart_dir)
         key = cache_key(test_kind, target)
         entry = cache.get(key)
         if entry and cache_entry_is_fresh(entry):
             print(f"  [OK] {kind:5}  {description}  (cached)")
             continue
 
-        ok, error = _check_http_repo(target) if test_kind == "http" else _check_registry_repo(*target)
+        if test_kind == "http":
+            ok, error = _check_http_repo(target)
+        else:
+            ok, error = _check_registry_repo(chart_dir, *target)
         print(f"  [{'OK' if ok else 'FAIL'}] {kind:5}  {description}"
               + (f"  — {error}" if error else ""))
         if not ok:
             failures.append((kind, description, error))
-        else:
+        elif test_kind == "http":
             cache[key] = {"checked_at": datetime.now(timezone.utc).isoformat()}
-            cache_dirty = True
-
-    if cache_dirty:
-        save_cache(chart_dir, cache)
+            save_cache(chart_dir, cache)
 
     checked = len(entries) - len(denied)
     if failures or denied:

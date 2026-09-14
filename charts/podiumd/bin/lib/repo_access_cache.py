@@ -6,7 +6,7 @@ Also shared, as of the same fix that added lib.image_digests._cached_
 tag_exists' own disk tier: an entry here can ALSO carry a "digest" field
 alongside "checked_at" — check_repo_access itself never sets or reads
 that field (it only ever needed a bare reachability bool), but check_
-image_digests/find_sliding_pins (via _cached_tag_exists) both read AND
+image_digests/find_sliding_pins (via cached_tag_exists) both read AND
 write it, for a "registry:" entry specifically, so the two no longer
 each independently re-query the registry for the same pin within one
 verify-podiumd run. Same cache_key/load_cache/save_cache/cache_entry_
