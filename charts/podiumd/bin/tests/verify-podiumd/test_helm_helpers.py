@@ -5,6 +5,8 @@ check_dependencies now lives in lib.dependencies (also used by
 fix-image-digests) — see tests/lib/test_dependencies.py."""
 from types import SimpleNamespace
 
+import pytest
+
 
 def fake_run(returncode=0, stdout="", stderr=""):
     def _run(cmd, **kwargs):
@@ -171,6 +173,19 @@ def test_resource_line_none_when_not_found(librenderscope):
 # same reason every other librenderscope test above uses librenderscope,
 # not vp, as the monkeypatch target.
 
+@pytest.fixture(autouse=True)
+def _clear_render_cache(librenderscope):
+    """render_chart's own in-process memoization (see its own docstring)
+    lives in a module-level dict, and librenderscope is a session-scoped
+    fixture — without this, one test's cached render could silently leak
+    into another's assertions. Harmless for every OTHER test in this
+    file (none of them touch render_chart), so applied file-wide rather
+    than only to the tests below."""
+    librenderscope._render_cache.clear()
+    yield
+    librenderscope._render_cache.clear()
+
+
 def _sequenced_run(rendered, returncode=0, stderr=""):
     def _run(cmd, **kwargs):
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr=stderr)
@@ -202,6 +217,69 @@ def test_render_chart_propagates_failure(librenderscope, tmp_path, monkeypatch):
     result = librenderscope.render_chart(tmp_path, [])
     assert result.returncode == 1
     assert "broke" in result.stderr
+
+
+def test_render_chart_caches_repeat_calls_with_identical_args(librenderscope, tmp_path, monkeypatch):
+    """Same (chart_dir, extra_args) twice must invoke the underlying
+    subprocess exactly once — the second call is served from the cache,
+    not a second real `helm template` invocation."""
+    calls = []
+
+    def _run(cmd, **kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="rendered", stderr="")
+
+    monkeypatch.setattr(librenderscope, "run", _run)
+
+    first = librenderscope.render_chart(tmp_path, ["-f", "values.yaml"])
+    second = librenderscope.render_chart(tmp_path, ["-f", "values.yaml"])
+
+    assert len(calls) == 1
+    assert first is second
+
+
+def test_render_chart_caches_a_failure_too_not_just_success(librenderscope, tmp_path, monkeypatch):
+    """A genuine failure must also be memoized -- calling again with the
+    identical args would deterministically fail the same way within one
+    process run, so there's no reason to re-attempt."""
+    calls = []
+
+    def _run(cmd, **kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=1, stdout="", stderr="Error: broke")
+
+    monkeypatch.setattr(librenderscope, "run", _run)
+
+    first = librenderscope.render_chart(tmp_path, [])
+    second = librenderscope.render_chart(tmp_path, [])
+
+    assert len(calls) == 1
+    assert first is second
+    assert second.returncode == 1
+
+
+def test_render_chart_different_extra_args_is_a_distinct_cache_entry(librenderscope, tmp_path, monkeypatch):
+    """A different extra_args value (still a list, per every real caller's
+    own shape -- never required to be a tuple) must NOT reuse another
+    call's cached result, even for the same chart_dir."""
+    calls = []
+
+    def _run(cmd, **kwargs):
+        calls.append(list(cmd))
+        return SimpleNamespace(returncode=0, stdout=f"rendered for {cmd}", stderr="")
+
+    monkeypatch.setattr(librenderscope, "run", _run)
+
+    first = librenderscope.render_chart(tmp_path, [])
+    second = librenderscope.render_chart(tmp_path, ["-f", "values.yaml"])
+
+    assert len(calls) == 2
+    assert first.stdout != second.stdout
+
+    # and each one's OWN repeat is still served from its own cache entry
+    librenderscope.render_chart(tmp_path, [])
+    librenderscope.render_chart(tmp_path, ["-f", "values.yaml"])
+    assert len(calls) == 2
 
 
 # --- lint_args_for (moved from verify-podiumd — see also
