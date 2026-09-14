@@ -189,22 +189,31 @@ def _print_subchart_image_finding(scope_key, subpath, tag, pinned):
 
 
 def check_subchart_image_visibility(chart_dir, extra_args):
-    """Report-only: lists every image find_unresolved_subchart_images()
-    finds, so a NEW one introduced by a dependency bump doesn't silently
-    stay invisible to the pinning discipline the rest of this chart
-    follows. Never fails the run (except a render failure itself — see
-    below): whether a given sub-chart-default image actually warrants a
-    podiumd override (vs. being fine left as dead config, a permanently-
-    disabled feature, or a generic default nobody needs to touch) is a
-    per-case judgment call this scan can't make on its own — a human
-    decides that from the report.
+    """Lists every image find_unresolved_subchart_images() finds, so a
+    NEW one introduced by a dependency bump doesn't silently stay
+    invisible to the pinning discipline the rest of this chart follows.
 
-    Renders via lib.render_scope.render_chart (this check's OWN new need
+    A real pass/fail split, not report-only across the board: a
+    FLOATING finding — a subchart-default image with no podiumd
+    override AND no digest pin in the subchart's own default either —
+    is genuinely unpinned and non-reproducible (the exact risk the
+    rest of this chart's digest-pinning discipline exists to prevent),
+    so it FAILS the step. A PINNED finding — the subchart's own default
+    already embeds a real digest, podiumd just doesn't override it —
+    is already reproducible as-is; whether it still warrants an
+    explicit podiumd override (vs. being fine left as dead config, a
+    permanently-disabled feature, or a generic default nobody needs to
+    touch) is a per-case judgment call this scan can't make on its own,
+    so it stays report-only and never fails the run by itself. Printed
+    under two clearly separate headings so a reader can tell which
+    category is which without cross-referencing this docstring.
+
+    Renders via lib.render_scope.render_chart (this check's OWN need
     for a render — see rendered_chart_paths) to compute the render-gate
-    find_unresolved_subchart_images now requires; a render failure here
-    fails the step outright (unlike every finding below it, which is
-    genuinely report-only) — this check now structurally depends on a
-    working render, unlike before."""
+    find_unresolved_subchart_images requires; a render failure here
+    fails the step outright too (unlike a pinned finding, which is
+    genuinely report-only) — this check structurally depends on a
+    working render."""
     result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
         return False, "helm template failed to render"
@@ -213,19 +222,31 @@ def check_subchart_image_visibility(chart_dir, extra_args):
     chart_yaml = load_yaml(chart_dir / "Chart.yaml")
     own_values = load_yaml(chart_dir / "values.yaml") or {}
     findings = find_unresolved_subchart_images(chart_dir, chart_yaml.get("dependencies", []), own_values, rendered_paths)
+    floating = [f for f in findings if not f[3]]
+    pinned = [f for f in findings if f[3]]
 
-    if findings:
-        unpinned = [f for f in findings if not f[3]]
-        print(f"Found {len(findings)} image(s) defined only in a vendored sub-chart's own "
-              f"default values.yaml, with no podiumd override\n"
-              f"invisible to the digest-pinning check above ({len(unpinned)} of these use a "
-              f"floating tag in that default). Not a failure: decide per image whether it "
-              f"warrants an override.")
-        for scope_key, subpath, tag, pinned in sorted(findings):
-            _print_subchart_image_finding(scope_key, subpath, tag, pinned)
-    else:
-        print("OK: no sub-chart-default images found without a podiumd override")
+    if floating:
+        print(f"FAILING: {len(floating)} image(s) defined only in a vendored sub-chart's own "
+              f"default values.yaml, with a FLOATING tag and no podiumd override — invisible "
+              f"to the digest-pinning check above and not reproducible. Add a podiumd override "
+              f"(a digest-pinned tag) for each:")
+        for scope_key, subpath, tag, is_pinned in sorted(floating):
+            _print_subchart_image_finding(scope_key, subpath, tag, is_pinned)
+
+    if pinned:
+        print(f"Report only, NOT failing: {len(pinned)} image(s) defined only in a vendored "
+              f"sub-chart's own default values.yaml, but already digest-pinned there (already "
+              f"reproducible) — decide per image whether it still warrants an explicit podiumd "
+              f"override:")
+        for scope_key, subpath, tag, is_pinned in sorted(pinned):
+            _print_subchart_image_finding(scope_key, subpath, tag, is_pinned)
 
     if not findings:
-        return True, "0 unresolved"
-    return True, f"{len(findings)} unresolved ({len(unpinned)} floating tag(s)) — report only"
+        print("OK: no sub-chart-default images found without a podiumd override")
+
+    if floating:
+        suffix = f", {len(pinned)} pinned (report only)" if pinned else ""
+        return False, f"{len(floating)} floating (failing){suffix}"
+    if pinned:
+        return True, f"0 floating, {len(pinned)} pinned (report only)"
+    return True, "0 unresolved"

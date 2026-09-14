@@ -328,7 +328,10 @@ openzaak:
     assert detail == "0 unresolved"
 
 
-def test_unoverridden_floating_subchart_image_is_reported_but_never_fails(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_unoverridden_floating_subchart_image_fails_the_check(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+    """A FLOATING finding (no podiumd override AND no digest pin in the
+    sub-chart's own default either) is genuinely unpinned and non-
+    reproducible — it now FAILS the step, unlike a pinned finding."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2", alias="oz")])
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
               {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}})
@@ -340,13 +343,17 @@ def test_unoverridden_floating_subchart_image_is_reported_but_never_fails(vp, tm
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
-    assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s)) — report only"
+    assert ok is False
+    assert detail == "1 floating (failing)"
     out = capsys.readouterr().out
+    assert "FAILING:" in out
     assert "oz.image.tag: '1.14.2' (FLOATING in the sub-chart's own default)" in out
 
 
-def test_unoverridden_already_pinned_subchart_image_is_reported_as_pinned(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_unoverridden_already_pinned_subchart_image_never_fails(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+    """A PINNED finding (the sub-chart's own default already embeds a
+    real digest, podiumd just doesn't override it) is already
+    reproducible as-is — report only, never fails the run on its own."""
     write_chart_yaml(tmp_path, [make_dep("zac", "1.0.297", alias="zac")])
     make_tgz(tmp_path / "charts", "zac", "1.0.297",
               {"opentelemetry-collector": {"image": {
@@ -357,8 +364,38 @@ def test_unoverridden_already_pinned_subchart_image_is_reported_as_pinned(vp, tm
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
     assert ok is True
-    assert detail == "1 unresolved (0 floating tag(s)) — report only"
+    assert detail == "0 floating, 1 pinned (report only)"
     out = capsys.readouterr().out
+    assert "Report only, NOT failing:" in out
+    assert "FAILING:" not in out
+    assert f"zac.opentelemetry-collector.image.tag: '0.169.0@sha256:{DIGEST_A}' (pinned in the sub-chart's own default)" in out
+
+
+def test_mix_of_floating_and_pinned_findings_fails_overall(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+    """A mix — one floating, one pinned — still fails overall (any
+    floating finding fails the step), but the pinned one is still
+    printed under its own separate, clearly-labeled report-only
+    section, never conflated with the failing floating one."""
+    write_chart_yaml(tmp_path, [
+        make_dep("openzaak", "1.14.2"),
+        make_dep("zac", "1.0.297", alias="zac"),
+    ])
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
+              {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}})
+    make_tgz(tmp_path / "charts", "zac", "1.0.297",
+              {"opentelemetry-collector": {"image": {
+                  "repository": "otel/opentelemetry-collector", "tag": f"0.169.0@sha256:{DIGEST_A}"}}})
+    write_values_yaml(tmp_path, "{}\n")
+    stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak", "podiumd/charts/zac"])
+
+    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+
+    assert ok is False
+    assert detail == "1 floating (failing), 1 pinned (report only)"
+    out = capsys.readouterr().out
+    assert "FAILING:" in out
+    assert "openzaak.image.tag: '1.14.2' (FLOATING in the sub-chart's own default)" in out
+    assert "Report only, NOT failing:" in out
     assert f"zac.opentelemetry-collector.image.tag: '0.169.0@sha256:{DIGEST_A}' (pinned in the sub-chart's own default)" in out
 
 
@@ -417,8 +454,8 @@ def test_multiple_unresolved_images_all_reported(vp, tmp_path, monkeypatch, libd
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
-    assert ok is True
-    assert detail == "2 unresolved (2 floating tag(s)) — report only"
+    assert ok is False
+    assert detail == "2 floating (failing)"
     out = capsys.readouterr().out
     assert "openzaak.redis.image.tag" in out
     assert "openklant.redis.image.tag" in out
@@ -469,8 +506,8 @@ def test_null_tag_subchart_default_resolved_via_own_app_version_is_reported(vp, 
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
-    assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s)) — report only"
+    assert ok is False
+    assert detail == "1 floating (failing)"
     out = capsys.readouterr().out
     assert "eck-operator.image.tag: '3.5.0' (FLOATING in the sub-chart's own default)" in out
 
@@ -546,8 +583,8 @@ def test_nested_subchart_default_reported_when_its_own_path_does_render(vp, tmp_
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
-    assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s)) — report only"
+    assert ok is False
+    assert detail == "1 floating (failing)"
     out = capsys.readouterr().out
     assert "eck-operator.image.tag: '3.2.0' (FLOATING in the sub-chart's own default)" in out
 
@@ -568,8 +605,8 @@ def test_zaakbrug_staging_is_now_an_ordinary_unexempted_finding(vp, tmp_path, mo
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
-    assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s)) — report only"
+    assert ok is False
+    assert detail == "1 floating (failing)"
     out = capsys.readouterr().out
     assert "zaakbrug.staging.image.tag: '1.9.0' (FLOATING in the sub-chart's own default)" in out
     assert "exempt" not in out
@@ -587,8 +624,8 @@ def test_zaakbrug_staging_nested_prefix_is_also_an_ordinary_finding(vp, tmp_path
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
-    assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s)) — report only"
+    assert ok is False
+    assert detail == "1 floating (failing)"
     out = capsys.readouterr().out
     assert "zaakbrug.staging.apiProxy.image.tag" in out
 
@@ -604,8 +641,8 @@ def test_multiple_findings_from_different_dependencies_all_reported_plainly(vp, 
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
-    assert ok is True
-    assert detail == "2 unresolved (2 floating tag(s)) — report only"
+    assert ok is False
+    assert detail == "2 floating (failing)"
     out = capsys.readouterr().out
     assert "openzaak.redis.image.tag" in out
     assert "zaakbrug.staging.image.tag" in out
@@ -654,8 +691,8 @@ def test_referenced_subchart_key_is_still_reported_even_with_templates_present(v
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
-    assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s)) — report only"
+    assert ok is False
+    assert detail == "1 floating (failing)"
     out = capsys.readouterr().out
     assert "openzaak.redis.image.tag" in out
 
@@ -673,7 +710,7 @@ def test_unreferenced_key_without_a_templates_dir_at_all_is_still_reported(vp, t
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
-    assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s)) — report only"
+    assert ok is False
+    assert detail == "1 floating (failing)"
     out = capsys.readouterr().out
     assert "pabc.web.image.tag" in out
