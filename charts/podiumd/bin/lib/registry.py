@@ -169,7 +169,7 @@ def registry_tag_exists(registry_host, repo, tag, timeout=None):
     on both). Every call this whole toolset makes to check whether a tag
     exists, or to fetch its current digest, goes through here, so this one
     change is what actually relieves the rate-limit pressure that lib.
-    repo_access_cache and _cached_tag_exists's own disk cache (see lib.
+    repo_access_cache and cached_tag_exists's own disk cache (see lib.
     image_digests) can only ever paper over between runs.
 
     Falls back to GET for this one call if the registry answers HEAD with

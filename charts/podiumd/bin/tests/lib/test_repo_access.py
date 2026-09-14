@@ -1,12 +1,16 @@
 """lib.repo_access — dependency_repos, image_repos, _check_http_repo,
 _check_registry_repo, check_repo_access. No network needed:
-urllib.request.urlopen and lib.registry.registry_tag_exists are
-monkeypatched wherever a live fetch would otherwise happen."""
+urllib.request.urlopen and lib.image_digests.cached_tag_exists (the
+shared, disk-cache-backed primitive _check_registry_repo now routes
+through — see lib.image_digests' own docstring) are monkeypatched
+wherever a live fetch would otherwise happen."""
 import json
 import urllib.error
 from datetime import datetime, timezone
 
 import yaml
+
+import lib.image_digests as image_digests
 
 
 def write_chart_yaml(chart_dir, deps):
@@ -168,42 +172,62 @@ def test_check_http_repo_unreachable(librepoaccess, monkeypatch):
 
 # --- _check_registry_repo ---
 
-def test_check_registry_repo_ok(librepoaccess, monkeypatch):
-    monkeypatch.setattr(librepoaccess, "registry_tag_exists",
-                         lambda host, repo, tag, timeout=None: (True, "sha256:" + "a" * 64))
-    ok, error = librepoaccess._check_registry_repo("ghcr.io", "org/chart", "1.0.0")
+def test_check_registry_repo_ok(librepoaccess, tmp_path, monkeypatch):
+    monkeypatch.setattr(librepoaccess, "cached_tag_exists",
+                         lambda chart_dir, repository, host, repo, tag, timeout=None:
+                         (True, "sha256:" + "a" * 64))
+    ok, error = librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0")
     assert ok is True
     assert error is None
 
 
-def test_check_registry_repo_not_found(librepoaccess, monkeypatch):
-    monkeypatch.setattr(librepoaccess, "registry_tag_exists",
-                         lambda host, repo, tag, timeout=None: (False, None))
-    ok, error = librepoaccess._check_registry_repo("ghcr.io", "org/chart", "9.9.9")
+def test_check_registry_repo_not_found(librepoaccess, tmp_path, monkeypatch):
+    monkeypatch.setattr(librepoaccess, "cached_tag_exists",
+                         lambda chart_dir, repository, host, repo, tag, timeout=None: (False, None))
+    ok, error = librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "9.9.9")
     assert ok is False
     assert "not found" in error
 
 
-def test_check_registry_repo_network_error(librepoaccess, monkeypatch):
-    def raise_error(host, repo, tag, timeout=None):
+def test_check_registry_repo_network_error(librepoaccess, tmp_path, monkeypatch):
+    def raise_error(chart_dir, repository, host, repo, tag, timeout=None):
         raise urllib.error.URLError("timed out")
 
-    monkeypatch.setattr(librepoaccess, "registry_tag_exists", raise_error)
-    ok, error = librepoaccess._check_registry_repo("ghcr.io", "org/chart", "1.0.0")
+    monkeypatch.setattr(librepoaccess, "cached_tag_exists", raise_error)
+    ok, error = librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0")
     assert ok is False
     assert "timed out" in error
 
 
-def test_check_registry_repo_passes_timeout(librepoaccess, monkeypatch):
+def test_check_registry_repo_passes_timeout(librepoaccess, tmp_path, monkeypatch):
     seen = {}
 
-    def fake_registry_tag_exists(host, repo, tag, timeout=None):
+    def fake_cached_tag_exists(chart_dir, repository, host, repo, tag, timeout=None):
         seen["timeout"] = timeout
         return True, "sha256:" + "a" * 64
 
-    monkeypatch.setattr(librepoaccess, "registry_tag_exists", fake_registry_tag_exists)
-    librepoaccess._check_registry_repo("ghcr.io", "org/chart", "1.0.0")
+    monkeypatch.setattr(librepoaccess, "cached_tag_exists", fake_cached_tag_exists)
+    librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0")
     assert seen["timeout"] == librepoaccess.TIMEOUT_SECONDS
+
+
+def test_check_registry_repo_passes_chart_dir_and_canonical_repository_key(librepoaccess, tmp_path, monkeypatch):
+    """_check_registry_repo must forward chart_dir (so cached_tag_exists
+    reads/writes the SAME disk cache check_image_digests/find_sliding_pins
+    use for that chart_dir) and a canonical "host/repo_path" repository
+    key — deterministic regardless of however the original values.yaml/
+    Chart.yaml string happened to spell the same repository."""
+    seen = {}
+
+    def fake_cached_tag_exists(chart_dir, repository, host, repo, tag, timeout=None):
+        seen["chart_dir"] = chart_dir
+        seen["repository"] = repository
+        return True, "sha256:" + "a" * 64
+
+    monkeypatch.setattr(librepoaccess, "cached_tag_exists", fake_cached_tag_exists)
+    librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0")
+    assert seen["chart_dir"] == tmp_path
+    assert seen["repository"] == "ghcr.io/org/chart"
 
 
 # --- check_repo_access ---
@@ -220,7 +244,7 @@ def test_check_repo_access_all_reachable(librepoaccess, tmp_path, monkeypatch):
         f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
     ))
     monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url: (True, None))
-    monkeypatch.setattr(librepoaccess, "_check_registry_repo", lambda host, repo, tag: (True, None))
+    monkeypatch.setattr(librepoaccess, "_check_registry_repo", lambda chart_dir, host, repo, tag: (True, None))
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is True
     assert "3 repo(s)/image(s) reachable" in detail
@@ -267,7 +291,7 @@ def test_check_repo_access_reports_kind_file_and_line_for_image(librepoaccess, t
         "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
         f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
     ))
-    monkeypatch.setattr(librepoaccess, "_check_registry_repo", lambda host, repo, tag: (True, None))
+    monkeypatch.setattr(librepoaccess, "_check_registry_repo", lambda chart_dir, host, repo, tag: (True, None))
     librepoaccess.check_repo_access(tmp_path)
     out = capsys.readouterr().out
     assert "[OK] image" in out
@@ -296,7 +320,8 @@ def test_check_repo_access_fails_on_unreachable_image(librepoaccess, tmp_path, m
         "    repository: ghcr.io/groundnuty/k8s-wait-for\n"
         f'    tag: "v2.0@sha256:{"a" * 64}"\n'
     ))
-    monkeypatch.setattr(librepoaccess, "_check_registry_repo", lambda host, repo, tag: (False, "not found"))
+    monkeypatch.setattr(librepoaccess, "_check_registry_repo",
+                         lambda chart_dir, host, repo, tag: (False, "not found"))
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is False
     assert "image" in detail
@@ -448,6 +473,52 @@ def test_check_repo_access_cache_is_per_entry_not_all_or_nothing(librepoaccess, 
     librepoaccess.check_repo_access(tmp_path)
     assert len(http_calls) == 1  # cached, no second network call
     assert len(registry_calls) == 2  # different version -> different cache key -> fresh check
+
+
+# --- check_repo_access / check_image_digests: genuinely shared cache ---
+
+def test_check_repo_access_and_check_image_digests_share_one_cache_entry(librepoaccess, tmp_path, monkeypatch):
+    """check_repo_access and lib.image_digests.check_image_digests both now
+    route their own tag-existence lookup through the SAME lib.image_
+    digests.cached_tag_exists primitive, backed by the SAME disk-persisted
+    repo-access-cache.json (lib.repo_access_cache) — not just format-
+    compatible, actually deduped end to end. A pin check_repo_access
+    resolves first (a real registry call it makes) must be served, with
+    ZERO further real registry calls, by check_image_digests running
+    afterward for the exact same pin — simulating a combined
+    verify-podiumd run (e.g. --include=repo-access,image-digests)."""
+    digest = "a" * 64
+    write_chart_yaml(tmp_path, [])
+    write_values(tmp_path, (
+        "pabc:\n"
+        "  image:\n"
+        "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
+        f'    tag: "1.1.1@sha256:{digest}"\n'
+    ))
+
+    calls = []
+
+    def fake_registry_tag_exists(host, repo, tag, timeout=None):
+        calls.append((host, repo, tag))
+        return True, f"sha256:{digest}"
+
+    monkeypatch.setattr(image_digests, "registry_tag_exists", fake_registry_tag_exists)
+    image_digests._tag_exists_cache.clear()
+
+    ok, _ = librepoaccess.check_repo_access(tmp_path)
+    assert ok is True
+    assert len(calls) == 1
+
+    # Simulate a SEPARATE step of the same verify-podiumd run (or a wholly
+    # separate later process) -- only the in-process tier is reset; the
+    # disk cache check_repo_access just wrote stays warm.
+    image_digests._tag_exists_cache.clear()
+    calls.clear()
+
+    ok2, detail2 = image_digests.check_image_digests(tmp_path)
+    assert ok2 is True
+    assert "1/1 matched" in detail2
+    assert len(calls) == 0  # served entirely from the disk cache check_repo_access wrote
 
 
 # --- lib.repo_access_cache (pure helpers) ---

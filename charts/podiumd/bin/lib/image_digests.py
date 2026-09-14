@@ -273,19 +273,28 @@ def resolve_pin_targets(chart_dir):
 _tag_exists_cache = {}
 
 
-def _cached_tag_exists(chart_dir, repository, host, repo_path, version):
+def cached_tag_exists(chart_dir, repository, host, repo_path, version, timeout=None):
     """Wrapper around lib.registry.registry_tag_exists for the tag-level
-    lookup check_image_digests' own loop (below) and find_sliding_pins
-    both make for the same pin — keyed on (repository, version), the
-    same key resolve_pin_targets' own grouping already uses. "CVE diff"
-    lists "Image digests" as a STEP_PREREQUISITES entry specifically so
-    charts/*.tgz is vendored first; without this, a --include=cve-diff
-    run would make check_image_digests' own loop and check_cve_diff's
-    own gather_candidates (via find_sliding_pins) each independently
-    re-query the registry for every unique pin in the SAME process —
-    doubling real network cost for no reason, same class of redundancy
-    render_chart's own in-process cache already fixed for `helm
-    template`.
+    lookup check_image_digests' own loop (below), find_sliding_pins, AND
+    lib.repo_access.check_repo_access all make for the same pin — keyed
+    on (repository, version), the same key resolve_pin_targets' own
+    grouping already uses. "CVE diff" lists "Image digests" as a STEP_
+    PREREQUISITES entry specifically so charts/*.tgz is vendored first;
+    without this, a --include=cve-diff run would make check_image_
+    digests' own loop and check_cve_diff's own gather_candidates (via
+    find_sliding_pins) each independently re-query the registry for
+    every unique pin in the SAME process — doubling real network cost
+    for no reason, same class of redundancy render_chart's own
+    in-process cache already fixed for `helm template`. check_repo_
+    access's own preflight shares the exact same disk-persisted store
+    (see below), so a combined run (e.g. --include=repo-access,image-
+    digests) makes ONE registry pass for the shared pin set, not two.
+
+    timeout (seconds) is threaded straight through to the real
+    registry_tag_exists call on a miss — check_repo_access's own reason
+    for existing is a FAST, bounded preflight (see that module's own
+    docstring), so it passes one; check_image_digests/find_sliding_pins
+    don't, same as before this parameter existed.
 
     Two tiers, checked in order:
     1. An in-process dict (_tag_exists_cache) — the fastest path, avoids
@@ -330,7 +339,13 @@ def _cached_tag_exists(chart_dir, repository, host, repo_path, version):
         _tag_exists_cache[key] = result
         return result
 
-    result = registry_tag_exists(host, repo_path, version)
+    # timeout kwarg only passed through when given, not as timeout=None --
+    # every existing caller of registry_tag_exists mocks it with a plain
+    # (host, repo, tag) callable (no timeout param at all), same
+    # established convention as lib.registry._urlopen's own "only pass
+    # timeout= when the caller asked for one".
+    result = (registry_tag_exists(host, repo_path, version, timeout=timeout) if timeout is not None
+              else registry_tag_exists(host, repo_path, version))
     _tag_exists_cache[key] = result
 
     exists, digest = result
@@ -359,7 +374,7 @@ def find_sliding_pins(chart_dir):
     exists solely to answer "which pins have a slid digest" for a
     caller that doesn't care about the rest.
 
-    Shares _cached_tag_exists' own in-process memoization with check_
+    Shares cached_tag_exists' own in-process memoization with check_
     image_digests' loop (see that function's own docstring) — whichever
     of the two runs first in a given verify-podiumd invocation pays the
     real registry cost per pin, the other gets a free hit. Silent either
@@ -373,7 +388,7 @@ def find_sliding_pins(chart_dir):
         host, repo_path = parse_repo(repository)
         pinned_digest = group[0]["digest"]
         try:
-            exists, digest = _cached_tag_exists(chart_dir, repository, host, repo_path, version)
+            exists, digest = cached_tag_exists(chart_dir, repository, host, repo_path, version)
         except (urllib.error.URLError, OSError):
             continue
         if not exists or not digest or digest == f"sha256:{pinned_digest}":
@@ -475,7 +490,7 @@ def check_image_digests(chart_dir):
         # No per-run cache of its own here (unlike check_cves/check_image_
         # upgrades) — this always makes a real registry call the first
         # time THIS process sees a given pin, so it's worth announcing for
-        # every single one, not just a slow subset. _cached_tag_exists
+        # every single one, not just a slow subset. cached_tag_exists
         # still shares that one real call with find_sliding_pins, should
         # this same pin get asked about again later in the same run (e.g.
         # a --include=cve-diff invocation, which needs both).
@@ -484,7 +499,7 @@ def check_image_digests(chart_dir):
         digest, error = None, None
         for _attempt in range(2):
             try:
-                exists, digest = _cached_tag_exists(chart_dir, repository, host, repo_path, version)
+                exists, digest = cached_tag_exists(chart_dir, repository, host, repo_path, version)
                 error = None if exists else "tag not found upstream"
                 break
             except (urllib.error.URLError, OSError) as e:
