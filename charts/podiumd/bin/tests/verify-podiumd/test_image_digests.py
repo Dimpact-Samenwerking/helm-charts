@@ -5,10 +5,12 @@ otherwise happen."""
 import io
 import tarfile
 import urllib.error
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import yaml
 
+import lib.repo_access_cache as repo_access_cache
 from dep_helpers import make_dep
 
 
@@ -370,7 +372,7 @@ def test_find_inconsistent_version_pins_ignores_unresolved_repository(libimagedi
 # find_sliding_pins both call through, so a --include=cve-diff run (which
 # needs both) only pays for one real per-pin registry lookup, not two.
 
-def test_cached_tag_exists_only_calls_registry_once_for_same_pin(libimagedigests, monkeypatch):
+def test_cached_tag_exists_only_calls_registry_once_for_same_pin(libimagedigests, tmp_path, monkeypatch):
     calls = []
 
     def fake_registry_tag_exists(host, repo, tag):
@@ -379,14 +381,14 @@ def test_cached_tag_exists_only_calls_registry_once_for_same_pin(libimagedigests
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", fake_registry_tag_exists)
 
-    first = libimagedigests._cached_tag_exists("org/repo", "docker.io", "org/repo", "1.0.0")
-    second = libimagedigests._cached_tag_exists("org/repo", "docker.io", "org/repo", "1.0.0")
+    first = libimagedigests._cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
+    second = libimagedigests._cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
 
     assert first == second == (True, f"sha256:{'a' * 64}")
     assert len(calls) == 1
 
 
-def test_cached_tag_exists_different_repository_or_version_is_a_distinct_call(libimagedigests, monkeypatch):
+def test_cached_tag_exists_different_repository_or_version_is_a_distinct_call(libimagedigests, tmp_path, monkeypatch):
     calls = []
 
     def fake_registry_tag_exists(host, repo, tag):
@@ -395,13 +397,13 @@ def test_cached_tag_exists_different_repository_or_version_is_a_distinct_call(li
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", fake_registry_tag_exists)
 
-    libimagedigests._cached_tag_exists("org/repo", "docker.io", "org/repo", "1.0.0")
-    libimagedigests._cached_tag_exists("org/repo", "docker.io", "org/repo", "2.0.0")
+    libimagedigests._cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
+    libimagedigests._cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "2.0.0")
 
     assert len(calls) == 2
 
 
-def test_cached_tag_exists_does_not_cache_a_raised_exception(libimagedigests, monkeypatch):
+def test_cached_tag_exists_does_not_cache_a_raised_exception(libimagedigests, tmp_path, monkeypatch):
     """A network error must propagate uncached -- check_image_digests' own
     retry-on-transient-network-error loop still genuinely retries over
     the network rather than replaying a cached failure."""
@@ -416,11 +418,72 @@ def test_cached_tag_exists_does_not_cache_a_raised_exception(libimagedigests, mo
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", flaky)
 
     with pytest.raises(urllib.error.URLError):
-        libimagedigests._cached_tag_exists("org/repo", "docker.io", "org/repo", "1.0.0")
-    result = libimagedigests._cached_tag_exists("org/repo", "docker.io", "org/repo", "1.0.0")
+        libimagedigests._cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
+    result = libimagedigests._cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
 
     assert calls["n"] == 2
     assert result == (True, f"sha256:{'a' * 64}")
+
+
+# --- _cached_tag_exists: disk tier (lib.repo_access_cache) ---
+#
+# Genuinely the SAME cache check_repo_access itself uses (same file, same
+# cache_key/load_cache/save_cache/cache_entry_is_fresh functions, same
+# TTL) -- an entry either one writes must be directly usable by the
+# other, no format translation.
+
+def test_cached_tag_exists_reads_a_fresh_disk_entry_without_a_network_call(
+        libimagedigests, tmp_path, monkeypatch):
+    digest_a = "a" * 64
+    key = repo_access_cache.cache_key("registry", ("docker.io", "org/repo", "1.0.0"))
+    repo_access_cache.save_cache(tmp_path, {
+        key: {"checked_at": datetime.now(timezone.utc).isoformat(), "digest": f"sha256:{digest_a}"},
+    })
+
+    def fail_if_called(host, repo, tag):
+        raise AssertionError("should have been served from the disk cache")
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", fail_if_called)
+
+    result = libimagedigests._cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
+
+    assert result == (True, f"sha256:{digest_a}")
+
+
+def test_cached_tag_exists_writes_a_disk_entry_readable_by_repo_access_cache(
+        libimagedigests, tmp_path, monkeypatch):
+    digest_a = "a" * 64
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists",
+                         lambda host, repo, tag: (True, f"sha256:{digest_a}"))
+
+    libimagedigests._cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
+
+    key = repo_access_cache.cache_key("registry", ("docker.io", "org/repo", "1.0.0"))
+    disk = repo_access_cache.load_cache(tmp_path)
+    assert key in disk
+    assert disk[key]["digest"] == f"sha256:{digest_a}"
+    assert repo_access_cache.cache_entry_is_fresh(disk[key]) is True
+
+
+def test_cached_tag_exists_ignores_a_stale_disk_entry(libimagedigests, tmp_path, monkeypatch):
+    stale = datetime.now(timezone.utc) - timedelta(minutes=repo_access_cache.REPO_ACCESS_CACHE_TTL_MINUTES + 1)
+    key = repo_access_cache.cache_key("registry", ("docker.io", "org/repo", "1.0.0"))
+    repo_access_cache.save_cache(tmp_path, {
+        key: {"checked_at": stale.isoformat(), "digest": f"sha256:{'a' * 64}"},
+    })
+
+    calls = []
+
+    def spy(host, repo, tag):
+        calls.append(tag)
+        return True, f"sha256:{'b' * 64}"
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
+
+    result = libimagedigests._cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
+
+    assert len(calls) == 1
+    assert result == (True, f"sha256:{'b' * 64}")
 
 
 def test_check_image_digests_and_find_sliding_pins_share_the_tag_exists_cache(
