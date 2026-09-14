@@ -160,6 +160,33 @@ def test_chart_version_digest_ignored_when_comparing(liblockstepcheck):
     assert liblockstepcheck.find_chart_version_mismatches([dep], values) == []
 
 
+def test_eck_operator_chart_version_lockstep_registered(liblockstepcheck, monkeypatch):
+    """eck-operator was added to CHART_VERSION_LOCKSTEP_COMPONENTS since
+    the elastic eck-operator chart IS the operator image, released
+    together at one version number -- unlike keycloak-operator/eck-
+    stack, which vendor a third-party app at its own independent
+    version. The autouse _lockstep_registries fixture above isolates
+    every OTHER test from this real entry; this one opts back in
+    explicitly to prove the registration itself actually works."""
+    monkeypatch.setattr(liblockstepcheck, "CHART_VERSION_LOCKSTEP_COMPONENTS",
+                         frozenset({"kiss-chart", "pabc", "eck-operator"}))
+    dep = {"name": "eck-operator", "version": "3.5.0"}
+    values = {"eck-operator": {"image": {"tag": "3.5.0"}}}
+    assert liblockstepcheck.find_chart_version_mismatches([dep], values) == []
+
+
+def test_eck_operator_chart_version_drift_reported(liblockstepcheck, monkeypatch):
+    """A future eck-operator dependency bump that forgets to also bump
+    the image tag override (or vice versa) must be caught, the same as
+    kiss-chart/pabc drift already is."""
+    monkeypatch.setattr(liblockstepcheck, "CHART_VERSION_LOCKSTEP_COMPONENTS",
+                         frozenset({"kiss-chart", "pabc", "eck-operator"}))
+    dep = {"name": "eck-operator", "version": "3.5.0"}
+    values = {"eck-operator": {"image": {"tag": "3.4.0"}}}
+    mismatches = liblockstepcheck.find_chart_version_mismatches([dep], values)
+    assert mismatches == [("eck-operator", "eck-operator", "3.5.0", "3.4.0")]
+
+
 # --- check_lockstep_versions (integration) ---
 
 def make_chart(tmp_path, chart_yaml_deps, values_text):
