@@ -1,5 +1,5 @@
-"""main() integration against a real, hermetic temp git repo, plus the
-find_repo_root wrapper. find_dependency/get_path/find_app_versions and
+"""main() integration against a real, hermetic temp git repo.
+find_dependency/get_path/find_app_versions and
 component_state_at_baseline (which wires them together with lib.
 release_baseline.resolve_baseline_chart_state) are lib.chart's own (see
 tests/lib/test_chart.py) — baseline_ref_candidates/resolve_git_ref are
@@ -56,19 +56,13 @@ def write_baselines(repo, upgrade_docs=None, release_table=None):
     (repo / "charts" / "podiumd" / "etc" / "release-baseline.yaml").write_text("".join(lines), encoding="utf-8")
 
 
-def test_find_repo_root_returns_repo_root(scbv, repo, monkeypatch):
-    monkeypatch.setattr(scbv, "__file__", str(repo / "charts" / "podiumd" / "scripts" / "fake.py"))
-    (repo / "charts" / "podiumd" / "scripts").mkdir(exist_ok=True)
-    assert scbv.find_repo_root().resolve() == repo.resolve()
-
-
 # --- main() integration ---
 # main() only calls sys.exit() on error paths; on success it just returns,
 # so only the failure-path tests wrap the call in pytest.raises(SystemExit).
 
 def set_argv_and_repo(scbv, monkeypatch, repo, component):
     monkeypatch.setattr("sys.argv", ["show-component-baseline-version", component])
-    monkeypatch.setattr(scbv, "find_repo_root", lambda: repo)
+    monkeypatch.setattr(scbv, "CHART_DIR", repo / "charts" / "podiumd")
 
 
 def test_main_shows_both_baselines(scbv, repo, monkeypatch, capsys):
