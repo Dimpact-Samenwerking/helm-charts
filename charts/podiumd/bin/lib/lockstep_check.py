@@ -7,12 +7,13 @@ checked directly against values.yaml/Chart.yaml, independent of any
 upgrade doc, so this also runs (and catches drift) on a branch with no
 upgrade doc pair at all.
 
-find_lockstep_mismatches — every COMPONENT_IMAGE_PATHS/COMPONENT_
-VERSION_PATHS entry registered with 2+ paths (lib.chart's signal that
-those paths are co-equal images/versions meant to move together, see
-either dict's own comments — e.g. kiss-chart's frontend "image" + its
-own settings.syncJobs.image, eck-stack's eck-elasticsearch.version +
-eck-kibana.version) must agree on ONE version.
+find_lockstep_mismatches — every lib.chart.component_image_paths()/
+component_version_paths() entry registered with 2+ paths (lib.chart's
+signal that those paths are co-equal images/versions meant to move
+together, see either accessor's own docstring — e.g. kiss-chart's
+frontend "image" + its own settings.syncJobs.image, eck-stack's
+eck-elasticsearch.version + eck-kibana.version) must agree on ONE
+version.
 
 find_chart_version_mismatches — every lib.chart.chart_version_lockstep_
 components() entry (settings.yaml's own signal that a component's
@@ -32,15 +33,15 @@ sharing a version number is normal and not a mismatch — the exact
 opposite mistake same_group's own docstring already warns against (the
 kiss/kiss-elastic-sync precedent)."""
 from lib.chart import (
-    COMPONENT_IMAGE_PATHS, COMPONENT_VERSION_PATHS, chart_version_lockstep_components, find_dependency, get_path,
+    chart_version_lockstep_components, component_image_paths, component_version_paths, find_dependency, get_path,
     image_paths_for, load_yaml, version_of, version_paths_for,
 )
 
 
 def find_lockstep_mismatches(deps, values):
     """[(component, values_key, [(path, version), ...])] for every
-    multi-path COMPONENT_IMAGE_PATHS/COMPONENT_VERSION_PATHS entry whose
-    resolved paths disagree on version. `resolved` only ever lists the
+    multi-path component_image_paths()/component_version_paths() entry
+    whose resolved paths disagree on version. `resolved` only ever lists the
     paths that actually resolved to a version — the culprit(s) worth
     showing, not every registered path regardless of whether it even
     carries a value.
@@ -56,8 +57,8 @@ def find_lockstep_mismatches(deps, values):
     dependency — but nothing here assumes it) is skipped the same way,
     rather than raising."""
     entries = (
-        [(name, paths, True) for name, paths in COMPONENT_IMAGE_PATHS.items() if len(paths) >= 2]
-        + [(name, paths, False) for name, paths in COMPONENT_VERSION_PATHS.items() if len(paths) >= 2]
+        [(name, paths, True) for name, paths in component_image_paths().items() if len(paths) >= 2]
+        + [(name, paths, False) for name, paths in component_version_paths().items() if len(paths) >= 2]
     )
 
     findings = []
@@ -140,7 +141,7 @@ def check_lockstep_versions(chart_dir):
 
     if path_mismatches:
         print(f"Found {len(path_mismatches)} co-equal image/version group(s) that disagree on version "
-              f"(see lib.chart.COMPONENT_IMAGE_PATHS/COMPONENT_VERSION_PATHS):")
+              f"(see lib.chart.component_image_paths()/component_version_paths()):")
         for component, values_key, resolved in path_mismatches:
             print(f"  {component} ({values_key}):")
             for path, version in resolved:

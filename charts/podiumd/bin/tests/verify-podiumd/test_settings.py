@@ -61,6 +61,9 @@ FULL_SETTINGS = {
         "chart_version_lockstep_components": ["kiss-chart", "pabc"],
         "version_repository_paths": {"redis-operator": "redisOperator.imageName", "foo-op": "fooOperator.imageName"},
         "version_path_nested_subcharts": {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch"}},
+        "image_paths": {"widget": ["image"]},
+        "default_image_paths": ["custom-default-image"],
+        "version_paths": {"widget-b": ["version"]},
     },
 }
 
@@ -121,6 +124,18 @@ ACCESSOR_CASES = [
      {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch", "eck-kibana.version": "eck-kibana",
                     "eck-enterprise-search.version": "eck-enterprise-search"}},
      {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch"}}, dict),
+    ("component_resolution_image_paths",
+     {"zgw-office-addin": ["frontend.image", "backend.image"],
+      "keycloak-operator": ["operator.config.keycloakImage"],
+      "openbao": ["server.image"],
+      "internetaakafhandeling": ["web.image", "poller.image"],
+      "kiss-chart": ["image", "settings.syncJobs.image"],
+      "eck-operator": ["image"]},
+     {"widget": ["image"]}, dict),
+    ("component_resolution_default_image_paths", ["image"], ["custom-default-image"], list),
+    ("component_resolution_version_paths",
+     {"eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"], "redis-operator": ["redisOperator.imageTag"]},
+     {"widget-b": ["version"]}, dict),
 ]
 
 

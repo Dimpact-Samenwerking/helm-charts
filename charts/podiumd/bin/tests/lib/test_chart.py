@@ -495,7 +495,12 @@ def test_find_app_versions_empty_tag_is_skipped(libchart):
 # finding the dependency and looking up its app version(s) on top of
 # whatever resolve_baseline_chart_state returns.
 
-def test_component_state_at_baseline_success(libchart, monkeypatch):
+def test_component_state_at_baseline_success(libchart, monkeypatch, tmp_path):
+    """chart_dir is a real Path (not the opaque "chart_dir" placeholder the
+    two error-path tests below use) since this one actually reaches
+    image_paths_for(component, chart_dir) -- which now reads chart_dir/
+    etc/settings.yaml (missing here, so it falls back to the ["image"]
+    default) -- the other two tests return before ever calling it."""
     monkeypatch.setattr(
         libchart, "resolve_baseline_chart_state",
         lambda chart_dir, baseline: (
@@ -507,7 +512,7 @@ def test_component_state_at_baseline_success(libchart, monkeypatch):
         ))
 
     ref, dep, values_key, image_paths, app_versions, error = libchart.component_state_at_baseline(
-        "chart_dir", "charts/podiumd", "4.8.5", "zac")
+        tmp_path, "charts/podiumd", "4.8.5", "zac")
 
     assert error is None
     assert ref == "podiumd-4.8.5"
@@ -2070,3 +2075,91 @@ def test_nested_subchart_registered_paths_explicit_override(libchart, tmp_path):
         encoding="utf-8",
     )
     assert libchart.nested_subchart_registered_paths("eck-stack", tmp_path) == ["eck-elasticsearch.version"]
+
+
+# --- component_image_paths / image_paths_for (self-resolving wrappers) ---
+
+def test_component_image_paths_self_resolves_against_real_chart_dir(libchart):
+    """Called with no override, resolves chart_dir from lib/chart.py's own
+    on-disk location (parents[2]) and reads the REAL etc/settings.yaml --
+    proves the self-resolving default actually works end to end, not just
+    against a synthetic chart_dir handed in by a test."""
+    assert libchart.component_image_paths() == {
+        "zgw-office-addin": ["frontend.image", "backend.image"],
+        "keycloak-operator": ["operator.config.keycloakImage"],
+        "openbao": ["server.image"],
+        "internetaakafhandeling": ["web.image", "poller.image"],
+        "kiss-chart": ["image", "settings.syncJobs.image"],
+        "eck-operator": ["image"],
+    }
+
+
+def test_component_image_paths_explicit_override(libchart, tmp_path):
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "settings.yaml").write_text(
+        "component_resolution:\n"
+        "  image_paths:\n"
+        "    only-this-one: [\"image\"]\n",
+        encoding="utf-8",
+    )
+    assert libchart.component_image_paths(tmp_path) == {"only-this-one": ["image"]}
+
+
+def test_image_paths_for_self_resolves_against_real_chart_dir(libchart):
+    """Same self-resolving proof as component_image_paths above, but
+    through the per-component accessor -- both a registered component and
+    the unregistered-default fallback."""
+    assert libchart.image_paths_for("zgw-office-addin") == ["frontend.image", "backend.image"]
+    assert libchart.image_paths_for("zac") == ["image"]
+
+
+def test_image_paths_for_explicit_override(libchart, tmp_path):
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "settings.yaml").write_text(
+        "component_resolution:\n"
+        "  image_paths:\n"
+        "    only-this-one: [\"frontend.image\", \"backend.image\"]\n"
+        "  default_image_paths: [\"custom-default-image\"]\n",
+        encoding="utf-8",
+    )
+    assert libchart.image_paths_for("only-this-one", tmp_path) == ["frontend.image", "backend.image"]
+    assert libchart.image_paths_for("unregistered", tmp_path) == ["custom-default-image"]
+
+
+# --- component_version_paths / version_paths_for (self-resolving wrappers) ---
+
+def test_component_version_paths_self_resolves_against_real_chart_dir(libchart):
+    """Same self-resolving proof as component_image_paths, for the bare-
+    version-field registry."""
+    assert libchart.component_version_paths() == {
+        "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
+        "redis-operator": ["redisOperator.imageTag"],
+    }
+
+
+def test_component_version_paths_explicit_override(libchart, tmp_path):
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "settings.yaml").write_text(
+        "component_resolution:\n"
+        "  version_paths:\n"
+        "    only-this-one: [\"some.version\"]\n",
+        encoding="utf-8",
+    )
+    assert libchart.component_version_paths(tmp_path) == {"only-this-one": ["some.version"]}
+
+
+def test_version_paths_for_self_resolves_against_real_chart_dir(libchart):
+    assert libchart.version_paths_for("eck-stack") == ["eck-elasticsearch.version", "eck-kibana.version"]
+    assert libchart.version_paths_for("unregistered") == []
+
+
+def test_version_paths_for_explicit_override(libchart, tmp_path):
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "settings.yaml").write_text(
+        "component_resolution:\n"
+        "  version_paths:\n"
+        "    only-this-one: [\"some.version\"]\n",
+        encoding="utf-8",
+    )
+    assert libchart.version_paths_for("only-this-one", tmp_path) == ["some.version"]
+    assert libchart.version_paths_for("redis-operator", tmp_path) == []

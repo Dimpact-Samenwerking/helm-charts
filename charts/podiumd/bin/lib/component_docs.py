@@ -976,7 +976,7 @@ def resolve_component_own_version_change(key, target_deps, baseline_deps, target
         # images-baseline.yaml side-file) — if so, that release's own
         # recorded version is the true prior app version, even though
         # THIS component's own Chart.yaml/values.yaml presence is new.
-        for path in image_paths_for(chart_name):
+        for path in image_paths_for(chart_name, chart_dir):
             old_app = historical_app_version_for_path(
                 chart_dir, target_deps, target_values, (key,) + tuple(path.split(".")), upgrade_docs_baseline)
             if old_app is not None:
@@ -1038,8 +1038,8 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
     Helm-chart cell reads the bare "-" placeholder, never a guessed
     version. A key whose app version can't be resolved via actual_app_
     version's own known shapes (<key>.image.tag, frontend/backend,
-    COMPONENT_VERSION_PATHS' bare version fields, or a registered
-    COMPONENT_IMAGE_PATHS component's vendored-chart appVersion fallback
+    component_version_paths()' bare version fields, or a registered
+    component_image_paths() component's vendored-chart appVersion fallback
     — see that function's own docstring) gets a "-" app-version
     placeholder and a short TODO-stub Changes section instead of
     guessing at prose. Returns (new_text, added_names)."""
@@ -1085,8 +1085,8 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
             # make_changes_section's own docstring for why image_paths_for's
             # generic "<key>.image.tag" guess would be wrong for a
             # component actually shaped like version_paths (e.g. eck-stack).
-            version_paths = version_paths_for(chart_name)
-            image_paths = [] if version_paths else image_paths_for(chart_name)
+            version_paths = version_paths_for(chart_name, chart_dir)
+            image_paths = [] if version_paths else image_paths_for(chart_name, chart_dir)
             section = make_changes_section(key, target, chart_name, key, old_app, new_app,
                                             old_chart, new_chart, image_paths, version_paths)
         else:
@@ -1426,8 +1426,8 @@ def prune_empty_values_delta_sections(text):
 
 
 def values_tree_path_for(values_key, image_path):
-    """The find_image_tag_paths key for a COMPONENT_IMAGE_PATHS-style dotted
-    path (e.g. "frontend.image") under this component's values_key."""
+    """The find_image_tag_paths key for a component_image_paths()-style
+    dotted path (e.g. "frontend.image") under this component's values_key."""
     segments = image_path.split(".")
     return (values_key,) + tuple(segments[:-1])
 

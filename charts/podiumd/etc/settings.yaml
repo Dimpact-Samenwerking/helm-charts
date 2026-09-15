@@ -177,3 +177,98 @@ component_resolution:
       "eck-elasticsearch.version": "eck-elasticsearch"
       "eck-kibana.version": "eck-kibana"
       "eck-enterprise-search.version": "eck-enterprise-search"
+  # component (name or alias) -> dotted values.yaml path(s) for its own
+  # image block(s), for components that ship more than one independently-
+  # versioned image (e.g. ZAC alone bundles 10+ -- opa, solr, zookeeper,
+  # curl, gotenberg...) with nothing in the chart itself saying which one
+  # is "the" app the version-management scripts (verify/update/show-
+  # component-baseline-version.py) should act on. This is that one small,
+  # unavoidable hint -- just a values.yaml path, not a registry or repo,
+  # and only needed for multi-image components; anything not listed here
+  # defaults to default_image_paths below.
+  image_paths:
+    "zgw-office-addin": ["frontend.image", "backend.image"]
+    # The default Keycloak SERVER image the operator stamps onto Keycloak
+    # CRs that don't specify their own -- deliberately overridden in
+    # values.yaml to run a Keycloak version ahead of whatever this
+    # operator chart version's own appVersion defaults to. NOT
+    # operator.image itself: that one is intentionally left with no
+    # override at all, since the adfinis chart's own template already
+    # falls back to "{{ .Values.operator.image.tag | default
+    # .Chart.AppVersion }}" with a matching "sha:" bundled for that same
+    # appVersion -- an explicit override there would only add a way for
+    # tag and digest to drift apart again. Bump the keycloak-operator
+    # dependency's own chart version in Chart.yaml to move the operator
+    # itself. Uses the adfinis chart's own split "tag:" + sibling "sha:"
+    # convention instead of an embedded @sha256 digest -- see this file's
+    # own digest_pinning.exceptions above for the write side.
+    "keycloak-operator": ["operator.config.keycloakImage"]
+    # The real running OpenBao SERVER (the upstream openbao-helm
+    # subchart's own "server" key) -- NOT "openbao.configuration.job.
+    # image", which despite reusing the same OpenBao binary is podiumd's
+    # own one-off post-deploy bao-config Job (enables OIDC auth, kv-v2
+    # mount, uploader policy), not the primary application. "server.image"
+    # has an explicit "repository:" override in values.yaml but a blank
+    # "tag:" (relies on the chart's own appVersion default) -- image_
+    # paths_for callers still resolve a real repository from that
+    # override alone.
+    "openbao": ["server.image"]
+    # ITA has no single "app" image at all -- web and poller are two
+    # co-equal images, same lockstep shape as zgw-office-addin's own
+    # frontend+backend split (both happen to share one version here, but
+    # that's not guaranteed by the chart itself, hence listing both
+    # rather than picking one as "the" primary).
+    "internetaakafhandeling": ["web.image", "poller.image"]
+    # kiss-chart's own frontend image (bare "image") and its
+    # settings.syncJobs.image (the elastic-sync CronJob) are released
+    # from the same kiss-chart version and always move together -- same
+    # co-equal lockstep shape as zgw-office-addin's frontend+backend,
+    # documented as one unit rather than treating syncJobs.image as a
+    # sidecar of the frontend. NOT syncJobs.crawlerImage/indexTemplate
+    # Image (the Elastic Open Crawler images) -- those are separate
+    # upstream projects with their own independent version lines, never
+    # bumped in lockstep with kiss-chart itself.
+    "kiss-chart": ["image", "settings.syncJobs.image"]
+    # Same bare "image" path default_image_paths below already implies
+    # for any unregistered component -- registered here anyway,
+    # deliberately, so actual_app_version's own vendored-subchart-version
+    # fallback (gated on "component in component_image_paths(...)", never
+    # default_image_paths) actually applies to it. Real bug this fixes:
+    # eck-operator existed, enabled, at the podiumd-4.9.1 baseline
+    # (Chart.yaml dependency version 3.5.0, condition eck-operator.
+    # enabled, values.yaml enabled: true) with NO explicit values.yaml
+    # "image:" override at all -- its real app version only ever resolved
+    # via the vendored eck-operator-3.5.0.tgz's own default, which this
+    # registration is what actually lets actual_app_version reach for.
+    # Without it, old_app fell through to None (indistinguishable from
+    # "genuinely didn't exist yet"), every upgrade.md-side caller then
+    # rendering the chart_version_lockstep_components-agreed-unchanged
+    # 3.5.0 -> 3.5.0 bump as "(new)" instead -- confirmed live against the
+    # real 4.9.1-to-4.9.2 doc.
+    "eck-operator": ["image"]
+  default_image_paths: ["image"]
+  # component (name, not alias -- same convention as image_paths above) ->
+  # dotted values.yaml path(s), each pointing DIRECTLY at a bare version
+  # string -- not the "<path>.image.tag" shape image_paths/default_image_
+  # paths assume (see lib.upgradedoc.actual_app_version, which tries
+  # these as a second pass, unsuffixed, only once every image_paths_for
+  # candidate has failed to resolve a tag). Exists for a component whose
+  # real app version genuinely isn't expressed as an "image: {repository,
+  # tag}" block at all:
+  # - eck-stack (kiss-eck): the ECK operator's own CRD convention -- a
+  #   bare "version:" field per managed resource (eck-elasticsearch/eck-
+  #   kibana/eck-enterprise-search all track the SAME Elastic stack
+  #   version in lockstep here), which the operator maps to real
+  #   container images internally. First of the two that resolves wins,
+  #   same "no single canonical one, list several" reasoning as image_
+  #   paths' own multi-image entries -- eck-enterprise-search deliberately
+  #   excluded since it's disabled by default in this chart, so it's not
+  #   the best of the three to lead with either way.
+  # - redis-operator: the OPERATOR's own image (as opposed to redis-ha,
+  #   the database instance it manages, which DOES use the ordinary
+  #   "image:" shape) -- the upstream chart's own "imageName:"/
+  #   "imageTag:" convention, two separate sibling string fields instead
+  #   of one nested "image:" dict.
+  version_paths:
+    "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"]
+    "redis-operator": ["redisOperator.imageTag"]

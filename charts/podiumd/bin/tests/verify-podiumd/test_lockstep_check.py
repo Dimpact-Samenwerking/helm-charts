@@ -1,21 +1,21 @@
 """check_lockstep_versions / find_lockstep_mismatches /
 find_chart_version_mismatches — every component registered as
-"lockstep" in lib.chart (COMPONENT_IMAGE_PATHS/COMPONENT_VERSION_PATHS
-multi-path entries, and chart_version_lockstep_components()) must
-actually agree on one version in values.yaml/Chart.yaml."""
+"lockstep" in lib.chart (component_image_paths()/component_version_
+paths() multi-path entries, and chart_version_lockstep_components())
+must actually agree on one version in values.yaml/Chart.yaml."""
 import pytest
 
 
 @pytest.fixture(autouse=True)
 def _lockstep_registries(liblockstepcheck, monkeypatch):
-    """Isolate every test from the real, ever-growing COMPONENT_IMAGE_
-    PATHS/COMPONENT_VERSION_PATHS/chart_version_lockstep_components() —
-    a real entry added later for an unrelated component must never
-    change what these tests exercise."""
-    monkeypatch.setattr(liblockstepcheck, "COMPONENT_IMAGE_PATHS",
-                         {"zgw-office-addin": ["frontend.image", "backend.image"]})
-    monkeypatch.setattr(liblockstepcheck, "COMPONENT_VERSION_PATHS",
-                         {"eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"]})
+    """Isolate every test from the real, ever-growing component_image_
+    paths()/component_version_paths()/chart_version_lockstep_
+    components() — a real entry added later for an unrelated component
+    must never change what these tests exercise."""
+    monkeypatch.setattr(liblockstepcheck, "component_image_paths",
+                         lambda: {"zgw-office-addin": ["frontend.image", "backend.image"]})
+    monkeypatch.setattr(liblockstepcheck, "component_version_paths",
+                         lambda: {"eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"]})
     monkeypatch.setattr(liblockstepcheck, "chart_version_lockstep_components",
                          lambda: frozenset({"kiss-chart", "pabc"}))
 
@@ -98,10 +98,10 @@ def test_component_with_no_matching_dependency_is_skipped(liblockstepcheck):
 
 
 def test_single_path_registration_never_compared(liblockstepcheck, monkeypatch):
-    """A COMPONENT_IMAGE_PATHS entry with just one path has nothing to
+    """A component_image_paths() entry with just one path has nothing to
     compare against, so it's skipped outright — regardless of whatever
     that lone path resolves to."""
-    monkeypatch.setattr(liblockstepcheck, "COMPONENT_IMAGE_PATHS", {"openbao": ["server.image"]})
+    monkeypatch.setattr(liblockstepcheck, "component_image_paths", lambda: {"openbao": ["server.image"]})
     dep = {"name": "openbao", "alias": "", "version": "2.0.0"}
     values = {"openbao": {"server": {"image": {"tag": "2.0.0@sha256:aaa"}}}}
     assert liblockstepcheck.find_lockstep_mismatches([dep], values) == []

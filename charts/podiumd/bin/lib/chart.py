@@ -14,8 +14,9 @@ from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import (
-    component_resolution_chart_version_lockstep_components, component_resolution_version_path_nested_subcharts,
-    component_resolution_version_repository_paths,
+    component_resolution_chart_version_lockstep_components, component_resolution_default_image_paths,
+    component_resolution_image_paths, component_resolution_version_path_nested_subcharts,
+    component_resolution_version_paths, component_resolution_version_repository_paths,
 )
 
 # A BOM breaks YAML tooling that doesn't expect one. Shared by
@@ -25,75 +26,76 @@ UTF8_BOM = b"\xef\xbb\xbf"
 
 # component (name or alias) -> dotted values.yaml path(s) for its own image
 # block(s), for components that ship more than one independently-versioned
-# image (e.g. ZAC alone bundles 10+ — opa, solr, zookeeper, curl,
-# gotenberg...) with nothing in the chart itself saying which one is "the
-# app" the version-management scripts (verify/update/show-component-
-# baseline-version.py) should act on. This is that one small, unavoidable
-# hint — just a values.yaml path, not a registry or repo, and only needed
-# for multi-image components; anything not listed here defaults to
-# DEFAULT_IMAGE_PATHS. Shared here (rather than copy-pasted per script, as
-# it used to be) so a new multi-image component only needs adding once.
-COMPONENT_IMAGE_PATHS = {
-    "zgw-office-addin": ["frontend.image", "backend.image"],
-    # The default Keycloak SERVER image the operator stamps onto Keycloak
-    # CRs that don't specify their own — deliberately overridden in
-    # values.yaml to run a Keycloak version ahead of whatever this operator
-    # chart version's own appVersion defaults to. NOT operator.image itself:
-    # that one is intentionally left with no override at all, since the
-    # adfinis chart's own template already falls back to
-    # "{{ .Values.operator.image.tag | default .Chart.AppVersion }}" with a
-    # matching "sha:" bundled for that same appVersion — an explicit
-    # override there would only add a way for tag and digest to drift apart
-    # again. Bump the keycloak-operator dependency's own chart version in
-    # Chart.yaml to move the operator itself. Uses the adfinis chart's own
-    # split "tag:" + sibling "sha:" convention instead of an embedded
-    # @sha256 digest — see settings.yaml's own digest_pinning.exceptions
-    # for the write side.
-    "keycloak-operator": ["operator.config.keycloakImage"],
-    # The real running OpenBao SERVER (the upstream openbao-helm
-    # subchart's own "server" key) — NOT "openbao.configuration.job.image",
-    # which despite reusing the same OpenBao binary is podiumd's own
-    # one-off post-deploy bao-config Job (enables OIDC auth, kv-v2 mount,
-    # uploader policy — see the values.yaml comment above that key), not
-    # the primary application. "server.image" has an explicit
-    # "repository:" override in values.yaml but a blank "tag:" (relies on
-    # the chart's own appVersion default) — image_paths_for callers still
-    # resolve a real repository from that override alone.
-    "openbao": ["server.image"],
-    # ITA has no single "app" image at all — web and poller are two
-    # co-equal images, same lockstep shape as zgw-office-addin's own
-    # frontend+backend split (both happen to share one version here, but
-    # that's not guaranteed by the chart itself, hence listing both
-    # rather than picking one as "the" primary).
-    "internetaakafhandeling": ["web.image", "poller.image"],
-    # kiss-chart's own frontend image (bare "image") and its
-    # syncJobs.image (the elastic-sync CronJob) are released from the
-    # same kiss-chart version and always move together — same co-equal
-    # lockstep shape as zgw-office-addin's frontend+backend, documented
-    # as one unit rather than treating syncJobs.image as a sidecar of
-    # the frontend. NOT syncJobs.crawlerImage/indexTemplateImage (the
-    # Elastic Open Crawler images) — those are separate upstream
-    # projects with their own independent version lines, never bumped
-    # in lockstep with kiss-chart itself.
-    "kiss-chart": ["image", "settings.syncJobs.image"],
-    # Same bare "image" path DEFAULT_IMAGE_PATHS already implies for any
-    # unregistered component — registered here anyway, deliberately, so
-    # actual_app_version's own vendored-subchart-version fallback (gated
-    # on "component in COMPONENT_IMAGE_PATHS", never DEFAULT_IMAGE_PATHS)
-    # actually applies to it. Real bug this fixes: eck-operator existed,
-    # enabled, at the podiumd-4.9.1 baseline (Chart.yaml dependency
-    # version 3.5.0, condition eck-operator.enabled, values.yaml enabled:
-    # true) with NO explicit values.yaml "image:" override at all — its
-    # real app version only ever resolved via the vendored eck-operator-
-    # 3.5.0.tgz's own default, which this registration is what actually
-    # lets actual_app_version reach for. Without it, old_app fell through
-    # to None (indistinguishable from "genuinely didn't exist yet"),
-    # every upgrade.md-side caller then rendering the CHART_VERSION_
-    # LOCKSTEP_COMPONENTS-agreed-unchanged 3.5.0 -> 3.5.0 bump as "(new)"
-    # instead — confirmed live against the real 4.9.1-to-4.9.2 doc.
-    "eck-operator": ["image"],
-}
-DEFAULT_IMAGE_PATHS = ["image"]
+# image — now lives in charts/podiumd/etc/settings.yaml's own
+# "component_resolution.image_paths" (see lib.settings.
+# component_resolution_image_paths and that file's own comment for the
+# zgw-office-addin/keycloak-operator/openbao/internetaakafhandeling/
+# kiss-chart/eck-operator reasoning), with "component_resolution.
+# default_image_paths" (lib.settings.component_resolution_default_
+# image_paths) as the fallback for any unregistered component.
+# component_image_paths/image_paths_for below resolve them.
+
+
+def component_image_paths(chart_dir=None):
+    """Self-resolving wrapper around lib.settings.component_resolution_
+    image_paths — same "callable from anywhere with no chart_dir
+    ceremony" property as chart_version_lockstep_components above (see
+    its own docstring); needed here because lib.lockstep_check.find_
+    lockstep_mismatches iterates this WHOLE dict directly (not per-
+    component), so it needs a whole-dict self-resolving wrapper too, not
+    just the per-component image_paths_for below."""
+    chart_dir = chart_dir or Path(__file__).resolve().parents[2]
+    return component_resolution_image_paths(chart_dir)
+
+
+def image_paths_for(component, chart_dir=None):
+    """component's own registered image path(s) (component_image_paths),
+    or component_resolution_default_image_paths' generic ["image"] guess
+    for anything unregistered. Self-resolving the same way component_
+    image_paths is — most callers already have chart_dir in scope and
+    thread it through explicitly (see e.g. component_state_at_baseline,
+    primary_image_repositories, canonical_sidecar_row_names below), but
+    a few (e.g. lib.chart._is_dependency_primary_rel_path, lib.
+    lockstep_check.find_chart_version_mismatches) don't, several levels
+    removed from any chart_dir-bearing function — same mixed shape as
+    version_paths_for below."""
+    paths = component_image_paths(chart_dir)
+    if component in paths:
+        return paths[component]
+    resolved = chart_dir or Path(__file__).resolve().parents[2]
+    return component_resolution_default_image_paths(resolved)
+
+
+# component (name, not alias — same convention as component_image_paths) ->
+# dotted values.yaml path(s), each pointing DIRECTLY at a bare version
+# string — not the "<path>.image.tag" shape image_paths_for/
+# default_image_paths assume (see lib.upgradedoc.actual_app_version, which
+# tries these as a second pass, unsuffixed, only once every image_paths_for
+# candidate has failed to resolve a tag). Now lives in charts/podiumd/etc/
+# settings.yaml's own "component_resolution.version_paths" (see lib.
+# settings.component_resolution_version_paths and that file's own comment
+# for the eck-stack/redis-operator reasoning). component_version_paths/
+# version_paths_for below resolve it.
+
+
+def component_version_paths(chart_dir=None):
+    """Self-resolving wrapper around lib.settings.component_resolution_
+    version_paths — same whole-dict shape as component_image_paths above,
+    needed for the exact same reason (lib.lockstep_check.find_lockstep_
+    mismatches iterates this whole dict too)."""
+    chart_dir = chart_dir or Path(__file__).resolve().parents[2]
+    return component_resolution_version_paths(chart_dir)
+
+
+def version_paths_for(component, chart_dir=None):
+    """component's own registered bare-version path(s) (component_version_
+    paths), or [] for anything unregistered — no generic fallback exists
+    for this one (unlike image_paths_for's default_image_paths), since
+    there's no equivalent "assume a plain image: block" guess that makes
+    sense for a bare scalar field. Self-resolving the same mixed shape as
+    image_paths_for above."""
+    return component_version_paths(chart_dir).get(component, [])
+
 
 # values.yaml top-level keys that are real, documentable components — with
 # their own app version, own image(s), own upgrade-doc row — but have NO
@@ -115,41 +117,6 @@ DEFAULT_IMAGE_PATHS = ["image"]
 # mistakenly added once (podiumd 4.9.0) under the assumption every changed
 # component needs one — it doesn't; see this registry instead.
 NATIVE_COMPONENTS = frozenset({"frankgateway"})
-
-
-def image_paths_for(component):
-    return COMPONENT_IMAGE_PATHS.get(component, DEFAULT_IMAGE_PATHS)
-
-
-# component (name, not alias — same convention as COMPONENT_IMAGE_PATHS) ->
-# dotted values.yaml path(s), each pointing DIRECTLY at a bare version
-# string — not the "<path>.image.tag" shape COMPONENT_IMAGE_PATHS/
-# DEFAULT_IMAGE_PATHS assume (see lib.upgradedoc.actual_app_version, which
-# tries these as a second pass, unsuffixed, only once every image_paths_for
-# candidate has failed to resolve a tag). Exists for a component whose real
-# app version genuinely isn't expressed as an "image: {repository, tag}"
-# block at all:
-# - eck-stack (kiss-eck): the ECK operator's own CRD convention — a bare
-#   "version:" field per managed resource (eck-elasticsearch/eck-kibana/
-#   eck-enterprise-search all track the SAME Elastic stack version in
-#   lockstep here), which the operator maps to real container images
-#   internally. First of the two that resolves wins, same "no single
-#   canonical one, list several" reasoning as COMPONENT_IMAGE_PATHS' own
-#   multi-image entries — eck-enterprise-search deliberately excluded since
-#   it's disabled by default in this chart (see its own values.yaml
-#   comment), so it's not the best of the three to lead with either way.
-# - redis-operator: the OPERATOR's own image (as opposed to redis-ha, the
-#   database instance it manages, which DOES use the ordinary "image:"
-#   shape) — the upstream chart's own "imageName:"/"imageTag:" convention,
-#   two separate sibling string fields instead of one nested "image:" dict.
-COMPONENT_VERSION_PATHS = {
-    "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
-    "redis-operator": ["redisOperator.imageTag"],
-}
-
-
-def version_paths_for(component):
-    return COMPONENT_VERSION_PATHS.get(component, [])
 
 
 # Chart.yaml dependency NAMEs (not alias) whose own declared "version:" is
@@ -270,7 +237,7 @@ def is_primary_image_path(path, deps):
 
 
 # component (name, not alias) -> the sibling dotted path holding a
-# COMPONENT_VERSION_PATHS entry's own repository — now lives in
+# version_paths_for entry's own repository — now lives in
 # charts/podiumd/etc/settings.yaml's own "component_resolution.
 # version_repository_paths" (see lib.settings.component_resolution_
 # version_repository_paths). version_repository_path_for below resolves
@@ -291,7 +258,7 @@ def version_repository_path_for(component, chart_dir):
     return component_resolution_version_repository_paths(chart_dir).get(component)
 
 
-# component -> {relative COMPONENT_VERSION_PATHS-shaped field: nested
+# component -> {relative version_paths_for-shaped field: nested
 # sub-subchart name} — now lives in charts/podiumd/etc/settings.yaml's
 # own "component_resolution.version_path_nested_subcharts" (see lib.
 # settings.component_resolution_version_path_nested_subcharts and that
@@ -307,13 +274,13 @@ def nested_subchart_name_for(component, rel_path, chart_dir):
 
 
 def nested_subchart_registered_paths(component, chart_dir=None):
-    """Every relative COMPONENT_VERSION_PATHS-shaped field settings.
+    """Every relative version_paths_for-shaped field settings.
     yaml's own component_resolution.version_path_nested_subcharts
-    registers a nested sub-subchart for, whether or not COMPONENT_
-    VERSION_PATHS itself ALSO lists it — eck-stack's own "eck-
+    registers a nested sub-subchart for, whether or not component_
+    version_paths itself ALSO lists it — eck-stack's own "eck-
     enterprise-search.version" is a real, matchable image (see lib.
-    upgradedoc.find_component_version_tags) that COMPONENT_VERSION_
-    PATHS deliberately excludes from its narrower "pick ONE
+    upgradedoc.find_component_version_tags) that component_version_
+    paths deliberately excludes from its narrower "pick ONE
     representative app version" list (disabled by default), so it's
     registered here but not there.
 
@@ -649,7 +616,7 @@ def component_state_at_baseline(chart_dir, chart_dir_relpath, baseline, componen
         return None, None, None, None, None, (f"no dependency named or aliased '{component}' "
                                                 f"in {chart_dir_relpath}/Chart.yaml at {baseline_ref}")
     values_key = dep.get("alias", dep["name"])
-    image_paths = image_paths_for(component)
+    image_paths = image_paths_for(component, chart_dir)
     app_versions = find_app_versions(baseline_values, values_key, image_paths)
     return baseline_ref, dep, values_key, image_paths, app_versions, None
 
@@ -755,7 +722,7 @@ def check_image_versions(values, image_paths, app_version):
     a second time), so there is exactly one place this logic lives.
 
     Raises SystemExit if NOT ONE of image_paths has a resolvable
-    repository at all — e.g. COMPONENT_IMAGE_PATHS points somewhere this
+    repository at all — e.g. component_image_paths() points somewhere this
     chart version doesn't actually have an image (wrong path, or the
     chart restructured) — since a caller can't act on zero results
     either way, and silently reporting "0 checked, all fine" would be
@@ -764,7 +731,7 @@ def check_image_versions(values, image_paths, app_version):
              for repo in [get_path(values, f"{path}.repository")] if isinstance(repo, str) and repo]
     if not repos:
         raise SystemExit(f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)} "
-                          f"— wrong path? see lib.chart.COMPONENT_IMAGE_PATHS")
+                          f"— wrong path? see lib.chart.component_image_paths()")
 
     results = []
     for path, repo in repos:
@@ -827,7 +794,7 @@ def subchart_app_version(chart_dir, dep, version=None):
     """A vendored dependency's own Chart.yaml "appVersion" field — the
     real app version a subchart's own template falls back to via Helm's
     own "{{ .Values.<x>.tag | default .Chart.AppVersion }}" convention,
-    for a component whose COMPONENT_IMAGE_PATHS-registered image path
+    for a component whose component_image_paths()-registered image path
     has an explicit but deliberately BLANK "tag:" override in podiumd's
     own values.yaml — e.g. openbao's own "server.image.tag" (see that
     registry entry's own comment): the repository is overridden to pin
@@ -983,7 +950,7 @@ def primary_image_repositories(chart_dir, dep, own_values, version=None, allow_p
     version = version or dep["version"]
     results = {}
     subchart_state = None  # lazily filled on first path that needs it: (values_or_None, error_or_None)
-    for path in image_paths_for(dep["name"]):
+    for path in image_paths_for(dep["name"], chart_dir):
         repo = get_path(own_values, f"{values_key}.{path}.repository")
         if isinstance(repo, str) and repo:
             results[path] = repo
@@ -1076,7 +1043,7 @@ def repo_group_representative(repo_paths, deps):
     Real case tier 2 exists for: "keycloak.image" (tier 3 — podiumd's
     own directly-templated top-level override) and "keycloak-operator.
     operator.config.keycloakImage" (tier 2 — keycloak-operator's own
-    COMPONENT_IMAGE_PATHS-registered primary image) share the exact
+    component_image_paths()-registered primary image) share the exact
     same repository, kept in sync by convention (see the real hand-
     written comment above the images-manifest entry). Both count as
     "primary" under is_primary_image_path's own rule, so ranking by
@@ -1120,7 +1087,7 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
     repository already uses, and for the same reason: podiumd's own
     values.yaml answers this directly, no dependency needed to ask it.
     Next, for a path from lib.upgradedoc.find_component_version_tags (a
-    COMPONENT_VERSION_PATHS-registered bare tag/version field, never
+    component_version_paths()-registered bare tag/version field, never
     nested under an "image:"/"...Image:" dict with its own
     "repository:" sibling in the first place) — two more sources, in
     order: version_repository_path_for(dep["name"])'s own sibling field
@@ -1220,7 +1187,7 @@ def full_repository_for_path(chart_dir, deps, values, path, allow_pull=False):
     """The FULLY host-qualified repository for `path` (e.g. "docker.io/
     curlimages/curl", "mcr.microsoft.com/azure-cli") — the same per-path
     resolution chain paths_by_repository uses internally (podiumd's own
-    explicit override first, then a registered COMPONENT_VERSION_PATHS
+    explicit override first, then a registered component_version_paths()
     sibling field, then a registered nested subchart's own documented
     default, then the dependency's own vendored subchart default), but
     returning the REAL, un-stripped value a registry call (parse_repo/
@@ -1485,7 +1452,7 @@ def baseline_tag_for_sidecar_path(chart_dir, deps, target_values, baseline_value
     baseline_values here — the one lookup shape that works unchanged
     whether `path` ends in an ordinary "...Image" tag key (get_path +
     ".tag" would apply) or is one of fix-doc-consistency's own
-    registered bare COMPONENT_VERSION_PATHS fields (find_component_
+    registered bare component_version_paths() fields (find_component_
     version_tags — a flat scalar sibling field, no ".tag" to append at
     all), since both already collapse to the exact same {path: value}
     shape in the caller's own current_paths/baseline_paths maps.
@@ -1604,7 +1571,7 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
         # excludes its own primary image the same way image_paths_for(dep
         # ["name"]) does for a real dependency just below.
         owner_name = dep["name"] if dep is not None else (path[0] if path[0] in NATIVE_COMPONENTS else None)
-        if owner_name is not None and ".".join(path[1:]) not in set(image_paths_for(owner_name)):
+        if owner_name is not None and ".".join(path[1:]) not in set(image_paths_for(owner_name, chart_dir)):
             sidecar_paths.append(path)
 
     global_repos = set()
@@ -1633,7 +1600,8 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
             # "keycloak-operator.image" case) has no useful fallback at
             # all, so it's skipped entirely, same as before: never
             # auto-documented under the wrong template; register it in
-            # COMPONENT_IMAGE_PATHS (or document it by hand) instead if
+            # settings.yaml's own component_resolution.image_paths (or
+            # document it by hand) instead if
             # it ever needs its own row.
             if len(path) >= 3 and path[-2].lower() != path[0].lower():
                 basename = path[-2]

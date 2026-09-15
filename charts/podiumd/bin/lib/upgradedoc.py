@@ -5,7 +5,7 @@ import re
 import yaml
 
 from lib.chart import (
-    COMPONENT_IMAGE_PATHS, NATIVE_COMPONENTS, baseline_tag_for_sidecar_path, full_repository_for_path, get_path,
+    NATIVE_COMPONENTS, baseline_tag_for_sidecar_path, component_image_paths, full_repository_for_path, get_path,
     global_image_paths, historical_app_version_for_path, historical_app_version_for_repository, image_paths_for,
     is_primary_image_path, nested_subchart_registered_paths, paths_by_repository, resolved_digest_pin,
     subchart_app_version, version_of, version_paths_for,
@@ -982,9 +982,9 @@ def actual_app_version(values, values_key, component=None, chart_dir=None, dep=N
     """The app version currently pinned for a component — tries each of
     lib.chart.image_paths_for(component)'s own dotted path(s) in turn:
     the plain "<key>.image.tag" shape for the common case
-    (DEFAULT_IMAGE_PATHS), or a component-specific override from
-    COMPONENT_IMAGE_PATHS for one with a non-standard primary-image
-    location — e.g. keycloak-operator's own split "operator.config.
+    (component_resolution_default_image_paths), or a component-specific
+    override from component_image_paths() for one with a non-standard
+    primary-image location — e.g. keycloak-operator's own split "operator.config.
     keycloakImage.tag" path, openbao's "server.image", or zgw-office-
     addin's frontend+backend pair (the first of those two with a real
     tag wins; there's no single "the" app version for a two-image
@@ -1007,8 +1007,8 @@ def actual_app_version(values, values_key, component=None, chart_dir=None, dep=N
     If THAT still doesn't resolve, and both `chart_dir` and `dep` (the
     full Chart.yaml dependency dict — needs its own "version" too, not
     just its name) are given, falls back to lib.chart.subchart_app_
-    version — but ONLY for a component with its own COMPONENT_IMAGE_
-    PATHS entry, never the generic DEFAULT_IMAGE_PATHS guess. A
+    version — but ONLY for a component with its own component_image_
+    paths() entry, never the generic default_image_paths guess. A
     registered path with an explicit but deliberately BLANK "tag:"
     override (e.g. openbao's own "server.image.tag" — the repository is
     pinned, but the tag is left for the chart's own pinned appVersion to
@@ -1019,22 +1019,22 @@ def actual_app_version(values, values_key, component=None, chart_dir=None, dep=N
     other component that merely happens to also float on its own
     chart's appVersion without being explicitly registered for it.
 
-    `component` is the Chart.yaml dependency's own NAME (COMPONENT_
-    IMAGE_PATHS/COMPONENT_VERSION_PATHS are both keyed by name, not
+    `component` is the Chart.yaml dependency's own NAME (component_
+    image_paths()/component_version_paths() are both keyed by name, not
     alias) — defaults to `values_key` when omitted, since name and
     alias/values_key coincide for every currently-registered entry; pass
     the real name explicitly once a registered component ever has a
     distinct alias, so the registry lookup still finds it."""
     resolved_component = component or values_key
-    for path in image_paths_for(resolved_component):
+    for path in image_paths_for(resolved_component, chart_dir):
         tag = get_path(values, f"{values_key}.{path}.tag")
         if tag:
             return tag.split("@")[0]
-    for path in version_paths_for(resolved_component):
+    for path in version_paths_for(resolved_component, chart_dir):
         version = get_path(values, f"{values_key}.{path}")
         if isinstance(version, str) and version:
             return version.split("@")[0]
-    if chart_dir is not None and dep is not None and resolved_component in COMPONENT_IMAGE_PATHS:
+    if chart_dir is not None and dep is not None and resolved_component in component_image_paths(chart_dir):
         return subchart_app_version(chart_dir, dep)
     return None
 
@@ -1106,7 +1106,7 @@ def sidecar_tag(values, sidecar_path):
     """The tag pinned at a sidecar's own values-tree path (as returned by
     lib.chart.canonical_sidecar_row_names — already ending in the real
     image key itself, e.g. "initImage", not a hardcoded "image") —
-    deliberately NOT actual_app_version, whose DEFAULT_IMAGE_PATHS
+    deliberately NOT actual_app_version, whose default_image_paths
     fallback always appends ".image.tag" regardless of the sidecar's
     real trailing key, silently resolving to an unrelated sibling
     image's tag whenever that key isn't literally "image" (e.g.
@@ -1284,7 +1284,7 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
                 # branch above uses.
                 baseline_app = actual_app_version(baseline_values, result["values_key"], dep["name"])
                 if baseline_app is None and baseline_values:
-                    for path in image_paths_for(dep["name"]):
+                    for path in image_paths_for(dep["name"], chart_dir):
                         baseline_app = historical_app_version_for_path(
                             chart_dir, deps, values, (result["values_key"],) + tuple(path.split(".")),
                             upgrade_docs_baseline)
@@ -1298,7 +1298,7 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
             # whether native_key's own image tag was resolvable there too.
             baseline_app = actual_app_version(baseline_values, native_key, native_key)
             if baseline_app is None and baseline_values:
-                for path in image_paths_for(native_key):
+                for path in image_paths_for(native_key, chart_dir):
                     baseline_app = historical_app_version_for_path(
                         chart_dir, deps, values, (native_key,) + tuple(path.split(".")), upgrade_docs_baseline)
                     if baseline_app is not None:
@@ -1375,16 +1375,16 @@ def find_image_tag_paths(node, path=(), include_null_tags=False):
 
 
 def find_component_version_tags(values, deps):
-    """(path, value) for every lib.chart.COMPONENT_VERSION_PATHS- or
-    COMPONENT_VERSION_PATH_NESTED_SUBCHARTS-registered bare tag/version
-    field that's actually pinned in `values` — the ONE shape
-    find_image_tag_paths' own generic "<key ending in Image>: {tag:
-    ...}" structural scan can never see, since these are flat scalar
-    sibling fields (e.g. redis-operator's own "redisOperator.imageTag",
-    not nested under an "image:"/"...Image:" dict with a "tag:" key at
-    all — see COMPONENT_VERSION_PATHS' own docstring for why). The two
-    registries' own field lists are unioned — COMPONENT_VERSION_PATH_
-    NESTED_SUBCHARTS registers a few fields COMPONENT_VERSION_PATHS
+    """(path, value) for every lib.chart.component_version_paths()- or
+    lib.settings.component_resolution_version_path_nested_subcharts-
+    registered bare tag/version field that's actually pinned in `values`
+    — the ONE shape find_image_tag_paths' own generic "<key ending in
+    Image>: {tag: ...}" structural scan can never see, since these are
+    flat scalar sibling fields (e.g. redis-operator's own "redisOperator.
+    imageTag", not nested under an "image:"/"...Image:" dict with a
+    "tag:" key at all — see component_version_paths()' own docstring for
+    why). The two registries' own field lists are unioned — version_
+    path_nested_subcharts registers a few fields component_version_paths()
     deliberately excludes from ITS narrower "pick ONE representative
     app version" list (eck-stack's own "eck-enterprise-search.version",
     disabled by default) that are still real, matchable images here.
@@ -1637,7 +1637,7 @@ def find_images_manifest_faulty_headers(entries, entry_line_indices, lines, deps
       is only ever a proxy for "these two entries bumped in lockstep",
       not a guarantee. That specific pair no longer even reaches this
       check: kiss-elastic-sync (settings.syncJobs.image) is now listed
-      alongside kiss's own "image" in lib.chart.COMPONENT_IMAGE_PATHS,
+      alongside kiss's own "image" in lib.chart.component_image_paths(),
       so is_primary_image_path exempts it here the same way it already
       exempted zgw-office-addin's frontend/backend, and lib.lockstep_
       check.check_lockstep_versions now guards its actual version
