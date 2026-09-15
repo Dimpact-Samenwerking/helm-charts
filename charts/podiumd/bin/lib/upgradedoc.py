@@ -2595,6 +2595,20 @@ def strip_fenced_code_blocks(text):
     return FENCED_CODE_BLOCK_RE.sub("", text)
 
 
+HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+
+
+def strip_html_comments(text):
+    """`text` with every <!-- ... --> HTML comment blanked out — same
+    "scan the stripped text, never the original" precedent as strip_
+    fenced_code_blocks above. Used by lib.component_docs.has_real_
+    gemeente_specific_content: gemeente-specific.md's own STUB_TEMPLATES
+    entry keeps its "## <gemeente> (<env>)" EXAMPLE heading inside one
+    big HTML comment, so a real, human-added section of the same shape
+    must never be confused with that commented-out template text."""
+    return HTML_COMMENT_RE.sub("", text)
+
+
 def describe_key_changes(values_key, baseline_subtree, current_subtree):
     """One "- Key `<dotted>` was added/removed/renamed to `<dotted>`." line
     per top-level key change under this component — backtick-quoted,

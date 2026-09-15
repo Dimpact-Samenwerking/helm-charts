@@ -95,7 +95,7 @@ from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, IMAGES_STUB_TEMPLATE, NUMBER_WORDS, STANDARD_SUFFIXES, STUB_TEMPLATES,
     add_missing_component_rows, ensure_images_manifest_changes_header, existing_doc_baselines,
     find_images_manifest_changes_header, images_manifest_order_key, insert_images_manifest_header_item,
-    prune_empty_values_delta_sections, renumber_images_manifest_changes_items, strip_stale_changes_todo_stub,
+    prune_empty_values_delta_sections, renumber_images_manifest_changes_items, strip_stale_upgrade_placeholders,
     strip_stale_values_deltas_todo_stub, sync_values_delta_sections,
 )
 from lib.docs_consistency import match_changes_item_to_entry
@@ -1569,7 +1569,7 @@ def main():
             # fires when the baseline IS being bumped this same run.
             todo_stripped = False
             if suffix == "upgrade":
-                text, todo_stripped = strip_stale_changes_todo_stub(text)
+                text, todo_stripped = strip_stale_upgrade_placeholders(text)
             elif suffix == "values-deltas":
                 text, todo_stripped = strip_stale_values_deltas_todo_stub(text)
             # A pre-existing double blank line unrelated to refs_changed
@@ -1607,7 +1607,7 @@ def main():
         text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
         todo_stripped = False
         if suffix == "upgrade":
-            text, todo_stripped = strip_stale_changes_todo_stub(text)
+            text, todo_stripped = strip_stale_upgrade_placeholders(text)
         elif suffix == "values-deltas":
             text, todo_stripped = strip_stale_values_deltas_todo_stub(text)
 

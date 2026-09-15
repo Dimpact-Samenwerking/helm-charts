@@ -32,8 +32,8 @@ from lib.upgradedoc import (
     extract_source_version, find_grouped_preceding_comment_line, image_manifest_version_text, insertion_index,
     match_dependency_excluding_sidecar_names, match_native_component, missing_key_change_lines_by_key,
     normalize_name, normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
-    parse_values_delta_sections, replace_version_pair, resolve_entry_path, values_key_order, values_tree_position,
-    version_change_suffix,
+    parse_values_delta_sections, replace_version_pair, resolve_entry_path, strip_html_comments, values_key_order,
+    values_tree_position, version_change_suffix,
 )
 
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
@@ -324,17 +324,33 @@ STANDARD_SUFFIXES = ("upgrade", "gemeente-specific", "values-deltas")
 # The exact bare placeholder line each stub below writes for a section
 # that has no real content yet — shared with insert_changes_section/
 # insert_values_delta_section's own "is this JUST the stub, nothing else"
-# check (_is_bare_todo_stub/_is_bare_values_deltas_todo_stub) so the two
-# can never independently drift out of sync with what's actually written.
+# check (_is_bare_placeholder_span/_is_bare_values_deltas_todo_stub) so
+# these can never independently drift out of sync with what's actually
+# written. UPGRADE_INTRO_STUB_TODO_LINE and UPGRADE_CHANGES_STUB_TODO_
+# LINE are two SEPARATE placeholders in two different spots of the same
+# "upgrade" doc, but treated as ONE event by strip_stale_upgrade_
+# placeholders below: both clear together the moment "## Changes" gets
+# its first real "### ..." block, since both equally mean "this hop now
+# has real recorded changes" — see that function's own docstring.
+UPGRADE_INTRO_STUB_TODO_LINE = "TODO: describe this hop's changes.\n"
 UPGRADE_CHANGES_STUB_TODO_LINE = "TODO\n"
 VALUES_DELTAS_STUB_TODO_LINE = "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
+# gemeente-specific.md's own placeholder is worded differently (an
+# ongoing "nothing to report" fact, not a TODO instruction) and,
+# structurally, NOTHING ever writes a new "## <gemeente> (<env>)"
+# section into this file automatically — its content is entirely
+# human-authored findings, so there's no insertion-time or retroactive
+# STRIP for this one, only a checker (see has_stale_gemeente_specific_
+# placeholder) that flags it as a finding for a human to clear by hand.
+GEMEENTE_SPECIFIC_STUB_LINE = "_None recorded yet._\n"
 
 STUB_TEMPLATES = {
     "upgrade": (
         "# Upgrade guide: PodiumD {upgrade_docs_baseline} → {target}\n\n"
         "> See the Confluence Releases page for the agreed application\n"
         "> targets: <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.\n\n"
-        "TODO: describe this hop's changes.\n\n"
+        + UPGRADE_INTRO_STUB_TODO_LINE
+        + "\n"
         "## Component versions ({target} vs {upgrade_docs_baseline})\n\n"
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n\n"
@@ -346,7 +362,8 @@ STUB_TEMPLATES = {
         "Findings for this hop that apply to a **specific gemeente or environment** —\n"
         "not to the release in general — are collected here: data quirks, local\n"
         "overrides, hosting particulars, incident follow-ups.\n\n"
-        "_None recorded yet._\n\n"
+        + GEMEENTE_SPECIFIC_STUB_LINE
+        + "\n"
         "<!-- Add entries per gemeente/environment:\n\n"
         "## <gemeente> (<env>)\n\n"
         "- What was hit, why it is specific to this environment, and the\n"
@@ -668,18 +685,75 @@ def make_changes_section(friendly, target, chart_name, values_key, old_app, new_
     return "".join(lines)
 
 
-def _is_bare_todo_stub(lines, start, end):
-    """True if lines[start:end] (the span between "## Changes" and
-    whatever follows) contains nothing but blank lines and exactly one
-    line matching UPGRADE_CHANGES_STUB_TODO_LINE — the exact placeholder
-    STUB_TEMPLATES["upgrade"] writes ("## Changes\n\nTODO\n") before any
-    real "### ..." block exists yet. Deliberately an exact-shape match,
-    not a substring/heuristic check for the word "TODO" — real,
-    human-written prose that happens to mention "TODO" alongside other
-    content (a real note to self, say) must never be silently deleted
-    just because it shares a word with the stub."""
+def _is_bare_placeholder_span(lines, start, end, placeholder_text):
+    """True if lines[start:end] contains nothing but blank lines and
+    exactly one line matching placeholder_text (stripped comparison) —
+    the shared exact-shape "is this span JUST the placeholder, nothing
+    else" check every stub-placeholder detector that owns a CLOSED span
+    (a heading's own nested content, with nothing legitimate expected to
+    sit alongside the placeholder) reuses in this module — currently
+    "## Changes"' own bare TODO. Deliberately an exact-shape match, never
+    a substring/heuristic check for the placeholder's own wording — real,
+    human-written prose that happens to mention it (a real note to self,
+    say) must never be silently deleted just because it shares wording
+    with the stub. See _find_standalone_placeholder_line for the OTHER
+    shape (a placeholder sitting alongside OTHER legitimate content, e.g.
+    upgrade.md's own intro blockquote next to its own intro TODO)."""
     non_blank = [line.strip() for line in lines[start:end] if line.strip()]
-    return non_blank == [UPGRADE_CHANGES_STUB_TODO_LINE.strip()]
+    return non_blank == [placeholder_text.strip()]
+
+
+def _find_standalone_placeholder_line(lines, end, placeholder_text):
+    """Index of a line within lines[:end] whose stripped content exactly
+    equals placeholder_text AND stands alone as its own paragraph — a
+    blank line, or the start of the document, immediately before it; a
+    blank line, or `end` itself, immediately after — or None if no such
+    line exists. Unlike _is_bare_placeholder_span, this tolerates OTHER
+    legitimate content anywhere else in lines[:end] (upgrade.md's own
+    intro blockquote sits right next to its own intro TODO placeholder,
+    see UPGRADE_INTRO_STUB_TODO_LINE) — it only demands that the
+    placeholder ITSELF is isolated, not that nothing else is present.
+    Never a substring match: a line must stripped-equal placeholder_text
+    exactly."""
+    target = placeholder_text.strip()
+    for i in range(end):
+        if lines[i].strip() != target:
+            continue
+        before_ok = i == 0 or not lines[i - 1].strip()
+        after_ok = i + 1 == end or not lines[i + 1].strip()
+        if before_ok and after_ok:
+            return i
+    return None
+
+
+def _strip_standalone_placeholder_line(lines, end, placeholder_text):
+    """Removes the standalone placeholder line found by _find_standalone_
+    placeholder_line (if any) from `lines` in place, collapsing the
+    double blank-line gap left behind so exactly one blank line survives
+    between its former neighbors. Returns True if something was actually
+    removed, False (a no-op) otherwise."""
+    idx = _find_standalone_placeholder_line(lines, end, placeholder_text)
+    if idx is None:
+        return False
+    del lines[idx]
+    if idx < len(lines) and not lines[idx].strip() and idx > 0 and not lines[idx - 1].strip():
+        del lines[idx]
+    return True
+
+
+def _strip_bare_changes_todo(lines, changes_idx, end_bound):
+    """If lines[changes_idx+1:end_bound] is JUST "## Changes"' own bare
+    TODO stub (see _is_bare_placeholder_span), deletes it in place and
+    returns the new end_bound (changes_idx + 1) — shared by insert_
+    changes_section (which handles blank-line normalization itself,
+    generically, for every insertion point, so doesn't need this to add
+    one back) and strip_stale_upgrade_placeholders (which has no such
+    downstream step of its own and inserts the blank line itself).
+    Returns end_bound UNCHANGED if there's nothing to strip."""
+    if not _is_bare_placeholder_span(lines, changes_idx + 1, end_bound, UPGRADE_CHANGES_STUB_TODO_LINE):
+        return end_bound
+    del lines[changes_idx + 1:end_bound]
+    return changes_idx + 1
 
 
 def insert_changes_section(text, section_text, friendly, deps, values, canonical_names=None):
@@ -692,12 +766,13 @@ def insert_changes_section(text, section_text, friendly, deps, values, canonical
     of always last — see component_order_key's own docstring. Appends
     right before the next "## " heading (or EOF) if the section doesn't
     exist yet, or has no blocks of its own yet to compare against — in
-    that latter case, first stripping the section's own bare "TODO"
-    placeholder (see _is_bare_todo_stub) if that's literally all that's
-    there, rather than leaving it stranded above the section actually
-    being inserted (real bug, confirmed live on 4.9.1-to-4.9.2-upgrade.md:
-    the stub was never cleared the moment the first real "### ..." block
-    landed)."""
+    that latter case, first stripping BOTH of upgrade.md's own stub
+    placeholders (the top-level intro TODO and "## Changes"' own bare
+    TODO — treated as ONE event, see UPGRADE_INTRO_STUB_TODO_LINE's own
+    module-level comment) if either is literally all that's there, rather
+    than leaving it stranded above the section actually being inserted
+    (real bug, confirmed live on 4.9.1-to-4.9.2-upgrade.md: neither stub
+    was ever cleared the moment the first real "### ..." block landed)."""
     blocks = parse_upgrade_doc_changes_blocks(text)
     lines = text.splitlines(keepends=True)
     changes_idx = None
@@ -717,9 +792,18 @@ def insert_changes_section(text, section_text, friendly, deps, values, canonical
             break
 
     if not blocks:
-        if _is_bare_todo_stub(lines, changes_idx + 1, section_end):
-            del lines[changes_idx + 1:section_end]
-            section_end = changes_idx + 1
+        first_heading_idx = next((i for i, l in enumerate(lines) if re.match(r"^##\s+\S", l)), len(lines))
+        if _strip_standalone_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
+            # Line indices shifted -- recompute rather than patch by a
+            # guessed amount (the standalone-placeholder removal may take
+            # one line or two, depending on its own neighbors).
+            changes_idx = next(i for i, l in enumerate(lines) if l.strip() == "## Changes")
+            section_end = len(lines)
+            for i in range(changes_idx + 1, len(lines)):
+                if re.match(r"^##\s+\S", lines[i]):
+                    section_end = i
+                    break
+        section_end = _strip_bare_changes_todo(lines, changes_idx, section_end)
         insert_at = section_end
     else:
         key_order = values_key_order(values)
@@ -755,42 +839,53 @@ def insert_changes_section(text, section_text, friendly, deps, values, canonical
     return "".join(lines)
 
 
-def strip_stale_changes_todo_stub(text):
+def strip_stale_upgrade_placeholders(text):
     """Retroactive cleanup companion to insert_changes_section's own
-    insertion-time fix (see _is_bare_todo_stub there): a doc whose FIRST
-    real "### ..." block was inserted BEFORE that fix existed still has
-    the stray "TODO" line stranded between "## Changes" and that first
-    block — real case, confirmed live: 4.9.1-to-4.9.2-upgrade.md. Fixes
-    it after the fact, run as part of fix-doc-consistency's own normal
-    pass over every *-upgrade.md doc, not just newly-inserted ones.
+    insertion-time fix: a doc whose FIRST real "### ..." block was
+    inserted BEFORE that fix existed still has BOTH of upgrade.md's own
+    stub placeholders stranded beside it — the top-level intro TODO
+    (UPGRADE_INTRO_STUB_TODO_LINE) and "## Changes"' own bare TODO
+    (UPGRADE_CHANGES_STUB_TODO_LINE), treated as ONE event (see that
+    constant's own module-level comment) — real case, confirmed live:
+    4.9.1-to-4.9.2-upgrade.md. Fixes both after the fact, run as part of
+    fix-doc-consistency's own normal pass over every *-upgrade.md doc,
+    not just newly-inserted ones.
+
+    Also doubles as the CHECKER side (verify-podiumd's own check_docs_
+    consistency): a caller that only wants to know WHETHER either
+    placeholder is still stranded, without writing anything, just
+    inspects the returned `changed` flag and discards new_text — the
+    exact same "would stripping actually change anything" question,
+    asked without applying the answer, so there's no separate find_
+    stale_placeholder-style function to keep in sync with this one.
 
     Only fires when a real "### ..." block ALREADY exists — a "##
     Changes" section that still only has the bare TODO (a genuinely new
     doc with nothing recorded yet) is the correct, expected state and
-    must never be touched. Reuses _is_bare_todo_stub unchanged, scoped to
-    the span between "## Changes" and the FIRST real block (the only
-    place the stub can ever end up stranded — insert_changes_section
-    only ever appended the very first block right after whatever was
-    already there). Returns (new_text, changed)."""
+    must never be touched, and neither is the intro TODO on its own with
+    no accompanying real content. Returns (new_text, changed)."""
     blocks = parse_upgrade_doc_changes_blocks(text)
     if not blocks:
         return text, False
 
     lines = text.splitlines(keepends=True)
-    changes_idx = None
-    for i, line in enumerate(lines):
-        if line.strip() == "## Changes":
-            changes_idx = i
-            break
-    if changes_idx is None:
-        return text, False
+    changed = False
 
-    first_block_start = blocks[0]["start"]
-    if not _is_bare_todo_stub(lines, changes_idx + 1, first_block_start):
-        return text, False
+    first_heading_idx = next((i for i, l in enumerate(lines) if re.match(r"^##\s+\S", l)), len(lines))
+    if _strip_standalone_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
+        changed = True
+        blocks = parse_upgrade_doc_changes_blocks("".join(lines))  # indices shifted -- recompute
 
-    del lines[changes_idx + 1:first_block_start]
-    lines[changes_idx + 1:changes_idx + 1] = ["\n"]
+    changes_idx = next((i for i, l in enumerate(lines) if l.strip() == "## Changes"), None)
+    if changes_idx is not None and blocks:
+        first_block_start = blocks[0]["start"]
+        new_end = _strip_bare_changes_todo(lines, changes_idx, first_block_start)
+        if new_end != first_block_start:
+            lines[changes_idx + 1:changes_idx + 1] = ["\n"]
+            changed = True
+
+    if not changed:
+        return text, False
     return "".join(lines), True
 
 
@@ -1089,8 +1184,8 @@ def _is_bare_values_deltas_todo_stub(lines):
     section yet) is JUST STUB_TEMPLATES["values-deltas"]'s own shape: its
     "# Values deltas — ..." H1 title, then nothing but blank lines and
     the bare TODO sentence that stub writes (VALUES_DELTAS_STUB_TODO_LINE)
-    — same exact-shape precision as _is_bare_todo_stub above, never a
-    substring/heuristic match."""
+    — same exact-shape precision as _is_bare_placeholder_span above,
+    never a substring/heuristic match."""
     non_blank = [line.strip() for line in lines if line.strip()]
     return len(non_blank) == 2 and non_blank[0].startswith("# ") and non_blank[1] == VALUES_DELTAS_STUB_TODO_LINE.strip()
 
@@ -1138,8 +1233,13 @@ def strip_stale_values_deltas_todo_stub(text):
     BEFORE that fix existed still has the stray TODO sentence stranded
     between the doc's own H1 title and that first section — real case,
     confirmed live: 4.9.1-to-4.9.2-values-deltas.md. Mirrors strip_
-    stale_changes_todo_stub's own shape one heading level up, same as
+    stale_upgrade_placeholders' own shape one heading level up, same as
     insert_values_delta_section mirrors insert_changes_section.
+
+    Also doubles as the CHECKER side, same trick as strip_stale_upgrade_
+    placeholders: a caller that only wants to know WHETHER the
+    placeholder is still stranded inspects the returned `changed` flag
+    and discards new_text, rather than a separate find-only function.
 
     Only fires when a real "## ..." section ALREADY exists — a doc that
     still only has the bare stub (nothing recorded yet) is correct and
@@ -1156,6 +1256,41 @@ def strip_stale_values_deltas_todo_stub(text):
 
     title_line = next(line for line in prefix if line.strip())
     return title_line + "\n" + "".join(lines[first_section_start:]), True
+
+
+GEMEENTE_SECTION_HEADING_RE = re.compile(r"^##\s+\S.*$", re.MULTILINE)
+
+
+def has_real_gemeente_specific_content(text):
+    """True if gemeente-specific.md has at least one real "## <gemeente>
+    (<env>)" section outside its own commented-out example template (see
+    STUB_TEMPLATES["gemeente-specific"], whose own EXAMPLE heading of
+    that exact shape lives inside a "<!-- ... -->" block) — the "has
+    real content" signal for has_stale_gemeente_specific_placeholder,
+    mirroring parse_upgrade_doc_changes_blocks/parse_values_delta_
+    sections' own role for the other two doc types. Scans strip_html_
+    comments' own output, never the original text, same precedent as
+    strip_fenced_code_blocks (see that function's own docstring)."""
+    return bool(GEMEENTE_SECTION_HEADING_RE.search(strip_html_comments(text)))
+
+
+def has_stale_gemeente_specific_placeholder(text):
+    """True if gemeente-specific.md still carries its own bare "_None
+    recorded yet._" placeholder (GEMEENTE_SPECIFIC_STUB_LINE) ALONGSIDE
+    at least one real "## <gemeente> (<env>)" section already added by
+    hand — a human added a real finding but left the placeholder behind.
+
+    Unlike the other three placeholders (upgrade.md's own two, values-
+    deltas.md's own one), there is NO strip/fixer counterpart for this
+    one: nothing ever writes a new section into gemeente-specific.md
+    automatically — its content is entirely human-authored findings
+    (data quirks, local overrides, incident follow-ups) — so this is a
+    check-only finding for verify-podiumd's own check_docs_consistency
+    to report, left for a human to clear by hand, never something fix-
+    doc-consistency could safely auto-fix."""
+    if not has_real_gemeente_specific_content(text):
+        return False
+    return any(line.strip() == GEMEENTE_SPECIFIC_STUB_LINE.strip() for line in text.splitlines())
 
 
 def append_values_delta_section_body(text, section, new_lines):
