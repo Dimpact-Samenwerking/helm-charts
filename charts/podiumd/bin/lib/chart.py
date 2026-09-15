@@ -72,6 +72,22 @@ COMPONENT_IMAGE_PATHS = {
     # projects with their own independent version lines, never bumped
     # in lockstep with kiss-chart itself.
     "kiss-chart": ["image", "settings.syncJobs.image"],
+    # Same bare "image" path DEFAULT_IMAGE_PATHS already implies for any
+    # unregistered component — registered here anyway, deliberately, so
+    # actual_app_version's own vendored-subchart-version fallback (gated
+    # on "component in COMPONENT_IMAGE_PATHS", never DEFAULT_IMAGE_PATHS)
+    # actually applies to it. Real bug this fixes: eck-operator existed,
+    # enabled, at the podiumd-4.9.1 baseline (Chart.yaml dependency
+    # version 3.5.0, condition eck-operator.enabled, values.yaml enabled:
+    # true) with NO explicit values.yaml "image:" override at all — its
+    # real app version only ever resolved via the vendored eck-operator-
+    # 3.5.0.tgz's own default, which this registration is what actually
+    # lets actual_app_version reach for. Without it, old_app fell through
+    # to None (indistinguishable from "genuinely didn't exist yet"),
+    # every upgrade.md-side caller then rendering the CHART_VERSION_
+    # LOCKSTEP_COMPONENTS-agreed-unchanged 3.5.0 -> 3.5.0 bump as "(new)"
+    # instead — confirmed live against the real 4.9.1-to-4.9.2 doc.
+    "eck-operator": ["image"],
 }
 DEFAULT_IMAGE_PATHS = ["image"]
 
@@ -156,24 +172,30 @@ CHART_VERSION_LOCKSTEP_COMPONENTS = frozenset({"kiss-chart", "pabc", "eck-operat
 
 # COMPONENT_IMAGE_PATHS path (as the tuple find_image_tag_paths/
 # find_all_image_and_version_paths itself yields) whose "tag:" field
-# never embeds an "@sha256:..." digest at all — the adfinis keycloak-
-# operator chart's own split "tag:" + sibling "sha:" convention instead
-# (its own template appends "@sha256:{{ .sha }}" itself; embedding it in
-# "tag:" too would produce an invalid double digest — see the values.yaml
-# comment above operator.config.keycloakImage). Same underlying fact
-# update-component-version's own SPLIT_TAG_SHA_PATHS documents for the
-# WRITE side (dotted-string keyed, since that script edits raw text
-# lines rather than walking a parsed values tree) and lib.
-# digest_pinning_check.EXEMPT_PATHS documents for ITS own "must every
-# tag be digest-pinned" check — this module's own tuple-keyed form, for
-# a caller (resolved_digest_pin) that needs the ACTUAL digest value, not
-# just an "is this path exempt" boolean.
+# never embeds an "@sha256:..." digest at all -- a sibling field holds
+# it instead, under whatever NAME this component's own upstream chart
+# happens to use (the adfinis keycloak-operator chart's own split "tag:"
+# + sibling "sha:" convention — its own template appends
+# "@sha256:{{ .sha }}" itself; embedding it in "tag:" too would produce
+# an invalid double digest — see the values.yaml comment above operator.
+# config.keycloakImage; the elastic eck-operator chart instead names its
+# own sibling field "digest:", not "sha:" — same split shape, different
+# upstream naming). Maps path -> that sibling field's own NAME (never
+# hardcode "sha" — see resolved_digest_pin, the one place this actually
+# gets read). Same underlying fact update-component-version's own
+# SPLIT_TAG_SHA_PATHS documents for the WRITE side (dotted-string keyed,
+# since that script edits raw text lines rather than walking a parsed
+# values tree — deliberately its own separate registry, see below) and
+# lib.digest_pinning_check.EXEMPT_PATHS documents for ITS own "must
+# every tag be digest-pinned" check — this module's own tuple-keyed
+# form, for a caller (resolved_digest_pin) that needs the ACTUAL digest
+# value, not just an "is this path exempt" boolean.
 SPLIT_TAG_SHA_PATHS = {
-    ("keycloak-operator", "operator", "config", "keycloakImage"),
+    ("keycloak-operator", "operator", "config", "keycloakImage"): "sha",
     # keycloak.image aliases the above via YAML anchor (repository/tag/
     # sha all shared — see values.yaml's own comment there) and so uses
     # the exact same split shape, not the ordinary embedded-digest one.
-    ("keycloak", "image"),
+    ("keycloak", "image"): "sha",
     # The operator's OWN image — same split tag:/sha: shape, overridden
     # explicitly in values.yaml (see the "operator image digest pinning
     # differs from every other image" caveat in the upgrade doc) even
@@ -184,25 +206,46 @@ SPLIT_TAG_SHA_PATHS = {
     # is read-only (resolved_digest_pin needs the actual digest to
     # report/compare against, regardless of how it got there), so it
     # must reflect whatever values.yaml actually contains.
-    ("keycloak-operator", "operator", "image"),
+    ("keycloak-operator", "operator", "image"): "sha",
+    # eck-operator's own upstream chart names its sibling field "digest:"
+    # (values.yaml: "eck-operator.image: {tag: ..., digest: sha256:...}"),
+    # not "sha:" — confirmed live on the real chart. Without this
+    # registration, resolved_digest_pin had no way to find it at all
+    # (returned None), which is exactly why images-<target>.yaml's own
+    # entry-writer (add_missing_images_manifest_entries) refused to
+    # write an entry for it ("no resolvable repository, or its values.
+    # yaml tag has no digest pinned yet").
+    ("eck-operator", "image"): "digest",
 }
 
 
 def resolved_digest_pin(values, path, tag):
     """`tag`'s own "@sha256:<hex>" suffix if it already has one, else —
     for a SPLIT_TAG_SHA_PATHS path only — that same digest read from the
-    path's own sibling "sha:" field instead (bare hex, no "sha256:"
-    prefix of its own — see update-component-version's write_tag_and_sha)
-    and combined into the usual "<tag>@sha256:<hex>" shape. None when
-    neither source has a digest at all (an ordinary path with no "@" in
-    its tag, or a SPLIT_TAG_SHA_PATHS path with no "sha:" override yet —
-    inherits the vendored subchart's own default, not visible here)."""
+    path's own sibling field instead (whatever SPLIT_TAG_SHA_PATHS names
+    it for this exact path) and combined into the usual "<tag>@sha256:
+    <hex>" shape. None when neither source has a digest at all (an
+    ordinary path with no "@" in its tag, or a SPLIT_TAG_SHA_PATHS path
+    with no override yet in its own sibling field — inherits the
+    vendored subchart's own default, not visible here).
+
+    The sibling field's own VALUE SHAPE is not standardized across
+    SPLIT_TAG_SHA_PATHS entries, and is used as found rather than always
+    assuming one: the two keycloak paths' own "sha:" field is bare hex,
+    no "sha256:" prefix of its own (see update-component-version's
+    write_tag_and_sha) — but eck-operator's own "digest:" field already
+    carries the full "sha256:<hex>" form (confirmed live on the real
+    chart: "digest: \"sha256:b6f26137...\""). Prepending "sha256:"
+    unconditionally would double it for eck-operator's own shape."""
     if "@" in tag:
         return tag
-    if path not in SPLIT_TAG_SHA_PATHS:
+    sibling_field = SPLIT_TAG_SHA_PATHS.get(path)
+    if sibling_field is None:
         return None
-    sha = get_path(values, ".".join(path) + ".sha")
-    return f"{tag}@sha256:{sha}" if isinstance(sha, str) and sha else None
+    digest = get_path(values, ".".join(path) + f".{sibling_field}")
+    if not isinstance(digest, str) or not digest:
+        return None
+    return f"{tag}@{digest}" if digest.startswith("sha256:") else f"{tag}@sha256:{digest}"
 
 
 def _is_dependency_primary_rel_path(dep, rel_path):

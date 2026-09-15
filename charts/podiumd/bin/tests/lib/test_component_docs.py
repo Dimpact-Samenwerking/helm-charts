@@ -466,6 +466,45 @@ def test_resolve_component_own_version_change_vendored_fallback_never_used_when_
     assert (old_chart, new_chart, old_app, new_app, unchanged) == ("0.28.4", "0.29.0", None, "v2.6.0", False)
 
 
+def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(libcomponentdocs, tmp_path):
+    """Regression test (real bug, real doc, real chart): eck-operator
+    existed, enabled, at the podiumd-4.9.1 baseline with NO explicit
+    values.yaml "image:" override at all (same shape modeled here —
+    only "enabled: true", nothing else); its chart version (3.5.0) is
+    UNCHANGED this hop, and the target added an explicit split "tag:"/
+    "digest:" override still reading the same 3.5.0. Since eck-operator
+    is now registered in COMPONENT_IMAGE_PATHS (no monkeypatch needed —
+    that registration IS the fix under test), the vendored-subchart
+    fallback correctly resolves old_app to the SAME "3.5.0" as new_app,
+    so this now reads (unchanged), not "(new)" — confirmed live on the
+    real chart's own 4.9.1-to-4.9.2-upgrade.md before/after this fix."""
+    import io
+    import tarfile
+
+    import yaml as pyyaml
+    charts_dir = tmp_path / "charts"
+    charts_dir.mkdir()
+    tgz_path = charts_dir / "eck-operator-3.5.0.tgz"
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        for filename, content in (
+                ("eck-operator/values.yaml", {"image": {"tag": "3.5.0"}}),
+                ("eck-operator/Chart.yaml", {"apiVersion": "v2", "version": "3.5.0", "appVersion": "3.5.0"})):
+            data = pyyaml.safe_dump(content).encode("utf-8")
+            info = tarfile.TarInfo(name=filename)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+
+    dep = {"name": "eck-operator", "version": "3.5.0", "condition": "eck-operator.enabled"}
+    baseline_values = {"eck-operator": {"enabled": True}}  # no "image:" override at all, real 4.9.1 shape
+    target_values = {"eck-operator": {
+        "enabled": True, "image": {"tag": "3.5.0", "digest": "sha256:" + "b" * 64}}}
+
+    resolved = libcomponentdocs.resolve_component_own_version_change(
+        "eck-operator", [dep], [dep], target_values, baseline_values, tmp_path, [])
+    _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
+    assert (old_chart, new_chart, old_app, new_app, unchanged) == ("3.5.0", "3.5.0", "3.5.0", "3.5.0", True)
+
+
 def test_add_missing_component_rows_skips_own_unchanged_component(libcomponentdocs, tmp_path):
     """Regression test: zac's subtree gains a brand-new sidecar of its
     own (not modeled here directly — actual_changed_keys already

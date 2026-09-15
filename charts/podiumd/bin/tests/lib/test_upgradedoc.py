@@ -301,20 +301,45 @@ def test_actual_app_version_falls_back_to_vendored_subchart_app_version(libupgra
 
 def test_actual_app_version_subchart_fallback_only_for_registered_components(libupgradedoc, tmp_path):
     """The vendored-appVersion fallback never applies to a component with
-    no COMPONENT_IMAGE_PATHS entry of its own (e.g. eck-operator, which
-    also floats on its own chart's appVersion but is deliberately left
-    unresolved — already documented in images-manifest prose, not a
-    gap) — a blank/missing tag on an unregistered component could just
-    as easily mean "not actually running this image," which nothing
-    here can tell apart from openbao's own deliberate design."""
+    no COMPONENT_IMAGE_PATHS entry of its own — a blank/missing tag on an
+    unregistered component could just as easily mean "not actually
+    running this image," which nothing here can tell apart from
+    openbao's own deliberate design. (Not eck-operator as the example
+    here anymore — it's now registered, precisely so this fallback DOES
+    apply to it; see test_actual_app_version_eck_operator_vendored_
+    fallback_resolves_correctly below. A clearly-synthetic name is used
+    instead so this test can't go stale again the next time some other
+    real component gets registered.)"""
+    _make_vendored_tgz(tmp_path / "charts", "totally-unregistered-component", "3.5.0",
+                        {"image": {"tag": ""}},
+                        {"apiVersion": "v2", "version": "3.5.0", "appVersion": "3.5.0"})
+    values = {"totally-unregistered-component": {
+        "image": {"repository": "example.invalid/totally-unregistered-component", "tag": ""}}}
+    dep = {"name": "totally-unregistered-component", "version": "3.5.0"}
+
+    assert libupgradedoc.actual_app_version(
+        values, "totally-unregistered-component", "totally-unregistered-component",
+        chart_dir=tmp_path, dep=dep) is None
+
+
+def test_actual_app_version_eck_operator_vendored_fallback_resolves_correctly(libupgradedoc, tmp_path):
+    """Regression test (real bug, real doc): eck-operator existed, enabled,
+    at the podiumd-4.9.1 baseline with NO explicit values.yaml "image:"
+    override at all (chart version 3.5.0, unchanged from target) — its
+    real baseline app version is only ever resolvable via the vendored
+    eck-operator-3.5.0.tgz's own default appVersion. Before eck-operator
+    was registered in COMPONENT_IMAGE_PATHS, this always resolved to
+    None (indistinguishable from "genuinely didn't exist yet"), which
+    every upgrade.md-side caller then rendered as "(new)" instead of the
+    correct "(unchanged)"."""
     _make_vendored_tgz(tmp_path / "charts", "eck-operator", "3.5.0",
                         {"image": {"tag": ""}},
                         {"apiVersion": "v2", "version": "3.5.0", "appVersion": "3.5.0"})
-    values = {"eck-operator": {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": ""}}}
+    values = {"eck-operator": {}}  # no explicit "image:" override at all, same as the real 4.9.1 baseline
     dep = {"name": "eck-operator", "version": "3.5.0"}
 
     assert libupgradedoc.actual_app_version(
-        values, "eck-operator", "eck-operator", chart_dir=tmp_path, dep=dep) is None
+        values, "eck-operator", "eck-operator", chart_dir=tmp_path, dep=dep) == "3.5.0"
 
 
 # --- find_image_tag_paths ---
@@ -727,6 +752,35 @@ def test_find_images_manifest_list_diff_treats_brand_new_path_as_changed(libupgr
     missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set())
     assert missing == [("newcomponent", "image")]
+    assert stale == []
+    assert unmatched == []
+
+
+def test_find_images_manifest_list_diff_eck_operator_new_pin_still_reported_as_missing(libupgradedoc):
+    """Non-regression test: eck-operator's own image path (target has an
+    explicit split "tag:"/"digest:" override; baseline has NO "image:"
+    key at all under eck-operator, same shape as the real 4.9.1
+    baseline) is correctly reported as "missing" from images-<target>
+    .yaml via plain path/version comparison -- independent of whether
+    resolved_digest_pin can ALSO resolve its own sibling "digest:" field
+    (a separate question, about whether a valid ENTRY can be auto-
+    written — see lib.chart.SPLIT_TAG_SHA_PATHS and add_missing_images_
+    manifest_entries' own eck-operator test). This finding must keep
+    firing even once that separate gap is fixed: a real new pin was
+    added either way, and this function's own "missing" detection
+    doesn't (and shouldn't) depend on the entry being writable."""
+    path = ("eck-operator", "image")
+    current_paths = {path: "3.5.0"}
+    baseline_paths = {}
+    values = {"eck-operator": {"image": {
+        "repository": "docker.elastic.co/eck/eck-operator", "tag": "3.5.0", "digest": "sha256:" + "b" * 64}}}
+    baseline_values = {"eck-operator": {"enabled": True}}
+
+    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+        [], current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set(),
+        values=values, baseline_values=baseline_values)
+
+    assert missing == [path]
     assert stale == []
     assert unmatched == []
 
