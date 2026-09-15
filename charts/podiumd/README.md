@@ -358,15 +358,15 @@ PodiumD Helm chart
 | keycloak.config.adminFrontendUrl | string | `"https://keycloak-admin.example.nl"` |  |
 | keycloak.config.clients.datamigratie.enabled | bool | `true` |  |
 | keycloak.config.clients.datamigratie.name | string | `"Datamigratie"` |  |
-| keycloak.config.clients.datamigratie.oidcUrl | string | `"https://datamigratie.example.nl"` |  |
+| keycloak.config.clients.datamigratie.oidcUrl | string | `"https://datamigratie.example.nl"` | REQUIRED. Public https URL this client is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default deploys successfully and then fails every login with 'Invalid parameter: redirect_uri'. |
 | keycloak.config.clients.datamigratie.secret | string | `""` |  |
 | keycloak.config.clients.monitoring.enabled | bool | `true` |  |
 | keycloak.config.clients.monitoring.name | string | `"Monitoring (Grafana)"` |  |
-| keycloak.config.clients.monitoring.oidcUrl | string | `"https://monitoring.example.nl"` |  |
+| keycloak.config.clients.monitoring.oidcUrl | string | `"https://monitoring.example.nl"` | REQUIRED. Public https URL this client is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default deploys successfully and then fails every login with 'Invalid parameter: redirect_uri'. |
 | keycloak.config.clients.monitoring.secret | string | `""` |  |
 | keycloak.config.clients.zaakbrug.enabled | bool | `true` |  |
 | keycloak.config.clients.zaakbrug.name | string | `"Zaakbrug Frank!Framework console"` |  |
-| keycloak.config.clients.zaakbrug.oidcUrl | string | `"https://zaakbrug.example.nl"` |  |
+| keycloak.config.clients.zaakbrug.oidcUrl | string | `"https://zaakbrug.example.nl"` | REQUIRED. Public https URL this client is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default deploys successfully and then fails every login with 'Invalid parameter: redirect_uri'. |
 | keycloak.config.clients.zaakbrug.secret | string | `""` |  |
 | keycloak.config.realm | string | `"podiumd"` | identity provider mapper for the admin realm adminIdentityProviderMappers: {} |
 | keycloak.config.realmDisplayName | string | `"PodiumD"` |  |
@@ -513,7 +513,7 @@ PodiumD Helm chart
 | kiss.adapter.resources.requests.memory | string | `"100Mi"` |  |
 | kiss.adapter.secret | string | `""` |  |
 | kiss.configuration.oidcSecret | string | `"<kiss>"` |  |
-| kiss.configuration.oidcUrl | string | `"https://kiss.example.nl"` |  |
+| kiss.configuration.oidcUrl | string | `"https://kiss.example.nl"` | REQUIRED. Public https URL this client is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default deploys successfully and then fails every login with 'Invalid parameter: redirect_uri'. |
 | kiss.enabled | bool | `true` |  |
 | kiss.extraEnvVars | list | `[]` | Optionally specify extra list of additional environment variables. Not necesarry for KvK / BRP headers, use the settings for these |
 | kiss.extraVolumeMounts | list | `[]` | Optionally specify extra list of additional volumeMounts, for example to trust extra ca certificates. |
@@ -613,7 +613,7 @@ PodiumD Helm chart
 | objecten.configuration.job.resources | object | `{}` |  |
 | objecten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | objecten.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| objecten.configuration.oidcUrl | string | `"https://objecten.example.nl"` |  |
+| objecten.configuration.oidcUrl | string | `"https://objecten.example.nl"` | REQUIRED when this component is enabled. Public https URL the component is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default fails the render - see IN-2868. |
 | objecten.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | objecten.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | objecten.flower.enabled | bool | `false` |  |
@@ -655,7 +655,7 @@ PodiumD Helm chart
 | objecttypen.configuration.job.resources | object | `{}` |  |
 | objecttypen.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | objecttypen.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| objecttypen.configuration.oidcUrl | string | `"https://objecttypen.example.nl"` |  |
+| objecttypen.configuration.oidcUrl | string | `"https://objecttypen.example.nl"` | REQUIRED when this component is enabled. Public https URL the component is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default fails the render - see IN-2868. |
 | objecttypen.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | objecttypen.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | objecttypen.configuration.token | string | `"<token>"` |  |
@@ -712,7 +712,7 @@ PodiumD Helm chart
 | openarchiefbeheer.configuration.job.enabled | bool | `true` |  |
 | openarchiefbeheer.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openarchiefbeheer.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| openarchiefbeheer.configuration.oidcUrl | string | `"https://abc.example.nl"` |  |
+| openarchiefbeheer.configuration.oidcUrl | string | `"https://abc.example.nl"` | REQUIRED when this component is enabled. Public https URL the component is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default fails the render - see IN-2868. |
 | openarchiefbeheer.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. |
 | openarchiefbeheer.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openarchiefbeheer.enabled | bool | `false` |  |
@@ -774,7 +774,7 @@ PodiumD Helm chart
 | openbao.configuration.keycloak.realm | string | `"podiumd"` |  |
 | openbao.configuration.keycloak.url | string | `"https://keycloak.example.nl"` |  |
 | openbao.configuration.kvPath | string | `"secret"` |  |
-| openbao.configuration.oidcUrl | string | `"https://openbao.example.nl"` |  |
+| openbao.configuration.oidcUrl | string | `"https://openbao.example.nl"` | REQUIRED when this component is enabled. Public https URL the component is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default fails the render - see IN-2868. |
 | openbao.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openbao.configuration.uploadersGroup | string | `"vault-uploaders"` |  |
 | openbao.configuration.uploadersRole | string | `"uploaders"` |  |
@@ -832,7 +832,7 @@ PodiumD Helm chart
 | openbeheer.configuration.job.resources | object | `{}` |  |
 | openbeheer.configuration.job.restartPolicy | string | `"Never"` |  |
 | openbeheer.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| openbeheer.configuration.oidcUrl | string | `"https://openbeheer.example.nl"` |  |
+| openbeheer.configuration.oidcUrl | string | `"https://openbeheer.example.nl"` | REQUIRED when this component is enabled. Public https URL the component is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default fails the render - see IN-2868. |
 | openbeheer.configuration.overwrite | bool | `false` |  |
 | openbeheer.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openbeheer.configuration.secrets.keycloak_client_secret | string | `""` |  |
@@ -910,7 +910,7 @@ PodiumD Helm chart
 | openformulieren.configuration.job.enabled | bool | `true` |  |
 | openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openformulieren.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| openformulieren.configuration.oidcUrl | string | `"https://openformulieren.example.nl"` |  |
+| openformulieren.configuration.oidcUrl | string | `"https://openformulieren.example.nl"` | REQUIRED when this component is enabled. Public https URL the component is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default fails the render - see IN-2868. |
 | openformulieren.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openformulieren.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openformulieren.flower.enabled | bool | `false` |  |
@@ -962,7 +962,7 @@ PodiumD Helm chart
 | openinwoner.configuration.job.resources | object | `{}` |  |
 | openinwoner.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openinwoner.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| openinwoner.configuration.oidcUrl | string | `"https://openinwoner.example.nl"` |  |
+| openinwoner.configuration.oidcUrl | string | `"https://openinwoner.example.nl"` | REQUIRED when this component is enabled. Public https URL the component is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default fails the render - see IN-2868. |
 | openinwoner.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openinwoner.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openinwoner.eck-elasticsearch.enabled | bool | `true` |  |
@@ -1021,7 +1021,7 @@ PodiumD Helm chart
 | openklant.configuration.job.resources | object | `{}` |  |
 | openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openklant.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| openklant.configuration.oidcUrl | string | `"https://openklant.example.nl"` |  |
+| openklant.configuration.oidcUrl | string | `"https://openklant.example.nl"` | REQUIRED when this component is enabled. Public https URL the component is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default fails the render - see IN-2868. |
 | openklant.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openklant.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openklant.fullnameOverride | string | `"openklant"` |  |
@@ -1070,7 +1070,7 @@ PodiumD Helm chart
 | opennotificaties.configuration.job.resources | object | `{}` |  |
 | opennotificaties.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | opennotificaties.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| opennotificaties.configuration.oidcUrl | string | `"https://opennotificaties.example.nl"` |  |
+| opennotificaties.configuration.oidcUrl | string | `"https://opennotificaties.example.nl"` | REQUIRED when this component is enabled. Public https URL the component is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default fails the render - see IN-2868. |
 | opennotificaties.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | opennotificaties.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | opennotificaties.extraEnvVars | list | `[{"name":"OPENNOTIFICATIES_PORT","value":"8000"}]` | Override OPENNOTIFICATIES_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Notificaties 1.16.2 the app reads OPENNOTIFICATIES_PORT for uwsgi_port; K8s auto-injects OPENNOTIFICATIES_PORT=tcp://<svc-ip>:80 for the opennotificaties Service, so uwsgi binds on the Service ClusterIP instead of the pod and both probes get "connection refused". Same defect as OPENZAAK_PORT above (Open Zaak 1.27.3). Only bites when the release's Service is named "opennotificaties", i.e. the chart default: environments that set fullnameOverride (the QA rigs use "notificaties") never see it. NOTE: a gemeente that sets its own opennotificaties.extraEnvVars REPLACES this list and silently loses the fix — keep this entry when overriding. The clean fix is enableServiceLinks: false, as the openzaak subchart (1.14.2) does; the opennotificaties subchart (2.0.0) has no such value yet. |
@@ -1122,7 +1122,7 @@ PodiumD Helm chart
 | openzaak.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openzaak.configuration.notificaties.enabled | bool | `true` |  |
 | openzaak.configuration.notificatiesAuthorization.enabled | bool | `true` |  |
-| openzaak.configuration.oidcUrl | string | `"https://openzaak.example.nl"` |  |
+| openzaak.configuration.oidcUrl | string | `"https://openzaak.example.nl"` | REQUIRED when this component is enabled. Public https URL the component is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default fails the render - see IN-2868. |
 | openzaak.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openzaak.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openzaak.create_required_catalogi_job.activeDeadlineSeconds | int | `900` |  |
@@ -1205,7 +1205,7 @@ PodiumD Helm chart
 | pabc.settings.oidc.emailClaimType | string | `"email"` |  |
 | pabc.settings.oidc.functioneelBeheerderRole | string | `"administrator"` |  |
 | pabc.settings.oidc.nameClaimType | string | `"name"` |  |
-| pabc.settings.oidc.oidcUrl | string | `"https://pabc.example.nl"` |  |
+| pabc.settings.oidc.oidcUrl | string | `"https://pabc.example.nl"` | REQUIRED. Public https URL this client is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default deploys successfully and then fails every login with 'Invalid parameter: redirect_uri'. |
 | pabc.settings.oidc.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. PABC is a .NET app; enable when OpenIdConnect PKCE is configured in the application. |
 | pabc.settings.oidc.roleClaimType | string | `"roles"` |  |
 | persistentVolume.nodeStageSecretRefName | string | `""` |  |
@@ -1240,7 +1240,7 @@ PodiumD Helm chart
 | referentielijsten.configuration.job.resources | object | `{}` |  |
 | referentielijsten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | referentielijsten.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| referentielijsten.configuration.oidcUrl | string | `"https://referentielijsten.example.nl"` |  |
+| referentielijsten.configuration.oidcUrl | string | `"https://referentielijsten.example.nl"` | REQUIRED when this component is enabled. Public https URL the component is reached at; the Keycloak client's redirect URIs are derived from it. Leaving the example.nl default fails the render - see IN-2868. |
 | referentielijsten.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | referentielijsten.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | referentielijsten.enabled | bool | `false` |  |
