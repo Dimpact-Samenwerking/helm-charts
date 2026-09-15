@@ -306,3 +306,11 @@ def helm_repos_urls_by_alias(chart_dir):
         "worth-nl": "https://worth-nl.github.io/helm-charts",
         "opstree": "https://ot-container-kit.github.io/helm-charts/",
     }))
+
+
+def component_resolution_chart_version_lockstep_components(chart_dir):
+    """component_resolution.chart_version_lockstep_components — replaces
+    lib.chart.CHART_VERSION_LOCKSTEP_COMPONENTS, a frozenset, default
+    frozenset({"kiss-chart", "pabc", "eck-operator"})."""
+    return frozenset(_get(chart_dir, "component_resolution", "chart_version_lockstep_components",
+                          ["kiss-chart", "pabc", "eck-operator"]))

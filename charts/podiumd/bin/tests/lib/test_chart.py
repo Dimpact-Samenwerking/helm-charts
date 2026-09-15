@@ -1980,3 +1980,23 @@ def test_subchart_default_repository_caches_across_calls(libchart, tmp_path, mon
     assert libchart.subchart_default_repository(tmp_path, lines, 3, deps, cache) == "openzaak/open-zaak"
     assert libchart.subchart_default_repository(tmp_path, lines, 6, deps, cache) == "openzaak/open-zaak-worker"
     assert calls == ["openzaak"]  # second lookup served from cache, .tgz read only once
+
+
+# --- chart_version_lockstep_components (self-resolving wrapper) ---
+
+def test_chart_version_lockstep_components_self_resolves_against_real_chart_dir(libchart):
+    """Called with no override, resolves chart_dir from lib/chart.py's own
+    on-disk location (parents[2]) and reads the REAL etc/settings.yaml --
+    proves the self-resolving default actually works end to end, not just
+    against a synthetic chart_dir handed in by a test."""
+    assert libchart.chart_version_lockstep_components() == frozenset({"kiss-chart", "pabc", "eck-operator"})
+
+
+def test_chart_version_lockstep_components_explicit_override(libchart, tmp_path):
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "settings.yaml").write_text(
+        "component_resolution:\n"
+        "  chart_version_lockstep_components: [\"only-this-one\"]\n",
+        encoding="utf-8",
+    )
+    assert libchart.chart_version_lockstep_components(tmp_path) == frozenset({"only-this-one"})

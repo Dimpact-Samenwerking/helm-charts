@@ -13,6 +13,7 @@ import yaml
 from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 from lib.release_baseline import resolve_baseline_chart_state
+from lib.settings import component_resolution_chart_version_lockstep_components
 
 # A BOM breaks YAML tooling that doesn't expect one. Shared by
 # verify-podiumd (detects and reports it — a verify script never writes
@@ -153,21 +154,26 @@ def version_paths_for(component):
 # version_paths_for(component) — a DIFFERENT lockstep signal than either
 # registry above, which are both about several values-tree PATHS agreeing
 # with EACH OTHER; this is about the Chart.yaml dependency's own chart
-# version agreeing with the image it ships. True for a component whose
-# release process stamps the same version number on both the chart and its
-# one real app image (kiss-chart, pabc: both observed today at Chart.yaml
-# version == image tag) — never assume it for a component that merely
-# vendors a THIRD PARTY app at whatever version it happens to package
-# (e.g. keycloak-operator, eck-stack), where the chart's own version and
-# the app version it ships are two independent numbers by design.
-#
-# eck-operator is the same "chart version == image version" shape as
-# kiss-chart/pabc, NOT the "vendors a third-party app at its own
-# independent version" shape keycloak-operator/eck-stack are — the
-# elastic eck-operator chart IS the operator image, released together
-# at one version number (observed: Chart.yaml "version: 3.5.0" and
-# values.yaml "eck-operator.image.tag: \"3.5.0\"" agree today).
-CHART_VERSION_LOCKSTEP_COMPONENTS = frozenset({"kiss-chart", "pabc", "eck-operator"})
+# version agreeing with the image it ships. Now lives in charts/podiumd/
+# etc/settings.yaml's own "component_resolution.chart_version_lockstep_
+# components" (see lib.settings.component_resolution_chart_version_
+# lockstep_components and that file's own comment for the kiss-chart/
+# pabc/eck-operator vs. keycloak-operator/eck-stack reasoning) —
+# chart_version_lockstep_components below resolves it.
+
+
+def chart_version_lockstep_components(chart_dir=None):
+    """Self-resolving wrapper around lib.settings.component_resolution_
+    chart_version_lockstep_components — lib/chart.py's own convenience
+    functions have always been callable from anywhere with no chart_dir
+    ceremony (unlike lib.settings' own accessors, which always take it
+    explicitly); this preserves that property for a caller with no
+    chart_dir in scope, while still accepting an explicit override for
+    tests. bin/lib/chart.py always lives at <chart_dir>/bin/lib/chart.py,
+    so parents[2] from this file's own location IS chart_dir when no
+    override is given."""
+    chart_dir = chart_dir or Path(__file__).resolve().parents[2]
+    return component_resolution_chart_version_lockstep_components(chart_dir)
 
 
 # The set of paths whose "tag:" field never embeds an "@sha256:..."
