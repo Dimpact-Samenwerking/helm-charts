@@ -423,6 +423,76 @@ def test_main_already_at_new_baseline_collapses_pre_existing_double_blank_line(c
     assert "4.8.2-to-4.9.0-gemeente-specific.md: already baseline 4.8.2 — collapsed multiple blank line(s)" in out
 
 
+def test_main_already_at_new_baseline_strips_stale_changes_todo_stub(cdb, repo, monkeypatch, capsys):
+    """Regression test (real bug, real doc): 4.9.1-to-4.9.2-upgrade.md's
+    own "### eck-operator ..." block was inserted before insert_changes_
+    section's own insertion-time fix existed, leaving "TODO" stranded
+    beside it forever. This "already at baseline" no-rename path is the
+    ONLY place a doc like this ever gets touched again — same reasoning
+    as the sibling-reference/blank-line fixes right above."""
+    write(repo / "4.8.2-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.2)\n\n"
+          "## Changes\n\n"
+          "TODO\n\n"
+          "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+          "PodiumD 4.9.0 introduces **eck-operator** at app version 3.5.0.\n")
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
+
+    cdb.main()
+
+    text = (repo / "4.8.2-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "TODO" not in text
+    assert "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)" in text
+    out = capsys.readouterr().out
+    assert "4.8.2-to-4.9.0-upgrade.md: already baseline 4.8.2 — removed stale TODO placeholder" in out
+    assert "removed stale TODO placeholder from 1 doc(s): 4.8.2-to-4.9.0-upgrade.md" in out
+
+
+def test_main_already_at_new_baseline_leaves_a_still_empty_changes_section_untouched(
+        cdb, repo, monkeypatch, capsys):
+    """A "## Changes" section that STILL only has the bare TODO (no real
+    "### ..." block yet) is the correct, expected state for a doc with
+    nothing recorded yet — must never be touched, and must not appear in
+    the "removed stale TODO placeholder" summary."""
+    write(repo / "4.8.2-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.2)\n\n"
+          "## Changes\n\n"
+          "TODO\n")
+    original = (repo / "4.8.2-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
+
+    cdb.main()
+
+    assert (repo / "4.8.2-to-4.9.0-upgrade.md").read_text(encoding="utf-8") == original
+    out = capsys.readouterr().out
+    assert "4.8.2-to-4.9.0-upgrade.md: already baseline 4.8.2 — unchanged" in out
+    assert "removed stale TODO placeholder" not in out
+
+
+def test_main_already_at_new_baseline_strips_stale_values_deltas_todo_stub(cdb, repo, monkeypatch, capsys):
+    """Regression test (real bug, real doc): 4.9.1-to-4.9.2-values-
+    deltas.md's own "## eck-operator ..." section was inserted before
+    insert_values_delta_section's own insertion-time fix existed,
+    leaving the stub TODO sentence stranded beside it forever."""
+    write(repo / "4.8.2-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\n"
+          "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n\n"
+          "## eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+          "- Key `eck-operator.image` was added.\n")
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
+
+    cdb.main()
+
+    text = (repo / "4.8.2-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
+    assert "TODO" not in text
+    assert "## eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)" in text
+    out = capsys.readouterr().out
+    assert "4.8.2-to-4.9.0-values-deltas.md: already baseline 4.8.2 — removed stale TODO placeholder" in out
+    assert "removed stale TODO placeholder from 1 doc(s): 4.8.2-to-4.9.0-values-deltas.md" in out
+
+
 def test_main_no_release_baseline_errors(cdb, monkeypatch):
     """No release-baseline.yaml upgrade_docs key to read (file or key
     missing) is an error — this script never takes the baseline as an
