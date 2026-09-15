@@ -484,6 +484,23 @@ def print_severity_totals_line(vulns):
     print(f"  {parts} CVE(s)")
 
 
+def print_bucket_header(title, empty):
+    """Print "--- {title} ---" unless `empty` — the shared "skip a bucket
+    with nothing flagged in it entirely, otherwise print its own header"
+    idiom every bucketed report in this codebase uses (this module's own
+    print_bucket_report below, and lib.cve_diff_check's own per-bucket
+    scan+diff+print loop) — factored out here so there's one place this
+    trivial-looking convention lives, not two independently-written
+    copies that could silently drift (e.g. one gaining a blank line the
+    other doesn't). Returns whether the header was printed, so a caller
+    that needs to know (rather than always printing its own body
+    unconditionally right after) can branch on it."""
+    if empty:
+        return False
+    print(f"--- {title} ---")
+    return True
+
+
 def print_bucket_report(title, refs, images, detail_level):
     """detail_level, applied identically regardless of which bucket this is
     (own/partner-vendor/other-vendor all get the same treatment — no
@@ -494,9 +511,8 @@ def print_bucket_report(title, refs, images, detail_level):
                  image.
       "totals" — per-image severity totals only (every severity, including
                  CRIT/HIGH) — no package breakdown, no individual CVE IDs."""
-    if not refs:
+    if not print_bucket_header(title, empty=not refs):
         return
-    print(f"--- {title} ---")
 
     for ref in refs:
         info = images[ref]

@@ -25,6 +25,24 @@ fact" precedent check_cves itself already established — a proposed image
 introducing a new CRITICAL is worth knowing before bumping, not a reason
 to make verify-podiumd itself red.
 
+Reported split into the same own/partner-vendor/other-vendor buckets as
+check_yamllint/check_kubeconform/check_shellcheck/check_kube_score/
+check_cves — every candidate is classified via the exact same lib.
+cve_check machinery those already use (render-based "# Source:"
+attribution first, falling back to a values.yaml top-level-key heuristic
+for a component not present in the render at all — see
+classify_candidates), reusing whatever render check_image_upgrades'
+STEP_PREREQUISITES already produced rather than triggering a second real
+`helm template`. Same as check_cves' own explicit convention: ALL THREE
+buckets get identical treatment here too — full per-candidate scan+diff
+output, own numbering, own closed/introduced totals — no aggregate-only
+rollup for other-vendor (check_image_upgrades itself used to have exactly
+that other-vendor aggregate-only shortcut and was fixed to drop it, for
+the same reason). Unlike check_image_upgrades' own print_upgradable,
+though, a candidate's printed line never grows a vendor-label suffix here
+— bucket headers alone are enough context, and this module's per-
+candidate line format is otherwise unchanged.
+
 Candidates, gathered from two independent sources:
 - "upgrade" — every unique digest pin (lib.image_digests.
   unique_digest_pin_targets, the same simple "no subchart-default
@@ -82,14 +100,16 @@ import urllib.error
 from collections import Counter
 
 from lib.cve_check import (
-    HIGH_SEVERITIES, SEVERITY_ORDER, high_findings_by_package, open_cache_session, print_package_line,
-    save_cache, scan_cached, severity_label,
+    HIGH_SEVERITIES, SEVERITY_ORDER, bucket_of, classify_by_key, dependency_names, high_findings_by_package,
+    open_cache_session, print_bucket_header, print_package_line, render_image_labels, save_cache, scan_cached,
+    severity_label, top_level_key_for_line,
 )
 from lib.image_digests import find_sliding_pins, unique_digest_pin_targets
 from lib.image_upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
 from lib.image_upgrade_cache import cache_key as upgrade_cache_key
 from lib.image_upgrade_cache import load_cache as load_upgrade_cache
 from lib.registry import parse_repo, registry_tag_exists
+from lib.render_scope import friendly_vendor_charts, render_chart
 
 
 def _vuln_key(v):
@@ -137,7 +157,7 @@ def gather_candidates(chart_dir):
 
     upgrade_cache = load_upgrade_cache(chart_dir)
     candidates = []
-    for (repository, version), (digest, _line) in sorted(targets.items()):
+    for (repository, version), (digest, line) in sorted(targets.items()):
         entry = upgrade_cache.get(upgrade_cache_key(repository, version))
         if entry and upgrade_entry_is_fresh(entry) and entry["newest"] != version:
             host, repo_path = parse_repo(repository)
@@ -150,6 +170,7 @@ def gather_candidates(chart_dir):
                 "proposed_label": entry["newest"],
                 "proposed_ref": f"{host}/{repo_path}:{entry['newest']}",
                 "proposed_digest": None,
+                "line": line,
             })
 
     for repository, version, pinned_digest, digest in find_sliding_pins(chart_dir):
@@ -162,6 +183,7 @@ def gather_candidates(chart_dir):
             "proposed_label": digest,
             "proposed_ref": f"{repository}@{digest}",
             "proposed_digest": _bare_digest(digest),
+            "line": targets.get((repository, version), (None, None))[1],
         })
 
     return candidates
@@ -230,6 +252,66 @@ def print_candidate_result(closed, introduced, detail):
     print()
 
 
+def classify_candidates(chart_dir, extra_args, candidates, values_lines):
+    """Attach "bucket" ("own"|"partner"|"other") to each candidate dict in
+    place, via the exact same own/partner/other classification lib.
+    cve_check/lib.image_upgrade_check already use for a currently-pinned
+    image: render-based "# Source:" attribution first (rendered_labels),
+    falling back to a values.yaml top-level-key heuristic
+    (classify_by_key) for a component not present in the render at all
+    (e.g. disabled in the CI values). A render failure here degrades to
+    classify_by_key for every candidate, never a crash or a failed step
+    — this check never fails. render_chart is memoized (lib.render_scope's
+    own _render_cache), and "Image upgrades" already runs before this step
+    (STEP_PREREQUISITES) with the same extra_args, so this call is a free
+    cache hit in the normal pipeline, not a second real `helm template`."""
+    result = render_chart(chart_dir, extra_args)
+    vendor_map = friendly_vendor_charts(chart_dir)
+    dep_names = dependency_names(chart_dir)
+    rendered_labels = render_image_labels(result.stdout, vendor_map) if result.returncode == 0 else {}
+
+    for candidate in candidates:
+        label = rendered_labels.get(
+            (candidate["repository"], candidate["version"], candidate["current_digest"]))
+        if label is None:
+            top_key = top_level_key_for_line(values_lines, candidate["line"]) if candidate["line"] else None
+            label = classify_by_key(top_key, dep_names, vendor_map)
+        candidate["bucket"] = bucket_of(label)
+
+
+def _process_bucket(chart_dir, title, bucket_candidates, old_cache, new_cache, scan_errors, detail):
+    """Scan and print one bucket's candidates under its own "--- <title>
+    ---" header (skipped entirely when the bucket is empty, via the same
+    lib.cve_check.print_bucket_header idiom print_bucket_report itself
+    uses — not a second independently-written copy of that check). Returns
+    (closed, introduced) totals for this bucket. Local per-bucket
+    numbering ([i/N] where N is THIS bucket's own count), same convention
+    every other bucketed check in this codebase uses."""
+    if not print_bucket_header(title, empty=not bucket_candidates):
+        return 0, 0
+
+    total_closed = total_introduced = 0
+    for i, candidate in enumerate(bucket_candidates, 1):
+        _print_candidate_header(i, len(bucket_candidates), candidate)
+        current_vulns = _scan_current(chart_dir, candidate, old_cache, new_cache)
+        if current_vulns is None:
+            scan_errors.append(candidate["current_ref"])
+            print(f"  [SCAN-ERR] {candidate['current_ref']}  trivy scan failed or produced "
+                  f"unparseable output")
+            continue
+        proposed_vulns = _scan_proposed(chart_dir, candidate, old_cache, new_cache)
+        if proposed_vulns is None:
+            scan_errors.append(candidate["proposed_ref"])
+            print(f"  [SCAN-ERR] {candidate['proposed_ref']}  trivy scan failed or produced "
+                  f"unparseable output")
+            continue
+        closed, introduced = diff_vulns(current_vulns, proposed_vulns)
+        total_closed += len(closed)
+        total_introduced += len(introduced)
+        print_candidate_result(closed, introduced, detail)
+    return total_closed, total_introduced
+
+
 def check_cve_diff(chart_dir, extra_args, detail=False):
     candidates = gather_candidates(chart_dir)
 
@@ -237,35 +319,26 @@ def check_cve_diff(chart_dir, extra_args, detail=False):
         print("OK: no upgrade-available or sliding-digest candidate to diff")
         return True, "0 candidate(s)"
 
+    values_path = chart_dir / "values.yaml"
+    values_lines = values_path.read_text(encoding="utf-8").splitlines()
+    classify_candidates(chart_dir, extra_args, candidates, values_lines)
+
+    own = [c for c in candidates if c["bucket"] == "own"]
+    partner = [c for c in candidates if c["bucket"] == "partner"]
+    other = [c for c in candidates if c["bucket"] == "other"]
+
     print(f"Diffing CVEs for {len(candidates)} upgrade/slide candidate(s) (current vs proposed, "
           f"via trivy)...")
 
     old_cache, new_cache = open_cache_session(chart_dir)
-    total_closed = 0
-    total_introduced = 0
     scan_errors = []
 
-    for i, candidate in enumerate(candidates, 1):
-        _print_candidate_header(i, len(candidates), candidate)
-
-        current_vulns = _scan_current(chart_dir, candidate, old_cache, new_cache)
-        if current_vulns is None:
-            scan_errors.append(candidate["current_ref"])
-            print(f"  [SCAN-ERR] {candidate['current_ref']}  trivy scan failed or produced "
-                  f"unparseable output")
-            continue
-
-        proposed_vulns = _scan_proposed(chart_dir, candidate, old_cache, new_cache)
-        if proposed_vulns is None:
-            scan_errors.append(candidate["proposed_ref"])
-            print(f"  [SCAN-ERR] {candidate['proposed_ref']}  trivy scan failed or produced "
-                  f"unparseable output")
-            continue
-
-        closed, introduced = diff_vulns(current_vulns, proposed_vulns)
-        total_closed += len(closed)
-        total_introduced += len(introduced)
-        print_candidate_result(closed, introduced, detail)
+    own_closed, own_introduced = _process_bucket(
+        chart_dir, "Own images", own, old_cache, new_cache, scan_errors, detail)
+    partner_closed, partner_introduced = _process_bucket(
+        chart_dir, "Partner-vendor images", partner, old_cache, new_cache, scan_errors, detail)
+    other_closed, other_introduced = _process_bucket(
+        chart_dir, "Other-vendor images", other, old_cache, new_cache, scan_errors, detail)
 
     save_cache(chart_dir, new_cache)
 
@@ -274,6 +347,9 @@ def check_cve_diff(chart_dir, extra_args, detail=False):
         for ref in scan_errors:
             print(f"  {ref}")
 
-    detail_msg = (f"{len(candidates)} candidate(s) diffed: {total_closed} CVE(s) closed overall, "
-                  f"{total_introduced} newly introduced; {len(scan_errors)} scan error(s)")
+    detail_msg = (
+        f"{len(own)} own ({own_closed} closed, {own_introduced} introduced), "
+        f"{len(partner)} partner-vendor ({partner_closed} closed, {partner_introduced} introduced), "
+        f"{len(other)} other-vendor ({other_closed} closed, {other_introduced} introduced); "
+        f"{len(scan_errors)} scan error(s)")
     return True, detail_msg
