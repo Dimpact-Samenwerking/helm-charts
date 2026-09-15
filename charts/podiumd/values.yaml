@@ -1886,7 +1886,7 @@ openformulieren:
     volumeAttributeShareName: openformulieren
     storageClassName: podiumd-standard
   image:
-    tag: "3.5.6@sha256:f5a5d51a44f39edcfb2143ae5d2ed9525b22ea377faa35fd2cce26b678f7fe83"
+    tag: "3.5.8@sha256:1050b6dd1554ff6f620390870fbb2056157d792e75b9fe6e965371a2ae84f41a"
   redis:
     image: *redisImage
   resources:
