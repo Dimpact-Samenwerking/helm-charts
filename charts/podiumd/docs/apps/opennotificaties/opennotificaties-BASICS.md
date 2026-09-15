@@ -72,8 +72,8 @@ per-gemeente environment deployment (ADO `ExternalsPodiumD`), not by this
 chart. The route name contains `-nginx` for historical consistency, but the
 subchart has no nginx component — the backend is the ClusterIP Service
 `opennotificaties` on port 80. `settings.allowedHosts` must include the
-hostnames used (chart default lists the in-cluster name
-`opennotificaties.podiumd.svc.cluster.local`).
+hostnames used (chart default lists the namespace-agnostic in-cluster wildcard
+`.svc.cluster.local`).
 
 ### Other dependencies
 

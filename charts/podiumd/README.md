@@ -114,7 +114,7 @@ PodiumD Helm chart
 | eck-operator.createClusterScopedResources | bool | `false` |  |
 | eck-operator.enabled | bool | `true` |  |
 | eck-operator.installCRDs | bool | `true` | the chart installs and upgrades the 12 *.k8s.elastic.co CRDs, in lock-step with the operator version. The CRDs carry helm.sh/resource-policy: keep, so `helm uninstall` never removes them (the Elastic CRs and their data survive). Requires cluster-scope RBAC on the deploying identity. Clusters whose CRDs predate helm ownership (kisselastic era / manual apply) need a one-time adoption: deploy with `--take-ownership` (helm >= 3.17) or annotate the CRDs once — see docs/apps/elastic/migrating-to-eck-stack.md section 4b. Installers without cluster-scope RBAC: set false and apply the CRDs manually (same doc). override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor |
-| eck-operator.managedNamespaces[0] | string | `"podiumd"` |  |
+| eck-operator.managedNamespaces | list | `["podiumd"]` | Namespaces the ECK operator manages. This MUST equal the namespace the chart is deployed into. Because Helm does not template values.yaml, `.Release.Namespace` cannot be referenced here; the default assumes deployment to `podiumd`. When deploying to a different namespace, override this (e.g. `--set eck-operator.managedNamespaces={<namespace>}` or via ci/values-namespace-scope.example.yaml). Setting it empty makes ECK watch ALL namespaces, which requires cluster-scoped RBAC and is intentionally avoided (createClusterScopedResources: false). See docs/misc/deploying-to-a-custom-namespace.md. |
 | eck-operator.podMonitor.enabled | bool | `false` |  |
 | eck-operator.webhook.enabled | bool | `false` |  |
 | frankgateway.accessLog.jsonFormat | bool | `false` |  |
@@ -475,8 +475,8 @@ PodiumD Helm chart
 | kiss-eck.eck-elasticsearch.fullnameOverride | string | `"kiss"` |  |
 | kiss-eck.eck-elasticsearch.nodeSets | list | `[{"config":{"node.roles":["data","ingest","master"],"node.store.allow_mmap":false},"count":3,"name":"default","podTemplate":{"spec":{"nodeSelector":{}}}}]` | default sizing, kept equal to the previous release (kiss-elastic used elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector, count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set. Note: volumeClaimTemplates is immutable — during a migration keep it equal to the existing PVCs; changing the size needs a manual recreate (see docs/apps/elastic/migrating-to-eck-stack.md). |
 | kiss-eck.eck-elasticsearch.version | string | `"8.19.19"` |  |
-| kiss-eck.eck-enterprise-search | object | `{"config":{"app_search.engine.total_fields.limit":1000,"connector.crawler.crawl.threads.limit":1,"connector.crawler.http.user_agent":"PodiumD-Contact-Elastic-Crawler","connector.crawler.workers.pool_size.limit":1,"kibana.host":"https://kiss-kb-http.podiumd.svc.cluster.local:5601"},"count":1,"elasticsearchRef":{"name":"kiss"},"enabled":false,"fullnameOverride":"kiss","podTemplate":{"spec":{"nodeSelector":{}}},"version":"8.19.19"}` | Uit sinds KISS 3.0.0. KISS bevraagt de Elasticsearch-indices rechtstreeks en crawlt met de Elastic Open Crawler, dus Enterprise Search wordt nergens meer voor gebruikt. De connector.crawler-instellingen hieronder waren voor de oude crawler; die zitten nu per site onder kiss.settings.syncJobs.website. Relevance- en precision-tuning gebeurde in Kibana en werd in Enterprise Search opgeslagen; dat had al geen effect meer, KISS 3.0.0 gebruikt vast precision 6. Aanzetten kan nog, maar levert alleen een ongebruikte pod op. |
-| kiss-eck.eck-kibana.config."server.publicBaseUrl" | string | `"https://kiss-kb-http.podiumd.svc.cluster.local:5601"` |  |
+| kiss-eck.eck-enterprise-search | object | `{"config":{"app_search.engine.total_fields.limit":1000,"connector.crawler.crawl.threads.limit":1,"connector.crawler.http.user_agent":"PodiumD-Contact-Elastic-Crawler","connector.crawler.workers.pool_size.limit":1,"kibana.host":"https://kiss-kb-http:5601"},"count":1,"elasticsearchRef":{"name":"kiss"},"enabled":false,"fullnameOverride":"kiss","podTemplate":{"spec":{"nodeSelector":{}}},"version":"8.19.19"}` | Uit sinds KISS 3.0.0. KISS bevraagt de Elasticsearch-indices rechtstreeks en crawlt met de Elastic Open Crawler, dus Enterprise Search wordt nergens meer voor gebruikt. De connector.crawler-instellingen hieronder waren voor de oude crawler; die zitten nu per site onder kiss.settings.syncJobs.website. Relevance- en precision-tuning gebeurde in Kibana en werd in Enterprise Search opgeslagen; dat had al geen effect meer, KISS 3.0.0 gebruikt vast precision 6. Aanzetten kan nog, maar levert alleen een ongebruikte pod op. |
+| kiss-eck.eck-kibana.config."server.publicBaseUrl" | string | `"https://kiss-kb-http:5601"` |  |
 | kiss-eck.eck-kibana.elasticsearchRef.name | string | `"kiss"` |  |
 | kiss-eck.eck-kibana.enabled | bool | `true` |  |
 | kiss-eck.eck-kibana.fullnameOverride | string | `"kiss"` |  |
@@ -631,13 +631,13 @@ PodiumD Helm chart
 | objecten.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | objecten.resources.requests.cpu | string | `"100m"` |  |
 | objecten.resources.requests.memory | string | `"256Mi"` |  |
-| objecten.settings.allowedHosts | string | `"objecten.podiumd.svc.cluster.local"` |  |
-| objecten.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/1"` |  |
-| objecten.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/1"` |  |
-| objecten.settings.cache.oidc | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/1"` |  |
-| objecten.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/2"` |  |
+| objecten.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| objecten.settings.cache.axes | string | `"redis-ha-master:6379/1"` |  |
+| objecten.settings.cache.default | string | `"redis-ha-master:6379/1"` |  |
+| objecten.settings.cache.oidc | string | `"redis-ha-master:6379/1"` |  |
+| objecten.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/2"` |  |
 | objecten.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| objecten.settings.celery.resultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/2"` |  |
+| objecten.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/2"` |  |
 | objecten.settings.disable2fa | bool | `false` |  |
 | objecten.settings.email.port | int | `587` |  |
 | objecten.settings.email.useTLS | bool | `true` |  |
@@ -675,9 +675,9 @@ PodiumD Helm chart
 | objecttypen.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | objecttypen.resources.requests.cpu | string | `"10m"` |  |
 | objecttypen.resources.requests.memory | string | `"160Mi"` |  |
-| objecttypen.settings.allowedHosts | string | `"objecttypen.podiumd.svc.cluster.local"` |  |
-| objecttypen.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/0"` |  |
-| objecttypen.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/0"` |  |
+| objecttypen.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| objecttypen.settings.cache.axes | string | `"redis-ha-master:6379/0"` |  |
+| objecttypen.settings.cache.default | string | `"redis-ha-master:6379/0"` |  |
 | objecttypen.settings.disable2fa | bool | `false` |  |
 | objecttypen.settings.email.port | int | `587` |  |
 | objecttypen.settings.email.useTLS | bool | `true` |  |
@@ -736,13 +736,13 @@ PodiumD Helm chart
 | openarchiefbeheer.resources.limits | object | `{}` |  |
 | openarchiefbeheer.resources.requests.cpu | string | `"250m"` |  |
 | openarchiefbeheer.resources.requests.memory | string | `"256Mi"` |  |
-| openarchiefbeheer.settings.allowedHosts | string | `"openarchiefbeheer.podiumd.svc.cluster.local"` |  |
-| openarchiefbeheer.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/13"` |  |
-| openarchiefbeheer.settings.cache.choices | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/14"` |  |
-| openarchiefbeheer.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/13"` |  |
-| openarchiefbeheer.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/14"` |  |
+| openarchiefbeheer.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| openarchiefbeheer.settings.cache.axes | string | `"redis-ha-master:6379/13"` |  |
+| openarchiefbeheer.settings.cache.choices | string | `"redis-ha-master:6379/14"` |  |
+| openarchiefbeheer.settings.cache.default | string | `"redis-ha-master:6379/13"` |  |
+| openarchiefbeheer.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/14"` |  |
 | openarchiefbeheer.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openarchiefbeheer.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/14"` |  |
+| openarchiefbeheer.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/14"` |  |
 | openarchiefbeheer.settings.environment | string | `""` | Name of the environment (used for displaying purposes) |
 | openarchiefbeheer.settings.frontend | object | `{"apiPath":"/api/v1","apiUrl":"","zaakUrlTemplate":""}` | Controls the log levels of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.   level: INFO |
 | openarchiefbeheer.settings.frontendUrl | string | `""` |  |
@@ -864,11 +864,11 @@ PodiumD Helm chart
 | openbeheer.securityContext.readOnlyRootFilesystem | bool | `false` |  |
 | openbeheer.securityContext.runAsNonRoot | bool | `true` |  |
 | openbeheer.securityContext.runAsUser | int | `1000` |  |
-| openbeheer.settings.allowedHosts | string | `"openbeheer-nginx.podiumd.svc.cluster.local"` |  |
+| openbeheer.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openbeheer.settings.apiDomain | string | `""` |  |
 | openbeheer.settings.apiPath | string | `"/api/v1"` |  |
-| openbeheer.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/17"` |  |
-| openbeheer.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/17"` |  |
+| openbeheer.settings.cache.axes | string | `"redis-ha-master:6379/17"` |  |
+| openbeheer.settings.cache.default | string | `"redis-ha-master:6379/17"` |  |
 | openbeheer.settings.database.host | string | `""` |  |
 | openbeheer.settings.database.name | string | `""` |  |
 | openbeheer.settings.database.password | string | `""` |  |
@@ -902,7 +902,7 @@ PodiumD Helm chart
 | openbeheer.tags.redis | bool | `false` |  |
 | openformulieren.beat.resources.requests.cpu | string | `"10m"` |  |
 | openformulieren.beat.resources.requests.memory | string | `"160Mi"` |  |
-| openformulieren.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav.podiumd.svc.cluster.local","clamavPort":3310,"clamavTimeout":30,"enabled":false,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Forms' GlobalConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Open Forms has no declarative setup-configuration step for this — upstream only exposes it through the admin UI (docs/configuration/general/virus_scan.rst) — so this Job writes the same fields directly, verifying the ClamAV connection first the same way GlobalConfiguration.clean() does. Off by default: opt-in per gemeente. See templates/openformulieren-configure-clamav.yaml and docs/apps/openforms/openforms-BASICS.md. |
+| openformulieren.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav","clamavPort":3310,"clamavTimeout":30,"enabled":false,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Forms' GlobalConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Open Forms has no declarative setup-configuration step for this — upstream only exposes it through the admin UI (docs/configuration/general/virus_scan.rst) — so this Job writes the same fields directly, verifying the ClamAV connection first the same way GlobalConfiguration.clean() does. Off by default: opt-in per gemeente. See templates/openformulieren-configure-clamav.yaml and docs/apps/openforms/openforms-BASICS.md. |
 | openformulieren.clamavConfigJob.backoffLimit | int | `15` | Retries generously: on first deploy this Job can race both the openformulieren DB migration (image entrypoint) and ClamAV's own cold-start (up to ~5 minutes to load its signature database, see docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes' Job backoff retry until both are ready, rather than needing a wait container or Helm hook ordering. |
 | openformulieren.configuration.data | string | `""` |  |
 | openformulieren.configuration.enabled | bool | `true` |  |
@@ -934,12 +934,12 @@ PodiumD Helm chart
 | openformulieren.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openformulieren.resources.requests.cpu | string | `"250m"` |  |
 | openformulieren.resources.requests.memory | string | `"1Gi"` |  |
-| openformulieren.settings.allowedHosts | string | `"openformulieren-nginx.podiumd.svc.cluster.local"` |  |
-| openformulieren.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/9"` |  |
-| openformulieren.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/9"` |  |
-| openformulieren.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/10"` |  |
+| openformulieren.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| openformulieren.settings.cache.axes | string | `"redis-ha-master:6379/9"` |  |
+| openformulieren.settings.cache.default | string | `"redis-ha-master:6379/9"` |  |
+| openformulieren.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/10"` |  |
 | openformulieren.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openformulieren.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/10"` |  |
+| openformulieren.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/10"` |  |
 | openformulieren.settings.email.port | int | `587` |  |
 | openformulieren.settings.email.useTLS | bool | `true` |  |
 | openformulieren.tags.redis | bool | `false` |  |
@@ -952,7 +952,7 @@ PodiumD Helm chart
 | openinwoner.beat.resources.requests.memory | string | `"128Mi"` |  |
 | openinwoner.celeryMonitor.resources.requests.cpu | string | `"50m"` |  |
 | openinwoner.celeryMonitor.resources.requests.memory | string | `"64Mi"` |  |
-| openinwoner.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav.podiumd.svc.cluster.local","clamavPort":3310,"clamavTimeout":30,"enabled":false,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Inwoner's SiteConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Unlike most SiteConfiguration fields, these four are NOT managed by the site_config_enable/site_config: setup-configuration step — upstream's SiteConfigurationStep omits them from both its required_settings and optional_settings, so setting them under configuration.data is silently ignored. This Job writes them directly and pings clamd itself first (SiteConfiguration.clean() only checks clamav_host is non-empty, it doesn't test connectivity). Off by default: opt-in per gemeente. See templates/openinwoner-configure-clamav.yaml and docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md. |
+| openinwoner.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav","clamavPort":3310,"clamavTimeout":30,"enabled":false,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Inwoner's SiteConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Unlike most SiteConfiguration fields, these four are NOT managed by the site_config_enable/site_config: setup-configuration step — upstream's SiteConfigurationStep omits them from both its required_settings and optional_settings, so setting them under configuration.data is silently ignored. This Job writes them directly and pings clamd itself first (SiteConfiguration.clean() only checks clamav_host is non-empty, it doesn't test connectivity). Off by default: opt-in per gemeente. See templates/openinwoner-configure-clamav.yaml and docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md. |
 | openinwoner.clamavConfigJob.backoffLimit | int | `15` | Retries generously: on first deploy this Job can race both the openinwoner DB migration (image entrypoint) and ClamAV's own cold-start (up to ~5 minutes to load its signature database, see docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes' Job backoff retry until both are ready, rather than needing a wait container or Helm hook ordering. |
 | openinwoner.configuration.data | string | `""` |  |
 | openinwoner.configuration.enabled | bool | `true` |  |
@@ -990,15 +990,15 @@ PodiumD Helm chart
 | openinwoner.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openinwoner.resources.requests.cpu | string | `"200m"` |  |
 | openinwoner.resources.requests.memory | string | `"1Gi"` |  |
-| openinwoner.settings.allowedHosts | string | `"openinwoner-nginx.podiumd.svc.cluster.local"` |  |
+| openinwoner.settings.allowedHosts | string | `".svc.cluster.local"` |  |
 | openinwoner.settings.brpVersion | string | `""` |  |
-| openinwoner.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/11"` |  |
-| openinwoner.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/11"` |  |
+| openinwoner.settings.cache.axes | string | `"redis-ha-master:6379/11"` |  |
+| openinwoner.settings.cache.default | string | `"redis-ha-master:6379/11"` |  |
 | openinwoner.settings.cacheSeedingQueue | string | `""` | New in openinwoner 2.3.0: Celery queue for cache-seeding tasks. Empty defaults to the low-latency worker queue (see lowLatencyWorker below). |
 | openinwoner.settings.cacheZgwZakenTimeout | string | `""` | New in openinwoner 2.3.0: per-request timeout (seconds) for cached ZGW zaken. Empty uses the application default (300s, raised from 60s upstream). |
-| openinwoner.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/12"` |  |
+| openinwoner.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/12"` |  |
 | openinwoner.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openinwoner.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/12"` |  |
+| openinwoner.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/12"` |  |
 | openinwoner.settings.cms4MigrationInitContainer | bool | `true` | New in openinwoner 2.3.0 (chart 2.2.0): runs an init container executing `manage.py cms4_migration` for the Django CMS v3 → v4 migration. Keep true for the first rollout to 2.3.0 so the one-time migration runs; flip to false in a follow-up release once every environment has completed it. Re-running is a no-op. |
 | openinwoner.settings.digidMock | string | `""` |  |
 | openinwoner.settings.eherkenningMock | string | `""` |  |
@@ -1043,12 +1043,12 @@ PodiumD Helm chart
 | openklant.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openklant.resources.requests.cpu | string | `"100m"` |  |
 | openklant.resources.requests.memory | string | `"300Mi"` |  |
-| openklant.settings.allowedHosts | string | `"openklant.podiumd.svc.cluster.local"` |  |
-| openklant.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/7"` |  |
-| openklant.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/7"` |  |
-| openklant.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/8"` |  |
+| openklant.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| openklant.settings.cache.axes | string | `"redis-ha-master:6379/7"` |  |
+| openklant.settings.cache.default | string | `"redis-ha-master:6379/7"` |  |
+| openklant.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/8"` |  |
 | openklant.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openklant.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/8"` |  |
+| openklant.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/8"` |  |
 | openklant.settings.disable2fa | bool | `false` |  |
 | openklant.settings.email.port | int | `587` |  |
 | openklant.settings.email.useTLS | bool | `true` |  |
@@ -1088,18 +1088,18 @@ PodiumD Helm chart
 | opennotificaties.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | opennotificaties.resources.requests.cpu | string | `"100m"` |  |
 | opennotificaties.resources.requests.memory | string | `"256Mi"` |  |
-| opennotificaties.settings.allowedHosts | string | `"opennotificaties.podiumd.svc.cluster.local"` |  |
-| opennotificaties.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/3"` |  |
-| opennotificaties.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/3"` |  |
-| opennotificaties.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/6"` |  |
+| opennotificaties.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| opennotificaties.settings.cache.axes | string | `"redis-ha-master:6379/3"` |  |
+| opennotificaties.settings.cache.default | string | `"redis-ha-master:6379/3"` |  |
+| opennotificaties.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/6"` |  |
 | opennotificaties.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| opennotificaties.settings.celery.publishBrokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/6"` |  |
-| opennotificaties.settings.celery.resultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/6"` |  |
+| opennotificaties.settings.celery.publishBrokerUrl | string | `"redis://redis-ha-master:6379/6"` |  |
+| opennotificaties.settings.celery.resultBackend | string | `"redis://redis-ha-master:6379/6"` |  |
 | opennotificaties.settings.disable2fa | bool | `false` |  |
 | opennotificaties.settings.email.port | int | `587` |  |
 | opennotificaties.settings.email.useTLS | bool | `true` |  |
 | opennotificaties.settings.maxRetries | int | `5` |  |
-| opennotificaties.settings.messageBroker.celeryResultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/6"` |  |
+| opennotificaties.settings.messageBroker.celeryResultBackend | string | `"redis://redis-ha-master:6379/6"` |  |
 | opennotificaties.settings.notificationSecInterval | int | `5` | Seconds between execute_notifications runs (chart default 20, minimum 5). Lowered to the minimum so notifications go out with less delay. |
 | opennotificaties.settings.requestsTimeout | int | `60` |  |
 | opennotificaties.settings.retryBackoff | int | `3` |  |
@@ -1155,12 +1155,12 @@ PodiumD Helm chart
 | openzaak.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openzaak.resources.requests.cpu | string | `"250m"` |  |
 | openzaak.resources.requests.memory | string | `"512Mi"` |  |
-| openzaak.settings.allowedHosts | string | `"openzaak-nginx.podiumd.svc.cluster.local"` |  |
-| openzaak.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/4"` |  |
-| openzaak.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/4"` |  |
-| openzaak.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/5"` |  |
+| openzaak.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| openzaak.settings.cache.axes | string | `"redis-ha-master:6379/4"` |  |
+| openzaak.settings.cache.default | string | `"redis-ha-master:6379/4"` |  |
+| openzaak.settings.celery.brokerUrl | string | `"redis://redis-ha-master:6379/5"` |  |
 | openzaak.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
-| openzaak.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/5"` |  |
+| openzaak.settings.celery.resultBackendl | string | `"redis://redis-ha-master:6379/5"` |  |
 | openzaak.settings.disable2fa | bool | `false` |  |
 | openzaak.settings.documentApiBackend | string | `"filesystem"` | Backend for the Documenten API. Supported values: filesystem | azure_blob_storage |
 | openzaak.settings.email.port | int | `587` |  |
@@ -1257,9 +1257,9 @@ PodiumD Helm chart
 | referentielijsten.redis.image.repository | string | `"redis"` |  |
 | referentielijsten.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | referentielijsten.replicaCount | int | `1` |  |
-| referentielijsten.settings.allowedHosts | string | `"referentielijsten-nginx.podiumd.svc.cluster.local"` |  |
-| referentielijsten.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/15"` |  |
-| referentielijsten.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/15"` |  |
+| referentielijsten.settings.allowedHosts | string | `".svc.cluster.local"` |  |
+| referentielijsten.settings.cache.axes | string | `"redis-ha-master:6379/15"` |  |
+| referentielijsten.settings.cache.default | string | `"redis-ha-master:6379/15"` |  |
 | referentielijsten.settings.debug | bool | `false` |  |
 | referentielijsten.settings.disable2fa | bool | `false` |  |
 | referentielijsten.settings.djangoSettingsModule | string | `"referentielijsten.conf.docker"` |  |
@@ -1388,9 +1388,9 @@ PodiumD Helm chart
 | zac.solr-operator.solr.resources.limits.memory | string | `"2Gi"` |  |
 | zac.solr-operator.solr.resources.requests.cpu | string | `"500m"` |  |
 | zac.solr-operator.solr.resources.requests.memory | string | `"1Gi"` |  |
-| zac.solr-operator.watchNamespaces | string | `"podiumd"` | namespaces to watch for solr-operator |
+| zac.solr-operator.watchNamespaces | string | `"podiumd"` | Namespaces to watch for solr-operator. MUST equal the namespace the chart is deployed into (Helm cannot template values.yaml with `.Release.Namespace`). Default assumes `podiumd`; override when deploying elsewhere (e.g. `--set zac.solr-operator.watchNamespaces=<namespace>` or ci/values-namespace-scope.example.yaml). Empty ("") watches ALL namespaces and needs cluster-scoped RBAC — avoided by design. See docs/misc/deploying-to-a-custom-namespace.md. |
 | zac.solr-operator.zookeeper-operator | object | `{"crd":{"create":false},"hooks":{"image":{"tag":"v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc"}},"image":{"tag":"0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"},"resources":{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"watchNamespace":"podiumd","zookeeper":{"image":{"tag":"0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"storage":{"reclaimPolicy":"Retain"}}}` | install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml |
-| zac.solr-operator.zookeeper-operator.watchNamespace | string | `"podiumd"` | namespaces to watch for zookeeper-operator |
+| zac.solr-operator.zookeeper-operator.watchNamespace | string | `"podiumd"` | Namespaces to watch for zookeeper-operator. MUST equal the namespace the chart is deployed into (Helm cannot template values.yaml with `.Release.Namespace`). Default assumes `podiumd`; override when deploying elsewhere (e.g. `--set zac.solr-operator.zookeeper-operator.watchNamespace=<namespace>` or ci/values-namespace-scope.example.yaml). Empty ("") watches ALL namespaces and needs cluster-scoped RBAC — avoided by design. See docs/misc/deploying-to-a-custom-namespace.md. |
 | zac.solr-operator.zookeeper-operator.zookeeper.storage.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down ZooKeeper (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which prevents the cluster from recovering quorum after a node replacement event. |
 | zac.zacInternalEndpointsApiKey | string | `"dummy"` |  |
 | zac.zgwApis.clientId | string | `"zac"` |  |

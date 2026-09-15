@@ -695,17 +695,17 @@ openzaak:
       # set to false to disable automatic creation and publishing of the e2e-test zaaktype if it does not exist yet
       create: true
   settings:
-    allowedHosts: openzaak-nginx.podiumd.svc.cluster.local
+    allowedHosts: ".svc.cluster.local"
     email:
       port: 587
       useTLS: true
     disable2fa: false
     cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/4
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/4
+      default: redis-ha-master:6379/4
+      axes: redis-ha-master:6379/4
     celery:
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
+      brokerUrl: redis://redis-ha-master:6379/5
+      resultBackendl: redis://redis-ha-master:6379/5
       # -- Set to debug for test/acceptance environments
       logLevel: warning
     uwsgi:
@@ -942,7 +942,7 @@ opennotificaties:
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
-    allowedHosts: opennotificaties.podiumd.svc.cluster.local
+    allowedHosts: ".svc.cluster.local"
     maxRetries: 5
     retryBackoff: 3
     retryBackoffMax: 48
@@ -955,8 +955,8 @@ opennotificaties:
       useTLS: true
     disable2fa: false
     cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/3
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/3
+      default: redis-ha-master:6379/3
+      axes: redis-ha-master:6379/3
     celery:
       # -- Set to debug for test/acceptance environments
       logLevel: warning
@@ -966,14 +966,14 @@ opennotificaties:
       # for the broker, but the RESULT backend comes from
       # settings.messageBroker.celeryResultBackend (below) when tags.redis=false.
       # settings.celery.resultBackend here is NOT consumed by the chart.
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
-      resultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
-      publishBrokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+      brokerUrl: redis://redis-ha-master:6379/6
+      resultBackend: redis://redis-ha-master:6379/6
+      publishBrokerUrl: redis://redis-ha-master:6379/6
     messageBroker:
       # Required: chart 2.0.0 charts/opennotificaties/templates/secret.yaml renders
       # CELERY_RESULT_BACKEND from this key in the tags.redis=false branch. Missing it
       # crashes render with "nil pointer evaluating interface {}.celeryResultBackend".
-      celeryResultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+      celeryResultBackend: redis://redis-ha-master:6379/6
   persistence:
     size: 10Gi
     existingClaim: opennotificaties
@@ -1139,18 +1139,18 @@ objecten:
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
-    allowedHosts: objecten.podiumd.svc.cluster.local
+    allowedHosts: ".svc.cluster.local"
     email:
       port: 587
       useTLS: true
     disable2fa: false
     cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/1
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/1
-      oidc: redis-ha-master.podiumd.svc.cluster.local:6379/1
+      default: redis-ha-master:6379/1
+      axes: redis-ha-master:6379/1
+      oidc: redis-ha-master:6379/1
     celery:
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
-      resultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      brokerUrl: redis://redis-ha-master:6379/2
+      resultBackend: redis://redis-ha-master:6379/2
       # -- Set to debug for test/acceptance environments
       logLevel: warning
   persistence:
@@ -1276,14 +1276,14 @@ objecttypen:
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
-    allowedHosts: objecttypen.podiumd.svc.cluster.local
+    allowedHosts: ".svc.cluster.local"
     email:
       port: 587
       useTLS: true
     disable2fa: false
     cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/0
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/0
+      default: redis-ha-master:6379/0
+      axes: redis-ha-master:6379/0
     uwsgi:
       processes: "2"
       threads: "2"
@@ -1492,7 +1492,7 @@ openarchiefbeheer:
       memory: 256Mi
 
   settings:
-    allowedHosts: openarchiefbeheer.podiumd.svc.cluster.local
+    allowedHosts: ".svc.cluster.local"
     # -- Name of the environment (used for displaying purposes)
     environment: ""
     requestsReadTimeout: "5000"
@@ -1522,14 +1522,14 @@ openarchiefbeheer:
       backoffFactor: ""
       statusForcelist: ""
     cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/13
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/13
-      choices: redis-ha-master.podiumd.svc.cluster.local:6379/14
+      default: redis-ha-master:6379/13
+      axes: redis-ha-master:6379/13
+      choices: redis-ha-master:6379/14
     celery:
       # -- Set to debug for test/acceptance environments
       logLevel: warning
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/14
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/14
+      brokerUrl: redis://redis-ha-master:6379/14
+      resultBackendl: redis://redis-ha-master:6379/14
 
   persistence:
     size: 10Gi
@@ -1620,17 +1620,17 @@ openklant:
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
-    allowedHosts: openklant.podiumd.svc.cluster.local
+    allowedHosts: ".svc.cluster.local"
     email:
       port: 587
       useTLS: true
     disable2fa: false
     cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/7
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/7
+      default: redis-ha-master:6379/7
+      axes: redis-ha-master:6379/7
     celery:
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
+      brokerUrl: redis://redis-ha-master:6379/8
+      resultBackendl: redis://redis-ha-master:6379/8
       # -- Set to debug for test/acceptance environments
       logLevel: warning
     uwsgi:
@@ -1844,7 +1844,7 @@ openformulieren:
   # docs/apps/openforms/openforms-BASICS.md.
   clamavConfigJob:
     enabled: false
-    clamavHost: clamav.podiumd.svc.cluster.local
+    clamavHost: clamav
     clamavPort: 3310
     clamavTimeout: 30
     # -- Retries generously: on first deploy this Job can race both the
@@ -1864,16 +1864,16 @@ openformulieren:
         cpu: 200m
         memory: 256Mi
   settings:
-    allowedHosts: openformulieren-nginx.podiumd.svc.cluster.local
+    allowedHosts: ".svc.cluster.local"
     email:
       port: 587
       useTLS: true
     cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/9
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/9
+      default: redis-ha-master:6379/9
+      axes: redis-ha-master:6379/9
     celery:
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/10
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/10
+      brokerUrl: redis://redis-ha-master:6379/10
+      resultBackendl: redis://redis-ha-master:6379/10
       # -- Set to debug for test/acceptance environments
       logLevel: warning
   persistence:
@@ -2069,7 +2069,7 @@ openinwoner:
   # docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md.
   clamavConfigJob:
     enabled: false
-    clamavHost: clamav.podiumd.svc.cluster.local
+    clamavHost: clamav
     clamavPort: 3310
     clamavTimeout: 30.0
     # -- Retries generously: on first deploy this Job can race both the
@@ -2089,7 +2089,7 @@ openinwoner:
         cpu: 200m
         memory: 256Mi
   settings:
-    allowedHosts: openinwoner-nginx.podiumd.svc.cluster.local
+    allowedHosts: ".svc.cluster.local"
     brpVersion: ""
     digidMock: ""
     eherkenningMock: ""
@@ -2110,11 +2110,11 @@ openinwoner:
     # to the low-latency worker queue (see lowLatencyWorker below).
     cacheSeedingQueue: ""
     cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/11
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/11
+      default: redis-ha-master:6379/11
+      axes: redis-ha-master:6379/11
     celery:
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
+      brokerUrl: redis://redis-ha-master:6379/12
+      resultBackendl: redis://redis-ha-master:6379/12
       # -- Set to debug for test/acceptance environments
       logLevel: warning
     # override: values-enable-observability.yaml sets disabled: false and configures the OTEL endpoint
@@ -2328,7 +2328,7 @@ referentielijsten:
     image: *redisImage
 
   settings:
-    allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
+    allowedHosts: ".svc.cluster.local"
     djangoSettingsModule: referentielijsten.conf.docker
     useXForwardedHost: false
     disable2fa: false
@@ -2344,8 +2344,8 @@ referentielijsten:
     debug: false
 
     cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/15
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/15
+      default: redis-ha-master:6379/15
+      axes: redis-ha-master:6379/15
     # celery: db 16 reserved — referentielijsten does not use Celery
     uwsgi:
       processes: "2"
@@ -2475,7 +2475,7 @@ openbeheer:
     volumeAttributeShareName: openbeheer
     storageClassName: podiumd-standard
   settings:
-    allowedHosts: "openbeheer-nginx.podiumd.svc.cluster.local"
+    allowedHosts: ".svc.cluster.local"
     djangoSettingsModule: openbeheer.conf.docker
     useXForwardedHost: false
     apiDomain: ""
@@ -2504,8 +2504,8 @@ openbeheer:
     sentry:
       dsn: ""
     cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/17
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/17
+      default: redis-ha-master:6379/17
+      axes: redis-ha-master:6379/17
     # celery: db 18 reserved — openbeheer does not currently use Celery
     isHttps: true
     debug: false
@@ -2554,6 +2554,13 @@ eck-operator:
     validateStorageClass: false
   webhook:
     enabled: false
+  # -- Namespaces the ECK operator manages. This MUST equal the namespace the chart is
+  # deployed into. Because Helm does not template values.yaml, `.Release.Namespace` cannot be
+  # referenced here; the default assumes deployment to `podiumd`. When deploying to a different
+  # namespace, override this (e.g. `--set eck-operator.managedNamespaces={<namespace>}` or via
+  # ci/values-namespace-scope.example.yaml). Setting it empty makes ECK watch ALL namespaces,
+  # which requires cluster-scoped RBAC and is intentionally avoided (createClusterScopedResources:
+  # false). See docs/misc/deploying-to-a-custom-namespace.md.
   managedNamespaces:
     - podiumd
   # podMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 PodMonitor)
@@ -2607,7 +2614,7 @@ kiss-eck:
     version: "8.19.19"
     config:
       app_search.engine.total_fields.limit: 1000
-      kibana.host: https://kiss-kb-http.podiumd.svc.cluster.local:5601
+      kibana.host: https://kiss-kb-http:5601
       connector.crawler.http.user_agent: "PodiumD-Contact-Elastic-Crawler"
       connector.crawler.crawl.threads.limit: 1
       connector.crawler.workers.pool_size.limit: 1
@@ -2622,7 +2629,7 @@ kiss-eck:
     fullnameOverride: kiss
     version: "8.19.19"
     config:
-      server.publicBaseUrl: https://kiss-kb-http.podiumd.svc.cluster.local:5601
+      server.publicBaseUrl: https://kiss-kb-http:5601
     elasticsearchRef:
       name: kiss
     # enterpriseSearchRef weggehaald: zonder Enterprise Search zou Kibana naar
@@ -3139,7 +3146,12 @@ zac:
           # The default "Delete" causes the operator to destroy PVC data on scale-down, which
           # requires a full index resync from another replica.
           reclaimPolicy: Retain
-    # -- namespaces to watch for solr-operator
+    # -- Namespaces to watch for solr-operator. MUST equal the namespace the chart is deployed
+    # into (Helm cannot template values.yaml with `.Release.Namespace`). Default assumes
+    # `podiumd`; override when deploying elsewhere (e.g.
+    # `--set zac.solr-operator.watchNamespaces=<namespace>` or ci/values-namespace-scope.example.yaml).
+    # Empty ("") watches ALL namespaces and needs cluster-scoped RBAC — avoided by design.
+    # See docs/misc/deploying-to-a-custom-namespace.md.
     watchNamespaces: "podiumd"
     # -- install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml
     zookeeper-operator:
@@ -3161,7 +3173,12 @@ zac:
         limits:
           cpu: 200m
           memory: 128Mi
-      # -- namespaces to watch for zookeeper-operator
+      # -- Namespaces to watch for zookeeper-operator. MUST equal the namespace the chart is
+      # deployed into (Helm cannot template values.yaml with `.Release.Namespace`). Default
+      # assumes `podiumd`; override when deploying elsewhere (e.g.
+      # `--set zac.solr-operator.zookeeper-operator.watchNamespace=<namespace>` or
+      # ci/values-namespace-scope.example.yaml). Empty ("") watches ALL namespaces and needs
+      # cluster-scoped RBAC — avoided by design. See docs/misc/deploying-to-a-custom-namespace.md.
       watchNamespace: "podiumd"
       zookeeper:
         # pravega/zookeeper:0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8

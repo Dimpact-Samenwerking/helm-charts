@@ -223,7 +223,8 @@ this. **Do not unset it.** Full analysis: [`openbeheer-known-issues.md`](openbeh
   `15000/hour`.
 - Session cookie lifetime `900` s (`settings.sessionCookieAge`).
 - Nginx sidecar serves static/media in front of uWSGI; allowed host
-  `openbeheer-nginx.podiumd.svc.cluster.local`.
+  `.svc.cluster.local` (namespace-agnostic wildcard covering the in-cluster
+  `openbeheer-nginx.<namespace>.svc.cluster.local`).
 
 ## Action required
 
