@@ -21,11 +21,12 @@ import time
 import yaml
 
 from lib.procutil import run
-from lib.render_scope import REQUIRED_REPOS
-from lib.settings import dependency_fetch_retry_attempts, dependency_fetch_retry_backoff_seconds
+from lib.settings import (
+    dependency_fetch_retry_attempts, dependency_fetch_retry_backoff_seconds, helm_repos_urls_by_alias,
+)
 
 
-def _dependency_key(dep):
+def _dependency_key(dep, required_repos):
     """(name, version, repository) — the identity a dependency's own
     Chart.lock entry and its current Chart.yaml entry must agree on for
     _vendored_state_matches_chart_yaml to trust the lock file at all.
@@ -35,20 +36,20 @@ def _dependency_key(dep):
     quotes it back out as a string — comparing raw values would treat
     that as a mismatch even though nothing actually changed.
 
-    repository is resolved through REQUIRED_REPOS when Chart.yaml
-    references it by "@alias" (e.g. "@maykinmedia") — Chart.lock never
-    stores an alias, only the fully-resolved plain URL it points at, so
-    comparing the two forms directly would treat every single alias-
-    referenced dependency as "changed" even when nothing has (real bug
-    this fixes: caught live against the actual chart, where 17 of 25
-    dependencies use an alias and _vendored_state_matches_chart_yaml
-    never once returned True as a result). A repository Chart.yaml
-    already writes as a plain URL/oci:// reference (no dependency here
-    uses an alias Helm itself doesn't also resolve identically) passes
-    through unchanged."""
+    repository is resolved through `required_repos` (see
+    lib.settings.helm_repos_urls_by_alias) when Chart.yaml references it
+    by "@alias" (e.g. "@maykinmedia") — Chart.lock never stores an alias,
+    only the fully-resolved plain URL it points at, so comparing the two
+    forms directly would treat every single alias-referenced dependency
+    as "changed" even when nothing has (real bug this fixes: caught live
+    against the actual chart, where 17 of 25 dependencies use an alias
+    and _vendored_state_matches_chart_yaml never once returned True as a
+    result). A repository Chart.yaml already writes as a plain URL/oci://
+    reference (no dependency here uses an alias Helm itself doesn't also
+    resolve identically) passes through unchanged."""
     repo = dep.get("repository") or ""
     if repo.startswith("@"):
-        repo = REQUIRED_REPOS.get(repo[1:], repo)
+        repo = required_repos.get(repo[1:], repo)
     return dep.get("name"), str(dep.get("version")), repo
 
 
@@ -81,36 +82,40 @@ def _vendored_state_matches_chart_yaml(chart_dir):
     except yaml.YAMLError:
         return False
 
+    required_repos = helm_repos_urls_by_alias(chart_dir)
     lock_deps = lock.get("dependencies") or []
     chart_deps = chart_yaml.get("dependencies") or []
     if not chart_deps or len(lock_deps) != len(chart_deps):
         return False
-    if {_dependency_key(d) for d in lock_deps} != {_dependency_key(d) for d in chart_deps}:
+    if ({_dependency_key(d, required_repos) for d in lock_deps}
+            != {_dependency_key(d, required_repos) for d in chart_deps}):
         return False
 
     return all((chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz").is_file() for dep in chart_deps)
 
 
-def ensure_repos_configured():
+def ensure_repos_configured(chart_dir):
     """Adds every Helm chart repo Chart.yaml's dependencies reference by
     alias (e.g. "@maykinmedia") — required before `helm dependency
     update`/`helm pull` can resolve any of them.
 
-    The final `helm repo update` is scoped to just REQUIRED_REPOS' own
-    names — never a blanket, argument-less `helm repo update`, which
-    refreshes EVERY repo this machine has ever had `helm repo add`ed to
-    it (measured live: 19 configured locally, only 9 of them actually
-    used by this chart — the other 10 are leftovers from unrelated Helm
-    work, e.g. bitnami/grafana/hashicorp/traefik, that this project's
-    dependencies never reference at all). Refreshing those extra repos'
-    indexes is pure waste: ~6.2s for all 19 vs. ~0.6s scoped to the 9
-    this function itself just added/verified above."""
-    for name, url in REQUIRED_REPOS.items():
+    The final `helm repo update` is scoped to just the resolved
+    helm_repos_urls_by_alias' own names — never a blanket, argument-less
+    `helm repo update`, which refreshes EVERY repo this machine has ever
+    had `helm repo add`ed to it (measured live: 19 configured locally,
+    only 9 of them actually used by this chart — the other 10 are
+    leftovers from unrelated Helm work, e.g. bitnami/grafana/hashicorp/
+    traefik, that this project's dependencies never reference at all).
+    Refreshing those extra repos' indexes is pure waste: ~6.2s for all 19
+    vs. ~0.6s scoped to the 9 this function itself just added/verified
+    above."""
+    required_repos = helm_repos_urls_by_alias(chart_dir)
+    for name, url in required_repos.items():
         result = run(["helm", "repo", "add", name, url, "--force-update"],
                       capture_output=True, text=True)
         if result.returncode != 0:
             return False, f"helm repo add {name} failed: {result.stderr.strip()}"
-    result = run(["helm", "repo", "update", *REQUIRED_REPOS.keys()], capture_output=True, text=True)
+    result = run(["helm", "repo", "update", *required_repos.keys()], capture_output=True, text=True)
     if result.returncode != 0:
         return False, f"helm repo update failed: {result.stderr.strip()}"
     return True, "repos configured"

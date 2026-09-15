@@ -146,7 +146,7 @@ def check_shellcheck(chart_dir, extra_args):
     Same scope split as check_yamllint/check_kubeconform: this chart's OWN
     templates/ vs. a vendored sub-chart under charts/podiumd/charts/*. A
     dependency's script isn't ours to fix, so a vendored finding never
-    fails — but a FRIENDLY_VENDOR_KEYWORDS/local dependency (see
+    fails — but a friendly-vendor/local dependency (see
     friendly_vendor_charts) is printed per-item; every other vendored
     sub-chart only ever gets a one-line aggregate count. Within OWN scope,
     error/warning-level findings (shellcheck's own "likely a real bug"

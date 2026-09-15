@@ -91,7 +91,7 @@ def check_kubeconform(chart_dir, extra_args):
     Same scope split as check_yamllint: this chart's OWN templates/ vs. a
     vendored sub-chart bundled under charts/podiumd/charts/*. A
     dependency's content isn't ours to fix, so a vendored finding never
-    fails — but a FRIENDLY_VENDOR_KEYWORDS/local dependency (see
+    fails — but a friendly-vendor/local dependency (see
     friendly_vendor_charts) is printed per-resource; every other vendored
     sub-chart only ever gets a one-line aggregate count (kubeconform's own
     JSON output carries no per-resource source info, so — unlike

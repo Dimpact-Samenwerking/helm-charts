@@ -129,7 +129,7 @@ def test_find_stale_digests_stays_unresolved_when_subchart_has_no_default_either
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {}})  # subchart doesn't default one either
 
     calls = []
-    monkeypatch.setattr(sid, "ensure_repos_configured", lambda: calls.append("ensure") or (True, "ok"))
+    monkeypatch.setattr(sid, "ensure_repos_configured", lambda chart_dir: calls.append("ensure") or (True, "ok"))
     monkeypatch.setattr(sid, "vendor_dependencies", lambda cd: calls.append("vendor") or (True, "ok"))
 
     stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
@@ -148,7 +148,7 @@ def test_find_stale_digests_vendors_dependencies_when_tgz_missing(sid, tmp_path,
 
     calls = []
 
-    def fake_ensure_repos_configured():
+    def fake_ensure_repos_configured(chart_dir):
         calls.append("ensure")
         return True, "ok"
 
@@ -174,7 +174,8 @@ def test_find_stale_digests_warns_and_stays_unresolved_when_repos_configuration_
     def fail_if_called(*args, **kwargs):
         raise AssertionError("vendor_dependencies must never run when ensure_repos_configured failed")
 
-    monkeypatch.setattr(sid, "ensure_repos_configured", lambda: (False, "helm repo add zac failed: network unreachable"))
+    monkeypatch.setattr(sid, "ensure_repos_configured",
+                         lambda chart_dir: (False, "helm repo add zac failed: network unreachable"))
     monkeypatch.setattr(sid, "vendor_dependencies", fail_if_called)
 
     stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
@@ -189,7 +190,7 @@ def test_find_stale_digests_warns_and_stays_unresolved_when_vendoring_fails(sid,
     lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
     write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
 
-    monkeypatch.setattr(sid, "ensure_repos_configured", lambda: (True, "ok"))
+    monkeypatch.setattr(sid, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
     monkeypatch.setattr(sid, "vendor_dependencies", lambda cd: (False, "helm dependency update failed"))
 
     stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")

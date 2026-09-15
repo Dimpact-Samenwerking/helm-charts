@@ -44,10 +44,11 @@ def check_yamllint(chart_dir, extra_args):
       "podiumd/templates/") vs. a vendored sub-chart bundled under
       charts/podiumd/charts/*. A dependency's content isn't something this
       repo controls or can fix, so a vendored finding never fails — but a
-      FRIENDLY_VENDOR_KEYWORDS/local ("file://") dependency (Maykin,
-      Info(NL), ICATT, Worth, WeAreFrank, Dimpact, or this monorepo's own
-      mi-data) is close/collaborative enough to be worth seeing
-      individually; every other vendored sub-chart (elastic,
+      friendly-vendor/local ("file://") dependency (see
+      lib.render_scope.friendly_vendor_charts — Maykin, Info(NL), ICATT,
+      Worth, WeAreFrank, Dimpact, or this monorepo's own mi-data) is
+      close/collaborative enough to be worth seeing individually; every
+      other vendored sub-chart (elastic,
       redis-operator, keycloak-operator, openbao, ...) only ever gets a
       one-line aggregate count (there can be hundreds).
     - rule: quality_gates.yamllint_failing_rules (see lib.settings — a

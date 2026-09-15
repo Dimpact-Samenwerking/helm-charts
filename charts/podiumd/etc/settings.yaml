@@ -85,3 +85,37 @@ helm_doc:
   # renamed top-level key can ripple through hundreds of rows) -- show a
   # capped, representative excerpt instead.
   max_diff_lines_shown: 40
+
+vendor_classification:
+  # Matched case-insensitively as a substring of a dependency's RESOLVED
+  # repository URL (an "@alias" is resolved via helm_repos.urls_by_alias
+  # first) -- every vendored sub-chart not covered here stays
+  # aggregate-count-only in every own/partner/other-bucketed check.
+  keywords:
+    "maykinmedia": "Maykin"
+    "infonl": "Info(NL)"
+    "worth-nl": "Worth"
+    "wearefrank": "WeAreFrank"
+    "dimpact": "Dimpact"
+    "icatt-menselijk-digitaal": "ICATT"
+  # By chart name (alias if the dependency has one) -- for a dependency
+  # whose own repository URL doesn't reveal its real vendor at all (KISS
+  # is developed by ICATT, but neither "kiss" nor its own
+  # oci://ghcr.io/klantinteractie-servicesysteem repository URL says so).
+  chart_overrides:
+    "kiss": "ICATT"
+
+helm_repos:
+  # Every Chart.yaml dependency that references a repo by "@alias" needs
+  # this to resolve to a real URL before `helm repo add`/`helm dependency
+  # update` can use it.
+  urls_by_alias:
+    "adfinis": "https://charts.adfinis.com"
+    "wiremind": "https://wiremind.github.io/wiremind-helm-charts"
+    "dimpact": "https://Dimpact-Samenwerking.github.io/helm-charts/"
+    "maykinmedia": "https://maykinmedia.github.io/charts/"
+    "kiss-elastic": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic"
+    "zac": "https://infonl.github.io/dimpact-zaakafhandelcomponent/"
+    "zgw-office-addin": "https://infonl.github.io/zgw-office-addin"
+    "worth-nl": "https://worth-nl.github.io/helm-charts"
+    "opstree": "https://ot-container-kit.github.io/helm-charts/"

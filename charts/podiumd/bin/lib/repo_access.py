@@ -27,7 +27,8 @@ from lib.registry import parse_repo
 from lib.render_scope import resolve_dependency_repo
 from lib.repo_access_cache import cache_entry_is_fresh, cache_key, load_cache, save_cache
 from lib.settings import (
-    repo_access_cache_ttl_minutes, repo_access_never_probe_host_suffixes, repo_access_request_timeout_seconds,
+    helm_repos_urls_by_alias, repo_access_cache_ttl_minutes, repo_access_never_probe_host_suffixes,
+    repo_access_request_timeout_seconds,
 )
 
 
@@ -66,9 +67,9 @@ def dependency_repos(chart_dir):
     """(name, line, kind, target) for every Chart.yaml dependency that
     needs network access to resolve — kind "http" (target is the repo's
     base URL, an "@alias" already resolved via
-    lib.render_scope.REQUIRED_REPOS) or "oci" (target is (host, repo_path,
-    version), repo_path already combining the oci:// URL's own path with
-    the dependency's chart name — matching the
+    lib.settings.helm_repos_urls_by_alias) or "oci" (target is (host,
+    repo_path, version), repo_path already combining the oci:// URL's own
+    path with the dependency's chart name — matching the
     "<host>/<oci-path>/<chart-name>:<version>" reference `helm dependency
     update` actually pulls, confirmed by hand 2026-08-26). "line" is the
     dependency's own line in Chart.yaml, or None if it couldn't be found
@@ -76,12 +77,13 @@ def dependency_repos(chart_dir):
     degrades to no line number rather than a wrong one). A "file://"
     dependency (e.g. mi-data, a local sub-chart in this same monorepo)
     needs neither and is omitted."""
+    required_repos = helm_repos_urls_by_alias(chart_dir)
     chart_yaml_path = chart_dir / "Chart.yaml"
     deps = (load_yaml(chart_yaml_path) or {}).get("dependencies", [])
     line_numbers = _dependency_line_numbers(chart_yaml_path.read_text(encoding="utf-8"))
     repos = []
     for dep in deps:
-        repository = resolve_dependency_repo(dep.get("repository", ""))
+        repository = resolve_dependency_repo(dep.get("repository", ""), required_repos)
         name = dep.get("alias", dep["name"])
         line = line_numbers.get(dep["name"])
         if repository.startswith("file://"):
