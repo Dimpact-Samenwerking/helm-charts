@@ -49,18 +49,10 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.baseline_report import show_baseline_section
 from lib.chart import release_table_baseline as read_release_table_baseline
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.gitutil import find_repo_root as _find_repo_root
 from lib.image_version import resolve_scoped_matches
 from lib.release_baseline import resolve_baseline_values
 
-RELATIVE_CHART_DIR = "charts/podiumd"
-
-
-def find_repo_root():
-    repo_root = _find_repo_root(Path(__file__).resolve().parent)
-    if repo_root is None:
-        raise SystemExit("error: not inside a git repository")
-    return repo_root
+CHART_DIR = SCRIPT_DIR.parents[0]
 
 
 def show_at_baseline(chart_dir, label, baseline, key, basename):
@@ -103,8 +95,7 @@ def main():
         sys.exit(1)
     key, basename = sys.argv[1], sys.argv[2]
 
-    repo_root = find_repo_root()
-    chart_dir = repo_root / RELATIVE_CHART_DIR
+    chart_dir = CHART_DIR
 
     upgrade_docs = read_upgrade_docs_baseline(chart_dir)
     release_table = read_release_table_baseline(chart_dir)

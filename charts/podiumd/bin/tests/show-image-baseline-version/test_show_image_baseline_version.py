@@ -1,9 +1,9 @@
-"""main() integration against a real, hermetic temp git repo, plus the
-find_repo_root wrapper — <key> <basename> resolved via lib.image_version.
-resolve_scoped_matches against values.yaml TEXT as it was at each
-release-baseline.yaml baseline (via `git show`), same resolution
-update-image-version/verify-image-version's own <key> <basename> use,
-just applied to a past ref instead of the current file.
+"""main() integration against a real, hermetic temp git repo — <key>
+<basename> resolved via lib.image_version.resolve_scoped_matches against
+values.yaml TEXT as it was at each release-baseline.yaml baseline (via
+`git show`), same resolution update-image-version/verify-image-version's
+own <key> <basename> use, just applied to a past ref instead of the
+current file.
 
 No <baseline> CLI argument anymore — main() always shows state at BOTH
 release-baseline.yaml baselines (upgrade_docs, release_table)."""
@@ -59,19 +59,13 @@ def write_baselines(repo, upgrade_docs=None, release_table=None):
     (repo / "charts" / "podiumd" / "etc" / "release-baseline.yaml").write_text("".join(lines), encoding="utf-8")
 
 
-def test_find_repo_root_returns_repo_root(sibv, repo, monkeypatch):
-    monkeypatch.setattr(sibv, "__file__", str(repo / "charts" / "podiumd" / "scripts" / "fake.py"))
-    (repo / "charts" / "podiumd" / "scripts").mkdir(exist_ok=True)
-    assert sibv.find_repo_root().resolve() == repo.resolve()
-
-
 # --- main() integration ---
 # main() only calls sys.exit() on error paths; on success it just returns,
 # so only the failure-path tests wrap the call in pytest.raises(SystemExit).
 
 def set_argv_and_repo(sibv, monkeypatch, repo, key, basename):
     monkeypatch.setattr("sys.argv", ["show-image-baseline-version", key, basename])
-    monkeypatch.setattr(sibv, "find_repo_root", lambda: repo)
+    monkeypatch.setattr(sibv, "CHART_DIR", repo / "charts" / "podiumd")
 
 
 def test_main_shows_both_baselines(sibv, repo, monkeypatch, capsys):
