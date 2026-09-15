@@ -8,6 +8,7 @@
 #   3. eck-operator 3.5.0 (new).
 #   4. zac - solr 9.10.1-slim (digest changed).
 #   5. clamav 1.5.4 (digest changed).
+#   6. openformulieren 3.5.6 -> 3.5.8 (bugfix release).
 #
 # See docs/_UPGRADE_PATHS/4.9.1-to-4.9.2-upgrade.md for the operator upgrade notes.
 #
@@ -42,3 +43,9 @@
   url: docker.io/clamav/clamav
   version: "1.5.4"
   digest: "sha256:9cb27d7660bdf66e9878c832cb433dd8aa152cfbe16f3c2c0084c80b04ae22b4"
+
+# Applicaties
+- name: openformulieren
+  url: docker.io/openformulieren/open-forms
+  version: "3.5.8"
+  digest: "sha256:1050b6dd1554ff6f620390870fbb2056157d792e75b9fe6e965371a2ae84f41a"
