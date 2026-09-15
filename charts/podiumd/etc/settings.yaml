@@ -155,3 +155,25 @@ component_resolution:
   # assumed for a component that vendors a THIRD PARTY app at its own
   # independent version (keycloak-operator, eck-stack).
   chart_version_lockstep_components: ["kiss-chart", "pabc", "eck-operator"]
+  # component (name, not alias) -> the sibling dotted path holding a
+  # COMPONENT_VERSION_PATHS entry's own repository -- for the rare case
+  # where that repository IS explicitly overridable in podiumd's OWN
+  # values.yaml (redis-operator's own "imageName:"/"imageTag:" sibling-
+  # field convention). A bare "version:" field with nothing at all in
+  # podiumd's own values.yaml (eck-stack's own three -- see
+  # version_path_nested_subcharts below instead) is correctly left out.
+  version_repository_paths:
+    "redis-operator": "redisOperator.imageName"
+  # component -> {relative version-path field: nested sub-subchart name}
+  # for a bare tag/version field whose real repository has NO override
+  # anywhere in podiumd's own values.yaml -- because the operator maps
+  # the bare version to a fixed upstream image internally (the ECK
+  # operator's own version-to-image mapping for its managed
+  # Elasticsearch/Kibana/Enterprise Search CRDs). The only place that
+  # real image is documented at all is the nested sub-subchart's OWN
+  # values.yaml bundled inside the outer .tgz.
+  version_path_nested_subcharts:
+    "eck-stack":
+      "eck-elasticsearch.version": "eck-elasticsearch"
+      "eck-kibana.version": "eck-kibana"
+      "eck-enterprise-search.version": "eck-enterprise-search"

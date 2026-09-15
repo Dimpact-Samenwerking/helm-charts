@@ -59,6 +59,8 @@ FULL_SETTINGS = {
     },
     "component_resolution": {
         "chart_version_lockstep_components": ["kiss-chart", "pabc"],
+        "version_repository_paths": {"redis-operator": "redisOperator.imageName", "foo-op": "fooOperator.imageName"},
+        "version_path_nested_subcharts": {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch"}},
     },
 }
 
@@ -112,6 +114,13 @@ ACCESSOR_CASES = [
      {"zac": "https://example.invalid/zac/"}, dict),
     ("component_resolution_chart_version_lockstep_components",
      frozenset({"kiss-chart", "pabc", "eck-operator"}), frozenset({"kiss-chart", "pabc"}), frozenset),
+    ("component_resolution_version_repository_paths",
+     {"redis-operator": "redisOperator.imageName"},
+     {"redis-operator": "redisOperator.imageName", "foo-op": "fooOperator.imageName"}, dict),
+    ("component_resolution_version_path_nested_subcharts",
+     {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch", "eck-kibana.version": "eck-kibana",
+                    "eck-enterprise-search.version": "eck-enterprise-search"}},
+     {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch"}}, dict),
 ]
 
 

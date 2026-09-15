@@ -314,3 +314,26 @@ def component_resolution_chart_version_lockstep_components(chart_dir):
     frozenset({"kiss-chart", "pabc", "eck-operator"})."""
     return frozenset(_get(chart_dir, "component_resolution", "chart_version_lockstep_components",
                           ["kiss-chart", "pabc", "eck-operator"]))
+
+
+def component_resolution_version_repository_paths(chart_dir):
+    """component_resolution.version_repository_paths — replaces
+    lib.chart.COMPONENT_VERSION_REPOSITORY_PATHS, default
+    {"redis-operator": "redisOperator.imageName"}."""
+    return dict(_get(chart_dir, "component_resolution", "version_repository_paths",
+                      {"redis-operator": "redisOperator.imageName"}))
+
+
+def component_resolution_version_path_nested_subcharts(chart_dir):
+    """component_resolution.version_path_nested_subcharts — replaces
+    lib.chart.COMPONENT_VERSION_PATH_NESTED_SUBCHARTS, a nested dict,
+    default {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch",
+    "eck-kibana.version": "eck-kibana",
+    "eck-enterprise-search.version": "eck-enterprise-search"}}."""
+    return _get(chart_dir, "component_resolution", "version_path_nested_subcharts", {
+        "eck-stack": {
+            "eck-elasticsearch.version": "eck-elasticsearch",
+            "eck-kibana.version": "eck-kibana",
+            "eck-enterprise-search.version": "eck-enterprise-search",
+        },
+    })
