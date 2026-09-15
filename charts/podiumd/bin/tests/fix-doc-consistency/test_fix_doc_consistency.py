@@ -493,6 +493,24 @@ def test_main_already_at_new_baseline_strips_stale_values_deltas_todo_stub(cdb, 
     assert "removed stale TODO placeholder from 1 doc(s): 4.8.2-to-4.9.0-values-deltas.md" in out
 
 
+def test_stale_placeholder_functions_are_reused_not_reimplemented(cdb):
+    """The writer (lib.component_docs.insert_changes_section/insert_
+    values_delta_section), the retroactive fixer (this script), and the
+    checker (lib.docs_consistency.check_docs_consistency) must all call
+    the exact SAME function objects for "is a stub placeholder stranded
+    alongside real content" -- not three independently hand-rolled
+    copies of that same check."""
+    import lib.component_docs as component_docs
+    import lib.docs_consistency as docs_consistency
+
+    assert cdb.strip_stale_upgrade_placeholders is component_docs.strip_stale_upgrade_placeholders
+    assert cdb.strip_stale_values_deltas_todo_stub is component_docs.strip_stale_values_deltas_todo_stub
+    assert docs_consistency.strip_stale_upgrade_placeholders is component_docs.strip_stale_upgrade_placeholders
+    assert docs_consistency.strip_stale_values_deltas_todo_stub is component_docs.strip_stale_values_deltas_todo_stub
+    assert (docs_consistency.has_stale_gemeente_specific_placeholder
+            is component_docs.has_stale_gemeente_specific_placeholder)
+
+
 def test_main_no_release_baseline_errors(cdb, monkeypatch):
     """No release-baseline.yaml upgrade_docs key to read (file or key
     missing) is an error — this script never takes the baseline as an

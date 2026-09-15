@@ -547,55 +547,116 @@ def test_insert_changes_section_never_strips_real_prose_mentioning_todo(libcompo
     assert "TODO: figure out redis sidecar wording later." in new_text
 
 
-# --- strip_stale_changes_todo_stub (retroactive cleanup, fix-doc-consistency) ---
+def test_insert_changes_section_also_strips_the_top_level_intro_todo_on_first_insertion(
+        libcomponentdocs):
+    """Both of upgrade.md's own stub placeholders -- the top-level intro
+    "TODO: describe this hop's changes." AND "## Changes"' own bare
+    "TODO" -- must clear together the moment the FIRST real "### ..."
+    block is inserted, not just the "## Changes" one on its own."""
+    text = (UPGRADE_DOC_INTRO +
+            "TODO: describe this hop's changes.\n\n"
+            "## Component versions (4.9.2 vs 4.9.1)\n\n"
+            "## Changes\n\n"
+            "TODO\n")
+    section_text = ("### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+                     "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n")
+    new_text = libcomponentdocs.insert_changes_section(text, section_text, "eck-operator", [], {})
+    assert "TODO" not in new_text
+    assert new_text == (UPGRADE_DOC_INTRO +
+                         "## Component versions (4.9.2 vs 4.9.1)\n\n"
+                         "## Changes\n\n" + section_text)
 
-def test_strip_stale_changes_todo_stub_removes_leftover_before_a_real_block(libcomponentdocs):
+
+# --- strip_stale_upgrade_placeholders (retroactive cleanup, fix-doc-consistency) ---
+
+UPGRADE_DOC_INTRO = (
+    "# Upgrade guide: PodiumD 4.9.1 → 4.9.2\n\n"
+    "> See the Confluence Releases page for the agreed application\n"
+    "> targets: <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.\n\n"
+)
+
+
+def test_strip_stale_upgrade_placeholders_removes_both_leftovers_before_a_real_block(libcomponentdocs):
     """Regression test (real bug, real doc): 4.9.1-to-4.9.2-upgrade.md's
     own "### eck-operator ..." block was inserted BEFORE insert_changes_
-    section's own insertion-time fix existed, leaving "TODO" stranded
-    beside it forever -- this is the retroactive companion that cleans
-    up a doc already in that state."""
-    text = ("## Changes\n\n"
+    section's own insertion-time fix existed, leaving BOTH the top-level
+    intro "TODO: describe this hop's changes." AND "## Changes"' own
+    bare "TODO" stranded beside it forever -- both clear together as ONE
+    event, since both equally mean "this hop has real recorded changes"."""
+    text = (UPGRADE_DOC_INTRO +
+            "TODO: describe this hop's changes.\n\n"
+            "## Component versions (4.9.2 vs 4.9.1)\n\n"
+            "## Changes\n\n"
             "TODO\n\n"
             "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
             "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
             "- Image tag pin `eck-operator.image.tag` `3.5.0` (new) in\n"
             "  `charts/podiumd/values.yaml`.\n")
-    new_text, changed = libcomponentdocs.strip_stale_changes_todo_stub(text)
+    new_text, changed = libcomponentdocs.strip_stale_upgrade_placeholders(text)
     assert changed is True
     assert "TODO" not in new_text
-    assert new_text == ("## Changes\n\n"
+    assert new_text == (UPGRADE_DOC_INTRO +
+                         "## Component versions (4.9.2 vs 4.9.1)\n\n"
+                         "## Changes\n\n"
                          "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
                          "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
                          "- Image tag pin `eck-operator.image.tag` `3.5.0` (new) in\n"
                          "  `charts/podiumd/values.yaml`.\n")
 
 
-def test_strip_stale_changes_todo_stub_leaves_a_still_empty_section_untouched(libcomponentdocs):
+def test_strip_stale_upgrade_placeholders_leaves_a_still_empty_section_untouched(libcomponentdocs):
     """A "## Changes" section that STILL only has the bare TODO (no real
     "### ..." block yet) is the correct, expected state for a genuinely
-    new doc -- must never be touched."""
-    text = "## Changes\n\nTODO\n"
-    new_text, changed = libcomponentdocs.strip_stale_changes_todo_stub(text)
+    new doc -- must never be touched, and neither must the intro TODO
+    sitting right above it."""
+    text = (UPGRADE_DOC_INTRO +
+            "TODO: describe this hop's changes.\n\n"
+            "## Component versions (4.9.2 vs 4.9.1)\n\n"
+            "## Changes\n\n"
+            "TODO\n")
+    new_text, changed = libcomponentdocs.strip_stale_upgrade_placeholders(text)
     assert changed is False
     assert new_text == text
 
 
-def test_strip_stale_changes_todo_stub_never_strips_real_prose_mentioning_todo(libcomponentdocs):
-    text = ("## Changes\n\n"
+def test_strip_stale_upgrade_placeholders_never_strips_real_prose_mentioning_todo(libcomponentdocs):
+    text = (UPGRADE_DOC_INTRO +
+            "TODO: this describes something else entirely, not the stub.\n\n"
+            "## Component versions (4.9.2 vs 4.9.1)\n\n"
+            "## Changes\n\n"
             "TODO: figure out redis sidecar wording later.\n\n"
             "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
             "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n")
-    new_text, changed = libcomponentdocs.strip_stale_changes_todo_stub(text)
+    new_text, changed = libcomponentdocs.strip_stale_upgrade_placeholders(text)
     assert changed is False
+    assert "TODO: this describes something else entirely, not the stub." in new_text
     assert "TODO: figure out redis sidecar wording later." in new_text
 
 
-def test_strip_stale_changes_todo_stub_noop_without_a_changes_heading(libcomponentdocs):
+def test_strip_stale_upgrade_placeholders_noop_without_a_changes_heading(libcomponentdocs):
     text = "### some other heading\n\nprose\n"
-    new_text, changed = libcomponentdocs.strip_stale_changes_todo_stub(text)
+    new_text, changed = libcomponentdocs.strip_stale_upgrade_placeholders(text)
     assert changed is False
     assert new_text == text
+
+
+def test_strip_stale_upgrade_placeholders_strips_only_the_changes_todo_when_intro_already_clean(
+        libcomponentdocs):
+    """A doc that's already had its own intro TODO cleared by hand (or a
+    previous partial fix) but still has "## Changes"' own bare TODO must
+    still get that one cleared -- the two placeholders are one event
+    only in the sense that they clear TOGETHER when both are present,
+    not that neither can ever be fixed without the other."""
+    text = (UPGRADE_DOC_INTRO +
+            "## Component versions (4.9.2 vs 4.9.1)\n\n"
+            "## Changes\n\n"
+            "TODO\n\n"
+            "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+            "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n")
+    new_text, changed = libcomponentdocs.strip_stale_upgrade_placeholders(text)
+    assert changed is True
+    assert "TODO" not in new_text
+    assert "### eck-operator" in new_text
 
 
 def test_find_values_delta_section_matches_hand_written_heading(libcomponentdocs):
@@ -699,6 +760,56 @@ def test_strip_stale_values_deltas_todo_stub_noop_without_any_section(libcompone
     new_text, changed = libcomponentdocs.strip_stale_values_deltas_todo_stub(text)
     assert changed is False
     assert new_text == text
+
+
+# --- gemeente-specific.md: has_stale_gemeente_specific_placeholder (checker-only, no fixer) ---
+
+GEMEENTE_STUB = (
+    "# Gemeente-specific notes — PodiumD 4.9.1 → 4.9.2\n\n"
+    "Findings for this hop that apply to a **specific gemeente or environment** —\n"
+    "not to the release in general — are collected here: data quirks, local\n"
+    "overrides, hosting particulars, incident follow-ups.\n\n"
+    "_None recorded yet._\n\n"
+    "<!-- Add entries per gemeente/environment:\n\n"
+    "## <gemeente> (<env>)\n\n"
+    "- What was hit, why it is specific to this environment, and the\n"
+    "  fix/workaround applied.\n"
+    "-->\n"
+)
+
+
+def test_has_real_gemeente_specific_content_false_for_the_bare_stub(libcomponentdocs):
+    """The stub's own EXAMPLE "## <gemeente> (<env>)" heading lives
+    inside its commented-out template block -- must never count as real
+    content on its own."""
+    assert libcomponentdocs.has_real_gemeente_specific_content(GEMEENTE_STUB) is False
+
+
+def test_has_real_gemeente_specific_content_true_for_a_real_section(libcomponentdocs):
+    text = GEMEENTE_STUB + "\n## Utrecht (prod)\n\n- Some real finding.\n"
+    assert libcomponentdocs.has_real_gemeente_specific_content(text) is True
+
+
+def test_has_stale_gemeente_specific_placeholder_true_when_both_present(libcomponentdocs):
+    """Regression case this checker exists for: a human added a real
+    "## <gemeente> (<env>)" finding but left the "_None recorded yet._"
+    placeholder in place above it."""
+    text = GEMEENTE_STUB + "\n## Utrecht (prod)\n\n- Some real finding.\n"
+    assert libcomponentdocs.has_stale_gemeente_specific_placeholder(text) is True
+
+
+def test_has_stale_gemeente_specific_placeholder_false_for_the_bare_stub(libcomponentdocs):
+    """A doc that STILL only has the bare stub (nothing recorded yet) is
+    the correct, expected state -- must never be flagged."""
+    assert libcomponentdocs.has_stale_gemeente_specific_placeholder(GEMEENTE_STUB) is False
+
+
+def test_has_stale_gemeente_specific_placeholder_false_once_placeholder_removed_by_hand(libcomponentdocs):
+    """Once a human clears the placeholder themselves (the only way it
+    can ever go -- there's no automated fixer for this one), the finding
+    must stop firing."""
+    text = GEMEENTE_STUB.replace("_None recorded yet._\n\n", "") + "\n## Utrecht (prod)\n\n- Some real finding.\n"
+    assert libcomponentdocs.has_stale_gemeente_specific_placeholder(text) is False
 
 
 def test_append_values_delta_section_body_adds_after_existing_content(libcomponentdocs):

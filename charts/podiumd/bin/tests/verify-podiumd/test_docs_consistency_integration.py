@@ -104,6 +104,86 @@ def test_fully_consistent_chart_passes_without_baseline(vp, chart_repo):
     assert ok is True, detail
 
 
+# --- stale stub-placeholder findings (see lib.component_docs.strip_stale_
+# upgrade_placeholders/strip_stale_values_deltas_todo_stub/has_stale_
+# gemeente_specific_placeholder) ---
+
+def test_stale_upgrade_placeholder_is_reported_as_a_finding(vp, chart_repo, capsys):
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(doc.read_text() + "\n## Changes\n\nTODO\n\n### zac 5.0.2 → 5.4.3\n\nSome prose.\n")
+
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert ok is False
+    out = capsys.readouterr().out
+    assert ('4.8.5-to-4.9.0-upgrade.md: still has a stale "TODO" placeholder stranded alongside '
+            'real content') in out
+
+
+def test_bare_changes_todo_stub_with_no_real_block_is_not_flagged(vp, chart_repo, capsys):
+    """A "## Changes" section that STILL only has the bare TODO (no real
+    "### ..." block yet) is the correct, expected state -- must not be
+    reported as a stale-placeholder finding, matching strip_stale_
+    upgrade_placeholders' own "must never be touched" guard. (Adding a
+    bare "## Changes" section here also trips an unrelated, pre-existing
+    check -- every table row needing its own "### ..." section once one
+    exists at all -- so this only asserts on the specific finding this
+    test cares about, not overall pass/fail.)"""
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(doc.read_text() + "\n## Changes\n\nTODO\n")
+
+    vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+
+    out = capsys.readouterr().out
+    assert "still has a stale" not in out
+
+
+def test_stale_values_deltas_placeholder_is_reported_as_a_finding(vp, chart_repo, capsys):
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-values-deltas.md"
+    doc.write_text(
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+        "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n\n"
+        "## ZAC 5.0.2 → 5.4.3 (chart 1.0.297, unchanged) — image tag only\n\n"
+        "No gemeente podiumd.yml changes are required for this hop.\n"
+    )
+
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert ok is False
+    out = capsys.readouterr().out
+    assert ('4.8.5-to-4.9.0-values-deltas.md: still has its own stale TODO placeholder '
+            'stranded alongside a real "## ..." section') in out
+
+
+def test_stale_gemeente_specific_placeholder_is_reported_as_a_finding(vp, chart_repo, capsys):
+    """Check-only finding -- nothing auto-fixes this one (see lib.
+    component_docs.has_stale_gemeente_specific_placeholder's own
+    docstring for why)."""
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-gemeente-specific.md"
+    doc.write_text(
+        "# Gemeente-specific notes — PodiumD 4.8.5 → 4.9.0\n\n"
+        "_None recorded yet._\n\n"
+        "## Utrecht (prod)\n\n"
+        "- Some real finding.\n"
+    )
+
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert ok is False
+    out = capsys.readouterr().out
+    assert ('4.8.5-to-4.9.0-gemeente-specific.md: still has its own stale "_None recorded yet._" '
+            'placeholder stranded alongside a real "## <gemeente> (<env>)" section') in out
+
+
+def test_bare_gemeente_specific_stub_with_no_real_section_is_not_flagged(vp, chart_repo, capsys):
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-gemeente-specific.md"
+    doc.write_text("# Gemeente-specific notes — PodiumD 4.8.5 → 4.9.0\n\n_None recorded yet._\n")
+
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert ok is True, detail
+
+
 def test_no_matching_docs_is_a_soft_pass(vp, tmp_path):
     chart_dir = tmp_path / "charts" / "podiumd"
     (chart_dir / "docs" / "_UPGRADE_PATHS").mkdir(parents=True)

@@ -16,7 +16,8 @@ from lib.chart import (
 )
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, find_images_manifest_changes_header, find_images_manifest_changes_items,
-    find_values_delta_section, images_manifest_changes_count_word, resolve_component_own_version_change,
+    find_values_delta_section, has_stale_gemeente_specific_placeholder, images_manifest_changes_count_word,
+    resolve_component_own_version_change, strip_stale_upgrade_placeholders, strip_stale_values_deltas_todo_stub,
 )
 from lib.image_repository_check import find_images_without_repository
 from lib.release_baseline import resolve_baseline_chart_state
@@ -796,6 +797,29 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 doc_name, doc_mismatches = check_companion_doc(doc_dir, upgrade_docs_baseline, podiumd_version, suffix)
                 checked.append(doc_name)
                 mismatches.extend(doc_mismatches)
+
+                # Stale-placeholder findings (see lib.component_docs'
+                # own strip_stale_values_deltas_todo_stub/has_stale_
+                # gemeente_specific_placeholder) — reported here even
+                # for a doc fix-doc-consistency's own retroactive pass
+                # would already auto-fix (values-deltas), since a doc
+                # can carry this between being written and that script
+                # next running; gemeente-specific has no fixer at all,
+                # only ever this finding.
+                companion_path = doc_dir / doc_name
+                if companion_path.is_file():
+                    companion_text = companion_path.read_text(encoding="utf-8")
+                    if suffix == "values-deltas" and strip_stale_values_deltas_todo_stub(companion_text)[1]:
+                        mismatches.append(
+                            f'{doc_name}: still has its own stale TODO placeholder stranded alongside a '
+                            f'real "## ..." section — run fix-doc-consistency to clear it'
+                        )
+                    elif suffix == "gemeente-specific" and has_stale_gemeente_specific_placeholder(companion_text):
+                        mismatches.append(
+                            f'{doc_name}: still has its own stale "_None recorded yet._" placeholder '
+                            f'stranded alongside a real "## <gemeente> (<env>)" section — clear it by hand '
+                            f'(nothing auto-fixes this one)'
+                        )
         else:
             print(f'WARNING: upgrade_docs_baseline "{upgrade_docs_baseline}" is not a bare version — cannot check '
                   f'for matching gemeente-specific / values-deltas docs')
@@ -836,6 +860,20 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         checked.append(doc_path.name)
         if is_bare_version:
             mismatches.extend(check_doc_title(doc_path, upgrade_docs_baseline, podiumd_version))
+
+        # Stale-placeholder finding, same reasoning as the values-deltas/
+        # gemeente-specific ones above — reported even when fix-doc-
+        # consistency's own retroactive pass would already auto-fix it,
+        # since it can be stranded between a doc being written and that
+        # script next running (see lib.component_docs.strip_stale_
+        # upgrade_placeholders, reused here unapplied — its own `changed`
+        # flag doubles as this finding, no separate detector to drift).
+        if strip_stale_upgrade_placeholders(doc_path.read_text(encoding="utf-8"))[1]:
+            mismatches.append(
+                f'{doc_path.name}: still has a stale "TODO" placeholder stranded alongside real content '
+                f'— run fix-doc-consistency to clear it'
+            )
+
         if baseline_ref:
             checked.append(f"upgrade_docs_baseline {baseline_ref}")
 
