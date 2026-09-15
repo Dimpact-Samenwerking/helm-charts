@@ -1288,10 +1288,7 @@ objecttypen:
     enabled: true
     # Names (matching objecttypes_data's "name" field, e.g. Medewerker, Afdeling, Groep,
     # InterneTaak, Kennisartikel, VAC, Productaanvraag-Dimpact, Activiteitenlog) of objecttypes
-    # for which the job checks the schema at documentationUrl and publishes a new version if it
-    # changed. Names not listed here are left untouched once they have a version — only missing
-    # objecttypes/versions are ever created for them. Empty by default: no existing version is
-    # touched unless explicitly opted in here.
+    # that need to be updated
     updateExistingVersions:
       - Productaanvraag-Dimpact
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
