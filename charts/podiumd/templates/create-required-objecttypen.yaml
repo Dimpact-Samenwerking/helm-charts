@@ -19,20 +19,29 @@ metadata:
     {{- include "objecttypen.labels" . | nindent 4 }}
 data:
   OBJECTTYPES_URL: {{ printf "%s%s" .Values.objecttypen.configuration.oidcUrl "/api/v2" | quote}}
+  UPDATE_EXISTING_VERSIONS: {{ .Values.objecttypen.create_required_objecttypen_job.updateExistingVersions | toJson | quote }}
   create-required-objecttypen.py: |
     #!/usr/local/bin/python
     import requests
     import os
     import re
+    import json as jsonlib
 
     authorization_token = os.environ['AUTHORIZATION_TOKEN']
     objecttypes_url = os.environ['OBJECTTYPES_URL']
+    update_existing_versions = set(jsonlib.loads(os.environ.get('UPDATE_EXISTING_VERSIONS', '[]')))
 
     authorization="Token " + authorization_token
     def findHighestVersion(versions):
       pattern = r'/(\d+)$'
       numbers = [int(match.group(1)) for url in versions if (match := re.search(pattern, url))]
       return max(numbers) if numbers else None
+
+    def findHighestVersionUrl(versions):
+      highest = findHighestVersion(versions)
+      if highest is None:
+        return None
+      return next((url for url in versions if url.endswith(f"/{highest}")), None)
 
     json_response = requests.get(
       f"{objecttypes_url}/objecttypes",
@@ -70,6 +79,7 @@ data:
         if(result["name"] == objecttype['name'] or result["namePlural"] == objecttype['namePlural']):
           objecttype['uuid']=result["uuid"]
           objecttype['version']=findHighestVersion(result['versions'])
+          objecttype['versionUrl']=findHighestVersionUrl(result['versions'])
           existing_objecttypes.append(objecttype)
           print(f"found existing objecttype for {objecttype['name']}")
 
@@ -102,6 +112,26 @@ data:
           }
         )
         print(f"created version for objecttype {objecttype['uuid']}")
+      elif objecttype['name'] in update_existing_versions:
+        #check for a schema update on an existing version
+        current_schema=requests.get(f"{objecttype['documentationUrl']}",headers={"Content-type":"application/json"}).json()
+        latest_schema=requests.get(
+          objecttype['versionUrl'],
+          headers={"Authorization": authorization}
+        ).json().get('jsonSchema')
+        if current_schema != latest_schema:
+          versionData={"status":"published","jsonSchema":current_schema}
+          response = requests.post(
+            f"{objecttypes_url}/objecttypes/{objecttype['uuid']}/versions",
+            json=versionData,
+            headers={
+              "Authorization": authorization,
+              "Content-Type": "application/json"
+            }
+          )
+          print(f"published updated version for objecttype {objecttype['uuid']} ({objecttype['name']}): schema changed")
+        else:
+          print(f"schema unchanged for objecttype {objecttype['uuid']} ({objecttype['name']}), skipping")
 ---
 apiVersion: batch/v1
 kind: Job
