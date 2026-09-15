@@ -1302,7 +1302,8 @@ objecttypen:
     # changed. Names not listed here are left untouched once they have a version — only missing
     # objecttypes/versions are ever created for them. Empty by default: no existing version is
     # touched unless explicitly opted in here.
-    updateExistingVersions: []
+    updateExistingVersions:
+      - Productaanvraag-Dimpact
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
     activeDeadlineSeconds: 900
     # Number of retries before the job is marked failed. Aligned with django-config jobs.
