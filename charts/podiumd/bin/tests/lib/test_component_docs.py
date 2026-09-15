@@ -547,6 +547,57 @@ def test_insert_changes_section_never_strips_real_prose_mentioning_todo(libcompo
     assert "TODO: figure out redis sidecar wording later." in new_text
 
 
+# --- strip_stale_changes_todo_stub (retroactive cleanup, fix-doc-consistency) ---
+
+def test_strip_stale_changes_todo_stub_removes_leftover_before_a_real_block(libcomponentdocs):
+    """Regression test (real bug, real doc): 4.9.1-to-4.9.2-upgrade.md's
+    own "### eck-operator ..." block was inserted BEFORE insert_changes_
+    section's own insertion-time fix existed, leaving "TODO" stranded
+    beside it forever -- this is the retroactive companion that cleans
+    up a doc already in that state."""
+    text = ("## Changes\n\n"
+            "TODO\n\n"
+            "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+            "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
+            "- Image tag pin `eck-operator.image.tag` `3.5.0` (new) in\n"
+            "  `charts/podiumd/values.yaml`.\n")
+    new_text, changed = libcomponentdocs.strip_stale_changes_todo_stub(text)
+    assert changed is True
+    assert "TODO" not in new_text
+    assert new_text == ("## Changes\n\n"
+                         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+                         "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
+                         "- Image tag pin `eck-operator.image.tag` `3.5.0` (new) in\n"
+                         "  `charts/podiumd/values.yaml`.\n")
+
+
+def test_strip_stale_changes_todo_stub_leaves_a_still_empty_section_untouched(libcomponentdocs):
+    """A "## Changes" section that STILL only has the bare TODO (no real
+    "### ..." block yet) is the correct, expected state for a genuinely
+    new doc -- must never be touched."""
+    text = "## Changes\n\nTODO\n"
+    new_text, changed = libcomponentdocs.strip_stale_changes_todo_stub(text)
+    assert changed is False
+    assert new_text == text
+
+
+def test_strip_stale_changes_todo_stub_never_strips_real_prose_mentioning_todo(libcomponentdocs):
+    text = ("## Changes\n\n"
+            "TODO: figure out redis sidecar wording later.\n\n"
+            "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+            "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n")
+    new_text, changed = libcomponentdocs.strip_stale_changes_todo_stub(text)
+    assert changed is False
+    assert "TODO: figure out redis sidecar wording later." in new_text
+
+
+def test_strip_stale_changes_todo_stub_noop_without_a_changes_heading(libcomponentdocs):
+    text = "### some other heading\n\nprose\n"
+    new_text, changed = libcomponentdocs.strip_stale_changes_todo_stub(text)
+    assert changed is False
+    assert new_text == text
+
+
 def test_find_values_delta_section_matches_hand_written_heading(libcomponentdocs):
     text = "# Values deltas\n\n## KISS 2.2.4 → 3.0.0 — required edits\n\nSome prose.\n"
     section = libcomponentdocs.find_values_delta_section(text, "kiss", [{"name": "kiss", "version": "3.0.0"}])
@@ -601,6 +652,53 @@ def test_insert_values_delta_section_never_strips_real_prose_mentioning_todo(lib
     new_text = libcomponentdocs.insert_values_delta_section(
         text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS, {"zac": {}})
     assert "TODO: check with gemeente X about their override Y." in new_text
+
+
+# --- strip_stale_values_deltas_todo_stub (retroactive cleanup, fix-doc-consistency) ---
+
+def test_strip_stale_values_deltas_todo_stub_removes_leftover_before_a_real_section(libcomponentdocs):
+    """Regression test (real bug, real doc): 4.9.1-to-4.9.2-values-deltas.md's
+    own "## eck-operator ..." section was inserted BEFORE insert_values_
+    delta_section's own insertion-time fix existed, leaving the stub
+    TODO sentence stranded beside it forever."""
+    text = ("# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
+            "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n\n"
+            "## eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+            "- Key `eck-operator.image` was added.\n")
+    new_text, changed = libcomponentdocs.strip_stale_values_deltas_todo_stub(text)
+    assert changed is True
+    assert "TODO" not in new_text
+    assert new_text == ("# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
+                         "## eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+                         "- Key `eck-operator.image` was added.\n")
+
+
+def test_strip_stale_values_deltas_todo_stub_leaves_a_still_empty_doc_untouched(libcomponentdocs):
+    """A doc that STILL only has the bare stub (no real section yet) is
+    the correct, expected state for a genuinely new doc -- must never be
+    touched."""
+    text = ("# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
+            "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n")
+    new_text, changed = libcomponentdocs.strip_stale_values_deltas_todo_stub(text)
+    assert changed is False
+    assert new_text == text
+
+
+def test_strip_stale_values_deltas_todo_stub_never_strips_real_prose_mentioning_todo(libcomponentdocs):
+    text = ("# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
+            "TODO: check with gemeente X about their override Y.\n\n"
+            "## eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+            "- Key `eck-operator.image` was added.\n")
+    new_text, changed = libcomponentdocs.strip_stale_values_deltas_todo_stub(text)
+    assert changed is False
+    assert "TODO: check with gemeente X about their override Y." in new_text
+
+
+def test_strip_stale_values_deltas_todo_stub_noop_without_any_section(libcomponentdocs):
+    text = "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\nSome hand-written prose, no section yet.\n"
+    new_text, changed = libcomponentdocs.strip_stale_values_deltas_todo_stub(text)
+    assert changed is False
+    assert new_text == text
 
 
 def test_append_values_delta_section_body_adds_after_existing_content(libcomponentdocs):

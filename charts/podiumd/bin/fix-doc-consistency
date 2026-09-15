@@ -95,7 +95,8 @@ from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, IMAGES_STUB_TEMPLATE, NUMBER_WORDS, STANDARD_SUFFIXES, STUB_TEMPLATES,
     add_missing_component_rows, ensure_images_manifest_changes_header, existing_doc_baselines,
     find_images_manifest_changes_header, images_manifest_order_key, insert_images_manifest_header_item,
-    prune_empty_values_delta_sections, renumber_images_manifest_changes_items, sync_values_delta_sections,
+    prune_empty_values_delta_sections, renumber_images_manifest_changes_items, strip_stale_changes_todo_stub,
+    strip_stale_values_deltas_todo_stub, sync_values_delta_sections,
 )
 from lib.docs_consistency import match_changes_item_to_entry
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
@@ -180,6 +181,20 @@ def update_component_versions_heading(text, old_baseline, target, new_baseline):
     pattern = re.compile(COMPONENT_VERSIONS_RE_TMPL.format(baseline=re.escape(old_baseline), target=re.escape(target)))
     new_text, count = pattern.subn(f"Component versions ({target} vs {new_baseline})", text)
     return new_text, count > 0
+
+
+def join_and(parts):
+    """"a" | "a and b" | "a, b, and c" — natural-language join for a
+    per-doc summary line combining however many of its own independent
+    fixes actually fired this run (stub-TODO removal, stale sibling-doc
+    references, collapsed blank lines, ...), instead of a fixed set of
+    hand-enumerated if/elif/else combinations that stops scaling past
+    two possible fixes."""
+    if len(parts) <= 1:
+        return "".join(parts)
+    if len(parts) == 2:
+        return f"{parts[0]} and {parts[1]}"
+    return ", ".join(parts[:-1]) + f", and {parts[-1]}"
 
 
 def remaining_mentions(text, old_baseline):
@@ -1520,6 +1535,13 @@ def main():
 
     print(f"=== Bumping baseline for target {target} to {new_baseline} ===")
     review_notes = []
+    # Every *-upgrade.md/*-values-deltas.md doc this run touches (renamed
+    # or not) gets checked for its own stub TODO placeholder stranded
+    # beside real content already inserted before insert_changes_section/
+    # insert_values_delta_section's own insertion-time fix existed (real
+    # case, confirmed live: 4.9.1-to-4.9.2-upgrade.md and its own values-
+    # deltas sibling) — collected here for one aggregate summary line.
+    todo_stub_docs = []
     all_suffixes = sorted(set(by_suffix) | set(STANDARD_SUFFIXES))
     for suffix in all_suffixes:
         if suffix not in by_suffix:
@@ -1540,6 +1562,16 @@ def main():
             # doc again once it's "unchanged".
             text = path.read_text(encoding="utf-8")
             text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
+            # Retroactive stub-TODO cleanup (see todo_stub_docs above) —
+            # checked here too: this "already baseline" path is the ONLY
+            # write site this doc's own suffix-specific content-fixing
+            # pass further below ever runs for, since that pass only
+            # fires when the baseline IS being bumped this same run.
+            todo_stripped = False
+            if suffix == "upgrade":
+                text, todo_stripped = strip_stale_changes_todo_stub(text)
+            elif suffix == "values-deltas":
+                text, todo_stripped = strip_stale_values_deltas_todo_stub(text)
             # A pre-existing double blank line unrelated to refs_changed
             # (or to anything else this loop checks) must still never
             # survive untouched — for gemeente-specific.md, and any other
@@ -1551,15 +1583,17 @@ def main():
             # bumped this same run, never on this no-rename path.
             collapsed_text = collapse_multiple_blank_lines(text)
             blank_lines_fixed = collapsed_text != text
-            if refs_changed or blank_lines_fixed:
+            if refs_changed or blank_lines_fixed or todo_stripped:
                 path.write_text(collapsed_text, encoding="utf-8")
-                if refs_changed and blank_lines_fixed:
-                    print(f"  {path.name}: already baseline {new_baseline} — fixed stale sibling doc "
-                          f"reference(s) and collapsed multiple blank line(s)")
-                elif refs_changed:
-                    print(f"  {path.name}: already baseline {new_baseline} — fixed stale sibling doc reference(s)")
-                else:
-                    print(f"  {path.name}: already baseline {new_baseline} — collapsed multiple blank line(s)")
+                parts = []
+                if todo_stripped:
+                    parts.append("removed stale TODO placeholder")
+                    todo_stub_docs.append(path.name)
+                if refs_changed:
+                    parts.append("fixed stale sibling doc reference(s)")
+                if blank_lines_fixed:
+                    parts.append("collapsed multiple blank line(s)")
+                print(f"  {path.name}: already baseline {new_baseline} — {join_and(parts)}")
             else:
                 print(f"  {path.name}: already baseline {new_baseline} — unchanged")
             continue
@@ -1571,6 +1605,11 @@ def main():
         text, title_changed = update_title_line(text, old_baseline, target, new_baseline)
         text, heading_changed = update_component_versions_heading(text, old_baseline, target, new_baseline)
         text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
+        todo_stripped = False
+        if suffix == "upgrade":
+            text, todo_stripped = strip_stale_changes_todo_stub(text)
+        elif suffix == "values-deltas":
+            text, todo_stripped = strip_stale_values_deltas_todo_stub(text)
 
         if path != new_path:
             git_mv(path, new_path)
@@ -1583,6 +1622,9 @@ def main():
             print(f"    'Component versions' heading: {old_baseline} -> {new_baseline}")
         if refs_changed:
             print(f"    sibling doc references: -> {new_baseline}-to-{target}-*.md")
+        if todo_stripped:
+            print("    removed stale TODO placeholder")
+            todo_stub_docs.append(new_name)
 
         leftovers = remaining_mentions(text, old_baseline)
         if leftovers:
@@ -1932,6 +1974,11 @@ def main():
 
             if write_needed:
                 values_deltas_path.write_text(collapsed_text, encoding="utf-8")
+
+    if todo_stub_docs:
+        print()
+        print(f"removed stale TODO placeholder from {len(todo_stub_docs)} doc(s): "
+              f"{', '.join(todo_stub_docs)}")
 
     if review_notes:
         print()

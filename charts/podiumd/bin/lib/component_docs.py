@@ -755,6 +755,45 @@ def insert_changes_section(text, section_text, friendly, deps, values, canonical
     return "".join(lines)
 
 
+def strip_stale_changes_todo_stub(text):
+    """Retroactive cleanup companion to insert_changes_section's own
+    insertion-time fix (see _is_bare_todo_stub there): a doc whose FIRST
+    real "### ..." block was inserted BEFORE that fix existed still has
+    the stray "TODO" line stranded between "## Changes" and that first
+    block — real case, confirmed live: 4.9.1-to-4.9.2-upgrade.md. Fixes
+    it after the fact, run as part of fix-doc-consistency's own normal
+    pass over every *-upgrade.md doc, not just newly-inserted ones.
+
+    Only fires when a real "### ..." block ALREADY exists — a "##
+    Changes" section that still only has the bare TODO (a genuinely new
+    doc with nothing recorded yet) is the correct, expected state and
+    must never be touched. Reuses _is_bare_todo_stub unchanged, scoped to
+    the span between "## Changes" and the FIRST real block (the only
+    place the stub can ever end up stranded — insert_changes_section
+    only ever appended the very first block right after whatever was
+    already there). Returns (new_text, changed)."""
+    blocks = parse_upgrade_doc_changes_blocks(text)
+    if not blocks:
+        return text, False
+
+    lines = text.splitlines(keepends=True)
+    changes_idx = None
+    for i, line in enumerate(lines):
+        if line.strip() == "## Changes":
+            changes_idx = i
+            break
+    if changes_idx is None:
+        return text, False
+
+    first_block_start = blocks[0]["start"]
+    if not _is_bare_todo_stub(lines, changes_idx + 1, first_block_start):
+        return text, False
+
+    del lines[changes_idx + 1:first_block_start]
+    lines[changes_idx + 1:changes_idx + 1] = ["\n"]
+    return "".join(lines), True
+
+
 def remove_changes_section(text, friendly):
     """Delete this component's "### ..." block from the "## Changes"
     section entirely — the counterpart to insert_changes_section for a
@@ -1090,6 +1129,33 @@ def insert_values_delta_section(text, friendly, heading_line, body_lines, deps, 
         insert_at += 1
     lines[insert_at:insert_at] = [section_text]
     return "".join(lines)
+
+
+def strip_stale_values_deltas_todo_stub(text):
+    """Retroactive cleanup companion to insert_values_delta_section's own
+    insertion-time fix (see _is_bare_values_deltas_todo_stub there): a
+    values-deltas.md doc whose FIRST real "## ..." section was inserted
+    BEFORE that fix existed still has the stray TODO sentence stranded
+    between the doc's own H1 title and that first section — real case,
+    confirmed live: 4.9.1-to-4.9.2-values-deltas.md. Mirrors strip_
+    stale_changes_todo_stub's own shape one heading level up, same as
+    insert_values_delta_section mirrors insert_changes_section.
+
+    Only fires when a real "## ..." section ALREADY exists — a doc that
+    still only has the bare stub (nothing recorded yet) is correct and
+    must never be touched. Returns (new_text, changed)."""
+    sections = parse_values_delta_sections(text)
+    if not sections:
+        return text, False
+
+    lines = text.splitlines(keepends=True)
+    first_section_start = sections[0]["start"]
+    prefix = lines[:first_section_start]
+    if not _is_bare_values_deltas_todo_stub(prefix):
+        return text, False
+
+    title_line = next(line for line in prefix if line.strip())
+    return title_line + "\n" + "".join(lines[first_section_start:]), True
 
 
 def append_values_delta_section_body(text, section, new_lines):
