@@ -507,6 +507,46 @@ def test_add_missing_component_rows_still_adds_a_real_bump(libcomponentdocs, tmp
     assert "| zac | 5.0.2 → 5.4.4 | 1.0.297 (unchanged) | - |" in new_text
 
 
+# --- insert_changes_section ---
+
+def test_insert_changes_section_strips_bare_todo_stub_on_first_insertion(libcomponentdocs):
+    """Regression test (real bug, real doc): 4.9.1-to-4.9.2-upgrade.md's
+    own "## Changes\n\nTODO\n" — the exact STUB_TEMPLATES["upgrade"] shape
+    create-doc-version scaffolds before any real content exists — never
+    got cleared the moment the FIRST real "### ..." block landed."""
+    text = "## Changes\n\nTODO\n"
+    section_text = ("### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+                     "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n")
+    new_text = libcomponentdocs.insert_changes_section(text, section_text, "eck-operator", [], {})
+    assert "TODO" not in new_text
+    assert new_text == "## Changes\n\n" + section_text
+
+
+def test_insert_changes_section_second_insertion_after_real_block_unaffected(libcomponentdocs):
+    """Once a real "### ..." block already exists, `blocks` is non-empty
+    and the stub-stripping path (only reachable when `blocks` is empty)
+    never fires — a second insertion behaves exactly as before this fix."""
+    text = ("## Changes\n\n### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+            "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n")
+    section_text = "### zac 5.0.2 → 5.4.4\n\nSome prose.\n\n"
+    new_text = libcomponentdocs.insert_changes_section(
+        text, section_text, "zac", DEPS, {"zac": {}, "eck-operator": {}})
+    assert "### eck-operator" in new_text
+    assert "### zac" in new_text
+    assert "TODO" not in new_text
+
+
+def test_insert_changes_section_never_strips_real_prose_mentioning_todo(libcomponentdocs):
+    """A "## Changes" section with real, human-written prose that happens
+    to start with the word "TODO" (but isn't the exact bare-stub shape)
+    must never be silently deleted."""
+    text = "## Changes\n\nTODO: figure out redis sidecar wording later.\n"
+    section_text = ("### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+                     "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n")
+    new_text = libcomponentdocs.insert_changes_section(text, section_text, "eck-operator", [], {})
+    assert "TODO: figure out redis sidecar wording later." in new_text
+
+
 def test_find_values_delta_section_matches_hand_written_heading(libcomponentdocs):
     text = "# Values deltas\n\n## KISS 2.2.4 → 3.0.0 — required edits\n\nSome prose.\n"
     section = libcomponentdocs.find_values_delta_section(text, "kiss", [{"name": "kiss", "version": "3.0.0"}])
@@ -525,6 +565,42 @@ def test_insert_values_delta_section_positions_by_values_yaml_order(libcomponent
         text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS,
         {"zac": {}, "openformulieren": {}})
     assert new_text.index("## zac") < new_text.index("## openformulieren")
+
+
+def test_insert_values_delta_section_strips_bare_todo_stub_on_first_insertion(libcomponentdocs):
+    """Same class of bug as insert_changes_section's own (see that
+    function's tests): a values-deltas.md doc still carrying STUB_
+    TEMPLATES["values-deltas"]'s own bare TODO sentence (create-doc-
+    version's scaffold, before any real "## ..." section exists) must
+    have it cleared the moment the FIRST real section gets inserted."""
+    text = ("# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
+            "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n")
+    new_text = libcomponentdocs.insert_values_delta_section(
+        text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS, {"zac": {}})
+    assert "TODO" not in new_text
+    assert new_text == ("# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
+                         "## zac 5.0.2 → 5.4.3\n\n- Key `zac.a` was added.\n\n")
+
+
+def test_insert_values_delta_section_second_insertion_unaffected(libcomponentdocs):
+    """Once a real section already exists, `sections` is non-empty and
+    the stub-stripping path never fires — matches insert_changes_
+    section's own equivalent guarantee."""
+    text = "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n## openformulieren 3.4.10 → 3.5.6\n\n- Key `a` was added.\n"
+    new_text = libcomponentdocs.insert_values_delta_section(
+        text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS,
+        {"zac": {}, "openformulieren": {}})
+    assert "## openformulieren" in new_text
+    assert "## zac" in new_text
+    assert "TODO" not in new_text
+
+
+def test_insert_values_delta_section_never_strips_real_prose_mentioning_todo(libcomponentdocs):
+    text = ("# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
+            "TODO: check with gemeente X about their override Y.\n")
+    new_text = libcomponentdocs.insert_values_delta_section(
+        text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS, {"zac": {}})
+    assert "TODO: check with gemeente X about their override Y." in new_text
 
 
 def test_append_values_delta_section_body_adds_after_existing_content(libcomponentdocs):
