@@ -15,11 +15,6 @@ from lib.gitutil import find_repo_root
 
 CACHE_FILENAME = "image-upgrade-cache.json"
 
-# A new tag can be published at any moment, so this is deliberately much
-# shorter than cve_check's CVE_CACHE_TTL_DAYS — see lib.image_upgrade_check's
-# docstring for the full rationale.
-IMAGE_UPGRADE_CACHE_TTL_DAYS = 1
-
 
 def cache_path(chart_dir):
     """<repo-root>/.cache/image-upgrade-cache.json — a personal,
@@ -52,9 +47,14 @@ def cache_key(repository, version):
     return f"{repository}:{version}"
 
 
-def cache_entry_is_fresh(entry):
+def cache_entry_is_fresh(entry, ttl_days):
+    """True when `entry` was checked within the last `ttl_days` days (see
+    image_upgrade_check.tag_check_cache_ttl_days in lib.settings — a new
+    tag can be published at any moment, so this is deliberately much
+    shorter than cve_scan.scan_cache_ttl_days; see lib.image_upgrade_
+    check's docstring for the full rationale)."""
     try:
         checked_at = datetime.fromisoformat(entry["checked_at"])
     except (KeyError, ValueError, TypeError):
         return False
-    return datetime.now(timezone.utc) - checked_at < timedelta(days=IMAGE_UPGRADE_CACHE_TTL_DAYS)
+    return datetime.now(timezone.utc) - checked_at < timedelta(days=ttl_days)

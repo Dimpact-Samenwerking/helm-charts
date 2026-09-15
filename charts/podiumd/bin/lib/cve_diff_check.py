@@ -100,7 +100,7 @@ import urllib.error
 from collections import Counter
 
 from lib.cve_check import (
-    HIGH_SEVERITIES, SEVERITY_ORDER, bucket_of, classify_by_key, dependency_names, high_findings_by_package,
+    SEVERITY_ORDER, bucket_of, classify_by_key, dependency_names, high_findings_by_package,
     open_cache_session, print_bucket_header, print_package_line, render_image_labels, save_cache, scan_cached,
     severity_label, top_level_key_for_line,
 )
@@ -110,6 +110,10 @@ from lib.image_upgrade_cache import cache_key as upgrade_cache_key
 from lib.image_upgrade_cache import load_cache as load_upgrade_cache
 from lib.registry import parse_repo, registry_tag_exists
 from lib.render_scope import friendly_vendor_charts, render_chart
+from lib.settings import (
+    cve_high_severity_levels, cve_max_cves_per_package_before_summarizing, cve_scan_cache_ttl_days,
+    image_upgrade_tag_check_cache_ttl_days,
+)
 
 
 def _vuln_key(v):
@@ -156,10 +160,11 @@ def gather_candidates(chart_dir):
     targets = unique_digest_pin_targets(values_lines)
 
     upgrade_cache = load_upgrade_cache(chart_dir)
+    upgrade_ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
     candidates = []
     for (repository, version), (digest, line) in sorted(targets.items()):
         entry = upgrade_cache.get(upgrade_cache_key(repository, version))
-        if entry and upgrade_entry_is_fresh(entry) and entry["newest"] != version:
+        if entry and upgrade_entry_is_fresh(entry, upgrade_ttl_days) and entry["newest"] != version:
             host, repo_path = parse_repo(repository)
             candidates.append({
                 "kind": "upgrade",
@@ -189,17 +194,19 @@ def gather_candidates(chart_dir):
     return candidates
 
 
-def _scan_current(chart_dir, candidate, old_cache, new_cache):
+def _scan_current(chart_dir, candidate, old_cache, new_cache, ttl_days):
     """The CURRENT side of one candidate — always cache-eligible, its
     pinned digest is already known from values.yaml, a free hit whenever
     check_cves already scanned this exact digest (both route through the
-    same lib.cve_check.scan_cached — see its own docstring)."""
+    same lib.cve_check.scan_cached — see its own docstring). `ttl_days`
+    (see cve_scan.scan_cache_ttl_days in lib.settings) is resolved once by
+    check_cve_diff and threaded straight through."""
     vulns, _ = scan_cached(chart_dir, candidate["repository"], candidate["current_digest"],
-                            candidate["current_ref"], old_cache, new_cache, label="current")
+                            candidate["current_ref"], old_cache, new_cache, ttl_days, label="current")
     return vulns
 
 
-def _scan_proposed(chart_dir, candidate, old_cache, new_cache):
+def _scan_proposed(chart_dir, candidate, old_cache, new_cache, ttl_days):
     """The PROPOSED side of one candidate. A "sliding digest" candidate
     already carries its own resolved digest (see gather_candidates) — no
     extra call needed, straight to scan_cached. An "upgrade" candidate's
@@ -221,7 +228,7 @@ def _scan_proposed(chart_dir, candidate, old_cache, new_cache):
             digest = None
 
     vulns, _ = scan_cached(chart_dir, candidate["repository"], digest, candidate["proposed_ref"],
-                            old_cache, new_cache, label="proposed")
+                            old_cache, new_cache, ttl_days, label="proposed")
     return vulns
 
 
@@ -230,15 +237,15 @@ def _severity_counts(vulns):
     return ", ".join(f"{counts[s]} {severity_label(s)}" for s in SEVERITY_ORDER if counts.get(s))
 
 
-def _print_direction(label, vulns, detail):
+def _print_direction(label, vulns, detail, high_severities, package_cve_list_threshold):
     if not vulns:
         print(f"  {label}: none")
         return
     print(f"  {label}: {_severity_counts(vulns)}")
     if detail:
-        high_vulns = [v for v in vulns if v["Severity"] in HIGH_SEVERITIES]
-        for pkg, vulns_for_pkg in sorted(high_findings_by_package(high_vulns).items()):
-            print_package_line(pkg, vulns_for_pkg)
+        high_vulns = [v for v in vulns if v["Severity"] in high_severities]
+        for pkg, vulns_for_pkg in sorted(high_findings_by_package(high_vulns, high_severities).items()):
+            print_package_line(pkg, vulns_for_pkg, package_cve_list_threshold)
 
 
 def _print_candidate_header(i, total, candidate):
@@ -246,9 +253,9 @@ def _print_candidate_header(i, total, candidate):
           f"{candidate['proposed_label']}  [{candidate['kind']}]")
 
 
-def print_candidate_result(closed, introduced, detail):
-    _print_direction("closed", closed, detail)
-    _print_direction("introduced", introduced, detail)
+def print_candidate_result(closed, introduced, detail, high_severities, package_cve_list_threshold):
+    _print_direction("closed", closed, detail, high_severities, package_cve_list_threshold)
+    _print_direction("introduced", introduced, detail, high_severities, package_cve_list_threshold)
     print()
 
 
@@ -279,27 +286,30 @@ def classify_candidates(chart_dir, extra_args, candidates, values_lines):
         candidate["bucket"] = bucket_of(label)
 
 
-def _process_bucket(chart_dir, title, bucket_candidates, old_cache, new_cache, scan_errors, detail):
+def _process_bucket(chart_dir, title, bucket_candidates, old_cache, new_cache, scan_errors, detail,
+                     ttl_days, high_severities, package_cve_list_threshold):
     """Scan and print one bucket's candidates under its own "--- <title>
     ---" header (skipped entirely when the bucket is empty, via the same
     lib.cve_check.print_bucket_header idiom print_bucket_report itself
     uses — not a second independently-written copy of that check). Returns
     (closed, introduced) totals for this bucket. Local per-bucket
     numbering ([i/N] where N is THIS bucket's own count), same convention
-    every other bucketed check in this codebase uses."""
+    every other bucketed check in this codebase uses. `ttl_days`/
+    `high_severities`/`package_cve_list_threshold` are all resolved once
+    by check_cve_diff and threaded straight through."""
     if not print_bucket_header(title, empty=not bucket_candidates):
         return 0, 0
 
     total_closed = total_introduced = 0
     for i, candidate in enumerate(bucket_candidates, 1):
         _print_candidate_header(i, len(bucket_candidates), candidate)
-        current_vulns = _scan_current(chart_dir, candidate, old_cache, new_cache)
+        current_vulns = _scan_current(chart_dir, candidate, old_cache, new_cache, ttl_days)
         if current_vulns is None:
             scan_errors.append(candidate["current_ref"])
             print(f"  [SCAN-ERR] {candidate['current_ref']}  trivy scan failed or produced "
                   f"unparseable output")
             continue
-        proposed_vulns = _scan_proposed(chart_dir, candidate, old_cache, new_cache)
+        proposed_vulns = _scan_proposed(chart_dir, candidate, old_cache, new_cache, ttl_days)
         if proposed_vulns is None:
             scan_errors.append(candidate["proposed_ref"])
             print(f"  [SCAN-ERR] {candidate['proposed_ref']}  trivy scan failed or produced "
@@ -308,7 +318,7 @@ def _process_bucket(chart_dir, title, bucket_candidates, old_cache, new_cache, s
         closed, introduced = diff_vulns(current_vulns, proposed_vulns)
         total_closed += len(closed)
         total_introduced += len(introduced)
-        print_candidate_result(closed, introduced, detail)
+        print_candidate_result(closed, introduced, detail, high_severities, package_cve_list_threshold)
     return total_closed, total_introduced
 
 
@@ -318,6 +328,10 @@ def check_cve_diff(chart_dir, extra_args, detail=False):
     if not candidates:
         print("OK: no upgrade-available or sliding-digest candidate to diff")
         return True, "0 candidate(s)"
+
+    cve_cache_ttl_days = cve_scan_cache_ttl_days(chart_dir)
+    high_severities = cve_high_severity_levels(chart_dir)
+    package_cve_list_threshold = cve_max_cves_per_package_before_summarizing(chart_dir)
 
     values_path = chart_dir / "values.yaml"
     values_lines = values_path.read_text(encoding="utf-8").splitlines()
@@ -334,11 +348,14 @@ def check_cve_diff(chart_dir, extra_args, detail=False):
     scan_errors = []
 
     own_closed, own_introduced = _process_bucket(
-        chart_dir, "Own images", own, old_cache, new_cache, scan_errors, detail)
+        chart_dir, "Own images", own, old_cache, new_cache, scan_errors, detail,
+        cve_cache_ttl_days, high_severities, package_cve_list_threshold)
     partner_closed, partner_introduced = _process_bucket(
-        chart_dir, "Partner-vendor images", partner, old_cache, new_cache, scan_errors, detail)
+        chart_dir, "Partner-vendor images", partner, old_cache, new_cache, scan_errors, detail,
+        cve_cache_ttl_days, high_severities, package_cve_list_threshold)
     other_closed, other_introduced = _process_bucket(
-        chart_dir, "Other-vendor images", other, old_cache, new_cache, scan_errors, detail)
+        chart_dir, "Other-vendor images", other, old_cache, new_cache, scan_errors, detail,
+        cve_cache_ttl_days, high_severities, package_cve_list_threshold)
 
     save_cache(chart_dir, new_cache)
 

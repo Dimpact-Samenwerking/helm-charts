@@ -379,6 +379,7 @@ from lib.kubeconform_check import check_kubeconform
 from lib.shellcheck_check import check_shellcheck
 from lib.kube_score_check import check_kube_score
 from lib.release_secret_size import check_release_secret_size
+from lib.settings import render_report_top_n_largest_templates_shown
 
 DEFAULT_CHART_DIR = SCRIPT_DIR.parent
 
@@ -543,7 +544,7 @@ def check_render(chart_dir, extra_args):
     if doc_count <= 0:
         return False, "rendered 0 manifests"
 
-    report_largest_templates(result.stdout)
+    report_largest_templates(result.stdout, render_report_top_n_largest_templates_shown(chart_dir))
     detail = f"{doc_count} manifests"
     print(f"OK: rendered {detail}")
     return True, detail

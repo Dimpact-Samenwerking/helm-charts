@@ -1,7 +1,8 @@
 """Checks that every container in the rendered chart declares CPU/memory
 requests AND limits — this repo's own documented convention
 (.github/copilot-instructions.md's "Resource Requests and Limits"), not a
-generic kube-score opinion (see KUBE_SCORE_CHECK_ID)."""
+generic kube-score opinion (see quality_gates.kube_score_check_id in
+lib.settings)."""
 import json
 import shutil
 from collections import Counter
@@ -11,18 +12,7 @@ from lib.render_scope import (
     OWN_TEMPLATES_PREFIX, build_resource_locations, chart_name_from_source, friendly_vendor_charts,
     print_grouped_findings, render_chart, resource_line, split_rendered_by_source,
 )
-
-# The one kube-score check this repo actually has a documented, existing
-# policy for — .github/copilot-instructions.md's "Resource Requests and
-# Limits" convention: "Every container in every template MUST declare
-# requests + limits for CPU/memory ... Sub-chart components wired via
-# values.yaml". Every other kube-score check (NetworkPolicy coverage,
-# ImagePullPolicy, SecurityContext UID/GID, PodDisruptionBudgets, anti-
-# affinity, ...) is a generic best-practice opinion this repo has never
-# claimed to enforce — running the full default rule set would produce a
-# wall of unrelated findings (67+ on this repo's own real render), so only
-# this one check is used.
-KUBE_SCORE_CHECK_ID = "container-resources"
+from lib.settings import quality_gates_kube_score_check_id
 
 
 def run_kube_score(yaml_text):
@@ -45,17 +35,17 @@ def run_kube_score(yaml_text):
     return data or []
 
 
-def extract_resource_findings(kube_score_objects):
+def extract_resource_findings(kube_score_objects, check_id):
     """From a kube-score run's scored objects, pull every non-skipped,
-    below-full-grade KUBE_SCORE_CHECK_ID finding as (object_name,
-    container, summary) — object_name is kube-score's own
-    "Kind/apiVersion/namespace/name" identifier, container is the comment's
-    "path" (the container the missing request/limit belongs to)."""
+    below-full-grade `check_id` finding as (object_name, container,
+    summary) — object_name is kube-score's own "Kind/apiVersion/
+    namespace/name" identifier, container is the comment's "path" (the
+    container the missing request/limit belongs to)."""
     findings = []
     for obj in kube_score_objects or []:
         object_name = obj.get("object_name", "?")
         for c in obj.get("checks", []):
-            if c["check"]["id"] != KUBE_SCORE_CHECK_ID or c.get("skipped") or c["grade"] >= 10:
+            if c["check"]["id"] != check_id or c.get("skipped") or c["grade"] >= 10:
                 continue
             for comment in c.get("comments") or []:
                 findings.append((object_name, comment.get("path", ""), comment.get("summary", "")))
@@ -88,7 +78,8 @@ def check_kube_score(chart_dir, extra_args):
     """Checks that every container in the rendered chart declares CPU/
     memory requests AND limits — this repo's own documented convention
     (.github/copilot-instructions.md's "Resource Requests and Limits"),
-    not a generic kube-score opinion (see KUBE_SCORE_CHECK_ID).
+    not a generic kube-score opinion (see quality_gates.kube_score_check_id
+    in lib.settings).
 
     Same own/partner-vendor/other-vendor scope split, and same per-item vs.
     aggregate-only reporting split, as check_yamllint/check_kubeconform/
@@ -118,6 +109,8 @@ def check_kube_score(chart_dir, extra_args):
     if shutil.which("kube-score") is None:
         return False, "kube-score is not installed (see --skip-kube-score to bypass)"
 
+    check_id = quality_gates_kube_score_check_id(chart_dir)
+
     result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
         return False, "helm template failed to render"
@@ -128,7 +121,7 @@ def check_kube_score(chart_dir, extra_args):
     own_objects = run_kube_score(own_text)
     if own_objects is None:
         return False, "kube-score produced unparseable output"
-    own_real = extract_resource_findings(own_objects)
+    own_real = extract_resource_findings(own_objects, check_id)
 
     vendor_map = friendly_vendor_charts(chart_dir)
 
@@ -143,7 +136,7 @@ def check_kube_score(chart_dir, extra_args):
         if objects is None:
             return False, "kube-score produced unparseable output"
         bucket = vendored_partner if chart in vendor_map else vendored_other
-        for object_name, container, summary in extract_resource_findings(objects):
+        for object_name, container, summary in extract_resource_findings(objects, check_id):
             bucket.append((chart, object_name, container, summary))
 
     if own_real:

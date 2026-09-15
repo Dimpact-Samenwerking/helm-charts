@@ -24,22 +24,19 @@ separate, explicit, human-run step does the actual fix, never this
 script — fix-helm-doc wraps the real (non-dry-run) `helm-docs`
 command for that.
 
-On drift, prints an actual unified diff (capped at MAX_DIFF_LINES) rather
-than just a changed-line count — seeing WHICH lines moved is what makes
-the finding actionable; a bare count isn't."""
+On drift, prints an actual unified diff (capped at helm_doc.
+max_diff_lines_shown, see lib.settings) rather than just a changed-line
+count — seeing WHICH lines moved is what makes the finding actionable; a
+bare count isn't."""
 import difflib
 import shutil
 
 from lib.procutil import run
+from lib.settings import helm_doc_max_diff_lines_shown
 
 README_FILENAME = "README.md"
 TEMPLATE_FILENAME = "README.md.gotmpl"
 FIX_COMMAND = "fix-helm-doc"
-
-# Past this many diff lines, printing every one stops being useful (a
-# renamed top-level key can ripple through hundreds of rows) — show a
-# capped, representative excerpt instead and say how many more there are.
-MAX_DIFF_LINES = 40
 
 
 def check_helm_docs(chart_dir):
@@ -71,11 +68,12 @@ def check_helm_docs(chart_dir):
         lineterm="",
     ))
     changed = sum(1 for line in diff if line[:1] in ("+", "-") and line[:3] not in ("+++", "---"))
+    max_diff_lines = helm_doc_max_diff_lines_shown(chart_dir)
 
     print(f"DRIFT: {readme_path} is out of sync with values.yaml — {changed} line(s) would change:")
-    for line in diff[:MAX_DIFF_LINES]:
+    for line in diff[:max_diff_lines]:
         print(f"  {line}")
-    if len(diff) > MAX_DIFF_LINES:
-        print(f"  ... ({len(diff) - MAX_DIFF_LINES} more diff line(s) not shown)")
+    if len(diff) > max_diff_lines:
+        print(f"  ... ({len(diff) - max_diff_lines} more diff line(s) not shown)")
     print(f"Run {FIX_COMMAND} to regenerate.")
     return False, f"{changed} line(s) out of sync — run {FIX_COMMAND}"

@@ -212,7 +212,7 @@ def test_main_exits_one_and_warns_at_threshold(vhss, monkeypatch, tmp_path, caps
     by the refactor -- pct >= WARN_THRESHOLD still fails the run."""
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
     monkeypatch.setattr(vhss, "build_release", lambda *a, **kw: ({}, "4.9.1", []))
-    monkeypatch.setattr(vhss, "encoded_secret_size", lambda release: (1000, 500, 950000, 0.95))
+    monkeypatch.setattr(vhss, "encoded_secret_size", lambda release, secret_limit: (1000, 500, 950000, 0.95))
     monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path)])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -227,7 +227,7 @@ def test_main_exits_one_and_warns_at_threshold(vhss, monkeypatch, tmp_path, caps
 def test_main_passes_under_threshold_does_not_exit(vhss, monkeypatch, tmp_path):
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
     monkeypatch.setattr(vhss, "build_release", lambda *a, **kw: ({}, "4.9.1", []))
-    monkeypatch.setattr(vhss, "encoded_secret_size", lambda release: (1000, 500, 100, 0.0001))
+    monkeypatch.setattr(vhss, "encoded_secret_size", lambda release, secret_limit: (1000, 500, 100, 0.0001))
     monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path)])
 
     vhss.main()  # must not raise / must not sys.exit

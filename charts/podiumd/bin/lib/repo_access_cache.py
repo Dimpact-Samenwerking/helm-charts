@@ -12,8 +12,9 @@ each independently re-query the registry for the same pin within one
 verify-podiumd run. Same cache_key/load_cache/save_cache/cache_entry_
 is_fresh functions, same file, same TTL — genuinely one cache, not two
 parallel ones that happen to use the same format. Worst case a hit just
-means whichever caller reads it is up to REPO_ACCESS_CACHE_TTL_MINUTES
-behind on a repo/image (or digest) that's since changed — "Dependencies"
+means whichever caller reads it is up to repo_access.cache_ttl_minutes
+(lib.settings) behind on a repo/image (or digest) that's since changed —
+"Dependencies"
 (uncached, and the authoritative check for its own concern) still
 catches that fresh regardless, and check_image_digests' own [DIGEST-
 GONE] follow-up check is deliberately never routed through this cache
@@ -37,7 +38,6 @@ from datetime import datetime, timedelta, timezone
 from lib.gitutil import find_repo_root
 
 CACHE_FILENAME = "repo-access-cache.json"
-REPO_ACCESS_CACHE_TTL_MINUTES = 30
 
 
 def cache_path(chart_dir):
@@ -76,9 +76,17 @@ def cache_key(test_kind, target):
     return f"registry:{host}/{repo_path}:{version}"
 
 
-def cache_entry_is_fresh(entry):
+def cache_entry_is_fresh(entry, ttl_minutes):
+    """True when `entry` was checked within the last `ttl_minutes`
+    minutes (see repo_access.cache_ttl_minutes in lib.settings —
+    deliberately short: long enough to skip a network round trip on a
+    verify-podiumd re-run minutes or a couple of hours later while
+    iterating on something unrelated, short enough that a real access
+    change is still caught again soon; see this module's own docstring
+    for the full rationale, including the Docker Hub rate-limit incident
+    that motivated it)."""
     try:
         checked_at = datetime.fromisoformat(entry["checked_at"])
     except (KeyError, ValueError, TypeError):
         return False
-    return datetime.now(timezone.utc) - checked_at < timedelta(minutes=REPO_ACCESS_CACHE_TTL_MINUTES)
+    return datetime.now(timezone.utc) - checked_at < timedelta(minutes=ttl_minutes)

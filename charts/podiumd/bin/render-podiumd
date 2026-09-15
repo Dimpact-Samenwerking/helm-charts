@@ -43,6 +43,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.render_scope import (
     lint_args_for, render_chart, report_errors_by_subchart, report_largest_templates,
 )
+from lib.settings import render_report_top_n_largest_templates_shown
 
 CHART_DIR = SCRIPT_DIR.parent
 DEFAULT_OUTPUT = CHART_DIR / "rendered-helm.yaml"
@@ -89,15 +90,16 @@ def main():
         sys.exit(1)
 
     doc_count = sum(1 for line in result.stdout.splitlines() if line.startswith("---"))
+    top_n = render_report_top_n_largest_templates_shown(CHART_DIR)
     if to_stdout:
         status(f"OK: rendered {doc_count} manifest(s) to stdout")
         with contextlib.redirect_stdout(sys.stderr):
-            report_largest_templates(result.stdout)
+            report_largest_templates(result.stdout, top_n)
         sys.stdout.write(result.stdout)
     else:
         output_path.write_text(result.stdout)
         status(f"OK: rendered {doc_count} manifest(s) to {output_path}")
-        report_largest_templates(result.stdout)
+        report_largest_templates(result.stdout, top_n)
 
 
 if __name__ == "__main__":

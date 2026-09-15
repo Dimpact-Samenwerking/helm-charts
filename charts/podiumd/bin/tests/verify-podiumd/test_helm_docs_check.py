@@ -100,7 +100,7 @@ def test_drift_caps_diff_output_and_reports_how_many_were_dropped(libhelmdocsche
     assert ok is False
     out = capsys.readouterr().out
     diff_lines_printed = [line for line in out.splitlines() if line.startswith("  ") and line[2:3] in ("+", "-")]
-    assert len(diff_lines_printed) <= libhelmdocscheck.MAX_DIFF_LINES
+    assert len(diff_lines_printed) <= libhelmdocscheck.helm_doc_max_diff_lines_shown(chart_dir)
     assert "more diff line(s) not shown" in out
 
 

@@ -18,6 +18,7 @@ from lib.render_scope import (
     OWN_TEMPLATES_PREFIX, build_resource_locations, chart_name_from_source, friendly_vendor_charts,
     print_grouped_findings, render_chart, resource_line, split_rendered_by_source,
 )
+from lib.settings import quality_gates_kubeconform_failing_statuses
 
 KUBECONFORM_BASE_ARGS = [
     "-strict",  # also catch unknown/duplicate fields, not just type mismatches
@@ -38,13 +39,6 @@ def kubeconform_cache_dir():
     directory to already exist (it errors out rather than creating it),
     hence the mkdir in run_kubeconform below."""
     return Path.home() / ".cache" / "podiumd-kubeconform-schemas"
-
-# statusError covers both "resource couldn't even be parsed" (e.g. the
-# frankgateway duplicate-key bug — a real, structural problem) and, in
-# theory, a schema-fetch network failure. statusInvalid is a genuine schema
-# violation. Both are non-cosmetic; statusSkipped (no schema, expected for
-# CRDs) and statusValid are not findings at all.
-KUBECONFORM_FAILING_STATUSES = {"statusError", "statusInvalid"}
 
 
 def run_kubeconform(yaml_text):
@@ -115,6 +109,8 @@ def check_kubeconform(chart_dir, extra_args):
     if shutil.which("kubeconform") is None:
         return False, "kubeconform is not installed (see --skip-kubeconform to bypass)"
 
+    failing_statuses = quality_gates_kubeconform_failing_statuses(chart_dir)
+
     result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
         return False, "helm template failed to render"
@@ -127,7 +123,7 @@ def check_kubeconform(chart_dir, extra_args):
     own_resources = run_kubeconform(own_text)
     if own_resources is None:
         return False, "kubeconform produced unparseable output"
-    own_real = [r for r in own_resources if r.get("status") in KUBECONFORM_FAILING_STATUSES]
+    own_real = [r for r in own_resources if r.get("status") in failing_statuses]
 
     vendored_by_chart = {}
     for source, text in docs:
@@ -140,7 +136,7 @@ def check_kubeconform(chart_dir, extra_args):
         if resources is None:
             return False, "kubeconform produced unparseable output"
         for r in resources:
-            if r.get("status") not in KUBECONFORM_FAILING_STATUSES:
+            if r.get("status") not in failing_statuses:
                 continue
             (vendored_friendly if chart in vendor_map else vendored_other).append((chart, r))
 

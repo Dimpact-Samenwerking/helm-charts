@@ -28,8 +28,9 @@ every bucket to full itemization instead: CRITICAL/HIGH findings per
 image, grouped by the affected package/file rather than listed flat — a
 bundled binary like gotenberg's Chromium can carry hundreds of
 individually-tracked CVEs against the *same* package, so each package
-gets one line listing its CVE IDs, or — past PACKAGE_CVE_LIST_THRESHOLD —
-a single summarized count instead of hundreds of IDs nobody will triage
+gets one line listing its CVE IDs, or — past cve_scan.max_cves_per_package_
+before_summarizing (lib.settings) — a single summarized count instead of
+hundreds of IDs nobody will triage
 individually. MEDIUM/LOW/UNKNOWN are still only totaled per image, even
 with --detail — nothing in this repo can act on those package-by-package
 either, so itemizing them would just be noise.
@@ -68,8 +69,9 @@ per-checkout cache (see cache_path), not shared between contributors or
 CI: each of those re-scans an image the first time they see its digest,
 same as a cold cache after cloning fresh. Keyed on digest, not version,
 so a sliding tag republished under the same version string still
-invalidates correctly. Capped by CVE_CACHE_TTL_DAYS even for an unchanged
-digest — the image content never changes, but trivy's own vulnerability
+invalidates correctly. Capped by cve_scan.scan_cache_ttl_days (lib.
+settings) even for an unchanged digest — the image content never
+changes, but trivy's own vulnerability
 DB does, so a digest that scanned clean a month ago may have a
 newly-disclosed CVE against it today. Each cached vulnerability is
 trimmed to just the three fields the report actually uses
@@ -99,17 +101,15 @@ from lib.render_scope import (
     OWN_TEMPLATES_PREFIX, chart_name_from_source, friendly_vendor_charts, render_chart,
     split_rendered_by_source,
 )
+from lib.settings import (
+    cve_high_severity_levels, cve_max_cves_per_package_before_summarizing, cve_scan_cache_ttl_days,
+    image_upgrade_tag_check_cache_ttl_days,
+)
 
 TRIVY_IMAGE = "aquasec/trivy:latest"
 # Trivy's own severities, worst first — anything else (a future severity
 # trivy adds) sorts last rather than crashing.
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
-HIGH_SEVERITIES = {"CRITICAL", "HIGH"}
-
-# Past this many CRITICAL/HIGH CVEs against the SAME package/file, listing
-# every ID stops being useful (a bundled binary like gotenberg's Chromium
-# can carry hundreds against one package) — summarize as a count instead.
-PACKAGE_CVE_LIST_THRESHOLD = 5
 
 # Only these three fields are ever used for reporting — everything else
 # trivy returns per vulnerability (Title, Description, References, CVSS
@@ -119,12 +119,6 @@ PACKAGE_CVE_LIST_THRESHOLD = 5
 # individual package version inside that image, so it's not information
 # this report can act on (see describe_newest_tag for the check that is).
 VULN_FIELDS = ("VulnerabilityID", "PkgName", "Severity")
-
-# How long a cached scan result stays valid for an unchanged digest. Long
-# enough that a routine run doesn't re-pull/re-scan every image every time;
-# short enough that a stale "no findings" cache entry doesn't silently hide
-# a CVE disclosed against that digest after it was last scanned.
-CVE_CACHE_TTL_DAYS = 7
 
 CACHE_FILENAME = "cve-scan-cache.json"
 
@@ -175,12 +169,17 @@ def cache_key(repository, digest):
     return f"{repository}@sha256:{digest}"
 
 
-def cache_entry_is_fresh(entry):
+def cache_entry_is_fresh(entry, ttl_days):
+    """True when `entry` was scanned within the last `ttl_days` days (see
+    cve_scan.scan_cache_ttl_days in lib.settings — long enough that a
+    routine run doesn't re-pull/re-scan every image every time; short
+    enough that a stale "no findings" cache entry doesn't silently hide
+    a CVE disclosed against that digest after it was last scanned)."""
     try:
         scanned_at = datetime.fromisoformat(entry["scanned_at"])
     except (KeyError, ValueError, TypeError):
         return False
-    return datetime.now(timezone.utc) - scanned_at < timedelta(days=CVE_CACHE_TTL_DAYS)
+    return datetime.now(timezone.utc) - scanned_at < timedelta(days=ttl_days)
 
 
 def run_trivy(image_ref):
@@ -208,7 +207,7 @@ def run_trivy(image_ref):
     return vulns
 
 
-def scan_cached(chart_dir, repository, digest, ref, old_cache, new_cache, label="this image"):
+def scan_cached(chart_dir, repository, digest, ref, old_cache, new_cache, ttl_days, label="this image"):
     """Scan `ref` via trivy, reusing THIS module's own digest-keyed
     cve-scan-cache.json whenever `digest` (bare hex, no "sha256:" prefix)
     is known — the one shared "look up this (repository, digest) in the
@@ -220,7 +219,9 @@ def scan_cached(chart_dir, repository, digest, ref, old_cache, new_cache, label=
     separately. `digest=None` skips the cache tier entirely, straight to
     run_trivy — used by cve_diff_check for a proposed tag whose digest
     couldn't be resolved; never persisted either, since there's no digest
-    to key it by.
+    to key it by. `ttl_days` (see cve_scan.scan_cache_ttl_days in lib.
+    settings) is resolved once by the caller and passed straight through
+    to cache_entry_is_fresh, rather than re-read here on every call.
 
     `label` prefixes the printed cache-hit/fresh-scan line, so each
     caller can tell its own calls apart in the output: cve_diff_check
@@ -240,7 +241,7 @@ def scan_cached(chart_dir, repository, digest, ref, old_cache, new_cache, label=
     key = cache_key(repository, digest) if digest is not None else None
     if key is not None:
         cached = old_cache.get(key)
-        if cached and cache_entry_is_fresh(cached):
+        if cached and cache_entry_is_fresh(cached, ttl_days):
             new_cache[key] = cached
             print(f"  {label}: served from cache — {ref}")
             return cached["vulnerabilities"], True
@@ -341,6 +342,11 @@ def check_cves(chart_dir, extra_args, detail=False):
     if shutil.which("docker") is None:
         return True, "docker is not installed — skipped (see --help)"
 
+    high_severities = cve_high_severity_levels(chart_dir)
+    package_cve_list_threshold = cve_max_cves_per_package_before_summarizing(chart_dir)
+    cve_cache_ttl_days = cve_scan_cache_ttl_days(chart_dir)
+    upgrade_cache_ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
+
     result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
         return False, "helm template failed to render"
@@ -376,7 +382,7 @@ def check_cves(chart_dir, extra_args, detail=False):
         # own current/proposed scans need — see scan_cached's own
         # docstring for why this is shared rather than reimplemented here.
         vulns, was_cached = scan_cached(chart_dir, repository, digest, image_ref, old_cache, new_cache,
-                                         label=f"[{i}/{len(targets)}] this image")
+                                         cve_cache_ttl_days, label=f"[{i}/{len(targets)}] this image")
         if vulns is None:
             scan_errors.append(image_ref)
             print(f"  [SCAN-ERR] {image_ref}  trivy scan failed or produced unparseable output")
@@ -386,7 +392,8 @@ def check_cves(chart_dir, extra_args, detail=False):
 
         upgrade_entry = upgrade_cache.get(upgrade_cache_key(repository, version))
         upgradable_to = None
-        if upgrade_entry and upgrade_entry_is_fresh(upgrade_entry) and upgrade_entry["newest"] != version:
+        if (upgrade_entry and upgrade_entry_is_fresh(upgrade_entry, upgrade_cache_ttl_days)
+                and upgrade_entry["newest"] != version):
             upgradable_to = upgrade_entry["newest"]
 
         images[image_ref] = {
@@ -415,9 +422,12 @@ def check_cves(chart_dir, extra_args, detail=False):
     own_refs, partner_refs, other_refs = refs_in("own"), refs_in("partner"), refs_in("other")
 
     level = "full" if detail else "totals"
-    print_bucket_report("Own images", own_refs, images, detail_level=level)
-    print_bucket_report("Partner-vendor images", partner_refs, images, detail_level=level)
-    print_bucket_report("Other-vendor images", other_refs, images, detail_level=level)
+    print_bucket_report("Own images", own_refs, images, detail_level=level,
+                        high_severities=high_severities, package_cve_list_threshold=package_cve_list_threshold)
+    print_bucket_report("Partner-vendor images", partner_refs, images, detail_level=level,
+                        high_severities=high_severities, package_cve_list_threshold=package_cve_list_threshold)
+    print_bucket_report("Other-vendor images", other_refs, images, detail_level=level,
+                        high_severities=high_severities, package_cve_list_threshold=package_cve_list_threshold)
 
     if not (own_refs or partner_refs or other_refs):
         print("OK: no known CVEs found across pinned images")
@@ -427,7 +437,7 @@ def check_cves(chart_dir, extra_args, detail=False):
         for ref in scan_errors:
             print(f"  {ref}")
     print(f"{cache_hits}/{len(targets)} image(s) served from cache (unchanged digest, "
-          f"scanned within the last {CVE_CACHE_TTL_DAYS} days)")
+          f"scanned within the last {cve_cache_ttl_days} days)")
 
     own_n, own_cve = bucket_totals(own_refs, images)
     partner_n, partner_cve = bucket_totals(partner_refs, images)
@@ -448,27 +458,28 @@ def severity_label(severity):
     return "CRIT" if severity == "CRITICAL" else severity
 
 
-def high_findings_by_package(vulns):
-    """PkgName -> list of its CRITICAL/HIGH vulnerability dicts — the
-    grouping unit for print_package_line. A single package/file can carry
-    many CVE IDs (a bundled binary like Chromium tracks each fixed CVE
-    separately against the same package), so grouping here is what turns a
-    wall of near-duplicate lines into one line per actionable upgrade."""
+def high_findings_by_package(vulns, high_severities):
+    """PkgName -> list of its CRITICAL/HIGH vulnerability dicts (see
+    cve_scan.high_severity_levels in lib.settings) — the grouping unit for
+    print_package_line. A single package/file can carry many CVE IDs (a
+    bundled binary like Chromium tracks each fixed CVE separately against
+    the same package), so grouping here is what turns a wall of
+    near-duplicate lines into one line per actionable upgrade."""
     groups = {}
     for v in vulns:
-        if v["Severity"] in HIGH_SEVERITIES:
+        if v["Severity"] in high_severities:
             groups.setdefault(v["PkgName"], []).append(v)
     return groups
 
 
-def print_package_line(pkg, vulns_for_pkg):
+def print_package_line(pkg, vulns_for_pkg, threshold):
     # No fix-version shown here, deliberately: a package's FixedVersion is
     # an internal detail of the base image, not something this repo pins
     # or can bump directly — only a newer image tag is actionable, and
     # that's already reported once per image via describe_newest_tag.
     ordered = sorted(vulns_for_pkg, key=lambda v: SEVERITY_ORDER.index(v["Severity"]))
 
-    if len(ordered) <= PACKAGE_CVE_LIST_THRESHOLD:
+    if len(ordered) <= threshold:
         ids = ", ".join(f"{severity_label(v['Severity'])} {v['VulnerabilityID']}" for v in ordered)
         print(f"  {pkg}: {ids}")
         return
@@ -501,7 +512,7 @@ def print_bucket_header(title, empty):
     return True
 
 
-def print_bucket_report(title, refs, images, detail_level):
+def print_bucket_report(title, refs, images, detail_level, high_severities, package_cve_list_threshold):
     """detail_level, applied identically regardless of which bucket this is
     (own/partner-vendor/other-vendor all get the same treatment — no
     aggregate-only rollup for other-vendor, unlike every other check that
@@ -523,12 +534,12 @@ def print_bucket_report(title, refs, images, detail_level):
         if detail_level == "totals":
             print_severity_totals_line(info["vulns"])
         else:
-            rest_counts = Counter(v["Severity"] for v in info["vulns"] if v["Severity"] not in HIGH_SEVERITIES)
+            rest_counts = Counter(v["Severity"] for v in info["vulns"] if v["Severity"] not in high_severities)
             if rest_counts:
                 parts = ", ".join(f"{rest_counts[s]} {s}" for s in ("MEDIUM", "LOW", "UNKNOWN") if rest_counts.get(s))
                 print(f"  {parts} CVE(s)")
 
-            for pkg, vulns_for_pkg in sorted(high_findings_by_package(info["vulns"]).items()):
-                print_package_line(pkg, vulns_for_pkg)
+            for pkg, vulns_for_pkg in sorted(high_findings_by_package(info["vulns"], high_severities).items()):
+                print_package_line(pkg, vulns_for_pkg, package_cve_list_threshold)
 
         print()

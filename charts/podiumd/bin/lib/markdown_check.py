@@ -45,8 +45,7 @@ from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.gitutil import find_repo_root
 from lib.procutil import run
 from lib.render_scope import print_grouped_findings
-
-MARKDOWN_DISABLED_RULES = "md013,md014"
+from lib.settings import quality_gates_markdown_disabled_rules
 
 # pymarkdown plugin settings applied on every invocation (scan and fix).
 # md024.siblings_only: only flag a duplicate heading when it repeats
@@ -147,7 +146,8 @@ def check_markdown(chart_dir):
         print("OK: no markdown files found")
         return True, "no markdown files"
 
-    result = run([pymarkdown, "-d", MARKDOWN_DISABLED_RULES, *MARKDOWN_PLUGIN_SETTINGS,
+    disabled_rules = quality_gates_markdown_disabled_rules(chart_dir)
+    result = run([pymarkdown, "-d", disabled_rules, *MARKDOWN_PLUGIN_SETTINGS,
                   "scan", *[str(f) for f in files]],
                  capture_output=True, text=True)
     output = result.stdout + result.stderr

@@ -64,8 +64,9 @@ Two callers build on this module:
     already-computed lint_args_for(chart_dir) result (extra_args) instead
     of re-deriving a values-file path — a REAL pass/fail check, unlike
     the CLI (which only fails via its own sys.exit, never called from
-    here): fails at pct >= WARN_THRESHOLD, matching the standalone
-    script's own exit-1 semantics. Never writes docs/release-secret-
+    here): fails at pct >= the configured warn_at_fraction_of_limit
+    (release_secret, see lib.settings), matching the standalone script's
+    own exit-1 semantics. Never writes docs/release-secret-
     size.md — only the standalone CLI's own --record does that (this
     codebase's checks are read-only; only dedicated writer scripts touch
     generated docs)."""
@@ -83,9 +84,7 @@ import yaml
 from lib.chart import load_yaml
 from lib.procutil import run
 from lib.render_scope import CHART_NAME, render_chart
-
-SECRET_LIMIT = 1024 * 1024
-WARN_THRESHOLD = 0.90
+from lib.settings import release_secret_kubernetes_limit_bytes, release_secret_warn_at_fraction_of_limit
 
 
 def b64(data):
@@ -240,10 +239,11 @@ def load_yaml_bytes(data):
     return yaml.safe_load(data.decode("utf-8")) or {}
 
 
-def encoded_secret_size(release):
+def encoded_secret_size(release, secret_limit):
     """(raw_json_len, gzipped_len, encoded_len, pct) for `release` (see
     build_release) — the actual base64(gzip(json)) byte counts Helm would
-    store, and encoded_len's fraction of SECRET_LIMIT."""
+    store, and encoded_len's fraction of `secret_limit` (see
+    release_secret.kubernetes_secret_limit_bytes in lib.settings)."""
     raw = json.dumps(release, separators=(",", ":")).encode()
     buf = io.BytesIO()
     with gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=9, mtime=0) as gz:
@@ -251,10 +251,10 @@ def encoded_secret_size(release):
     gzipped = buf.getvalue()
     encoded = base64.b64encode(gzipped)
     size = len(encoded)
-    return len(raw), len(gzipped), size, size / SECRET_LIMIT
+    return len(raw), len(gzipped), size, size / secret_limit
 
 
-def format_report(chart_name, version, raw_len, gzipped_len, size, pct):
+def format_report(chart_name, version, raw_len, gzipped_len, size, pct, secret_limit):
     """The standard multi-line report both the standalone CLI and
     check_release_secret_size print — identical content, since it's the
     same estimate either way; only what surrounds it (report framing,
@@ -264,20 +264,20 @@ def format_report(chart_name, version, raw_len, gzipped_len, size, pct):
         f"release json:   {raw_len:,} bytes\n"
         f"gzipped:        {gzipped_len:,} bytes\n"
         f"secret payload: {size:,} bytes  (estimate)\n"
-        f"1 MiB limit:    {SECRET_LIMIT:,} bytes\n"
+        f"1 MiB limit:    {secret_limit:,} bytes\n"
         f"used:           {pct * 100:.2f}%"
     )
 
 
-def over_limit_warning(chart_name, version, size, pct):
+def over_limit_warning(chart_name, version, size, pct, secret_limit):
     """The shared "approaching the 1 MiB limit" warning text (no prefix —
     same convention as check_subchart_freshness's own warnings) — printed
     by the standalone CLI (stderr, before sys.exit(1)) and by
     check_release_secret_size (stdout, as part of its own FAIL detail)
-    whenever pct >= WARN_THRESHOLD."""
+    whenever pct >= the configured warn_at_fraction_of_limit."""
     return (
         f'estimated release Secret payload is at {pct * 100:.1f}% of the Kubernetes 1 MiB Secret '
-        f"limit ({size:,}/{SECRET_LIMIT:,} bytes) for {chart_name} {version}. This chart is at real "
+        f"limit ({size:,}/{secret_limit:,} bytes) for {chart_name} {version}. This chart is at real "
         'risk of `helm install`/`upgrade` failing with an apiserver "request entity too large" '
         "error. Investigate before releasing (trim CRDs/dashboards/values, or split the chart)."
     )
@@ -355,10 +355,14 @@ def check_release_secret_size(chart_dir, extra_args):
     values_file_from_extra_args) — never re-derives a values-file path
     itself. A REAL pass/fail check, unlike the standalone CLI's own
     report (which only ever fails via its own sys.exit, never through
-    this function): fails at pct >= WARN_THRESHOLD, the exact same
-    threshold the standalone script's own exit-1 uses. Never writes
-    docs/release-secret-size.md (see record_result's own docstring for
-    why) — --record stays exclusive to the standalone CLI."""
+    this function): fails at pct >= the configured warn_at_fraction_of_
+    limit, the exact same threshold the standalone script's own exit-1
+    uses. Never writes docs/release-secret-size.md (see record_result's
+    own docstring for why) — --record stays exclusive to the standalone
+    CLI."""
+    secret_limit = release_secret_kubernetes_limit_bytes(chart_dir)
+    warn_threshold = release_secret_warn_at_fraction_of_limit(chart_dir)
+
     result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
         return False, "helm template failed to render"
@@ -370,11 +374,11 @@ def check_release_secret_size(chart_dir, extra_args):
     for warning in warnings:
         print(f"WARNING: {warning}")
 
-    raw_len, gzipped_len, size, pct = encoded_secret_size(release)
-    print(format_report(chart_dir.name, version, raw_len, gzipped_len, size, pct))
+    raw_len, gzipped_len, size, pct = encoded_secret_size(release, secret_limit)
+    print(format_report(chart_dir.name, version, raw_len, gzipped_len, size, pct, secret_limit))
 
     detail = f"{size:,} bytes ({pct * 100:.1f}% of 1 MiB limit)"
-    if pct >= WARN_THRESHOLD:
-        print(f"WARNING: {over_limit_warning(chart_dir.name, version, size, pct)}")
+    if pct >= warn_threshold:
+        print(f"WARNING: {over_limit_warning(chart_dir.name, version, size, pct, secret_limit)}")
         return False, detail
     return True, detail

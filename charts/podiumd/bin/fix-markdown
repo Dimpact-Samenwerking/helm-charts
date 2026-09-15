@@ -37,23 +37,22 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.markdown_check import (
-    MARKDOWN_DISABLED_RULES, MARKDOWN_PLUGIN_SETTINGS, find_markdown_files, find_pymarkdown,
-)
+from lib.markdown_check import MARKDOWN_PLUGIN_SETTINGS, find_markdown_files, find_pymarkdown
 from lib.procutil import run
+from lib.settings import quality_gates_markdown_disabled_rules
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 
-# md031's FIX action (not its detection) has a confirmed crash bug on at
-# least one real doc here — see module docstring. Detection stays on
-# (verify-podiumd's own check still reports it); only the fix pass skips it.
-MARKDOWN_FIX_DISABLED_RULES = MARKDOWN_DISABLED_RULES + ",md031"
 
-
-def run_fix(pymarkdown, files):
+def run_fix(pymarkdown, files, disabled_rules):
     """Runs `pymarkdown fix` against files (writes in place) and returns
-    the list of paths pymarkdown itself reported as "Fixed: <path>"."""
-    result = run([pymarkdown, "-d", MARKDOWN_FIX_DISABLED_RULES, *MARKDOWN_PLUGIN_SETTINGS,
+    the list of paths pymarkdown itself reported as "Fixed: <path>".
+    `disabled_rules` is the configured quality_gates.markdown_disabled_
+    rules (see lib.settings) plus ",md031" — md031's FIX action (not its
+    detection) has a confirmed crash bug on at least one real doc here —
+    see module docstring. Detection stays on (verify-podiumd's own check
+    still reports it); only the fix pass skips it."""
+    result = run([pymarkdown, "-d", disabled_rules, *MARKDOWN_PLUGIN_SETTINGS,
                   "fix", *[str(f) for f in files]],
                  capture_output=True, text=True)
     output = result.stdout + result.stderr
@@ -62,7 +61,7 @@ def run_fix(pymarkdown, files):
     return fixed
 
 
-def dry_run_fix(pymarkdown, files, chart_dir):
+def dry_run_fix(pymarkdown, files, chart_dir, disabled_rules):
     """Copies every file into a throwaway tmpdir (preserving its path
     relative to chart_dir), runs the real fix there, and reports which
     ones would change — the real files are never touched."""
@@ -76,7 +75,7 @@ def dry_run_fix(pymarkdown, files, chart_dir):
             shutil.copy2(f, tmp_path)
             tmp_files.append(tmp_path)
 
-        run_fix(pymarkdown, tmp_files)
+        run_fix(pymarkdown, tmp_files, disabled_rules)
 
         changed = []
         for f in files:
@@ -102,8 +101,12 @@ def main():
         print("OK: no markdown files found")
         sys.exit(0)
 
+    # md031's FIX action (not its detection) has a confirmed crash bug on at
+    # least one real doc here — see module docstring.
+    disabled_rules = quality_gates_markdown_disabled_rules(CHART_DIR) + ",md031"
+
     if dry_run:
-        changed = dry_run_fix(pymarkdown, files, CHART_DIR)
+        changed = dry_run_fix(pymarkdown, files, CHART_DIR, disabled_rules)
         if not changed:
             print("OK: nothing pymarkdown fix could resolve (dry-run)")
             sys.exit(0)
@@ -112,7 +115,7 @@ def main():
             print(f"  {rel}")
         sys.exit(1)
 
-    fixed = run_fix(pymarkdown, files)
+    fixed = run_fix(pymarkdown, files, disabled_rules)
     if not fixed:
         print("OK: nothing pymarkdown fix could resolve")
         sys.exit(0)

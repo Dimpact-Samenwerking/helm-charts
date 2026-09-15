@@ -2,9 +2,9 @@
 that every container declares CPU/memory requests AND limits, per
 .github/copilot-instructions.md's documented "Resource Requests and
 Limits" convention (the only kube-score check this repo actually has a
-policy for — KUBE_SCORE_CHECK_ID scopes to just "container-resources",
-ignoring every other kube-score opinion like NetworkPolicy/
-ImagePullPolicy/SecurityContext).
+policy for — quality_gates.kube_score_check_id (lib.settings) scopes to
+just "container-resources", ignoring every other kube-score opinion like
+NetworkPolicy/ImagePullPolicy/SecurityContext).
 
 Same own/partner-vendor/other-vendor scope split and per-item vs.
 aggregate-only reporting as check_yamllint/check_kubeconform/
@@ -134,7 +134,7 @@ def test_run_kube_score_genuinely_unparseable_returns_none(vp, libkubescorecheck
 
 def test_extract_resource_findings_ignores_other_checks(libkubescorecheck):
     objects = [ks_object("Deployment", "foo", [other_check()])]
-    assert libkubescorecheck.extract_resource_findings(objects) == []
+    assert libkubescorecheck.extract_resource_findings(objects, "container-resources") == []
 
 
 def test_extract_resource_findings_ignores_skipped_and_full_grade(libkubescorecheck):
@@ -142,7 +142,7 @@ def test_extract_resource_findings_ignores_skipped_and_full_grade(libkubescorech
         resource_check(10, comments=None),
         resource_check(1, comments=[{"path": "x", "summary": "should be skipped"}], skipped=True),
     ])]
-    assert libkubescorecheck.extract_resource_findings(objects) == []
+    assert libkubescorecheck.extract_resource_findings(objects, "container-resources") == []
 
 
 def test_extract_resource_findings_returns_object_container_summary(libkubescorecheck):
@@ -152,7 +152,7 @@ def test_extract_resource_findings_returns_object_container_summary(libkubescore
             {"path": "app", "summary": "Memory limit is not set"},
         ]),
     ])]
-    findings = libkubescorecheck.extract_resource_findings(objects)
+    findings = libkubescorecheck.extract_resource_findings(objects, "container-resources")
     assert findings == [
         ("Deployment/apps/v1//foo", "app", "CPU limit is not set"),
         ("Deployment/apps/v1//foo", "app", "Memory limit is not set"),
