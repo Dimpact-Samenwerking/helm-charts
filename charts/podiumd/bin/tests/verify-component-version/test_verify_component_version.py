@@ -85,19 +85,21 @@ def test_main_multi_image_component_checks_both(vcv, tmp_path, monkeypatch, caps
 def test_main_alias_argument_resolves_full_multi_path_registration(vcv, tmp_path, monkeypatch):
     """Regression test (real bug, confirmed live against the real chart):
     image_paths_for is keyed by the dependency's own Chart.yaml "name",
-    never its alias (see lib.chart.COMPONENT_IMAGE_PATHS) — this used to
-    pass the raw <component> CLI argument straight through to
-    image_paths_for(component) instead of the already-resolved dep
-    ["name"], so the ALIAS form (the shorter, more natural one — "kiss"
-    here) silently missed a real multi-path registry entry keyed by name
-    ("kiss-chart"), falling back to the generic ["image"] default and
-    skipping any co-registered lockstep path entirely. Confirmed live:
-    `verify-component-version kiss ...` only checked kiss-frontend;
-    `verify-component-version kiss-chart ...` (the real name) checked
-    both kiss-frontend and kiss-elastic-sync."""
+    never its alias (see settings.yaml's component_resolution.image_
+    paths) — this used to pass the raw <component> CLI argument straight
+    through to image_paths_for(component) instead of the already-
+    resolved dep["name"], so the ALIAS form (the shorter, more natural
+    one — "kiss" here) silently missed a real multi-path registry entry
+    keyed by name ("kiss-chart"), falling back to the generic ["image"]
+    default and skipping any co-registered lockstep path entirely.
+    Confirmed live: `verify-component-version kiss ...` only checked
+    kiss-frontend; `verify-component-version kiss-chart ...` (the real
+    name) checked both kiss-frontend and kiss-elastic-sync. No override
+    needed — kiss-chart is already registered this way in the real
+    component_resolution.image_paths, and CHART_DIR here stays the real
+    production chart_dir."""
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "kiss-chart", "alias": "kiss", "repository": "@kiss"}])
-    monkeypatch.setattr("lib.chart.COMPONENT_IMAGE_PATHS", {"kiss-chart": ["image", "settings.syncJobs.image"]})
     checked_paths = []
 
     def fake_check_image_versions(values, image_paths, app_version):

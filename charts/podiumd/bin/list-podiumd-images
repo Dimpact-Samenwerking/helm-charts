@@ -192,9 +192,9 @@ def row_chart_tree_path(chart_dir, dep, first_segment):
 
 
 def component_version_rows(dep, key, merged, deps, root_values, rendered_paths):
-    """Extra (key, path, repo, tag, disabled) rows for `dep`'s own lib.chart.
-    COMPONENT_VERSION_PATHS/COMPONENT_VERSION_PATH_NESTED_SUBCHARTS-
-    registered bare version fields — the ONE image shape find_images'
+    """Extra (key, path, repo, tag, disabled) rows for `dep`'s own settings.
+    yaml component_resolution.version_paths/version_path_nested_
+    subcharts-registered bare version fields — the ONE image shape find_images'
     generic "{repository, tag}" dict match structurally can never see at
     all (redis-operator's own split imageName/imageTag sibling fields;
     eck-stack's own eck-elasticsearch/eck-kibana/eck-enterprise-search
@@ -241,7 +241,13 @@ def component_version_rows(dep, key, merged, deps, root_values, rendered_paths):
     never just `dep`'s own top-level enabled/disabled status, which a
     per-field toggle can disagree with independently."""
     rows = []
-    rels = sorted(set(version_paths_for(dep["name"])) | set(nested_subchart_registered_paths(dep["name"])))
+    # PODIUMD_DIR, not VENDORED_DIR.parent -- unlike the repository
+    # resolution below, this lookup is settings.yaml-backed and tests
+    # never repoint PODIUMD_DIR (only VENDORED_DIR), so this is the real
+    # production chart_dir either way, same result as the old
+    # self-resolving default, just explicit.
+    rels = sorted(set(version_paths_for(dep["name"], PODIUMD_DIR))
+                  | set(nested_subchart_registered_paths(dep["name"], PODIUMD_DIR)))
     for rel in rels:
         tag = get_path(merged, rel)
         if not (isinstance(tag, str) and tag):

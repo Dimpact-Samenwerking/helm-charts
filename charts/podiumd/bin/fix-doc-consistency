@@ -355,7 +355,7 @@ def _dep_old_app_for_new_dependency(chart_dir, target_deps, target_values, resol
     if resolved["dep"] is None or resolved["target_app"] is None:
         return None
     old_app = None
-    for path in image_paths_for(resolved["dep"]["name"]):
+    for path in image_paths_for(resolved["dep"]["name"], chart_dir):
         old_app = historical_app_version_for_path(
             chart_dir, target_deps, target_values, (resolved["values_key"],) + tuple(path.split(".")),
             upgrade_docs_baseline)
@@ -1062,7 +1062,8 @@ def dedupe_images_manifest_changes_items(lines):
     Changes:" numbered list — the real bug a multi-image "lockstep"
     component (zgw-office-addin's frontend + backend, eck-stack's
     elasticsearch + kibana, internetaakafhandeling's web + poller — see
-    COMPONENT_IMAGE_PATHS/COMPONENT_VERSION_PATHS) could trigger before
+    settings.yaml's component_resolution.image_paths/version_paths)
+    could trigger before
     add_missing_images_manifest_entries' own per-path loop learned to
     check for an already-mentioned name: several missing_paths sharing
     ONE path_display_name each got their own header item inserted,
@@ -1472,7 +1473,8 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
 
         # A multi-image "lockstep" component (zgw-office-addin's frontend +
         # backend, eck-stack's elasticsearch + kibana, internetaakafhandeling's
-        # web + poller — see COMPONENT_IMAGE_PATHS/COMPONENT_VERSION_PATHS)
+        # web + poller — see settings.yaml's component_resolution.image_
+        # paths/version_paths)
         # contributes SEVERAL missing_paths sharing the SAME path_display_name,
         # each getting its own comment+entry block below — but they're still
         # ONE logical change, so only the FIRST one gets a header item; the

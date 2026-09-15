@@ -14,8 +14,8 @@ a chart-version bump can add a new sidecar or move a repository path, so
 the app image's repository/registry host has to come from THAT target
 chart's own values.yaml, not the currently-committed one. The one thing
 that can't be derived from the pull: which of a multi-image chart's
-images (e.g. ZAC's 10+ sidecars) is "the app" — see
-lib.chart.COMPONENT_IMAGE_PATHS.
+images (e.g. ZAC's 10+ sidecars) is "the app" — see settings.yaml's
+component_resolution.image_paths.
 
 For checking just an already-pinned image's tag on its own (no chart
 version involved — update-image-version's own pre-flight check), see
@@ -71,13 +71,14 @@ def main():
     dep = find_dependency(component)
     values = verify_chart_version(CHART_DIR, dep, chart_version)  # exits 1 itself if missing
     # image_paths_for is keyed by the dependency's own Chart.yaml "name",
-    # never its alias (see lib.chart.COMPONENT_IMAGE_PATHS) — dep["name"]
-    # here, not the raw `component` argument, which find_dependency above
-    # already accepts as EITHER form. Passing the alias straight through
-    # silently missed a real registry entry keyed by name (e.g. "kiss" for
-    # dependency "kiss-chart"), falling back to the generic ["image"]
-    # default and skipping any co-registered lockstep path.
-    results = check_image_versions(values, image_paths_for(dep["name"]), app_version)
+    # never its alias (see settings.yaml's component_resolution.image_
+    # paths) — dep["name"] here, not the raw `component` argument, which
+    # find_dependency above already accepts as EITHER form. Passing the
+    # alias straight through silently missed a real registry entry keyed
+    # by name (e.g. "kiss" for dependency "kiss-chart"), falling back to
+    # the generic ["image"] default and skipping any co-registered
+    # lockstep path.
+    results = check_image_versions(values, image_paths_for(dep["name"], CHART_DIR), app_version)
 
     print()
     print(f"Checking app version {app_version!r} for {component}:")
