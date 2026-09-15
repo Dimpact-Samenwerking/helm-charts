@@ -6,14 +6,16 @@ check_cves. Classification itself is reused directly from lib.cve_check
 (own always wins from the `helm template` render's "# Source:"
 attribution, falling back to a values.yaml top-level-key heuristic for a
 component not present in the render at all — see that module's docstring
-for the full rationale). Own AND partner-vendor images are itemized (only
-the ones with an upgrade available — nothing to say about a clean image);
-other-vendor gets one aggregate rollup line, same convention as everywhere
-else this scope split is used — and, like every bucket here, only printed
-at all when at least one of its images has an upgrade available. Prints an
-explicit "OK" line only when NOTHING anywhere is upgradable; per-bucket
-totals (upgradable/total, including clean images) are always in the
-one-line summary regardless.
+for the full rationale). Every bucket is itemized the same way (only the
+images with an upgrade available — nothing to say about a clean image),
+and, like every bucket here, only printed at all when at least one of its
+images has an upgrade available. Other-vendor's own entries never carry a
+vendor-label suffix the way partner-vendor's do — "other" is the leftover
+bucket for a chart with no real vendor name to show, so there's nothing
+meaningful to print beyond the ref itself (the same reason "own" images
+never carry one either). Prints an explicit "OK" line only when NOTHING
+anywhere is upgradable; per-bucket totals (upgradable/total, including
+clean images) are always in the one-line summary regardless.
 
 Split out of check_cves, where this used to live folded into its summary
 line: "does this image have a newer tag published" and "does this image
@@ -124,7 +126,7 @@ def check_image_upgrades(chart_dir, extra_args):
 
     print_upgradable("Own images", own_refs, images)
     print_upgradable("Partner-vendor images", partner_refs, images)
-    print_aggregate("Other-vendor images", other_refs, images)
+    print_upgradable("Other-vendor images", other_refs, images)
 
     if not any(info["has_newer"] for info in images.values()):
         print("OK: no newer tag published for any pinned image")
@@ -157,11 +159,3 @@ def print_upgradable(title, refs, images):
         info = images[ref]
         vendor = f" [{info['vendor_label']}]" if info["vendor_label"] else ""
         print(f"{ref}{vendor}: newer tag available: {info['newest']}")
-
-
-def print_aggregate(title, refs, images):
-    upgradable = sum(1 for ref in refs if images[ref]["has_newer"])
-    if not upgradable:
-        return
-    print(f"--- {title} ---")
-    print(f"  {upgradable}/{len(refs)} image(s) have a newer tag published")

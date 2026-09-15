@@ -185,7 +185,9 @@ def test_check_image_upgrades_partner_upgrade_shown_with_vendor_label(
     assert "docker.io/maykinmedia/objects-api:1.0.0 [Maykin]: newer tag available: 2.0.0" in out
 
 
-def test_check_image_upgrades_other_vendor_aggregate_line(vp, libimageupgradecheck, tmp_path, monkeypatch, capsys):
+def test_check_image_upgrades_other_vendor_itemized_like_partner(
+    vp, libimageupgradecheck, tmp_path, monkeypatch, capsys,
+):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag",
@@ -196,8 +198,8 @@ def test_check_image_upgrades_other_vendor_aggregate_line(vp, libimageupgradeche
     assert "upgradable: 0/1 own, 0/1 partner-vendor, 1/1 other-vendor" in detail
     out = capsys.readouterr().out
     assert "--- Other-vendor images ---" in out
-    assert "1/1 image(s) have a newer tag published" in out
-    assert "alpine/k8s" not in out.split("--- Other-vendor images ---")[1]  # no per-image detail
+    # same per-image itemization partner-vendor/own get, no vendor-label suffix
+    assert "docker.io/alpine/k8s:1.36.2: newer tag available: 1.37.0" in out
 
 
 def test_check_image_upgrades_nothing_upgradable_prints_ok(vp, libimageupgradecheck, tmp_path, monkeypatch, capsys):
