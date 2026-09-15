@@ -19,9 +19,9 @@ since a bare basename never matches a Chart.yaml dependency by name."""
 import re
 
 from lib.chart import (
-    canonical_sidecar_row_names, full_repository_for_path, get_path, global_image_paths,
-    historical_app_version_for_path, image_paths_for, paths_by_repository, replace_scalar_value,
-    repo_group_representative, resolved_digest_pin, version_of, version_paths_for,
+    baseline_tag_for_sidecar_path, canonical_sidecar_row_names, full_repository_for_path, get_path,
+    global_image_paths, historical_app_version_for_path, image_paths_for, paths_by_repository,
+    replace_scalar_value, repo_group_representative, resolved_digest_pin, version_of, version_paths_for,
 )
 from lib.component_docs import (
     CHANGES_ITEM_RE, dep_for_values_key, find_images_manifest_changes_header, insert_changes_section,
@@ -122,13 +122,18 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
 
     A path with no EXACT match in baseline_paths (baseline_tag is None)
     is not immediately treated as genuinely new — see the old_app
-    resolution below for the two fallback tiers tried first (this same
-    repository elsewhere in baseline_values, then a past images-
-    <version>.yaml manifest). Real case: podiumd 4.9.1 consolidated two
-    separate postgres pins (keycloak-operator's own ensurePodiumdAdminUser
-    job and openbao's own schemaJob) into one new shared global.images.
-    postgres anchor — that exact path never existed in the baseline, but
-    the same "postgres" repository already did, elsewhere in the tree.
+    resolution below for the two fallback tiers tried first: lib.chart.
+    baseline_tag_for_sidecar_path (this same repository elsewhere in
+    baseline_values — the SAME function lib.upgradedoc.
+    resolve_component_row's own sidecar branch now also uses for its
+    "### ..." Changes heading, so the two can never resolve a different
+    baseline version for the same path again), then, only once that
+    finds nothing either, a past images-<version>.yaml manifest. Real
+    case: podiumd 4.9.1 consolidated two separate postgres pins
+    (keycloak-operator's own ensurePodiumdAdminUser job and openbao's
+    own schemaJob) into one new shared global.images.postgres anchor —
+    that exact path never existed in the baseline, but the same
+    "postgres" repository already did, elsewhere in the tree.
 
     Returns (new_text, added_names)."""
     current_paths = dict(find_image_tag_paths(target_values))
@@ -164,49 +169,24 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
         # None — this EXACT values-tree path genuinely isn't in the
         # baseline. Before concluding "genuinely new", check two fallback
         # tiers, in order:
-        # 1. Does this same repository already live somewhere else in
-        #    baseline_values, under a different values-tree path? Real
-        #    case: the postgres consolidation above — global.images.
-        #    postgres never existed in the 4.9.1 baseline, but the same
-        #    "postgres" repository already did, at openbao.database.
-        #    schemaJob.image; that path's own baseline tag is the true
-        #    prior version, even though this exact path is new.
+        # 1. lib.chart.baseline_tag_for_sidecar_path — does this same
+        #    repository already live somewhere else in baseline_values,
+        #    under a different values-tree path? Real case: the postgres
+        #    consolidation above — global.images.postgres never existed
+        #    in the 4.9.1 baseline, but the same "postgres" repository
+        #    already did, at openbao.database.schemaJob.image; that
+        #    path's own baseline tag is the true prior version, even
+        #    though this exact path is new.
         # 2. Only once that also finds nothing: does this repository
         #    appear in any of this chart's own PAST images-<version>.yaml
         #    manifests (real, already-committed per-release documents)?
         # Never a fallback to the removed images-baseline.yaml side-file
         # (ACR-mirror digest provenance, a genuinely different, unrelated
         # question).
-        old_app = baseline_tag.split("@", 1)[0] if baseline_tag else None
+        old_app = baseline_tag_for_sidecar_path(
+            chart_dir, deps, target_values, baseline_values, baseline_paths, baseline_repo_groups, path)
         if old_app is None and baseline_values:
-            repo_groups = paths_by_repository(chart_dir, deps, target_values, [path])
-            repo = next(iter(repo_groups), None)
-            candidates = baseline_repo_groups.get(repo) if repo is not None else None
-            if candidates:
-                # Cross-checked against the CURRENT path's own fully-
-                # qualified repository — never trusting the raw, possibly-
-                # collided stripped name alone — the same "don't trust a
-                # stripped-name coincidence" reasoning historical_app_
-                # version_for_repository's own expected_url cross-check
-                # uses, just applied against baseline_values here instead
-                # of a past images-<version>.yaml manifest.
-                expected_url = full_repository_for_path(chart_dir, deps, target_values, path)
-                matching = [p for p in candidates
-                            if expected_url is not None
-                            and full_repository_for_path(chart_dir, deps, baseline_values, p) == expected_url]
-                if matching:
-                    # More than one baseline path can share the exact same
-                    # repository (real case: several components' own
-                    # sidecars all aliasing one shared anchor) — picked via
-                    # repo_group_representative, the SAME established tie-
-                    # break every other repository-group caller here
-                    # already uses (regenerate_images_baseline_manifest,
-                    # repository_path_map), rather than inventing a new
-                    # rule just for this one.
-                    representative = repo_group_representative(matching, deps)
-                    old_app = baseline_paths[representative].split("@", 1)[0]
-            if old_app is None:
-                old_app = historical_app_version_for_path(chart_dir, deps, target_values, path, upgrade_docs_baseline)
+            old_app = historical_app_version_for_path(chart_dir, deps, target_values, path, upgrade_docs_baseline)
 
         text, table_action = update_component_table(text, name, old_app, new_app, None, "-", deps, target_values,
                                                      canonical_names)

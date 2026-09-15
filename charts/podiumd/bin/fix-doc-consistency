@@ -86,9 +86,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import (
-    canonical_sidecar_row_names, chart_version, documented_repository_for_path, full_repository_for_path,
-    global_image_paths, historical_app_version_for_path, image_paths_for, paths_by_repository,
-    repo_group_representative, replace_scalar_value, resolved_digest_pin, version_of,
+    baseline_tag_for_sidecar_path, canonical_sidecar_row_names, chart_version, documented_repository_for_path,
+    full_repository_for_path, global_image_paths, historical_app_version_for_path, image_paths_for,
+    paths_by_repository, repo_group_representative, replace_scalar_value, resolved_digest_pin, version_of,
 )
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
@@ -851,10 +851,16 @@ def fix_images_manifest_entries(text, chart_dir, deps, target_values, baseline_v
     resolved baseline state (never when it's falsy — see resolve_
     component_row's own sidecar branch for the identical "genuinely
     resolved but empty at this path" vs "couldn't resolve a baseline at
-    all" distinction), this checks whether the repository already
-    appears in any of this chart's own PAST images-<version>.yaml
-    manifests (historical_app_version_for_path) before concluding
-    "genuinely new" — either way, the comment's own version-spec portion
+    all" distinction), this tries two fallback tiers before concluding
+    "genuinely new": whether this same repository already lives
+    somewhere else in baseline_values, under a different values-tree
+    path (lib.chart.baseline_tag_for_sidecar_path — real case: podiumd
+    4.9.1's postgres consolidation, the same fallback add_missing_
+    images_manifest_entries/add_missing_sidecar_rows/resolve_
+    component_row already use), then, only once that finds nothing
+    either, whether the repository appears in any of this chart's own
+    PAST images-<version>.yaml manifests (historical_app_version_for_
+    path) — either way, the comment's own version-spec portion
     (see lib.upgradedoc.replace_version_spec) is now recomputed via
     image_manifest_version_text (also detecting a same-version, changed-
     digest re-pin the same way find_images_manifest_list_diff's own
@@ -879,6 +885,14 @@ def fix_images_manifest_entries(text, chart_dir, deps, target_values, baseline_v
     current_paths.update(global_image_paths(target_values))
     baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
     baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
+    # Same up-front grouping (against baseline_values, reused across
+    # every entry below) add_missing_images_manifest_entries already
+    # computes for the identical lib.chart.baseline_tag_for_sidecar_path
+    # fallback.
+    baseline_repo_groups = (
+        paths_by_repository(chart_dir, deps, baseline_values, baseline_paths.keys())
+        if baseline_values else {}
+    )
 
     def same_group(entry_a, entry_b):
         return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
@@ -904,8 +918,21 @@ def fix_images_manifest_entries(text, chart_dir, deps, target_values, baseline_v
             if not baseline_values:
                 unresolved_names.append(name)
                 continue
-            actual_baseline = historical_app_version_for_path(chart_dir, deps, target_values, path,
-                                                                upgrade_docs_baseline)
+            # Neither an exact match (resolve_entry_version above) nor —
+            # before concluding "genuinely new" — this same repository
+            # elsewhere in baseline_values (lib.chart.baseline_tag_for_
+            # sidecar_path, the SAME fallback add_missing_images_
+            # manifest_entries/add_missing_sidecar_rows/resolve_
+            # component_row already use for this exact question, so a
+            # moved shared image's EXISTING entry comment can never
+            # disagree with a freshly-added one). Only once that also
+            # finds nothing: this chart's own PAST images-<version>.yaml
+            # manifests.
+            actual_baseline = baseline_tag_for_sidecar_path(
+                chart_dir, deps, target_values, baseline_values, baseline_paths, baseline_repo_groups, path)
+            if actual_baseline is None:
+                actual_baseline = historical_app_version_for_path(chart_dir, deps, target_values, path,
+                                                                    upgrade_docs_baseline)
 
         digest_only_change = False
         if actual_baseline is not None and normalize_version(actual_baseline) == normalize_version(actual_target):
@@ -1294,6 +1321,17 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     current_paths.update(global_image_paths(target_values))
     baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
     baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
+    # Grouped once, up front, against baseline_values (NOT target_values
+    # — "where did this repository already live in the baseline tree")
+    # and reused across every missing path below rather than recomputed
+    # per path — the same up-front convention lib.image_docs.
+    # add_missing_sidecar_rows already uses for its own baseline_repo_
+    # groups, both now feeding the same lib.chart.baseline_tag_for_
+    # sidecar_path.
+    baseline_repo_groups = (
+        paths_by_repository(chart_dir, deps, baseline_values, baseline_paths.keys())
+        if baseline_values else {}
+    )
     try:
         entries = yaml.safe_load(text) or []
     except yaml.YAMLError:
@@ -1369,16 +1407,35 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
                 if baseline_pinned_tag:
                     digest_only_change = pinned_tag.split("@", 1)[1] != baseline_pinned_tag.split("@", 1)[1]
         else:
-            # No baseline value for this path at all — before concluding
-            # "genuinely new" (never falling back to `new_version` itself
-            # as a fake "old" value, which would wrongly render "(digest
-            # changed)" for a brand-new image instead of "(new)" — real
-            # bug, real doc: images-4.9.1.yaml's own zac otel sidecar
-            # comment read "0.158.0 -> 0.158.0"), check this chart's own
-            # PAST images-<version>.yaml manifests the same way resolve_
-            # component_row's own sidecar branch already does.
-            old_version = historical_app_version_for_path(chart_dir, deps, target_values, path,
-                                                            upgrade_docs_baseline)
+            # No EXACT baseline value for this path at all — before
+            # concluding "genuinely new" (never falling back to
+            # `new_version` itself as a fake "old" value, which would
+            # wrongly render "(digest changed)" for a brand-new image
+            # instead of "(new)" — real bug, real doc: images-4.9.1.
+            # yaml's own zac otel sidecar comment read "0.158.0 ->
+            # 0.158.0"), check two fallback tiers, in order:
+            # 1. lib.chart.baseline_tag_for_sidecar_path — does this same
+            #    repository already live somewhere else in baseline_
+            #    values, under a different values-tree path? Real case:
+            #    podiumd 4.9.1 consolidated two separate postgres pins
+            #    (keycloak-operator's own ensurePodiumdAdminUser job and
+            #    openbao's own schemaJob) into one new shared
+            #    global.images.postgres anchor — that exact path never
+            #    existed in the baseline, but the same "postgres"
+            #    repository already did, at openbao.database.schemaJob.
+            #    image. The SAME function lib.image_docs.add_missing_
+            #    sidecar_rows' own "Component versions" table row and
+            #    lib.upgradedoc.resolve_component_row's own Changes
+            #    heading already use, so this entry's own comment can
+            #    never disagree with either of those again.
+            # 2. Only once that also finds nothing: check this chart's
+            #    own PAST images-<version>.yaml manifests, the same way
+            #    resolve_component_row's own sidecar branch already does.
+            old_version = baseline_tag_for_sidecar_path(
+                chart_dir, deps, target_values, baseline_values, baseline_paths, baseline_repo_groups, path)
+            if old_version is None:
+                old_version = historical_app_version_for_path(chart_dir, deps, target_values, path,
+                                                                upgrade_docs_baseline)
         new_key = order_key(path, " - " in name)
         version_text = f"{name} {image_manifest_version_text(old_version, new_version, digest_only_change)}"
 

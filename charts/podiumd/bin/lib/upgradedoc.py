@@ -5,9 +5,10 @@ import re
 import yaml
 
 from lib.chart import (
-    COMPONENT_IMAGE_PATHS, NATIVE_COMPONENTS, full_repository_for_path, get_path, global_image_paths,
-    historical_app_version_for_path, historical_app_version_for_repository, image_paths_for, is_primary_image_path,
-    nested_subchart_registered_paths, resolved_digest_pin, subchart_app_version, version_of, version_paths_for,
+    COMPONENT_IMAGE_PATHS, NATIVE_COMPONENTS, baseline_tag_for_sidecar_path, full_repository_for_path, get_path,
+    global_image_paths, historical_app_version_for_path, historical_app_version_for_repository, image_paths_for,
+    is_primary_image_path, nested_subchart_registered_paths, paths_by_repository, resolved_digest_pin,
+    subchart_app_version, version_of, version_paths_for,
 )
 
 
@@ -1155,6 +1156,18 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
     baseline.yaml (which only ever tracks ACR-mirror digest provenance,
     a genuinely different, unrelated question).
 
+    The sidecar kind's own baseline_app isn't immediately "(new)" just
+    because sidecar_path has no EXACT match in baseline_values, though —
+    see the sidecar branch below for the two fallback tiers tried first:
+    lib.chart.baseline_tag_for_sidecar_path (this same repository
+    elsewhere in baseline_values — the SAME function lib.image_docs.
+    add_missing_sidecar_rows' own "Component versions" table row uses,
+    so the two can never resolve a different baseline version for the
+    same path again — they already had: this heading kept rendering
+    "(new)" for a row whose table cell already correctly showed the
+    real prior version), then, only once that finds nothing either, a
+    past images-<version>.yaml manifest.
+
     Returns a dict:
       {"kind": "unmatched"}
           row_name matches neither a Chart.yaml dependency, a
@@ -1223,15 +1236,31 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
     if baseline_deps is not None:
         baseline_values = baseline_values or {}
         if sidecar_path is not None:
-            baseline_app = sidecar_tag(baseline_values, sidecar_path)
+            # baseline_tag_for_sidecar_path's own tier-1 (exact-path,
+            # via baseline_paths below) resolves to the exact same value
+            # sidecar_tag(baseline_values, sidecar_path) would — called
+            # through the shared function here, tier 2 included, rather
+            # than a bare sidecar_tag call, so this heading's own "old
+            # app version" and lib.image_docs.add_missing_sidecar_rows'
+            # own "Component versions" table row can never diverge on
+            # the same path again.
+            baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+            baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
+            baseline_repo_groups = (
+                paths_by_repository(chart_dir, deps, baseline_values, baseline_paths.keys())
+                if baseline_values else {}
+            )
+            baseline_app = baseline_tag_for_sidecar_path(
+                chart_dir, deps, values, baseline_values, baseline_paths, baseline_repo_groups, sidecar_path)
             if baseline_app is None and baseline_values:
-                # sidecar_path didn't exist in baseline_values at all
-                # (real case: redis-operator's own "k8s" sidecar, added
-                # in 4.9.0) — before concluding "genuinely new", check
-                # whether this repository already appears in any of this
-                # chart's own PAST images-<version>.yaml manifests (real,
-                # already-committed per-release documents, not the
-                # removed images-baseline.yaml side-file).
+                # Neither an exact match nor this same repository
+                # elsewhere in baseline_values (real case: redis-
+                # operator's own "k8s" sidecar, added in 4.9.0) —
+                # before concluding "genuinely new", check whether this
+                # repository already appears in any of this chart's own
+                # PAST images-<version>.yaml manifests (real, already-
+                # committed per-release documents, not the removed
+                # images-baseline.yaml side-file).
                 baseline_app = historical_app_version_for_path(
                     chart_dir, deps, values, sidecar_path, upgrade_docs_baseline)
             result["baseline_app"] = baseline_app

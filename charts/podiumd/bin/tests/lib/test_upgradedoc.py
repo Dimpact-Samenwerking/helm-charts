@@ -3494,6 +3494,69 @@ def test_resolve_component_row_sidecar_falls_back_to_historical_images_manifest(
     assert resolved["target_app"] == "1.36.2"
 
 
+def test_resolve_component_row_sidecar_same_repository_at_different_baseline_path_is_an_upgrade(
+        libupgradedoc, tmp_path):
+    """Real case (podiumd 4.9.1): keycloak-operator's own
+    ensurePodiumdAdminUser job and openbao's own schemaJob each pinned
+    their own separate "postgres" image; both got consolidated into one
+    new shared global.images.postgres anchor at 16.15-alpine. That exact
+    path (global.images.postgres) never existed in baseline_values, so
+    an exact-path lookup alone finds nothing — this used to make
+    resolve_component_row's own sidecar branch resolve baseline_app to
+    None (a real "(new)" heading) even though lib.image_docs.
+    add_missing_sidecar_rows' own table row, using the SAME repository-
+    moved fallback, already correctly resolved a real prior version
+    ("16-alpine"). Both must now agree: baseline_app == "16-alpine"."""
+    deps = [{"name": "openbao", "version": "2.0.0"}]
+    target_values = {
+        "global": {"images": {"postgres": {
+            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
+        "openbao": {"database": {"schemaJob": {"image": {
+            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}},
+    }
+    baseline_values = {
+        "openbao": {"database": {"schemaJob": {"image": {
+            "repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
+    }
+    canonical_names = {"postgres": ("global", "images", "postgres")}
+
+    resolved = libupgradedoc.resolve_component_row(
+        "postgres", tmp_path, canonical_names, deps, target_values,
+        baseline_deps=deps, baseline_values=baseline_values)
+
+    assert resolved["kind"] == "sidecar"
+    assert resolved["target_app"] == "16.15-alpine"
+    assert resolved["baseline_app"] == "16-alpine"
+    assert resolved["baseline_resolved"] is True
+
+
+def test_resolve_component_row_sidecar_genuinely_new_repository_stays_unresolved(libupgradedoc, tmp_path):
+    """The flip side of the postgres case above: a repository that truly
+    never appeared anywhere in baseline_values (under ANY path) — no
+    same-repository fallback match, no historical manifest entry either
+    — must still resolve baseline_app to None (a real "(new)" heading),
+    never mistaken for an upgrade just because SOME other path/repository
+    exists in baseline_values."""
+    deps = [{"name": "redis-operator", "version": "1.0.0"}]
+    target_values = {
+        "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "1.0.0"}},
+        "global": {"images": {"redis": {"repository": "redis", "tag": "8.0@sha256:aaaa"}}},
+    }
+    baseline_values = {
+        "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "1.0.0"}},
+    }
+    canonical_names = {"redis": ("global", "images", "redis")}
+
+    resolved = libupgradedoc.resolve_component_row(
+        "redis", tmp_path, canonical_names, deps, target_values,
+        baseline_deps=deps, baseline_values=baseline_values)
+
+    assert resolved["kind"] == "sidecar"
+    assert resolved["target_app"] == "8.0"
+    assert resolved["baseline_app"] is None
+    assert resolved["baseline_resolved"] is False
+
+
 def test_resolve_component_row_sidecar_target_itself_unresolvable_also_baseline_resolved_false(libupgradedoc):
     """canonical_names naming a path with no real tag in target_values at
     all can't happen via canonical_sidecar_row_names' own derivation (it

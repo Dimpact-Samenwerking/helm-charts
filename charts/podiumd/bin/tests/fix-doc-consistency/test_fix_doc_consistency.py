@@ -1249,6 +1249,48 @@ def test_fix_changes_heading_app_versions_already_correct_sidecar_heading_untouc
     assert new_text == text
 
 
+def test_fix_changes_heading_app_versions_corrects_moved_repository_sidecar_heading(cdb, tmp_path):
+    """Live end-to-end reproduction of the resolve_component_row/
+    add_missing_sidecar_rows divergence (podiumd 4.9.1's postgres
+    consolidation, see lib.chart.baseline_tag_for_sidecar_path): the
+    "Component versions" table row was already correct ("16-alpine →
+    16.15-alpine" — lib.image_docs.add_missing_sidecar_rows' own
+    repository-moved fallback resolved it right), but this heading, an
+    INDEPENDENT resolution via resolve_component_row, still rendered
+    "(new)" for the exact same shared image — global.images.postgres
+    never existed in baseline_values, but the same "postgres" repository
+    already did, at openbao.database.schemaJob.image (keycloak-
+    operator's own sibling pin consolidated into this same anchor too)."""
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| postgres | 16-alpine → 16.15-alpine | - | - |\n\n"
+        "## Changes\n\n"
+        "### postgres 16.15-alpine (new)\n\n"
+        "Some stale prose here.\n"
+    )
+    deps = [{"name": "openbao", "version": "2.0.0"}]
+    target_values = {
+        "global": {"images": {"postgres": {
+            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
+        "openbao": {"database": {"schemaJob": {"image": {
+            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}},
+    }
+    baseline_values = {
+        "openbao": {"database": {"schemaJob": {"image": {
+            "repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
+    }
+
+    new_text, updated_headings = cdb.fix_changes_heading_app_versions(
+        text, tmp_path, deps, target_values, deps, baseline_values, upgrade_docs_baseline=None)
+
+    assert updated_headings == ["postgres 16.15-alpine (new)"]
+    assert "### postgres 16-alpine → 16.15-alpine" in new_text
+    assert "(new)" not in new_text
+    assert "Some stale prose here." in new_text  # body left as-is, not regenerated
+
+
 # --- fix_values_delta_heading_app_versions ---
 
 MI_UPGRADE_DOC_TEXT = (
@@ -3022,6 +3064,44 @@ def test_fix_images_manifest_entries_finds_historical_baseline_for_new_path(cdb,
     assert new_text == text
 
 
+def test_fix_images_manifest_entries_corrects_moved_repository_comment(cdb, tmp_path):
+    """Real case (podiumd 4.9.1): the postgres consolidation (see
+    lib.chart.baseline_tag_for_sidecar_path) — global.images.postgres
+    never existed in baseline_values, but the same "postgres" repository
+    already did, at openbao.database.schemaJob.image. An EXISTING entry
+    comment stuck on "(new)" from an earlier run must be corrected to
+    the real "16-alpine -> 16.15-alpine" transition, the exact same
+    fallback add_missing_images_manifest_entries/add_missing_sidecar_
+    rows/resolve_component_row already use for this same question."""
+    text = (
+        "# postgres 16.15-alpine (new)\n"
+        "- name: postgres\n"
+        "  url: postgres\n"
+        '  version: "16.15-alpine"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+    deps = [{"name": "openbao", "version": "2.0.0"}]
+    target_values = {
+        "global": {"images": {"postgres": {
+            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
+        "openbao": {"database": {"schemaJob": {"image": {
+            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}},
+    }
+    baseline_values = {
+        "openbao": {"database": {"schemaJob": {"image": {
+            "repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
+    }
+    repo_map = {"postgres": ("global", "images", "postgres")}
+
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+        text, tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5")
+
+    assert unresolved == []
+    assert changed == [("postgres", "16-alpine", "16.15-alpine")]
+    assert "# postgres 16-alpine -> 16.15-alpine" in new_text
+    assert "(new)" not in new_text
+
+
 def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched(cdb):
     """A same-version, changed-digest re-pin already correctly annotated
     "(digest changed)" must survive re-verification unchanged — this
@@ -3186,6 +3266,42 @@ def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(cdb
     assert "opentelemetry-collector-contrib 0.158.0 (new)" in new_text
     assert "0.158.0 -> 0.158.0" not in new_text
     assert "(digest changed)" not in new_text
+
+
+def test_add_missing_images_manifest_entries_moved_repository_gets_real_transition(cdb, tmp_path):
+    """Real case (podiumd 4.9.1): the postgres consolidation (see
+    lib.chart.baseline_tag_for_sidecar_path) — global.images.postgres
+    never existed in baseline_values, but the same "postgres" repository
+    already did, at openbao.database.schemaJob.image. Must render the
+    real "16-alpine -> 16.15-alpine" transition, never "(new)"."""
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [{"name": "openbao", "version": "2.0.0"}],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "global": {"images": {"postgres": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
+        "openbao": {"database": {"schemaJob": {"image": {
+            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}},
+    }))
+    text = "# Baseline: podiumd 4.8.5.\n"
+    deps = [{"name": "openbao", "version": "2.0.0"}]
+    target_values = {
+        "global": {"images": {"postgres": {
+            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
+        "openbao": {"database": {"schemaJob": {"image": {
+            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}},
+    }
+    baseline_values = {
+        "openbao": {"database": {"schemaJob": {"image": {
+            "repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
+    }
+
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+        text, tmp_path, deps, target_values, baseline_values)
+
+    assert skipped == []
+    assert added == ["postgres"]
+    assert "# postgres 16-alpine -> 16.15-alpine" in new_text
+    assert "(new)" not in new_text
 
 
 def test_add_missing_images_manifest_entries_catches_same_version_changed_digest(cdb, images_manifest_chart_dir):
