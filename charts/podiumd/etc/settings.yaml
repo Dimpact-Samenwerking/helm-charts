@@ -1,0 +1,44 @@
+# Tunable policy constants for charts/podiumd/bin (cache TTLs, CVE
+# severity sets, retry counts, quality-gate pass/fail sets, thresholds)
+# — each key here mirrors a former hard-coded Python constant, so an
+# operator can retune one without touching code (see lib/settings.py).
+
+cve_scan:
+  high_severity_levels: [CRITICAL, HIGH]
+  max_cves_per_package_before_summarizing: 5
+  scan_cache_ttl_days: 7
+
+image_upgrade_check:
+  tag_check_cache_ttl_days: 1
+
+repo_access:
+  cache_ttl_minutes: 30
+  request_timeout_seconds: 10
+  never_probe_host_suffixes: [azurecr.io]
+
+render_report:
+  top_n_largest_templates_shown: 5
+
+dry_check:
+  similarity_threshold: 0.6
+  high_similarity_threshold: 0.75
+  min_significant_lines: 8
+
+release_secret:
+  kubernetes_secret_limit_bytes: 1048576
+  warn_at_fraction_of_limit: 0.90
+
+dependency_fetch:
+  retry_attempts: 3
+  retry_backoff_seconds: [5, 15, 45]
+
+quality_gates:
+  kubeconform_failing_statuses: [statusError, statusInvalid]
+  shellcheck_failing_levels: [error, warning]
+  shellcheck_shell_names: [sh, bash, dash, ksh]
+  yamllint_failing_rules: [key-duplicates, syntax]
+  markdown_disabled_rules: "md013,md014"
+  kube_score_check_id: container-resources
+
+helm_doc:
+  max_diff_lines_shown: 40

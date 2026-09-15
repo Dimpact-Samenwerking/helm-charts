@@ -43,6 +43,7 @@ import lib.node_selector_check as node_selector_check
 import lib.registry as registry
 import lib.release_secret_size as release_secret_size
 import lib.render_scope as render_scope
+import lib.settings as settings
 import lib.shellcheck_check as shellcheck_check
 import lib.upgradedoc as upgradedoc
 import lib.vendored_tgz_check as vendored_tgz_check
@@ -180,3 +181,8 @@ def liblockstepcheck():
 @pytest.fixture(scope="session")
 def libdeadvaluescheck():
     return dead_values_check
+
+
+@pytest.fixture(scope="session")
+def libsettings():
+    return settings
