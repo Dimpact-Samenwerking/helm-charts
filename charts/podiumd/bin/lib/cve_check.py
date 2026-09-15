@@ -338,7 +338,7 @@ def check_cves(chart_dir, extra_args, detail=False):
     targets = sorted(unique_digest_pin_targets(values_lines).items())
 
     old_cache = load_cache(chart_dir)
-    new_cache = {}
+    new_cache = dict(old_cache)
     cache_hits = 0
     upgrade_cache = load_upgrade_cache(chart_dir)
 
@@ -381,7 +381,18 @@ def check_cves(chart_dir, extra_args, detail=False):
             "upgradable_to": upgradable_to,
         }
 
-    save_cache(chart_dir, new_cache)  # drop entries for images no longer pinned
+    # Not a prune pass: new_cache started as a COPY of old_cache (see
+    # above), so any entry this run didn't touch — a pin no longer
+    # present, or (critically) a lib.cve_diff_check "proposed"-side entry
+    # for an image that's never actually pinned in values.yaml at all —
+    # is carried forward untouched here, not deleted. It ages out on its
+    # own via cache_entry_is_fresh's own TTL, same as everything else.
+    # Real bug this fixes: new_cache used to start EMPTY, so this save
+    # wiped out every such entry on nearly every run (check_cves runs
+    # right before check_cve_diff in the default pipeline) — cve_diff_
+    # check's own already-correct new_cache = dict(old_cache) pattern
+    # never had this problem, only this loop did.
+    save_cache(chart_dir, new_cache)
 
     def refs_in(bucket):
         return [ref for ref, info in images.items() if info["bucket"] == bucket and info["vulns"]]

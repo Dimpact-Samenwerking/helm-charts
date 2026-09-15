@@ -689,15 +689,41 @@ def test_check_cves_expired_cache_entry_rescans(vp, libcvecheck, tmp_path, monke
     assert "0/3 image(s) served from cache" in out  # expired entry does not count as a hit
 
 
-def test_check_cves_prunes_entries_for_unpinned_images(vp, libcvecheck, tmp_path, monkeypatch):
+def test_check_cves_preserves_entries_for_unpinned_images(vp, libcvecheck, tmp_path, monkeypatch):
+    """Regression test (real bug): check_cves used to start new_cache as
+    an EMPTY dict, so its own end-of-run save_cache wiped out every
+    cache entry this run didn't itself touch -- including a lib.
+    cve_diff_check "proposed"-side entry for an image that's never
+    actually pinned in values.yaml at all (a candidate/upgrade tag or a
+    slid digest). Since check_cves runs right before check_cve_diff in
+    the default pipeline, this destroyed cve-diff's own proposed-side
+    cache on nearly every run. new_cache now starts as a COPY of old_
+    cache (matching lib.cve_diff_check's own already-correct pattern),
+    so an untouched entry is carried forward as-is and ages out on its
+    own TTL, never actively deleted just for not being a current target."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
-    stale_key = "org/gone@sha256:" + "e" * 64
-    libcvecheck.save_cache(chart_dir, {
-        stale_key: {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": []},
-    })
+    unrelated_key = "org/proposed-candidate@sha256:" + "e" * 64
+    unrelated_entry = {"scanned_at": datetime.now(timezone.utc).isoformat(),
+                        "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-PROPOSED"))]}
+    libcvecheck.save_cache(chart_dir, {unrelated_key: unrelated_entry})
     monkeypatch.setattr(libcvecheck, "run", sequenced_run())
 
     vp.check_cves(chart_dir, [])
     saved = libcvecheck.load_cache(chart_dir)
-    assert stale_key not in saved
+    assert saved[unrelated_key] == unrelated_entry
+
+
+def test_check_cves_still_updates_its_own_currently_pinned_targets(vp, libcvecheck, tmp_path, monkeypatch, capsys):
+    """new_cache starting as a copy of old_cache must not stop check_cves
+    from adding/refreshing entries for its own actual targets exactly as
+    before -- only entries it doesn't touch are now preserved rather than
+    dropped, nothing about its own targets' own read/write path changed."""
+    chart_dir = make_chart_dir(tmp_path)
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(libcvecheck, "run", sequenced_run())
+
+    ok, detail = vp.check_cves(chart_dir, [])
+    assert ok is True
+    saved = libcvecheck.load_cache(chart_dir)
+    assert libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A) in saved
