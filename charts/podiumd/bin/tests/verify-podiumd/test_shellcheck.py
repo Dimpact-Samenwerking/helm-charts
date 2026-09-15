@@ -17,6 +17,9 @@ from types import SimpleNamespace
 import pytest
 
 
+SHELL_NAMES = {"sh", "bash", "dash", "ksh"}
+
+
 def sc_result(comments, returncode=1):
     return SimpleNamespace(
         returncode=returncode,
@@ -75,7 +78,7 @@ def test_find_shell_scripts_detects_command_then_args_pattern(libshellcheckcheck
             {"name": "a", "command": ["/bin/sh", "-c"], "args": ["echo hi"]},
         ]}
     }
-    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     assert len(found) == 1
     source, path, shell, script = found[0]
     assert shell == "sh"
@@ -84,7 +87,7 @@ def test_find_shell_scripts_detects_command_then_args_pattern(libshellcheckcheck
 
 def test_find_shell_scripts_detects_command_only_pattern(libshellcheckcheck):
     manifest = {"command": ["sh", "-c", "echo hi"]}
-    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     assert len(found) == 1
     assert found[0][2] == "sh"
     assert found[0][3] == "echo hi"
@@ -92,7 +95,7 @@ def test_find_shell_scripts_detects_command_only_pattern(libshellcheckcheck):
 
 def test_find_shell_scripts_ignores_non_shell_commands(libshellcheckcheck):
     manifest = {"command": ["/usr/bin/curl", "-c", "not-a-shell-flag-context"]}
-    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     # "curl" is not a recognized shell name, so this must not be treated as one
     assert found == []
 
@@ -105,13 +108,13 @@ def test_find_shell_scripts_tolerates_scalar_args_alongside_list_command(libshel
     manifest = {"spec": {"containers": [
         {"name": "a", "command": ["sh", "-c", "echo hi"], "args": "{{ .Values.extraArgs }}"},
     ]}}
-    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     assert [f[3] for f in found] == ["echo hi"]
 
     # command scalar + args list: also must not raise (shell name is
     # unknowable from a scalar command, so nothing is extracted).
     manifest = {"command": "/bin/sh", "args": ["-c", "echo hi"]}
-    assert libshellcheckcheck.find_shell_scripts(manifest, "x.yaml") == []
+    assert libshellcheckcheck.find_shell_scripts(manifest, "x.yaml", SHELL_NAMES) == []
 
 
 def test_find_shell_scripts_recurses_into_nested_structures(libshellcheckcheck):
@@ -122,7 +125,7 @@ def test_find_shell_scripts_recurses_into_nested_structures(libshellcheckcheck):
             {"name": "b", "command": ["dash", "-c", "echo two"]},
         ]}}}
     }
-    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     assert {f[3] for f in found} == {"echo one", "echo two"}
 
 
@@ -137,7 +140,7 @@ def test_extract_shell_scripts_carries_resource_identity(libshellcheckcheck):
     docs = [("podiumd/templates/x.yaml",
              "kind: Job\nmetadata:\n  name: foo\n  namespace: bar\n"
              "spec:\n  containers:\n    - command: [\"sh\", \"-c\", \"echo hi\"]\n")]
-    found = libshellcheckcheck.extract_shell_scripts(docs)
+    found = libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES)
     assert len(found) == 1
     source, path, shell, script, kind, namespace, name = found[0]
     assert (kind, namespace, name) == ("Job", "bar", "foo")
@@ -148,7 +151,7 @@ def test_extract_shell_scripts_no_identity_when_doc_is_not_a_single_object(libsh
     at all — kind/namespace/name must degrade to None rather than crash,
     and _shellcheck_location must skip the rendered-line lookup for it."""
     docs = [("podiumd/templates/x.yaml", "- command: [\"sh\", \"-c\", \"echo hi\"]\n")]
-    found = libshellcheckcheck.extract_shell_scripts(docs)
+    found = libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES)
     assert len(found) == 1
     _source, _path, _shell, _script, kind, namespace, name = found[0]
     assert (kind, namespace, name) == (None, None, None)
@@ -156,7 +159,7 @@ def test_extract_shell_scripts_no_identity_when_doc_is_not_a_single_object(libsh
 
 def test_extract_shell_scripts_skips_unparseable_doc(libshellcheckcheck):
     docs = [("podiumd/templates/x.yaml", "not: [valid, yaml: at all")]
-    assert libshellcheckcheck.extract_shell_scripts(docs) == []
+    assert libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES) == []
 
 
 # --- check_shellcheck ---

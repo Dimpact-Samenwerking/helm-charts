@@ -85,13 +85,13 @@ def test_check_render_zero_manifests_fails(vp, tmp_path, monkeypatch):
 
 def test_report_largest_templates_output(vp, capsys):
     text = "# Source: a.yaml\nline\nline\n# Source: b.yaml\nline\n"
-    vp.report_largest_templates(text)
+    vp.report_largest_templates(text, 5)
     out = capsys.readouterr().out
     assert "a.yaml" in out and "b.yaml" in out
 
 
 def test_report_largest_templates_no_sources_prints_nothing(vp, capsys):
-    vp.report_largest_templates("no source markers here")
+    vp.report_largest_templates("no source markers here", 5)
     assert capsys.readouterr().out == ""
 
 

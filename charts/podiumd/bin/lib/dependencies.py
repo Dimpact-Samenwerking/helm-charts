@@ -22,12 +22,7 @@ import yaml
 
 from lib.procutil import run
 from lib.render_scope import REQUIRED_REPOS
-
-# `helm dependency update` fails intermittently on some repos (transient
-# network blips, registry throttling) — retried a few times with backoff
-# before it's treated as a real failure.
-RETRY_ATTEMPTS = 3
-RETRY_BACKOFF_SECONDS = (5, 15, 45)
+from lib.settings import dependency_fetch_retry_attempts, dependency_fetch_retry_backoff_seconds
 
 
 def _dependency_key(dep):
@@ -154,25 +149,28 @@ def check_dependencies(chart_dir):
         print("Chart.lock already matches Chart.yaml and every dependency is vendored — "
               "skipping helm dependency update")
     else:
+        retry_attempts = dependency_fetch_retry_attempts(chart_dir)
+        retry_backoff_seconds = dependency_fetch_retry_backoff_seconds(chart_dir)
+
         shutil.rmtree(chart_dir / "charts", ignore_errors=True)
         (chart_dir / "Chart.lock").unlink(missing_ok=True)
 
         result = None
-        for attempt in range(1, RETRY_ATTEMPTS + 1):
-            print(f"Running helm dependency update (attempt {attempt}/{RETRY_ATTEMPTS})...")
+        for attempt in range(1, retry_attempts + 1):
+            print(f"Running helm dependency update (attempt {attempt}/{retry_attempts})...")
             sys.stdout.flush()
             result = run(["helm", "dependency", "update", str(chart_dir)])
             if result.returncode == 0:
                 break
 
-            if attempt < RETRY_ATTEMPTS:
-                delay = RETRY_BACKOFF_SECONDS[attempt - 1]
-                print(f"helm dependency update failed (attempt {attempt}/{RETRY_ATTEMPTS}), "
+            if attempt < retry_attempts:
+                delay = retry_backoff_seconds[attempt - 1]
+                print(f"helm dependency update failed (attempt {attempt}/{retry_attempts}), "
                       f"retrying in {delay}s...")
                 time.sleep(delay)
 
         if result.returncode != 0:
-            return False, f"helm dependency update failed after {RETRY_ATTEMPTS} attempt(s)"
+            return False, f"helm dependency update failed after {retry_attempts} attempt(s)"
 
     result = run(["helm", "dependency", "list", str(chart_dir)], capture_output=True, text=True)
     if result.returncode != 0:

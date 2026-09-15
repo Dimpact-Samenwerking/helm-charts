@@ -5,8 +5,9 @@ re-downloads everything every run (see lib.dependencies), and even "Image
 digests" (which does its own live registry check) only runs AFTER
 Dependencies — so an unreachable or unauthorized repo/registry is much
 cheaper, and much earlier, to catch here: one lightweight request per
-unique repo/image, bounded by TIMEOUT_SECONDS, before either of those
-steps does any real (and much more expensive) work.
+unique repo/image, bounded by repo_access.request_timeout_seconds (see
+lib.settings), before either of those steps does any real (and much more
+expensive) work.
 
 A successful check is cached for a short window (see
 lib.repo_access_cache) — the same set of repos/images gets re-verified
@@ -25,23 +26,23 @@ from lib.image_digests import cached_tag_exists, scan_digest_pins
 from lib.registry import parse_repo
 from lib.render_scope import resolve_dependency_repo
 from lib.repo_access_cache import cache_entry_is_fresh, cache_key, load_cache, save_cache
-
-TIMEOUT_SECONDS = 10
-
-# Hosts a Chart.yaml dependency or values.yaml image is never allowed to
-# reference directly, regardless of whether that host would actually be
-# reachable — an internal/private registry (an env-specific ACR mirror,
-# say) is an environment concern that belongs in each gemeente's own
-# podiumd.yml override, not this chart's own tracked default (confirmed by
-# hand 2026-08-26: PABC's chart default used to hardcode
-# acrprodmgmt.azurecr.io directly and was reverted to the public ghcr.io
-# upstream for exactly this reason). Matches any hostname ending with the
-# suffix, e.g. "azurecr.io" also matches "acrprodmgmt.azurecr.io".
-DENYLISTED_HOST_SUFFIXES = ("azurecr.io",)
+from lib.settings import (
+    repo_access_cache_ttl_minutes, repo_access_never_probe_host_suffixes, repo_access_request_timeout_seconds,
+)
 
 
-def is_denylisted_host(host):
-    return any(host.endswith(suffix) for suffix in DENYLISTED_HOST_SUFFIXES)
+def is_denylisted_host(host, denylisted_host_suffixes):
+    """True when `host` ends with one of `denylisted_host_suffixes` (see
+    repo_access.never_probe_host_suffixes in lib.settings) — a host a
+    Chart.yaml dependency or values.yaml image is never allowed to
+    reference directly, regardless of whether that host would actually be
+    reachable. An internal/private registry (an env-specific ACR mirror,
+    say) is an environment concern that belongs in each gemeente's own
+    podiumd.yml override, not this chart's own tracked default (confirmed
+    by hand 2026-08-26: PABC's chart default used to hardcode
+    acrprodmgmt.azurecr.io directly and was reverted to the public ghcr.io
+    upstream for exactly this reason)."""
+    return any(host.endswith(suffix) for suffix in denylisted_host_suffixes)
 
 # "- name: <name>" at the start of a Chart.yaml dependency block — used to
 # re-derive a dependency's own source line, since PyYAML's safe_load (what
@@ -114,14 +115,14 @@ def image_repos(values_path):
     return list(grouped.items())
 
 
-def _check_http_repo(url):
+def _check_http_repo(url, timeout_seconds):
     """A classic Helm repo (added via `helm repo add`) publishes its whole
     catalog as index.yaml at its root — fetching just that (typically a few
     hundred KB at most) proves reachability/auth without pulling a single
     chart package."""
     index_url = urllib.parse.urljoin(url if url.endswith("/") else url + "/", "index.yaml")
     try:
-        urllib.request.urlopen(index_url, timeout=TIMEOUT_SECONDS)
+        urllib.request.urlopen(index_url, timeout=timeout_seconds)
         return True, None
     except urllib.error.HTTPError as e:
         return False, f"HTTP {e.code} fetching {index_url}"
@@ -129,7 +130,7 @@ def _check_http_repo(url):
         return False, f"{getattr(e, 'reason', e)} fetching {index_url}"
 
 
-def _check_registry_repo(chart_dir, host, repo_path, version):
+def _check_registry_repo(chart_dir, host, repo_path, version, timeout_seconds):
     """Same manifest-existence check check_image_digests uses for a live
     image — an OCI-based Helm chart is just another tagged artifact on the
     same registry API a container image is, so a missing/unauthorized/
@@ -138,12 +139,12 @@ def _check_registry_repo(chart_dir, host, repo_path, version):
     image_digests/find_sliding_pins use — a pin already resolved (fresh, on
     disk — see lib.repo_access_cache) by one of those in this same run (or
     a recent prior one) is served from there instead of a second real
-    registry hit, and vice versa. timeout=TIMEOUT_SECONDS is still threaded
+    registry hit, and vice versa. `timeout_seconds` is still threaded
     through to the real call on a miss, preserving this check's own reason
     for existing: a fast, bounded preflight, not a call that could hang."""
     try:
         exists, _ = cached_tag_exists(chart_dir, f"{host}/{repo_path}", host, repo_path, version,
-                                       timeout=TIMEOUT_SECONDS)
+                                       timeout=timeout_seconds)
     except (urllib.error.URLError, OSError) as e:
         return False, f"{getattr(e, 'reason', e)}"
     if not exists:
@@ -170,8 +171,9 @@ def check_repo_access(chart_dir):
     finding is printed with its kind ("chart"/"image"), endpoint, and
     source location (Chart.yaml:<line> or values.yaml:<line>[,<line>...]).
 
-    An entry whose host matches DENYLISTED_HOST_SUFFIXES FAILS outright —
-    the actual reachability check isn't even attempted, since the finding
+    An entry whose host matches repo_access.never_probe_host_suffixes
+    (lib.settings) FAILS outright — the actual reachability check isn't
+    even attempted, since the finding
     isn't "can this environment reach it right now" but "this chart must
     not reference this registry directly at all", a stronger and
     unconditional claim unrelated to lib.registry.UNVERIFIABLE_HOSTS
@@ -186,6 +188,10 @@ def check_repo_access(chart_dir):
     only a "chart"/http entry (a classic Helm repo's index.yaml) still
     writes its own cache entry directly in this function, since cached_
     tag_exists has no notion of that check at all."""
+    timeout_seconds = repo_access_request_timeout_seconds(chart_dir)
+    denylisted_host_suffixes = repo_access_never_probe_host_suffixes(chart_dir)
+    cache_ttl_minutes = repo_access_cache_ttl_minutes(chart_dir)
+
     chart_deps = dependency_repos(chart_dir)
     values_path = chart_dir / "values.yaml"
     img_targets = image_repos(values_path) if values_path.is_file() else []
@@ -222,12 +228,12 @@ def check_repo_access(chart_dir):
     denied = []
     for kind, description, test_kind, target in entries:
         host = _host_of(test_kind, target)
-        if is_denylisted_host(host):
+        if is_denylisted_host(host, denylisted_host_suffixes):
             denied.append((kind, description, host))
             print(f"  [DENIED] {kind:5}  {description}  — {host} may not be used: this chart's own "
                   f"tracked defaults must not reference this registry directly (see "
-                  f"DENYLISTED_HOST_SUFFIXES) — an environment-specific mirror override belongs in "
-                  f"that environment's own podiumd.yml, not here")
+                  f"repo_access.never_probe_host_suffixes in lib.settings) — an environment-specific "
+                  f"mirror override belongs in that environment's own podiumd.yml, not here")
             continue
 
         # Re-loaded fresh on every entry (a small JSON file — cheap) rather
@@ -239,14 +245,14 @@ def check_repo_access(chart_dir):
         cache = load_cache(chart_dir)
         key = cache_key(test_kind, target)
         entry = cache.get(key)
-        if entry and cache_entry_is_fresh(entry):
+        if entry and cache_entry_is_fresh(entry, cache_ttl_minutes):
             print(f"  [OK] {kind:5}  {description}  (cached)")
             continue
 
         if test_kind == "http":
-            ok, error = _check_http_repo(target)
+            ok, error = _check_http_repo(target, timeout_seconds)
         else:
-            ok, error = _check_registry_repo(chart_dir, *target)
+            ok, error = _check_registry_repo(chart_dir, *target, timeout_seconds)
         print(f"  [{'OK' if ok else 'FAIL'}] {kind:5}  {description}"
               + (f"  — {error}" if error else ""))
         if not ok:

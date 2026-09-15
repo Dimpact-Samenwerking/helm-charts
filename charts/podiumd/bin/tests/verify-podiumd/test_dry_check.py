@@ -81,8 +81,9 @@ def test_dissimilar_pair_not_reported(vp, tmp_path):
 
 
 def test_tiny_identical_files_not_reported(vp, tmp_path):
-    """Below DRY_MIN_SIGNIFICANT_LINES, two files being identical is more
-    likely coincidental boilerplate than real duplication worth flagging."""
+    """Below the configured min_significant_lines, two files being
+    identical is more likely coincidental boilerplate than real
+    duplication worth flagging."""
     tiny = BASE_LINES[:5]
     write_template(tmp_path, "a.yaml", tiny)
     write_template(tmp_path, "b.yaml", tiny)
@@ -113,7 +114,7 @@ def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(vp, li
     """Regression pin: the confirmed real-world dedup win (9 pre-refactor
     storage.yaml files, factored into podiumd.storagePVC) scored ~0.82
     similar — differing only by the literal component name substituted in
-    ~9 of 65 lines. If DRY_HIGH_SIMILARITY_THRESHOLD ever creeps above that,
+    ~9 of 65 lines. If high_similarity_threshold ever creeps above that,
     this exact case silently falls back to "borderline" advice, which is
     wrong — it's not a judgment call, it was a real duplicate."""
     a = list(BASE_LINES) * 6 + BASE_LINES[:5]  # 65 lines, same shape as the real file pair
@@ -122,7 +123,7 @@ def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(vp, li
     write_template(tmp_path, "openklant-storage.yaml", b)
 
     ratio = difflib.SequenceMatcher(None, a, b).ratio()
-    assert ratio >= libdrycheck.DRY_HIGH_SIMILARITY_THRESHOLD, \
+    assert ratio >= libdrycheck.dry_check_high_similarity_threshold(tmp_path), \
         f"test fixture ratio {ratio} no longer represents the real ~0.82 storage-file case"
 
     ok, detail = vp.check_dry(tmp_path)

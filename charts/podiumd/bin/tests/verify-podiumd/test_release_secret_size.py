@@ -203,32 +203,36 @@ def test_build_release_unknown_version_when_metadata_has_none(librelease_secret_
 
 # --- encoded_secret_size ---
 
+SECRET_LIMIT = 1024 * 1024
+WARN_THRESHOLD = 0.90
+
+
 def test_encoded_secret_size_round_trips_gzip_base64(librelease_secret_size):
     release = {"name": "x", "manifest": "y" * 1000}
-    raw_len, gzipped_len, size, pct = librelease_secret_size.encoded_secret_size(release)
+    raw_len, gzipped_len, size, pct = librelease_secret_size.encoded_secret_size(release, SECRET_LIMIT)
     assert raw_len == len(json.dumps(release, separators=(",", ":")).encode())
     # sanity: gzip+base64 of this repetitive input is much smaller than raw
     assert gzipped_len < raw_len
     assert size > gzipped_len  # base64 expands
-    assert pct == pytest.approx(size / librelease_secret_size.SECRET_LIMIT)
+    assert pct == pytest.approx(size / SECRET_LIMIT)
 
 
 def test_encoded_secret_size_pct_crosses_threshold_for_large_release(librelease_secret_size):
     """Real regression check on the actual pass/fail math: a genuinely
     incompressible manifest (secrets.token_hex — gzip can't shrink random
     hex meaningfully, unlike a repetitive string) sized comfortably past
-    the 1 MiB raw mark must report pct >= WARN_THRESHOLD once gzipped and
-    base64-encoded."""
+    the 1 MiB raw mark must report pct >= the configured warn threshold
+    once gzipped and base64-encoded."""
     import secrets
     release = {"name": "x", "manifest": secrets.token_hex(700_000)}
-    _raw_len, _gzipped_len, _size, pct = librelease_secret_size.encoded_secret_size(release)
-    assert pct >= librelease_secret_size.WARN_THRESHOLD
+    _raw_len, _gzipped_len, _size, pct = librelease_secret_size.encoded_secret_size(release, SECRET_LIMIT)
+    assert pct >= WARN_THRESHOLD
 
 
 # --- format_report / over_limit_warning ---
 
 def test_format_report_contains_all_fields(librelease_secret_size):
-    report = librelease_secret_size.format_report("podiumd", "4.9.1", 100, 50, 70, 0.5)
+    report = librelease_secret_size.format_report("podiumd", "4.9.1", 100, 50, 70, 0.5, SECRET_LIMIT)
     assert "podiumd 4.9.1" in report
     assert "100 bytes" in report
     assert "50 bytes" in report
@@ -237,7 +241,7 @@ def test_format_report_contains_all_fields(librelease_secret_size):
 
 
 def test_over_limit_warning_names_chart_and_percentage(librelease_secret_size):
-    warning = librelease_secret_size.over_limit_warning("podiumd", "4.9.1", 950000, 0.95)
+    warning = librelease_secret_size.over_limit_warning("podiumd", "4.9.1", 950000, 0.95, SECRET_LIMIT)
     assert "podiumd 4.9.1" in warning
     assert "95.0%" in warning
     assert "request entity too large" in warning
@@ -332,7 +336,7 @@ def test_check_release_secret_size_fails_at_warn_threshold(librelease_secret_siz
                          lambda chart_dir, values_override, manifest, name, namespace:
                              ({}, "4.9.1", []))
     monkeypatch.setattr(librelease_secret_size, "encoded_secret_size",
-                         lambda release: (1000, 500, 950000, 0.95))
+                         lambda release, secret_limit: (1000, 500, 950000, 0.95))
 
     ok, detail = librelease_secret_size.check_release_secret_size(tmp_path, [])
 

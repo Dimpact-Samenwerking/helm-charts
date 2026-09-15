@@ -33,8 +33,9 @@ can read this cache too, read-only, to annotate a CVE finding as
 "upgradable" without triggering a registry call of its own), a personal,
 gitignored, per-checkout cache (same as <repo-root>/.cache/
 cve-scan-cache.json — see lib.cve_check's docstring), not shared between
-contributors or CI. IMAGE_UPGRADE_CACHE_TTL_DAYS is deliberately much
-shorter than the CVE cache's TTL: a new tag can be published at any
+contributors or CI. image_upgrade_check.tag_check_cache_ttl_days (lib.
+settings) is deliberately much shorter than the CVE cache's TTL: a new
+tag can be published at any
 moment, so "no newer tag as of yesterday" is a far weaker guarantee than
 "no new CVE disclosed against this exact, unchanged digest last week" —
 caching here is purely about not re-querying every registry on every
@@ -49,14 +50,15 @@ from datetime import datetime, timezone
 
 from lib.cve_check import bucket_of, classify_by_key, dependency_names, render_image_labels, top_level_key_for_line
 from lib.image_digests import unique_digest_pin_targets
-from lib.image_upgrade_cache import (
-    IMAGE_UPGRADE_CACHE_TTL_DAYS, cache_entry_is_fresh, cache_key, load_cache, save_cache,
-)
+from lib.image_upgrade_cache import cache_entry_is_fresh, cache_key, load_cache, save_cache
 from lib.registry import find_newest_same_variant_tag, parse_repo
 from lib.render_scope import friendly_vendor_charts, render_chart
+from lib.settings import image_upgrade_tag_check_cache_ttl_days
 
 
 def check_image_upgrades(chart_dir, extra_args):
+    ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
+
     result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
         return False, "helm template failed to render"
@@ -88,7 +90,7 @@ def check_image_upgrades(chart_dir, extra_args):
             top_key = top_level_key_for_line(values_lines, line)
             label = classify_by_key(top_key, dep_names, vendor_map)
 
-        if cached and cache_entry_is_fresh(cached):
+        if cached and cache_entry_is_fresh(cached, ttl_days):
             newest = cached["newest"]
             cache_hits += 1
             new_cache[key] = cached
@@ -136,7 +138,7 @@ def check_image_upgrades(chart_dir, extra_args):
         for ref in fetch_errors:
             print(f"  {ref}")
     print(f"{cache_hits}/{len(targets)} image(s) served from cache (checked within the last "
-          f"{IMAGE_UPGRADE_CACHE_TTL_DAYS} day(s))")
+          f"{ttl_days} day(s))")
 
     own_n, own_up = bucket_totals(own_refs, images)
     partner_n, partner_up = bucket_totals(partner_refs, images)

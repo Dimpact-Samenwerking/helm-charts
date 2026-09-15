@@ -11,6 +11,7 @@ from lib.repo_access_cache import cache_entry_is_fresh as repo_access_entry_is_f
 from lib.repo_access_cache import cache_key as repo_access_cache_key
 from lib.repo_access_cache import load_cache as load_repo_access_cache
 from lib.repo_access_cache import save_cache as save_repo_access_cache
+from lib.settings import repo_access_cache_ttl_minutes
 
 # One "tag: <version>@sha256:<digest>" pin per match, quoted or bare.
 DIGEST_PIN_RE = re.compile(
@@ -309,9 +310,9 @@ def cached_tag_exists(chart_dir, repository, host, repo_path, version, timeout=N
        digest, since it only ever recorded a bare reachability bool —
        that's now out of date: this function extends its OWN entries
        with a "digest" field precisely so it CAN be shared. The 30-
-       minute REPO_ACCESS_CACHE_TTL_MINUTES this relies on was already
-       short by design, chosen for exactly this kind of live-value
-       staleness tradeoff.)
+       minute default repo_access.cache_ttl_minutes (lib.settings) this
+       relies on was already short by design, chosen for exactly this
+       kind of live-value staleness tradeoff.)
 
     On a genuine miss (both tiers), makes the real registry_tag_exists
     call. A "not found" result is cached in-process only, matching
@@ -334,7 +335,8 @@ def cached_tag_exists(chart_dir, repository, host, repo_path, version, timeout=N
     disk_key = repo_access_cache_key("registry", (host, repo_path, version))
     disk_cache = load_repo_access_cache(chart_dir)
     disk_entry = disk_cache.get(disk_key)
-    if disk_entry and repo_access_entry_is_fresh(disk_entry) and "digest" in disk_entry:
+    ttl_minutes = repo_access_cache_ttl_minutes(chart_dir)
+    if disk_entry and repo_access_entry_is_fresh(disk_entry, ttl_minutes) and "digest" in disk_entry:
         result = (True, disk_entry["digest"])
         _tag_exists_cache[key] = result
         return result

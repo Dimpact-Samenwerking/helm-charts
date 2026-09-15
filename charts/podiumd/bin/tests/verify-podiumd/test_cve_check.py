@@ -33,6 +33,11 @@ def vuln(severity, cve="CVE-2024-0001", pkg="openssl", fixed="3.0.2", extra=None
     return d
 
 
+CVE_CACHE_TTL_DAYS = 7
+HIGH_SEVERITIES = {"CRITICAL", "HIGH"}
+PACKAGE_CVE_LIST_THRESHOLD = 5
+
+
 def trimmed(v):
     return {k: v[k] for k in ("VulnerabilityID", "PkgName", "Severity")}
 
@@ -181,7 +186,7 @@ def test_scan_cached_reports_a_hit_and_never_calls_run_trivy(libcvecheck, tmp_pa
     monkeypatch.setattr(libcvecheck, "run_trivy", fail_if_called)
 
     vulns, was_cached = libcvecheck.scan_cached(
-        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, new_cache, label="current")
+        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, new_cache, CVE_CACHE_TTL_DAYS, label="current")
 
     assert was_cached is True
     assert vulns == cached_entry["vulnerabilities"]
@@ -197,7 +202,7 @@ def test_scan_cached_reports_a_fresh_scan_and_writes_the_cache(libcvecheck, tmp_
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: fresh_vulns)
 
     vulns, was_cached = libcvecheck.scan_cached(
-        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, new_cache, label="proposed")
+        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, new_cache, CVE_CACHE_TTL_DAYS, label="proposed")
 
     assert was_cached is False
     assert vulns == fresh_vulns
@@ -210,12 +215,12 @@ def test_scan_cached_reports_a_fresh_scan_and_writes_the_cache(libcvecheck, tmp_
 
 def test_scan_cached_stale_entry_is_not_used(libcvecheck, tmp_path, monkeypatch):
     key = libcvecheck.cache_key("org/repo", DIGEST_A)
-    stale = datetime.now(timezone.utc) - timedelta(days=libcvecheck.CVE_CACHE_TTL_DAYS + 1)
+    stale = datetime.now(timezone.utc) - timedelta(days=CVE_CACHE_TTL_DAYS + 1)
     old_cache = {key: {"scanned_at": stale.isoformat(), "vulnerabilities": [trimmed(vuln("CRITICAL"))]}}
     fresh_vulns = [trimmed(vuln("HIGH", cve="CVE-FRESH"))]
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: fresh_vulns)
 
-    vulns, was_cached = libcvecheck.scan_cached(tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, {})
+    vulns, was_cached = libcvecheck.scan_cached(tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, {}, CVE_CACHE_TTL_DAYS)
 
     assert was_cached is False
     assert vulns == fresh_vulns
@@ -230,7 +235,7 @@ def test_scan_cached_none_digest_skips_the_cache_entirely(libcvecheck, tmp_path,
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: (calls.append(ref), [])[1])
     new_cache = {}
 
-    vulns, was_cached = libcvecheck.scan_cached(tmp_path, "org/repo", None, "org/repo:1.0.0", {}, new_cache)
+    vulns, was_cached = libcvecheck.scan_cached(tmp_path, "org/repo", None, "org/repo:1.0.0", {}, new_cache, CVE_CACHE_TTL_DAYS)
 
     assert was_cached is False
     assert vulns == []
@@ -242,7 +247,7 @@ def test_scan_cached_failed_scan_returns_none_and_is_never_cached(libcvecheck, t
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: None)
     new_cache = {}
 
-    vulns, was_cached = libcvecheck.scan_cached(tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", {}, new_cache)
+    vulns, was_cached = libcvecheck.scan_cached(tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", {}, new_cache, CVE_CACHE_TTL_DAYS)
 
     assert vulns is None
     assert was_cached is False
@@ -251,7 +256,7 @@ def test_scan_cached_failed_scan_returns_none_and_is_never_cached(libcvecheck, t
 
 def test_scan_cached_default_label_is_this_image(libcvecheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: [])
-    libcvecheck.scan_cached(tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", {}, {})
+    libcvecheck.scan_cached(tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", {}, {}, CVE_CACHE_TTL_DAYS)
     out = capsys.readouterr().out
     assert "this image: scanning fresh" in out
 
@@ -384,22 +389,22 @@ def test_high_findings_by_package_groups_and_excludes_low_severity(libcvecheck):
         vuln("HIGH", cve="CVE-3", pkg="openssl"),
         vuln("LOW", cve="CVE-4", pkg="chromium"),
     ]
-    groups = libcvecheck.high_findings_by_package(vulns)
+    groups = libcvecheck.high_findings_by_package(vulns, HIGH_SEVERITIES)
     assert {v["VulnerabilityID"] for v in groups["chromium"]} == {"CVE-1", "CVE-2"}
     assert {v["VulnerabilityID"] for v in groups["openssl"]} == {"CVE-3"}
 
 
 def test_print_package_line_lists_ids_below_threshold(libcvecheck, capsys):
     vulns_for_pkg = [vuln("CRITICAL", cve="CVE-1"), vuln("HIGH", cve="CVE-2")]
-    libcvecheck.print_package_line("libwebp", vulns_for_pkg)
+    libcvecheck.print_package_line("libwebp", vulns_for_pkg, PACKAGE_CVE_LIST_THRESHOLD)
     out = capsys.readouterr().out
     assert "libwebp: CRIT CVE-1, HIGH CVE-2" in out
 
 
 def test_print_package_line_summarizes_above_threshold(libcvecheck, capsys):
-    threshold = libcvecheck.PACKAGE_CVE_LIST_THRESHOLD
+    threshold = PACKAGE_CVE_LIST_THRESHOLD
     vulns_for_pkg = [vuln("CRITICAL", cve=f"CVE-{i}") for i in range(threshold + 1)]
-    libcvecheck.print_package_line("chromium", vulns_for_pkg)
+    libcvecheck.print_package_line("chromium", vulns_for_pkg, threshold)
     out = capsys.readouterr().out
     assert f"chromium: {threshold + 1} CVE(s) ({threshold + 1} CRIT)" in out
 
@@ -417,7 +422,7 @@ def test_print_package_line_never_shows_fix_version(libcvecheck, capsys):
         vuln("HIGH", cve="CVE-2", fixed="1:9.16.50-1~deb11u6"),
         vuln("HIGH", cve="CVE-3", fixed="1:9.16.48-1"),
     ]
-    libcvecheck.print_package_line("bind9-dnsutils", vulns_for_pkg)
+    libcvecheck.print_package_line("bind9-dnsutils", vulns_for_pkg, PACKAGE_CVE_LIST_THRESHOLD)
     out = capsys.readouterr().out
     assert "bind9-dnsutils: HIGH CVE-1, HIGH CVE-2, HIGH CVE-3" in out
     assert "9.16" not in out
@@ -524,13 +529,14 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
 def test_check_cves_stale_upgrade_cache_entry_not_marked_upgradable(
     vp, libcvecheck, libimageupgradecache, tmp_path, monkeypatch, capsys,
 ):
-    """A stale (past IMAGE_UPGRADE_CACHE_TTL_DAYS) entry must not be treated
-    as evidence of an upgrade — cve_check never refreshes this cache itself,
-    so a stale entry is as good as no entry."""
+    """A stale (past image_upgrade_check.tag_check_cache_ttl_days) entry
+    must not be treated as evidence of an upgrade — cve_check never
+    refreshes this cache itself, so a stale entry is as good as no
+    entry."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
-    stale = datetime.now(timezone.utc) - timedelta(days=libimageupgradecache.IMAGE_UPGRADE_CACHE_TTL_DAYS + 1)
+    stale = datetime.now(timezone.utc) - timedelta(days=1 + 1)
     libimageupgradecache.save_cache(chart_dir, {
         libimageupgradecache.cache_key("ghcr.io/wearefrank/frank-gateway", "104"):
             {"checked_at": stale.isoformat(), "newest": "105"},
@@ -591,7 +597,8 @@ def test_print_bucket_report_image_line_then_totals_then_packages(libcvecheck, m
         },
     }
     libcvecheck.print_bucket_report("Own images", ["docker.io/pravega/zookeeper:0.2.15"], images,
-                                     detail_level="full")
+                                     detail_level="full", high_severities=HIGH_SEVERITIES,
+                                     package_cve_list_threshold=PACKAGE_CVE_LIST_THRESHOLD)
 
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     header_idx = next(i for i, line in enumerate(lines) if line.startswith("docker.io/pravega/zookeeper:0.2.15"))
@@ -616,7 +623,8 @@ def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(libcv
         },
     }
     libcvecheck.print_bucket_report("Partner-vendor images", ["docker.io/maykinmedia/objects-api:1.0.0"], images,
-                                     detail_level="totals")
+                                     detail_level="totals", high_severities=HIGH_SEVERITIES,
+                                     package_cve_list_threshold=PACKAGE_CVE_LIST_THRESHOLD)
 
     out = capsys.readouterr().out
     assert "docker.io/maykinmedia/objects-api:1.0.0 [Maykin]\n" in out
@@ -721,7 +729,7 @@ def test_check_cves_expired_cache_entry_rescans(vp, libcvecheck, tmp_path, monke
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     key = libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A)
-    stale = datetime.now(timezone.utc) - timedelta(days=libcvecheck.CVE_CACHE_TTL_DAYS + 1)
+    stale = datetime.now(timezone.utc) - timedelta(days=CVE_CACHE_TTL_DAYS + 1)
     libcvecheck.save_cache(chart_dir, {
         key: {"scanned_at": stale.isoformat(), "vulnerabilities": [trimmed(vuln("CRITICAL"))]},
     })

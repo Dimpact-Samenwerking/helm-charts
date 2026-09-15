@@ -19,7 +19,6 @@ from lib.chart import load_yaml
 from lib.procutil import run
 
 CHART_NAME = "podiumd"
-TOP_N_TEMPLATES = 5
 
 OWN_TEMPLATES_PREFIX = "podiumd/templates/"
 
@@ -91,7 +90,7 @@ def render_chart(chart_dir, extra_args):
     return result
 
 
-def report_largest_templates(rendered_text):
+def report_largest_templates(rendered_text, top_n):
     source_re = re.compile(r"^# Source: (.+)$")
     counts = Counter()
     current = None
@@ -105,7 +104,7 @@ def report_largest_templates(rendered_text):
     if not counts:
         return
     print("Largest rendered templates (by line count):")
-    for path, n in counts.most_common(TOP_N_TEMPLATES):
+    for path, n in counts.most_common(top_n):
         print(f"  {n:6d}  {path}")
 
 

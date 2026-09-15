@@ -462,11 +462,11 @@ def testcached_tag_exists_writes_a_disk_entry_readable_by_repo_access_cache(
     disk = repo_access_cache.load_cache(tmp_path)
     assert key in disk
     assert disk[key]["digest"] == f"sha256:{digest_a}"
-    assert repo_access_cache.cache_entry_is_fresh(disk[key]) is True
+    assert repo_access_cache.cache_entry_is_fresh(disk[key], 30) is True
 
 
 def testcached_tag_exists_ignores_a_stale_disk_entry(libimagedigests, tmp_path, monkeypatch):
-    stale = datetime.now(timezone.utc) - timedelta(minutes=repo_access_cache.REPO_ACCESS_CACHE_TTL_MINUTES + 1)
+    stale = datetime.now(timezone.utc) - timedelta(minutes=30 + 1)
     key = repo_access_cache.cache_key("registry", ("docker.io", "org/repo", "1.0.0"))
     repo_access_cache.save_cache(tmp_path, {
         key: {"checked_at": stale.isoformat(), "digest": f"sha256:{'a' * 64}"},

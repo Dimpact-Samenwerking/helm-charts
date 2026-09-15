@@ -10,6 +10,7 @@ from lib.render_scope import (
     OWN_TEMPLATES_PREFIX, build_line_sources, chart_name_from_source, friendly_vendor_charts,
     print_grouped_findings, render_chart,
 )
+from lib.settings import quality_gates_yamllint_failing_rules
 
 # yamllint config, tuned against this repo's own real findings (not
 # guessed): line-length and document-start are disabled because they're
@@ -26,12 +27,6 @@ rules:
   indentation:
     indent-sequences: whatever
 """
-
-# Rules whose violation means the rendered YAML is structurally broken or
-# ambiguous, not just differently styled — see check_yamllint. Every other
-# yamllint rule (trailing-spaces, comments, colons, ...) is cosmetic: real
-# findings worth fixing eventually, but never worth failing the build over.
-YAMLLINT_FAILING_RULES = {"key-duplicates", "syntax"}
 
 YAMLLINT_FINDING_RE = re.compile(
     r"^\s*(?P<line>\d+):(?P<col>\d+)\s+(?P<level>error|warning)\s+"
@@ -55,8 +50,9 @@ def check_yamllint(chart_dir, extra_args):
       individually; every other vendored sub-chart (elastic,
       redis-operator, keycloak-operator, openbao, ...) only ever gets a
       one-line aggregate count (there can be hundreds).
-    - rule: YAMLLINT_FAILING_RULES (a structurally broken/ambiguous
-      document — duplicate keys, a real syntax error) vs. everything else,
+    - rule: quality_gates.yamllint_failing_rules (see lib.settings — a
+      structurally broken/ambiguous document: duplicate keys, a real
+      syntax error) vs. everything else,
       which is cosmetic style — not reported at all, too noisy to be worth
       surfacing right now, and never fails regardless of scope.
 
@@ -66,6 +62,8 @@ def check_yamllint(chart_dir, extra_args):
     and for partner-vendor findings."""
     if shutil.which("yamllint") is None:
         return False, "yamllint is not installed (see --skip-yamllint to bypass)"
+
+    failing_rules = quality_gates_yamllint_failing_rules(chart_dir)
 
     result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
@@ -84,7 +82,7 @@ def check_yamllint(chart_dir, extra_args):
         line_no = int(m.group("line"))
         rule = m.group("rule")
         source = sources.get(line_no)
-        if rule not in YAMLLINT_FAILING_RULES:
+        if rule not in failing_rules:
             continue  # cosmetic — never reported, own or vendored
         finding = (line_no, source, m.group("level"), m.group("message"), rule)
         if source and source.startswith(OWN_TEMPLATES_PREFIX):

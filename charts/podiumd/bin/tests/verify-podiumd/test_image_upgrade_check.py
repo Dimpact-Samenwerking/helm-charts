@@ -107,17 +107,17 @@ def newest_tag_for(**by_repo_path):
 
 def test_cache_entry_is_fresh_within_ttl(libimageupgradecheck):
     entry = {"checked_at": datetime.now(timezone.utc).isoformat()}
-    assert libimageupgradecheck.cache_entry_is_fresh(entry) is True
+    assert libimageupgradecheck.cache_entry_is_fresh(entry, 1) is True
 
 
 def test_cache_entry_is_stale_past_ttl(libimageupgradecheck):
-    stale = datetime.now(timezone.utc) - timedelta(days=libimageupgradecheck.IMAGE_UPGRADE_CACHE_TTL_DAYS + 1)
-    assert libimageupgradecheck.cache_entry_is_fresh({"checked_at": stale.isoformat()}) is False
+    stale = datetime.now(timezone.utc) - timedelta(days=1 + 1)
+    assert libimageupgradecheck.cache_entry_is_fresh({"checked_at": stale.isoformat()}, 1) is False
 
 
 def test_cache_entry_is_fresh_handles_malformed_entry(libimageupgradecheck):
-    assert libimageupgradecheck.cache_entry_is_fresh({}) is False
-    assert libimageupgradecheck.cache_entry_is_fresh({"checked_at": "not-a-date"}) is False
+    assert libimageupgradecheck.cache_entry_is_fresh({}, 1) is False
+    assert libimageupgradecheck.cache_entry_is_fresh({"checked_at": "not-a-date"}, 1) is False
 
 
 def test_load_cache_missing_file_returns_empty(libimageupgradecheck, tmp_path):
@@ -278,7 +278,7 @@ def test_check_image_upgrades_expired_cache_entry_rechecks(vp, libimageupgradech
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     key = libimageupgradecheck.cache_key("ghcr.io/wearefrank/frank-gateway", "104")
-    stale = datetime.now(timezone.utc) - timedelta(days=libimageupgradecheck.IMAGE_UPGRADE_CACHE_TTL_DAYS + 1)
+    stale = datetime.now(timezone.utc) - timedelta(days=1 + 1)
     libimageupgradecheck.save_cache(chart_dir, {
         key: {"checked_at": stale.isoformat(), "newest": "999"},
     })

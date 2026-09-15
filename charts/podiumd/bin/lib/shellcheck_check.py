@@ -15,31 +15,23 @@ from lib.render_scope import (
     OWN_TEMPLATES_PREFIX, build_resource_locations, chart_name_from_source, friendly_vendor_charts,
     print_grouped_findings, render_chart, resource_line, split_rendered_by_source,
 )
-
-# Any container invoking one of these as its `command`, with "-c" somewhere
-# in command+args, is treated as an embedded shell script — matches this
-# chart's own convention (command: ["/bin/sh", "-c"] / ["sh", "-c"], args:
-# the script) as well as vendored sub-charts using the same shape.
-SHELLCHECK_SHELL_NAMES = {"sh", "bash", "dash", "ksh"}
-
-# error/warning are shellcheck's own "likely a real bug" tiers (syntax
-# problems, quoting that will actually break, undefined-option portability
-# issues); info/style are suggestions/preferences — cosmetic, not reported
-# at all, same policy as check_yamllint's cosmetic findings.
-SHELLCHECK_FAILING_LEVELS = {"error", "warning"}
+from lib.settings import quality_gates_shellcheck_failing_levels, quality_gates_shellcheck_shell_names
 
 
 def _shell_name(token):
     return token.rsplit("/", 1)[-1] if isinstance(token, str) else None
 
 
-def find_shell_scripts(obj, source, path=""):
+def find_shell_scripts(obj, source, shell_names, path=""):
     """Recursively walk a parsed manifest (dict/list/scalar) looking for a
     container-shaped dict with a command/args pair that invokes a shell
     with "-c" (in either list, in either order — this chart uses both
     `command: [".../sh", "-c"], args: [<script>]` and
-    `command: [...], args: ["-c", <script>]`). Returns (source, path,
-    shell, script_text) tuples."""
+    `command: [...], args: ["-c", <script>]`). `shell_names` is the set of
+    recognized shell binaries (see quality_gates.shellcheck_shell_names in
+    lib.settings) — a container invoking anything else as its `command`
+    is not treated as an embedded shell script at all. Returns (source,
+    path, shell, script_text) tuples."""
     found = []
     if isinstance(obj, dict):
         command = obj.get("command")
@@ -53,27 +45,28 @@ def find_shell_scripts(obj, source, path=""):
             combined = (command if isinstance(command, list) else []) + \
                        (args if isinstance(args, list) else [])
             shell = _shell_name(combined[0]) if combined else None
-            if shell in SHELLCHECK_SHELL_NAMES:
+            if shell in shell_names:
                 for i, tok in enumerate(combined):
                     if tok == "-c" and i + 1 < len(combined) and isinstance(combined[i + 1], str):
                         found.append((source, path, shell, combined[i + 1]))
                         break
         for key, value in obj.items():
-            found.extend(find_shell_scripts(value, source, f"{path}.{key}"))
+            found.extend(find_shell_scripts(value, source, shell_names, f"{path}.{key}"))
     elif isinstance(obj, list):
         for i, item in enumerate(obj):
-            found.extend(find_shell_scripts(item, source, f"{path}[{i}]"))
+            found.extend(find_shell_scripts(item, source, shell_names, f"{path}[{i}]"))
     return found
 
 
-def extract_shell_scripts(docs):
+def extract_shell_scripts(docs, shell_names):
     """docs: list of (source, doc_text) pairs, e.g. from
     split_rendered_by_source. Parses each doc_text as YAML and returns
-    every embedded shell script found in it, tagged with its source plus
-    the containing resource's own (kind, namespace, name) — constant for
-    every script found within the same doc, one resource per doc — so a
-    finding can later be resolved back to a rendered-output line via
-    lib.render_scope.resource_line."""
+    every embedded shell script found in it (see find_shell_scripts for
+    `shell_names`), tagged with its source plus the containing resource's
+    own (kind, namespace, name) — constant for every script found within
+    the same doc, one resource per doc — so a finding can later be
+    resolved back to a rendered-output line via lib.render_scope.
+    resource_line."""
     scripts = []
     for source, doc_text in docs:
         try:
@@ -89,7 +82,7 @@ def extract_shell_scripts(docs):
             name = metadata.get("name")
         else:
             kind = namespace = name = None  # not a single-object doc — no resource_line lookup possible
-        for found_source, path, shell, script_text in find_shell_scripts(parsed, source):
+        for found_source, path, shell, script_text in find_shell_scripts(parsed, source, shell_names):
             scripts.append((found_source, path, shell, script_text, kind, namespace, name))
     return scripts
 
@@ -167,6 +160,9 @@ def check_shellcheck(chart_dir, extra_args):
     if shutil.which("shellcheck") is None:
         return False, "shellcheck is not installed (see --skip-shellcheck to bypass)"
 
+    shell_names = quality_gates_shellcheck_shell_names(chart_dir)
+    failing_levels = quality_gates_shellcheck_failing_levels(chart_dir)
+
     result = render_chart(chart_dir, extra_args)
     if result.returncode != 0:
         return False, "helm template failed to render"
@@ -178,21 +174,21 @@ def check_shellcheck(chart_dir, extra_args):
     vendored_docs = [(s, t) for s, t in docs if not s.startswith(OWN_TEMPLATES_PREFIX)]
 
     own_real, vendored_friendly, vendored_other = [], [], []
-    for source, path, shell, script_text, kind, namespace, name in extract_shell_scripts(own_docs):
+    for source, path, shell, script_text, kind, namespace, name in extract_shell_scripts(own_docs, shell_names):
         comments = run_shellcheck(shell, script_text)
         if comments is None:
             return False, "shellcheck produced unparseable output"
         for c in comments:
-            if c.get("level") in SHELLCHECK_FAILING_LEVELS:
+            if c.get("level") in failing_levels:
                 own_real.append((source, path, c, kind, namespace, name))
 
-    for source, path, shell, script_text, kind, namespace, name in extract_shell_scripts(vendored_docs):
+    for source, path, shell, script_text, kind, namespace, name in extract_shell_scripts(vendored_docs, shell_names):
         comments = run_shellcheck(shell, script_text)
         if comments is None:
             return False, "shellcheck produced unparseable output"
         chart = chart_name_from_source(source)
         for c in comments:
-            if c.get("level") in SHELLCHECK_FAILING_LEVELS:
+            if c.get("level") in failing_levels:
                 finding = (source, path, c, kind, namespace, name)
                 (vendored_friendly if chart in vendor_map else vendored_other).append(finding)
 

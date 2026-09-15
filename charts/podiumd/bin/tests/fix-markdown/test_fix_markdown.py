@@ -8,6 +8,7 @@ import pytest
 FIXABLE = "# Title\n\ntrailing whitespace   \n"
 FIXED = "# Title\n\ntrailing whitespace\n"
 CLEAN = "# Title\n\nnothing to fix\n"
+DISABLED_RULES = "md013,md014,md031"
 
 
 def strip_trailing_whitespace_run(cmd, **kwargs):
@@ -44,7 +45,7 @@ def test_run_fix_returns_paths_pymarkdown_reported_as_fixed(sub, tmp_path, monke
     chart_dir = make_chart(tmp_path, {"docs/a.md": FIXABLE, "docs/b.md": CLEAN})
     monkeypatch.setattr(sub, "run", strip_trailing_whitespace_run)
 
-    fixed = sub.run_fix("pymarkdown", [chart_dir / "docs" / "a.md", chart_dir / "docs" / "b.md"])
+    fixed = sub.run_fix("pymarkdown", [chart_dir / "docs" / "a.md", chart_dir / "docs" / "b.md"], DISABLED_RULES)
 
     assert fixed == [chart_dir / "docs" / "a.md"]
     assert (chart_dir / "docs" / "a.md").read_text(encoding="utf-8") == FIXED
@@ -60,7 +61,7 @@ def test_run_fix_disables_md013_md014_and_md031(sub, tmp_path, monkeypatch):
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(sub, "run", fake_run)
-    sub.run_fix("pymarkdown", [chart_dir / "docs" / "a.md"])
+    sub.run_fix("pymarkdown", [chart_dir / "docs" / "a.md"], DISABLED_RULES)
 
     cmd = captured["cmd"]
     assert cmd[:3] == ["pymarkdown", "-d", "md013,md014,md031"]
@@ -78,7 +79,7 @@ def test_dry_run_fix_reports_changed_files_without_touching_the_real_ones(sub, t
     monkeypatch.setattr(sub, "run", strip_trailing_whitespace_run)
 
     files = [chart_dir / "docs" / "a.md", chart_dir / "docs" / "b.md"]
-    changed = sub.dry_run_fix("pymarkdown", files, chart_dir)
+    changed = sub.dry_run_fix("pymarkdown", files, chart_dir, DISABLED_RULES)
 
     assert changed == [chart_dir.joinpath("docs", "a.md").relative_to(chart_dir)]
     # real files completely untouched
@@ -90,7 +91,7 @@ def test_dry_run_fix_reports_nothing_when_nothing_would_change(sub, tmp_path, mo
     chart_dir = make_chart(tmp_path, {"docs/a.md": CLEAN})
     monkeypatch.setattr(sub, "run", strip_trailing_whitespace_run)
 
-    changed = sub.dry_run_fix("pymarkdown", [chart_dir / "docs" / "a.md"], chart_dir)
+    changed = sub.dry_run_fix("pymarkdown", [chart_dir / "docs" / "a.md"], chart_dir, DISABLED_RULES)
 
     assert changed == []
 
