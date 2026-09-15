@@ -256,6 +256,51 @@ def test_scan_cached_default_label_is_this_image(libcvecheck, tmp_path, monkeypa
     assert "this image: scanning fresh" in out
 
 
+# --- open_cache_session (the shared "load, then start a correct mutable
+# working copy" initializer check_cves and lib.cve_diff_check both call,
+# so there's no second independently-written copy of it left to drift —
+# see the real bug that happened once, when check_cves' own copy of this
+# step quietly wrote new_cache = {} instead) ---
+
+def test_open_cache_session_new_cache_is_a_separate_copy(libcvecheck, tmp_path):
+    key = libcvecheck.cache_key("org/repo", DIGEST_A)
+    entry = {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": []}
+    libcvecheck.save_cache(tmp_path, {key: entry})
+
+    old_cache, new_cache = libcvecheck.open_cache_session(tmp_path)
+
+    assert old_cache == {key: entry}
+    assert new_cache == old_cache
+    assert new_cache is not old_cache  # mutating one must never affect the other
+
+    new_cache["org/other@sha256:" + "b" * 64] = {"vulnerabilities": []}
+    assert "org/other@sha256:" + "b" * 64 not in old_cache
+
+
+def test_open_cache_session_empty_when_no_cache_file_exists(libcvecheck, tmp_path):
+    old_cache, new_cache = libcvecheck.open_cache_session(tmp_path)
+    assert old_cache == {}
+    assert new_cache == {}
+    assert new_cache is not old_cache
+
+
+def test_check_cves_routes_through_open_cache_session(vp, libcvecheck, tmp_path, monkeypatch):
+    chart_dir = make_chart_dir(tmp_path)
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(libcvecheck, "run", sequenced_run())
+
+    calls = []
+    real_open_cache_session = libcvecheck.open_cache_session
+
+    def spy(chart_dir_arg):
+        calls.append(chart_dir_arg)
+        return real_open_cache_session(chart_dir_arg)
+
+    monkeypatch.setattr(libcvecheck, "open_cache_session", spy)
+    vp.check_cves(chart_dir, [])
+    assert calls == [chart_dir]
+
+
 # --- classification ---
 
 def test_classify_source_own(libcvecheck):

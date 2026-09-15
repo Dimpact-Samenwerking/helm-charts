@@ -82,8 +82,8 @@ import urllib.error
 from collections import Counter
 
 from lib.cve_check import (
-    HIGH_SEVERITIES, SEVERITY_ORDER, high_findings_by_package, load_cache, print_package_line, save_cache,
-    scan_cached, severity_label,
+    HIGH_SEVERITIES, SEVERITY_ORDER, high_findings_by_package, open_cache_session, print_package_line,
+    save_cache, scan_cached, severity_label,
 )
 from lib.image_digests import find_sliding_pins, unique_digest_pin_targets
 from lib.image_upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
@@ -240,8 +240,7 @@ def check_cve_diff(chart_dir, extra_args, detail=False):
     print(f"Diffing CVEs for {len(candidates)} upgrade/slide candidate(s) (current vs proposed, "
           f"via trivy)...")
 
-    old_cache = load_cache(chart_dir)
-    new_cache = dict(old_cache)
+    old_cache, new_cache = open_cache_session(chart_dir)
     total_closed = 0
     total_introduced = 0
     scan_errors = []
