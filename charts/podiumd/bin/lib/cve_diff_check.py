@@ -53,10 +53,12 @@ twice, once under each heading — a rare enough overlap in practice that
 merging the two into one combined diff isn't worth the added complexity
 it would take to do correctly.
 
-Caching: BOTH sides of each candidate reuse lib.cve_check's own
-digest-keyed cve-scan-cache.json directly (same cache_key/load_cache/
-save_cache/cache_entry_is_fresh check_cves itself uses) — but the two
-sides, and the two candidate KINDS, get there differently:
+Caching: BOTH sides of each candidate scan via lib.cve_check.scan_cached
+— the SAME shared "check the digest-keyed cve-scan-cache.json, report a
+cache hit or announce a fresh scan, run trivy if needed, cache the
+result" primitive check_cves' own per-image loop uses, rather than a
+second, separately hand-rolled version of that same logic living here.
+But the two sides, and the two candidate KINDS, get there differently:
 - The CURRENT side is always cache-eligible immediately: its digest is
   already known from values.yaml, and check_cves (which runs
   immediately before this step in the default pipeline) already scanned
@@ -78,11 +80,10 @@ sides, and the two candidate KINDS, get there differently:
   place already has for its own failed lookups."""
 import urllib.error
 from collections import Counter
-from datetime import datetime, timezone
 
 from lib.cve_check import (
-    HIGH_SEVERITIES, SEVERITY_ORDER, cache_entry_is_fresh, cache_key, high_findings_by_package, load_cache,
-    print_package_line, run_trivy, save_cache, severity_label,
+    HIGH_SEVERITIES, SEVERITY_ORDER, high_findings_by_package, load_cache, print_package_line, save_cache,
+    scan_cached, severity_label,
 )
 from lib.image_digests import find_sliding_pins, unique_digest_pin_targets
 from lib.image_upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
@@ -166,50 +167,20 @@ def gather_candidates(chart_dir):
     return candidates
 
 
-def _scan_cached(chart_dir, repository, digest, ref, old_cache, new_cache, side):
-    """Scan `ref` via trivy, reusing lib.cve_check's own digest-keyed
-    cve-scan-cache.json whenever `digest` (bare hex, see _bare_digest) is
-    known — shared by _scan_current (always has one) and _scan_proposed
-    (only sometimes does, see its own docstring). `digest=None` skips the
-    cache entirely, straight through to run_trivy — used when a proposed
-    tag's digest couldn't be resolved. `side` ("current"/"proposed") is
-    only for the printed line identifying which half of the candidate
-    this call is — same "served from cache"/"docker pull + trivy"
-    vocabulary lib.cve_check/lib.image_upgrade_check already use for
-    their own cache-hit reporting, just per-side here instead of a
-    single end-of-run aggregate. Returns None if trivy's own scan failed
-    or produced unparseable output."""
-    key = cache_key(repository, digest) if digest is not None else None
-    if key is not None:
-        cached = old_cache.get(key)
-        if cached and cache_entry_is_fresh(cached):
-            new_cache[key] = cached
-            print(f"  {side}: served from cache — {ref}")
-            return cached["vulnerabilities"]
-
-    print(f"  {side}: scanning fresh (docker pull + trivy) — {ref}...", flush=True)
-    vulns = run_trivy(ref)
-    if vulns is None:
-        return None
-
-    if key is not None:
-        new_cache[key] = {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": vulns}
-        save_cache(chart_dir, new_cache)
-    return vulns
-
-
 def _scan_current(chart_dir, candidate, old_cache, new_cache):
     """The CURRENT side of one candidate — always cache-eligible, its
-    pinned digest is already known from values.yaml (see _scan_cached),
-    a free hit whenever check_cves already scanned this exact digest."""
-    return _scan_cached(chart_dir, candidate["repository"], candidate["current_digest"],
-                         candidate["current_ref"], old_cache, new_cache, "current")
+    pinned digest is already known from values.yaml, a free hit whenever
+    check_cves already scanned this exact digest (both route through the
+    same lib.cve_check.scan_cached — see its own docstring)."""
+    vulns, _ = scan_cached(chart_dir, candidate["repository"], candidate["current_digest"],
+                            candidate["current_ref"], old_cache, new_cache, label="current")
+    return vulns
 
 
 def _scan_proposed(chart_dir, candidate, old_cache, new_cache):
     """The PROPOSED side of one candidate. A "sliding digest" candidate
     already carries its own resolved digest (see gather_candidates) — no
-    extra call needed, straight to _scan_cached. An "upgrade" candidate's
+    extra call needed, straight to scan_cached. An "upgrade" candidate's
     own proposed_ref is a bare tag — resolve its digest first via ONE
     cheap registry_tag_exists manifest lookup (not a docker pull) so it
     can join the same cache. If that resolve call itself fails/errors,
@@ -227,8 +198,9 @@ def _scan_proposed(chart_dir, candidate, old_cache, new_cache):
         except (urllib.error.URLError, OSError):
             digest = None
 
-    return _scan_cached(chart_dir, candidate["repository"], digest, candidate["proposed_ref"],
-                         old_cache, new_cache, "proposed")
+    vulns, _ = scan_cached(chart_dir, candidate["repository"], digest, candidate["proposed_ref"],
+                            old_cache, new_cache, label="proposed")
+    return vulns
 
 
 def _severity_counts(vulns):
