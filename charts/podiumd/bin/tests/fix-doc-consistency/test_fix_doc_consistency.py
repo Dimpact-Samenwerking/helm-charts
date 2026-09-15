@@ -2060,15 +2060,27 @@ def test_main_updates_a_changes_heading_missing_its_app_version(cdb, tmp_path, m
     (chart-only, add_missing_component_rows' own TODO-stub shape) is
     regenerated once that version DOES become resolvable (here: via the
     vendored-chart appVersion fallback for a component registered in
-    COMPONENT_IMAGE_PATHS) — built from the row's own already-correct
-    cells, same template add_missing_changes_sections itself uses. The
-    old heading's own body text is discarded; there's no reliable way to
-    tell which part of it was ever accurate."""
+    component_resolution.image_paths) — built from the row's own
+    already-correct cells, same template add_missing_changes_sections
+    itself uses. The old heading's own body text is discarded; there's
+    no reliable way to tell which part of it was ever accurate.
+
+    "widget" is registered via a real tmp_path/etc/settings.yaml
+    (not a monkeypatch of a raw dict — that constant no longer exists)
+    — actual_app_version's own vendored-subchart-appVersion fallback is
+    reached via update_stale_app_version_headings, which already threads
+    its own chart_dir=tmp_path through to actual_app_version, so this
+    override is genuinely seen there."""
     import io
     import tarfile
 
-    from lib.chart import COMPONENT_IMAGE_PATHS
-    monkeypatch.setitem(COMPONENT_IMAGE_PATHS, "widget", ["image"])
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "settings.yaml").write_text(
+        "component_resolution:\n"
+        "  image_paths:\n"
+        "    widget: [\"image\"]\n",
+        encoding="utf-8",
+    )
 
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
@@ -2147,14 +2159,24 @@ def test_main_adds_sections_for_both_rows_named_by_a_two_component_heading(
 
 def test_main_adds_version_pin_bullet_for_a_version_paths_component(cdb, tmp_path, monkeypatch):
     """The section add_missing_changes_sections adds for a component
-    registered in COMPONENT_VERSION_PATHS (e.g. eck-stack's bare
-    "...version:" fields, the ECK operator's own CRD convention) must
-    use a "Version pin" bullet, never the generic "Image tag pin
+    registered in component_resolution.version_paths (e.g. eck-stack's
+    bare "...version:" fields, the ECK operator's own CRD convention)
+    must use a "Version pin" bullet, never the generic "Image tag pin
     `<key>.image.tag`" guess — that path doesn't even exist in
-    values.yaml for a component shaped this way."""
-    from lib.chart import COMPONENT_VERSION_PATHS
-    monkeypatch.setitem(COMPONENT_VERSION_PATHS, "widget-b", ["version"])
+    values.yaml for a component shaped this way.
 
+    Uses the REAL "redis-operator" registration (component_resolution.
+    version_paths' own "redisOperator.imageTag" entry) rather than a
+    synthetic name needing its own settings.yaml override — a synthetic
+    tmp_path-only override would only be visible on the TARGET side here
+    (add_missing_component_rows threads its own chart_dir=CHART_YAML.
+    parent == tmp_path through explicitly), never the BASELINE side
+    (resolve_component_own_version_change's own old_app lookup calls
+    actual_app_version(baseline_values, key, chart_name) with no
+    chart_dir at all, deliberately — see that function's own docstring),
+    which self-resolves against the REAL production chart_dir instead
+    and would never see a tmp_path-only entry. A REAL default registered
+    entry resolves identically on both sides, avoiding that asymmetry."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -2162,12 +2184,12 @@ def test_main_adds_version_pin_bullet_for_a_version_paths_component(cdb, tmp_pat
     write(tmp_path / "Chart.yaml", yaml.safe_dump({
         "dependencies": [
             {"name": "widget-a", "version": "1.0.0", "repository": "@example"},
-            {"name": "widget-b", "version": "2.0.0", "repository": "@example"},
+            {"name": "redis-operator", "version": "2.0.0", "repository": "@example"},
         ],
     }))
     write(tmp_path / "values.yaml", yaml.safe_dump({
         "widget-a": {"image": {"tag": "1.1.0@sha256:aaaa"}},
-        "widget-b": {"version": "2.1.0"},
+        "redis-operator": {"redisOperator": {"imageTag": "2.1.0"}},
     }))
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
@@ -2178,7 +2200,7 @@ def test_main_adds_version_pin_bullet_for_a_version_paths_component(cdb, tmp_pat
 
     write(tmp_path / "values.yaml", yaml.safe_dump({
         "widget-a": {"image": {"tag": "1.2.0@sha256:bbbb"}},
-        "widget-b": {"version": "2.2.0"},
+        "redis-operator": {"redisOperator": {"imageTag": "2.2.0"}},
     }))
     write(doc_dir / "4.8.5-to-4.9.0-upgrade.md",
           "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
@@ -2186,7 +2208,7 @@ def test_main_adds_version_pin_bullet_for_a_version_paths_component(cdb, tmp_pat
           "| Component | App version | Helm chart | Notes |\n"
           "| --- | --- | --- | --- |\n"
           "| widget-a | 1.1.0 → 1.2.0 | 1.0.0 (unchanged) | - |\n"
-          "| widget-b | 2.1.0 → 2.2.0 | 2.0.0 (unchanged) | - |\n\n"
+          "| redis-operator | 2.1.0 → 2.2.0 | 2.0.0 (unchanged) | - |\n\n"
           "## Changes\n\n")
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump", cwd=tmp_path)
@@ -2197,9 +2219,9 @@ def test_main_adds_version_pin_bullet_for_a_version_paths_component(cdb, tmp_pat
     upgrade = (doc_dir / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     assert "### widget-a 1.1.0 → 1.2.0 (chart 1.0.0, unchanged)" in upgrade
     assert "Image tag pin `widget-a.image.tag`" in upgrade
-    assert "### widget-b 2.1.0 → 2.2.0 (chart 2.0.0, unchanged)" in upgrade
-    assert "Version pin `widget-b.version`" in upgrade
-    assert "Image tag pin `widget-b" not in upgrade
+    assert "### redis-operator 2.1.0 → 2.2.0 (chart 2.0.0, unchanged)" in upgrade
+    assert "Version pin `redis-operator.redisOperator.imageTag`" in upgrade
+    assert "Image tag pin `redis-operator" not in upgrade
 
 
 def test_main_does_not_duplicate_an_existing_sidecar_row(

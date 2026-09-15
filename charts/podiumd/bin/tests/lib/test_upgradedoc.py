@@ -252,11 +252,11 @@ def test_actual_app_version_falls_back_to_split_image_tag_field(libupgradedoc):
 
 
 def test_actual_app_version_image_tag_path_tried_before_version_path(libupgradedoc, monkeypatch):
-    """The "image: {tag: ...}" pass always runs first — COMPONENT_
-    VERSION_PATHS is only ever a fallback for when NONE of a
-    component's image_paths_for candidates resolved anything."""
-    monkeypatch.setitem(libupgradedoc.version_paths_for.__globals__["COMPONENT_VERSION_PATHS"],
-                         "widget", ["fallback.version"])
+    """The "image: {tag: ...}" pass always runs first — component_version_
+    paths() is only ever a fallback for when NONE of a component's
+    image_paths_for candidates resolved anything."""
+    monkeypatch.setattr(libupgradedoc, "version_paths_for",
+                         lambda component, chart_dir=None: {"widget": ["fallback.version"]}.get(component, []))
     values = {"widget": {"image": {"tag": "1.0.0@sha256:abc"}, "fallback": {"version": "9.9.9"}}}
     assert libupgradedoc.actual_app_version(values, "widget") == "1.0.0"
 
@@ -278,16 +278,15 @@ def _make_vendored_tgz(charts_dir, name, version, values, chart_yaml):
     return tgz_path
 
 
-def test_actual_app_version_falls_back_to_vendored_subchart_app_version(libupgradedoc, tmp_path, monkeypatch):
+def test_actual_app_version_falls_back_to_vendored_subchart_app_version(libupgradedoc, tmp_path):
     """Regression test: openbao's own "server.image.tag" is explicitly
-    overridden in values.yaml but deliberately left blank (see
-    lib.chart.COMPONENT_IMAGE_PATHS["openbao"]'s own comment) — relies
-    on the vendored chart's own Chart.yaml "appVersion" instead, which
-    nothing but this third fallback pass can see. Without chart_dir/dep,
-    behavior is unchanged (still returns None) — this fallback is opt-in
-    per caller."""
-    monkeypatch.setitem(libupgradedoc.image_paths_for.__globals__["COMPONENT_IMAGE_PATHS"],
-                         "openbao", ["server.image"])
+    overridden in values.yaml but deliberately left blank (see settings.
+    yaml's own component_resolution.image_paths["openbao"] comment) —
+    relies on the vendored chart's own Chart.yaml "appVersion" instead,
+    which nothing but this third fallback pass can see. Without chart_dir/
+    dep, behavior is unchanged (still returns None) — this fallback is
+    opt-in per caller. No monkeypatch needed — openbao is already
+    registered in the real component_resolution.image_paths."""
     _make_vendored_tgz(tmp_path / "charts", "openbao", "0.28.4",
                         {"server": {"image": {"tag": ""}}},
                         {"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.5"})

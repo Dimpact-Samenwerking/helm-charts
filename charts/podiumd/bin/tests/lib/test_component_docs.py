@@ -389,22 +389,21 @@ def test_resolve_component_own_version_change_none_for_unmatched_key(libcomponen
 
 
 def test_resolve_component_own_version_change_vendored_subchart_fallback_applies_to_baseline_too(
-        libcomponentdocs, tmp_path, monkeypatch):
+        libcomponentdocs, tmp_path):
     """Regression test (real bug, real doc): openbao's own "server.image.
     tag" is deliberately left blank in both baseline and target values.yaml
-    (see lib.chart.COMPONENT_IMAGE_PATHS["openbao"]'s own comment) — its
-    real app version only ever resolves via the vendored-.tgz subchart_
-    app_version fallback (see lib.upgradedoc.actual_app_version), which
-    the OLD code never even attempted for the baseline side. Its chart
-    version (0.28.4) is unchanged this hop, so the exact same vendored
-    .tgz backs both sides — old_app must resolve to the SAME "v2.5.5" as
-    new_app, not None, and unchanged must be True, exactly like any other
-    component whose own version genuinely didn't change (e.g. zac). Before
-    this fix, old_app stayed None (wrongly rendering "(new)") purely
-    because of this resolution gap, not because openbao's version
-    actually changed."""
-    monkeypatch.setitem(libcomponentdocs.image_paths_for.__globals__["COMPONENT_IMAGE_PATHS"],
-                         "openbao", ["server.image"])
+    (see settings.yaml's own component_resolution.image_paths["openbao"]
+    comment) — its real app version only ever resolves via the
+    vendored-.tgz subchart_app_version fallback (see lib.upgradedoc.
+    actual_app_version), which the OLD code never even attempted for the
+    baseline side. Its chart version (0.28.4) is unchanged this hop, so
+    the exact same vendored .tgz backs both sides — old_app must resolve
+    to the SAME "v2.5.5" as new_app, not None, and unchanged must be True,
+    exactly like any other component whose own version genuinely didn't
+    change (e.g. zac). Before this fix, old_app stayed None (wrongly
+    rendering "(new)") purely because of this resolution gap, not because
+    openbao's version actually changed. No monkeypatch needed — openbao is
+    already registered in the real component_resolution.image_paths."""
     import io
     import tarfile
 
@@ -431,15 +430,15 @@ def test_resolve_component_own_version_change_vendored_subchart_fallback_applies
 
 
 def test_resolve_component_own_version_change_vendored_fallback_never_used_when_chart_changed(
-        libcomponentdocs, tmp_path, monkeypatch):
+        libcomponentdocs, tmp_path):
     """The vendored-subchart fallback above must never fire when the
     chart version itself changed — the current chart_dir's vendored .tgz
     (at the TARGET's chart version) is only a valid stand-in for the
     baseline's own app version when it's the SAME .tgz backing both
     sides. A real baseline-side chart bump must stay unresolved (old_app
-    None) rather than silently reusing the wrong file's appVersion."""
-    monkeypatch.setitem(libcomponentdocs.image_paths_for.__globals__["COMPONENT_IMAGE_PATHS"],
-                         "openbao", ["server.image"])
+    None) rather than silently reusing the wrong file's appVersion. No
+    monkeypatch needed — openbao is already registered in the real
+    component_resolution.image_paths."""
     import io
     import tarfile
 
@@ -473,7 +472,7 @@ def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(l
     only "enabled: true", nothing else); its chart version (3.5.0) is
     UNCHANGED this hop, and the target added an explicit split "tag:"/
     "digest:" override still reading the same 3.5.0. Since eck-operator
-    is now registered in COMPONENT_IMAGE_PATHS (no monkeypatch needed —
+    is now registered in component_resolution.image_paths (no monkeypatch needed —
     that registration IS the fix under test), the vendored-subchart
     fallback correctly resolves old_app to the SAME "3.5.0" as new_app,
     so this now reads (unchanged), not "(new)" — confirmed live on the

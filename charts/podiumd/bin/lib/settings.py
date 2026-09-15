@@ -337,3 +337,48 @@ def component_resolution_version_path_nested_subcharts(chart_dir):
             "eck-enterprise-search.version": "eck-enterprise-search",
         },
     })
+
+
+def component_resolution_image_paths(chart_dir):
+    """component_resolution.image_paths — replaces lib.chart.
+    COMPONENT_IMAGE_PATHS, a dict (component name/alias -> dotted
+    values.yaml path(s) for its own image block(s), for a component that
+    ships more than one independently-versioned image), default
+    {"zgw-office-addin": ["frontend.image", "backend.image"],
+    "keycloak-operator": ["operator.config.keycloakImage"],
+    "openbao": ["server.image"],
+    "internetaakafhandeling": ["web.image", "poller.image"],
+    "kiss-chart": ["image", "settings.syncJobs.image"],
+    "eck-operator": ["image"]} — see etc/settings.yaml's own
+    component_resolution.image_paths comment for the reasoning behind
+    each entry."""
+    return dict(_get(chart_dir, "component_resolution", "image_paths", {
+        "zgw-office-addin": ["frontend.image", "backend.image"],
+        "keycloak-operator": ["operator.config.keycloakImage"],
+        "openbao": ["server.image"],
+        "internetaakafhandeling": ["web.image", "poller.image"],
+        "kiss-chart": ["image", "settings.syncJobs.image"],
+        "eck-operator": ["image"],
+    }))
+
+
+def component_resolution_default_image_paths(chart_dir):
+    """component_resolution.default_image_paths — replaces lib.chart.
+    DEFAULT_IMAGE_PATHS, the image path(s) assumed for any component with
+    no image_paths entry of its own, default ["image"]."""
+    return list(_get(chart_dir, "component_resolution", "default_image_paths", ["image"]))
+
+
+def component_resolution_version_paths(chart_dir):
+    """component_resolution.version_paths — replaces lib.chart.
+    COMPONENT_VERSION_PATHS, a dict (component name -> dotted values.yaml
+    path(s) pointing directly at a bare version string, for a component
+    whose real app version isn't expressed as an "image: {repository,
+    tag}" block at all), default {"eck-stack": ["eck-elasticsearch.
+    version", "eck-kibana.version"], "redis-operator": ["redisOperator.
+    imageTag"]} — see etc/settings.yaml's own component_resolution.
+    version_paths comment for the reasoning behind each entry."""
+    return dict(_get(chart_dir, "component_resolution", "version_paths", {
+        "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
+        "redis-operator": ["redisOperator.imageTag"],
+    }))
