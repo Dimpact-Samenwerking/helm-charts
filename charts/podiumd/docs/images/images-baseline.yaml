@@ -131,6 +131,11 @@
   version: "0.9.1"
   digest: "sha256:7c1dfaff1d069afe5d45e421f813078d8112b13c3cf65b5f547e866f6aad4e31"
 
+- name: eck/eck-operator
+  url: docker.elastic.co/eck/eck-operator
+  version: "3.5.0"
+  digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
+
 - name: elasticsearch/elasticsearch
   url: docker.elastic.co/elasticsearch/elasticsearch
   version: "8.19.19"
