@@ -20,15 +20,19 @@ def write_matching_lock_state(chart_dir, deps):
     Chart.yaml exactly as given. Chart.lock gets each dependency's
     repository already resolved to its plain URL when Chart.yaml uses an
     "@alias" — the same real shape Helm itself always writes there
-    (Chart.lock never stores an alias) — via lib.render_scope.
-    REQUIRED_REPOS, so a test using an alias actually exercises that
-    resolution instead of comparing "@alias" against itself trivially."""
-    from lib.render_scope import REQUIRED_REPOS
+    (Chart.lock never stores an alias) — via lib.settings.
+    helm_repos_urls_by_alias (chart_dir has no settings.yaml, so this is
+    the hard-coded default), so a test using an alias actually exercises
+    that resolution instead of comparing "@alias" against itself
+    trivially."""
+    from lib.settings import helm_repos_urls_by_alias
+
+    required_repos = helm_repos_urls_by_alias(chart_dir)
 
     def resolved(dep):
         repo = dep["repository"]
         if repo.startswith("@"):
-            repo = REQUIRED_REPOS.get(repo[1:], repo)
+            repo = required_repos.get(repo[1:], repo)
         return {**dep, "repository": repo}
 
     (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
@@ -43,32 +47,35 @@ def write_matching_lock_state(chart_dir, deps):
 
 # --- ensure_repos_configured ---
 
-def test_ensure_repos_configured_success(libdependencies, monkeypatch):
-    monkeypatch.setattr(libdependencies, "REQUIRED_REPOS", {"zac": "https://example.invalid/zac/"})
+def test_ensure_repos_configured_success(libdependencies, tmp_path, monkeypatch):
+    monkeypatch.setattr(libdependencies, "helm_repos_urls_by_alias",
+                         lambda chart_dir: {"zac": "https://example.invalid/zac/"})
     monkeypatch.setattr(libdependencies, "run", fake_run(0))
-    ok, msg = libdependencies.ensure_repos_configured()
+    ok, msg = libdependencies.ensure_repos_configured(tmp_path)
     assert ok is True
     assert msg == "repos configured"
 
 
-def test_ensure_repos_configured_repo_add_failure(libdependencies, monkeypatch):
-    monkeypatch.setattr(libdependencies, "REQUIRED_REPOS", {"zac": "https://example.invalid/zac/"})
+def test_ensure_repos_configured_repo_add_failure(libdependencies, tmp_path, monkeypatch):
+    monkeypatch.setattr(libdependencies, "helm_repos_urls_by_alias",
+                         lambda chart_dir: {"zac": "https://example.invalid/zac/"})
     monkeypatch.setattr(libdependencies, "run", fake_run(1, "", "network unreachable"))
-    ok, msg = libdependencies.ensure_repos_configured()
+    ok, msg = libdependencies.ensure_repos_configured(tmp_path)
     assert ok is False
     assert "helm repo add zac failed" in msg
     assert "network unreachable" in msg
 
 
-def test_ensure_repos_configured_scopes_repo_update_to_required_repos(libdependencies, monkeypatch):
+def test_ensure_repos_configured_scopes_repo_update_to_required_repos(libdependencies, tmp_path, monkeypatch):
     """The final `helm repo update` must never be a blanket, argument-less
     call — that refreshes EVERY repo this machine has ever had `helm repo
     add`ed to it (measured live: 19 configured locally, only 9 actually
-    used by this chart — ~6.2s vs ~0.6s scoped). Passing REQUIRED_REPOS'
-    own names restricts it to just the repos this function itself
-    added/verified above."""
-    monkeypatch.setattr(libdependencies, "REQUIRED_REPOS", {"zac": "https://example.invalid/zac/",
-                                                             "kiss": "https://example.invalid/kiss/"})
+    used by this chart — ~6.2s vs ~0.6s scoped). Passing helm_repos_urls_
+    by_alias' own names restricts it to just the repos this function
+    itself added/verified above."""
+    monkeypatch.setattr(libdependencies, "helm_repos_urls_by_alias",
+                         lambda chart_dir: {"zac": "https://example.invalid/zac/",
+                                             "kiss": "https://example.invalid/kiss/"})
     calls = []
 
     def recording_run(cmd, **kwargs):
@@ -76,14 +83,15 @@ def test_ensure_repos_configured_scopes_repo_update_to_required_repos(libdepende
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(libdependencies, "run", recording_run)
-    ok, _msg = libdependencies.ensure_repos_configured()
+    ok, _msg = libdependencies.ensure_repos_configured(tmp_path)
     assert ok is True
     update_call = next(cmd for cmd in calls if cmd[1] == "repo" and cmd[2] == "update")
     assert update_call == ["helm", "repo", "update", "zac", "kiss"]
 
 
-def test_ensure_repos_configured_repo_update_failure(libdependencies, monkeypatch):
-    monkeypatch.setattr(libdependencies, "REQUIRED_REPOS", {"zac": "https://example.invalid/zac/"})
+def test_ensure_repos_configured_repo_update_failure(libdependencies, tmp_path, monkeypatch):
+    monkeypatch.setattr(libdependencies, "helm_repos_urls_by_alias",
+                         lambda chart_dir: {"zac": "https://example.invalid/zac/"})
 
     def sequenced_run(cmd, **kwargs):
         if cmd[1] == "repo" and cmd[2] == "add":
@@ -91,7 +99,7 @@ def test_ensure_repos_configured_repo_update_failure(libdependencies, monkeypatc
         return SimpleNamespace(returncode=1, stdout="", stderr="boom")
 
     monkeypatch.setattr(libdependencies, "run", sequenced_run)
-    ok, msg = libdependencies.ensure_repos_configured()
+    ok, msg = libdependencies.ensure_repos_configured(tmp_path)
     assert ok is False
     assert "helm repo update failed" in msg
 

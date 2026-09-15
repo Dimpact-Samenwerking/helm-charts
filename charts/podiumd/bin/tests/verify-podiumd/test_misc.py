@@ -136,7 +136,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=helm-lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
-    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
+    monkeypatch.setattr(vp, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
     monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
 
     ran = []
@@ -200,7 +200,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=dependencies,image-digests,doc-consistency,helm-lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
-    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
+    monkeypatch.setattr(vp, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
     monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
     monkeypatch.setattr(vp, "check_utf8_format", lambda *a: (False, "BOM found"))
 
@@ -228,7 +228,7 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
-    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
+    monkeypatch.setattr(vp, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
     monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
 
     ran = []
@@ -295,7 +295,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys)
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
-    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
+    monkeypatch.setattr(vp, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
     monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
 
     def ok(*args):
@@ -385,7 +385,7 @@ def _stub_all_checks(vp, monkeypatch, ran):
 
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
-    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
+    monkeypatch.setattr(vp, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
     monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
     monkeypatch.setattr(vp, "check_utf8_format", make_check("utf8"))
     monkeypatch.setattr(vp, "check_dependencies", make_check("deps"))

@@ -50,6 +50,13 @@ FULL_SETTINGS = {
     "helm_doc": {
         "max_diff_lines_shown": 100,
     },
+    "vendor_classification": {
+        "keywords": {"maykinmedia": "Maykin", "infonl": "Info(NL)"},
+        "chart_overrides": {"kiss": "ICATT", "foo": "Bar"},
+    },
+    "helm_repos": {
+        "urls_by_alias": {"zac": "https://example.invalid/zac/"},
+    },
 }
 
 
@@ -84,6 +91,22 @@ ACCESSOR_CASES = [
     ("quality_gates_markdown_disabled_rules", ["md013", "md014"], ["md013"], list),
     ("quality_gates_kube_score_check_id", "container-resources", "custom-check", None),
     ("helm_doc_max_diff_lines_shown", 40, 100, None),
+    ("vendor_classification_keywords",
+     {"maykinmedia": "Maykin", "infonl": "Info(NL)", "worth-nl": "Worth", "wearefrank": "WeAreFrank",
+      "dimpact": "Dimpact", "icatt-menselijk-digitaal": "ICATT"},
+     {"maykinmedia": "Maykin", "infonl": "Info(NL)"}, dict),
+    ("vendor_classification_chart_overrides", {"kiss": "ICATT"}, {"kiss": "ICATT", "foo": "Bar"}, dict),
+    ("helm_repos_urls_by_alias",
+     {"adfinis": "https://charts.adfinis.com",
+      "wiremind": "https://wiremind.github.io/wiremind-helm-charts",
+      "dimpact": "https://Dimpact-Samenwerking.github.io/helm-charts/",
+      "maykinmedia": "https://maykinmedia.github.io/charts/",
+      "kiss-elastic": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic",
+      "zac": "https://infonl.github.io/dimpact-zaakafhandelcomponent/",
+      "zgw-office-addin": "https://infonl.github.io/zgw-office-addin",
+      "worth-nl": "https://worth-nl.github.io/helm-charts",
+      "opstree": "https://ot-container-kit.github.io/helm-charts/"},
+     {"zac": "https://example.invalid/zac/"}, dict),
 ]
 
 

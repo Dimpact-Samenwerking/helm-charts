@@ -90,7 +90,7 @@ def find_stale_digests(lines, values_path):
     if any(subchart_needs_vendoring(chart_dir, lines, p["line"], deps) for p in still_unresolved):
         print("Some pin(s) rely on their subchart's own default repository, but it isn't "
               "vendored yet — running `helm dependency update` once to resolve them too.")
-        ok, msg = ensure_repos_configured()
+        ok, msg = ensure_repos_configured(chart_dir)
         if not ok:
             print(f"WARNING: {msg} — those pin(s) will stay unresolved", file=sys.stderr)
         else:

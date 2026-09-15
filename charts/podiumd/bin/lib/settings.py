@@ -206,3 +206,54 @@ def helm_doc_max_diff_lines_shown(chart_dir):
     """helm_doc.max_diff_lines_shown — replaces lib.helm_docs_check.
     MAX_DIFF_LINES, default 40."""
     return _get(chart_dir, "helm_doc", "max_diff_lines_shown", 40)
+
+
+def vendor_classification_keywords(chart_dir):
+    """vendor_classification.keywords — replaces lib.render_scope.
+    FRIENDLY_VENDOR_KEYWORDS, a dict (vendor keyword -> friendly label,
+    matched case-insensitively as a substring of a dependency's resolved
+    repository URL), default {"maykinmedia": "Maykin", "infonl":
+    "Info(NL)", "worth-nl": "Worth", "wearefrank": "WeAreFrank",
+    "dimpact": "Dimpact", "icatt-menselijk-digitaal": "ICATT"}."""
+    return dict(_get(chart_dir, "vendor_classification", "keywords", {
+        "maykinmedia": "Maykin",
+        "infonl": "Info(NL)",
+        "worth-nl": "Worth",
+        "wearefrank": "WeAreFrank",
+        "dimpact": "Dimpact",
+        "icatt-menselijk-digitaal": "ICATT",
+    }))
+
+
+def vendor_classification_chart_overrides(chart_dir):
+    """vendor_classification.chart_overrides — replaces lib.render_scope.
+    FRIENDLY_VENDOR_CHART_OVERRIDES, a dict (chart name -> friendly label,
+    for a dependency whose own repository URL doesn't reveal its real
+    vendor at all), default {"kiss": "ICATT"}."""
+    return dict(_get(chart_dir, "vendor_classification", "chart_overrides", {"kiss": "ICATT"}))
+
+
+def helm_repos_urls_by_alias(chart_dir):
+    """helm_repos.urls_by_alias — replaces lib.render_scope.
+    REQUIRED_REPOS, a dict (repo alias -> real URL, for every Chart.yaml
+    dependency that references a repo by "@alias"), default {"adfinis":
+    "https://charts.adfinis.com", "wiremind": "https://wiremind.github.io/
+    wiremind-helm-charts", "dimpact": "https://Dimpact-Samenwerking.
+    github.io/helm-charts/", "maykinmedia": "https://maykinmedia.github.
+    io/charts/", "kiss-elastic": "https://raw.githubusercontent.com/
+    Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic",
+    "zac": "https://infonl.github.io/dimpact-zaakafhandelcomponent/",
+    "zgw-office-addin": "https://infonl.github.io/zgw-office-addin",
+    "worth-nl": "https://worth-nl.github.io/helm-charts", "opstree":
+    "https://ot-container-kit.github.io/helm-charts/"}."""
+    return dict(_get(chart_dir, "helm_repos", "urls_by_alias", {
+        "adfinis": "https://charts.adfinis.com",
+        "wiremind": "https://wiremind.github.io/wiremind-helm-charts",
+        "dimpact": "https://Dimpact-Samenwerking.github.io/helm-charts/",
+        "maykinmedia": "https://maykinmedia.github.io/charts/",
+        "kiss-elastic": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic",
+        "zac": "https://infonl.github.io/dimpact-zaakafhandelcomponent/",
+        "zgw-office-addin": "https://infonl.github.io/zgw-office-addin",
+        "worth-nl": "https://worth-nl.github.io/helm-charts",
+        "opstree": "https://ot-container-kit.github.io/helm-charts/",
+    }))

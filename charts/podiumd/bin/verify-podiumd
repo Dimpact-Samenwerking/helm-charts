@@ -820,7 +820,7 @@ def main():
              check_repo_access, chart_dir)
 
     log("Ensuring dependency repos are configured")
-    ok, msg = ensure_repos_configured()
+    ok, msg = ensure_repos_configured(chart_dir)
     if not ok:
         die(msg)
 

@@ -17,26 +17,13 @@ import yaml
 
 from lib.chart import load_yaml
 from lib.procutil import run
+from lib.settings import (
+    helm_repos_urls_by_alias, vendor_classification_chart_overrides, vendor_classification_keywords,
+)
 
 CHART_NAME = "podiumd"
 
 OWN_TEMPLATES_PREFIX = "podiumd/templates/"
-
-# name -> repo URL, for every Chart.yaml dependency that uses a named/alias
-# repository (not a plain https:// URL and not an oci:// registry — those
-# don't need `helm repo add`). Also used to resolve an "@alias" repository
-# field to its real URL for friendly_vendor_charts's keyword matching.
-REQUIRED_REPOS = {
-    "adfinis": "https://charts.adfinis.com",
-    "wiremind": "https://wiremind.github.io/wiremind-helm-charts",
-    "dimpact": "https://Dimpact-Samenwerking.github.io/helm-charts/",
-    "maykinmedia": "https://maykinmedia.github.io/charts/",
-    "kiss-elastic": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic",
-    "zac": "https://infonl.github.io/dimpact-zaakafhandelcomponent/",
-    "zgw-office-addin": "https://infonl.github.io/zgw-office-addin",
-    "worth-nl": "https://worth-nl.github.io/helm-charts",
-    "opstree": "https://ot-container-kit.github.io/helm-charts/",
-}
 
 
 def lint_args_for(chart_dir):
@@ -204,58 +191,49 @@ def rendered_chart_paths(rendered_text):
     return paths | ancestors
 
 
-# Vendored sub-charts from these upstream orgs are close/collaborative
-# dependencies — Dutch govtech partners in the same "common ground"
-# ecosystem this repo lives in — worth seeing individual findings for, even
-# though this repo still can't directly fix their code. Matched case-
-# insensitively as a substring of the dependency's `repository:` field in
-# Chart.yaml (an "@alias" is resolved via REQUIRED_REPOS first, since e.g.
-# "@zac" itself doesn't contain "infonl" — only its resolved URL does).
-# Every other vendored sub-chart (elastic, redis-operator,
-# keycloak-operator, openbao, ...) stays aggregate-count-only: harder to
-# act on, not worth the extra detail.
-FRIENDLY_VENDOR_KEYWORDS = {
-    "maykinmedia": "Maykin",
-    "infonl": "Info(NL)",
-    "worth-nl": "Worth",
-    "wearefrank": "WeAreFrank",
-    "dimpact": "Dimpact",
-    # not currently matched by kiss-chart's own Chart.yaml dependency entry
-    # (oci://ghcr.io/klantinteractie-servicesysteem) — see
-    # FRIENDLY_VENDOR_CHART_OVERRIDES below — kept here too in case a
-    # future dependency's repository URL does contain it.
-    "icatt-menselijk-digitaal": "ICATT",
-}
-
-# "kiss" can't be derived from its own Chart.yaml repository field — KISS
-# (oci://ghcr.io/klantinteractie-servicesysteem) is developed by ICATT
-# (org "icatt-menselijk-digitaal" on GitHub/GHCR — see
-# docs/apps/kiss/kiss-BASICS.md and the podiumd-adapter image repository),
-# but neither appears in KISS's own repository URL, only in prose/its own
-# sub-chart's image override. Keyed by chart name (alias if the dependency
-# has one, matching how "# Source:" paths are built — see
-# chart_name_from_source).
-FRIENDLY_VENDOR_CHART_OVERRIDES = {
-    "kiss": "ICATT",
-}
-
-
-def resolve_dependency_repo(repository):
+def resolve_dependency_repo(repository, required_repos):
+    """`repository` (a Chart.yaml dependency's `repository:` field), with
+    an "@alias" resolved to its real URL via `required_repos` (see
+    lib.settings.helm_repos_urls_by_alias) — anything else (a plain
+    https:// URL, an oci:// registry ref, a "file://" local dependency)
+    passes through unchanged."""
     if repository.startswith("@"):
-        return REQUIRED_REPOS.get(repository[1:], repository)
+        return required_repos.get(repository[1:], repository)
     return repository
 
 
 def friendly_vendor_charts(chart_dir):
     """Chart name -> vendor label, for every Chart.yaml dependency whose
-    (resolved) repository matches a FRIENDLY_VENDOR_KEYWORDS entry, plus the
-    FRIENDLY_VENDOR_CHART_OVERRIDES exceptions that can't be derived that
-    way, plus any "file://" dependency — a local sub-chart living in this
-    same monorepo (e.g. mi-data) isn't a "vendor" at all and is trivially
-    fixable here, so it gets the same per-item visibility. Chart name is
-    the dependency's alias if it has one, else its name — matching how
-    Helm names the charts/<name>/ directory a "# Source:" path is rooted
-    at."""
+    (resolved) repository matches a vendor_classification.keywords entry
+    (see lib.settings.vendor_classification_keywords — vendored sub-charts
+    from these upstream orgs are close/collaborative dependencies, Dutch
+    govtech partners in the same "common ground" ecosystem this repo
+    lives in, worth seeing individual findings for even though this repo
+    still can't directly fix their code; matched case-insensitively as a
+    substring of the dependency's resolved repository, an "@alias" first
+    resolved via required_repos since e.g. "@zac" itself doesn't contain
+    "infonl" — only its resolved URL does; every other vendored sub-chart
+    — elastic, redis-operator, keycloak-operator, openbao, ... — stays
+    aggregate-count-only: harder to act on, not worth the extra detail),
+    plus the vendor_classification.chart_overrides exceptions that can't
+    be derived that way (see lib.settings.
+    vendor_classification_chart_overrides — e.g. "kiss" can't be derived
+    from its own Chart.yaml repository field: KISS (oci://ghcr.io/
+    klantinteractie-servicesysteem) is developed by ICATT (org
+    "icatt-menselijk-digitaal" on GitHub/GHCR — see docs/apps/kiss/
+    kiss-BASICS.md and the podiumd-adapter image repository), but neither
+    appears in KISS's own repository URL, only in prose/its own
+    sub-chart's image override), plus any "file://" dependency — a local
+    sub-chart living in this same monorepo (e.g. mi-data) isn't a
+    "vendor" at all and is trivially fixable here, so it gets the same
+    per-item visibility. Chart name is the dependency's alias if it has
+    one, else its name — matching how Helm names the charts/<name>/
+    directory a "# Source:" path is rooted at, and how chart_overrides is
+    keyed (matching chart_name_from_source)."""
+    required_repos = helm_repos_urls_by_alias(chart_dir)
+    keywords = vendor_classification_keywords(chart_dir)
+    chart_overrides = vendor_classification_chart_overrides(chart_dir)
+
     chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
     deps = chart_yaml.get("dependencies", [])
     dep_chart_names = {dep.get("alias", dep["name"]) for dep in deps}
@@ -263,15 +241,15 @@ def friendly_vendor_charts(chart_dir):
     # Only apply an override for a chart that's actually a dependency here
     # — otherwise a name collision with some unrelated future dependency
     # would silently inherit an override meant for a specific chart.
-    mapping = {name: vendor for name, vendor in FRIENDLY_VENDOR_CHART_OVERRIDES.items()
+    mapping = {name: vendor for name, vendor in chart_overrides.items()
                if name in dep_chart_names}
     for dep in deps:
         chart_name = dep.get("alias", dep["name"])
-        repo = resolve_dependency_repo(dep.get("repository", ""))
+        repo = resolve_dependency_repo(dep.get("repository", ""), required_repos)
         if repo.startswith("file://"):
             mapping[chart_name] = "Local"
             continue
-        for keyword, vendor in FRIENDLY_VENDOR_KEYWORDS.items():
+        for keyword, vendor in keywords.items():
             if keyword in repo.lower():
                 mapping[chart_name] = vendor
                 break

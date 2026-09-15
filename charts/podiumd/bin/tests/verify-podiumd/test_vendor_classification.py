@@ -33,12 +33,15 @@ def test_alias_used_as_chart_name_not_dependency_name(vp, librenderscope, tmp_pa
 
 
 def test_at_alias_repository_resolved_via_required_repos(librenderscope, tmp_path):
-    """"@zac" itself doesn't contain "infonl" — only REQUIRED_REPOS'
-    resolved URL (https://infonl.github.io/dimpact-zaakafhandelcomponent/)
-    does, so resolution must happen before keyword matching."""
+    """"@zac" itself doesn't contain "infonl" — only helm_repos_urls_by_
+    alias' resolved URL (https://infonl.github.io/
+    dimpact-zaakafhandelcomponent/) does, so resolution must happen before
+    keyword matching. tmp_path has no settings.yaml, so this exercises the
+    hard-coded default."""
+    required_repos = librenderscope.helm_repos_urls_by_alias(tmp_path)
     assert "infonl" not in "@zac"
-    assert "zac" in librenderscope.REQUIRED_REPOS
-    assert "infonl" in librenderscope.REQUIRED_REPOS["zac"].lower()
+    assert "zac" in required_repos
+    assert "infonl" in required_repos["zac"].lower()
     write_chart_yaml(tmp_path, [
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0", "repository": "@zac"},
     ])
@@ -68,7 +71,7 @@ def test_dimpact_alias_classified_as_dimpact(vp, librenderscope, tmp_path):
 
 def test_kiss_chart_overridden_to_icatt_despite_unmatching_repository(vp, librenderscope, tmp_path):
     """kiss-chart's own repository (oci://ghcr.io/klantinteractie-servicesysteem)
-    contains none of the FRIENDLY_VENDOR_KEYWORDS — ICATT authorship can
+    contains none of vendor_classification.keywords — ICATT authorship can
     only be known from docs, so it's a hardcoded override."""
     write_chart_yaml(tmp_path, [
         {"name": "kiss-chart", "alias": "kiss", "version": "1.0.0",
@@ -125,6 +128,6 @@ def test_full_real_dependency_set_matches_expected_mapping(vp, librenderscope, t
         "kiss": "ICATT",
         "omc": "Worth",
     }
-    # deliberately NOT classified — not in FRIENDLY_VENDOR_KEYWORDS/OVERRIDES
+    # deliberately NOT classified — not in vendor_classification.keywords/chart_overrides
     for unclassified in ("keycloak-operator", "clamav", "ita", "pabc", "redis-operator", "eck-operator", "openbao"):
         assert unclassified not in librenderscope.friendly_vendor_charts(tmp_path)
