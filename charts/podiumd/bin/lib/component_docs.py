@@ -321,6 +321,14 @@ def baseline_doc_paths(doc_dir, upgrade_docs_baseline, target):
 # same fresh-create for whichever were never scaffolded at all).
 STANDARD_SUFFIXES = ("upgrade", "gemeente-specific", "values-deltas")
 
+# The exact bare placeholder line each stub below writes for a section
+# that has no real content yet — shared with insert_changes_section/
+# insert_values_delta_section's own "is this JUST the stub, nothing else"
+# check (_is_bare_todo_stub/_is_bare_values_deltas_todo_stub) so the two
+# can never independently drift out of sync with what's actually written.
+UPGRADE_CHANGES_STUB_TODO_LINE = "TODO\n"
+VALUES_DELTAS_STUB_TODO_LINE = "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
+
 STUB_TEMPLATES = {
     "upgrade": (
         "# Upgrade guide: PodiumD {upgrade_docs_baseline} → {target}\n\n"
@@ -331,7 +339,7 @@ STUB_TEMPLATES = {
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n\n"
         "## Changes\n\n"
-        "TODO\n"
+        + UPGRADE_CHANGES_STUB_TODO_LINE
     ),
     "gemeente-specific": (
         "# Gemeente-specific notes — PodiumD {upgrade_docs_baseline} → {target}\n\n"
@@ -347,7 +355,7 @@ STUB_TEMPLATES = {
     ),
     "values-deltas": (
         "# Values deltas — PodiumD {upgrade_docs_baseline} → {target}\n\n"
-        "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
+        + VALUES_DELTAS_STUB_TODO_LINE
     ),
 }
 
@@ -660,6 +668,20 @@ def make_changes_section(friendly, target, chart_name, values_key, old_app, new_
     return "".join(lines)
 
 
+def _is_bare_todo_stub(lines, start, end):
+    """True if lines[start:end] (the span between "## Changes" and
+    whatever follows) contains nothing but blank lines and exactly one
+    line matching UPGRADE_CHANGES_STUB_TODO_LINE — the exact placeholder
+    STUB_TEMPLATES["upgrade"] writes ("## Changes\n\nTODO\n") before any
+    real "### ..." block exists yet. Deliberately an exact-shape match,
+    not a substring/heuristic check for the word "TODO" — real,
+    human-written prose that happens to mention "TODO" alongside other
+    content (a real note to self, say) must never be silently deleted
+    just because it shares a word with the stub."""
+    non_blank = [line.strip() for line in lines[start:end] if line.strip()]
+    return non_blank == [UPGRADE_CHANGES_STUB_TODO_LINE.strip()]
+
+
 def insert_changes_section(text, section_text, friendly, deps, values, canonical_names=None):
     """Insert section_text as a new "### ..." block into the "## Changes"
     section, in values.yaml's own top-level component order relative to
@@ -669,7 +691,13 @@ def insert_changes_section(text, section_text, friendly, deps, values, canonical
     unprivileged") insert at its own real values.yaml position instead
     of always last — see component_order_key's own docstring. Appends
     right before the next "## " heading (or EOF) if the section doesn't
-    exist yet, or has no blocks of its own yet to compare against."""
+    exist yet, or has no blocks of its own yet to compare against — in
+    that latter case, first stripping the section's own bare "TODO"
+    placeholder (see _is_bare_todo_stub) if that's literally all that's
+    there, rather than leaving it stranded above the section actually
+    being inserted (real bug, confirmed live on 4.9.1-to-4.9.2-upgrade.md:
+    the stub was never cleared the moment the first real "### ..." block
+    landed)."""
     blocks = parse_upgrade_doc_changes_blocks(text)
     lines = text.splitlines(keepends=True)
     changes_idx = None
@@ -689,6 +717,9 @@ def insert_changes_section(text, section_text, friendly, deps, values, canonical
             break
 
     if not blocks:
+        if _is_bare_todo_stub(lines, changes_idx + 1, section_end):
+            del lines[changes_idx + 1:section_end]
+            section_end = changes_idx + 1
         insert_at = section_end
     else:
         key_order = values_key_order(values)
@@ -1014,6 +1045,17 @@ def find_values_delta_section(text, friendly, deps, canonical_names=None):
     return None
 
 
+def _is_bare_values_deltas_todo_stub(lines):
+    """True if `lines` (a whole values-deltas.md doc with no "## ..."
+    section yet) is JUST STUB_TEMPLATES["values-deltas"]'s own shape: its
+    "# Values deltas — ..." H1 title, then nothing but blank lines and
+    the bare TODO sentence that stub writes (VALUES_DELTAS_STUB_TODO_LINE)
+    — same exact-shape precision as _is_bare_todo_stub above, never a
+    substring/heuristic match."""
+    non_blank = [line.strip() for line in lines if line.strip()]
+    return len(non_blank) == 2 and non_blank[0].startswith("# ") and non_blank[1] == VALUES_DELTAS_STUB_TODO_LINE.strip()
+
+
 def insert_values_delta_section(text, friendly, heading_line, body_lines, deps, values, canonical_names=None):
     """Insert a brand-new "## <heading_line>" section (heading_line
     already includes its own trailing newline) + body_lines as its
@@ -1021,12 +1063,19 @@ def insert_values_delta_section(text, friendly, heading_line, body_lines, deps, 
     the "## " sections already there (see lib.upgradedoc.component_
     order_key/insertion_index) — not always at the end. Mirrors
     insert_changes_section's own positioning logic, one heading level
-    up (top-level "## " instead of "## Changes"'s own nested "### ...")."""
+    up (top-level "## " instead of "## Changes"'s own nested "### ..."),
+    including stripping the doc's own bare TODO placeholder (see
+    _is_bare_values_deltas_todo_stub) before the very first real section
+    lands, rather than leaving it stranded above it — the same class of
+    bug insert_changes_section had (see that function's own docstring)."""
     body = "".join(body_lines)
     section_text = heading_line + "\n" + body + ("\n" if body else "")
     sections = parse_values_delta_sections(text)
     lines = text.splitlines(keepends=True)
     if not sections:
+        if _is_bare_values_deltas_todo_stub(lines):
+            lines = [line for line in lines if line.strip() != VALUES_DELTAS_STUB_TODO_LINE.strip()]
+            text = "".join(lines)
         if text and not text.endswith("\n\n"):
             text = text.rstrip("\n") + "\n\n"
         return text + section_text
