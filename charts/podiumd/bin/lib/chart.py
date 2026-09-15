@@ -1437,6 +1437,97 @@ def historical_app_version_for_path(chart_dir, deps, values, path, at_or_before=
     return historical_app_version_for_repository(chart_dir, repo, at_or_before, expected_url=expected_url)
 
 
+def baseline_tag_for_sidecar_path(chart_dir, deps, target_values, baseline_values, baseline_paths,
+                                   baseline_repo_groups, path):
+    """The baseline (pre-upgrade) tag for a sidecar/shared-image (or
+    registered bare-version, see below) values-tree `path`, tried in two
+    tiers — the one place lib.image_docs.add_missing_sidecar_rows' own
+    "Component versions" table row, lib.upgradedoc.resolve_component_
+    row's own "### ..." Changes heading, and fix-doc-consistency's own
+    add_missing_images_manifest_entries (the images-<target>.yaml entry
+    comment) all resolve a path's baseline tag, so the three can't
+    quietly drift apart on what a path's real baseline version is again
+    — they already had: add_missing_sidecar_rows grew this same two-tier
+    lookup inline first (podiumd 4.9.1's postgres consolidation, below),
+    while the other two still only ever tried an exact-path lookup
+    before falling through to historical_app_version_for_path — so the
+    "Component versions" table row for a moved shared image resolved a
+    real prior version, but that same row's own Changes heading and its
+    images-manifest entry comment (each generated from a SEPARATE
+    resolution) still rendered "(new)" for the exact same path.
+
+    1. EXACT path match: `baseline_paths` (the caller's OWN {path: tag}
+       map — see below) still pins `path` itself.
+    2. SAME REPOSITORY, different path: `path`'s own resolved repository
+       (against target_values — the CURRENT tree, since that's the
+       repository this path actually names today) already lives
+       somewhere else in baseline_values, under a different values-tree
+       path entirely. Real case: podiumd 4.9.1 consolidated two separate
+       postgres pins (keycloak-operator's own ensurePodiumdAdminUser job
+       and openbao's own schemaJob) into one new shared global.images.
+       postgres anchor — that exact path never existed in the baseline,
+       but the same "postgres" repository already did, elsewhere in the
+       tree (openbao.database.schemaJob.image).
+
+       Cross-checked against `path`'s own CURRENT fully-qualified
+       repository (lib.chart.full_repository_for_path) — never a bare
+       stripped-name coincidence, see that function's own docstring for
+       why. More than one baseline path can share the exact same
+       repository (several components' own sidecars all aliasing one
+       shared anchor) — picked via repo_group_representative, the same
+       tie-break every other repository-group caller here already uses.
+
+    `baseline_paths` ({path: tag}) and `baseline_repo_groups`
+    ({repository: [path, ...]}, i.e. paths_by_repository(chart_dir,
+    deps, baseline_values, baseline_paths.keys())) are the caller's own,
+    computed once up front and passed in here rather than re-derived per
+    path/per call — chart.py has no repository-agnostic "every image tag
+    path in this values tree" walk of its own (that's lib.upgradedoc.
+    find_image_tag_paths'/find_all_image_and_version_paths' job, one
+    layer up, alongside global_image_paths, already used by every
+    caller to build these). `baseline_paths` is deliberately used for
+    the EXACT match too (tier 1), rather than a fresh get_path call on
+    baseline_values here — the one lookup shape that works unchanged
+    whether `path` ends in an ordinary "...Image" tag key (get_path +
+    ".tag" would apply) or is one of fix-doc-consistency's own
+    registered bare COMPONENT_VERSION_PATHS fields (find_component_
+    version_tags — a flat scalar sibling field, no ".tag" to append at
+    all), since both already collapse to the exact same {path: value}
+    shape in the caller's own current_paths/baseline_paths maps.
+
+    Returns None when NEITHER tier finds anything — the caller's own
+    historical_app_version_for_path (past images-<version>.yaml
+    manifest) fallback is a deliberately separate, subsequent step, not
+    folded in here: an unrelated question ("did this repository ever
+    appear in a past RELEASED document") from "does baseline_values'
+    CURRENT tree already pin it elsewhere)."""
+    if not baseline_values:
+        return None
+    exact_tag = baseline_paths.get(path)
+    if isinstance(exact_tag, str) and exact_tag:
+        return exact_tag.split("@", 1)[0]
+    repo_groups = paths_by_repository(chart_dir, deps, target_values, [path])
+    repo = next(iter(repo_groups), None)
+    candidates = baseline_repo_groups.get(repo) if repo is not None else None
+    if not candidates:
+        return None
+    # Cross-checked against the CURRENT path's own fully-qualified
+    # repository — never trusting the raw, possibly-collided stripped
+    # name alone — the same "don't trust a stripped-name coincidence"
+    # reasoning historical_app_version_for_repository's own expected_url
+    # cross-check uses, just applied against baseline_values here
+    # instead of a past images-<version>.yaml manifest.
+    expected_url = full_repository_for_path(chart_dir, deps, target_values, path)
+    matching = [p for p in candidates
+                if expected_url is not None
+                and full_repository_for_path(chart_dir, deps, baseline_values, p) == expected_url]
+    if not matching:
+        return None
+    representative = repo_group_representative(matching, deps)
+    representative_tag = baseline_paths.get(representative)
+    return representative_tag.split("@", 1)[0] if representative_tag else None
+
+
 def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
     """{strip_registry_host(repository): values-tree path} — paths_by_
     repository's own per-repository groups, collapsed to each group's
