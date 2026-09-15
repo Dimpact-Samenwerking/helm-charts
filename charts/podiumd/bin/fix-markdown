@@ -103,7 +103,7 @@ def main():
 
     # md031's FIX action (not its detection) has a confirmed crash bug on at
     # least one real doc here — see module docstring.
-    disabled_rules = quality_gates_markdown_disabled_rules(CHART_DIR) + ",md031"
+    disabled_rules = ",".join(quality_gates_markdown_disabled_rules(CHART_DIR) + ["md031"])
 
     if dry_run:
         changed = dry_run_fix(pymarkdown, files, CHART_DIR, disabled_rules)

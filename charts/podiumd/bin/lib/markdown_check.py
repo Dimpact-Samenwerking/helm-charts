@@ -146,7 +146,7 @@ def check_markdown(chart_dir):
         print("OK: no markdown files found")
         return True, "no markdown files"
 
-    disabled_rules = quality_gates_markdown_disabled_rules(chart_dir)
+    disabled_rules = ",".join(quality_gates_markdown_disabled_rules(chart_dir))
     result = run([pymarkdown, "-d", disabled_rules, *MARKDOWN_PLUGIN_SETTINGS,
                   "scan", *[str(f) for f in files]],
                  capture_output=True, text=True)

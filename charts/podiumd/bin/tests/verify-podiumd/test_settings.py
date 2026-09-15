@@ -44,7 +44,7 @@ FULL_SETTINGS = {
         "shellcheck_failing_levels": ["error"],
         "shellcheck_shell_names": ["sh", "bash"],
         "yamllint_failing_rules": ["syntax"],
-        "markdown_disabled_rules": "md013",
+        "markdown_disabled_rules": ["md013"],
         "kube_score_check_id": "custom-check",
     },
     "helm_doc": {
@@ -81,7 +81,7 @@ ACCESSOR_CASES = [
     ("quality_gates_shellcheck_failing_levels", {"error", "warning"}, {"error"}, set),
     ("quality_gates_shellcheck_shell_names", {"sh", "bash", "dash", "ksh"}, {"sh", "bash"}, set),
     ("quality_gates_yamllint_failing_rules", {"key-duplicates", "syntax"}, {"syntax"}, set),
-    ("quality_gates_markdown_disabled_rules", "md013,md014", "md013", None),
+    ("quality_gates_markdown_disabled_rules", ["md013", "md014"], ["md013"], list),
     ("quality_gates_kube_score_check_id", "container-resources", "custom-check", None),
     ("helm_doc_max_diff_lines_shown", 40, 100, None),
 ]

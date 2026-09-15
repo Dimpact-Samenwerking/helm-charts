@@ -74,7 +74,7 @@ quality_gates:
   # embedded shell script at all (this chart's own command/args convention).
   shellcheck_shell_names: ["sh", "bash", "dash", "ksh"]
   yamllint_failing_rules: ["key-duplicates", "syntax"]
-  markdown_disabled_rules: "md013,md014"
+  markdown_disabled_rules: ["md013", "md014"]
   # The only kube-score check this repo has a documented policy for --
   # every other kube-score opinion (NetworkPolicy, ImagePullPolicy,
   # SecurityContext, ...) is ignored (67+ unrelated findings otherwise).
