@@ -14,10 +14,10 @@ either dict's own comments — e.g. kiss-chart's frontend "image" + its
 own settings.syncJobs.image, eck-stack's eck-elasticsearch.version +
 eck-kibana.version) must agree on ONE version.
 
-find_chart_version_mismatches — every CHART_VERSION_LOCKSTEP_COMPONENTS
-entry (lib.chart's signal that a component's Chart.yaml dependency
-version and its own resolved app image version are released as the
-SAME number) must agree with each other.
+find_chart_version_mismatches — every lib.chart.chart_version_lockstep_
+components() entry (settings.yaml's own signal that a component's
+Chart.yaml dependency version and its own resolved app image version
+are released as the SAME number) must agree with each other.
 
 These are genuinely different things being checked, not two flavors of
 the same one: find_lockstep_mismatches compares several values-tree
@@ -32,7 +32,7 @@ sharing a version number is normal and not a mismatch — the exact
 opposite mistake same_group's own docstring already warns against (the
 kiss/kiss-elastic-sync precedent)."""
 from lib.chart import (
-    CHART_VERSION_LOCKSTEP_COMPONENTS, COMPONENT_IMAGE_PATHS, COMPONENT_VERSION_PATHS, find_dependency, get_path,
+    COMPONENT_IMAGE_PATHS, COMPONENT_VERSION_PATHS, chart_version_lockstep_components, find_dependency, get_path,
     image_paths_for, load_yaml, version_of, version_paths_for,
 )
 
@@ -81,8 +81,8 @@ def find_lockstep_mismatches(deps, values):
 
 def find_chart_version_mismatches(deps, values):
     """[(component, values_key, chart_version, app_version)] for every
-    CHART_VERSION_LOCKSTEP_COMPONENTS entry whose Chart.yaml dependency
-    "version:" disagrees with its own resolved app version. Resolution
+    lib.chart.chart_version_lockstep_components() entry whose Chart.yaml
+    dependency "version:" disagrees with its own resolved app version. Resolution
     order — first image_paths_for(component) candidate with a real tag,
     else first version_paths_for(component) candidate with a real value
     — is the exact same "first candidate wins" order lib.upgradedoc.
@@ -94,7 +94,7 @@ def find_chart_version_mismatches(deps, values):
     compare, so it's skipped, not reported. Same for a registered
     component with no matching Chart.yaml dependency at all."""
     findings = []
-    for component in sorted(CHART_VERSION_LOCKSTEP_COMPONENTS):
+    for component in sorted(chart_version_lockstep_components()):
         dep = find_dependency(deps, component)
         if dep is None:
             continue
@@ -148,7 +148,7 @@ def check_lockstep_versions(chart_dir):
 
     if chart_version_mismatches:
         print(f"Found {len(chart_version_mismatches)} component(s) whose Chart.yaml version disagrees with its "
-              f"own image version (see lib.chart.CHART_VERSION_LOCKSTEP_COMPONENTS):")
+              f"own image version (see lib.chart.chart_version_lockstep_components()):")
         for component, values_key, chart_version, app_version in chart_version_mismatches:
             print(f"  {component}: Chart.yaml version {chart_version} != {values_key} image version {app_version}")
 

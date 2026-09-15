@@ -57,6 +57,9 @@ FULL_SETTINGS = {
     "helm_repos": {
         "urls_by_alias": {"zac": "https://example.invalid/zac/"},
     },
+    "component_resolution": {
+        "chart_version_lockstep_components": ["kiss-chart", "pabc"],
+    },
 }
 
 
@@ -107,6 +110,8 @@ ACCESSOR_CASES = [
       "worth-nl": "https://worth-nl.github.io/helm-charts",
       "opstree": "https://ot-container-kit.github.io/helm-charts/"},
      {"zac": "https://example.invalid/zac/"}, dict),
+    ("component_resolution_chart_version_lockstep_components",
+     frozenset({"kiss-chart", "pabc", "eck-operator"}), frozenset({"kiss-chart", "pabc"}), frozenset),
 ]
 
 

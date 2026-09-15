@@ -147,3 +147,11 @@ release_table_verification:
   # DIFFERENT component's own subtree than its release-table row name.
   special_case_basename_tag_paths:
     "keycloak": "keycloak-operator.operator.config.keycloakImage.tag"
+
+component_resolution:
+  # Component names whose Chart.yaml dependency chart version and their
+  # own resolved app image version are released as the SAME number (e.g.
+  # kiss-chart, pabc: chart version == image tag observed today) -- never
+  # assumed for a component that vendors a THIRD PARTY app at its own
+  # independent version (keycloak-operator, eck-stack).
+  chart_version_lockstep_components: ["kiss-chart", "pabc", "eck-operator"]
