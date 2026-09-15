@@ -4,7 +4,7 @@
 # operator can retune one without touching code (see lib/settings.py).
 
 cve_scan:
-  high_severity_levels: [CRITICAL, HIGH]
+  high_severity_levels: ["CRITICAL", "HIGH"]
   max_cves_per_package_before_summarizing: 5
   # Long enough that a routine run doesn't re-pull/re-scan every image
   # every time; short enough that a stale "no findings" cache entry
@@ -30,7 +30,7 @@ repo_access:
   # again soon.
   cache_ttl_minutes: 30
   request_timeout_seconds: 10
-  never_probe_host_suffixes: [azurecr.io]
+  never_probe_host_suffixes: ["azurecr.io"]
 
 render_report:
   top_n_largest_templates_shown: 5
@@ -66,19 +66,19 @@ quality_gates:
   # schema-fetch network failure; statusInvalid is a genuine schema
   # violation. statusSkipped (no schema, expected for CRDs) and
   # statusValid are not findings at all.
-  kubeconform_failing_statuses: [statusError, statusInvalid]
+  kubeconform_failing_statuses: ["statusError", "statusInvalid"]
   # error/warning are shellcheck's own "likely a real bug" tiers; info/style
   # are cosmetic suggestions and are never reported at all.
-  shellcheck_failing_levels: [error, warning]
+  shellcheck_failing_levels: ["error", "warning"]
   # A container's `command` must invoke one of these to be treated as an
   # embedded shell script at all (this chart's own command/args convention).
-  shellcheck_shell_names: [sh, bash, dash, ksh]
-  yamllint_failing_rules: [key-duplicates, syntax]
+  shellcheck_shell_names: ["sh", "bash", "dash", "ksh"]
+  yamllint_failing_rules: ["key-duplicates", "syntax"]
   markdown_disabled_rules: "md013,md014"
   # The only kube-score check this repo has a documented policy for --
   # every other kube-score opinion (NetworkPolicy, ImagePullPolicy,
   # SecurityContext, ...) is ignored (67+ unrelated findings otherwise).
-  kube_score_check_id: container-resources
+  kube_score_check_id: "container-resources"
 
 helm_doc:
   # Past this many diff lines, printing every one stops being useful (a
