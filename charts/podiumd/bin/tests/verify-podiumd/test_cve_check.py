@@ -165,6 +165,97 @@ def test_run_trivy_unparseable_output_returns_none(libcvecheck, monkeypatch):
     assert libcvecheck.run_trivy("org/repo:1.0.0") is None
 
 
+# --- scan_cached (the shared primitive check_cves and lib.cve_diff_check
+# both route through) ---
+
+def test_scan_cached_reports_a_hit_and_never_calls_run_trivy(libcvecheck, tmp_path, monkeypatch, capsys):
+    key = libcvecheck.cache_key("org/repo", DIGEST_A)
+    cached_entry = {"scanned_at": datetime.now(timezone.utc).isoformat(),
+                    "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-CACHED"))]}
+    old_cache = {key: cached_entry}
+    new_cache = {}
+
+    def fail_if_called(ref):
+        raise AssertionError("a cache hit must never call run_trivy")
+
+    monkeypatch.setattr(libcvecheck, "run_trivy", fail_if_called)
+
+    vulns, was_cached = libcvecheck.scan_cached(
+        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, new_cache, label="current")
+
+    assert was_cached is True
+    assert vulns == cached_entry["vulnerabilities"]
+    assert new_cache[key] == cached_entry  # carried forward, so it survives the cache-pruning save
+    out = capsys.readouterr().out
+    assert "current: served from cache — org/repo:1.0.0" in out
+
+
+def test_scan_cached_reports_a_fresh_scan_and_writes_the_cache(libcvecheck, tmp_path, monkeypatch, capsys):
+    old_cache = {}
+    new_cache = {}
+    fresh_vulns = [trimmed(vuln("HIGH", cve="CVE-FRESH"))]
+    monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: fresh_vulns)
+
+    vulns, was_cached = libcvecheck.scan_cached(
+        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, new_cache, label="proposed")
+
+    assert was_cached is False
+    assert vulns == fresh_vulns
+    key = libcvecheck.cache_key("org/repo", DIGEST_A)
+    assert new_cache[key]["vulnerabilities"] == fresh_vulns
+    assert libcvecheck.load_cache(tmp_path)[key]["vulnerabilities"] == fresh_vulns  # persisted, not just in-memory
+    out = capsys.readouterr().out
+    assert "proposed: scanning fresh (docker pull + trivy) — org/repo:1.0.0..." in out
+
+
+def test_scan_cached_stale_entry_is_not_used(libcvecheck, tmp_path, monkeypatch):
+    key = libcvecheck.cache_key("org/repo", DIGEST_A)
+    stale = datetime.now(timezone.utc) - timedelta(days=libcvecheck.CVE_CACHE_TTL_DAYS + 1)
+    old_cache = {key: {"scanned_at": stale.isoformat(), "vulnerabilities": [trimmed(vuln("CRITICAL"))]}}
+    fresh_vulns = [trimmed(vuln("HIGH", cve="CVE-FRESH"))]
+    monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: fresh_vulns)
+
+    vulns, was_cached = libcvecheck.scan_cached(tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, {})
+
+    assert was_cached is False
+    assert vulns == fresh_vulns
+
+
+def test_scan_cached_none_digest_skips_the_cache_entirely(libcvecheck, tmp_path, monkeypatch):
+    """A digest=None candidate (an unresolved proposed tag, see lib.
+    cve_diff_check._scan_proposed) must go straight to run_trivy — no
+    cache read, and no cache write either, since there's no digest to
+    key it by."""
+    calls = []
+    monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: (calls.append(ref), [])[1])
+    new_cache = {}
+
+    vulns, was_cached = libcvecheck.scan_cached(tmp_path, "org/repo", None, "org/repo:1.0.0", {}, new_cache)
+
+    assert was_cached is False
+    assert vulns == []
+    assert calls == ["org/repo:1.0.0"]
+    assert new_cache == {}
+
+
+def test_scan_cached_failed_scan_returns_none_and_is_never_cached(libcvecheck, tmp_path, monkeypatch):
+    monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: None)
+    new_cache = {}
+
+    vulns, was_cached = libcvecheck.scan_cached(tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", {}, new_cache)
+
+    assert vulns is None
+    assert was_cached is False
+    assert new_cache == {}
+
+
+def test_scan_cached_default_label_is_this_image(libcvecheck, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: [])
+    libcvecheck.scan_cached(tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", {}, {})
+    out = capsys.readouterr().out
+    assert "this image: scanning fresh" in out
+
+
 # --- classification ---
 
 def test_classify_source_own(libcvecheck):
@@ -343,11 +434,14 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
     assert "CVE-OTHER-1" not in out  # totals only by default, no individual CVE IDs
 
     # a per-image progress line for each of the 3 (uncached) scans, so a
-    # slow trivy pull doesn't look like the step hung
-    scan_lines = [line for line in out.splitlines() if "scanning" in line and "docker pull + trivy" in line]
+    # slow trivy pull doesn't look like the step hung -- same "this
+    # image: scanning fresh (docker pull + trivy) -- <ref>..." wording
+    # lib.cve_diff_check's own current/proposed lines use, via the same
+    # shared lib.cve_check.scan_cached.
+    scan_lines = [line for line in out.splitlines() if "scanning fresh" in line and "docker pull + trivy" in line]
     assert len(scan_lines) == 3
-    assert any(line.startswith("  [1/3] scanning ") for line in scan_lines)
-    assert any(line.startswith("  [3/3] scanning ") for line in scan_lines)
+    assert any(line.startswith("  [1/3] this image: scanning fresh ") for line in scan_lines)
+    assert any(line.startswith("  [3/3] this image: scanning fresh ") for line in scan_lines)
 
 
 def test_check_cves_marks_upgradable_from_image_upgrade_cache(

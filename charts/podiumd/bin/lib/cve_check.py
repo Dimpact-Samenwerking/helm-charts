@@ -192,6 +192,54 @@ def run_trivy(image_ref):
     return vulns
 
 
+def scan_cached(chart_dir, repository, digest, ref, old_cache, new_cache, label="this image"):
+    """Scan `ref` via trivy, reusing THIS module's own digest-keyed
+    cve-scan-cache.json whenever `digest` (bare hex, no "sha256:" prefix)
+    is known — the one shared "look up this (repository, digest) in the
+    cache; if fresh, report a cache hit and return the cached
+    vulnerabilities; otherwise announce a fresh scan, run_trivy, cache
+    the result, and return it" primitive both check_cves' own per-image
+    loop (below) and lib.cve_diff_check's own current/proposed scans
+    route through — the two used to each hand-roll this same logic
+    separately. `digest=None` skips the cache tier entirely, straight to
+    run_trivy — used by cve_diff_check for a proposed tag whose digest
+    couldn't be resolved; never persisted either, since there's no digest
+    to key it by.
+
+    `label` prefixes the printed cache-hit/fresh-scan line, so each
+    caller can tell its own calls apart in the output: cve_diff_check
+    passes "current"/"proposed" (two scans per candidate, needing a side
+    label); check_cves passes its own "[i/N] this image" (one scan per
+    image, no side to distinguish, but still wants its own progress
+    index) — the default "this image" is just a sane fallback for a
+    caller that doesn't need either.
+
+    Returns (vulnerabilities, was_cached) on success — was_cached tells a
+    caller like check_cves whether to count this toward its own aggregate
+    cache-hit total, without re-deriving that from scratch. Returns
+    (None, False) if trivy's own scan failed or produced unparseable
+    output; a failure is never cached (either tier), so a caller can
+    freely retry it on the next run rather than a failure being wrongly
+    remembered as a real (empty) result."""
+    key = cache_key(repository, digest) if digest is not None else None
+    if key is not None:
+        cached = old_cache.get(key)
+        if cached and cache_entry_is_fresh(cached):
+            new_cache[key] = cached
+            print(f"  {label}: served from cache — {ref}")
+            return cached["vulnerabilities"], True
+
+    print(f"  {label}: scanning fresh (docker pull + trivy) — {ref}...", flush=True)
+    vulns = run_trivy(ref)
+    if vulns is None:
+        return None, False
+
+    if key is not None:
+        new_cache[key] = {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": vulns}
+        save_cache(chart_dir, new_cache)  # persist incrementally — a scan sweep can be slow
+    return vulns, False
+
+
 # --- own/partner/other classification ---
 
 # Every "image:" line in a `helm template` render whose value is digest-
@@ -302,35 +350,24 @@ def check_cves(chart_dir, extra_args, detail=False):
     for i, ((repository, version), (digest, line)) in enumerate(targets, 1):
         host, repo_path = parse_repo(repository)
         image_ref = f"{host}/{repo_path}:{version}"
-        key = cache_key(repository, digest)
-        cached = old_cache.get(key)
 
         label = rendered_labels.get((repository, version, digest))
         if label is None:
             top_key = top_level_key_for_line(values_lines, line)
             label = classify_by_key(top_key, dep_names, vendor_map)
 
-        if cached and cache_entry_is_fresh(cached):
-            vulns = cached["vulnerabilities"]
+        # Per-image cache-hit/fresh-scan reporting and the actual cache
+        # read/write/scan is the exact same logic lib.cve_diff_check's
+        # own current/proposed scans need — see scan_cached's own
+        # docstring for why this is shared rather than reimplemented here.
+        vulns, was_cached = scan_cached(chart_dir, repository, digest, image_ref, old_cache, new_cache,
+                                         label=f"[{i}/{len(targets)}] this image")
+        if vulns is None:
+            scan_errors.append(image_ref)
+            print(f"  [SCAN-ERR] {image_ref}  trivy scan failed or produced unparseable output")
+            continue
+        if was_cached:
             cache_hits += 1
-            new_cache[key] = cached
-        else:
-            # The slow path — a cache hit is near-instant and stays silent
-            # here (same convention as before: only totaled in the final
-            # "N/M served from cache" line), but an actual docker pull +
-            # trivy scan can take a real while per image, so this is the
-            # one thing in the loop worth announcing as it starts.
-            print(f"  [{i}/{len(targets)}] scanning {image_ref} (docker pull + trivy)...", flush=True)
-            vulns = run_trivy(image_ref)
-            if vulns is None:
-                scan_errors.append(image_ref)
-                print(f"  [SCAN-ERR] {image_ref}  trivy scan failed or produced unparseable output")
-                continue
-            new_cache[key] = {
-                "scanned_at": datetime.now(timezone.utc).isoformat(),
-                "vulnerabilities": vulns,
-            }
-            save_cache(chart_dir, new_cache)  # persist incrementally — this sweep is slow
 
         upgrade_entry = upgrade_cache.get(upgrade_cache_key(repository, version))
         upgradable_to = None
