@@ -435,6 +435,34 @@ zac:
     assert "CVE-9" not in out
 
 
+# --- open_cache_session (shared with check_cves, see lib.cve_check) ---
+
+def test_check_cve_diff_routes_through_open_cache_session(
+        libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
+    write_values_yaml(tmp_path, f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zac
+    tag: "1.0.0@sha256:{DIGEST_A}"
+""")
+    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
+                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
+    monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr(libcvecheck, "run_trivy", make_run_trivy({}))
+
+    calls = []
+    real_open_cache_session = libcvediffcheck.open_cache_session
+
+    def spy(chart_dir_arg):
+        calls.append(chart_dir_arg)
+        return real_open_cache_session(chart_dir_arg)
+
+    monkeypatch.setattr(libcvediffcheck, "open_cache_session", spy)
+    libcvediffcheck.check_cve_diff(tmp_path, [])
+    assert calls == [tmp_path]
+
+
 # --- gather_candidates ---
 
 def test_gather_candidates_combines_both_sources(libcvediffcheck, tmp_path, monkeypatch):

@@ -155,6 +155,22 @@ def save_cache(chart_dir, cache):
     path.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
 
 
+def open_cache_session(chart_dir):
+    """(old_cache, new_cache) — old_cache is this run's read-only snapshot
+    (what a cache-hit check compares against); new_cache is a SEPARATE,
+    mutable copy scan_cached actually writes into and saves as the run
+    progresses. Both check_cves and lib.cve_diff_check.check_cve_diff
+    need exactly this same two-line "load, then start a correct working
+    copy" step — factored out here, the one place both now call, so
+    there's no second independently-written copy of it left to silently
+    diverge again (real bug, already happened once: check_cves used to
+    write new_cache = {} instead of dict(old_cache), which wiped out
+    every entry it didn't itself touch — including every cve_diff_check
+    "proposed"-side entry — the moment its own save_cache ran)."""
+    old_cache = load_cache(chart_dir)
+    return old_cache, dict(old_cache)
+
+
 def cache_key(repository, digest):
     return f"{repository}@sha256:{digest}"
 
@@ -337,8 +353,7 @@ def check_cves(chart_dir, extra_args, detail=False):
     values_lines = values_path.read_text(encoding="utf-8").splitlines()
     targets = sorted(unique_digest_pin_targets(values_lines).items())
 
-    old_cache = load_cache(chart_dir)
-    new_cache = dict(old_cache)
+    old_cache, new_cache = open_cache_session(chart_dir)
     cache_hits = 0
     upgrade_cache = load_upgrade_cache(chart_dir)
 
