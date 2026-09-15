@@ -19,7 +19,7 @@
 - name: nginxinc/nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
   version: "1.31.5"
-  digest: "sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"
+  digest: "sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"
 
 - name: curlimages/curl
   url: docker.io/curlimages/curl
@@ -194,7 +194,7 @@
 - name: library/solr
   url: docker.io/library/solr
   version: "9.10.1-slim"
-  digest: "sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb"
+  digest: "sha256:0a931f52cfd9a9afd6d958d246e64115648099c788e41a01adad9f09e6f73594"
 
 - name: lachlanevenson/k8s-kubectl
   url: docker.io/lachlanevenson/k8s-kubectl
@@ -224,7 +224,7 @@
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.5.4"
-  digest: "sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"
+  digest: "sha256:9cb27d7660bdf66e9878c832cb433dd8aa152cfbe16f3c2c0084c80b04ae22b4"
 
 - name: sergeymakinen/clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter
