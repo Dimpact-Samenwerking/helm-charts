@@ -233,20 +233,21 @@ def confluence_table_hint(rows, component):
     return GENERIC_TABLE_HINT
 
 
-def is_primary_image(component, lines, pin):
+def is_primary_image(component, lines, pin, chart_dir=None):
     """True if `pin` (one of basenames_under_scope_any_tag()'s own pins, with its
     own "line") sits at one of `component`'s own primary application
-    image path(s) — see lib.chart.image_paths_for/COMPONENT_IMAGE_PATHS/
-    DEFAULT_IMAGE_PATHS, the EXACT SAME registry update-component-
-    version's own <app-version> argument targets (via
-    update_values_yaml's "{values_key}.{path}.tag" — the same shape
-    reconstructed here from `pin`'s own line). DEFAULT_IMAGE_PATHS
-    (["image"]) covers the common single-image case; COMPONENT_IMAGE_
-    PATHS overrides it for a multi-image component like zgw-office-
-    addin's own frontend+backend (both primary), or keycloak-operator's
-    own non-standard split-path SERVER image (invisible to
-    basenames_under_scope in the first place, so never actually reaches
-    this check — see SPECIAL_CASE_BASENAME_TAG_PATHS instead).
+    image path(s) — see lib.chart.image_paths_for / settings.yaml's
+    component_resolution.image_paths/default_image_paths, the EXACT SAME
+    registry update-component-version's own <app-version> argument
+    targets (via update_values_yaml's "{values_key}.{path}.tag" — the
+    same shape reconstructed here from `pin`'s own line).
+    default_image_paths (["image"]) covers the common single-image case;
+    component_resolution.image_paths overrides it for a multi-image
+    component like zgw-office-addin's own frontend+backend (both
+    primary), or keycloak-operator's own non-standard split-path SERVER
+    image (invisible to basenames_under_scope in the first place, so
+    never actually reaches this check — see
+    SPECIAL_CASE_BASENAME_TAG_PATHS instead).
 
     Anything NOT in that list — a sidecar/init-container image nested
     elsewhere, e.g. "zac.opentelemetry-collector.image.tag" or
@@ -260,7 +261,7 @@ def is_primary_image(component, lines, pin):
     never checked for it."""
     path = dotted_key_path(lines, pin["line"] - 1).split(".")
     relative = ".".join(path[1:-1])
-    return relative in image_paths_for(component)
+    return relative in image_paths_for(component, chart_dir)
 
 
 def primary_image_basename(chart_dir, lines, scope_key, component, dep, values):
@@ -294,7 +295,7 @@ def primary_image_basename(chart_dir, lines, scope_key, component, dep, values):
     for's own paths are always distinct, but is never guessed at
     regardless."""
     primaries = {basename for basename, pins in basenames_under_scope_any_tag(lines, scope_key).items()
-                 if any(is_primary_image(component, lines, pin) for pin in pins)}
+                 if any(is_primary_image(component, lines, pin, chart_dir) for pin in pins)}
     if primaries:
         return next(iter(primaries)) if len(primaries) == 1 else None
     if dep is None:
@@ -728,7 +729,7 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
             tag = get_path(baseline_values, f"{scope_key}.{matching_paths[0]}.tag")
             return (version_of(tag) if isinstance(tag, str) and tag else None), None
         if error and all(not get_path(baseline_values, f"{scope_key}.{p}.repository")
-                          for p in image_paths_for(baseline_dep["name"])):
+                          for p in image_paths_for(baseline_dep["name"], chart_dir)):
             # No path resolved to `basename`, but the resolution itself
             # failed AND this dependency has no explicit override for
             # ANY of its own primary paths at this baseline — plausibly

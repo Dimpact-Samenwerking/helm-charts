@@ -4,6 +4,7 @@ deps/values/lines/rows, so these tests need neither a real Chart.yaml nor
 network access; main()'s own tests just cover its file-loading/CLI glue."""
 import io
 import tarfile
+from pathlib import Path
 
 import pytest
 import yaml
@@ -912,7 +913,7 @@ def test_compare_image_source_falls_back_to_vendored_subchart_default(vrt, monke
     rows = [csv_row("ClamAV", "clamav", image_basename="clamav", source_app="1.5.2", target_app="1.5.3",
                      source_helm="3.7.1", target_helm="3.9.0")]
     findings, _ = vrt.compare(
-        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir="/fake/chart/dir",
+        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir=Path("/fake/chart/dir"),
         baseline_deps=[baseline_dep], baseline_values=CLAMAV_BASELINE_VALUES,
         baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK))
     assert findings == {}
@@ -932,7 +933,7 @@ def test_compare_image_source_vendored_subchart_default_still_catches_mismatch(v
     rows = [csv_row("ClamAV", "clamav", image_basename="clamav", source_app="1.5.9", target_app="1.5.3",
                      source_helm="3.7.1", target_helm="3.9.0")]
     findings, _ = vrt.compare(
-        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir="/fake/chart/dir",
+        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir=Path("/fake/chart/dir"),
         baseline_deps=[baseline_dep], baseline_values=CLAMAV_BASELINE_VALUES,
         baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK))
     assert any("[IMAGE-SOURCE]" in m and "source 1.5.9" in m and "baseline subchart-default values.yaml 1.5.2" in m
@@ -954,7 +955,7 @@ def test_compare_image_source_vendored_subchart_default_resolution_failure_is_re
     rows = [csv_row("ClamAV", "clamav", image_basename="clamav", source_app="1.5.2", target_app="1.5.3",
                      source_helm="3.7.1", target_helm="3.9.0")]
     findings, _ = vrt.compare(
-        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir="/fake/chart/dir",
+        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir=Path("/fake/chart/dir"),
         baseline_deps=[baseline_dep], baseline_values=CLAMAV_BASELINE_VALUES,
         baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK))
     assert any("[IMAGE-SOURCE]" in m and "couldn't be resolved to verify" in m and
@@ -1330,7 +1331,7 @@ def test_compare_image_source_blank_but_unjustified_reports_presence_finding_sub
     rows = [csv_row("ClamAV", "clamav", image_basename="clamav", source_helm="3.7.1", target_app="1.5.3",
                      target_helm="3.9.0")]  # source_app blank
     findings, _ = vrt.compare(
-        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir="/fake/chart/dir",
+        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir=Path("/fake/chart/dir"),
         baseline_deps=[baseline_dep], baseline_values=CLAMAV_BASELINE_VALUES,
         baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK), baseline_only=True)
     assert any("[IMAGE-SOURCE-PRESENCE]" in m and "subchart-default values.yaml 1.5.2" in m

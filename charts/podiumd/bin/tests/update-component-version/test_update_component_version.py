@@ -353,15 +353,19 @@ def test_main_writes_both_files_when_verify_passes(ucv, tmp_path, monkeypatch):
 def test_main_alias_component_argument_bumps_all_registered_lockstep_paths(ucv, tmp_path, monkeypatch):
     """Regression test (real bug, confirmed live against the real chart):
     image_paths_for is keyed by the dependency's own Chart.yaml "name",
-    never its alias (see lib.chart.COMPONENT_IMAGE_PATHS) — this used to
-    pass the raw <component> CLI argument straight through to
-    image_paths_for(component) instead of the already-resolved
-    chart_name, so the ALIAS form ("kiss", the shorter, more natural one
-    every doc/script elsewhere in this chart uses) silently fell back to
-    the generic DEFAULT_IMAGE_PATHS = ["image"], bumping only kiss.image.
-    tag and leaving kiss.settings.syncJobs.image.tag — registered as a
-    co-equal lockstep path — completely untouched, with no error at
-    all."""
+    never its alias (see settings.yaml's component_resolution.image_
+    paths) — this used to pass the raw <component> CLI argument
+    straight through to image_paths_for(component) instead of the
+    already-resolved chart_name, so the ALIAS form ("kiss", the shorter,
+    more natural one every doc/script elsewhere in this chart uses)
+    silently fell back to the generic default_image_paths = ["image"],
+    bumping only kiss.image.tag and leaving kiss.settings.syncJobs.
+    image.tag — registered as a co-equal lockstep path — completely
+    untouched, with no error at all. No settings.yaml override needed
+    here — kiss-chart is already registered this way in the real
+    component_resolution.image_paths, which lib.settings falls back to
+    even with CHART_DIR pointed at this tmp_path (no etc/settings.yaml
+    under it)."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
@@ -394,7 +398,6 @@ def test_main_alias_component_argument_bumps_all_registered_lockstep_paths(ucv, 
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
     monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
     monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
-    monkeypatch.setattr("lib.chart.COMPONENT_IMAGE_PATHS", {"kiss-chart": ["image", "settings.syncJobs.image"]})
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
     monkeypatch.setattr("sys.argv", ["update-component-version", "kiss", "3.1.1", "3.1.1"])
@@ -492,12 +495,13 @@ def setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv):
     all (relies entirely on the vendored adfinis chart's own
     "{{ .Values.operator.image.tag | default .Chart.AppVersion }}" +
     matching "sha:" default — deliberately not managed by
-    update-component-version or lib.chart.COMPONENT_IMAGE_PATHS, since
-    an explicit override here would only reintroduce a way for tag and
-    digest to drift apart). operator.config.keycloakImage IS an explicit,
-    intentional override (a Keycloak server version ahead of this operator
-    chart version's own appVersion) — the one path this component's
-    COMPONENT_IMAGE_PATHS entry actually manages."""
+    update-component-version or settings.yaml's component_resolution.
+    image_paths, since an explicit override here would only reintroduce
+    a way for tag and digest to drift apart). operator.config.
+    keycloakImage IS an explicit, intentional override (a Keycloak
+    server version ahead of this operator chart version's own
+    appVersion) — the one path this component's component_resolution.
+    image_paths entry actually manages."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
@@ -678,20 +682,29 @@ def test_main_keycloak_operator_operator_image_gets_independent_digest_regressio
     """Regression test for real bug #1 (this iteration's plan): keycloak-
     operator.operator.image is now included in the write-side allowlist
     (settings.yaml's digest_pinning.exceptions, writable: true) — this
-    test registers it in lib.chart.COMPONENT_IMAGE_PATHS (the SEPARATE
-    registry controlling which paths update-component-version's own
-    <app-version> argument actually targets for this component; not
-    itself part of this iteration's fix, see the plan's own "no fix
-    needed" note there) so both operator.image and operator.config.
-    keycloakImage are bumped in the SAME run, each resolving its digest
-    against its OWN, independent repository (quay.io/keycloak/keycloak-
-    operator vs. quay.io/keycloak/keycloak) — mocking two DIFFERENT
-    registry responses and asserting each path gets its own correct
-    digest, never one bleeding into the other."""
+    test registers it via a real tmp_path/etc/settings.yaml override of
+    component_resolution.image_paths (the SEPARATE registry controlling
+    which paths update-component-version's own <app-version> argument
+    actually targets for this component; not itself part of this
+    iteration's fix, see the plan's own "no fix needed" note there) so
+    both operator.image and operator.config.keycloakImage are bumped in
+    the SAME run, each resolving its digest against its OWN, independent
+    repository (quay.io/keycloak/keycloak-operator vs. quay.io/keycloak/
+    keycloak) — mocking two DIFFERENT registry responses and asserting
+    each path gets its own correct digest, never one bleeding into the
+    other. A real settings.yaml file is used (not a monkeypatch of a raw
+    dict — that constant no longer exists); CHART_DIR is already
+    monkeypatched to this tmp_path by the setup helper above, so
+    image_paths_for(chart_name, CHART_DIR) picks it up."""
     chart_yaml, values_yaml, operator_old_digest = setup_keycloak_operator_repo_with_operator_image_tag(
         tmp_path, monkeypatch, ucv)
-    monkeypatch.setattr("lib.chart.COMPONENT_IMAGE_PATHS",
-                         {"keycloak-operator": ["operator.image", "operator.config.keycloakImage"]})
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    (tmp_path / "etc" / "settings.yaml").write_text(
+        "component_resolution:\n"
+        "  image_paths:\n"
+        "    keycloak-operator: [\"operator.image\", \"operator.config.keycloakImage\"]\n",
+        encoding="utf-8",
+    )
     mock_verify_passes(monkeypatch, ucv)
 
     operator_digest = "e" * 64
@@ -2081,8 +2094,9 @@ def _make_vendored_tgz(charts_dir, name, version, chart_yaml):
 def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(
         ucv, tmp_path, monkeypatch):
     """Regression test (real bug, real doc): openbao's own "server.image.
-    tag" is deliberately left blank at the baseline too (see lib.chart.
-    COMPONENT_IMAGE_PATHS["openbao"]'s own comment) — its real baseline
+    tag" is deliberately left blank at the baseline too (see settings.
+    yaml's component_resolution.image_paths["openbao"]'s own comment) —
+    its real baseline
     app version only resolves via the vendored-.tgz subchart_app_version
     fallback, which the raw baseline_values.yaml tag read used to never
     attempt. Its chart version (0.28.4) isn't bumped by this run either,
