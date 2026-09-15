@@ -121,6 +121,71 @@ def test_add_missing_sidecar_rows_global_row_inserted_at_its_own_position_not_la
     assert rows[2].startswith("| openzaak")
 
 
+def test_add_missing_sidecar_rows_same_repository_at_different_baseline_path_is_an_upgrade(
+        libimagedocs, tmp_path):
+    """Real case: podiumd 4.9.1 consolidated two separate postgres pins
+    (keycloak-operator's own ensurePodiumdAdminUser job, at 16.15, and
+    openbao's own schemaJob, at 16-alpine) into one new shared
+    global.images.postgres anchor at 16.15-alpine. That exact path
+    (global.images.postgres) never existed in the baseline values.yaml,
+    so an exact-path lookup alone finds nothing and used to render this
+    as brand new ("### postgres 16.15-alpine (new)"). But the SAME
+    "postgres" repository already existed in the baseline tree, at
+    openbao.database.schemaJob.image — that path's own baseline tag
+    (16-alpine) must be picked up as the true prior version instead,
+    rendering "16-alpine -> 16.15-alpine", never "(new)"."""
+    deps = [{"name": "openbao", "version": "2.0.0"}]
+    target_values = {
+        "global": {"images": {"postgres": {
+            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
+        "openbao": {"database": {"schemaJob": {"image": {
+            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}},
+    }
+    baseline_values = {
+        "openbao": {"database": {"schemaJob": {"image": {
+            "repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
+    }
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+    )
+
+    new_text, added = libimagedocs.add_missing_sidecar_rows(
+        text, tmp_path, deps, target_values, baseline_values, "4.9.1")
+
+    assert added == ["postgres"]
+    assert "| postgres | 16-alpine → 16.15-alpine | - | - |" in new_text
+    assert "### postgres 16-alpine → 16.15-alpine" in new_text
+    assert "(new)" not in new_text
+
+
+def test_add_missing_sidecar_rows_genuinely_new_repository_still_renders_new(libimagedocs, tmp_path):
+    """The flip side of the postgres case above: a repository that truly
+    never appeared anywhere in baseline_values (under ANY path) — no
+    same-repository fallback match, no historical manifest entry either
+    — must still render "(new)", not be mistaken for an upgrade."""
+    deps = [{"name": "redis-operator", "version": "1.0.0"}]
+    target_values = {
+        "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "1.0.0"}},
+        "global": {"images": {"redis": {"repository": "redis", "tag": "8.0@sha256:aaaa"}}},
+    }
+    baseline_values = {
+        "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "1.0.0"}},
+    }
+    text = (
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+    )
+
+    new_text, added = libimagedocs.add_missing_sidecar_rows(
+        text, tmp_path, deps, target_values, baseline_values, "4.9.1")
+
+    assert added == ["redis"]
+    assert "### redis 8.0 (new)" in new_text
+
+
 # --- make_image_changes_section ---
 
 def test_make_image_changes_section_lists_every_pinned_path(libimagedocs):
