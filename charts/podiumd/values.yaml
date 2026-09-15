@@ -24,9 +24,6 @@ global:
       repository: library/busybox
       tag: "1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
       pullPolicy: IfNotPresent
-    redis: &redisImage
-      repository: redis
-      tag: "8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"
 
 tags:
   eck-operator.enabled: false
@@ -732,8 +729,6 @@ openzaak:
     storageClassName: podiumd-standard
   image:
     tag: "1.29.3@sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 250m
@@ -983,8 +978,6 @@ opennotificaties:
     storageClassName: podiumd-standard
   image:
     tag: "1.16.2@sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 100m
@@ -1163,8 +1156,6 @@ objecten:
   image:
     repository: maykinmedia/objects-api
     tag: "3.6.2@sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 100m
@@ -1291,8 +1282,6 @@ objecttypen:
   image:
     repository: maykinmedia/objecttypes-api
     tag: "3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"
-  redis:
-    image: *redisImage
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1482,8 +1471,6 @@ openarchiefbeheer:
   image:
     #repository: maykinmedia/open-archiefbeheer
     tag: "2.0.0@sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
-  redis:
-    image: *redisImage
 
   resources:
     limits: {}
@@ -1647,8 +1634,6 @@ openklant:
   image:
     repository: maykinmedia/open-klant
     tag: "2.15.0@sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 100m
@@ -1887,8 +1872,6 @@ openformulieren:
     storageClassName: podiumd-standard
   image:
     tag: "3.5.6@sha256:f5a5d51a44f39edcfb2143ae5d2ed9525b22ea377faa35fd2cce26b678f7fe83"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 250m
@@ -2129,8 +2112,6 @@ openinwoner:
     storageClassName: podiumd-standard
   image:
     tag: "2.4.3@sha256:c2ff751143c260874a1ebcdcc7e07dc213cffee70c3ea5a9589948e3f5da43e4"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 200m
@@ -2324,8 +2305,6 @@ referentielijsten:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
     tag: "0.7.3@sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
-  redis:
-    image: *redisImage
 
   settings:
     allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
@@ -2453,8 +2432,6 @@ openbeheer:
     repository: maykinmedia/open-beheer
     pullPolicy: IfNotPresent
     tag: "0.9.1@sha256:7c1dfaff1d069afe5d45e421f813078d8112b13c3cf65b5f547e866f6aad4e31"
-  redis:
-    image: *redisImage
   nameOverride: openbeheer
   fullnameOverride: openbeheer
   securityContext:
