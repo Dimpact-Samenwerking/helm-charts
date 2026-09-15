@@ -812,6 +812,32 @@ def test_resolved_digest_pin_ordinary_path_with_no_digest_returns_none(libchart)
     assert libchart.resolved_digest_pin(values, ("openzaak", "image"), "1.29.3") is None
 
 
+def test_resolved_digest_pin_eck_operator_combines_sibling_digest_field(libchart):
+    """Regression test (real bug, real chart): eck-operator's own
+    upstream chart names its sibling field "digest:", not "sha:" — the
+    ONLY SPLIT_TAG_SHA_PATHS path that differs from the keycloak ones.
+    Confirms resolved_digest_pin looks up the correct per-path sibling
+    field NAME (SPLIT_TAG_SHA_PATHS.get(path)) rather than the old
+    hardcoded ".sha"."""
+    path = ("eck-operator", "image")
+    values = {"eck-operator": {"image": {
+        "tag": "3.5.0", "digest": "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"}}}
+
+    assert libchart.resolved_digest_pin(values, path, "3.5.0") == (
+        "3.5.0@sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314")
+
+
+def test_resolved_digest_pin_eck_operator_no_digest_override_returns_none(libchart):
+    """Same "vendored default, no podiumd override visible" shape as the
+    keycloak sha-less case above — eck-operator's own sibling "digest:"
+    field, when absent, still correctly falls through to None rather
+    than crashing on a missing key."""
+    path = ("eck-operator", "image")
+    values = {"eck-operator": {"image": {"tag": "3.5.0"}}}
+
+    assert libchart.resolved_digest_pin(values, path, "3.5.0") is None
+
+
 # --- find_images ---
 
 def test_find_images_nested_dict_and_list(libchart):

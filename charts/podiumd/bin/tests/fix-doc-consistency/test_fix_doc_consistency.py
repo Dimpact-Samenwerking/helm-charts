@@ -3344,6 +3344,35 @@ def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb, im
     assert new_text == text
 
 
+def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_resolves(
+        cdb, images_manifest_chart_dir):
+    """Regression test (real bug, real chart): eck-operator's own image
+    pin uses a split "tag:"/"digest:" convention (not the usual embedded
+    "tag: <ver>@sha256:<digest>"). Before lib.chart.SPLIT_TAG_SHA_PATHS
+    was generalized to support a "digest:"-named sibling field (not just
+    the two keycloak paths' own "sha:"), resolved_digest_pin had no way
+    to find it at all, so this always skipped it with "no resolvable
+    repository, or its values.yaml tag has no digest pinned yet" —
+    confirmed live on the real 4.9.1-to-4.9.2 doc set. eck-operator
+    existed (enabled) at the baseline with no explicit "image:" override
+    at all, same shape as the real 4.9.1 baseline."""
+    text = "# Baseline: podiumd 4.9.1.\n"
+    deps = [{"name": "eck-operator", "version": "3.5.0"}]
+    target_values = {"eck-operator": {"enabled": True, "image": {
+        "repository": "docker.elastic.co/eck/eck-operator",
+        "tag": "3.5.0", "digest": "sha256:" + "b" * 64}}}
+    baseline_values = {"eck-operator": {"enabled": True}}
+
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+
+    assert skipped == []
+    assert added == ["eck-operator"]
+    assert "url: docker.elastic.co/eck/eck-operator" in new_text
+    assert 'version: "3.5.0"' in new_text
+    assert f'digest: "sha256:{"b" * 64}"' in new_text
+
+
 @pytest.fixture
 def eck_stack_chart_dir(tmp_path):
     """eck-stack's own bare "version:" CRD fields (see COMPONENT_
