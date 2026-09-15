@@ -2548,6 +2548,9 @@ eck-operator:
   # cluster-scope RBAC: set false and apply the CRDs manually (same doc).
   # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
   installCRDs: true
+  image:
+    tag: "3.5.0"
+    digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
   createClusterScopedResources: false
   config:
     # no RBAC access to cluster-wide storage classes, hence disable storage class validation

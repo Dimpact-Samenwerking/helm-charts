@@ -3,10 +3,15 @@
 # Images new or changed in podiumd 4.9.2 vs 4.9.1.
 #
 # Changes:
+#   1. eck-operator 3.5.0 (new).
 #
 # See docs/_UPGRADE_PATHS/4.9.1-to-4.9.2-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-[]
+# eck-operator 3.5.0 (new)
+- name: eck/eck-operator
+  url: docker.elastic.co/eck/eck-operator
+  version: "3.5.0"
+  digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"

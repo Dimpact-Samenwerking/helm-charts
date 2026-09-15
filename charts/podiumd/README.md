@@ -113,6 +113,8 @@ PodiumD Helm chart
 | eck-operator.config.validateStorageClass | bool | `false` |  |
 | eck-operator.createClusterScopedResources | bool | `false` |  |
 | eck-operator.enabled | bool | `true` |  |
+| eck-operator.image.digest | string | `"sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"` |  |
+| eck-operator.image.tag | string | `"3.5.0"` |  |
 | eck-operator.installCRDs | bool | `true` | the chart installs and upgrades the 12 *.k8s.elastic.co CRDs, in lock-step with the operator version. The CRDs carry helm.sh/resource-policy: keep, so `helm uninstall` never removes them (the Elastic CRs and their data survive). Requires cluster-scope RBAC on the deploying identity. Clusters whose CRDs predate helm ownership (kisselastic era / manual apply) need a one-time adoption: deploy with `--take-ownership` (helm >= 3.17) or annotate the CRDs once — see docs/apps/elastic/migrating-to-eck-stack.md section 4b. Installers without cluster-scope RBAC: set false and apply the CRDs manually (same doc). override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor |
 | eck-operator.managedNamespaces[0] | string | `"podiumd"` |  |
 | eck-operator.podMonitor.enabled | bool | `false` |  |
