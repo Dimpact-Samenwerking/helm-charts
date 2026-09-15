@@ -86,6 +86,7 @@ from lib.component_docs import (
 from lib.image_version import image_basename, update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo, registry_tag_exists
+from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc import (
     compute_changed_components, describe_key_changes, normalize_version, resolve_baseline_component_versions,
 )
@@ -224,32 +225,28 @@ def locate_dotted_key_line(lines, dotted_path):
     return idx, indent
 
 
-# (values_key, path) pairs using the adfinis keycloak-operator chart's own
-# split "tag:" + sibling "sha:" convention instead of the combined "tag:
-# <version>@sha256:<digest>" pin every other image in this chart uses — the
-# adfinis template renders "repository:tag@sha256:{{ .sha }}" itself, so
-# embedding @sha256 in "tag" too would produce an invalid double digest
-# (see the values.yaml comment above operator.config.keycloakImage).
+# The (values_key, path) pairs using a chart's own split "tag:" + sibling
+# field convention (e.g. "sha:"/"digest:") instead of the combined "tag:
+# <version>@sha256:<digest>" pin every other image in this chart uses —
+# the owning template renders "repository:tag@sha256:{{ .sha }}" (or
+# equivalent) itself, so embedding @sha256 in "tag" too would produce an
+# invalid double digest (see the values.yaml comment above operator.
+# config.keycloakImage) — now lives in charts/podiumd/etc/settings.yaml's
+# own "digest_pinning.exceptions" section (see lib.settings.digest_
+# pinning_exceptions), unified with lib.chart's own read-side registry
+# and lib.digest_pinning_check's own exemption list. Only entries marked
+# "writable: true" there are eligible to be auto-written here — resolved
+# below into split_tag_sha_paths, keyed the same (values_key, path) way
+# this script's own paths_to_update loop already is, with each path's own
+# sibling field name (never hardcoded "sha" — see locate_tag_and_sha/
+# write_tag_and_sha, generalized to take it as a parameter so eck-
+# operator.image's own "digest:" field is handled correctly too).
+#
 # Checked BEFORE the normal explicit-repository/subchart-default split
-# below: this path DOES have an explicit "repository:", so without this it
-# would wrongly take the "delegated" branch, whose write logic
+# below: these paths DO have an explicit "repository:", so without this
+# they would wrongly take the "delegated" branch, whose write logic
 # (lib.image_version.update_image_version) only ever finds/writes a
 # combined pin and would silently find nothing to change here.
-#
-# operator.image itself is deliberately NOT here (nor in
-# lib.chart.COMPONENT_IMAGE_PATHS) — it has no override at all in
-# values.yaml, since the chart's own template already falls back to
-# "{{ .Values.operator.image.tag | default .Chart.AppVersion }}" with a
-# matching "sha:" bundled for that same appVersion. Bump the
-# keycloak-operator dependency's own chart version in Chart.yaml to move
-# the operator itself, rather than overriding this field.
-SPLIT_TAG_SHA_PATHS = {
-    ("keycloak-operator", "operator.config.keycloakImage"),
-    # keycloak.image aliases the above via YAML anchor (repository/tag/
-    # sha all shared — see values.yaml's own comment there) and so uses
-    # the exact same split shape, not the ordinary embedded-digest one.
-    ("keycloak", "image"),
-}
 
 
 def locate_parent_block(lines, dotted_path):
@@ -272,15 +269,39 @@ def locate_parent_block(lines, dotted_path):
     return indent, start, end
 
 
-def locate_tag_and_sha(lines, values_key, path):
-    """(tag_line_index, tag_indent, sha_line_index_or_None) for the
-    "tag:"/"sha:" pair at values_key.path — see SPLIT_TAG_SHA_PATHS for
-    why these two fields need this instead of the usual combined pin.
-    sha_line_index is None when podiumd doesn't override "sha" yet at
-    this path (the vendored subchart's own default sha applies as-is,
-    e.g. operator.image today) — the caller inserts a new "sha:" line
-    right after "tag:" in that case, rather than editing one that isn't
-    there. Returns None if "tag:" itself can't be found."""
+# A bare YAML alias reference — "<key>: *someAnchor", no literal scalar
+# value of its own, just a "*anchor" back-reference (optionally followed
+# by a trailing comment). replace_scalar_value has no alias awareness at
+# all: given a line like this it would happily rewrite the whole line to
+# a literal new value, permanently severing the anchor/alias link (real
+# case: keycloak.image's own "tag:"/"sha:" fields are bare aliases of
+# keycloak-operator.operator.config.keycloakImage's own anchor — see
+# values.yaml's own comment there). write_tag_and_sha checks every line
+# it's about to write against this before ever calling replace_scalar_
+# value, and skips (with an informative message) any that matches —
+# the anchor's own site still gets written for real in the same run
+# (it's a separate, non-aliased split_tag_sha_paths entry of its own),
+# so the alias correctly inherits the new value on next parse.
+ALIAS_REFERENCE_RE = re.compile(r'^\s*\S+:\s*\*\w+\s*(#.*)?\s*$')
+
+
+def is_alias_reference_line(line):
+    return bool(ALIAS_REFERENCE_RE.match(line))
+
+
+def locate_tag_and_sha(lines, values_key, path, sibling_field):
+    """(tag_line_index, tag_indent, sibling_line_index_or_None) for the
+    "tag:"/"<sibling_field>:" pair at values_key.path — see split_tag_
+    sha_paths (main()) for why these two fields need this instead of the
+    usual combined pin. sibling_field names the sibling field for THIS
+    path (e.g. "sha" for the keycloak-shaped paths, "digest" for eck-
+    operator.image — never hardcoded, since the two upstream charts name
+    it differently). sibling_line_index is None when podiumd doesn't
+    override it yet at this path (the vendored subchart's own default
+    applies as-is, e.g. operator.image's own "sha" today) — the caller
+    inserts a new sibling-field line right after "tag:" in that case,
+    rather than editing one that isn't there. Returns None if "tag:"
+    itself can't be found."""
     located = locate_parent_block(lines, f"{values_key}.{path}")
     if located is None:
         return None
@@ -289,25 +310,51 @@ def locate_tag_and_sha(lines, values_key, path):
     if tag_idx is None:
         return None
     tag_indent = len(lines[tag_idx]) - len(lines[tag_idx].lstrip(" "))
-    sha_idx = find_child_key_line(lines, "sha", parent_indent, start, end)
-    return tag_idx, tag_indent, sha_idx
+    sibling_idx = find_child_key_line(lines, sibling_field, parent_indent, start, end)
+    return tag_idx, tag_indent, sibling_idx
 
 
-def write_tag_and_sha(lines, tag_line_index, tag_indent, sha_line_index, new_version, new_digest_hex):
+def write_tag_and_sha(lines, tag_line_index, tag_indent, sibling_line_index, new_version, new_digest_hex,
+                       sibling_field, label):
     """Write new_version into the "tag:" line at tag_line_index — bare,
-    never embedding @sha256 (see SPLIT_TAG_SHA_PATHS) — and
-    new_digest_hex (the bare hex digest, no "sha256:" prefix; the
-    chart's own template appends that itself) into the sibling "sha:"
-    line if one already exists, or inserts a new one right after "tag:"
-    at the same indent if podiumd doesn't override it yet. Mutates
-    `lines` in place (keepends=True, matching update_values_yaml's own
-    convention); returns nothing."""
-    lines[tag_line_index] = replace_scalar_value(lines[tag_line_index], new_version)
-    if sha_line_index is not None:
-        lines[sha_line_index] = replace_scalar_value(lines[sha_line_index], new_digest_hex)
+    never embedding @sha256 (see split_tag_sha_paths in main()) — and
+    new_digest_hex (the bare hex digest, no "sha256:" prefix of its own)
+    into the sibling "<sibling_field>:" line if one already exists, or
+    inserts a new one right after "tag:" at the same indent if podiumd
+    doesn't override it yet. Either line is left untouched (with a
+    printed note, `label` identifying the path for it) instead of
+    written, when it's a bare YAML alias reference (see is_alias_
+    reference_line) — writing over one would permanently sever the
+    anchor/alias link. Mutates `lines` in place (keepends=True, matching
+    update_values_yaml's own convention); returns nothing.
+
+    The written VALUE's own shape depends on sibling_field, same
+    "not standardized across entries" fact lib.chart.resolved_digest_pin's
+    own docstring documents for the read side: the adfinis keycloak-
+    shaped "sha:" field is bare hex — its own template appends "sha256:"
+    itself ("repository:tag@sha256:{{ .sha }}"), so embedding it here too
+    would produce an invalid double prefix. eck-operator's own "digest:"
+    field is the opposite: its template does NOT add "sha256:" itself
+    (a plain "@%s" with .Values.image.digest already expected to carry
+    the full "sha256:<hex>" string) — confirmed against the vendored
+    chart's own templates/_helpers.tpl, which explicitly FAILS the
+    render if "image.digest" doesn't already start with "sha256:". A
+    fresh eck-operator bump writing bare hex here would render a broken
+    chart, not merely a stylistic mismatch."""
+    sibling_value = f"sha256:{new_digest_hex}" if sibling_field == "digest" else new_digest_hex
+    if is_alias_reference_line(lines[tag_line_index]):
+        print(f"  {label}.tag: *alias reference — inherits from its own anchor, not written directly")
+    else:
+        lines[tag_line_index] = replace_scalar_value(lines[tag_line_index], new_version)
+    if sibling_line_index is not None:
+        if is_alias_reference_line(lines[sibling_line_index]):
+            print(f"  {label}.{sibling_field}: *alias reference — inherits from its own anchor, "
+                  f"not written directly")
+        else:
+            lines[sibling_line_index] = replace_scalar_value(lines[sibling_line_index], sibling_value)
     else:
         indent_str = " " * tag_indent
-        lines.insert(tag_line_index + 1, f'{indent_str}sha: "{new_digest_hex}"\n')
+        lines.insert(tag_line_index + 1, f'{indent_str}{sibling_field}: "{sibling_value}"\n')
 
 
 def update_chart_yaml(chart_name, new_chart_version):
@@ -397,6 +444,14 @@ def main():
     new_chart = "-" if no_chart else chart_version
     deps = yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["dependencies"]
     values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
+    # digest_pinning.exceptions, filtered down to the write-side allowlist
+    # (writable: true) and reshaped to this script's own (values_key, path)
+    # key convention — see the comment above locate_tag_and_sha/write_
+    # tag_and_sha for why the per-path sibling field name travels with it.
+    split_tag_sha_paths = {
+        (tuple_path[0], ".".join(tuple_path[1:])): entry["sibling_field"]
+        for tuple_path, entry in digest_pinning_exceptions(CHART_DIR).items() if entry["writable"]
+    }
 
     if no_chart:
         if component not in NATIVE_COMPONENTS:
@@ -467,7 +522,7 @@ def main():
     if paths_to_update:
         split_paths, delegated_paths, fallback_paths = [], [], []
         for path in paths_to_update:
-            if (values_key, path) in SPLIT_TAG_SHA_PATHS:
+            if (values_key, path) in split_tag_sha_paths:
                 split_paths.append(path)
                 continue
             explicit_repo = get_path(values, f"{values_key}.{path}.repository")
@@ -478,6 +533,7 @@ def main():
             print()
             print(f"=== Writing split tag/sha pin(s) for {', '.join(f'{values_key}.{p}' for p in split_paths)} ===")
             for path in split_paths:
+                sibling_field = split_tag_sha_paths[(values_key, path)]
                 repo = get_path(values, f"{values_key}.{path}.repository")
                 if not isinstance(repo, str) or not repo:
                     raise SystemExit(f"error: no repository found at {values_key}.{path}.repository in {VALUES_YAML}")
@@ -487,14 +543,15 @@ def main():
                 if not exists or not digest:
                     raise SystemExit(f"error: {host}/{repo_path}:{app_version} not found upstream")
                 digest_hex = digest.split("sha256:", 1)[1]
-                located = locate_tag_and_sha(values_lines, values_key, path)
+                located = locate_tag_and_sha(values_lines, values_key, path, sibling_field)
                 if located is None:
                     raise SystemExit(f"error: could not find '{values_key}.{path}.tag' in {VALUES_YAML}")
-                tag_idx, tag_indent, sha_idx = located
-                write_tag_and_sha(values_lines, tag_idx, tag_indent, sha_idx, app_version, digest_hex)
+                tag_idx, tag_indent, sibling_idx = located
+                write_tag_and_sha(values_lines, tag_idx, tag_indent, sibling_idx, app_version, digest_hex,
+                                  sibling_field, f"{values_key}.{path}")
                 new_tags_by_path[path] = f"{app_version}@sha256:{digest_hex}"
                 print(f"  {values_key}.{path}: {host}/{repo_path}:{app_version} -> sha256:{digest_hex}"
-                      f"{'  (adding sha: — no override yet)' if sha_idx is None else ''}")
+                      f"{f'  (adding {sibling_field}: — no override yet)' if sibling_idx is None else ''}")
             VALUES_YAML.write_text("".join(values_lines), encoding="utf-8")
 
         if delegated_paths:

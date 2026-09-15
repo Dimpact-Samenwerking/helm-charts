@@ -107,6 +107,7 @@ from lib.image_docs import (
 from lib.image_repository_check import find_images_without_repository
 from lib.registry import parse_repo, registry_tag_exists
 from lib.render_scope import lint_args_for, render_chart, rendered_chart_paths
+from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc import (
     append_to_doc, canonical_version_cell, changes_heading_has_app_version, changes_heading_identities,
     component_version_cell,
@@ -893,6 +894,10 @@ def fix_images_manifest_entries(text, chart_dir, deps, target_values, baseline_v
         paths_by_repository(chart_dir, deps, baseline_values, baseline_paths.keys())
         if baseline_values else {}
     )
+    # chart_dir is optional here (some callers/tests pass None) — see
+    # lib.upgradedoc.find_images_manifest_list_diff's own identical
+    # None-safe handling.
+    sibling_fields = digest_pinning_exceptions(chart_dir) if chart_dir is not None else {}
 
     def same_group(entry_a, entry_b):
         return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
@@ -938,8 +943,8 @@ def fix_images_manifest_entries(text, chart_dir, deps, target_values, baseline_v
         if actual_baseline is not None and normalize_version(actual_baseline) == normalize_version(actual_target):
             current_tag, baseline_tag = current_paths.get(path), baseline_paths.get(path)
             if current_tag and baseline_tag:
-                current_digest = resolved_digest_pin(target_values, path, current_tag)
-                baseline_digest = resolved_digest_pin(baseline_values, path, baseline_tag)
+                current_digest = resolved_digest_pin(target_values, path, current_tag, sibling_fields)
+                baseline_digest = resolved_digest_pin(baseline_values, path, baseline_tag, sibling_fields)
                 if current_digest and baseline_digest:
                     digest_only_change = current_digest.split("@", 1)[1] != baseline_digest.split("@", 1)[1]
 
@@ -1345,6 +1350,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     unresolvable_paths = set(find_images_without_repository(chart_dir))
     canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
     key_order = values_key_order(target_values)
+    sibling_fields = digest_pinning_exceptions(chart_dir)
 
     missing_paths, _stale_entry_names, _unmatched_entry_names = find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths,
@@ -1370,7 +1376,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         full_repo_url = full_repository_for_path(chart_dir, deps, target_values, path, allow_pull=allow_pull) or repo
         current_tag = current_paths[path]
         name = path_display_name(path, deps, canonical_names)
-        pinned_tag = resolved_digest_pin(target_values, path, current_tag)
+        pinned_tag = resolved_digest_pin(target_values, path, current_tag, sibling_fields)
         if pinned_tag is None and allow_pull:
             full_repo = documented_repository_for_path(chart_dir, deps, path)
             if full_repo:
@@ -1403,7 +1409,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
             # did. Real case: clamav 1.5.4, digest re-pinned with no
             # version bump.
             if normalize_version(old_version) == normalize_version(new_version):
-                baseline_pinned_tag = resolved_digest_pin(baseline_values, path, baseline_tag)
+                baseline_pinned_tag = resolved_digest_pin(baseline_values, path, baseline_tag, sibling_fields)
                 if baseline_pinned_tag:
                     digest_only_change = pinned_tag.split("@", 1)[1] != baseline_pinned_tag.split("@", 1)[1]
         else:

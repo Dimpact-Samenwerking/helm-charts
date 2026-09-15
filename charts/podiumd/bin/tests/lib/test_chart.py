@@ -87,6 +87,24 @@ def test_replace_scalar_value_unparseable_line_raises(libchart):
         libchart.replace_scalar_value("not a key-value line at all\n", "x")
 
 
+def test_replace_scalar_value_preserves_anchor_tag(libchart):
+    """Regression test: a line DEFINING a YAML anchor (e.g. keycloak-
+    operator.operator.config.keycloakImage's own "tag:"/"sha:" fields,
+    aliased elsewhere by keycloak.image via "*anchor") must keep its own
+    "&anchor" marker after a value bump — dropping it would silently
+    sever every "*anchor" reference elsewhere in the same file, turning
+    each into a YAML parse error (an alias to an undefined anchor) on
+    the very next load. Confirmed empirically to fail without this fix:
+    the anchor tag was dropped entirely, producing a bare "tag: 26.7.3"
+    line."""
+    assert libchart.replace_scalar_value(
+        '        tag: &keycloakImageVersion "26.7.2"\n', "26.7.3") == \
+        '        tag: &keycloakImageVersion "26.7.3"\n'
+    assert libchart.replace_scalar_value(
+        '        sha: &keycloakImageDigest "aaaa"\n', "dddd") == \
+        '        sha: &keycloakImageDigest "dddd"\n'
+
+
 # --- chart_version / SEMVER_RE ---
 # shared by create-doc-version, fix-doc-consistency, update-component-
 # version, and create-podiumd-version's own current_chart_version()/
@@ -773,10 +791,24 @@ def test_version_of_strips_digest(libchart):
 
 # --- resolved_digest_pin ---
 
+# A minimal {tuple_path: {"sibling_field": ...}} table, the same shape
+# lib.settings.digest_pinning_exceptions returns (resolved_digest_pin
+# only ever reads .get(path, {}).get("sibling_field"), so a "writable"
+# key isn't needed here) — covers the keycloak-operator split-path
+# convention plus eck-operator's differently-named sibling field.
+SIBLING_FIELDS = {
+    ("keycloak-operator", "operator", "config", "keycloakImage"): {"sibling_field": "sha"},
+    ("keycloak-operator", "operator", "image"): {"sibling_field": "sha"},
+    ("keycloak", "image"): {"sibling_field": "sha"},
+    ("eck-operator", "image"): {"sibling_field": "digest"},
+}
+
+
 def test_resolved_digest_pin_already_embedded_returned_as_is(libchart):
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
 
-    assert libchart.resolved_digest_pin(values, ("zac", "image"), "5.4.4@sha256:aaaa") == "5.4.4@sha256:aaaa"
+    assert libchart.resolved_digest_pin(
+        values, ("zac", "image"), "5.4.4@sha256:aaaa", SIBLING_FIELDS) == "5.4.4@sha256:aaaa"
 
 
 def test_resolved_digest_pin_split_tag_sha_combines_sibling_sha(libchart):
@@ -789,7 +821,7 @@ def test_resolved_digest_pin_split_tag_sha_combines_sibling_sha(libchart):
     values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
         "tag": "26.7.2", "sha": "9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"}}}}}
 
-    assert libchart.resolved_digest_pin(values, path, "26.7.2") == (
+    assert libchart.resolved_digest_pin(values, path, "26.7.2", SIBLING_FIELDS) == (
         "26.7.2@sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067")
 
 
@@ -800,30 +832,30 @@ def test_resolved_digest_pin_split_tag_sha_no_sha_override_returns_none(libchart
     path = ("keycloak-operator", "operator", "config", "keycloakImage")
     values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.7.2"}}}}}
 
-    assert libchart.resolved_digest_pin(values, path, "26.7.2") is None
+    assert libchart.resolved_digest_pin(values, path, "26.7.2", SIBLING_FIELDS) is None
 
 
 def test_resolved_digest_pin_ordinary_path_with_no_digest_returns_none(libchart):
-    """A path outside SPLIT_TAG_SHA_PATHS with a bare, non-digest-pinned
-    tag has no sibling field to fall back to at all — genuinely
-    unresolvable here, unlike the split-tag-sha case."""
+    """A path outside the sibling_fields table with a bare,
+    non-digest-pinned tag has no sibling field to fall back to at all —
+    genuinely unresolvable here, unlike the split-tag-sha case."""
     values = {"openzaak": {"image": {"tag": "1.29.3"}}}
 
-    assert libchart.resolved_digest_pin(values, ("openzaak", "image"), "1.29.3") is None
+    assert libchart.resolved_digest_pin(values, ("openzaak", "image"), "1.29.3", SIBLING_FIELDS) is None
 
 
 def test_resolved_digest_pin_eck_operator_combines_sibling_digest_field(libchart):
     """Regression test (real bug, real chart): eck-operator's own
     upstream chart names its sibling field "digest:", not "sha:" — the
-    ONLY SPLIT_TAG_SHA_PATHS path that differs from the keycloak ones.
+    ONLY sibling_fields path that differs from the keycloak ones.
     Confirms resolved_digest_pin looks up the correct per-path sibling
-    field NAME (SPLIT_TAG_SHA_PATHS.get(path)) rather than the old
-    hardcoded ".sha"."""
+    field NAME (sibling_fields[path]["sibling_field"]) rather than the
+    old hardcoded ".sha"."""
     path = ("eck-operator", "image")
     values = {"eck-operator": {"image": {
         "tag": "3.5.0", "digest": "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"}}}
 
-    assert libchart.resolved_digest_pin(values, path, "3.5.0") == (
+    assert libchart.resolved_digest_pin(values, path, "3.5.0", SIBLING_FIELDS) == (
         "3.5.0@sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314")
 
 
@@ -835,7 +867,7 @@ def test_resolved_digest_pin_eck_operator_no_digest_override_returns_none(libcha
     path = ("eck-operator", "image")
     values = {"eck-operator": {"image": {"tag": "3.5.0"}}}
 
-    assert libchart.resolved_digest_pin(values, path, "3.5.0") is None
+    assert libchart.resolved_digest_pin(values, path, "3.5.0", SIBLING_FIELDS) is None
 
 
 # --- find_images ---

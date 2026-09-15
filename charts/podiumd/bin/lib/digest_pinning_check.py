@@ -59,6 +59,7 @@ from lib.chart import (
     subchart_values,
 )
 from lib.render_scope import CHART_NAME, render_chart, rendered_chart_paths
+from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc import find_all_image_and_version_paths, find_image_tag_paths
 
 # "@sha256:<64 hex chars>" at the end of a tag value — the same shape
@@ -67,20 +68,11 @@ from lib.upgradedoc import find_all_image_and_version_paths, find_image_tag_path
 # line to regex.
 DIGEST_SUFFIX_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
 
-# (dotted path, as the tuple find_image_tag_paths itself yields — always
-# ending in the image key itself, "image" or an "...Image"-suffixed
-# sibling) for every field that intentionally does NOT embed a digest in
-# its own "tag" — see this module's docstring for why.
-EXEMPT_PATHS = {
-    ("keycloak-operator", "operator", "image"),
-    ("keycloak-operator", "operator", "config", "keycloakImage"),
-    # keycloak.image aliases the above via YAML anchor (repository/tag/
-    # sha all shared — see values.yaml's own comment there) and so uses
-    # the exact same split shape, not the ordinary embedded-digest one.
-    ("keycloak", "image"),
-    ("omc", "image"),
-    ("eck-operator", "image"),
-}
+# The set of fields that intentionally does NOT embed a digest in its own
+# "tag" (see this module's docstring for why) now lives in charts/podiumd/
+# etc/settings.yaml's own "digest_pinning.exceptions" section — see
+# lib.settings.digest_pinning_exceptions, resolved fresh in check_digest_
+# pinning below.
 
 def _deps_from_chart_yaml(chart_dir):
     """Chart.yaml's own "dependencies" list, read fresh (chart_dir is all
@@ -271,13 +263,14 @@ def check_digest_pinning(chart_dir):
 
     values = load_yaml(values_path) or {}
     images = list(find_image_tag_paths(values))
+    exceptions = digest_pinning_exceptions(chart_dir)
 
     missing = [(path, tag) for path, tag in images
-               if path not in EXEMPT_PATHS and not DIGEST_SUFFIX_RE.search(tag)]
+               if path not in exceptions and not DIGEST_SUFFIX_RE.search(tag)]
 
     if not missing:
         print(f"OK: all {len(images)} image tag(s) in values.yaml are digest-pinned "
-              f"({len(EXEMPT_PATHS)} exempt)")
+              f"({len(exceptions)} exempt)")
         return True, f"{len(images)} pin(s), 0 unpinned"
 
     print(f"Found {len(missing)} image tag(s) not digest-pinned "
@@ -410,8 +403,9 @@ def find_unresolved_subchart_images(chart_dir, deps, own_values, rendered_paths)
     finding for it is kept instead of silently swallowed (subject to the
     render-gate above either way).
 
-    Deliberately NOT cross-checked against EXEMPT_PATHS above — those
-    exempt fields (keycloak-operator.operator, omc) are ones podiumd DOES
+    Deliberately NOT cross-checked against digest_pinning_exceptions
+    above — those exempt fields (keycloak-operator.operator, omc) are
+    ones podiumd DOES
     override in its own values.yaml (that's the whole reason they need an
     exemption from the check above), so they already have an own_tag here
     and never show up as unresolved in the first place."""

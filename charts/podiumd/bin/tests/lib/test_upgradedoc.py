@@ -706,13 +706,19 @@ def test_find_images_manifest_list_diff_ignores_digest_only_repin_when_only_one_
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_catches_split_tag_sha_digest_repin(libupgradedoc):
-    """keycloak-operator's own split tag:/sha: convention (see lib.chart.
-    SPLIT_TAG_SHA_PATHS/resolved_digest_pin) never embeds "@sha256" in
-    the tag itself — the digest lives in a sibling "sha:" field instead.
-    A same-version repin there (sha: changed, tag: unchanged) must be
-    caught the exact same way an embedded-digest repin is, since
-    resolved_digest_pin abstracts over both shapes identically."""
+def test_find_images_manifest_list_diff_catches_split_tag_sha_digest_repin(libupgradedoc, tmp_path):
+    """keycloak-operator's own split tag:/sha: convention (see lib.
+    settings.digest_pinning_exceptions/resolved_digest_pin) never embeds
+    "@sha256" in the tag itself — the digest lives in a sibling "sha:"
+    field instead. A same-version repin there (sha: changed, tag:
+    unchanged) must be caught the exact same way an embedded-digest
+    repin is, since resolved_digest_pin abstracts over both shapes
+    identically. chart_dir is required here (no etc/settings.yaml under
+    tmp_path, so digest_pinning_exceptions falls back to its own
+    hard-coded default table, which includes ("keycloak", "image")) —
+    without it, sibling_fields resolves to {} and this digest comparison
+    can never fire at all (see find_images_manifest_list_diff's own
+    None-safe chart_dir handling)."""
     entries = []
     path = ("keycloak", "image")
     current_paths = {path: "26.0.0"}
@@ -721,7 +727,7 @@ def test_find_images_manifest_list_diff_catches_split_tag_sha_digest_repin(libup
     baseline_values = {"keycloak": {"image": {"repository": "keycloak/keycloak", "tag": "26.0.0", "sha": "a" * 64}}}
     missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set(),
-        values=values, baseline_values=baseline_values)
+        chart_dir=tmp_path, values=values, baseline_values=baseline_values)
     assert missing == [path]
     assert stale == []
     assert unmatched == []
@@ -764,7 +770,7 @@ def test_find_images_manifest_list_diff_eck_operator_new_pin_still_reported_as_m
     .yaml via plain path/version comparison -- independent of whether
     resolved_digest_pin can ALSO resolve its own sibling "digest:" field
     (a separate question, about whether a valid ENTRY can be auto-
-    written — see lib.chart.SPLIT_TAG_SHA_PATHS and add_missing_images_
+    written — see lib.settings.digest_pinning_exceptions and add_missing_images_
     manifest_entries' own eck-operator test). This finding must keep
     firing even once that separate gap is fixed: a real new pin was
     added either way, and this function's own "missing" detection

@@ -233,6 +233,55 @@ def vendor_classification_chart_overrides(chart_dir):
     return dict(_get(chart_dir, "vendor_classification", "chart_overrides", {"kiss": "ICATT"}))
 
 
+_DEFAULT_DIGEST_PINNING_EXCEPTIONS = {
+    "keycloak-operator.operator.image": {"sibling_field": "sha", "writable": True},
+    "keycloak-operator.operator.config.keycloakImage": {"sibling_field": "sha", "writable": True},
+    "keycloak.image": {"sibling_field": "sha", "writable": True},
+    "eck-operator.image": {"sibling_field": "digest", "writable": True},
+    "omc.image": {},
+}
+
+
+def digest_pinning_exceptions(chart_dir):
+    """digest_pinning.exceptions — replaces BOTH lib.chart.
+    SPLIT_TAG_SHA_PATHS and lib.digest_pinning_check.EXEMPT_PATHS (the
+    latter was always exactly "every key here"; the former was always
+    exactly "entries that also carry a sibling_field") — see this
+    iteration's plan for how these were two independently-hand-maintained,
+    overlapping registries. Also replaces update-component-version's own
+    separate, narrower write-side allowlist (see "writable" below).
+
+    Returns {tuple_path: {"sibling_field": str | None, "writable": bool}},
+    normalized so every entry has both keys (missing sibling_field ->
+    None, missing writable -> False) — callers never need their own
+    .get() dance."""
+    raw = _get(chart_dir, "digest_pinning", "exceptions", _DEFAULT_DIGEST_PINNING_EXCEPTIONS)
+    return {
+        tuple(k.split(".")): {"sibling_field": v.get("sibling_field"), "writable": v.get("writable", False)}
+        for k, v in raw.items()
+    }
+
+
+_DEFAULT_RELEASE_TABLE_SPECIAL_CASE_BASENAME_TAG_PATHS = {
+    "keycloak": "keycloak-operator.operator.config.keycloakImage.tag",
+}
+
+
+def release_table_special_case_basename_tag_paths(chart_dir):
+    """release_table_verification.special_case_basename_tag_paths —
+    replaces verify-release-table-with-podiumd's own SPECIAL_CASE_
+    BASENAME_TAG_PATHS. basename -> the dotted values.yaml "...tag" path
+    to read its version from directly, for an image basenames_under_
+    scope_any_tag can't find via the normal scope_key-scoped scan
+    because it lives nested inside a DIFFERENT component's own subtree
+    than its release-table row name (e.g. "keycloak", nested inside
+    "keycloak-operator"). Kept as a plain dotted string (not split to a
+    tuple) — the one consumer already uses get_path/dotted-string
+    access throughout, never a tuple."""
+    return dict(_get(chart_dir, "release_table_verification", "special_case_basename_tag_paths",
+                      _DEFAULT_RELEASE_TABLE_SPECIAL_CASE_BASENAME_TAG_PATHS))
+
+
 def helm_repos_urls_by_alias(chart_dir):
     """helm_repos.urls_by_alias — replaces lib.render_scope.
     REQUIRED_REPOS, a dict (repo alias -> real URL, for every Chart.yaml

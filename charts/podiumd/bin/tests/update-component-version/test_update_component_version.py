@@ -117,7 +117,7 @@ def test_locate_tag_and_sha_no_existing_sha_override(ucv):
     """operator.image today: podiumd doesn't override "sha" -- the
     vendored subchart's own default applies as-is."""
     tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(
-        KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.image")
+        KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.image", "sha")
     assert tag_idx == 4
     assert tag_indent == 6
     assert sha_idx is None
@@ -127,7 +127,7 @@ def test_locate_tag_and_sha_existing_sha_override(ucv):
     """operator.config.keycloakImage today: podiumd already overrides
     "sha" explicitly."""
     tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(
-        KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.config.keycloakImage")
+        KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.config.keycloakImage", "sha")
     assert tag_idx == 8
     assert tag_indent == 8
     assert sha_idx == 9
@@ -135,13 +135,14 @@ def test_locate_tag_and_sha_existing_sha_override(ucv):
 
 def test_locate_tag_and_sha_missing_tag_returns_none(ucv):
     lines = ["a:\n", "  image:\n", "    repository: org/repo\n"]
-    assert ucv.locate_tag_and_sha(lines, "a", "image") is None
+    assert ucv.locate_tag_and_sha(lines, "a", "image", "sha") is None
 
 
 def test_write_tag_and_sha_inserts_new_sha_line_when_absent(ucv):
     lines = list(KEYCLOAK_OPERATOR_LINES)
-    tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(lines, "keycloak-operator", "operator.image")
-    ucv.write_tag_and_sha(lines, tag_idx, tag_indent, sha_idx, "26.7.2", "b" * 64)
+    tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(lines, "keycloak-operator", "operator.image", "sha")
+    ucv.write_tag_and_sha(lines, tag_idx, tag_indent, sha_idx, "26.7.2", "b" * 64, "sha",
+                           "keycloak-operator.operator.image")
     assert lines[tag_idx] == '      tag: "26.7.2"\n'
     assert lines[tag_idx + 1] == f'      sha: "{"b" * 64}"\n'
     # nothing else shifted/corrupted
@@ -151,8 +152,9 @@ def test_write_tag_and_sha_inserts_new_sha_line_when_absent(ucv):
 def test_write_tag_and_sha_replaces_existing_sha_line(ucv):
     lines = list(KEYCLOAK_OPERATOR_LINES)
     tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(
-        lines, "keycloak-operator", "operator.config.keycloakImage")
-    ucv.write_tag_and_sha(lines, tag_idx, tag_indent, sha_idx, "26.7.3", "c" * 64)
+        lines, "keycloak-operator", "operator.config.keycloakImage", "sha")
+    ucv.write_tag_and_sha(lines, tag_idx, tag_indent, sha_idx, "26.7.3", "c" * 64, "sha",
+                           "keycloak-operator.operator.config.keycloakImage")
     assert lines[tag_idx] == '        tag: "26.7.3"\n'
     assert lines[sha_idx] == f'        sha: "{"c" * 64}"\n'
     assert len(lines) == len(KEYCLOAK_OPERATOR_LINES)  # replaced in place, no line added
@@ -554,6 +556,224 @@ def test_main_bumps_only_config_keycloak_image_not_operator_image(ucv, tmp_path,
     assert "@sha256" not in updated  # never embedded -- would double-digest this chart's template
     # operator.image itself: untouched, still no tag/sha override at all
     assert "  operator:\n    image:\n      repository: quay.io/keycloak/keycloak-operator\n    config:\n" in updated
+
+
+def setup_eck_operator_repo(tmp_path, monkeypatch, ucv):
+    """eck-operator's own upstream chart uses a split "tag:"/"digest:"
+    convention (see lib.settings.digest_pinning_exceptions) — confirmed
+    against the vendored eck-operator chart's own templates/_helpers.tpl,
+    which literally FAILS the render if "image.digest" doesn't start
+    with "sha256:" — a stricter requirement than the adfinis keycloak-
+    operator chart's own bare-hex "sha:" convention."""
+    chart_yaml = tmp_path / "Chart.yaml"
+    values_yaml = tmp_path / "values.yaml"
+    chart_yaml.write_text(
+        "version: 4.9.0\n"
+        "dependencies:\n"
+        "  - name: eck-operator\n"
+        "    version: 3.5.0\n"
+        "    repository: \"@example\"\n"
+        "    condition: eck-operator.enabled\n",
+        encoding="utf-8",
+    )
+    values_yaml.write_text(
+        "eck-operator:\n"
+        "  enabled: true\n"
+        "  image:\n"
+        "    repository: docker.elastic.co/eck/eck-operator\n"
+        '    tag: "3.5.0"\n'
+        f'    digest: "sha256:{OLD_DIGEST}"\n',
+        encoding="utf-8",
+    )
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
+    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
+    return chart_yaml, values_yaml
+
+
+def test_main_eck_operator_writes_digest_field_correctly_regression(ucv, tmp_path, monkeypatch):
+    """Regression test for real bug #2 (this iteration's plan): eck-
+    operator.image's own sibling field is "digest:", not "sha:" — before
+    this fix, locate_tag_and_sha/write_tag_and_sha hardcoded "sha",
+    which would have searched for a nonexistent "sha:" line and
+    INSERTED a bogus, unused one while leaving the real "digest:" field
+    stale (never even reachable in practice before this fix — eck-
+    operator wasn't in the write-side allowlist at all). Also confirms
+    the WRITTEN value keeps its own "sha256:" prefix — eck-operator's
+    own vendored chart literally fails the render if image.digest
+    doesn't start with "sha256:" (unlike keycloak's bare-hex "sha:"),
+    so writing bare hex here would produce a broken chart, not merely a
+    stylistic mismatch."""
+    chart_yaml, values_yaml = setup_eck_operator_repo(tmp_path, monkeypatch, ucv)
+    mock_verify_passes(monkeypatch, ucv)
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "e" * 64))
+    monkeypatch.setattr("sys.argv", ["update-component-version", "eck-operator", "3.6.0", "3.6.0"])
+
+    ucv.main()  # success path does not raise
+
+    updated = values_yaml.read_text(encoding="utf-8")
+    assert 'tag: "3.6.0"' in updated
+    assert f'digest: "sha256:{"e" * 64}"' in updated  # correct field, correct sha256: prefix
+    assert OLD_DIGEST not in updated
+    assert "3.5.0" not in updated
+    assert "sha:" not in updated  # never a bogus inserted "sha:" line
+
+
+def setup_keycloak_operator_repo_with_operator_image_tag(tmp_path, monkeypatch, ucv):
+    """Same repo shape as setup_keycloak_operator_repo, but operator.
+    image ALSO has an explicit "tag:"/"sha:" override of its own — the
+    real, corrected picture confirmed directly against values.yaml for
+    real bug #1 (this iteration's plan): operator.image is NOT "left
+    with no override at all" as update-component-version's own stale
+    comment used to claim; it's pinned ahead of the vendored chart's own
+    default for a CVE fix, with its own independent repository (quay.io/
+    keycloak/keycloak-operator, distinct from config.keycloakImage's own
+    quay.io/keycloak/keycloak)."""
+    chart_yaml = tmp_path / "Chart.yaml"
+    values_yaml = tmp_path / "values.yaml"
+    chart_yaml.write_text(
+        "version: 4.9.0\n"
+        "dependencies:\n"
+        "  - name: keycloak-operator\n"
+        "    version: 1.12.1\n"
+        "    repository: \"@adfinis\"\n"
+        "    condition: keycloak-operator.enabled\n",
+        encoding="utf-8",
+    )
+    operator_old_digest = "c" * 64
+    values_yaml.write_text(
+        "keycloak-operator:\n"
+        "  enabled: true\n"
+        "  operator:\n"
+        "    image:\n"
+        "      repository: quay.io/keycloak/keycloak-operator\n"
+        '      tag: "26.6.4"\n'
+        f'      sha: "{operator_old_digest}"\n'
+        "    config:\n"
+        "      keycloakImage:\n"
+        "        repository: quay.io/keycloak/keycloak\n"
+        '        tag: "26.7.2"\n'
+        f'        sha: "{OLD_DIGEST}"\n',
+        encoding="utf-8",
+    )
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
+    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
+    return chart_yaml, values_yaml, operator_old_digest
+
+
+def test_main_keycloak_operator_operator_image_gets_independent_digest_regression(ucv, tmp_path, monkeypatch):
+    """Regression test for real bug #1 (this iteration's plan): keycloak-
+    operator.operator.image is now included in the write-side allowlist
+    (settings.yaml's digest_pinning.exceptions, writable: true) — this
+    test registers it in lib.chart.COMPONENT_IMAGE_PATHS (the SEPARATE
+    registry controlling which paths update-component-version's own
+    <app-version> argument actually targets for this component; not
+    itself part of this iteration's fix, see the plan's own "no fix
+    needed" note there) so both operator.image and operator.config.
+    keycloakImage are bumped in the SAME run, each resolving its digest
+    against its OWN, independent repository (quay.io/keycloak/keycloak-
+    operator vs. quay.io/keycloak/keycloak) — mocking two DIFFERENT
+    registry responses and asserting each path gets its own correct
+    digest, never one bleeding into the other."""
+    chart_yaml, values_yaml, operator_old_digest = setup_keycloak_operator_repo_with_operator_image_tag(
+        tmp_path, monkeypatch, ucv)
+    monkeypatch.setattr("lib.chart.COMPONENT_IMAGE_PATHS",
+                         {"keycloak-operator": ["operator.image", "operator.config.keycloakImage"]})
+    mock_verify_passes(monkeypatch, ucv)
+
+    operator_digest = "e" * 64
+    server_digest = "f" * 64
+
+    def fake_registry_tag_exists(host, repo, tag):
+        if repo == "keycloak/keycloak-operator":
+            return True, f"sha256:{operator_digest}"
+        if repo == "keycloak/keycloak":
+            return True, f"sha256:{server_digest}"
+        raise AssertionError(f"unexpected repo {host}/{repo}")
+
+    monkeypatch.setattr(ucv, "registry_tag_exists", fake_registry_tag_exists)
+    monkeypatch.setattr("sys.argv", ["update-component-version", "keycloak-operator", "26.7.3", "1.12.1"])
+
+    ucv.main()  # success path does not raise
+
+    updated = values_yaml.read_text(encoding="utf-8")
+    assert updated.count('tag: "26.7.3"') == 2
+    assert f'sha: "{operator_digest}"' in updated  # operator.image's OWN digest
+    assert f'sha: "{server_digest}"' in updated  # config.keycloakImage's OWN digest
+    assert operator_old_digest not in updated
+    assert OLD_DIGEST not in updated
+    assert "26.6.4" not in updated
+    assert "26.7.2" not in updated
+
+
+KEYCLOAK_ALIAS_LINES = [
+    "keycloak-operator:\n",
+    "  operator:\n",
+    "    config:\n",
+    "      keycloakImage:\n",
+    "        repository: quay.io/keycloak/keycloak\n",
+    '        tag: &keycloakImageVersion "26.7.2"\n',
+    f'        sha: &keycloakImageDigest "{OLD_DIGEST}"\n',
+    "keycloak:\n",
+    "  image:\n",
+    "    repository: quay.io/keycloak/keycloak\n",
+    "    tag: *keycloakImageVersion\n",
+    "    sha: *keycloakImageDigest\n",
+]
+
+
+def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_regression(ucv):
+    """Regression test for real bug #3 (this iteration's plan): keycloak.
+    image's own "tag:"/"sha:" fields are bare YAML alias references
+    (*keycloakImageVersion/*keycloakImageDigest) to the anchor keycloak-
+    operator.operator.config.keycloakImage defines on its OWN "tag:"/
+    "sha:" lines — not independent literals. Before this fix, write_tag_
+    and_sha had no alias-awareness at all and would have happily
+    clobbered "tag: *keycloakImageVersion" into a literal new value,
+    permanently severing the anchor/alias link.
+
+    Confirms: (1) the alias site is left completely untouched (2) the
+    ANCHOR's own site DOES get written for real in the same run, with
+    its own "&anchor" tag preserved (see lib.chart.replace_scalar_
+    value's own anchor-preservation fix — without THAT fix, this would
+    silently strip the anchor too, turning the still-untouched "*anchor"
+    alias into a dangling reference: a YAML parse error on the very
+    next load)."""
+    lines = list(KEYCLOAK_ALIAS_LINES)
+
+    # The anchor's own site: keycloak-operator.operator.config.keycloakImage
+    anchor_tag_idx, anchor_tag_indent, anchor_sha_idx = ucv.locate_tag_and_sha(
+        lines, "keycloak-operator", "operator.config.keycloakImage", "sha")
+    ucv.write_tag_and_sha(lines, anchor_tag_idx, anchor_tag_indent, anchor_sha_idx, "26.7.3", "d" * 64,
+                           "sha", "keycloak-operator.operator.config.keycloakImage")
+
+    assert lines[anchor_tag_idx] == '        tag: &keycloakImageVersion "26.7.3"\n'
+    assert lines[anchor_sha_idx] == f'        sha: &keycloakImageDigest "{"d" * 64}"\n'
+
+    # The alias site: keycloak.image — same split shape, different values_key
+    alias_tag_idx, alias_tag_indent, alias_sha_idx = ucv.locate_tag_and_sha(lines, "keycloak", "image", "sha")
+    original_alias_tag_line = lines[alias_tag_idx]
+    original_alias_sha_line = lines[alias_sha_idx]
+
+    ucv.write_tag_and_sha(lines, alias_tag_idx, alias_tag_indent, alias_sha_idx, "26.7.3", "d" * 64,
+                           "sha", "keycloak.image")
+
+    # left completely untouched — never clobbered into a literal
+    assert lines[alias_tag_idx] == original_alias_tag_line == "    tag: *keycloakImageVersion\n"
+    assert lines[alias_sha_idx] == original_alias_sha_line == "    sha: *keycloakImageDigest\n"
 
 
 def test_main_refuses_to_write_when_verify_fails(ucv, tmp_path, monkeypatch):

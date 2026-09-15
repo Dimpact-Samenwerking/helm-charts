@@ -29,6 +29,7 @@ from lib.component_docs import (
 )
 from lib.digest_pinning_check import find_unresolved_subchart_images
 from lib.registry import parse_repo, registry_tag_exists
+from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc import (
     actual_app_version, changes_heading_has_app_version, changes_heading_identities, component_order_key,
     extract_source_version, find_all_image_and_version_paths, find_changes_row_correspondence_gaps,
@@ -702,6 +703,7 @@ def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline
         current_paths.setdefault((scope_key, *subpath.split(".")), tag)
     repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys())
     key_order = values_key_order(values)
+    sibling_fields = digest_pinning_exceptions(chart_dir)
 
     resolved, skipped = [], []
     for repo, group_paths in repo_groups.items():
@@ -712,7 +714,7 @@ def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline
             skipped.append(repo)
             continue
 
-        pinned = resolved_digest_pin(values, representative, tag)
+        pinned = resolved_digest_pin(values, representative, tag, sibling_fields)
         if pinned is not None:
             new_version, digest = pinned.split("@", 1)
         else:
