@@ -187,10 +187,12 @@ def quality_gates_yamllint_failing_rules(chart_dir):
 
 def quality_gates_markdown_disabled_rules(chart_dir):
     """quality_gates.markdown_disabled_rules — replaces
-    lib.markdown_check.MARKDOWN_DISABLED_RULES, a bare comma-joined
-    string passed straight through to `pymarkdown -d <this>` (NOT a
-    list), default "md013,md014"."""
-    return _get(chart_dir, "quality_gates", "markdown_disabled_rules", "md013,md014")
+    lib.markdown_check.MARKDOWN_DISABLED_RULES. A list of rule IDs, same
+    shape as every other quality_gates.* rule set here — the caller joins
+    it with "," when building `pymarkdown -d <joined>`, since that's the
+    one place this needs to be a single string, not the settings file's
+    own concern. Default ["md013", "md014"]."""
+    return list(_get(chart_dir, "quality_gates", "markdown_disabled_rules", ["md013", "md014"]))
 
 
 def quality_gates_kube_score_check_id(chart_dir):
