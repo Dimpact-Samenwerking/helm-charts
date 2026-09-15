@@ -21,6 +21,7 @@ from lib.component_docs import (
 )
 from lib.image_repository_check import find_images_without_repository
 from lib.release_baseline import resolve_baseline_chart_state
+from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc import (
     actual_app_version, changes_heading_has_app_version, changes_heading_identities, component_version_cell,
     compute_changed_components, diff_keys, extract_source_version, extract_target_version,
@@ -725,6 +726,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     podiumd_version = str(chart_yaml["version"])
     deps = chart_yaml.get("dependencies", [])
     values = load_yaml(chart_dir / "values.yaml") or {}
+    sibling_fields = digest_pinning_exceptions(chart_dir)
 
     mismatches = []
     checked = []
@@ -1181,7 +1183,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 )
                 continue
             expected_tag = f'{version}@{digest}'
-            actual_tag = resolved_digest_pin(values, path, current_paths[path]) or current_paths[path]
+            actual_tag = resolved_digest_pin(values, path, current_paths[path], sibling_fields) or current_paths[path]
             if actual_tag != expected_tag:
                 mismatches.append(
                     f'{name}: values.yaml tag is "{actual_tag}", '

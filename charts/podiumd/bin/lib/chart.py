@@ -43,7 +43,7 @@ COMPONENT_IMAGE_PATHS = {
     # again. Bump the keycloak-operator dependency's own chart version in
     # Chart.yaml to move the operator itself. Uses the adfinis chart's own
     # split "tag:" + sibling "sha:" convention instead of an embedded
-    # @sha256 digest — see update-component-version's SPLIT_TAG_SHA_PATHS
+    # @sha256 digest — see settings.yaml's own digest_pinning.exceptions
     # for the write side.
     "keycloak-operator": ["operator.config.keycloakImage"],
     # The real running OpenBao SERVER (the upstream openbao-helm
@@ -170,76 +170,42 @@ def version_paths_for(component):
 CHART_VERSION_LOCKSTEP_COMPONENTS = frozenset({"kiss-chart", "pabc", "eck-operator"})
 
 
-# COMPONENT_IMAGE_PATHS path (as the tuple find_image_tag_paths/
-# find_all_image_and_version_paths itself yields) whose "tag:" field
-# never embeds an "@sha256:..." digest at all -- a sibling field holds
-# it instead, under whatever NAME this component's own upstream chart
-# happens to use (the adfinis keycloak-operator chart's own split "tag:"
-# + sibling "sha:" convention — its own template appends
-# "@sha256:{{ .sha }}" itself; embedding it in "tag:" too would produce
-# an invalid double digest — see the values.yaml comment above operator.
-# config.keycloakImage; the elastic eck-operator chart instead names its
-# own sibling field "digest:", not "sha:" — same split shape, different
-# upstream naming). Maps path -> that sibling field's own NAME (never
-# hardcode "sha" — see resolved_digest_pin, the one place this actually
-# gets read). Same underlying fact update-component-version's own
-# SPLIT_TAG_SHA_PATHS documents for the WRITE side (dotted-string keyed,
-# since that script edits raw text lines rather than walking a parsed
-# values tree — deliberately its own separate registry, see below) and
-# lib.digest_pinning_check.EXEMPT_PATHS documents for ITS own "must
-# every tag be digest-pinned" check — this module's own tuple-keyed
-# form, for a caller (resolved_digest_pin) that needs the ACTUAL digest
-# value, not just an "is this path exempt" boolean.
-SPLIT_TAG_SHA_PATHS = {
-    ("keycloak-operator", "operator", "config", "keycloakImage"): "sha",
-    # keycloak.image aliases the above via YAML anchor (repository/tag/
-    # sha all shared — see values.yaml's own comment there) and so uses
-    # the exact same split shape, not the ordinary embedded-digest one.
-    ("keycloak", "image"): "sha",
-    # The operator's OWN image — same split tag:/sha: shape, overridden
-    # explicitly in values.yaml (see the "operator image digest pinning
-    # differs from every other image" caveat in the upgrade doc) even
-    # though update-component-version's own SPLIT_TAG_SHA_PATHS
-    # deliberately excludes this path (a chart-version bump is the
-    # sanctioned way to move it there — see that script's own comment).
-    # That's a WRITE-side policy choice, irrelevant here: this registry
-    # is read-only (resolved_digest_pin needs the actual digest to
-    # report/compare against, regardless of how it got there), so it
-    # must reflect whatever values.yaml actually contains.
-    ("keycloak-operator", "operator", "image"): "sha",
-    # eck-operator's own upstream chart names its sibling field "digest:"
-    # (values.yaml: "eck-operator.image: {tag: ..., digest: sha256:...}"),
-    # not "sha:" — confirmed live on the real chart. Without this
-    # registration, resolved_digest_pin had no way to find it at all
-    # (returned None), which is exactly why images-<target>.yaml's own
-    # entry-writer (add_missing_images_manifest_entries) refused to
-    # write an entry for it ("no resolvable repository, or its values.
-    # yaml tag has no digest pinned yet").
-    ("eck-operator", "image"): "digest",
-}
+# The set of paths whose "tag:" field never embeds an "@sha256:..."
+# digest at all -- a sibling field holds it instead, under whatever NAME
+# this component's own upstream chart happens to use -- now lives in
+# charts/podiumd/etc/settings.yaml's own "digest_pinning.exceptions"
+# section (see lib.settings.digest_pinning_exceptions), unified with
+# lib.digest_pinning_check's own "must every tag be digest-pinned"
+# exemption list and update-component-version's own write-side
+# allowlist -- three independently-hand-maintained, overlapping
+# registries this replaced. resolved_digest_pin below takes that
+# resolved table (path -> {"sibling_field": ..., "writable": ...}) as a
+# parameter rather than reading a module constant of its own.
 
 
-def resolved_digest_pin(values, path, tag):
+def resolved_digest_pin(values, path, tag, sibling_fields):
     """`tag`'s own "@sha256:<hex>" suffix if it already has one, else —
-    for a SPLIT_TAG_SHA_PATHS path only — that same digest read from the
-    path's own sibling field instead (whatever SPLIT_TAG_SHA_PATHS names
-    it for this exact path) and combined into the usual "<tag>@sha256:
-    <hex>" shape. None when neither source has a digest at all (an
-    ordinary path with no "@" in its tag, or a SPLIT_TAG_SHA_PATHS path
-    with no override yet in its own sibling field — inherits the
-    vendored subchart's own default, not visible here).
+    for a path registered in `sibling_fields` (lib.settings.
+    digest_pinning_exceptions(chart_dir), or an equivalent {path:
+    {"sibling_field": ..., ...}} mapping) only — that same digest read
+    from the path's own sibling field instead (whatever `sibling_fields`
+    names it for this exact path) and combined into the usual "<tag>@
+    sha256:<hex>" shape. None when neither source has a digest at all
+    (an ordinary path with no "@" in its tag, or a registered path with
+    no override yet in its own sibling field — inherits the vendored
+    subchart's own default, not visible here).
 
     The sibling field's own VALUE SHAPE is not standardized across
-    SPLIT_TAG_SHA_PATHS entries, and is used as found rather than always
-    assuming one: the two keycloak paths' own "sha:" field is bare hex,
-    no "sha256:" prefix of its own (see update-component-version's
-    write_tag_and_sha) — but eck-operator's own "digest:" field already
-    carries the full "sha256:<hex>" form (confirmed live on the real
-    chart: "digest: \"sha256:b6f26137...\""). Prepending "sha256:"
-    unconditionally would double it for eck-operator's own shape."""
+    entries, and is used as found rather than always assuming one: the
+    two keycloak paths' own "sha:" field is bare hex, no "sha256:"
+    prefix of its own (see update-component-version's write_tag_and_
+    sha) — but eck-operator's own "digest:" field already carries the
+    full "sha256:<hex>" form (confirmed live on the real chart: "digest:
+    \"sha256:b6f26137...\""). Prepending "sha256:" unconditionally would
+    double it for eck-operator's own shape."""
     if "@" in tag:
         return tag
-    sibling_field = SPLIT_TAG_SHA_PATHS.get(path)
+    sibling_field = sibling_fields.get(path, {}).get("sibling_field")
     if sibling_field is None:
         return None
     digest = get_path(values, ".".join(path) + f".{sibling_field}")
@@ -527,16 +493,31 @@ def get_path(node, dotted_path):
 
 def replace_scalar_value(line, new_value):
     """Replace a "key: <value>" line's scalar value, preserving indent, key,
-    quote style, and any trailing comment. Used to bump a version/tag pin in
+    quote style, any "&anchor" tag (e.g. "tag: &keycloakImageVersion
+    "26.7.2""), and any trailing comment. Used to bump a version/tag pin in
     place without a full yaml.safe_load+dump round trip, which would lose
-    comments and reformat the rest of the file."""
-    m = re.match(r'^(?P<indent>\s*)(?P<key>[^:\n]+:)\s*(?P<quote>["\']?)'
+    comments and reformat the rest of the file.
+
+    The "&anchor" preservation matters even though this function itself
+    has no idea whether anything ELSE in the file aliases this exact
+    line via "*anchor" (see update-component-version's own is_alias_
+    reference_line, which handles the ALIAS side of this — a line that
+    only ever *reads* an anchor's value, never defines one, and must be
+    skipped rather than written at all): dropping the anchor tag here,
+    on the DEFINING line itself, would silently sever any "*anchor"
+    reference elsewhere in the same file, turning it into a YAML parse
+    error (an alias to an undefined anchor) on the very next load —
+    confirmed empirically before this fix (a bare "tag: &keycloakImage
+    Version "26.7.2"" line came back as "tag: 26.7.3", the anchor tag
+    gone entirely)."""
+    m = re.match(r'^(?P<indent>\s*)(?P<key>[^:\n]+:)\s*(?P<anchor>&\S+\s+)?(?P<quote>["\']?)'
                  r'(?P<value>.*?)(?P=quote)\s*(?P<comment>#.*)?\s*$', line)
     if not m:
         raise SystemExit(f"error: could not parse line for replacement: {line!r}")
+    anchor = m.group("anchor") or ""
     quote = m.group("quote")
     comment = f"  {m.group('comment')}" if m.group("comment") else ""
-    return f"{m.group('indent')}{m.group('key')} {quote}{new_value}{quote}{comment}\n"
+    return f"{m.group('indent')}{m.group('key')} {anchor}{quote}{new_value}{quote}{comment}\n"
 
 
 def find_dependency(deps, name_or_alias):

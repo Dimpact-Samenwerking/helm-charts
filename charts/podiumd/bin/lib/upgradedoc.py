@@ -10,6 +10,7 @@ from lib.chart import (
     is_primary_image_path, nested_subchart_registered_paths, paths_by_repository, resolved_digest_pin,
     subchart_app_version, version_of, version_paths_for,
 )
+from lib.settings import digest_pinning_exceptions
 
 
 def normalize_version(v):
@@ -1698,8 +1699,9 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     The digest side of this is deliberately narrow: it only fires when
     BOTH the target and upgrade_docs_baseline pin have a resolvable
     digest of their own (an embedded "@sha256:..." in the tag, or — for
-    a SPLIT_TAG_SHA_PATHS path — the sibling "sha:" field; see resolved_
-    digest_pin) AND those two digests differ while the version stayed
+    a digest_pinning.exceptions path (lib.settings.digest_pinning_
+    exceptions) — the sibling field it names; see resolved_digest_pin)
+    AND those two digests differ while the version stayed
     the same. A path where either side has NO resolvable digest at all
     (an ordinary bare-tag pin, digest resolved live against the
     registry rather than stored anywhere in values.yaml/git history) is
@@ -1718,8 +1720,8 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     being silently invisible to this check.
 
     values/baseline_values (the full values trees resolved_digest_pin
-    needs to look up a SPLIT_TAG_SHA_PATHS path's sibling "sha:" field)
-    are optional — omitting either one (or both) just means the digest
+    needs to look up a digest_pinning.exceptions path's own sibling
+    field) are optional — omitting either one (or both) just means the digest
     comparison can never fire for ANY path (resolved_digest_pin needs a
     real values tree, not just the bare tag strings current_paths/
     baseline_paths already hold), collapsing this back to the old
@@ -1812,6 +1814,10 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     representative_of = {path: repo_map[repo] for repo, paths in repo_groups.items()
                           for path in paths if repo in repo_map}
     path_to_repo = {path: repo for repo, paths in repo_groups.items() for path in paths}
+    # chart_dir is optional here (its one real caller always passes it,
+    # but this function's own signature allows None) -- resolved,
+    # None-safely, once rather than at each digest_changed call.
+    sibling_fields = digest_pinning_exceptions(chart_dir) if chart_dir is not None else {}
 
     def digest_changed(path, tag, baseline_tag):
         # Only fires when BOTH sides have a resolvable digest of their
@@ -1820,8 +1826,8 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
         # is deliberately left alone, not treated as "changed".
         if values is None or baseline_values is None:
             return False
-        current_digest = resolved_digest_pin(values, path, tag)
-        baseline_digest = resolved_digest_pin(baseline_values, path, baseline_tag)
+        current_digest = resolved_digest_pin(values, path, tag, sibling_fields)
+        baseline_digest = resolved_digest_pin(baseline_values, path, baseline_tag, sibling_fields)
         if not current_digest or not baseline_digest:
             return False
         return current_digest.split("@", 1)[1] != baseline_digest.split("@", 1)[1]

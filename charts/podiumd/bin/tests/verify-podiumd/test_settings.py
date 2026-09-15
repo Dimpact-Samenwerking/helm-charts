@@ -181,3 +181,93 @@ def test_empty_settings_file_does_not_crash(libsettings, tmp_path):
     assert libsettings._load_settings(tmp_path) == {}
     for name, default, _override, _cast in ACCESSOR_CASES:
         assert getattr(libsettings, name)(tmp_path) == default
+
+
+# --- digest_pinning_exceptions / release_table_special_case_basename_tag_paths ---
+#
+# Both return a shape too irregular (tuple-path keys, nested per-entry
+# dicts with their own normalization) to fit ACCESSOR_CASES' single
+# cast-constructor convention above -- tested standalone instead,
+# following the exact same missing-file/full-file/partial-file pattern.
+
+DEFAULT_DIGEST_PINNING_EXCEPTIONS = {
+    ("keycloak-operator", "operator", "image"): {"sibling_field": "sha", "writable": True},
+    ("keycloak-operator", "operator", "config", "keycloakImage"): {"sibling_field": "sha", "writable": True},
+    ("keycloak", "image"): {"sibling_field": "sha", "writable": True},
+    ("eck-operator", "image"): {"sibling_field": "digest", "writable": True},
+    ("omc", "image"): {"sibling_field": None, "writable": False},
+}
+
+
+def test_digest_pinning_exceptions_missing_file_matches_todays_five_entry_table(libsettings, tmp_path):
+    """No etc/settings.yaml at all -- falls back to exactly today's real
+    5-entry table (the one this iteration unified out of lib.chart.
+    SPLIT_TAG_SHA_PATHS, lib.digest_pinning_check.EXEMPT_PATHS, and
+    update-component-version's own separate write-side allowlist)."""
+    assert libsettings.digest_pinning_exceptions(tmp_path) == DEFAULT_DIGEST_PINNING_EXCEPTIONS
+
+
+def test_digest_pinning_exceptions_full_file_override(libsettings, tmp_path):
+    write_settings(tmp_path, {
+        "digest_pinning": {
+            "exceptions": {
+                "some-component.image": {"sibling_field": "digest", "writable": True},
+                "other-component.image": {},
+            },
+        },
+    })
+    assert libsettings.digest_pinning_exceptions(tmp_path) == {
+        ("some-component", "image"): {"sibling_field": "digest", "writable": True},
+        ("other-component", "image"): {"sibling_field": None, "writable": False},
+    }
+
+
+def test_digest_pinning_exceptions_partial_entry_defaults_missing_keys(libsettings, tmp_path):
+    """An entry that only sets one of sibling_field/writable still comes
+    back with BOTH keys present (the other defaulted) -- callers never
+    need their own .get() dance."""
+    write_settings(tmp_path, {
+        "digest_pinning": {
+            "exceptions": {
+                "writable-no-sibling.image": {"writable": True},
+                "sibling-not-writable.image": {"sibling_field": "sha"},
+            },
+        },
+    })
+    result = libsettings.digest_pinning_exceptions(tmp_path)
+    assert result[("writable-no-sibling", "image")] == {"sibling_field": None, "writable": True}
+    assert result[("sibling-not-writable", "image")] == {"sibling_field": "sha", "writable": False}
+
+
+DEFAULT_RELEASE_TABLE_SPECIAL_CASE_BASENAME_TAG_PATHS = {
+    "keycloak": "keycloak-operator.operator.config.keycloakImage.tag",
+}
+
+
+def test_release_table_special_case_basename_tag_paths_missing_file_default(libsettings, tmp_path):
+    assert libsettings.release_table_special_case_basename_tag_paths(tmp_path) == \
+        DEFAULT_RELEASE_TABLE_SPECIAL_CASE_BASENAME_TAG_PATHS
+
+
+def test_release_table_special_case_basename_tag_paths_full_file_override(libsettings, tmp_path):
+    write_settings(tmp_path, {
+        "release_table_verification": {
+            "special_case_basename_tag_paths": {
+                "keycloak": "keycloak-operator.operator.config.keycloakImage.tag",
+                "somebasename": "some-component.nested.image.tag",
+            },
+        },
+    })
+    assert libsettings.release_table_special_case_basename_tag_paths(tmp_path) == {
+        "keycloak": "keycloak-operator.operator.config.keycloakImage.tag",
+        "somebasename": "some-component.nested.image.tag",
+    }
+
+
+def test_release_table_special_case_basename_tag_paths_partial_file_other_sections_untouched(libsettings, tmp_path):
+    """A settings.yaml with an unrelated section present (but no
+    release_table_verification section at all) still falls back to the
+    documented default for this accessor, without crashing."""
+    write_settings(tmp_path, {"dry_check": {"similarity_threshold": 0.5}})
+    assert libsettings.release_table_special_case_basename_tag_paths(tmp_path) == \
+        DEFAULT_RELEASE_TABLE_SPECIAL_CASE_BASENAME_TAG_PATHS

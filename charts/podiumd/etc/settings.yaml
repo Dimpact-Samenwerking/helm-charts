@@ -119,3 +119,31 @@ helm_repos:
     "zgw-office-addin": "https://infonl.github.io/zgw-office-addin"
     "worth-nl": "https://worth-nl.github.io/helm-charts"
     "opstree": "https://ot-container-kit.github.io/helm-charts/"
+
+digest_pinning:
+  # A path here is exempt from the ordinary "@sha256:... embedded in tag"
+  # convention. sibling_field (when present) names the separate values.yaml
+  # field that actually carries the digest for this path, matching whatever
+  # its own upstream chart's template expects (see resolved_digest_pin).
+  # writable: true marks a path update-component-version may safely
+  # auto-write a fresh tag+digest to during a version bump — every other
+  # exempt path is read-only here (either it has no code path that ever
+  # writes it, or writing it isn't safe/meaningful, e.g. omc.image can't be
+  # digest-pinned in any form, and keycloak.image is a YAML *alias* of
+  # keycloak-operator.operator.config.keycloakImage's own anchor, so it
+  # never needs (or gets) its own separate write -- see update-component-
+  # version's own alias-detection).
+  exceptions:
+    "keycloak-operator.operator.image": {sibling_field: "sha", writable: true}
+    "keycloak-operator.operator.config.keycloakImage": {sibling_field: "sha", writable: true}
+    "keycloak.image": {sibling_field: "sha", writable: true}
+    "eck-operator.image": {sibling_field: "digest", writable: true}
+    "omc.image": {}
+
+release_table_verification:
+  # basename -> the dotted values.yaml "...tag" path to read its version
+  # from directly, for an image basenames_under_scope_any_tag can't find via
+  # the normal scope_key-scoped scan because it lives nested inside a
+  # DIFFERENT component's own subtree than its release-table row name.
+  special_case_basename_tag_paths:
+    "keycloak": "keycloak-operator.operator.config.keycloakImage.tag"
