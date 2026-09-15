@@ -76,14 +76,14 @@ def find_images_without_repository(chart_dir, allow_pull=False):
             missing.append(path)
             continue
 
-        sibling_rel = version_repository_path_for(dep["name"])
+        sibling_rel = version_repository_path_for(dep["name"], chart_dir)
         if sibling_rel:
             sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
             if isinstance(sibling_repo, str) and sibling_repo:
                 continue
 
         nested_rel = ".".join(path[1:])
-        nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel)
+        nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel, chart_dir)
         if nested_chart_name:
             cache_key = (dep["name"], nested_chart_name)
             if cache_key not in nested_subchart_cache:

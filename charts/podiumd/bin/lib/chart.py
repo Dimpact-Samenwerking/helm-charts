@@ -13,7 +13,10 @@ import yaml
 from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 from lib.release_baseline import resolve_baseline_chart_state
-from lib.settings import component_resolution_chart_version_lockstep_components
+from lib.settings import (
+    component_resolution_chart_version_lockstep_components, component_resolution_version_path_nested_subcharts,
+    component_resolution_version_repository_paths,
+)
 
 # A BOM breaks YAML tooling that doesn't expect one. Shared by
 # verify-podiumd (detects and reports it — a verify script never writes
@@ -267,59 +270,64 @@ def is_primary_image_path(path, deps):
 
 
 # component (name, not alias) -> the sibling dotted path holding a
-# COMPONENT_VERSION_PATHS entry's own repository — for the rare case
-# where that repository IS explicitly overridable in podiumd's OWN
-# values.yaml (redis-operator's own "imageName:"/"imageTag:" sibling-
-# field convention), so paths_by_repository/find_images_without_
-# repository can resolve one at all; a bare "version:" field with
-# nothing at all in podiumd's own values.yaml (eck-stack's own three —
-# see COMPONENT_VERSION_PATH_NESTED_SUBCHARTS below instead) is
-# correctly left out here.
-COMPONENT_VERSION_REPOSITORY_PATHS = {
-    "redis-operator": "redisOperator.imageName",
-}
+# COMPONENT_VERSION_PATHS entry's own repository — now lives in
+# charts/podiumd/etc/settings.yaml's own "component_resolution.
+# version_repository_paths" (see lib.settings.component_resolution_
+# version_repository_paths). version_repository_path_for below resolves
+# it — its own 4 call sites (documented_repository_for_path,
+# paths_by_repository, full_repository_for_path here, and lib.
+# image_repository_check.find_images_without_repository) ALL already
+# have chart_dir in scope, so this takes it as an ordinary required
+# parameter — no self-resolving needed, unlike nested_subchart_
+# registered_paths below. Still tolerates chart_dir=None (returns None,
+# same as "not registered") rather than raising: some of those 4 call
+# sites are themselves reachable with chart_dir=None (see full_
+# repository_for_path's own "chart_dir is not None" guard a few lines
+# below its own call here) — this must degrade the same tolerant way,
+# not crash a report-only check.
+def version_repository_path_for(component, chart_dir):
+    if chart_dir is None:
+        return None
+    return component_resolution_version_repository_paths(chart_dir).get(component)
 
 
-def version_repository_path_for(component):
-    return COMPONENT_VERSION_REPOSITORY_PATHS.get(component)
+# component -> {relative COMPONENT_VERSION_PATHS-shaped field: nested
+# sub-subchart name} — now lives in charts/podiumd/etc/settings.yaml's
+# own "component_resolution.version_path_nested_subcharts" (see lib.
+# settings.component_resolution_version_path_nested_subcharts and that
+# file's own comment for the eck-stack/ECK-operator reasoning).
+# nested_subchart_name_for below shares version_repository_path_for's
+# own 4 chart_dir-bearing call sites (and its same chart_dir=None
+# tolerance — see that function's own docstring), so it's an ordinary
+# required parameter too.
+def nested_subchart_name_for(component, rel_path, chart_dir):
+    if chart_dir is None:
+        return None
+    return component_resolution_version_path_nested_subcharts(chart_dir).get(component, {}).get(rel_path)
 
 
-# component (name) -> {relative COMPONENT_VERSION_PATHS-shaped field:
-# nested sub-subchart name} for a bare tag/version field whose real
-# repository has NO override anywhere in podiumd's own values.yaml —
-# own or vendored TOP-LEVEL subchart default — because the operator
-# maps the bare version to a fixed upstream image internally (the ECK
-# operator's own version-to-image mapping for its managed Elasticsearch
-# /Kibana/Enterprise Search CRDs). The ONLY place that real image is
-# documented at all is the nested sub-subchart's OWN values.yaml
-# bundled inside the outer .tgz (e.g. eck-stack-<version>.tgz's own
-# "charts/eck-elasticsearch/values.yaml") — as a commented-out example
-# ("# image: <repo>[:<tag>]", right under its own "# <Name> Docker
-# image to deploy." comment), never a live default subchart_values
-# would ever see. See nested_subchart_documented_image_repository.
-COMPONENT_VERSION_PATH_NESTED_SUBCHARTS = {
-    "eck-stack": {
-        "eck-elasticsearch.version": "eck-elasticsearch",
-        "eck-kibana.version": "eck-kibana",
-        "eck-enterprise-search.version": "eck-enterprise-search",
-    },
-}
+def nested_subchart_registered_paths(component, chart_dir=None):
+    """Every relative COMPONENT_VERSION_PATHS-shaped field settings.
+    yaml's own component_resolution.version_path_nested_subcharts
+    registers a nested sub-subchart for, whether or not COMPONENT_
+    VERSION_PATHS itself ALSO lists it — eck-stack's own "eck-
+    enterprise-search.version" is a real, matchable image (see lib.
+    upgradedoc.find_component_version_tags) that COMPONENT_VERSION_
+    PATHS deliberately excludes from its narrower "pick ONE
+    representative app version" list (disabled by default), so it's
+    registered here but not there.
 
-
-def nested_subchart_name_for(component, rel_path):
-    return COMPONENT_VERSION_PATH_NESTED_SUBCHARTS.get(component, {}).get(rel_path)
-
-
-def nested_subchart_registered_paths(component):
-    """Every relative COMPONENT_VERSION_PATHS-shaped field
-    COMPONENT_VERSION_PATH_NESTED_SUBCHARTS registers a nested sub-
-    subchart for, whether or not COMPONENT_VERSION_PATHS itself ALSO
-    lists it — eck-stack's own "eck-enterprise-search.version" is a
-    real, matchable image (see lib.upgradedoc.find_component_version_
-    tags) that COMPONENT_VERSION_PATHS deliberately excludes from its
-    narrower "pick ONE representative app version" list (disabled by
-    default), so it's registered here but not there."""
-    return list(COMPONENT_VERSION_PATH_NESTED_SUBCHARTS.get(component, {}))
+    Unlike version_repository_path_for/nested_subchart_name_for above
+    (whose 4 call sites all already have chart_dir in scope), this
+    one's own caller (lib.upgradedoc.find_component_version_tags) has
+    no chart_dir at all, itself called from find_all_image_and_version_
+    paths — 9+ call sites across 5 files, several levels removed from
+    any chart_dir-bearing function. Self-resolves via Path(__file__).
+    parents[2] by default (same pattern as lib.chart.chart_version_
+    lockstep_components), while still accepting an explicit override
+    for tests."""
+    chart_dir = chart_dir or Path(__file__).resolve().parents[2]
+    return list(component_resolution_version_path_nested_subcharts(chart_dir).get(component, {}))
 
 
 DOCUMENTED_IMAGE_RE = re.compile(r"^#\s*image:\s*([^\s:@]+)", re.MULTILINE)
@@ -382,7 +390,7 @@ def documented_repository_for_path(chart_dir, deps, path):
     dep = by_values_key.get(path[0])
     if dep is None or chart_dir is None:
         return None
-    nested_chart_name = nested_subchart_name_for(dep["name"], ".".join(path[1:]))
+    nested_chart_name = nested_subchart_name_for(dep["name"], ".".join(path[1:]), chart_dir)
     if not nested_chart_name:
         return None
     return nested_subchart_documented_image_repository(chart_dir, dep, nested_chart_name)
@@ -1172,7 +1180,7 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
         if dep is None:
             continue
 
-        sibling_rel = version_repository_path_for(dep["name"])
+        sibling_rel = version_repository_path_for(dep["name"], chart_dir)
         if sibling_rel:
             sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
             if isinstance(sibling_repo, str) and sibling_repo:
@@ -1180,7 +1188,7 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
                 continue
 
         nested_rel = ".".join(path[1:])
-        nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel)
+        nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel, chart_dir)
         if nested_chart_name:
             cache_key = (dep["name"], nested_chart_name)
             if cache_key not in nested_subchart_cache:
@@ -1281,7 +1289,7 @@ def full_repository_for_path(chart_dir, deps, values, path, allow_pull=False):
     if dep is None:
         return None
 
-    sibling_rel = version_repository_path_for(dep["name"])
+    sibling_rel = version_repository_path_for(dep["name"], chart_dir)
     if sibling_rel:
         sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
         if isinstance(sibling_repo, str) and sibling_repo:
@@ -1289,7 +1297,7 @@ def full_repository_for_path(chart_dir, deps, values, path, allow_pull=False):
             return f"{host}/{repo_path}"
 
     nested_rel = ".".join(path[1:])
-    nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel)
+    nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel, chart_dir)
     if nested_chart_name and chart_dir is not None:
         nested_repo = nested_subchart_documented_image_repository(chart_dir, dep, nested_chart_name)
         if nested_repo:
