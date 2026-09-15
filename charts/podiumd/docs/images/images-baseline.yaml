@@ -31,6 +31,11 @@
   version: "1.38.0-glibc"
   digest: "sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
 
+- name: library/postgres
+  url: docker.io/library/postgres
+  version: "16.15-alpine"
+  digest: "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
   version: "26.7.3"
@@ -45,11 +50,6 @@
   url: docker.io/library/python
   version: "3.14.7-slim"
   digest: "sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"
-
-- name: postgres
-  url: docker.io/library/postgres
-  version: "16.15"
-  digest: "sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94"
 
 - name: adorsys/keycloak-config-cli
   url: docker.io/adorsys/keycloak-config-cli
@@ -315,8 +315,3 @@
   url: quay.io/openbao/openbao
   version: "2.5.5"
   digest: "sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"
-
-- name: library/postgres
-  url: docker.io/library/postgres
-  version: "16-alpine"
-  digest: "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"

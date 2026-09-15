@@ -24,6 +24,10 @@ global:
       repository: library/busybox
       tag: "1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
       pullPolicy: IfNotPresent
+    postgres: &postgresImage
+      repository: library/postgres
+      tag: "16.15-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+      pullPolicy: IfNotPresent
 
 tags:
   eck-operator.enabled: false
@@ -111,10 +115,7 @@ keycloak-operator:
         # Digest-pinned to a specific patch rather than the floating 3.14-slim minor tag.
         tag: "3.14.7-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
-      image:
-        registry: ""
-        repository: postgres
-        tag: "16.15@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94"
+      image: *postgresImage
     ensureOperatorSa:
       enabled: true
       # Container: curl-based job to provision the keycloak-operator service account client.
@@ -4507,9 +4508,7 @@ openbao:
       backoffLimit: 6
       # Post-success log window (Job is not hook-deleted on success).
       ttlSecondsAfterFinished: 600
-      image:
-        repository: docker.io/library/postgres
-        tag: "16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+      image: *postgresImage
       nodeSelector: {}
       resources:
         requests:
