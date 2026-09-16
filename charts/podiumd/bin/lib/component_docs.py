@@ -1516,7 +1516,7 @@ def values_tree_path_for(values_key, image_path):
 
 
 def find_matching_images_entry(entries, entry_line_indices, target_path):
-    for index, (entry, line_idx) in enumerate(zip(entries, entry_line_indices)):
+    for index, (entry, line_idx) in enumerate(zip(entries, entry_line_indices, strict=True)):
         if resolve_entry_path(entry["name"], [target_path]) == target_path:
             return entry, line_idx, index
     return None, None, None
