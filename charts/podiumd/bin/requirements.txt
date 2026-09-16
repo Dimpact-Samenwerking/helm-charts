@@ -4,3 +4,4 @@
 # picking up new rules/versions is desirable, not a compatibility risk.
 ruff
 pymarkdownlnt
+pylint

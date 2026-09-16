@@ -2,13 +2,41 @@
 # Ruff auto-discovers this file for anything under charts/podiumd/scripts/,
 # so no repo-root pyproject.toml/ruff.toml is needed.
 #
-# F = pyflakes: catches unused imports (F401), unused locals (F841), etc.
-# This exists specifically so a lib/ refactor can't silently leave dead
-# imports behind again (see git history on this file's directory).
+# This codebase's own docstrings/comments are deliberately long, explanatory
+# prose (see git history) -- ruff's own default 88-char line-length would
+# flag nearly every one of them as noise, not a real issue. 120 is generous
+# enough to leave the deliberate style alone while still catching genuine
+# outliers (a handful of lines even past that).
+line-length = 120
+
+# F = pyflakes: unused imports (F401), unused locals (F841), etc. This exists
+#     specifically so a lib/ refactor can't silently leave dead imports
+#     behind again (see git history on this file's directory).
+# E, W = pycodestyle errors/warnings.
+# I = isort: import sorting/grouping.
+# N = pep8-naming.
+# UP = pyupgrade: outdated syntax for the actual supported Python version.
+# B = flake8-bugbear: likely-real bugs (mutable default args, bare except,
+#     loop-variable closures, etc.) pyflakes alone doesn't catch.
+# C4 = flake8-comprehensions: unnecessary/inefficient comprehension patterns.
+# SIM = flake8-simplify: needlessly convoluted control flow.
 [lint]
-select = ["F"]
+select = ["F", "E", "W", "I", "N", "UP", "B", "C4", "SIM"]
 
 # fix-oidc-config.py predates and is unrelated to the verify-podiumd/lib
 # toolset this rule was written for; its existing F401s are pre-existing
 # and out of scope here.
 exclude = ["fix-oidc-config.py"]
+
+[lint.per-file-ignores]
+# Every one of these test conftest.py files inserts its own script's
+# directory onto sys.path before importing that script's own sibling lib.*
+# modules -- these aren't installed as a package, so this is the only way
+# for a conftest.py to import them at all. E402 (import not at top of file)
+# is the deliberate, necessary consequence of that, not a real ordering
+# problem -- confirmed the only 4 files this affects, all of them this
+# exact same pattern.
+"tests/lib/conftest.py" = ["E402"]
+"tests/render-podiumd/conftest.py" = ["E402"]
+"tests/update-component-version/conftest.py" = ["E402"]
+"tests/verify-podiumd/conftest.py" = ["E402"]
