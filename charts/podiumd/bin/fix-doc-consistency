@@ -466,8 +466,8 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
                     cells[2] = new_chart_cell
                     row_changed = True
             elif resolved["kind"] == "native" and cells[2] != "-":
-                # A NATIVE_COMPONENTS component (see lib.chart.
-                # NATIVE_COMPONENTS) never has a chart to verify against at
+                # A native_components component (see lib.chart.
+                # native_components) never has a chart to verify against at
                 # all — unlike a sidecar's own "-" (trusted correct from
                 # the moment add_missing_sidecar_rows first writes it),
                 # this one CAN start out wrong (real case: frankgateway's
@@ -740,7 +740,7 @@ def fix_changes_heading_app_versions(text, chart_dir, target_deps, target_values
 
     Only ever touches a heading naming EXACTLY ONE real identity (see
     resolve_component_identity/changes_heading_identities - a real
-    Chart.yaml dependency, a lib.chart.NATIVE_COMPONENTS component, OR a
+    Chart.yaml dependency, a lib.chart.native_components component, OR a
     canonical sidecar/MULTIPLE-scope image, e.g. "redis" or "redis-
     operator - redis") whose row resolves to a real, non-None target app
     version; a heading that's ambiguous, orphaned, whose row has no

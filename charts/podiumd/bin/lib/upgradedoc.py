@@ -5,10 +5,10 @@ import re
 import yaml
 
 from lib.chart import (
-    NATIVE_COMPONENTS, baseline_tag_for_sidecar_path, component_image_paths, full_repository_for_path, get_path,
+    baseline_tag_for_sidecar_path, component_image_paths, full_repository_for_path, get_path,
     global_image_paths, historical_app_version_for_path, historical_app_version_for_repository, image_paths_for,
-    is_primary_image_path, nested_subchart_registered_paths, paths_by_repository, resolved_digest_pin,
-    subchart_app_version, version_of, version_paths_for,
+    is_primary_image_path, native_components, nested_subchart_registered_paths, paths_by_repository,
+    resolved_digest_pin, subchart_app_version, version_of, version_paths_for,
 )
 from lib.settings import digest_pinning_exceptions
 
@@ -114,7 +114,7 @@ def component_order_key(name, deps, key_order, canonical_names=None, values=None
     """A doc item's (table row name, or "### ..." Changes heading) sort
     position: (values_key_index, is_sidecar) — values_key_index is the
     values.yaml top-level key match_dependency resolves `name` to (falling
-    back to match_native_component — see lib.chart.NATIVE_COMPONENTS — for
+    back to match_native_component — see lib.chart.native_components — for
     a component with no Chart.yaml dependency at all, e.g. frankgateway),
     as its index in key_order, or len(key_order) (sorts after every real
     component) when `name` doesn't resolve to either at all (e.g. a row
@@ -180,7 +180,7 @@ def component_order_key(name, deps, key_order, canonical_names=None, values=None
     is_sidecar = 1 if " - " in name else 0
     sidecar_path = None
     if values_key is None:
-        values_key = match_native_component(name, NATIVE_COMPONENTS)
+        values_key = match_native_component(name, native_components())
     if values_key is None and canonical_names is not None:
         sidecar_path = match_canonical_sidecar_name(name, canonical_names)
         if sidecar_path:
@@ -500,20 +500,23 @@ def match_dependency(text, deps):
     return best[0] if best else None
 
 
-def match_native_component(text, native_components):
+def match_native_component(text, native_component_names):
     """match_dependency's own word-boundary-safe fuzzy match, against
-    lib.chart.NATIVE_COMPONENTS (a values.yaml top-level component with no
-    backing Chart.yaml dependency at all — see that registry's own
+    lib.chart.native_components() (a values.yaml top-level component with
+    no backing Chart.yaml dependency at all — see that registry's own
     docstring) instead of Chart.yaml's dependencies list. Kept as its own
     function rather than one more fallback branch inside match_dependency
     itself: every existing match_dependency caller already has a
     considered opinion on whether a native component should match too
     (component_order_key: yes, so its own row/section still sorts at its
     real values.yaml position; compute_changed_components: doesn't need
-    this at all, since it already iterates NATIVE_COMPONENTS directly)."""
+    this at all, since it already iterates native_components() directly).
+    Takes the resolved set of names (`native_component_names`), not a
+    chart_dir, so a caller with no chart_dir in scope can pass lib.chart.
+    native_components()'s own self-resolving default."""
     spans = _word_aligned_spans(text)
     best = None
-    for key in native_components:
+    for key in native_component_names:
         norm = normalize_name(key)
         if norm and norm in spans and (best is None or len(norm) > len(best[1])):
             best = (key, norm)
@@ -572,15 +575,15 @@ def match_canonical_sidecar_name(text, canonical_names):
 def resolve_component_identity(text, deps, canonical_names):
     """The single component `text` names — ("sidecar", path) or ("dep",
     values_key) — or None if it names no real Chart.yaml dependency,
-    canonical sidecar/shared-image, or NATIVE_COMPONENTS component (see
-    lib.chart.NATIVE_COMPONENTS) at all. The same two-step resolution
+    canonical sidecar/shared-image, or native_components component (see
+    lib.chart.native_components) at all. The same two-step resolution
     docs_consistency.py's own table-row loop applies inline (sidecar
     name checked first, since match_dependency_excluding_sidecar_names
     refuses anything containing " - " on purpose), generalized here so
     changes_heading_identities can apply it to free-form Changes-heading
     text too, not just a table row's own bare name.
 
-    A NATIVE_COMPONENTS match is returned as ("dep", values_key) too —
+    A native_components match is returned as ("dep", values_key) too —
     same identity shape as a real dependency, deliberately: every caller
     here only ever asks "does this row/heading's identity match that
     OTHER row/heading's identity", never "is this backed by a real
@@ -592,7 +595,7 @@ def resolve_component_identity(text, deps, canonical_names):
     dep = match_dependency_excluding_sidecar_names(text, deps)
     if dep is not None:
         return ("dep", dep.get("alias", dep["name"]))
-    native_key = match_native_component(text, NATIVE_COMPONENTS)
+    native_key = match_native_component(text, native_components())
     if native_key is not None:
         return ("dep", native_key)
     return None
@@ -641,7 +644,7 @@ def changes_heading_identities(heading, deps, canonical_names):
     resolve it to the REAL "openbao" dependency, silently crediting a
     row that this heading doesn't actually, correctly document at all.
 
-    A NATIVE_COMPONENTS component (see lib.chart.NATIVE_COMPONENTS) is
+    A native_components component (see lib.chart.native_components) is
     matched the exact same word-position way, as its own single
     candidate (it has no separate name/alias pair — it isn't in
     Chart.yaml at all) — same reasoning as resolve_component_identity's
@@ -656,7 +659,7 @@ def changes_heading_identities(heading, deps, canonical_names):
     matches = []  # [(start, end, values_key), ...], end exclusive
     candidates_by_key = [(cand, dep.get("alias", dep["name"]))
                           for dep in deps for cand in filter(None, [dep.get("name"), dep.get("alias")])]
-    candidates_by_key += [(key, key) for key in NATIVE_COMPONENTS]
+    candidates_by_key += [(key, key) for key in native_components()]
     for candidate, key in candidates_by_key:
         norm_c = normalize_name(candidate)
         if not norm_c:
@@ -898,8 +901,8 @@ def component_version_cell(old, new):
     own fix_component_version_table (correcting an existing one) decide
     this cell's text, so the two can't drift on when "(new)" applies.
 
-    A NATIVE_COMPONENTS component's own Helm-chart cell (see lib.chart.
-    NATIVE_COMPONENTS — a component with no chart at all to compare)
+    A native_components component's own Helm-chart cell (see lib.chart.
+    native_components — a component with no chart at all to compare)
     reuses this exact "-" placeholder path too: callers pass old=None,
     new="-" for it, same as any chart-less sidecar row."""
     if old:
@@ -1053,7 +1056,7 @@ def resolve_baseline_component_versions(baseline_values, baseline_dep, values_ke
 
     baseline_dep is this component's own Chart.yaml dependency dict AS
     IT WAS AT THE BASELINE (None if it didn't exist there at all yet —
-    a brand-new dependency this cycle, or a lib.chart.NATIVE_COMPONENTS
+    a brand-new dependency this cycle, or a lib.chart.native_components
     component with no chart at all). `image_path` is the SPECIFIC dotted
     path (under values_key) this bump actually touched — e.g. a
     sidecar's own path ("redis-ha.image"), not always chart_name's
@@ -1172,8 +1175,8 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
     Returns a dict:
       {"kind": "unmatched"}
           row_name matches neither a Chart.yaml dependency, a
-          canonical sidecar/shared-image name, nor a NATIVE_COMPONENTS
-          component (see lib.chart.NATIVE_COMPONENTS) — nothing else to
+          canonical sidecar/shared-image name, nor a native_components
+          component (see lib.chart.native_components) — nothing else to
           resolve. Deliberately NOT resolved any further here: a row
           shaped like the canonical sidecar form ("<key> - <basename>")
           but with no matching entry in canonical_names must never fall
@@ -1192,11 +1195,11 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
        "baseline_app": ... or None}"""
     sidecar_path = canonical_names.get(row_name)
     dep = None if sidecar_path is not None else match_dependency_excluding_sidecar_names(row_name, deps)
-    # NATIVE_COMPONENTS component (see lib.chart.NATIVE_COMPONENTS) — no
+    # native_components component (see lib.chart.native_components) — no
     # Chart.yaml dependency at all, checked only once neither of the above
     # matched, same precedence match_native_component's other callers use.
     native_key = None if (sidecar_path is not None or dep is not None) \
-        else match_native_component(row_name, NATIVE_COMPONENTS)
+        else match_native_component(row_name, native_components(chart_dir))
 
     if sidecar_path is None and dep is None and native_key is None:
         return {"kind": "unmatched"}
@@ -2562,7 +2565,7 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
     catches a component that changed but was never added to any doc at
     all.
 
-    Also checks every lib.chart.NATIVE_COMPONENTS key (a values.yaml top-
+    Also checks every lib.chart.native_components key (a values.yaml top-
     level component with no backing Chart.yaml dependency at all, e.g.
     frankgateway) — for those there's no dep to compare, so only the
     subtree-image-version check applies; without this, such a component's
@@ -2597,8 +2600,9 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
         return {p: version_of(t) for p, t in paths.items() if p[0] == key and t not in global_tags}
 
     changed = set()
-    for key in set(current_by_key) | set(baseline_by_key) | set(NATIVE_COMPONENTS):
-        if key in NATIVE_COMPONENTS:
+    natives = native_components()
+    for key in set(current_by_key) | set(baseline_by_key) | set(natives):
+        if key in natives:
             if subtree_paths(key, current_paths) != subtree_paths(key, baseline_paths):
                 changed.add(key)
             continue

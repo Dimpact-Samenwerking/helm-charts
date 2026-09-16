@@ -37,7 +37,7 @@ Usage:
     update-component-version <component> <app-version> <chart-version>
 
     <chart-version> may also be the literal "native" (case-insensitive)
-    for a lib.chart.NATIVE_COMPONENTS component — one with no Chart.yaml
+    for a lib.chart.native_components component — one with no Chart.yaml
     dependency at all, implemented directly via podiumd's own templates
     instead of a vendored sub-chart (e.g. frankgateway). Chart.yaml is
     never touched in that case, and every "chart" cell/clause the docs
@@ -52,7 +52,7 @@ Examples:
         # untouched and only values.yaml's image tag is bumped
     update-component-version frankgateway 104 native
         # frankgateway has no Chart.yaml dependency to begin with — see
-        # lib.chart.NATIVE_COMPONENTS
+        # lib.chart.native_components
 
 After writing, re-render the chart (verify-podiumd or /helm-render-all)
 to confirm before committing.
@@ -70,7 +70,7 @@ from lib.chart import chart_version as _chart_version
 from lib.chart import find_dependency as _find_dependency
 from lib.chart import upgrade_docs_baseline as _read_upgrade_docs_baseline
 from lib.chart import (
-    NATIVE_COMPONENTS, check_image_versions, full_repository_for_path, get_path, image_paths_for,
+    check_image_versions, full_repository_for_path, get_path, image_paths_for, native_components,
     replace_scalar_value, resolve_chart_values,
 )
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
@@ -113,8 +113,8 @@ def _check_and_print_image_versions(values_for_check, image_paths, app_version):
     upstream yet. Returns lib.chart.check_image_versions' own results
     keyed by path — shared by both branches of verify_component_version
     below (a real Chart.yaml dependency's pulled chart values, or a
-    NATIVE_COMPONENTS component's own values.yaml subtree — see lib.chart
-    .NATIVE_COMPONENTS), which only differ in WHERE values_for_check comes
+    native_components component's own values.yaml subtree — see lib.chart
+    .native_components), which only differ in WHERE values_for_check comes
     from, never in how the check itself is run or reported."""
     image_results = check_image_versions(values_for_check, image_paths, app_version)
     ok_images = True
@@ -145,8 +145,8 @@ def verify_component_version(dep, image_paths, app_version, chart_version, compo
     can't be resolved or an image version doesn't exist; never returns
     in that case.
 
-    `dep is None` means a NATIVE_COMPONENTS component (see lib.chart.
-    NATIVE_COMPONENTS) — one with no Chart.yaml dependency at all, so
+    `dep is None` means a native_components component (see lib.chart.
+    native_components) — one with no Chart.yaml dependency at all, so
     there's no chart version to pull/verify. `image_paths` already have
     an explicit "repository:" of their own directly in podiumd's own
     values.yaml for every such component today (nothing to fall back to
@@ -155,7 +155,7 @@ def verify_component_version(dep, image_paths, app_version, chart_version, compo
     values[values_key]) — is checked directly instead."""
     if dep is None:
         print("No Chart.yaml dependency for this component — resolving image repositories "
-              "directly from values.yaml (see lib.chart.NATIVE_COMPONENTS)")
+              "directly from values.yaml (see lib.chart.native_components)")
         print(f"\nChecking app version {app_version!r}:")
         return _check_and_print_image_versions(component_values or {}, image_paths, app_version)
 
@@ -426,7 +426,7 @@ def main():
     component, app_version, chart_version = sys.argv[1], sys.argv[2], sys.argv[3]
 
     # The literal chart-version argument "native" (case-insensitive) marks
-    # a lib.chart.NATIVE_COMPONENTS component — one with no Chart.yaml
+    # a lib.chart.native_components component — one with no Chart.yaml
     # dependency at all (e.g. frankgateway, ported in as podiumd's own
     # templates instead of a vendored sub-chart). No chart version to
     # look up, verify, or write; old_chart/new_chart stay None all the way
@@ -454,9 +454,11 @@ def main():
     }
 
     if no_chart:
-        if component not in NATIVE_COMPONENTS:
+        natives = native_components(CHART_DIR)
+        if component not in natives:
             raise SystemExit(f"error: chart-version 'native' is only valid for a component in "
-                              f"lib.chart.NATIVE_COMPONENTS ({', '.join(sorted(NATIVE_COMPONENTS))}); "
+                              f"settings.yaml's component_resolution.native_components "
+                              f"({', '.join(sorted(natives))}); "
                               f"'{component}' isn't one — did you mean to pass its real chart version?")
         dep = None
         chart_name = component
@@ -603,8 +605,8 @@ def main():
     friendly = values_key
     # Fallback "old" values when the upgrade_docs_baseline itself can't be resolved (see
     # below) -- whatever was on disk right before this particular run, the
-    # only prior behavior this script had. None for a NATIVE_COMPONENTS
-    # component (see lib.chart.NATIVE_COMPONENTS) — there's no dep at all,
+    # only prior behavior this script had. None for a native_components
+    # component (see lib.chart.native_components) — there's no dep at all,
     # so no chart version to fall back to; stays None all the way through
     # (see component_version_cell et al., which each special-case it).
     old_chart = None if no_chart else str(dep["version"])
@@ -643,7 +645,7 @@ def main():
         old_app, old_chart = resolve_baseline_component_versions(
             baseline_values, baseline_dep, values_key, image_paths[0], chart_name, new_chart, chart_dir=CHART_DIR)
         if no_chart:
-            old_chart = None  # NATIVE_COMPONENTS: never a chart version to show at all
+            old_chart = None  # native_components: never a chart version to show at all
         # baseline_dep is None (this Chart.yaml dependency is brand new at
         # the release baseline) and old_app still None: the source version
         # comes strictly from a direct git-baseline read (resolve_baseline_

@@ -15,7 +15,8 @@ from lib.registry import parse_repo, registry_tag_exists
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import (
     component_resolution_chart_version_lockstep_components, component_resolution_default_image_paths,
-    component_resolution_image_paths, component_resolution_version_path_nested_subcharts,
+    component_resolution_image_paths, component_resolution_native_components,
+    component_resolution_version_path_nested_subcharts,
     component_resolution_version_paths, component_resolution_version_repository_paths,
 )
 
@@ -106,17 +107,19 @@ def version_paths_for(component, chart_dir=None):
 # component_order_key) must also consult this registry, or such a
 # component's own image-tag changes silently never register as "changed"
 # at all (see lib.component_docs.dep_for_values_key's own docstring, which
-# already anticipated exactly this gap).
-#
-# frankgateway (Frank!Gateway — WeAreFrank's Apache APISIX distribution,
-# ghcr.io/wearefrank/frank-gateway) is the one real case today: it replaced
-# the vendored `apisix` sub-chart in podiumd 4.8.2 (#385) and was ported in
-# as native templates (templates/frankgateway*.yaml) instead, since it
-# needed org-specific OpenBao/Keycloak integration no generic upstream
-# chart provides. A `- name: frankgateway` Chart.yaml dependency was
-# mistakenly added once (podiumd 4.9.0) under the assumption every changed
-# component needs one — it doesn't; see this registry instead.
-NATIVE_COMPONENTS = frozenset({"frankgateway"})
+# already anticipated exactly this gap). Now lives in charts/podiumd/etc/
+# settings.yaml's own "component_resolution.native_components" (see
+# lib.settings.component_resolution_native_components and that file's own
+# comment for the frankgateway reasoning) — native_components below
+# resolves it.
+
+
+def native_components(chart_dir=None):
+    """Self-resolving wrapper around lib.settings.component_resolution_
+    native_components — same shape as chart_version_lockstep_components
+    below."""
+    chart_dir = chart_dir or Path(__file__).resolve().parents[2]
+    return component_resolution_native_components(chart_dir)
 
 
 # Chart.yaml dependency NAMEs (not alias) whose own declared "version:" is
@@ -1550,12 +1553,14 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
     identical change) rather than the one true "global" row every OTHER
     caller of this same shared image already expects.
 
-    A NATIVE_COMPONENTS component's own nested images (e.g. frankgateway's
-    etcd/apisix-dashboard/oauth2-proxy) are registered the exact same
-    "<values_key> - <basename>" way — it has no Chart.yaml dependency at
-    all, but it's still the real owner of its own subordinate images, the
-    same as any dependency is of its own."""
+    A settings.yaml component_resolution.native_components component's
+    own nested images (e.g. frankgateway's etcd/apisix-dashboard/oauth2-
+    proxy) are registered the exact same "<values_key> - <basename>"
+    way — it has no Chart.yaml dependency at all, but it's still the
+    real owner of its own subordinate images, the same as any dependency
+    is of its own."""
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    natives = native_components(chart_dir)
     sidecar_paths, global_paths = [], []
     for path in paths:
         if not path:
@@ -1564,13 +1569,13 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
             global_paths.append(path)
             continue
         dep = by_values_key.get(path[0])
-        # A NATIVE_COMPONENTS component (e.g. frankgateway) owns its own
+        # A native_components component (e.g. frankgateway) owns its own
         # nested sidecars the same way a real Chart.yaml dependency does —
         # path[0] itself IS the component's name here (no alias possible;
         # it isn't in Chart.yaml at all), so image_paths_for(path[0])
         # excludes its own primary image the same way image_paths_for(dep
         # ["name"]) does for a real dependency just below.
-        owner_name = dep["name"] if dep is not None else (path[0] if path[0] in NATIVE_COMPONENTS else None)
+        owner_name = dep["name"] if dep is not None else (path[0] if path[0] in natives else None)
         if owner_name is not None and ".".join(path[1:]) not in set(image_paths_for(owner_name, chart_dir)):
             sidecar_paths.append(path)
 

@@ -926,7 +926,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             if resolved["kind"] == "sidecar":
                 matched_sidecar_paths.add(sidecar_path)
             elif actual_app:
-                # "dependency" and "native" (see lib.chart.NATIVE_COMPONENTS)
+                # "dependency" and "native" (see lib.chart.native_components)
                 # share this identity shape — resolve_component_identity/
                 # changes_heading_identities both resolve a native
                 # component to ("dep", values_key) too, so this dict's own

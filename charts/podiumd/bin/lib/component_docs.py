@@ -22,7 +22,7 @@ import re
 import yaml
 
 from lib.chart import (
-    NATIVE_COMPONENTS, historical_app_version_for_path, image_paths_for, replace_scalar_value, version_paths_for,
+    historical_app_version_for_path, image_paths_for, native_components, replace_scalar_value, version_paths_for,
 )
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.release_baseline import resolve_baseline_chart_state
@@ -622,8 +622,8 @@ def make_changes_section(friendly, target, chart_name, values_key, old_app, new_
     doesn't exist — callers must use lib.chart.image_paths_for/version_
     paths_for's own registration to know which applies.
 
-    `new_chart == "-"` means a NATIVE_COMPONENTS component (see lib.chart
-    .NATIVE_COMPONENTS) with no Chart.yaml dependency/chart version at
+    `new_chart == "-"` means a native_components component (see lib.chart
+    .native_components) with no Chart.yaml dependency/chart version at
     all — the heading omits the "(chart ...)" parenthetical entirely and
     chart_changed is forced False, so the "Helm chart `...` bump" bullet
     (which needs a real chart_name/old_chart/new_chart triple) is never
@@ -942,7 +942,7 @@ def resolve_component_own_version_change(key, target_deps, baseline_deps, target
     neither changing that component's OWN app/chart version at all).
 
     Returns None (nothing resolved) for a key matching neither a real
-    Chart.yaml dependency nor a lib.chart.NATIVE_COMPONENTS entry —
+    Chart.yaml dependency nor a lib.chart.native_components entry —
     shouldn't happen for a key compute_changed_components itself ever
     returns, but never assumed. Shared by add_missing_component_rows
     (skip adding such a row) and lib.docs_consistency.check_docs_
@@ -955,7 +955,7 @@ def resolve_component_own_version_change(key, target_deps, baseline_deps, target
         baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
         old_chart = str(baseline_dep["version"]) if baseline_dep else None
         new_chart = str(dep["version"])
-    elif key in NATIVE_COMPONENTS:
+    elif key in native_components(chart_dir):
         chart_name = key
         old_chart = None
         new_chart = "-"
@@ -1029,10 +1029,10 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
     always matches its own exact source unambiguously).
 
     A key with no matching Chart.yaml dependency AND no lib.chart.
-    NATIVE_COMPONENTS entry either is skipped — there's no dep["version"]
+    native_components entry either is skipped — there's no dep["version"]
     to read a Helm chart version from, and nothing here can tell it apart
     from a genuinely unrelated top-level key; add that row by hand. A
-    NATIVE_COMPONENTS key (e.g. frankgateway) instead gets old_chart=None,
+    native_components key (e.g. frankgateway) instead gets old_chart=None,
     new_chart="-" — the same chart-less convention update-component-
     version's own "native" chart-version already writes — so its row's
     Helm-chart cell reads the bare "-" placeholder, never a guessed
@@ -1054,7 +1054,7 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
         if dep:
             matched_keys.add(dep.get("alias", dep["name"]))
             continue
-        native_key = match_native_component(row["name"], NATIVE_COMPONENTS)
+        native_key = match_native_component(row["name"], native_components(chart_dir))
         if native_key:
             matched_keys.add(native_key)
 
@@ -1109,8 +1109,8 @@ def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_char
     line: once the heading itself already says it, repeating it as the
     section's first bullet is pure noise (that's the whole point of
     giving each component its own section instead of a shared flat
-    list). `new_chart == "-"` means a NATIVE_COMPONENTS component (see
-    lib.chart.NATIVE_COMPONENTS) with no Chart.yaml dependency/chart
+    list). `new_chart == "-"` means a native_components component (see
+    lib.chart.native_components) with no Chart.yaml dependency/chart
     version at all — the "(chart ...)" clause is dropped entirely rather
     than rendered as the misleading "chart None → -". `old_app`/
     `old_chart` may be None (nothing resolved at upgrade_docs_baseline —
@@ -1161,7 +1161,7 @@ def find_values_delta_section(text, friendly, deps, canonical_names=None):
     """The existing "## ..." section (see lib.upgradedoc.parse_values_
     delta_sections/changes_heading_identities) that already names the
     SAME component identity `friendly` does — reused for a real
-    Chart.yaml dependency/NATIVE_COMPONENTS friendly name, a canonical
+    Chart.yaml dependency/native_components friendly name, a canonical
     "<parent> - <basename>" sidecar name, or a bare shared-image
     basename (see changes_heading_identities for all three shapes), so
     a hand-written section already covering this identity (KISS's own
@@ -1349,7 +1349,7 @@ def sync_values_delta_sections(text, chart_dir, target_deps, target_values, base
     rewritten — see sort_values_delta_sections for reordering.
 
     A key with no matching Chart.yaml dependency AND no lib.chart.
-    NATIVE_COMPONENTS entry either is skipped when it needs a brand-new
+    native_components entry either is skipped when it needs a brand-new
     section — nothing here can be generated confidently without a real
     Chart.yaml version to read, or the chart-less convention to fall
     back to (same skip add_missing_component_rows already applies). A
@@ -1382,7 +1382,7 @@ def sync_values_delta_sections(text, chart_dir, target_deps, target_values, base
             baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
             old_chart = str(baseline_dep["version"]) if baseline_dep else None
             new_chart = str(dep["version"])
-        elif key in NATIVE_COMPONENTS:
+        elif key in native_components(chart_dir):
             chart_name = key
             old_chart = None
             new_chart = "-"
@@ -1539,7 +1539,7 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
                 break
 
         if new_chart == "-":
-            # NATIVE_COMPONENTS component (see lib.chart.NATIVE_COMPONENTS)
+            # native_components component (see lib.chart.native_components)
             # — no chart at all, so no "(chart ...)" clause to render.
             item_text = f"{friendly} {image_manifest_version_text(old_app, new_app)}."
         else:
