@@ -13,9 +13,15 @@ from lib.repo_access_cache import load_cache as load_repo_access_cache
 from lib.repo_access_cache import save_cache as save_repo_access_cache
 from lib.settings import repo_access_cache_ttl_minutes
 
-# One "tag: <version>@sha256:<digest>" pin per match, quoted or bare.
+# One "tag: <version>@sha256:<digest>" pin per match, quoted or bare. The
+# optional "&anchor" group tolerates a YAML anchor tag on the line's own
+# value (e.g. "tag: &keycloakImageVersion \"26.7.3\"") — the same shape
+# lib.chart.replace_scalar_value's own rewrite regex already handles on
+# the write side; an *alias* reference ("tag: *keycloakImageVersion", no
+# literal value at all) still can't match either regex below, and isn't
+# meant to — there's nothing to read there.
 DIGEST_PIN_RE = re.compile(
-    r'^(?P<indent>\s*)tag:\s*"?(?P<version>[\w][\w.\-]*)@sha256:(?P<digest>[0-9a-f]{64})"?\s*(?:#.*)?$'
+    r'^(?P<indent>\s*)tag:\s*(?:&\S+\s+)?"?(?P<version>[\w][\w.\-]*)@sha256:(?P<digest>[0-9a-f]{64})"?\s*(?:#.*)?$'
 )
 # The SAME "tag:" pin shape DIGEST_PIN_RE matches, but with the "@sha256:
 # <digest>" suffix made OPTIONAL rather than required — re-derived from
@@ -40,11 +46,12 @@ DIGEST_PIN_RE = re.compile(
 # bare, non-digest tags — invisible to DIGEST_PIN_RE, even though a real,
 # comparable version string genuinely was there.
 VERSION_PIN_RE = re.compile(
-    r'^(?P<indent>\s*)tag:\s*"?(?P<version>[\w][\w.\-]*)(?:@sha256:(?P<digest>[0-9a-f]{64}))?"?\s*(?:#.*)?$'
+    r'^(?P<indent>\s*)tag:\s*(?:&\S+\s+)?"?(?P<version>[\w][\w.\-]*)(?:@sha256:(?P<digest>[0-9a-f]{64}))?"?\s*(?:#.*)?$'
 )
-# An active (uncommented) sibling "repository:" key.
+# An active (uncommented) sibling "repository:" key. Same "&anchor"
+# tolerance as DIGEST_PIN_RE/VERSION_PIN_RE above.
 ACTIVE_REPO_RE = re.compile(
-    r'^(?P<indent>\s*)repository:\s*"?(?P<repo>[\w][\w.\-]*(?:/[\w.\-]+)*)"?\s*(?:#.*)?$'
+    r'^(?P<indent>\s*)repository:\s*(?:&\S+\s+)?"?(?P<repo>[\w][\w.\-]*(?:/[\w.\-]+)*)"?\s*(?:#.*)?$'
 )
 # An active (uncommented) sibling "registry:" key — some pins (e.g.
 # redis-ha's opstree/redis images) split the host out of "repository:"
@@ -55,7 +62,7 @@ ACTIVE_REPO_RE = re.compile(
 # must still honor it, or a split-style pin gets looked up against the
 # wrong (guessed) registry. See find_sibling_registry.
 ACTIVE_REGISTRY_RE = re.compile(
-    r'^(?P<indent>\s*)registry:\s*"?(?P<registry>[\w][\w.\-]*)"?\s*(?:#.*)?$'
+    r'^(?P<indent>\s*)registry:\s*(?:&\S+\s+)?"?(?P<registry>[\w][\w.\-]*)"?\s*(?:#.*)?$'
 )
 # A commented-out "#repository: <value>" key, left as a hint for components
 # whose real repository is overridden at the gemeente/deployment level.
