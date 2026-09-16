@@ -1,18 +1,24 @@
-# Ruff config for the podiumd release-tooling scripts (verify-podiumd and
-# its own lib/, plus every sibling top-level script and its tests) under
-# THIS directory, charts/podiumd/bin/, only. Ruff auto-discovers this file
-# by walking up from each file it checks, so it only ever applies here --
-# no repo-root pyproject.toml/ruff.toml is needed, and it does NOT reach
-# charts/podiumd/scripts/ (a different, older, unrelated set of one-off
-# migration scripts -- fix-oidc-config.py, migrate-*.py -- that predate
-# this toolset and were never moved here; they get ruff's bare defaults if
-# ever linted, not this config).
+# Combined ruff + pylint config for the podiumd release-tooling scripts
+# (verify-podiumd and its own lib/, plus every sibling top-level script and
+# its tests) under THIS directory, charts/podiumd/bin/, only. Both tools
+# auto-discover this file by walking up from each file they check, so it
+# only ever applies here -- no repo-root pyproject.toml is needed, and it
+# does NOT reach charts/podiumd/scripts/ (a different, older, unrelated set
+# of one-off migration scripts -- fix-oidc-config.py, migrate-*.py -- that
+# predate this toolset and were never moved here; they get each tool's
+# bare defaults if ever linted, not this config).
 #
+# Previously two separate files (ruff.toml, pylintrc); converged here so
+# both tools' settings live in one place, same convention either tool
+# would use at a real project root.
+
+[tool.ruff]
 # This codebase's own docstrings/comments are deliberately long, explanatory
 # prose (see git history) -- ruff's own default 88-char line-length would
 # flag nearly every one of them as noise, not a real issue. 120 is generous
 # enough to leave the deliberate style alone while still catching genuine
-# outliers (a handful of lines even past that).
+# outliers (a handful of lines even past that). Shared by [tool.ruff.format]
+# below too, so linter and formatter agree.
 line-length = 120
 
 # F = pyflakes: unused imports (F401), unused locals (F841), etc. This exists
@@ -26,10 +32,10 @@ line-length = 120
 #     loop-variable closures, etc.) pyflakes alone doesn't catch.
 # C4 = flake8-comprehensions: unnecessary/inefficient comprehension patterns.
 # SIM = flake8-simplify: needlessly convoluted control flow.
-[lint]
+[tool.ruff.lint]
 select = ["F", "E", "W", "I", "N", "UP", "B", "C4", "SIM"]
 
-[lint.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 # Every one of these test conftest.py files inserts its own script's
 # directory onto sys.path before importing that script's own sibling lib.*
 # modules -- these aren't installed as a package, so this is the only way
@@ -46,8 +52,29 @@ select = ["F", "E", "W", "I", "N", "UP", "B", "C4", "SIM"]
 # the same parse tree, never changes behavior; confirmed it also leaves
 # docstring/comment PROSE completely untouched, only restructures code
 # layout). Shares line-length above with the linter, so both agree on 120.
-[format]
+[tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+# pylint is added on top ONLY for the one thing ruff has no equivalent rule
+# for at all: total module line count. Narrow and deliberate on purpose,
+# matching ruff's own "one rule, one documented reason" precedent above --
+# not a general-purpose second linter running in parallel with the first.
+#
+# Invoke explicitly against the extensionless top-level scripts too (pylint
+# won't discover them via a bare directory/glob scan the way it does *.py
+# files) -- and against tests/ (several test modules are themselves well
+# over 1000 lines), e.g.:
+#   pylint charts/podiumd/bin/lib/*.py charts/podiumd/bin/<script-name...> \
+#       $(find charts/podiumd/bin/tests -name '*.py')
+[tool.pylint."messages control"]
+disable = ["all"]
+enable = ["too-many-lines"]
+
+[tool.pylint.format]
+# Matches [tool.ruff] line-length above (see that section's own comment for
+# why 120: this codebase's deliberate long-docstring style). max-module-
+# lines is left at pylint's own upstream default (1000) -- not re-tuned here.
+max-line-length = 120
