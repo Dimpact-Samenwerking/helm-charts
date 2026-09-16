@@ -188,7 +188,14 @@ grafana:
       allow_assign_grafana_admin: true
       client_id: "monitoring"
       client_secret: ""
-      scopes: openid email profile offline_access roles
+      # OIDC scopes Grafana requests. `offline_access` is deliberately absent:
+      # the podiumd chart removes that optional scope from every Keycloak client
+      # (see charts/podiumd/docs/apps/keycloak/keycloak-security-updates.md), so
+      # requesting it makes Keycloak reject the authorization request outright
+      # with `invalid_scope` and no one can log in. Grafana does not need it:
+      # `use_refresh_token` below still gets a session-bound refresh token from
+      # the standard authorization-code flow. See docs/grafana-auth.md.
+      scopes: openid email profile roles
       email_attribute_path: email
       login_attribute_path: username
       name_attribute_path: name

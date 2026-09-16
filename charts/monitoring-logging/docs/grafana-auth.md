@@ -31,6 +31,51 @@ grafana:
       root_url: "https://<grafana-hostname>/"
 ```
 
+### Scopes — do not add `offline_access`
+
+```yaml
+scopes: openid email profile roles      # chart default
+use_refresh_token: true
+```
+
+The podiumd chart removes `offline_access` from `defaultOptionalClientScopes`
+and from every client's `optionalClientScopes`, so the `monitoring` client in
+realm `podiumd` cannot be granted it — see
+[keycloak-security-updates.md](../../podiumd/docs/apps/keycloak/keycloak-security-updates.md).
+
+Keycloak does not ignore an unavailable optional scope; it **refuses the whole
+authorization request** with `invalid_scope` and redirects back to Grafana with
+an `error=` parameter, which Grafana renders as *"Login failed — Login provider
+denied login request"*. Every user is locked out, and nothing in the Grafana log
+says the scope is the cause.
+
+Grafana does not need the scope. `use_refresh_token: true` still receives a
+refresh token from the ordinary authorization-code flow; that token is bound to
+the SSO session (`ssoSessionIdleTimeout`, `ssoSessionMaxLifespan`) instead of
+outliving it, which is all that `accessTokenLifespan: 60` requires. What
+`offline_access` adds is a refresh token that keeps working after the browser
+session ends — which is exactly what the security change set out to remove.
+
+If you override `scopes` per environment, keep `offline_access` out of the list.
+
+**Verifying the scope list against a live realm** — unauthenticated, read-only:
+
+```bash
+KC="https://<keycloak-host>"; GF="<grafana-hostname>"
+AUTH="$KC/realms/podiumd/protocol/openid-connect/auth"
+RU="https%3A%2F%2F$GF%2Flogin%2Fgeneric_oauth"
+
+# the scope list the chart ships -> expect HTTP 200 (Keycloak renders its login page)
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" \
+  "$AUTH?client_id=monitoring&redirect_uri=$RU&response_type=code&scope=openid%20email%20profile%20roles&state=p"
+
+# with offline_access -> expect 302 and error=invalid_scope
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" \
+  "$AUTH?client_id=monitoring&redirect_uri=$RU&response_type=code&scope=openid%20email%20profile%20offline_access%20roles&state=p"
+```
+
+---
+
 **Role mapping** (from chart defaults — adjust if your Keycloak roles differ):
 
 ```
@@ -108,3 +153,4 @@ Revert with a normal `helm upgrade` after the incident.
 - [ ] `grafana.admin.existingSecret` set in `values-monitoring.yaml`
 - [ ] Keycloak client `monitoring` created with `monitoring_roles` claim mapper
 - [ ] Grafana redirect URI `https://<hostname>/login/generic_oauth` added to Keycloak client `monitoring`
+- [ ] `scopes` does not contain `offline_access` (chart default is already correct)
