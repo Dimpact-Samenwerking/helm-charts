@@ -3,10 +3,42 @@
 # Images new or changed in podiumd 4.9.2 vs 4.9.1.
 #
 # Changes:
+#   1. nginx-unprivileged 1.31.5 (digest changed).
+#   2. postgres 16-alpine -> 16.15-alpine.
+#   3. eck-operator 3.5.0 (new).
+#   4. zac - solr 9.10.1-slim (digest changed).
+#   5. clamav 1.5.4 (digest changed).
 #
 # See docs/_UPGRADE_PATHS/4.9.1-to-4.9.2-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-[]
+# nginx-unprivileged 1.31.5 (digest changed)
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.5"
+  digest: "sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"
+# postgres 16-alpine -> 16.15-alpine
+- name: library/postgres
+  url: docker.io/library/postgres
+  version: "16.15-alpine"
+  digest: "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+
+# eck-operator 3.5.0 (new)
+- name: eck/eck-operator
+  url: docker.elastic.co/eck/eck-operator
+  version: "3.5.0"
+  digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
+
+#   sidecar: zac - solr 9.10.1-slim (digest changed)
+- name: library/solr
+  url: docker.io/library/solr
+  version: "9.10.1-slim"
+  digest: "sha256:0a931f52cfd9a9afd6d958d246e64115648099c788e41a01adad9f09e6f73594"
+
+# clamav 1.5.4 (digest changed)
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
+  version: "1.5.4"
+  digest: "sha256:9cb27d7660bdf66e9878c832cb433dd8aa152cfbe16f3c2c0084c80b04ae22b4"
