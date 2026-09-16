@@ -739,35 +739,51 @@ def test_compare_multi_image_component_checks_every_basename(vrt):
     assert any("zgw-office-addin-backend" in m for m in findings["mismatches"])
 
 
-# --- compare(): special-case images (not seen by the normal digest-pin scan) ---
+# --- compare(): keycloak-operator's own anchor-decorated split tag/sha image ---
+# (used to need a dedicated special-case workaround here -- see lib.image_
+# digests' own anchor-tolerant VERSION_PIN_RE/ACTIVE_REPO_RE fix, which lets
+# the normal basenames_under_scope_any_tag scan resolve this image directly)
+
+KEYCLOAK_BLOCK = (
+    "keycloak-operator:\n"
+    "  operator:\n"
+    "    config:\n"
+    "      keycloakImage:\n"
+    "        repository: &keycloakImageRepo quay.io/keycloak/keycloak\n"
+    '        tag: &keycloakImageVersion "{tag}"\n'
+    '        sha: &keycloakImageDigest "deadbeef"\n'
+)
+
 
 def keycloak_values(tag="26.7.2"):
-    return {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
-        "repository": "quay.io/keycloak/keycloak", "tag": tag, "sha": "deadbeef",
-    }}}}}
+    return yaml.safe_load(KEYCLOAK_BLOCK.format(tag=tag))
 
 
-def test_compare_checks_keycloak_special_case_image(vrt):
+def keycloak_lines(tag="26.7.2"):
+    return values_lines(KEYCLOAK_BLOCK.format(tag=tag))
+
+
+def test_compare_checks_keycloak_anchor_decorated_image(vrt):
     """keycloak-operator's own actual Keycloak SERVER image lives as a
-    split "tag:"/"sha:" field pair, not a plain "image:" block — invisible
-    to the normal digest-pin scan regardless of scope, so its plain tag is
-    read directly instead (see SPECIAL_CASE_BASENAMES/special_case_tag_path),
-    using the real production settings.yaml default (this test passes no
-    chart_dir, so image_paths_for("keycloak-operator") self-resolves to
-    it — a real component_resolution.image_paths registration, not a
-    synthetic override)."""
+    split "tag:"/"sha:" field pair, each defined via its own per-scalar
+    YAML anchor (aliased by a sibling "keycloak.image" block elsewhere in
+    the real file) — basenames_under_scope_any_tag resolves it via the
+    normal scan, using the real production settings.yaml default (this
+    test passes no chart_dir, so image_paths_for("keycloak-operator")
+    self-resolves to it — a real component_resolution.image_paths
+    registration, not a synthetic override)."""
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
     rows = [csv_row("Keycloak", "keycloak-operator", image_basename="keycloak", target_app="26.7.3")]
-    findings, _ = vrt.compare(rows, deps, keycloak_values(), [])
+    findings, _ = vrt.compare(rows, deps, keycloak_values(), keycloak_lines())
     assert any("target 26.7.3 != values.yaml 26.7.2" in m for m in findings["mismatches"])
     assert "missing_from_chart" not in findings
 
 
-def test_compare_keycloak_special_case_image_matching_passes(vrt):
+def test_compare_keycloak_anchor_decorated_image_matching_passes(vrt):
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
     rows = [csv_row("Keycloak", "keycloak-operator", image_basename="keycloak",
                      source_helm="1.12.1", target_app="26.7.2")]
-    findings, _ = vrt.compare(rows, deps, keycloak_values(), [])
+    findings, _ = vrt.compare(rows, deps, keycloak_values(), keycloak_lines())
     assert findings == {}
 
 
@@ -1339,38 +1355,6 @@ def test_compare_image_source_blank_but_unjustified_reports_presence_finding_sub
         baseline_deps=[baseline_dep], baseline_values=CLAMAV_BASELINE_VALUES,
         baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK), baseline_only=True)
     assert any("[IMAGE-SOURCE-PRESENCE]" in m and "subchart-default values.yaml 1.5.2" in m
-               for m in findings["mismatches"])
-
-
-def test_compare_image_source_blank_stays_silent_when_special_case_has_no_baseline_value(vrt):
-    """keycloak's own basename is special-cased (SPECIAL_CASE_BASENAME_
-    TAG_PATHS) -- when get_path finds nothing there at the release_table
-    baseline, that's "can't verify", never "confirmed absent": the
-    strict_presence blank-source check must stay silent, exactly like
-    the plain (non-blank-source) compare direction already does for this
-    same case."""
-    deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
-    baseline_deps = [{"name": "keycloak-operator", "alias": "", "version": "1.10.0"}]
-    rows = [csv_row("Keycloak", "keycloak-operator", image_basename="keycloak",
-                     source_helm="1.10.0", target_app="26.7.3")]  # source_app blank
-    findings, _ = vrt.compare(
-        rows, deps, keycloak_values(), [], baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[],
-        baseline_only=True)
-    assert findings == {}
-
-
-def test_compare_image_source_blank_but_unjustified_reports_presence_finding_special_case(vrt):
-    """Mirror image of the above: the special-cased path DOES resolve a
-    real value at the release_table baseline -- the blank source was
-    never justified."""
-    deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
-    baseline_deps = [{"name": "keycloak-operator", "alias": "", "version": "1.10.0"}]
-    rows = [csv_row("Keycloak", "keycloak-operator", image_basename="keycloak",
-                     source_helm="1.10.0", target_app="26.7.3")]  # source_app blank
-    findings, _ = vrt.compare(
-        rows, deps, keycloak_values(), [], baseline_deps=baseline_deps, baseline_values=keycloak_values(tag="26.7.1"),
-        baseline_lines=[], baseline_only=True)
-    assert any("[IMAGE-SOURCE-PRESENCE]" in m and "keycloak-operator.keycloak" in m and "26.7.1" in m
                for m in findings["mismatches"])
 
 

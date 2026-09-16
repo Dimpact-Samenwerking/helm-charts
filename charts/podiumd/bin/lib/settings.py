@@ -262,20 +262,6 @@ def digest_pinning_exceptions(chart_dir):
     }
 
 
-def release_table_special_case_basenames(chart_dir):
-    """release_table_verification.special_case_basenames — replaces
-    verify-release-table-with-podiumd's own SPECIAL_CASE_BASENAME_TAG_
-    PATHS (a basename -> absolute dotted path dict that hand-duplicated
-    component_resolution.image_paths' own path a second time). Now just
-    the basename allowlist, default {"keycloak"} — the owning
-    component's own actual "...tag" path is derived from lib.chart.
-    image_paths_for at the point of use (see verify-release-table-with-
-    podiumd's own special_case_tag_path), since a basename here is only
-    ever looked up from within its own owning component's scope, where
-    that registration is already available."""
-    return frozenset(_get(chart_dir, "release_table_verification", "special_case_basenames", ["keycloak"]))
-
-
 def helm_repos_urls_by_alias(chart_dir):
     """helm_repos.urls_by_alias — replaces lib.render_scope.
     REQUIRED_REPOS, a dict (repo alias -> real URL, for every Chart.yaml

@@ -66,9 +66,6 @@ FULL_SETTINGS = {
         "default_image_paths": ["custom-default-image"],
         "version_paths": {"widget-b": ["version"]},
     },
-    "release_table_verification": {
-        "special_case_basenames": ["other-basename"],
-    },
 }
 
 
@@ -142,8 +139,6 @@ ACCESSOR_CASES = [
     ("component_resolution_version_paths",
      {"eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"], "redis-operator": ["redisOperator.imageTag"]},
      {"widget-b": ["version"]}, dict),
-    ("release_table_special_case_basenames",
-     frozenset({"keycloak"}), frozenset({"other-basename"}), frozenset),
 ]
 
 
