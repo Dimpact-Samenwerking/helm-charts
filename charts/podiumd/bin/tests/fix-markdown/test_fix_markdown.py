@@ -22,10 +22,12 @@ def strip_trailing_whitespace_run(cmd, **kwargs):
     fixed_lines = []
     paths = cmd[cmd.index("fix") + 1 :]
     for path_str in paths:
-        original = open(path_str, encoding="utf-8").read()
+        with open(path_str, encoding="utf-8") as f:
+            original = f.read()
         new = "\n".join(line.rstrip() for line in original.split("\n"))
         if new != original:
-            open(path_str, "w", encoding="utf-8").write(new)
+            with open(path_str, "w", encoding="utf-8") as f:
+                f.write(new)
             fixed_lines.append(f"Fixed: {path_str}")
     return SimpleNamespace(returncode=0, stdout="\n".join(fixed_lines), stderr="")
 

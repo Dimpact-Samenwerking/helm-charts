@@ -2261,9 +2261,8 @@ def match_changes_item_display_name(rest, display_name_positions):
     fixer can never disagree about what a Changes item "is"."""
     best = None
     for name in display_name_positions:
-        if rest == name or rest.startswith(name + " "):
-            if best is None or len(name) > len(best):
-                best = name
+        if (rest == name or rest.startswith(name + " ")) and (best is None or len(name) > len(best)):
+            best = name
     return best
 
 

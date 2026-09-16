@@ -72,13 +72,13 @@ def fetch_page_html(url, user, token, urlopen=urllib.request.urlopen):
         with urlopen(request) as response:
             data = json.load(response)
     except urllib.error.HTTPError as e:
-        raise SystemExit(f"error: Confluence API request failed: HTTP {e.code} {e.reason}")
+        raise SystemExit(f"error: Confluence API request failed: HTTP {e.code} {e.reason}") from e
     except urllib.error.URLError as e:
-        raise SystemExit(f"error: could not reach Confluence: {e.reason}")
+        raise SystemExit(f"error: could not reach Confluence: {e.reason}") from e
     try:
         return data["body"]["storage"]["value"]
-    except KeyError:
-        raise SystemExit("error: response had no body.storage.value — check the URL and permissions")
+    except KeyError as e:
+        raise SystemExit("error: response had no body.storage.value — check the URL and permissions") from e
 
 
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}

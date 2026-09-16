@@ -1369,7 +1369,7 @@ def test_print_report_sorts_findings_within_each_section(vrt, capsys):
         ],
     }
     vrt.print_report(findings, [])
-    lines = [l for l in capsys.readouterr().out.splitlines() if l.startswith("  [")]
+    lines = [line for line in capsys.readouterr().out.splitlines() if line.startswith("  [")]
     assert lines == [
         "  [CHART] Alpha (alpha): release-table target 1 != Chart.yaml 2",
         "  [IMAGE] Zulu (zulu): release-table target 1 != values.yaml 2",
@@ -1379,7 +1379,7 @@ def test_print_report_sorts_findings_within_each_section(vrt, capsys):
 def test_print_report_sorts_unresolved_rows_by_name(vrt, capsys):
     unresolved = [csv_row("Zulu", "UNKNOWN"), csv_row("Alpha", ""), csv_row("Mike", "UNKNOWN")]
     vrt.print_report({}, unresolved)
-    lines = [l for l in capsys.readouterr().out.splitlines() if l.strip().startswith("- '")]
+    lines = [line for line in capsys.readouterr().out.splitlines() if line.strip().startswith("- '")]
     assert lines == [
         "  - 'Alpha' (component=(blank))",
         "  - 'Mike' (component=UNKNOWN)",

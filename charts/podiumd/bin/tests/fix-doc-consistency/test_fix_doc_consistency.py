@@ -5345,7 +5345,7 @@ def test_main_reorders_table_and_changes_to_match_values_yaml(cdb, repo_with_out
 
     upgrade = (repo_with_out_of_order_doc / "4.8.3-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     lines = upgrade.splitlines()
-    table_rows = [l for l in lines if l.startswith("| Open")]
+    table_rows = [line for line in lines if line.startswith("| Open")]
     assert table_rows == ["| Open Zaak | 1.27.4 | 1.14.2 | - |", "| Open Inwoner | 2.4.2 | 2.4.0 | - |"]
     assert upgrade.index("### Open Zaak") < upgrade.index("### Open Inwoner")
     assert "Zaak details." in upgrade and "Inwoner details." in upgrade  # block content preserved
@@ -5424,7 +5424,7 @@ def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(cdb, tmp_p
 
     upgrade = (doc_dir / "4.8.3-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     lines = upgrade.splitlines()
-    table_rows = [l for l in lines if l.startswith("| redis-operator")]
+    table_rows = [line for line in lines if line.startswith("| redis-operator")]
     assert table_rows == [
         "| redis-operator | 0.26.1 (unchanged) | 0.26.1 (unchanged) | - |",
         "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |",

@@ -606,7 +606,7 @@ def check_images_manifest_format(
     def same_group(entry_a, entry_b):
         return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
 
-    for index, (entry, line_idx) in enumerate(zip(entries, entry_line_indices)):
+    for index, (entry, _line_idx) in enumerate(zip(entries, entry_line_indices)):
         comment = find_grouped_preceding_comment(lines, entries, entry_line_indices, index, same_group)
         if not comment:
             issues.append(f'{images_path.name}: entry "{entry["name"]}" has no preceding comment')

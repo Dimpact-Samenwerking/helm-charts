@@ -833,12 +833,12 @@ def insert_changes_section(text, section_text, friendly, deps, values, canonical
             break
 
     if not blocks:
-        first_heading_idx = next((i for i, l in enumerate(lines) if re.match(r"^##\s+\S", l)), len(lines))
+        first_heading_idx = next((i for i, line in enumerate(lines) if re.match(r"^##\s+\S", line)), len(lines))
         if _strip_standalone_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
             # Line indices shifted -- recompute rather than patch by a
             # guessed amount (the standalone-placeholder removal may take
             # one line or two, depending on its own neighbors).
-            changes_idx = next(i for i, l in enumerate(lines) if l.strip() == "## Changes")
+            changes_idx = next(i for i, line in enumerate(lines) if line.strip() == "## Changes")
             section_end = len(lines)
             for i in range(changes_idx + 1, len(lines)):
                 if re.match(r"^##\s+\S", lines[i]):
@@ -912,12 +912,12 @@ def strip_stale_upgrade_placeholders(text):
     lines = text.splitlines(keepends=True)
     changed = False
 
-    first_heading_idx = next((i for i, l in enumerate(lines) if re.match(r"^##\s+\S", l)), len(lines))
+    first_heading_idx = next((i for i, line in enumerate(lines) if re.match(r"^##\s+\S", line)), len(lines))
     if _strip_standalone_placeholder_line(lines, first_heading_idx, UPGRADE_INTRO_STUB_TODO_LINE):
         changed = True
         blocks = parse_upgrade_doc_changes_blocks("".join(lines))  # indices shifted -- recompute
 
-    changes_idx = next((i for i, l in enumerate(lines) if l.strip() == "## Changes"), None)
+    changes_idx = next((i for i, line in enumerate(lines) if line.strip() == "## Changes"), None)
     if changes_idx is not None and blocks:
         first_block_start = blocks[0]["start"]
         new_end = _strip_bare_changes_todo(lines, changes_idx, first_block_start)
