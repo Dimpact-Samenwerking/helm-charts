@@ -781,8 +781,10 @@ def check_values_deltas_content(doc_path, actual_changed_keys, baseline_values, 
         section_text = "".join(lines[section["start"] : section["end"]])
         backtick_spans = set(re.findall(r"`([^`]+)`", strip_fenced_code_blocks(section_text)))
 
+        # mentioned() is called only below, within this same iteration,
+        # before backtick_spans is rebound on the next values_key.
         def mentioned(span):
-            return span in backtick_spans
+            return span in backtick_spans  # noqa: B023
 
         for path in added:
             dotted = ".".join(path)
