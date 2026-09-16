@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 #
 # Runs every check from README-coding.md's own "Before committing" section,
-# in the same cheapest-first order, stopping at the first failure: pytest,
-# ruff check, ruff format --check, pylint (too-many-lines only), vulture
-# (dead code). See README-coding.md for what each one covers and why.
+# stopping at the first failure. Ordered fastest-first (measured, not
+# guessed): ruff check (~0.03s) -> ruff format --check (~0.05s) -> vulture
+# (~0.5s) -> pylint (~6s) -> pytest (the full suite, ~2-3 minutes) -- so a
+# real problem in the cheap checks fails in well under a second instead of
+# waiting on the full test run first. See README-coding.md for what each
+# one covers and why.
 set -euo pipefail
 
 usage() {
     cat <<'EOF'
 Usage: run_python_checks [-h|--help]
 
-Runs pytest, ruff check, ruff format --check, pylint, and vulture against
-this charts/podiumd/bin/ toolset, in that order, stopping at the first
+Runs ruff check, ruff format --check, vulture, pylint, and pytest against
+this charts/podiumd/bin/ toolset, fastest first, stopping at the first
 failure. Must be run from charts/podiumd/bin/ itself (or invoked as
 ./run_python_checks from there) -- see README-coding.md.
 EOF
@@ -28,19 +31,19 @@ python_scripts() {
     grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)
 }
 
-echo "=== pytest ==="
-python3 -m pytest -q
-
 echo "=== ruff check ==="
 ruff check .
 
 echo "=== ruff format --check ==="
 ruff format --check .
 
+echo "=== vulture (dead code) ==="
+vulture lib/*.py $(python_scripts)
+
 echo "=== pylint (too-many-lines) ==="
 pylint lib/*.py $(python_scripts) $(find tests -name '*.py')
 
-echo "=== vulture (dead code) ==="
-vulture lib/*.py $(python_scripts)
+echo "=== pytest ==="
+python3 -m pytest -q
 
 echo "=== all checks passed ==="
