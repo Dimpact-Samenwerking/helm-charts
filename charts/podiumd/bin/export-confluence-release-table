@@ -561,15 +561,22 @@ def resolve_image_basenames(rows, chart_dir):
     or missing match) — never a guess.
 
     basenames_under_scope (digest-required) is the PRIMARY scan for
-    "available" basenames under a component's own scope; a component
-    whose scope resolves NOTHING at all via that scan alone falls back
-    to basenames_under_scope_any_tag (digest-optional) instead — real
-    case: omc's own image tag genuinely has no digest at all (its
-    subchart can't handle one), so the digest-required scan can never
-    see it, even though its basename ("notifynl-omc") IS resolvable
-    locally. Only ever a fallback for a component that comes up
-    completely empty, never a wholesale switch — every other
-    component's own resolution stays exactly as precise as before."""
+    "available" basenames under a component's own scope; any basename
+    it alone doesn't find under ANY of that component's own scope_keys
+    falls back to basenames_under_scope_any_tag (digest-optional)
+    instead — real cases: omc's own image tag genuinely has no digest at
+    all (its subchart can't handle one), so the digest-required scan
+    never sees ANY of its basenames; keycloak-operator's own operator.
+    config.keycloakImage pins a genuinely separate sibling "sha:" field
+    (never embedded in "tag:"), so only that ONE basename ("keycloak")
+    needs the fallback, while its sibling "python"/"keycloak-config-cli"
+    basenames already resolve via the digest-required scan alone. A
+    per-BASENAME fallback (never a whole-component gate — that left
+    keycloak-operator's own partially-resolvable case with a blank cell
+    even though its scope wasn't otherwise empty), and strictly
+    additive: a basename the digest-required scan already found is never
+    overridden, so a component that's fully digest-pinned (the normal
+    case) resolves exactly as precisely as before."""
     values_path = chart_dir / "values.yaml"
     if not values_path.is_file():
         return ["" for _ in rows]
@@ -594,28 +601,30 @@ def resolve_image_basenames(rows, chart_dir):
         for scope_key in scope_keys:
             for basename, pins in basenames_under_scope(lines, scope_key).items():
                 available.setdefault(basename, []).extend(pins)
-        if not available:
-            # The digest-required scan found NOTHING at all under this
-            # component's own scope (every scope_key) — before
-            # concluding "genuinely unresolvable", fall back to the
-            # digest-OPTIONAL sibling scan (lib.image_version.
-            # basenames_under_scope_any_tag) for a component whose own
-            # tag genuinely has no digest at all (real case: omc — its
-            # subchart can't handle one at all, see SPECIAL_CASE_
-            # COMPONENT_TAG_PATHS' own history in verify-release-table-
-            # with-podiumd, removed now that this closes the gap at its
-            # source). Deliberately only a FALLBACK, tried once per
-            # component and only when the digest-required scan came up
-            # completely empty — never a replacement for it (see lib.
-            # image_version.basenames_under_scope_any_tag's own
-            # docstring): this export's normal case genuinely is
-            # "always fully digest-pinned in practice", and weakening
-            # every other component's own resolution to the looser,
-            # digest-optional scan would be a real regression risk for
-            # no benefit.
-            for scope_key in scope_keys:
-                for basename, pins in basenames_under_scope_any_tag(lines, scope_key).items():
-                    available.setdefault(basename, []).extend(pins)
+        # Before concluding a basename genuinely isn't resolvable, fall
+        # back to the digest-OPTIONAL sibling scan (lib.image_version.
+        # basenames_under_scope_any_tag) for any basename the digest-
+        # required scan alone didn't find under ANY of this component's
+        # own scope_keys — two independent real cases need this: omc's
+        # own image tag genuinely has no digest at all (its subchart
+        # can't handle one), so ALL of its basenames only ever show up
+        # here; keycloak-operator's own operator.config.keycloakImage
+        # is genuinely digest-pinned (a separate sibling "sha:" field,
+        # not embedded in "tag:"), so only THAT ONE basename ("keycloak")
+        # needs this fallback, while its sibling "python"/"keycloak-
+        # config-cli" basenames already resolve via the digest-required
+        # scan just above. A per-basename fallback (never a whole-
+        # component "if not available" gate, which left keycloak-
+        # operator's own case unresolved even though the component's
+        # own scope wasn't otherwise empty) handles both the same way,
+        # deliberately only ADDING a basename the digest-required scan
+        # missed, never overriding one it already found (so a component
+        # that's fully digest-pinned, the normal case, is completely
+        # unaffected — this scan is strictly additive).
+        for scope_key in scope_keys:
+            for basename, pins in basenames_under_scope_any_tag(lines, scope_key).items():
+                if basename not in available:
+                    available[basename] = pins
 
         sub_indices = [i for i in info["indices"] if rows[i][2]]
         primary_indices = [i for i in info["indices"] if not rows[i][2]]
