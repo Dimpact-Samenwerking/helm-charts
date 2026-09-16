@@ -214,7 +214,9 @@ def test_check_kubeconform_own_parse_error_fails(vp, libkubeconformcheck, tmp_pa
                     "kind": "Service",
                     "name": "frankgateway",
                     "status": "statusError",
-                    "msg": 'error unmarshalling resource: yaml: unmarshal errors:\n  line 14: key "x" already set in map',
+                    "msg": (
+                        'error unmarshalling resource: yaml: unmarshal errors:\n  line 14: key "x" already set in map'
+                    ),
                 },
             ]
         ),
@@ -252,7 +254,10 @@ def test_check_kubeconform_repeated_root_cause_is_grouped(vp, libkubeconformchec
     occurrence count, not one line per resource."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
-    msg = 'error unmarshalling resource: yaml: unmarshal errors:\n  line 14: key "app.kubernetes.io/name" already set in map'
+    msg = (
+        "error unmarshalling resource: yaml: unmarshal errors:\n"
+        '  line 14: key "app.kubernetes.io/name" already set in map'
+    )
     monkeypatch.setattr(
         libkubeconformcheck,
         "run",
