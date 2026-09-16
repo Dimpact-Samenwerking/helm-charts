@@ -227,7 +227,10 @@ def find_out_of_order_names(names, deps, key_order, canonical_names=None, values
     and is never flagged as out of order against each other, exactly as
     before."""
     violations = []
-    for a, b in zip(names, names[1:]):
+    # names[1:] is deliberately one element shorter than names -- this pairs
+    # each name with its immediate successor (len(names) - 1 pairs), not a
+    # same-length zip -- strict=True would raise on every real call.
+    for a, b in zip(names, names[1:], strict=False):
         if component_order_key(b, deps, key_order, canonical_names, values) < component_order_key(
             a, deps, key_order, canonical_names, values
         ):
@@ -318,7 +321,7 @@ def sort_upgrade_doc_rows(text, deps, values, canonical_names=None):
     lines = text.splitlines(keepends=True)
     slots = [row["line_index"] for row in rows]
     original_lines = [lines[slot] for slot in slots]
-    for slot, i in zip(slots, order):
+    for slot, i in zip(slots, order, strict=True):
         lines[slot] = original_lines[i]
     return "".join(lines), moved
 
@@ -755,7 +758,7 @@ def find_changes_row_correspondence_gaps(rows, headings, deps, canonical_names):
 
     headings_without_row = [
         heading
-        for heading, idents in zip(headings, heading_identity_sets)
+        for heading, idents in zip(headings, heading_identity_sets, strict=True)
         if len(idents) != 1 or idents.isdisjoint(row_identities)
     ]
 
@@ -1736,7 +1739,7 @@ def find_images_manifest_faulty_headers(
     (see is_primary_image_path, which treats "no owning dependency" as
     primary/standalone for exactly this reason)."""
     problems = []
-    for entry, line_idx in zip(entries, entry_line_indices):
+    for entry, line_idx in zip(entries, entry_line_indices, strict=True):
         path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
         if path is None or is_primary_image_path(path, deps):
             continue
@@ -2079,7 +2082,10 @@ def find_images_manifest_out_of_order_names(
     out of order against each other, exactly as before."""
     groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps, canonical_names)
     violations = []
-    for (_, path_a, name_a), (_, path_b, name_b) in zip(groups, groups[1:]):
+    # groups[1:] is deliberately one element shorter than groups -- same
+    # adjacent-pairs shape as find_out_of_order_names' own zip(names,
+    # names[1:]) above -- not a same-length zip.
+    for (_, path_a, name_a), (_, path_b, name_b) in zip(groups, groups[1:], strict=False):
         if images_manifest_entry_order_key(path_b, deps, key_order, values) < images_manifest_entry_order_key(
             path_a, deps, key_order, values
         ):
@@ -2342,7 +2348,7 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
 
     starts = [images_manifest_block_start(lines, entry_line_indices[indices[0]]) for indices, _, _ in groups]
     ends = starts[1:] + [len(lines)]
-    original_texts = ["".join(lines[s:e]) for s, e in zip(starts, ends)]
+    original_texts = ["".join(lines[s:e]) for s, e in zip(starts, ends, strict=True)]
     # A single GROUP already spanning more than one entry (a literal
     # shared header, e.g. zgw-office-addin's own frontend+backend) needs
     # its own internal collapse first — the broader cross-group merge
@@ -2351,7 +2357,7 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     # already share one comment line.
     per_group_texts = [
         _collapse_group_internal_blank_lines(t) if len(indices) > 1 else t
-        for (indices, _, _), t in zip(groups, original_texts)
+        for (indices, _, _), t in zip(groups, original_texts, strict=True)
     ]
     components = [path[0] if path else None for _, path, _ in groups]
 

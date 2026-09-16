@@ -251,7 +251,8 @@ def _images_manifest_changes_items(lines):
         return []
     item_ends = item_starts[1:] + [block_end]
     return [
-        (CHANGES_ITEM_RE.match(lines[start]).group("rest"), start, end) for start, end in zip(item_starts, item_ends)
+        (CHANGES_ITEM_RE.match(lines[start]).group("rest"), start, end)
+        for start, end in zip(item_starts, item_ends, strict=True)
     ]
 
 
@@ -606,7 +607,7 @@ def check_images_manifest_format(
     def same_group(entry_a, entry_b):
         return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
 
-    for index, (entry, _line_idx) in enumerate(zip(entries, entry_line_indices)):
+    for index, (entry, _line_idx) in enumerate(zip(entries, entry_line_indices, strict=True)):
         comment = find_grouped_preceding_comment(lines, entries, entry_line_indices, index, same_group)
         if not comment:
             issues.append(f'{images_path.name}: entry "{entry["name"]}" has no preceding comment')

@@ -188,7 +188,7 @@ def extract_tables(html_text):
     every table before the next heading, not just the first."""
     parser = _TableExtractor()
     parser.feed(html_text)
-    return list(zip(parser.table_headings, parser.tables))
+    return list(zip(parser.table_headings, parser.tables, strict=True))
 
 
 def tables_under_headings(tables, headings):
