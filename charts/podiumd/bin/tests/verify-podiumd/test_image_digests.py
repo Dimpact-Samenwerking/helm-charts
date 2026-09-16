@@ -9,9 +9,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import yaml
+from dep_helpers import make_dep
 
 import lib.repo_access_cache as repo_access_cache
-from dep_helpers import make_dep
 
 
 @pytest.fixture(autouse=True)

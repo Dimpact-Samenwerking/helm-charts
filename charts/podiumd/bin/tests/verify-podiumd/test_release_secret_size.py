@@ -8,8 +8,6 @@ librelease_secret_size.run/.render_chart — no real helm invocation
 happens in these tests."""
 import io
 import json
-import gzip
-import base64
 import tarfile
 from pathlib import Path
 from types import SimpleNamespace

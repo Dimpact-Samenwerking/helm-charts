@@ -3,7 +3,6 @@ regressions found during development: a version number like "1.17.1-static"
 on a continuation line being mistaken for a new numbered list item, and a
 trailing period being captured as part of a version."""
 import yaml
-
 from dep_helpers import make_dep
 
 REAL_MANIFEST = """\

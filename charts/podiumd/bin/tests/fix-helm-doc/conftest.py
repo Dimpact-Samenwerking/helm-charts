@@ -1,8 +1,8 @@
 """Loads fix-helm-doc (a hyphenated filename, not importable
 normally) as a module named `upr` so tests can call its functions directly."""
 import importlib.util
-from importlib.machinery import SourceFileLoader
 import sys
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
 import pytest

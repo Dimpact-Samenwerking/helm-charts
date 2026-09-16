@@ -22,18 +22,40 @@ import re
 import yaml
 
 from lib.chart import (
-    historical_app_version_for_path, image_paths_for, native_components, replace_scalar_value, version_paths_for,
+    historical_app_version_for_path,
+    image_paths_for,
+    native_components,
+    replace_scalar_value,
+    version_paths_for,
 )
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.upgradedoc import (
-    _word_aligned_spans, actual_app_version, append_to_doc,
-    changes_heading_identities, component_order_key, component_version_cell, COMPONENT_VERSIONS_HEADING_RE,
-    extract_source_version, find_grouped_preceding_comment_line, image_manifest_version_text, insertion_index,
-    match_dependency_excluding_sidecar_names, match_native_component, missing_key_change_lines_by_key,
-    normalize_name, normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
-    parse_values_delta_sections, replace_version_pair, resolve_entry_path, strip_html_comments, values_key_order,
-    values_tree_position, version_change_suffix,
+    COMPONENT_VERSIONS_HEADING_RE,
+    _word_aligned_spans,
+    actual_app_version,
+    append_to_doc,
+    changes_heading_identities,
+    component_order_key,
+    component_version_cell,
+    extract_source_version,
+    find_grouped_preceding_comment_line,
+    image_manifest_version_text,
+    insertion_index,
+    match_dependency_excluding_sidecar_names,
+    match_native_component,
+    missing_key_change_lines_by_key,
+    normalize_name,
+    normalize_version,
+    parse_upgrade_doc_changes_blocks,
+    parse_upgrade_doc_rows,
+    parse_values_delta_sections,
+    replace_version_pair,
+    resolve_entry_path,
+    strip_html_comments,
+    values_key_order,
+    values_tree_position,
+    version_change_suffix,
 )
 
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",

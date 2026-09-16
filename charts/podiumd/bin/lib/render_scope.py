@@ -18,7 +18,9 @@ import yaml
 from lib.chart import load_yaml
 from lib.procutil import run
 from lib.settings import (
-    helm_repos_urls_by_alias, vendor_classification_chart_overrides, vendor_classification_keywords,
+    helm_repos_urls_by_alias,
+    vendor_classification_chart_overrides,
+    vendor_classification_keywords,
 )
 
 CHART_NAME = "podiumd"

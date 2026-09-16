@@ -166,8 +166,6 @@ class _TableExtractor(HTMLParser):
             self._cell["text"].append(data)
         elif self._heading_tag is not None:
             self._heading_text.append(data)
-        elif self._heading_tag is not None:
-            self._heading_text.append(data)
 
 
 def _positive_int(value, default):

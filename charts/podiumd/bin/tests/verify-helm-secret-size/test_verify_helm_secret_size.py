@@ -6,7 +6,6 @@ podiumd/test_release_secret_size.py) this CLI renders via its OWN `helm
 template <name> <chart_dir> ...` call (an arbitrary --name, so it can't
 go through lib.render_scope.render_chart, which is hardcoded to
 CHART_NAME) — mocked here via vhss.run, never a real helm invocation."""
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest

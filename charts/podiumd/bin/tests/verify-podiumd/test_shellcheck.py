@@ -16,7 +16,6 @@ from types import SimpleNamespace
 
 import pytest
 
-
 SHELL_NAMES = {"sh", "bash", "dash", "ksh"}
 
 

@@ -10,7 +10,6 @@ from io import BytesIO
 
 import pytest
 
-
 # --- parse_repo ---
 
 def test_parse_repo_bare_docker_hub_official_image(libregistry):

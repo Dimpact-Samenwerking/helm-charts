@@ -22,7 +22,9 @@ import yaml
 
 from lib.procutil import run
 from lib.settings import (
-    dependency_fetch_retry_attempts, dependency_fetch_retry_backoff_seconds, helm_repos_urls_by_alias,
+    dependency_fetch_retry_attempts,
+    dependency_fetch_retry_backoff_seconds,
+    helm_repos_urls_by_alias,
 )
 
 

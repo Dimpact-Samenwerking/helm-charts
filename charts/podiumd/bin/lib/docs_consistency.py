@@ -11,29 +11,66 @@ import re
 import yaml
 
 from lib.chart import (
-    canonical_sidecar_row_names, global_image_paths, load_yaml, paths_by_repository, repo_group_representative,
-    resolved_digest_pin, version_of,
+    canonical_sidecar_row_names,
+    global_image_paths,
+    load_yaml,
+    paths_by_repository,
+    repo_group_representative,
+    resolved_digest_pin,
+    version_of,
 )
 from lib.component_docs import (
-    CHANGES_HEADER_RE, CHANGES_ITEM_RE, find_images_manifest_changes_header, find_images_manifest_changes_items,
-    find_values_delta_section, has_stale_gemeente_specific_placeholder, images_manifest_changes_count_word,
-    resolve_component_own_version_change, strip_stale_upgrade_placeholders, strip_stale_values_deltas_todo_stub,
+    CHANGES_HEADER_RE,
+    CHANGES_ITEM_RE,
+    find_images_manifest_changes_header,
+    find_images_manifest_changes_items,
+    find_values_delta_section,
+    has_stale_gemeente_specific_placeholder,
+    images_manifest_changes_count_word,
+    resolve_component_own_version_change,
+    strip_stale_upgrade_placeholders,
+    strip_stale_values_deltas_todo_stub,
 )
 from lib.image_repository_check import find_images_without_repository
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc import (
-    actual_app_version, changes_heading_has_app_version, changes_heading_identities, component_version_cell,
-    compute_changed_components, diff_keys, extract_source_version, extract_target_version,
-    find_all_image_and_version_paths, find_changes_row_correspondence_gaps, find_grouped_preceding_comment,
-    find_image_tag_paths, find_images_manifest_faulty_headers, find_images_manifest_list_diff,
-    find_images_manifest_out_of_order_names, find_out_of_order_names, find_wrong_or_duplicate_dependency_claims,
-    images_manifest_display_name_positions, images_manifest_entries_share_group, images_manifest_entry_positions,
+    actual_app_version,
+    changes_heading_has_app_version,
+    changes_heading_identities,
+    component_version_cell,
+    compute_changed_components,
+    diff_keys,
+    extract_source_version,
+    extract_target_version,
+    find_all_image_and_version_paths,
+    find_changes_row_correspondence_gaps,
+    find_grouped_preceding_comment,
+    find_image_tag_paths,
+    find_images_manifest_faulty_headers,
+    find_images_manifest_list_diff,
+    find_images_manifest_out_of_order_names,
+    find_out_of_order_names,
+    find_wrong_or_duplicate_dependency_claims,
+    images_manifest_display_name_positions,
+    images_manifest_entries_share_group,
+    images_manifest_entry_positions,
     match_changes_item_display_name,
-    match_dependency, match_dependency_excluding_sidecar_names,
-    normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
-    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, parse_values_delta_sections, path_display_name,
-    resolve_component_row, resolve_entry_image_path, strip_fenced_code_blocks, values_key_order,
+    match_dependency,
+    match_dependency_excluding_sidecar_names,
+    normalize_version,
+    pair_renames,
+    parse_changes_block,
+    parse_upgrade_doc_changes_blocks,
+    parse_values_delta_sections,
+    path_display_name,
+    resolve_component_row,
+    resolve_entry_image_path,
+    strip_fenced_code_blocks,
+    values_key_order,
+)
+from lib.upgradedoc import (
+    parse_upgrade_doc_rows as _parse_upgrade_doc_rows,
 )
 
 

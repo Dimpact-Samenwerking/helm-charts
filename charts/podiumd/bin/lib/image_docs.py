@@ -19,23 +19,51 @@ since a bare basename never matches a Chart.yaml dependency by name."""
 import re
 
 from lib.chart import (
-    baseline_tag_for_sidecar_path, canonical_sidecar_row_names, full_repository_for_path, get_path,
-    global_image_paths, historical_app_version_for_path, image_paths_for, paths_by_repository,
-    replace_scalar_value, repo_group_representative, resolved_digest_pin, version_of, version_paths_for,
+    baseline_tag_for_sidecar_path,
+    canonical_sidecar_row_names,
+    full_repository_for_path,
+    get_path,
+    global_image_paths,
+    historical_app_version_for_path,
+    image_paths_for,
+    paths_by_repository,
+    replace_scalar_value,
+    repo_group_representative,
+    resolved_digest_pin,
+    version_of,
+    version_paths_for,
 )
 from lib.component_docs import (
-    CHANGES_ITEM_RE, dep_for_values_key, find_images_manifest_changes_header, insert_changes_section,
-    insert_images_manifest_header_item, make_changes_section, remove_changes_section, update_component_table,
+    CHANGES_ITEM_RE,
+    dep_for_values_key,
+    find_images_manifest_changes_header,
+    insert_changes_section,
+    insert_images_manifest_header_item,
+    make_changes_section,
+    remove_changes_section,
+    update_component_table,
 )
 from lib.digest_pinning_check import find_unresolved_subchart_images
 from lib.registry import parse_repo, registry_tag_exists
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc import (
-    actual_app_version, changes_heading_has_app_version, changes_heading_identities, component_order_key,
-    extract_source_version, find_all_image_and_version_paths, find_changes_row_correspondence_gaps,
-    find_image_tag_paths, find_preceding_comment_line, image_manifest_version_text,
-    images_manifest_entry_order_key, normalize_name, normalize_version, parse_upgrade_doc_changes_blocks,
-    parse_upgrade_doc_rows, replace_version_pair, resolve_component_identity, values_key_order,
+    actual_app_version,
+    changes_heading_has_app_version,
+    changes_heading_identities,
+    component_order_key,
+    extract_source_version,
+    find_all_image_and_version_paths,
+    find_changes_row_correspondence_gaps,
+    find_image_tag_paths,
+    find_preceding_comment_line,
+    image_manifest_version_text,
+    images_manifest_entry_order_key,
+    normalize_name,
+    parse_upgrade_doc_changes_blocks,
+    parse_upgrade_doc_rows,
+    replace_version_pair,
+    resolve_component_identity,
+    values_key_order,
     version_change_suffix,
 )
 

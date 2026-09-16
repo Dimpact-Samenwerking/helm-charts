@@ -10,8 +10,8 @@ re-exported there at all, so its own tests go through libcomponentdocs
 instead (same convention as tests/verify-podiumd/conftest.py's lib*
 fixtures)."""
 import importlib.util
-from importlib.machinery import SourceFileLoader
 import sys
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
 import pytest

@@ -27,7 +27,9 @@ from lib.registry import parse_repo
 from lib.render_scope import resolve_dependency_repo
 from lib.repo_access_cache import cache_entry_is_fresh, cache_key, load_cache, save_cache
 from lib.settings import (
-    helm_repos_urls_by_alias, repo_access_cache_ttl_minutes, repo_access_never_probe_host_suffixes,
+    helm_repos_urls_by_alias,
+    repo_access_cache_ttl_minutes,
+    repo_access_never_probe_host_suffixes,
     repo_access_request_timeout_seconds,
 )
 

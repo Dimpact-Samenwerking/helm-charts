@@ -54,8 +54,15 @@ subchart_image_visibility for a third."""
 import re
 
 from lib.chart import (
-    find_dependency, get_path, global_image_paths, load_yaml, paths_by_repository,
-    resolve_subchart_default, resolve_values_path_source, strip_registry_host, subchart_template_text,
+    find_dependency,
+    get_path,
+    global_image_paths,
+    load_yaml,
+    paths_by_repository,
+    resolve_subchart_default,
+    resolve_values_path_source,
+    strip_registry_host,
+    subchart_template_text,
     subchart_values,
 )
 from lib.render_scope import CHART_NAME, render_chart, rendered_chart_paths

@@ -100,9 +100,19 @@ import urllib.error
 from collections import Counter
 
 from lib.cve_check import (
-    SEVERITY_ORDER, bucket_of, classify_by_key, dependency_names, high_findings_by_package,
-    open_cache_session, print_bucket_header, print_package_line, render_image_labels, save_cache, scan_cached,
-    severity_label, top_level_key_for_line,
+    SEVERITY_ORDER,
+    bucket_of,
+    classify_by_key,
+    dependency_names,
+    high_findings_by_package,
+    open_cache_session,
+    print_bucket_header,
+    print_package_line,
+    render_image_labels,
+    save_cache,
+    scan_cached,
+    severity_label,
+    top_level_key_for_line,
 )
 from lib.image_digests import find_sliding_pins, unique_digest_pin_targets
 from lib.image_upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
@@ -111,7 +121,9 @@ from lib.image_upgrade_cache import load_cache as load_upgrade_cache
 from lib.registry import parse_repo, registry_tag_exists
 from lib.render_scope import friendly_vendor_charts, render_chart
 from lib.settings import (
-    cve_high_severity_levels, cve_max_cves_per_package_before_summarizing, cve_scan_cache_ttl_days,
+    cve_high_severity_levels,
+    cve_max_cves_per_package_before_summarizing,
+    cve_scan_cache_ttl_days,
     image_upgrade_tag_check_cache_ttl_days,
 )
 

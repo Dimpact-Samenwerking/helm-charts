@@ -98,11 +98,16 @@ from lib.image_upgrade_cache import load_cache as load_upgrade_cache
 from lib.procutil import run
 from lib.registry import parse_repo
 from lib.render_scope import (
-    OWN_TEMPLATES_PREFIX, chart_name_from_source, friendly_vendor_charts, render_chart,
+    OWN_TEMPLATES_PREFIX,
+    chart_name_from_source,
+    friendly_vendor_charts,
+    render_chart,
     split_rendered_by_source,
 )
 from lib.settings import (
-    cve_high_severity_levels, cve_max_cves_per_package_before_summarizing, cve_scan_cache_ttl_days,
+    cve_high_severity_levels,
+    cve_max_cves_per_package_before_summarizing,
+    cve_scan_cache_ttl_days,
     image_upgrade_tag_check_cache_ttl_days,
 )
 
