@@ -7,8 +7,10 @@ repairs Grafana login on every environment running podiumd 4.9.1 or later,
 where logging in is currently impossible. **No component version changes.**
 
 **Environments that pin `scopes` in their own values file must change it there
-too — the chart default alone does not reach them.** See
-[Action required](#action-required) below.
+too — the chart default alone does not reach them.** That change does not
+require this chart release: it can be made on the PodiumD version already
+deployed. See
+[What to change in the values file](#what-to-change-in-the-values-file-before-a-redeploy-of-an-existing-podiumd-version--no-chart-update-needed).
 
 | | |
 |---|---|
@@ -59,18 +61,166 @@ change stays in place**. The fix is on the Grafana side only.
 ## Action required
 
 The chart default does not reach environments that set `scopes` themselves, and
-every PodiumD environment does. Change it in the environment's own
-`monitoring.yml` as well:
+every PodiumD environment does — so this chart bump alone fixes nothing in
+production. Each environment's own `monitoring.yml` has to change too, and it
+can change **before** and **independently of** this chart release. Full
+instructions and worked examples:
+[What to change in the values file](#what-to-change-in-the-values-file-before-a-redeploy-of-an-existing-podiumd-version--no-chart-update-needed).
+
+## What to change in the values file before a redeploy of an EXISTING PodiumD version — no chart update needed
+
+**You do not have to wait for 4.9.2, and you must not upgrade PodiumD to fix
+this.** The `scopes` line is set in the environment's own values file, which
+overrides whatever the chart ships. Changing it there repairs login on the
+version you are running today.
+
+This is the whole change, and it is the same on every environment:
 
 ```diff
-   grafana.ini:
-     auth.generic_oauth:
 -      scopes: openid email profile offline_access roles
 +      scopes: openid email profile roles
 ```
 
-Then deploy the monitoring release. Nothing else needs redeploying, and the
-podiumd release must **not** be changed.
+| | |
+|---|---|
+| Chart version | unchanged — stays on whatever is deployed (1.0.13, 1.0.15, 1.0.17, …) |
+| PodiumD version | unchanged — do **not** upgrade or redeploy the `podiumd` release |
+| Releases to deploy | `monitoring` only |
+| Other values | none — leave `use_refresh_token`, `use_pkce`, the URLs and the secret placeholders exactly as they are |
+
+When monitoring-logging 1.0.18 is later rolled out, this line already matches
+the new chart default, so the upgrade is a no-op for this setting. Making the
+change now costs nothing later.
+
+### Full example — test-rott
+
+File: `applications/gemeenten/rott/test/monitoring.yml`
+
+Before (line 130 in the current file):
+
+```yaml
+  grafana.ini:
+    # -- Authentication and Authorization with Keycloak
+    auth.generic_oauth:
+      enabled: true
+      name: Keycloak-podiumd
+      allow_sign_up: true
+      allow_assign_grafana_admin: true
+      client_id: "monitoring"
+      client_secret: "REP_GRAFANA_OIDC_SECRET_REP"
+      scopes: openid email profile offline_access roles
+      email_attribute_path: email
+      login_attribute_path: username
+      name_attribute_path: name
+      auth_url: "https://test-keycloak.rotterdam.nl/realms/podiumd/protocol/openid-connect/auth"
+      token_url: "https://test-keycloak.rotterdam.nl/realms/podiumd/protocol/openid-connect/token"
+      api_url: "https://test-keycloak.rotterdam.nl/realms/podiumd/protocol/openid-connect/userinfo"
+      role_attribute_path: "contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'"
+      role_attribute_strict: false
+      org_mapping: "*:Viewer"
+      skip_org_role_sync: false
+      groups_attribute_path: groups
+      use_refresh_token: true
+      sync_ttl: 60
+      use_pkce: true
+```
+
+After — one line changed, everything else byte-for-byte identical:
+
+```yaml
+  grafana.ini:
+    # -- Authentication and Authorization with Keycloak
+    auth.generic_oauth:
+      enabled: true
+      name: Keycloak-podiumd
+      allow_sign_up: true
+      allow_assign_grafana_admin: true
+      client_id: "monitoring"
+      client_secret: "REP_GRAFANA_OIDC_SECRET_REP"
+      scopes: openid email profile roles
+      email_attribute_path: email
+      login_attribute_path: username
+      name_attribute_path: name
+      auth_url: "https://test-keycloak.rotterdam.nl/realms/podiumd/protocol/openid-connect/auth"
+      token_url: "https://test-keycloak.rotterdam.nl/realms/podiumd/protocol/openid-connect/token"
+      api_url: "https://test-keycloak.rotterdam.nl/realms/podiumd/protocol/openid-connect/userinfo"
+      role_attribute_path: "contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'"
+      role_attribute_strict: false
+      org_mapping: "*:Viewer"
+      skip_org_role_sync: false
+      groups_attribute_path: groups
+      use_refresh_token: true
+      sync_ttl: 60
+      use_pkce: true
+```
+
+Note `client_secret` keeps its `REP_GRAFANA_OIDC_SECRET_REP` placeholder — it is
+resolved from Key Vault at deploy time and must not be filled in.
+
+Verify afterwards, with Rotterdam's own hostnames:
+
+```bash
+KC="https://test-keycloak.rotterdam.nl"
+GF="test-podiumd-logs.rotterdam.nl"
+AUTH="$KC/realms/podiumd/protocol/openid-connect/auth"
+RU="https%3A%2F%2F$GF%2Flogin%2Fgeneric_oauth"
+
+# Grafana now sends the corrected scope list
+curl -s -o /dev/null -w "%{redirect_url}\n" "https://$GF/login/generic_oauth" \
+  | tr '&' '\n' | grep scope=
+
+# and offline_access is still refused, so the hardening is untouched
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" \
+  "$AUTH?client_id=monitoring&redirect_uri=$RU&response_type=code&scope=openid%20email%20profile%20offline_access%20roles&state=p"
+```
+
+Then log in at https://test-podiumd-logs.rotterdam.nl and run the browser checks
+under [After the upgrade](#after-the-upgrade).
+
+### Generic example — any environment
+
+File: `applications/gemeenten/{gemeente}/{omgeving}/monitoring.yml`
+
+```yaml
+grafana:
+  grafana.ini:
+    auth.generic_oauth:
+      enabled: true
+      client_id: "monitoring"
+      client_secret: "REP_GRAFANA_OIDC_SECRET_REP"
+
+      # the only line that changes:
+      #   was  scopes: openid email profile offline_access roles
+      scopes: openid email profile roles
+
+      auth_url:  "https://{keycloak-host}/realms/podiumd/protocol/openid-connect/auth"
+      token_url: "https://{keycloak-host}/realms/podiumd/protocol/openid-connect/token"
+      api_url:   "https://{keycloak-host}/realms/podiumd/protocol/openid-connect/userinfo"
+
+      # leave these exactly as they are
+      use_refresh_token: true
+      use_pkce: true
+```
+
+Find every file that still needs it:
+
+```bash
+grep -rn "offline_access" applications/gemeenten/*/*/monitoring.yml
+```
+
+Apply it per environment, then deploy the `monitoring` release for that
+environment only.
+
+> **Do not use `yq -i` on these files.** It reformats the whole document and
+> loses the comments. Edit the single line.
+
+### Order of work
+
+Environments already on PodiumD 4.9.1 are broken now and come first:
+**test-rott**, then **acc-asse** and **acc-gron**. Everything else is still on
+4.9.0 or earlier and keeps working until it upgrades — change those files
+whenever convenient, but before their next PodiumD upgrade, or login breaks the
+moment that upgrade lands.
 
 ## Verification
 
