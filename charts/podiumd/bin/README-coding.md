@@ -10,6 +10,7 @@ the test suite and the linters. For installing the tools themselves (`ruff`,
 - [Running the linters](#running-the-linters)
   - [ruff (lint + format)](#ruff-lint--format)
   - [pylint (too-many-lines only)](#pylint-too-many-lines-only)
+  - [vulture (dead code)](#vulture-dead-code)
 - [Before committing](#before-committing)
 
 ## Running the tests
@@ -88,27 +89,61 @@ a general second linter running in parallel with ruff.
 
 ```bash
 cd charts/podiumd/bin
-pylint lib/*.py $(find . -maxdepth 1 -type f -perm -u+x) $(find tests -name '*.py')
+pylint lib/*.py $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) $(find tests -name '*.py')
 ```
 
 The explicit file list matters: pylint has no config option to auto-discover
 this directory's own extensionless top-level scripts (`fix-doc-consistency`,
 `verify-podiumd`, etc. — they have no `.py` suffix for it to glob on), so a
 bare `pylint .` silently misses all of them. The command above explicitly
-includes `lib/*.py`, every executable top-level script (via the same
-`find -perm -u+x` pattern used elsewhere), and every test file under `tests/`
-(several test modules are themselves well over 1000 lines).
+includes `lib/*.py`, every executable top-level script (filtered to those
+with a `python` shebang, so a non-Python executable like `run_python_checks`
+itself doesn't get handed to a Python linter), and every test file under
+`tests/` (several test modules are themselves well over 1000 lines).
+
+### vulture (dead code)
+
+```bash
+cd charts/podiumd/bin
+vulture lib/*.py $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+```
+
+Same file-discovery gap as pylint above (vulture only walks `*.py` files
+under a directory, so the extensionless top-level scripts need to be passed
+explicitly) — same fix, same command shape.
+
+**Deliberately excludes `tests/` entirely.** Vulture flags anything it can't
+see a direct call to, and pytest fixtures / mock-function signature params
+are structurally indistinguishable from real dead code under that test —
+neither is ever "called" in vulture's own static sense. Trying it against
+the whole tree once produced far more of that noise than real signal (see
+git history). `pyproject.toml`'s own `[tool.vulture]` comment documents the
+handful of individually-confirmed false positives this scoped invocation
+still produces (`ignore_names`) and exactly why each one is safe to ignore.
+
+A genuinely new finding here means: either it really is dead code (delete
+it), or it's a new false positive of the same two shapes above — in which
+case add it to `ignore_names` with the same kind of explanation, don't just
+suppress it silently.
 
 ## Before committing
 
-No single command runs everything above in one shot (yet) — in order:
+```bash
+cd charts/podiumd/bin
+./run_python_checks
+```
+
+Runs everything above in this same order, stopping at the first failure:
+`pytest`, `ruff check`, `ruff format --check`, `pylint`, `vulture`. Equivalent
+to running each command from the sections above by hand, in order:
 
 ```bash
 cd charts/podiumd/bin
 python3 -m pytest -q
 ruff check .
 ruff format --check .
-pylint lib/*.py $(find . -maxdepth 1 -type f -perm -u+x) $(find tests -name '*.py')
+pylint lib/*.py $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) $(find tests -name '*.py')
+vulture lib/*.py $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 ```
 
 A failing `pytest` run or a `ruff check`/`pylint` finding introduced by your own
