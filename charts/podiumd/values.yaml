@@ -14,7 +14,7 @@ global:
   images:
     nginx: &nginxImage
       repository: nginxinc/nginx-unprivileged
-      tag: "1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"
+      tag: "1.31.5@sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
@@ -24,9 +24,10 @@ global:
       repository: library/busybox
       tag: "1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
       pullPolicy: IfNotPresent
-    redis: &redisImage
-      repository: redis
-      tag: "8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"
+    postgres: &postgresImage
+      repository: library/postgres
+      tag: "16.15-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+      pullPolicy: IfNotPresent
 
 tags:
   eck-operator.enabled: false
@@ -114,10 +115,7 @@ keycloak-operator:
         # Digest-pinned to a specific patch rather than the floating 3.14-slim minor tag.
         tag: "3.14.7-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
-      image:
-        registry: ""
-        repository: postgres
-        tag: "16.15@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94"
+      image: *postgresImage
     ensureOperatorSa:
       enabled: true
       # Container: curl-based job to provision the keycloak-operator service account client.
@@ -732,8 +730,6 @@ openzaak:
     storageClassName: podiumd-standard
   image:
     tag: "1.29.3@sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 250m
@@ -983,8 +979,6 @@ opennotificaties:
     storageClassName: podiumd-standard
   image:
     tag: "1.16.2@sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 100m
@@ -1163,8 +1157,6 @@ objecten:
   image:
     repository: maykinmedia/objects-api
     tag: "3.6.2@sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 100m
@@ -1291,8 +1283,6 @@ objecttypen:
   image:
     repository: maykinmedia/objecttypes-api
     tag: "3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"
-  redis:
-    image: *redisImage
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1482,8 +1472,6 @@ openarchiefbeheer:
   image:
     #repository: maykinmedia/open-archiefbeheer
     tag: "2.0.0@sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
-  redis:
-    image: *redisImage
 
   resources:
     limits: {}
@@ -1647,8 +1635,6 @@ openklant:
   image:
     repository: maykinmedia/open-klant
     tag: "2.15.0@sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 100m
@@ -1887,8 +1873,6 @@ openformulieren:
     storageClassName: podiumd-standard
   image:
     tag: "3.5.6@sha256:f5a5d51a44f39edcfb2143ae5d2ed9525b22ea377faa35fd2cce26b678f7fe83"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 250m
@@ -2129,8 +2113,6 @@ openinwoner:
     storageClassName: podiumd-standard
   image:
     tag: "2.4.3@sha256:c2ff751143c260874a1ebcdcc7e07dc213cffee70c3ea5a9589948e3f5da43e4"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 200m
@@ -2324,8 +2306,6 @@ referentielijsten:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
     tag: "0.7.3@sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
-  redis:
-    image: *redisImage
 
   settings:
     allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
@@ -2453,8 +2433,6 @@ openbeheer:
     repository: maykinmedia/open-beheer
     pullPolicy: IfNotPresent
     tag: "0.9.1@sha256:7c1dfaff1d069afe5d45e421f813078d8112b13c3cf65b5f547e866f6aad4e31"
-  redis:
-    image: *redisImage
   nameOverride: openbeheer
   fullnameOverride: openbeheer
   securityContext:
@@ -2548,6 +2526,9 @@ eck-operator:
   # cluster-scope RBAC: set false and apply the CRDs manually (same doc).
   # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
   installCRDs: true
+  image:
+    tag: "3.5.0"
+    digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
   createClusterScopedResources: false
   config:
     # no RBAC access to cluster-wide storage classes, hence disable storage class validation
@@ -3118,10 +3099,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb
+      # library/solr:9.10.1-slim@sha256:0a931f52cfd9a9afd6d958d246e64115648099c788e41a01adad9f09e6f73594
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb
+        tag: 9.10.1-slim@sha256:0a931f52cfd9a9afd6d958d246e64115648099c788e41a01adad9f09e6f73594
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -3232,7 +3213,7 @@ clamav:
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     repository: clamav/clamav
-    tag: "1.5.4@sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"
+    tag: "1.5.4@sha256:9cb27d7660bdf66e9878c832cb433dd8aa152cfbe16f3c2c0084c80b04ae22b4"
   metrics:
     enabled: false
     image:
@@ -4527,9 +4508,7 @@ openbao:
       backoffLimit: 6
       # Post-success log window (Job is not hook-deleted on success).
       ttlSecondsAfterFinished: 600
-      image:
-        repository: docker.io/library/postgres
-        tag: "16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+      image: *postgresImage
       nodeSelector: {}
       resources:
         requests:

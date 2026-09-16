@@ -43,7 +43,7 @@ PodiumD Helm chart
 | apiproxy.errorLogLevel | string | `"notice"` | nginx error_log level (debug|info|notice|warn|error|crit|alert|emerg). "debug" logs full request/response headers (incl. injected API keys/toepassing headers) and is very high-volume — use only for short-lived troubleshooting, never leave enabled given the BRP/citizen-data traffic this proxy carries. |
 | apiproxy.image.pullPolicy | string | `"IfNotPresent"` |  |
 | apiproxy.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| apiproxy.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| apiproxy.image.tag | string | `"1.31.5@sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"` |  |
 | apiproxy.imagePullSecrets | list | `[]` |  |
 | apiproxy.livenessProbe.initialDelaySeconds | int | `5` |  |
 | apiproxy.livenessProbe.periodSeconds | int | `10` |  |
@@ -93,7 +93,7 @@ PodiumD Helm chart
 | clamav.freshclamConfig | string | `"###############\n# General\n###############\n\nDatabaseDirectory /var/lib/clamav\nPidFile /tmp/freshclam.pid\n# CUSTOM: Set defined user\nDatabaseOwner 2000\n\n###############\n# Updates\n###############\n\nDatabaseMirror database.clamav.net\nScriptedUpdates yes\nNotifyClamd /etc/clamav/clamd.conf\nBytecode yes\n"` |  |
 | clamav.fullnameOverride | string | `"clamav"` |  |
 | clamav.image.repository | string | `"clamav/clamav"` |  |
-| clamav.image.tag | string | `"1.5.4@sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"` |  |
+| clamav.image.tag | string | `"1.5.4@sha256:9cb27d7660bdf66e9878c832cb433dd8aa152cfbe16f3c2c0084c80b04ae22b4"` |  |
 | clamav.metrics.enabled | bool | `false` |  |
 | clamav.metrics.image.repository | string | `"docker.io/sergeymakinen/clamav_exporter"` |  |
 | clamav.metrics.image.tag | string | `"v2.1.8@sha256:ac0e23e6b718f265f67de68d9fccbb8e9baccedeba19658fd78dd8a606508e24"` |  |
@@ -113,6 +113,8 @@ PodiumD Helm chart
 | eck-operator.config.validateStorageClass | bool | `false` |  |
 | eck-operator.createClusterScopedResources | bool | `false` |  |
 | eck-operator.enabled | bool | `true` |  |
+| eck-operator.image.digest | string | `"sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"` |  |
+| eck-operator.image.tag | string | `"3.5.0"` |  |
 | eck-operator.installCRDs | bool | `true` | the chart installs and upgrades the 12 *.k8s.elastic.co CRDs, in lock-step with the operator version. The CRDs carry helm.sh/resource-policy: keep, so `helm uninstall` never removes them (the Elastic CRs and their data survive). Requires cluster-scope RBAC on the deploying identity. Clusters whose CRDs predate helm ownership (kisselastic era / manual apply) need a one-time adoption: deploy with `--take-ownership` (helm >= 3.17) or annotate the CRDs once — see docs/apps/elastic/migrating-to-eck-stack.md section 4b. Installers without cluster-scope RBAC: set false and apply the CRDs manually (same doc). override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor |
 | eck-operator.managedNamespaces[0] | string | `"podiumd"` |  |
 | eck-operator.podMonitor.enabled | bool | `false` |  |
@@ -141,7 +143,7 @@ PodiumD Helm chart
 | frankgateway.dashboard.auth.sessionRedisUrl | string | `""` |  |
 | frankgateway.dashboard.auth.shim.image.pullPolicy | string | `"IfNotPresent"` |  |
 | frankgateway.dashboard.auth.shim.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| frankgateway.dashboard.auth.shim.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| frankgateway.dashboard.auth.shim.image.tag | string | `"1.31.5@sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"` |  |
 | frankgateway.dashboard.auth.shim.nodeSelector | object | `{}` |  |
 | frankgateway.dashboard.auth.shim.resources.limits.cpu | string | `"250m"` |  |
 | frankgateway.dashboard.auth.shim.resources.limits.memory | string | `"128Mi"` |  |
@@ -247,9 +249,10 @@ PodiumD Helm chart
 | global.images.curl.tag | string | `"8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"` |  |
 | global.images.nginx.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.nginx.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| global.images.nginx.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
-| global.images.redis.repository | string | `"redis"` |  |
-| global.images.redis.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
+| global.images.nginx.tag | string | `"1.31.5@sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"` |  |
+| global.images.postgres.pullPolicy | string | `"IfNotPresent"` |  |
+| global.images.postgres.repository | string | `"library/postgres"` |  |
+| global.images.postgres.tag | string | `"16.15-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"` |  |
 | global.settings.databaseHost | string | `""` |  |
 | ita.afdeling.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.afdeling.typeVersion | int | `1` |  |
@@ -323,9 +326,9 @@ PodiumD Helm chart
 | keycloak-operator.jobs.ensureOperatorSa.image.repository | string | `"curlimages/curl"` |  |
 | keycloak-operator.jobs.ensureOperatorSa.image.tag | string | `"8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.enabled | bool | `true` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.image.registry | string | `""` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"postgres"` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16.15@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.pullPolicy | string | `"IfNotPresent"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"library/postgres"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16.15-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.registry | string | `""` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.repository | string | `"python"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag | string | `"3.14.7-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"` |  |
@@ -627,8 +630,6 @@ PodiumD Helm chart
 | objecten.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | objecten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | objecten.persistentVolume.volumeAttributeShareName | string | `"objecten"` |  |
-| objecten.redis.image.repository | string | `"redis"` |  |
-| objecten.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | objecten.resources.requests.cpu | string | `"100m"` |  |
 | objecten.resources.requests.memory | string | `"256Mi"` |  |
 | objecten.settings.allowedHosts | string | `"objecten.podiumd.svc.cluster.local"` |  |
@@ -671,8 +672,6 @@ PodiumD Helm chart
 | objecttypen.image.tag | string | `"3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"` |  |
 | objecttypen.nameOverride | string | `"objecttypen"` |  |
 | objecttypen.otel.disabled | bool | `true` |  |
-| objecttypen.redis.image.repository | string | `"redis"` |  |
-| objecttypen.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | objecttypen.resources.requests.cpu | string | `"10m"` |  |
 | objecttypen.resources.requests.memory | string | `"160Mi"` |  |
 | objecttypen.settings.allowedHosts | string | `"objecttypen.podiumd.svc.cluster.local"` |  |
@@ -721,7 +720,7 @@ PodiumD Helm chart
 | openarchiefbeheer.nameOverride | string | `"openarchiefbeheer"` |  |
 | openarchiefbeheer.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openarchiefbeheer.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openarchiefbeheer.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| openarchiefbeheer.nginx.image.tag | string | `"1.31.5@sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"` |  |
 | openarchiefbeheer.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openarchiefbeheer.nginx.resources.requests.memory | string | `"16Mi"` |  |
 | openarchiefbeheer.otel.disabled | bool | `true` |  |
@@ -730,8 +729,6 @@ PodiumD Helm chart
 | openarchiefbeheer.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openarchiefbeheer.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openarchiefbeheer.persistentVolume.volumeAttributeShareName | string | `"openarchiefbeheer"` |  |
-| openarchiefbeheer.redis.image.repository | string | `"redis"` |  |
-| openarchiefbeheer.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openarchiefbeheer.replicaCount | int | `1` |  |
 | openarchiefbeheer.resources.limits | object | `{}` |  |
 | openarchiefbeheer.resources.requests.cpu | string | `"250m"` |  |
@@ -785,8 +782,9 @@ PodiumD Helm chart
 | openbao.database.password | string | `""` |  |
 | openbao.database.port | int | `5432` |  |
 | openbao.database.schemaJob.backoffLimit | int | `6` |  |
-| openbao.database.schemaJob.image.repository | string | `"docker.io/library/postgres"` |  |
-| openbao.database.schemaJob.image.tag | string | `"16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"` |  |
+| openbao.database.schemaJob.image.pullPolicy | string | `"IfNotPresent"` |  |
+| openbao.database.schemaJob.image.repository | string | `"library/postgres"` |  |
+| openbao.database.schemaJob.image.tag | string | `"16.15-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"` |  |
 | openbao.database.schemaJob.nodeSelector | object | `{}` |  |
 | openbao.database.schemaJob.resources.limits.cpu | string | `"250m"` |  |
 | openbao.database.schemaJob.resources.limits.memory | string | `"128Mi"` |  |
@@ -846,7 +844,7 @@ PodiumD Helm chart
 | openbeheer.nameOverride | string | `"openbeheer"` |  |
 | openbeheer.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openbeheer.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openbeheer.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| openbeheer.nginx.image.tag | string | `"1.31.5@sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"` |  |
 | openbeheer.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openbeheer.nginx.resources.requests.memory | string | `"16Mi"` |  |
 | openbeheer.persistence.enabled | bool | `true` |  |
@@ -856,8 +854,6 @@ PodiumD Helm chart
 | openbeheer.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openbeheer.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openbeheer.persistentVolume.volumeAttributeShareName | string | `"openbeheer"` |  |
-| openbeheer.redis.image.repository | string | `"redis"` |  |
-| openbeheer.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openbeheer.replicaCount | int | `2` |  |
 | openbeheer.resources | object | `{}` |  |
 | openbeheer.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
@@ -920,7 +916,7 @@ PodiumD Helm chart
 | openformulieren.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openformulieren.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openformulieren.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openformulieren.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| openformulieren.nginx.image.tag | string | `"1.31.5@sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"` |  |
 | openformulieren.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openformulieren.nginx.resources.requests.memory | string | `"16Mi"` |  |
 | openformulieren.persistence.existingClaim | string | `"openformulieren"` |  |
@@ -930,8 +926,6 @@ PodiumD Helm chart
 | openformulieren.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openformulieren.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openformulieren.persistentVolume.volumeAttributeShareName | string | `"openformulieren"` |  |
-| openformulieren.redis.image.repository | string | `"redis"` |  |
-| openformulieren.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openformulieren.resources.requests.cpu | string | `"250m"` |  |
 | openformulieren.resources.requests.memory | string | `"1Gi"` |  |
 | openformulieren.settings.allowedHosts | string | `"openformulieren-nginx.podiumd.svc.cluster.local"` |  |
@@ -978,7 +972,7 @@ PodiumD Helm chart
 | openinwoner.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openinwoner.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openinwoner.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openinwoner.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| openinwoner.nginx.image.tag | string | `"1.31.5@sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"` |  |
 | openinwoner.nginx.resources.requests.cpu | string | `"30m"` |  |
 | openinwoner.nginx.resources.requests.memory | string | `"8Mi"` |  |
 | openinwoner.persistence.existingClaim | string | `"openinwoner"` |  |
@@ -986,8 +980,6 @@ PodiumD Helm chart
 | openinwoner.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openinwoner.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openinwoner.persistentVolume.volumeAttributeShareName | string | `"openinwoner"` |  |
-| openinwoner.redis.image.repository | string | `"redis"` |  |
-| openinwoner.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openinwoner.resources.requests.cpu | string | `"200m"` |  |
 | openinwoner.resources.requests.memory | string | `"1Gi"` |  |
 | openinwoner.settings.allowedHosts | string | `"openinwoner-nginx.podiumd.svc.cluster.local"` |  |
@@ -1030,7 +1022,7 @@ PodiumD Helm chart
 | openklant.nameOverride | string | `"openklant"` |  |
 | openklant.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openklant.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openklant.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| openklant.nginx.image.tag | string | `"1.31.5@sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"` |  |
 | openklant.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openklant.nginx.resources.requests.memory | string | `"16Mi"` |  |
 | openklant.otel.disabled | bool | `true` |  |
@@ -1039,8 +1031,6 @@ PodiumD Helm chart
 | openklant.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openklant.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openklant.persistentVolume.volumeAttributeShareName | string | `"openklant"` |  |
-| openklant.redis.image.repository | string | `"redis"` |  |
-| openklant.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openklant.resources.requests.cpu | string | `"100m"` |  |
 | openklant.resources.requests.memory | string | `"300Mi"` |  |
 | openklant.settings.allowedHosts | string | `"openklant.podiumd.svc.cluster.local"` |  |
@@ -1084,8 +1074,6 @@ PodiumD Helm chart
 | opennotificaties.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | opennotificaties.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | opennotificaties.persistentVolume.volumeAttributeShareName | string | `"opennotificaties"` |  |
-| opennotificaties.redis.image.repository | string | `"redis"` |  |
-| opennotificaties.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | opennotificaties.resources.requests.cpu | string | `"100m"` |  |
 | opennotificaties.resources.requests.memory | string | `"256Mi"` |  |
 | opennotificaties.settings.allowedHosts | string | `"opennotificaties.podiumd.svc.cluster.local"` |  |
@@ -1142,7 +1130,7 @@ PodiumD Helm chart
 | openzaak.nameOverride | string | `"openzaak"` |  |
 | openzaak.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openzaak.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openzaak.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| openzaak.nginx.image.tag | string | `"1.31.5@sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"` |  |
 | openzaak.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openzaak.nginx.resources.requests.memory | string | `"16Mi"` |  |
 | openzaak.otel.disabled | bool | `true` |  |
@@ -1151,8 +1139,6 @@ PodiumD Helm chart
 | openzaak.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openzaak.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openzaak.persistentVolume.volumeAttributeShareName | string | `"openzaak"` |  |
-| openzaak.redis.image.repository | string | `"redis"` |  |
-| openzaak.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openzaak.resources.requests.cpu | string | `"250m"` |  |
 | openzaak.resources.requests.memory | string | `"512Mi"` |  |
 | openzaak.settings.allowedHosts | string | `"openzaak-nginx.podiumd.svc.cluster.local"` |  |
@@ -1254,8 +1240,6 @@ PodiumD Helm chart
 | referentielijsten.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | referentielijsten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | referentielijsten.persistentVolume.volumeAttributeShareName | string | `"referentielijsten"` |  |
-| referentielijsten.redis.image.repository | string | `"redis"` |  |
-| referentielijsten.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | referentielijsten.replicaCount | int | `1` |  |
 | referentielijsten.settings.allowedHosts | string | `"referentielijsten-nginx.podiumd.svc.cluster.local"` |  |
 | referentielijsten.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/15"` |  |
@@ -1345,7 +1329,7 @@ PodiumD Helm chart
 | zac.nginx.enabled | bool | `true` |  |
 | zac.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| zac.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| zac.nginx.image.tag | string | `"1.31.5@sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"` |  |
 | zac.nginx.resources.requests.cpu | string | `"50m"` |  |
 | zac.nginx.resources.requests.memory | string | `"64Mi"` |  |
 | zac.notificationsSecretKey | string | `"changeme"` |  |
@@ -1381,7 +1365,7 @@ PodiumD Helm chart
 | zac.solr-operator.solr.busyBoxImage.tag | string | `"1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"` |  |
 | zac.solr-operator.solr.dataStorage.persistent.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down Solr (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which requires a full index resync from another replica. |
 | zac.solr-operator.solr.enabled | bool | `true` | set enabled to provision solrcloud as well |
-| zac.solr-operator.solr.image.tag | string | `"9.10.1-slim@sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb"` |  |
+| zac.solr-operator.solr.image.tag | string | `"9.10.1-slim@sha256:0a931f52cfd9a9afd6d958d246e64115648099c788e41a01adad9f09e6f73594"` |  |
 | zac.solr-operator.solr.javaMem | string | `"-Xms512m -Xmx768m"` | define memory settings for solr in the solrcloud |
 | zac.solr-operator.solr.jobs.createZacCore | bool | `true` |  |
 | zac.solr-operator.solr.resources.limits.cpu | string | `"2000m"` |  |

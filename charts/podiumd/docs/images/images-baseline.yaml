@@ -19,7 +19,7 @@
 - name: nginxinc/nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
   version: "1.31.5"
-  digest: "sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"
+  digest: "sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"
 
 - name: curlimages/curl
   url: docker.io/curlimages/curl
@@ -31,10 +31,10 @@
   version: "1.38.0-glibc"
   digest: "sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
 
-- name: redis
-  url: docker.io/library/redis
-  version: "8.10.1"
-  digest: "sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"
+- name: library/postgres
+  url: docker.io/library/postgres
+  version: "16.15-alpine"
+  digest: "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
 
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
@@ -50,11 +50,6 @@
   url: docker.io/library/python
   version: "3.14.7-slim"
   digest: "sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"
-
-- name: postgres
-  url: docker.io/library/postgres
-  version: "16.15"
-  digest: "sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94"
 
 - name: adorsys/keycloak-config-cli
   url: docker.io/adorsys/keycloak-config-cli
@@ -199,7 +194,7 @@
 - name: library/solr
   url: docker.io/library/solr
   version: "9.10.1-slim"
-  digest: "sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb"
+  digest: "sha256:0a931f52cfd9a9afd6d958d246e64115648099c788e41a01adad9f09e6f73594"
 
 - name: lachlanevenson/k8s-kubectl
   url: docker.io/lachlanevenson/k8s-kubectl
@@ -229,7 +224,7 @@
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.5.4"
-  digest: "sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"
+  digest: "sha256:9cb27d7660bdf66e9878c832cb433dd8aa152cfbe16f3c2c0084c80b04ae22b4"
 
 - name: sergeymakinen/clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter
@@ -320,8 +315,3 @@
   url: quay.io/openbao/openbao
   version: "2.5.5"
   digest: "sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"
-
-- name: library/postgres
-  url: docker.io/library/postgres
-  version: "16-alpine"
-  digest: "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
