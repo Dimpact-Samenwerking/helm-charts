@@ -224,6 +224,21 @@ checksum of the dataset and of the rendered pod template, so it does not rerun
 on later upgrades unless one of those changes. A chart version bump on its own
 does not re-seed.
 
+The seed job comes with a second Job, `pabc-keycloak-groups-job-<checksum>`,
+for the Keycloak side. ZAC sends the user's group names to PABC, so the
+functional roles only work if the `podiumd` realm has groups with exactly those
+names. The realm import only creates them with `keycloak.config.skipGroups` and
+`skipRoles` set to `false`, which most environments leave at `true`. This Job
+uses `kcadm.sh` from the Keycloak image, logged in as the `keycloak-operator`
+service account, to create the `podiumd-admin` realm role, the `zac` and `pabc`
+client roles and one group per functional role where they are missing, and adds
+the same roles to those groups as the realm import would. It only adds, never
+removes, so groups a municipality manages itself keep their own mappings. It
+needs `keycloak-operator.enabled` and
+`keycloak-operator.jobs.ensureOperatorSa.clientSecret`, and can be switched off
+with `pabc.seedJob.keycloak.enabled: false`. Users still have to be put in the
+groups, by hand or through the identity provider.
+
 Seeding **replaces** all PABC content, so leave it disabled on environments that
 have already been curated through the PABC UI. See
 [pabc-iam-migration.md](./pabc-iam-migration.md) for the full switch-over.
