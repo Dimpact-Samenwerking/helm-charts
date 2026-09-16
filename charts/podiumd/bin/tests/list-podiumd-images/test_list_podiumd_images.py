@@ -274,7 +274,9 @@ def test_component_version_rows_resolves_eck_stack_nested_subchart_images(lpi, t
         raw_files={
             "charts/eck-elasticsearch/values.yaml": "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n",
             "charts/eck-kibana/values.yaml": "# image: docker.elastic.co/kibana/kibana:9.5.0\n",
-            "charts/eck-enterprise-search/values.yaml": "# image: docker.elastic.co/enterprise-search/enterprise-search:9.5.0\n",
+            "charts/eck-enterprise-search/values.yaml": (
+                "# image: docker.elastic.co/enterprise-search/enterprise-search:9.5.0\n"
+            ),
         },
     )
     merged = {
@@ -801,7 +803,9 @@ def test_main_includes_component_version_path_images(lpi, tmp_path, monkeypatch,
         raw_files={
             "charts/eck-elasticsearch/values.yaml": "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n",
             "charts/eck-kibana/values.yaml": "# image: docker.elastic.co/kibana/kibana:9.5.0\n",
-            "charts/eck-enterprise-search/values.yaml": "# image: docker.elastic.co/enterprise-search/enterprise-search:9.5.0\n",
+            "charts/eck-enterprise-search/values.yaml": (
+                "# image: docker.elastic.co/enterprise-search/enterprise-search:9.5.0\n"
+            ),
         },
     )
 

@@ -89,7 +89,8 @@ def test_check_render_zero_manifests_fails(vp, tmp_path, monkeypatch):
     assert "0 manifests" in detail
 
 
-# --- report_largest_templates / report_errors_by_subchart (just check they don't crash and print something sensible) ---
+# --- report_largest_templates / report_errors_by_subchart (just check
+# they don't crash and print something sensible) ---
 
 
 def test_report_largest_templates_output(vp, capsys):

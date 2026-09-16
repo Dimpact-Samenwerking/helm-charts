@@ -457,7 +457,8 @@ def check_images_manifest_format(
         baseline_str = baseline_m.group(1).rstrip(".")
         if normalize_version(baseline_str) != normalize_version(upgrade_docs_baseline):
             issues.append(
-                f'{images_path.name}: upgrade_docs_baseline line says "{baseline_str}", expected "{upgrade_docs_baseline}"'
+                f'{images_path.name}: upgrade_docs_baseline line says "{baseline_str}", '
+                f'expected "{upgrade_docs_baseline}"'
             )
 
     vs_m = re.search(r"podiumd\s+([\w.\-]+)\s+vs\s+([\w.\-]+)", text)

@@ -1518,7 +1518,11 @@ def test_find_images_manifest_faulty_headers_version_paths_for_primary_is_exempt
     "image: {tag}" block) is a PRIMARY, not a sidecar — same real case
     -upgrade.md's own "### redis-operator ..." heading already names
     plain "redis-operator", not "redis-operator - <something>"."""
-    text = '# redis-operator 0.25.0 -> 0.26.0 (chart 0.25.0 -> 0.26.1)\n- name: opstree/redis-operator\n  version: "0.26.0"\n'
+    text = (
+        "# redis-operator 0.25.0 -> 0.26.0 (chart 0.25.0 -> 0.26.1)\n"
+        "- name: opstree/redis-operator\n"
+        '  version: "0.26.0"\n'
+    )
     lines = text.splitlines()
     entries = [{"name": "opstree/redis-operator", "version": "0.26.0"}]
     entry_line_indices = _entry_line_indices(lines)
