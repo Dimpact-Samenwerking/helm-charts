@@ -1,0 +1,188 @@
+{{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
+{{- if and .Values.pabc.enabled .Values.pabc.seedJob.enabled .Values.pabc.seedJob.keycloak.enabled (index .Values "keycloak-operator").enabled $operatorJobs.ensureOperatorSa.enabled $operatorJobs.ensureOperatorSa.clientSecret }}
+{{- /*
+Group -> role mapping, kept in line with the groups section of
+keycloak-podiumd-realm-config.yaml. A functional role in the dataset that is
+missing here still gets its group, just without roles.
+*/}}
+{{- $realmRoles := dict "administrators" (list "podiumd-admin") }}
+{{- $zacRoles := dict
+  "administrators" (list "domein_elk_zaaktype" "behandelaar" "beheerder" "coordinator" "raadpleger" "recordmanager")
+  "behandelaars" (list "domein_elk_zaaktype" "behandelaar" "raadpleger")
+  "beheerders" (list "domein_elk_zaaktype" "behandelaar" "beheerder" "coordinator" "raadpleger" "recordmanager")
+  "coordinators" (list "domein_elk_zaaktype" "behandelaar" "coordinator" "raadpleger")
+  "raadplegers" (list "domein_elk_zaaktype" "raadpleger")
+  "recordmanagers" (list "domein_elk_zaaktype" "behandelaar" "coordinator" "raadpleger" "recordmanager")
+}}
+{{- $pabcRoles := dict "administrators" (list "administrator") }}
+{{- $dataset := .Files.Get "files/pabc-dataset.json" | fromJson }}
+{{- $script := include "podiumd.pabcKeycloakGroups.script" (dict "Values" .Values "dataset" $dataset "realmRoles" $realmRoles "zacRoles" $zacRoles "pabcRoles" $pabcRoles) }}
+---
+# Job: Keycloak side of the PABC seed.
+#
+# ZAC puts the user's group names in the group_membership claim and asks PABC
+# which application roles those functional roles grant. A seeded PABC is
+# therefore only useful when the podiumd realm has groups with exactly the
+# functional role names from files/pabc-dataset.json. The realm import only
+# creates those groups with keycloak.config.skipGroups/skipRoles: false, and
+# most environments keep the default true because keycloak-config-cli would
+# otherwise also rewrite the role mappings of groups they manage themselves.
+#
+# This Job fills that gap through the Keycloak admin API (kcadm.sh from the
+# Keycloak image, authenticated as the keycloak-operator service account):
+#   - creates the podiumd-admin realm role and the zac/pabc client roles if missing
+#   - creates each functional role group if missing
+#   - adds the realm and client roles to those groups
+# Everything is additive: existing groups, roles and mappings are never
+# removed or changed, so running it again is harmless.
+#
+# The Job name carries a checksum of the rendered script, so it runs once per
+# change of the dataset or the role mapping. It is kept separate from
+# pabc-seed-job on purpose: that Job's name hashes its own pod template, and
+# folding this in would re-seed (and wipe) PABC on every environment.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pabc-keycloak-groups-job-{{ $script | sha256sum | trunc 10 }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pabc
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: pabc
+    spec:
+      {{- if .Values.keycloak.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.keycloak.nodeSelector | nindent 8 }}
+      {{- else if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      containers:
+      - name: pabc-keycloak-groups
+        image: {{ include "podiumd.image" .Values.keycloak.image }}
+        resources:
+          {{- toYaml .Values.pabc.seedJob.keycloak.resources | nindent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          {{- $script | nindent 10 }}
+        env:
+        - name: HOME
+          value: /tmp
+        - name: KEYCLOAK_URL
+          value: {{ $operatorJobs.keycloakUrl | default "http://keycloak-service:8080" | quote }}
+        - name: REALM
+          value: {{ .Values.keycloak.config.realm | quote }}
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: client-secret
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+{{- end }}
+
+{{- define "podiumd.pabcKeycloakGroups.script" -}}
+set -euo pipefail
+kc() { /opt/keycloak/bin/kcadm.sh "$@" --config /tmp/kcadm.config; }
+
+echo "Logging in to $KEYCLOAK_URL as keycloak-operator..."
+for i in $(seq 1 60); do
+  if kc config credentials --server "$KEYCLOAK_URL" --realm master \
+       --client keycloak-operator --secret "$CLIENT_SECRET" >/dev/null 2>&1; then
+    break
+  fi
+  if [ "$i" = 60 ]; then echo "Timed out logging in to Keycloak"; exit 1; fi
+  echo "Attempt $i/60 failed, retrying in 10s..."
+  sleep 10
+done
+
+client_uuid() {
+  kc get clients -r "$REALM" -q "clientId=$1" --fields id --format csv --noquotes 2>/dev/null | head -n1 || true
+}
+
+# The clients come from the realm import job, which may still be running.
+for i in $(seq 1 60); do
+  ZAC=$(client_uuid {{ .Values.zac.auth.clientId | quote }})
+  PABC=$(client_uuid {{ .Values.pabc.settings.oidc.clientId | quote }})
+  if [ -n "$ZAC" ] && [ -n "$PABC" ]; then break; fi
+  if [ "$i" = 60 ]; then echo "Timed out waiting for the zac and pabc clients in realm $REALM"; exit 1; fi
+  echo "Waiting for the zac and pabc clients in realm $REALM ($i/60)..."
+  sleep 10
+done
+
+ensure_realm_role() {
+  kc get "roles/$1" -r "$REALM" >/dev/null 2>&1 && return 0
+  kc create roles -r "$REALM" -s "name=$1" >/dev/null
+  echo "Created realm role $1"
+}
+
+ensure_client_role() {
+  kc get "clients/$1/roles/$2" -r "$REALM" >/dev/null 2>&1 && return 0
+  kc create "clients/$1/roles" -r "$REALM" -s "name=$2" >/dev/null
+  echo "Created client role $2"
+}
+
+ensure_group() {
+  local id
+  id=$(kc get "group-by-path/$1" -r "$REALM" --fields id --format csv --noquotes 2>/dev/null || true)
+  if [ -z "$id" ]; then
+    id=$(kc create groups -r "$REALM" -s "name=$1" -i)
+    echo "Created group $1" >&2
+  fi
+  echo "$id"
+}
+
+{{- $realmAll := list }}
+{{- $zacAll := list }}
+{{- $pabcAll := list }}
+{{- range $fr := .dataset.functionalRoles }}
+{{- $realmAll = concat $realmAll (get $.realmRoles $fr.name | default list) }}
+{{- $zacAll = concat $zacAll (get $.zacRoles $fr.name | default list) }}
+{{- $pabcAll = concat $pabcAll (get $.pabcRoles $fr.name | default list) }}
+{{- end }}
+{{- range $r := $realmAll | uniq }}
+ensure_realm_role {{ $r | quote }}
+{{- end }}
+{{- range $r := $zacAll | uniq }}
+ensure_client_role "$ZAC" {{ $r | quote }}
+{{- end }}
+{{- range $r := $pabcAll | uniq }}
+ensure_client_role "$PABC" {{ $r | quote }}
+{{- end }}
+{{- range $fr := .dataset.functionalRoles }}
+
+GID=$(ensure_group {{ $fr.name | quote }})
+{{- with get $.realmRoles $fr.name }}
+kc add-roles -r "$REALM" --gid "$GID"{{ range . }} --rolename {{ . | quote }}{{ end }}
+{{- end }}
+{{- with get $.zacRoles $fr.name }}
+kc add-roles -r "$REALM" --gid "$GID" --cid "$ZAC"{{ range . }} --rolename {{ . | quote }}{{ end }}
+{{- end }}
+{{- with get $.pabcRoles $fr.name }}
+kc add-roles -r "$REALM" --gid "$GID" --cid "$PABC"{{ range . }} --rolename {{ . | quote }}{{ end }}
+{{- end }}
+echo "Group {{ $fr.name }} up to date"
+{{- end }}
+
+echo "Done."
+{{- end -}}
