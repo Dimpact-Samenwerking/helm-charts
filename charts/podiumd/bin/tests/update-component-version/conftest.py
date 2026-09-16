@@ -9,6 +9,7 @@ used only internally by lib.component_docs.update_component_table) isn't
 re-exported there at all, so its own tests go through libcomponentdocs
 instead (same convention as tests/verify-podiumd/conftest.py's lib*
 fixtures)."""
+
 import importlib.util
 import sys
 from importlib.machinery import SourceFileLoader

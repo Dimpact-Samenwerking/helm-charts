@@ -6,6 +6,7 @@ size itself (the verify-podiumd integration — a REAL pass/fail step, not
 report-only). All `helm package`/`helm template` calls are mocked via
 librelease_secret_size.run/.render_chart — no real helm invocation
 happens in these tests."""
+
 import io
 import json
 import tarfile
@@ -34,18 +35,24 @@ def fake_helm_package(tgz_name, files):
     """A librelease_secret_size.run replacement: writes make_tgz_bytes'
     own output to the -d destination directory `helm package` was asked
     for, mirroring what a real `helm package -d <dir>` invocation does."""
+
     def run(cmd, **kwargs):
         dest = Path(cmd[cmd.index("-d") + 1])
         (dest / f"{tgz_name}.tgz").write_bytes(make_tgz_bytes(tgz_name.rsplit("-", 1)[0], files))
         return SimpleNamespace(returncode=0, stdout="", stderr="")
+
     return run
 
 
 # --- packaged_files ---
 
+
 def test_packaged_files_strips_chart_name_prefix(librelease_secret_size, monkeypatch, tmp_path):
-    monkeypatch.setattr(librelease_secret_size, "run",
-                         fake_helm_package("podiumd-1.0.0", {"values.yaml": "a: 1\n", "templates/x.yaml": "kind: X\n"}))
+    monkeypatch.setattr(
+        librelease_secret_size,
+        "run",
+        fake_helm_package("podiumd-1.0.0", {"values.yaml": "a: 1\n", "templates/x.yaml": "kind: X\n"}),
+    )
     files = librelease_secret_size.packaged_files(tmp_path)
     assert files["values.yaml"] == b"a: 1\n"
     assert files["templates/x.yaml"] == b"kind: X\n"
@@ -53,13 +60,15 @@ def test_packaged_files_strips_chart_name_prefix(librelease_secret_size, monkeyp
 
 
 def test_packaged_files_raises_on_helm_package_failure(librelease_secret_size, monkeypatch, tmp_path):
-    monkeypatch.setattr(librelease_secret_size, "run",
-                         lambda cmd, **kw: SimpleNamespace(returncode=1, stdout="", stderr="boom"))
+    monkeypatch.setattr(
+        librelease_secret_size, "run", lambda cmd, **kw: SimpleNamespace(returncode=1, stdout="", stderr="boom")
+    )
     with pytest.raises(RuntimeError, match="helm package failed"):
         librelease_secret_size.packaged_files(tmp_path)
 
 
 # --- check_subchart_freshness ---
+
 
 def test_check_subchart_freshness_matching_version_is_silent(librelease_secret_size, tmp_path):
     (tmp_path / "charts").mkdir()
@@ -98,9 +107,13 @@ def test_check_subchart_freshness_no_dependencies_is_silent(librelease_secret_si
 
 # --- bucket_files ---
 
+
 def test_bucket_files_excludes_subcharts_and_special_files(librelease_secret_size):
     paths = {
-        "Chart.yaml": b"x", "values.yaml": b"x", "Chart.lock": b"x", "values.schema.json": b"x",
+        "Chart.yaml": b"x",
+        "values.yaml": b"x",
+        "Chart.lock": b"x",
+        "values.schema.json": b"x",
         "charts/zac/values.yaml": b"x",
         "templates/deployment.yaml": b"tpl",
         "crds/foo.yaml": b"crd",
@@ -131,7 +144,8 @@ def _mock_packaged_files(monkeypatch, librelease_secret_size, extra=None):
 def test_build_release_basic_shape(librelease_secret_size, monkeypatch, tmp_path):
     _mock_packaged_files(monkeypatch, librelease_secret_size)
     release, version, warnings = librelease_secret_size.build_release(
-        tmp_path, None, "---\nmanifest text\n", "podiumd", "podiumd")
+        tmp_path, None, "---\nmanifest text\n", "podiumd", "podiumd"
+    )
 
     assert version == "4.9.1"
     assert warnings == []
@@ -146,25 +160,33 @@ def test_build_release_basic_shape(librelease_secret_size, monkeypatch, tmp_path
 def test_build_release_includes_config_when_values_override_given(librelease_secret_size, monkeypatch, tmp_path):
     _mock_packaged_files(monkeypatch, librelease_secret_size)
     release, _version, _warnings = librelease_secret_size.build_release(
-        tmp_path, {"override": "x"}, "manifest", "podiumd", "podiumd")
+        tmp_path, {"override": "x"}, "manifest", "podiumd", "podiumd"
+    )
     assert release["config"] == {"override": "x"}
 
 
 def test_build_release_no_lock_or_schema_when_absent(librelease_secret_size, monkeypatch, tmp_path):
     _mock_packaged_files(monkeypatch, librelease_secret_size)
     release, _version, _warnings = librelease_secret_size.build_release(
-        tmp_path, None, "manifest", "podiumd", "podiumd")
+        tmp_path, None, "manifest", "podiumd", "podiumd"
+    )
     assert release["chart"]["lock"] is None
     assert release["chart"]["schema"] is None
 
 
 def test_build_release_includes_lock_and_schema_when_present(librelease_secret_size, monkeypatch, tmp_path):
     lock_text = yaml.safe_dump({"dependencies": []})
-    _mock_packaged_files(monkeypatch, librelease_secret_size, extra={
-        "Chart.lock": lock_text.encode(), "values.schema.json": b'{"type": "object"}',
-    })
+    _mock_packaged_files(
+        monkeypatch,
+        librelease_secret_size,
+        extra={
+            "Chart.lock": lock_text.encode(),
+            "values.schema.json": b'{"type": "object"}',
+        },
+    )
     release, _version, _warnings = librelease_secret_size.build_release(
-        tmp_path, None, "manifest", "podiumd", "podiumd")
+        tmp_path, None, "manifest", "podiumd", "podiumd"
+    )
     assert release["chart"]["lock"] == {"dependencies": []}
     assert release["chart"]["schema"] == librelease_secret_size.b64(b'{"type": "object"}')
 
@@ -172,30 +194,40 @@ def test_build_release_includes_lock_and_schema_when_present(librelease_secret_s
 def test_build_release_warns_on_notes_txt(librelease_secret_size, monkeypatch, tmp_path):
     _mock_packaged_files(monkeypatch, librelease_secret_size, extra={"templates/NOTES.txt": b"hi"})
     _release, _version, warnings = librelease_secret_size.build_release(
-        tmp_path, None, "manifest", "podiumd", "podiumd")
+        tmp_path, None, "manifest", "podiumd", "podiumd"
+    )
     assert any("templates/NOTES.txt" in w for w in warnings)
 
 
 def test_build_release_includes_subchart_freshness_warnings(librelease_secret_size, monkeypatch, tmp_path):
-    chart_yaml_text = yaml.safe_dump({
-        "name": "podiumd", "version": "4.9.1",
-        "dependencies": [{"name": "zac", "version": "1.0.297"}],
-    })
+    chart_yaml_text = yaml.safe_dump(
+        {
+            "name": "podiumd",
+            "version": "4.9.1",
+            "dependencies": [{"name": "zac", "version": "1.0.297"}],
+        }
+    )
     _mock_packaged_files(monkeypatch, librelease_secret_size, extra={"Chart.yaml": chart_yaml_text.encode()})
     (tmp_path / "charts").mkdir()
     (tmp_path / "charts" / "zac-1.0.290.tgz").write_bytes(b"")
 
     _release, _version, warnings = librelease_secret_size.build_release(
-        tmp_path, None, "manifest", "podiumd", "podiumd")
+        tmp_path, None, "manifest", "podiumd", "podiumd"
+    )
     assert any("zac@1.0.297" in w for w in warnings)
 
 
 def test_build_release_unknown_version_when_metadata_has_none(librelease_secret_size, monkeypatch, tmp_path):
-    _mock_packaged_files(monkeypatch, librelease_secret_size, extra={
-        "Chart.yaml": yaml.safe_dump({"name": "podiumd"}).encode(),
-    })
+    _mock_packaged_files(
+        monkeypatch,
+        librelease_secret_size,
+        extra={
+            "Chart.yaml": yaml.safe_dump({"name": "podiumd"}).encode(),
+        },
+    )
     _release, version, _warnings = librelease_secret_size.build_release(
-        tmp_path, None, "manifest", "podiumd", "podiumd")
+        tmp_path, None, "manifest", "podiumd", "podiumd"
+    )
     assert version == "unknown"
 
 
@@ -222,12 +254,14 @@ def test_encoded_secret_size_pct_crosses_threshold_for_large_release(librelease_
     the 1 MiB raw mark must report pct >= the configured warn threshold
     once gzipped and base64-encoded."""
     import secrets
+
     release = {"name": "x", "manifest": secrets.token_hex(700_000)}
     _raw_len, _gzipped_len, _size, pct = librelease_secret_size.encoded_secret_size(release, SECRET_LIMIT)
     assert pct >= WARN_THRESHOLD
 
 
 # --- format_report / over_limit_warning ---
+
 
 def test_format_report_contains_all_fields(librelease_secret_size):
     report = librelease_secret_size.format_report("podiumd", "4.9.1", 100, 50, 70, 0.5, SECRET_LIMIT)
@@ -246,6 +280,7 @@ def test_over_limit_warning_names_chart_and_percentage(librelease_secret_size):
 
 
 # --- record_result ---
+
 
 def test_record_result_creates_new_file_with_header(librelease_secret_size, tmp_path):
     doc_path = librelease_secret_size.record_result(tmp_path, "podiumd", "4.9.1", 468600, 0.447)
@@ -290,8 +325,11 @@ def test_record_result_duplicate_rows_warns_and_replaces_only_first(librelease_s
 
 # --- values_file_from_extra_args ---
 
+
 def test_values_file_from_extra_args_finds_path(librelease_secret_size):
-    assert librelease_secret_size.values_file_from_extra_args(["-f", "ci/lint-values.yaml"]) == Path("ci/lint-values.yaml")
+    assert librelease_secret_size.values_file_from_extra_args(["-f", "ci/lint-values.yaml"]) == Path(
+        "ci/lint-values.yaml"
+    )
 
 
 def test_values_file_from_extra_args_none_when_absent(librelease_secret_size):
@@ -300,20 +338,33 @@ def test_values_file_from_extra_args_none_when_absent(librelease_secret_size):
 
 # --- check_release_secret_size ---
 
+
 def test_check_release_secret_size_render_failure(librelease_secret_size, monkeypatch, tmp_path):
-    monkeypatch.setattr(librelease_secret_size, "render_chart",
-                         lambda chart_dir, extra_args: SimpleNamespace(returncode=1, stdout="", stderr="boom"))
+    monkeypatch.setattr(
+        librelease_secret_size,
+        "render_chart",
+        lambda chart_dir, extra_args: SimpleNamespace(returncode=1, stdout="", stderr="boom"),
+    )
     ok, detail = librelease_secret_size.check_release_secret_size(tmp_path, [])
     assert ok is False
     assert "helm template failed to render" in detail
 
 
 def test_check_release_secret_size_passes_under_threshold(librelease_secret_size, monkeypatch, tmp_path):
-    monkeypatch.setattr(librelease_secret_size, "render_chart",
-                         lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
-    monkeypatch.setattr(librelease_secret_size, "build_release",
-                         lambda chart_dir, values_override, manifest, name, namespace:
-                             ({"name": name, "manifest": manifest}, "4.9.1", []))
+    monkeypatch.setattr(
+        librelease_secret_size,
+        "render_chart",
+        lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="manifest", stderr=""),
+    )
+    monkeypatch.setattr(
+        librelease_secret_size,
+        "build_release",
+        lambda chart_dir, values_override, manifest, name, namespace: (
+            {"name": name, "manifest": manifest},
+            "4.9.1",
+            [],
+        ),
+    )
 
     ok, detail = librelease_secret_size.check_release_secret_size(tmp_path, [])
 
@@ -328,13 +379,19 @@ def test_check_release_secret_size_fails_at_warn_threshold(librelease_secret_siz
     behavior that would NOT have existed at all before this feature was
     wired into verify-podiumd (a bloated release used to only ever be
     caught by manually running the standalone script)."""
-    monkeypatch.setattr(librelease_secret_size, "render_chart",
-                         lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
-    monkeypatch.setattr(librelease_secret_size, "build_release",
-                         lambda chart_dir, values_override, manifest, name, namespace:
-                             ({}, "4.9.1", []))
-    monkeypatch.setattr(librelease_secret_size, "encoded_secret_size",
-                         lambda release, secret_limit: (1000, 500, 950000, 0.95))
+    monkeypatch.setattr(
+        librelease_secret_size,
+        "render_chart",
+        lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="manifest", stderr=""),
+    )
+    monkeypatch.setattr(
+        librelease_secret_size,
+        "build_release",
+        lambda chart_dir, values_override, manifest, name, namespace: ({}, "4.9.1", []),
+    )
+    monkeypatch.setattr(
+        librelease_secret_size, "encoded_secret_size", lambda release, secret_limit: (1000, 500, 950000, 0.95)
+    )
 
     ok, detail = librelease_secret_size.check_release_secret_size(tmp_path, [])
 
@@ -344,13 +401,23 @@ def test_check_release_secret_size_fails_at_warn_threshold(librelease_secret_siz
     assert "request entity too large" in out
 
 
-def test_check_release_secret_size_prints_subchart_freshness_warnings(librelease_secret_size, monkeypatch, tmp_path,
-                                                                        capsys):
-    monkeypatch.setattr(librelease_secret_size, "render_chart",
-                         lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
-    monkeypatch.setattr(librelease_secret_size, "build_release",
-                         lambda chart_dir, values_override, manifest, name, namespace:
-                             ({}, "4.9.1", ["Chart.yaml declares zac@1.0.297, but ... 1.0.290.tgz"]))
+def test_check_release_secret_size_prints_subchart_freshness_warnings(
+    librelease_secret_size, monkeypatch, tmp_path, capsys
+):
+    monkeypatch.setattr(
+        librelease_secret_size,
+        "render_chart",
+        lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="manifest", stderr=""),
+    )
+    monkeypatch.setattr(
+        librelease_secret_size,
+        "build_release",
+        lambda chart_dir, values_override, manifest, name, namespace: (
+            {},
+            "4.9.1",
+            ["Chart.yaml declares zac@1.0.297, but ... 1.0.290.tgz"],
+        ),
+    )
 
     librelease_secret_size.check_release_secret_size(tmp_path, [])
 
@@ -358,15 +425,17 @@ def test_check_release_secret_size_prints_subchart_freshness_warnings(librelease
     assert "WARNING: Chart.yaml declares zac@1.0.297" in out
 
 
-def test_check_release_secret_size_reads_values_override_from_extra_args(librelease_secret_size, monkeypatch,
-                                                                            tmp_path):
+def test_check_release_secret_size_reads_values_override_from_extra_args(librelease_secret_size, monkeypatch, tmp_path):
     """Reuses verify-podiumd's own already-computed lint_args_for result
     (extra_args) to locate the values override -- never re-derives
     ci/lint-values.yaml itself."""
     values_path = tmp_path / "lint-values.yaml"
     values_path.write_text("foo: bar\n")
-    monkeypatch.setattr(librelease_secret_size, "render_chart",
-                         lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
+    monkeypatch.setattr(
+        librelease_secret_size,
+        "render_chart",
+        lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="manifest", stderr=""),
+    )
     captured = {}
 
     def fake_build_release(chart_dir, values_override, manifest, name, namespace):
@@ -384,10 +453,16 @@ def test_check_release_secret_size_never_writes_the_doc(librelease_secret_size, 
     """verify-podiumd's checks are read-only -- check_release_secret_size
     must never call record_result (--record stays exclusive to the
     standalone CLI)."""
-    monkeypatch.setattr(librelease_secret_size, "render_chart",
-                         lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
-    monkeypatch.setattr(librelease_secret_size, "build_release",
-                         lambda chart_dir, values_override, manifest, name, namespace: ({}, "4.9.1", []))
+    monkeypatch.setattr(
+        librelease_secret_size,
+        "render_chart",
+        lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="manifest", stderr=""),
+    )
+    monkeypatch.setattr(
+        librelease_secret_size,
+        "build_release",
+        lambda chart_dir, values_override, manifest, name, namespace: ({}, "4.9.1", []),
+    )
 
     def fail_if_called(*a, **kw):
         raise AssertionError("check_release_secret_size must never call record_result")

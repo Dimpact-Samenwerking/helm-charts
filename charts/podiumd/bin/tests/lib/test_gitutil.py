@@ -1,6 +1,7 @@
 """lib.gitutil — find_repo_root, current_branch, baseline_ref_candidates,
 resolve_git_ref, resolve_baseline_ref, git_show_yaml, against a real,
 hermetic temp git repo."""
+
 import subprocess
 
 import pytest
@@ -29,6 +30,7 @@ def repo(tmp_path):
 
 # --- find_repo_root ---
 
+
 def test_find_repo_root_finds_toplevel(libgitutil, repo):
     (repo / "sub").mkdir()
     assert libgitutil.find_repo_root(repo / "sub").resolve() == repo.resolve()
@@ -42,23 +44,28 @@ def test_find_repo_root_none_outside_a_repo(libgitutil, tmp_path):
 
 # --- current_branch ---
 
+
 def test_current_branch_reads_branch_name(libgitutil, repo):
     git("checkout", "-q", "-b", "feature/podiumd-4.10.0", cwd=repo)
     assert libgitutil.current_branch(repo) == "feature/podiumd-4.10.0"
 
 
 def test_current_branch_empty_on_detached_head(libgitutil, repo):
-    head_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
-                               capture_output=True, text=True, check=True).stdout.strip()
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout.strip()
     git("checkout", "-q", head_sha, cwd=repo)
     assert libgitutil.current_branch(repo) == ""
 
 
 # --- baseline_ref_candidates ---
 
+
 def test_baseline_ref_candidates_bare_version(libgitutil):
     assert libgitutil.baseline_ref_candidates("4.8.5") == [
-        "podiumd-4.8.5", "origin/feature/podiumd-4.8.5", "feature/podiumd-4.8.5"
+        "podiumd-4.8.5",
+        "origin/feature/podiumd-4.8.5",
+        "feature/podiumd-4.8.5",
     ]
 
 
@@ -69,6 +76,7 @@ def test_baseline_ref_candidates_explicit_ref(libgitutil):
 
 # --- resolve_git_ref ---
 
+
 def test_resolve_git_ref_finds_tag(libgitutil, repo):
     assert libgitutil.resolve_git_ref(repo, ["nonexistent", "podiumd-4.8.5"]) == "podiumd-4.8.5"
 
@@ -78,6 +86,7 @@ def test_resolve_git_ref_none_when_nothing_resolves(libgitutil, repo):
 
 
 # --- resolve_baseline_ref ---
+
 
 def test_resolve_baseline_ref_resolves_the_tag(libgitutil, repo):
     ref, error = libgitutil.resolve_baseline_ref(repo, "4.8.5")
@@ -95,6 +104,7 @@ def test_resolve_baseline_ref_error_names_every_candidate_tried(libgitutil, repo
 
 
 # --- git_show_yaml ---
+
 
 def test_git_show_yaml_reads_historical_content(libgitutil, repo):
     data = libgitutil.git_show_yaml(repo, "podiumd-4.8.5", "values.yaml")

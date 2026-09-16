@@ -32,6 +32,7 @@ module has nothing to do with: two unrelated components coincidentally
 sharing a version number is normal and not a mismatch — the exact
 opposite mistake same_group's own docstring already warns against (the
 kiss/kiss-elastic-sync precedent)."""
+
 from lib.chart import (
     chart_version_lockstep_components,
     component_image_paths,
@@ -63,10 +64,9 @@ def find_lockstep_mismatches(deps, values):
     dependency (shouldn't happen — every current entry names a real
     dependency — but nothing here assumes it) is skipped the same way,
     rather than raising."""
-    entries = (
-        [(name, paths, True) for name, paths in component_image_paths().items() if len(paths) >= 2]
-        + [(name, paths, False) for name, paths in component_version_paths().items() if len(paths) >= 2]
-    )
+    entries = [(name, paths, True) for name, paths in component_image_paths().items() if len(paths) >= 2] + [
+        (name, paths, False) for name, paths in component_version_paths().items() if len(paths) >= 2
+    ]
 
     findings = []
     for component, paths, is_image_paths in entries:
@@ -147,16 +147,20 @@ def check_lockstep_versions(chart_dir):
         return True, "0 mismatch(es)"
 
     if path_mismatches:
-        print(f"Found {len(path_mismatches)} co-equal image/version group(s) that disagree on version "
-              f"(see lib.chart.component_image_paths()/component_version_paths()):")
+        print(
+            f"Found {len(path_mismatches)} co-equal image/version group(s) that disagree on version "
+            f"(see lib.chart.component_image_paths()/component_version_paths()):"
+        )
         for component, values_key, resolved in path_mismatches:
             print(f"  {component} ({values_key}):")
             for path, version in resolved:
                 print(f"    {values_key}.{path}: {version}")
 
     if chart_version_mismatches:
-        print(f"Found {len(chart_version_mismatches)} component(s) whose Chart.yaml version disagrees with its "
-              f"own image version (see lib.chart.chart_version_lockstep_components()):")
+        print(
+            f"Found {len(chart_version_mismatches)} component(s) whose Chart.yaml version disagrees with its "
+            f"own image version (see lib.chart.chart_version_lockstep_components()):"
+        )
         for component, values_key, chart_version, app_version in chart_version_mismatches:
             print(f"  {component}: Chart.yaml version {chart_version} != {values_key} image version {app_version}")
 

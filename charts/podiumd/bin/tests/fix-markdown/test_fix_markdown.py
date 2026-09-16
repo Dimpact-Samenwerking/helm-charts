@@ -1,6 +1,7 @@
 """run_fix/dry_run_fix (pure logic, `run` mocked to avoid needing the real
 pymarkdown binary) plus a main() integration test against real files in
 tmp_path."""
+
 from types import SimpleNamespace
 
 import pytest
@@ -19,7 +20,7 @@ def strip_trailing_whitespace_run(cmd, **kwargs):
     script's own parsing/reporting logic without needing pymarkdown
     installed."""
     fixed_lines = []
-    paths = cmd[cmd.index("fix") + 1:]
+    paths = cmd[cmd.index("fix") + 1 :]
     for path_str in paths:
         original = open(path_str, encoding="utf-8").read()
         new = "\n".join(line.rstrip() for line in original.split("\n"))
@@ -40,6 +41,7 @@ def make_chart(tmp_path, files):
 
 
 # --- run_fix ---
+
 
 def test_run_fix_returns_paths_pymarkdown_reported_as_fixed(sub, tmp_path, monkeypatch):
     chart_dir = make_chart(tmp_path, {"docs/a.md": FIXABLE, "docs/b.md": CLEAN})
@@ -74,6 +76,7 @@ def test_run_fix_disables_md013_md014_and_md031(sub, tmp_path, monkeypatch):
 
 # --- dry_run_fix ---
 
+
 def test_dry_run_fix_reports_changed_files_without_touching_the_real_ones(sub, tmp_path, monkeypatch):
     chart_dir = make_chart(tmp_path, {"docs/a.md": FIXABLE, "docs/b.md": CLEAN})
     monkeypatch.setattr(sub, "run", strip_trailing_whitespace_run)
@@ -97,6 +100,7 @@ def test_dry_run_fix_reports_nothing_when_nothing_would_change(sub, tmp_path, mo
 
 
 # --- main() integration ---
+
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
 def test_main_help_flag_prints_usage_and_exits_zero(sub, tmp_path, monkeypatch, capsys, flag):

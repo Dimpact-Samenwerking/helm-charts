@@ -11,6 +11,7 @@ target the module that check now actually lives in — `vp.run` only
 affects code whose global `run` was bound by verify-podiumd's own
 imports, not a lib module's separate `from lib.procutil import run`
 binding. Use e.g. `libyamllintcheck` for those cases."""
+
 import importlib.util
 import sys
 from importlib.machinery import SourceFileLoader

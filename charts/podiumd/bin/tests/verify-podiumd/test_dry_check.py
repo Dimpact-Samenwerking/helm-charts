@@ -2,6 +2,7 @@
 scan for templates/*.yaml file pairs that look like copy-paste duplication
 (the shape podiumd.storagePVC was factored out of: 9 files, identical
 except for the literal component name)."""
+
 import difflib
 
 BASE_LINES = [
@@ -96,10 +97,7 @@ def test_tiny_identical_files_not_reported(vp, tmp_path):
 def test_blank_lines_and_comments_ignored_in_comparison(vp, tmp_path, capsys):
     """Two structurally-identical templates that differ only in blank-line
     placement and comment wording must still be flagged."""
-    commented = (
-        ["# a comment nobody will read", ""] + BASE_LINES[:4]
-        + ["", "# another comment"] + BASE_LINES[4:]
-    )
+    commented = ["# a comment nobody will read", ""] + BASE_LINES[:4] + ["", "# another comment"] + BASE_LINES[4:]
     write_template(tmp_path, "a.yaml", BASE_LINES)
     write_template(tmp_path, "b.yaml", commented)
 
@@ -123,8 +121,9 @@ def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(vp, li
     write_template(tmp_path, "openklant-storage.yaml", b)
 
     ratio = difflib.SequenceMatcher(None, a, b).ratio()
-    assert ratio >= libdrycheck.dry_check_high_similarity_threshold(tmp_path), \
+    assert ratio >= libdrycheck.dry_check_high_similarity_threshold(tmp_path), (
         f"test fixture ratio {ratio} no longer represents the real ~0.82 storage-file case"
+    )
 
     ok, detail = vp.check_dry(tmp_path)
     assert ok is True

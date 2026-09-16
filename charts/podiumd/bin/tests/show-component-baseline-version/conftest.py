@@ -1,5 +1,6 @@
 """Loads show-component-baseline-version (a hyphenated filename, not
 importable normally) as a module named `scbv`."""
+
 import importlib.util
 from importlib.machinery import SourceFileLoader
 from pathlib import Path

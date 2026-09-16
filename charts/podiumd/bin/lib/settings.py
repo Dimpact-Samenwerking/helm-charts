@@ -32,6 +32,7 @@ py, etc.) — those still define and use their own local constants
 unchanged. Step 2 (a separate, later task) migrates each consumer to
 call the matching accessor here instead of its own local constant, and
 only then can that constant be deleted from the consumer."""
+
 import yaml
 
 SETTINGS_FILE_NAME = "etc/settings.yaml"
@@ -158,8 +159,7 @@ def quality_gates_kubeconform_failing_statuses(chart_dir):
     """quality_gates.kubeconform_failing_statuses — replaces
     lib.kubeconform_check.KUBECONFORM_FAILING_STATUSES, a set (membership
     test only), default {"statusError", "statusInvalid"}."""
-    return set(_get(chart_dir, "quality_gates", "kubeconform_failing_statuses",
-                     ["statusError", "statusInvalid"]))
+    return set(_get(chart_dir, "quality_gates", "kubeconform_failing_statuses", ["statusError", "statusInvalid"]))
 
 
 def quality_gates_shellcheck_failing_levels(chart_dir):
@@ -173,16 +173,14 @@ def quality_gates_shellcheck_shell_names(chart_dir):
     """quality_gates.shellcheck_shell_names — replaces
     lib.shellcheck_check.SHELLCHECK_SHELL_NAMES, a set (membership test
     only), default {"sh", "bash", "dash", "ksh"}."""
-    return set(_get(chart_dir, "quality_gates", "shellcheck_shell_names",
-                     ["sh", "bash", "dash", "ksh"]))
+    return set(_get(chart_dir, "quality_gates", "shellcheck_shell_names", ["sh", "bash", "dash", "ksh"]))
 
 
 def quality_gates_yamllint_failing_rules(chart_dir):
     """quality_gates.yamllint_failing_rules — replaces
     lib.yamllint_check.YAMLLINT_FAILING_RULES, a set (membership test
     only), default {"key-duplicates", "syntax"}."""
-    return set(_get(chart_dir, "quality_gates", "yamllint_failing_rules",
-                     ["key-duplicates", "syntax"]))
+    return set(_get(chart_dir, "quality_gates", "yamllint_failing_rules", ["key-duplicates", "syntax"]))
 
 
 def quality_gates_markdown_disabled_rules(chart_dir):
@@ -215,14 +213,21 @@ def vendor_classification_keywords(chart_dir):
     repository URL), default {"maykinmedia": "Maykin", "infonl":
     "Info(NL)", "worth-nl": "Worth", "wearefrank": "WeAreFrank",
     "dimpact": "Dimpact", "icatt-menselijk-digitaal": "ICATT"}."""
-    return dict(_get(chart_dir, "vendor_classification", "keywords", {
-        "maykinmedia": "Maykin",
-        "infonl": "Info(NL)",
-        "worth-nl": "Worth",
-        "wearefrank": "WeAreFrank",
-        "dimpact": "Dimpact",
-        "icatt-menselijk-digitaal": "ICATT",
-    }))
+    return dict(
+        _get(
+            chart_dir,
+            "vendor_classification",
+            "keywords",
+            {
+                "maykinmedia": "Maykin",
+                "infonl": "Info(NL)",
+                "worth-nl": "Worth",
+                "wearefrank": "WeAreFrank",
+                "dimpact": "Dimpact",
+                "icatt-menselijk-digitaal": "ICATT",
+            },
+        )
+    )
 
 
 def vendor_classification_chart_overrides(chart_dir):
@@ -275,25 +280,38 @@ def helm_repos_urls_by_alias(chart_dir):
     "zgw-office-addin": "https://infonl.github.io/zgw-office-addin",
     "worth-nl": "https://worth-nl.github.io/helm-charts", "opstree":
     "https://ot-container-kit.github.io/helm-charts/"}."""
-    return dict(_get(chart_dir, "helm_repos", "urls_by_alias", {
-        "adfinis": "https://charts.adfinis.com",
-        "wiremind": "https://wiremind.github.io/wiremind-helm-charts",
-        "dimpact": "https://Dimpact-Samenwerking.github.io/helm-charts/",
-        "maykinmedia": "https://maykinmedia.github.io/charts/",
-        "kiss-elastic": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic",
-        "zac": "https://infonl.github.io/dimpact-zaakafhandelcomponent/",
-        "zgw-office-addin": "https://infonl.github.io/zgw-office-addin",
-        "worth-nl": "https://worth-nl.github.io/helm-charts",
-        "opstree": "https://ot-container-kit.github.io/helm-charts/",
-    }))
+    return dict(
+        _get(
+            chart_dir,
+            "helm_repos",
+            "urls_by_alias",
+            {
+                "adfinis": "https://charts.adfinis.com",
+                "wiremind": "https://wiremind.github.io/wiremind-helm-charts",
+                "dimpact": "https://Dimpact-Samenwerking.github.io/helm-charts/",
+                "maykinmedia": "https://maykinmedia.github.io/charts/",
+                "kiss-elastic": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic",
+                "zac": "https://infonl.github.io/dimpact-zaakafhandelcomponent/",
+                "zgw-office-addin": "https://infonl.github.io/zgw-office-addin",
+                "worth-nl": "https://worth-nl.github.io/helm-charts",
+                "opstree": "https://ot-container-kit.github.io/helm-charts/",
+            },
+        )
+    )
 
 
 def component_resolution_chart_version_lockstep_components(chart_dir):
     """component_resolution.chart_version_lockstep_components — replaces
     lib.chart.CHART_VERSION_LOCKSTEP_COMPONENTS, a frozenset, default
     frozenset({"kiss-chart", "pabc", "eck-operator"})."""
-    return frozenset(_get(chart_dir, "component_resolution", "chart_version_lockstep_components",
-                          ["kiss-chart", "pabc", "eck-operator"]))
+    return frozenset(
+        _get(
+            chart_dir,
+            "component_resolution",
+            "chart_version_lockstep_components",
+            ["kiss-chart", "pabc", "eck-operator"],
+        )
+    )
 
 
 def component_resolution_native_components(chart_dir):
@@ -306,8 +324,11 @@ def component_resolution_version_repository_paths(chart_dir):
     """component_resolution.version_repository_paths — replaces
     lib.chart.COMPONENT_VERSION_REPOSITORY_PATHS, default
     {"redis-operator": "redisOperator.imageName"}."""
-    return dict(_get(chart_dir, "component_resolution", "version_repository_paths",
-                      {"redis-operator": "redisOperator.imageName"}))
+    return dict(
+        _get(
+            chart_dir, "component_resolution", "version_repository_paths", {"redis-operator": "redisOperator.imageName"}
+        )
+    )
 
 
 def component_resolution_version_path_nested_subcharts(chart_dir):
@@ -316,13 +337,18 @@ def component_resolution_version_path_nested_subcharts(chart_dir):
     default {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch",
     "eck-kibana.version": "eck-kibana",
     "eck-enterprise-search.version": "eck-enterprise-search"}}."""
-    return _get(chart_dir, "component_resolution", "version_path_nested_subcharts", {
-        "eck-stack": {
-            "eck-elasticsearch.version": "eck-elasticsearch",
-            "eck-kibana.version": "eck-kibana",
-            "eck-enterprise-search.version": "eck-enterprise-search",
+    return _get(
+        chart_dir,
+        "component_resolution",
+        "version_path_nested_subcharts",
+        {
+            "eck-stack": {
+                "eck-elasticsearch.version": "eck-elasticsearch",
+                "eck-kibana.version": "eck-kibana",
+                "eck-enterprise-search.version": "eck-enterprise-search",
+            },
         },
-    })
+    )
 
 
 def component_resolution_image_paths(chart_dir):
@@ -338,14 +364,21 @@ def component_resolution_image_paths(chart_dir):
     "eck-operator": ["image"]} — see etc/settings.yaml's own
     component_resolution.image_paths comment for the reasoning behind
     each entry."""
-    return dict(_get(chart_dir, "component_resolution", "image_paths", {
-        "zgw-office-addin": ["frontend.image", "backend.image"],
-        "keycloak-operator": ["operator.config.keycloakImage"],
-        "openbao": ["server.image"],
-        "internetaakafhandeling": ["web.image", "poller.image"],
-        "kiss-chart": ["image", "settings.syncJobs.image"],
-        "eck-operator": ["image"],
-    }))
+    return dict(
+        _get(
+            chart_dir,
+            "component_resolution",
+            "image_paths",
+            {
+                "zgw-office-addin": ["frontend.image", "backend.image"],
+                "keycloak-operator": ["operator.config.keycloakImage"],
+                "openbao": ["server.image"],
+                "internetaakafhandeling": ["web.image", "poller.image"],
+                "kiss-chart": ["image", "settings.syncJobs.image"],
+                "eck-operator": ["image"],
+            },
+        )
+    )
 
 
 def component_resolution_default_image_paths(chart_dir):
@@ -364,7 +397,14 @@ def component_resolution_version_paths(chart_dir):
     version", "eck-kibana.version"], "redis-operator": ["redisOperator.
     imageTag"]} — see etc/settings.yaml's own component_resolution.
     version_paths comment for the reasoning behind each entry."""
-    return dict(_get(chart_dir, "component_resolution", "version_paths", {
-        "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
-        "redis-operator": ["redisOperator.imageTag"],
-    }))
+    return dict(
+        _get(
+            chart_dir,
+            "component_resolution",
+            "version_paths",
+            {
+                "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
+                "redis-operator": ["redisOperator.imageTag"],
+            },
+        )
+    )

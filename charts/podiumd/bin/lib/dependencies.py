@@ -14,6 +14,7 @@ still dies on failure (same as before, just one level up); set-image-
 digests.py instead warns and carries on with whatever it could already
 resolve, since a failed re-vendor there means only its subchart-default
 fallback stays degraded, not that the whole run is meaningless."""
+
 import shutil
 import sys
 import time
@@ -89,8 +90,9 @@ def _vendored_state_matches_chart_yaml(chart_dir):
     chart_deps = chart_yaml.get("dependencies") or []
     if not chart_deps or len(lock_deps) != len(chart_deps):
         return False
-    if ({_dependency_key(d, required_repos) for d in lock_deps}
-            != {_dependency_key(d, required_repos) for d in chart_deps}):
+    if {_dependency_key(d, required_repos) for d in lock_deps} != {
+        _dependency_key(d, required_repos) for d in chart_deps
+    }:
         return False
 
     return all((chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz").is_file() for dep in chart_deps)
@@ -113,8 +115,7 @@ def ensure_repos_configured(chart_dir):
     above."""
     required_repos = helm_repos_urls_by_alias(chart_dir)
     for name, url in required_repos.items():
-        result = run(["helm", "repo", "add", name, url, "--force-update"],
-                      capture_output=True, text=True)
+        result = run(["helm", "repo", "add", name, url, "--force-update"], capture_output=True, text=True)
         if result.returncode != 0:
             return False, f"helm repo add {name} failed: {result.stderr.strip()}"
     result = run(["helm", "repo", "update", *required_repos.keys()], capture_output=True, text=True)
@@ -153,8 +154,9 @@ def check_dependencies(chart_dir):
     buffered print from this process can't end up appearing AFTER output
     the child already wrote straight to the same fd."""
     if _vendored_state_matches_chart_yaml(chart_dir):
-        print("Chart.lock already matches Chart.yaml and every dependency is vendored — "
-              "skipping helm dependency update")
+        print(
+            "Chart.lock already matches Chart.yaml and every dependency is vendored — skipping helm dependency update"
+        )
     else:
         retry_attempts = dependency_fetch_retry_attempts(chart_dir)
         retry_backoff_seconds = dependency_fetch_retry_backoff_seconds(chart_dir)
@@ -172,8 +174,7 @@ def check_dependencies(chart_dir):
 
             if attempt < retry_attempts:
                 delay = retry_backoff_seconds[attempt - 1]
-                print(f"helm dependency update failed (attempt {attempt}/{retry_attempts}), "
-                      f"retrying in {delay}s...")
+                print(f"helm dependency update failed (attempt {attempt}/{retry_attempts}), retrying in {delay}s...")
                 time.sleep(delay)
 
         if result.returncode != 0:

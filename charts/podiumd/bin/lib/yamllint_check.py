@@ -1,6 +1,7 @@
 """Runs yamllint against the full `helm template` render (never against raw
 templates/*.yaml — those contain Go template syntax that isn't valid YAML
 on its own)."""
+
 import re
 import shutil
 from collections import Counter
@@ -78,8 +79,7 @@ def check_yamllint(chart_dir, extra_args):
     sources = build_line_sources(rendered)
     vendor_map = friendly_vendor_charts(chart_dir)
 
-    lint_result = run(["yamllint", "-d", YAMLLINT_CONFIG, "-"],
-                       input=rendered, capture_output=True, text=True)
+    lint_result = run(["yamllint", "-d", YAMLLINT_CONFIG, "-"], input=rendered, capture_output=True, text=True)
     output = lint_result.stdout + lint_result.stderr
 
     own_real, vendored_friendly, vendored_other = [], [], []
@@ -98,8 +98,10 @@ def check_yamllint(chart_dir, extra_args):
             vendored_other.append(finding)
 
     if own_real:
-        print(f"Found {len(own_real)} real yamllint issue(s) in this chart's own templates "
-              f"(not cosmetic — these fail the check):")
+        print(
+            f"Found {len(own_real)} real yamllint issue(s) in this chart's own templates "
+            f"(not cosmetic — these fail the check):"
+        )
         print_grouped_findings(
             own_real,
             key_fn=lambda f: (f[1], f[2], f[3], f[4]),
@@ -110,28 +112,32 @@ def check_yamllint(chart_dir, extra_args):
         print()
 
     if vendored_friendly:
-        print(f"Found {len(vendored_friendly)} yamllint issue(s) in partner-maintained "
-              f"vendored sub-chart(s) (reported for visibility, never a failure):")
+        print(
+            f"Found {len(vendored_friendly)} yamllint issue(s) in partner-maintained "
+            f"vendored sub-chart(s) (reported for visibility, never a failure):"
+        )
         print_grouped_findings(
             vendored_friendly,
             key_fn=lambda f: (f[1], f[2], f[3], f[4]),
             item_fn=lambda f: str(f[0]),
-            label_fn=lambda k: (f"[{k[1].upper():7s}] {k[0]} ({vendor_map[chart_name_from_source(k[0])]})"
-                                 f"  {k[2]}  ({k[3]})"),
+            label_fn=lambda k: (
+                f"[{k[1].upper():7s}] {k[0]} ({vendor_map[chart_name_from_source(k[0])]})  {k[2]}  ({k[3]})"
+            ),
             items_label="rendered line(s)",
         )
         print()
 
     if vendored_other:
         by_chart = Counter(chart_name_from_source(source) for _, source, _, _, _ in vendored_other)
-        print(f"{len(vendored_other)} yamllint finding(s) across {len(by_chart)} other vendored "
-              f"sub-chart(s) (outside this repo's scope, not shown, never a failure)")
+        print(
+            f"{len(vendored_other)} yamllint finding(s) across {len(by_chart)} other vendored "
+            f"sub-chart(s) (outside this repo's scope, not shown, never a failure)"
+        )
 
     if not (own_real or vendored_friendly or vendored_other):
         print("OK: no yamllint findings in the rendered chart")
 
-    detail = (f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, "
-              f"{len(vendored_other)} other-vendor")
+    detail = f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, {len(vendored_other)} other-vendor"
     if own_real:
         return False, detail
     return True, detail

@@ -1,5 +1,6 @@
 """Loads query-release-table (a hyphenated filename, not importable
 normally) as a module named `qrt`."""
+
 import importlib.util
 from importlib.machinery import SourceFileLoader
 from pathlib import Path

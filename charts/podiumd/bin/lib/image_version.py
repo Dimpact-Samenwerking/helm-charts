@@ -9,6 +9,7 @@ version.py's own CLI and update-component-version: a component's app
 version bump resolves to one or more of these basename updates — the
 component name and the image name are not always the same (e.g.
 zgw-office-addin bumps two distinctly-named images, frontend + backend)."""
+
 from lib.chart import dotted_key_path, find_dependency, replace_scalar_value
 from lib.image_digests import scan_digest_pins, scan_version_pins
 from lib.registry import parse_repo, registry_tag_exists
@@ -205,9 +206,11 @@ def resolve_scoped_matches(lines, key, basename):
         raise SystemExit(f"error: no image pin with basename '{basename}' found under '{key}'")
     repositories = {m["repository"] for m in matches}
     if len(repositories) > 1:
-        raise SystemExit(f"error: '{basename}' under '{key}' is not unique — "
-                          f"{len(repositories)} distinct repositories match: "
-                          f"{', '.join(sorted(repositories))}")
+        raise SystemExit(
+            f"error: '{basename}' under '{key}' is not unique — "
+            f"{len(repositories)} distinct repositories match: "
+            f"{', '.join(sorted(repositories))}"
+        )
     return matches
 
 
@@ -234,8 +237,9 @@ def check_basename_version(lines, key, basename, new_version):
         seen_repositories.add(m["repository"])
         host, repo_path = parse_repo(m["repository"])
         exists, digest = registry_tag_exists(host, repo_path, new_version)
-        results.append({"repository": m["repository"], "host": host, "repo_path": repo_path,
-                         "exists": exists, "digest": digest})
+        results.append(
+            {"repository": m["repository"], "host": host, "repo_path": repo_path, "exists": exists, "digest": digest}
+        )
     return results
 
 
@@ -279,10 +283,15 @@ def update_image_version(values_path, key, basename, new_version):
     for m in pending:
         digest = digests[m["repository"]]
         write_lines[m["line"] - 1] = replace_scalar_value(write_lines[m["line"] - 1], f"{new_version}@{digest}")
-        changes.append({
-            "line": m["line"], "repository": m["repository"],
-            "old_version": m["version"], "old_digest": f"sha256:{m['digest']}",
-            "new_version": new_version, "new_digest": digest,
-        })
+        changes.append(
+            {
+                "line": m["line"],
+                "repository": m["repository"],
+                "old_version": m["version"],
+                "old_digest": f"sha256:{m['digest']}",
+                "new_version": new_version,
+                "new_digest": digest,
+            }
+        )
     values_path.write_text("".join(write_lines), encoding="utf-8")
     return changes

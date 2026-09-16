@@ -3,6 +3,7 @@ find_chart_version_mismatches — every component registered as
 "lockstep" in lib.chart (component_image_paths()/component_version_
 paths() multi-path entries, and chart_version_lockstep_components())
 must actually agree on one version in values.yaml/Chart.yaml."""
+
 import pytest
 
 
@@ -12,31 +13,41 @@ def _lockstep_registries(liblockstepcheck, monkeypatch):
     paths()/component_version_paths()/chart_version_lockstep_
     components() — a real entry added later for an unrelated component
     must never change what these tests exercise."""
-    monkeypatch.setattr(liblockstepcheck, "component_image_paths",
-                         lambda: {"zgw-office-addin": ["frontend.image", "backend.image"]})
-    monkeypatch.setattr(liblockstepcheck, "component_version_paths",
-                         lambda: {"eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"]})
-    monkeypatch.setattr(liblockstepcheck, "chart_version_lockstep_components",
-                         lambda: frozenset({"kiss-chart", "pabc"}))
+    monkeypatch.setattr(
+        liblockstepcheck, "component_image_paths", lambda: {"zgw-office-addin": ["frontend.image", "backend.image"]}
+    )
+    monkeypatch.setattr(
+        liblockstepcheck,
+        "component_version_paths",
+        lambda: {"eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"]},
+    )
+    monkeypatch.setattr(
+        liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset({"kiss-chart", "pabc"})
+    )
 
 
 # --- find_lockstep_mismatches ---
 
+
 def test_matching_multi_path_image_versions_no_mismatch(liblockstepcheck):
     deps = [{"name": "zgw-office-addin", "alias": "", "version": "0.9.352"}]
-    values = {"zgw-office-addin": {
-        "frontend": {"image": {"tag": "0.9.352@sha256:aaa"}},
-        "backend": {"image": {"tag": "0.9.352@sha256:bbb"}},
-    }}
+    values = {
+        "zgw-office-addin": {
+            "frontend": {"image": {"tag": "0.9.352@sha256:aaa"}},
+            "backend": {"image": {"tag": "0.9.352@sha256:bbb"}},
+        }
+    }
     assert liblockstepcheck.find_lockstep_mismatches(deps, values) == []
 
 
 def test_drifted_multi_path_image_versions_reported(liblockstepcheck):
     deps = [{"name": "zgw-office-addin", "alias": "", "version": "0.9.352"}]
-    values = {"zgw-office-addin": {
-        "frontend": {"image": {"tag": "0.9.352@sha256:aaa"}},
-        "backend": {"image": {"tag": "0.9.300@sha256:bbb"}},
-    }}
+    values = {
+        "zgw-office-addin": {
+            "frontend": {"image": {"tag": "0.9.352@sha256:aaa"}},
+            "backend": {"image": {"tag": "0.9.300@sha256:bbb"}},
+        }
+    }
     mismatches = liblockstepcheck.find_lockstep_mismatches(deps, values)
     assert len(mismatches) == 1
     component, values_key, resolved = mismatches[0]
@@ -66,10 +77,12 @@ def test_digest_ignored_when_comparing_image_tag_versions(liblockstepcheck):
     """Two paths pinned to the SAME version but different digests must
     never be reported — only the version (before "@") is compared."""
     deps = [{"name": "zgw-office-addin", "alias": "", "version": "0.9.352"}]
-    values = {"zgw-office-addin": {
-        "frontend": {"image": {"tag": "0.9.352@sha256:" + "a" * 64}},
-        "backend": {"image": {"tag": "0.9.352@sha256:" + "b" * 64}},
-    }}
+    values = {
+        "zgw-office-addin": {
+            "frontend": {"image": {"tag": "0.9.352@sha256:" + "a" * 64}},
+            "backend": {"image": {"tag": "0.9.352@sha256:" + "b" * 64}},
+        }
+    }
     assert liblockstepcheck.find_lockstep_mismatches(deps, values) == []
 
 
@@ -90,10 +103,12 @@ def test_component_missing_from_values_entirely_is_skipped(liblockstepcheck):
 def test_component_with_no_matching_dependency_is_skipped(liblockstepcheck):
     """A registered component absent from Chart.yaml's own dependency
     list (shouldn't happen in practice) must never raise."""
-    values = {"zgw-office-addin": {
-        "frontend": {"image": {"tag": "0.9.352@sha256:aaa"}},
-        "backend": {"image": {"tag": "0.9.300@sha256:bbb"}},
-    }}
+    values = {
+        "zgw-office-addin": {
+            "frontend": {"image": {"tag": "0.9.352@sha256:aaa"}},
+            "backend": {"image": {"tag": "0.9.300@sha256:bbb"}},
+        }
+    }
     assert liblockstepcheck.find_lockstep_mismatches([], values) == []
 
 
@@ -129,6 +144,7 @@ def test_unrelated_components_sharing_a_version_never_flagged(liblockstepcheck):
 
 
 # --- find_chart_version_mismatches ---
+
 
 def test_chart_version_matches_image_version_no_mismatch(liblockstepcheck):
     dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
@@ -168,8 +184,9 @@ def test_eck_operator_chart_version_lockstep_registered(liblockstepcheck, monkey
     version. The autouse _lockstep_registries fixture above isolates
     every OTHER test from this real entry; this one opts back in
     explicitly to prove the registration itself actually works."""
-    monkeypatch.setattr(liblockstepcheck, "chart_version_lockstep_components",
-                         lambda: frozenset({"kiss-chart", "pabc", "eck-operator"}))
+    monkeypatch.setattr(
+        liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset({"kiss-chart", "pabc", "eck-operator"})
+    )
     dep = {"name": "eck-operator", "version": "3.5.0"}
     values = {"eck-operator": {"image": {"tag": "3.5.0"}}}
     assert liblockstepcheck.find_chart_version_mismatches([dep], values) == []
@@ -179,8 +196,9 @@ def test_eck_operator_chart_version_drift_reported(liblockstepcheck, monkeypatch
     """A future eck-operator dependency bump that forgets to also bump
     the image tag override (or vice versa) must be caught, the same as
     kiss-chart/pabc drift already is."""
-    monkeypatch.setattr(liblockstepcheck, "chart_version_lockstep_components",
-                         lambda: frozenset({"kiss-chart", "pabc", "eck-operator"}))
+    monkeypatch.setattr(
+        liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset({"kiss-chart", "pabc", "eck-operator"})
+    )
     dep = {"name": "eck-operator", "version": "3.5.0"}
     values = {"eck-operator": {"image": {"tag": "3.4.0"}}}
     mismatches = liblockstepcheck.find_chart_version_mismatches([dep], values)
@@ -189,9 +207,11 @@ def test_eck_operator_chart_version_drift_reported(liblockstepcheck, monkeypatch
 
 # --- check_lockstep_versions (integration) ---
 
+
 def make_chart(tmp_path, chart_yaml_deps, values_text):
     (tmp_path / "Chart.yaml").write_text(
-        "name: podiumd\nversion: 1.0.0\ndependencies:\n" + chart_yaml_deps, encoding="utf-8")
+        "name: podiumd\nversion: 1.0.0\ndependencies:\n" + chart_yaml_deps, encoding="utf-8"
+    )
     (tmp_path / "values.yaml").write_text(values_text, encoding="utf-8")
     return tmp_path
 
@@ -200,7 +220,7 @@ def test_check_passes_when_everything_agrees(liblockstepcheck, tmp_path):
     make_chart(
         tmp_path,
         "  - name: kiss-chart\n    alias: kiss\n    version: 3.1.1\n",
-        "kiss:\n  image:\n    tag: \"3.1.1@sha256:aaa\"\n",
+        'kiss:\n  image:\n    tag: "3.1.1@sha256:aaa"\n',
     )
     ok, detail = liblockstepcheck.check_lockstep_versions(tmp_path)
     assert ok is True
@@ -211,7 +231,7 @@ def test_check_fails_and_reports_chart_version_drift(liblockstepcheck, tmp_path,
     make_chart(
         tmp_path,
         "  - name: pabc\n    alias: pabc\n    version: 1.1.1\n",
-        "pabc:\n  image:\n    tag: \"1.1.0@sha256:aaa\"\n",
+        'pabc:\n  image:\n    tag: "1.1.0@sha256:aaa"\n',
     )
     ok, detail = liblockstepcheck.check_lockstep_versions(tmp_path)
     assert ok is False
@@ -226,8 +246,8 @@ def test_check_fails_and_reports_multi_path_drift(liblockstepcheck, tmp_path, ca
         tmp_path,
         "  - name: zgw-office-addin\n    version: 0.9.352\n",
         "zgw-office-addin:\n"
-        "  frontend:\n    image:\n      tag: \"0.9.352@sha256:aaa\"\n"
-        "  backend:\n    image:\n      tag: \"0.9.300@sha256:bbb\"\n",
+        '  frontend:\n    image:\n      tag: "0.9.352@sha256:aaa"\n'
+        '  backend:\n    image:\n      tag: "0.9.300@sha256:bbb"\n',
     )
     ok, detail = liblockstepcheck.check_lockstep_versions(tmp_path)
     assert ok is False

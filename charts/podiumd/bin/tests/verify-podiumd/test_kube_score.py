@@ -22,6 +22,7 @@ kube-score run to attribute a finding back to its chart. All `helm`/
 `kube-score` subprocess calls are mocked via vp.run; friendly_vendor_charts
 is mocked too, since these tests use tmp_path (no real Chart.yaml) — no
 real kube-score or helm invocation happens in these tests."""
+
 import json
 from types import SimpleNamespace
 
@@ -80,6 +81,7 @@ RENDERED = (
 def fake_render_chart(rendered=RENDERED, returncode=0):
     def render_chart(chart_dir, extra_args):
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
+
     return render_chart
 
 
@@ -115,22 +117,28 @@ def sequenced_run(own_objects, vendored_objects_by_chart=None, ks_returncode=1):
 
 # --- run_kube_score ---
 
+
 def test_run_kube_score_normalizes_json_null_to_empty_list(vp, libkubescorecheck, monkeypatch):
     """Regression: kube-score prints the JSON value "null" (not "[]") for a
     stream with no scoreable objects at all (e.g. a vendored sub-chart
     consisting entirely of CRDs). json.loads("null") is None, which must
     NOT be treated the same as "unparseable output" — a CRD-only chart is
     not a crash."""
-    monkeypatch.setattr(libkubescorecheck, "run", lambda cmd, **kwargs: SimpleNamespace(returncode=0, stdout="null", stderr=""))
+    monkeypatch.setattr(
+        libkubescorecheck, "run", lambda cmd, **kwargs: SimpleNamespace(returncode=0, stdout="null", stderr="")
+    )
     assert libkubescorecheck.run_kube_score("---\nkind: CustomResourceDefinition\n") == []
 
 
 def test_run_kube_score_genuinely_unparseable_returns_none(vp, libkubescorecheck, monkeypatch):
-    monkeypatch.setattr(libkubescorecheck, "run", lambda cmd, **kwargs: SimpleNamespace(returncode=1, stdout="not json", stderr=""))
+    monkeypatch.setattr(
+        libkubescorecheck, "run", lambda cmd, **kwargs: SimpleNamespace(returncode=1, stdout="not json", stderr="")
+    )
     assert libkubescorecheck.run_kube_score("anything") is None
 
 
 # --- extract_resource_findings ---
+
 
 def test_extract_resource_findings_ignores_other_checks(libkubescorecheck):
     objects = [ks_object("Deployment", "foo", [other_check()])]
@@ -138,20 +146,35 @@ def test_extract_resource_findings_ignores_other_checks(libkubescorecheck):
 
 
 def test_extract_resource_findings_ignores_skipped_and_full_grade(libkubescorecheck):
-    objects = [ks_object("Deployment", "foo", [
-        resource_check(10, comments=None),
-        resource_check(1, comments=[{"path": "x", "summary": "should be skipped"}], skipped=True),
-    ])]
+    objects = [
+        ks_object(
+            "Deployment",
+            "foo",
+            [
+                resource_check(10, comments=None),
+                resource_check(1, comments=[{"path": "x", "summary": "should be skipped"}], skipped=True),
+            ],
+        )
+    ]
     assert libkubescorecheck.extract_resource_findings(objects, "container-resources") == []
 
 
 def test_extract_resource_findings_returns_object_container_summary(libkubescorecheck):
-    objects = [ks_object("Deployment", "foo", [
-        resource_check(1, comments=[
-            {"path": "app", "summary": "CPU limit is not set"},
-            {"path": "app", "summary": "Memory limit is not set"},
-        ]),
-    ])]
+    objects = [
+        ks_object(
+            "Deployment",
+            "foo",
+            [
+                resource_check(
+                    1,
+                    comments=[
+                        {"path": "app", "summary": "CPU limit is not set"},
+                        {"path": "app", "summary": "Memory limit is not set"},
+                    ],
+                ),
+            ],
+        )
+    ]
     findings = libkubescorecheck.extract_resource_findings(objects, "container-resources")
     assert findings == [
         ("Deployment/apps/v1//foo", "app", "CPU limit is not set"),
@@ -161,14 +184,19 @@ def test_extract_resource_findings_returns_object_container_summary(libkubescore
 
 # --- check_kube_score ---
 
+
 def test_check_kube_score_no_findings_passes(vp, libkubescorecheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
     no_friendly_vendors(libkubescorecheck, monkeypatch)
-    monkeypatch.setattr(libkubescorecheck, "run", sequenced_run(
-        own_objects=[ks_object("Deployment", "foo", [resource_check(10)])],
-        vendored_objects_by_chart={"zac": [ks_object("Deployment", "zac", [resource_check(10)])]},
-        ks_returncode=0,
-    ))
+    monkeypatch.setattr(
+        libkubescorecheck,
+        "run",
+        sequenced_run(
+            own_objects=[ks_object("Deployment", "foo", [resource_check(10)])],
+            vendored_objects_by_chart={"zac": [ks_object("Deployment", "zac", [resource_check(10)])]},
+            ks_returncode=0,
+        ),
+    )
 
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
@@ -178,12 +206,27 @@ def test_check_kube_score_no_findings_passes(vp, libkubescorecheck, tmp_path, mo
 def test_check_kube_score_own_finding_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
     no_friendly_vendors(libkubescorecheck, monkeypatch)
-    monkeypatch.setattr(libkubescorecheck, "run", sequenced_run(own_objects=[
-        ks_object("Deployment", "foo", [resource_check(1, comments=[
-            {"path": "app", "summary": "CPU limit is not set"},
-            {"path": "app", "summary": "Memory limit is not set"},
-        ])]),
-    ]))
+    monkeypatch.setattr(
+        libkubescorecheck,
+        "run",
+        sequenced_run(
+            own_objects=[
+                ks_object(
+                    "Deployment",
+                    "foo",
+                    [
+                        resource_check(
+                            1,
+                            comments=[
+                                {"path": "app", "summary": "CPU limit is not set"},
+                                {"path": "app", "summary": "Memory limit is not set"},
+                            ],
+                        )
+                    ],
+                ),
+            ]
+        ),
+    )
 
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is False
@@ -200,30 +243,53 @@ def test_check_kube_score_ignores_non_resource_checks(vp, libkubescorecheck, tmp
     container-resources, the one convention this repo has documented."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
     no_friendly_vendors(libkubescorecheck, monkeypatch)
-    monkeypatch.setattr(libkubescorecheck, "run", sequenced_run(own_objects=[
-        ks_object("Deployment", "foo", [other_check(), resource_check(10)]),
-    ]))
+    monkeypatch.setattr(
+        libkubescorecheck,
+        "run",
+        sequenced_run(
+            own_objects=[
+                ks_object("Deployment", "foo", [other_check(), resource_check(10)]),
+            ]
+        ),
+    )
 
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
     assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
-def test_check_kube_score_partner_vendor_finding_reported_per_item_never_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
+def test_check_kube_score_partner_vendor_finding_reported_per_item_never_fails(
+    vp, libkubescorecheck, tmp_path, monkeypatch, capsys
+):
     """A vendored sub-chart from a listed partner org gets its finding
     printed individually (attributed to the chart it came from, since
     kube-score is run once per distinct vendored chart precisely so this
     attribution is possible) but must still never fail."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
     monkeypatch.setattr(libkubescorecheck, "friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
-    monkeypatch.setattr(libkubescorecheck, "run", sequenced_run(
-        own_objects=[],
-        vendored_objects_by_chart={"zac": [
-            ks_object("Deployment", "zac", [resource_check(1, comments=[
-                {"path": "zac", "summary": "CPU limit is not set"},
-            ])]),
-        ]},
-    ))
+    monkeypatch.setattr(
+        libkubescorecheck,
+        "run",
+        sequenced_run(
+            own_objects=[],
+            vendored_objects_by_chart={
+                "zac": [
+                    ks_object(
+                        "Deployment",
+                        "zac",
+                        [
+                            resource_check(
+                                1,
+                                comments=[
+                                    {"path": "zac", "summary": "CPU limit is not set"},
+                                ],
+                            )
+                        ],
+                    ),
+                ]
+            },
+        ),
+    )
 
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
@@ -236,7 +302,9 @@ def test_check_kube_score_partner_vendor_finding_reported_per_item_never_fails(v
     assert "CPU limit is not set" in out
 
 
-def test_check_kube_score_other_vendor_finding_aggregate_count_only_never_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
+def test_check_kube_score_other_vendor_finding_aggregate_count_only_never_fails(
+    vp, libkubescorecheck, tmp_path, monkeypatch, capsys
+):
     """A vendored sub-chart NOT from a listed partner org only ever gets a
     one-line aggregate count — no per-item detail — but still never fails
     (unlike check_yamllint/check_kubeconform/check_shellcheck, this
@@ -244,14 +312,29 @@ def test_check_kube_score_other_vendor_finding_aggregate_count_only_never_fails(
     in the output)."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
     no_friendly_vendors(libkubescorecheck, monkeypatch)
-    monkeypatch.setattr(libkubescorecheck, "run", sequenced_run(
-        own_objects=[],
-        vendored_objects_by_chart={"zac": [
-            ks_object("Deployment", "zac", [resource_check(1, comments=[
-                {"path": "zac", "summary": "CPU limit is not set"},
-            ])]),
-        ]},
-    ))
+    monkeypatch.setattr(
+        libkubescorecheck,
+        "run",
+        sequenced_run(
+            own_objects=[],
+            vendored_objects_by_chart={
+                "zac": [
+                    ks_object(
+                        "Deployment",
+                        "zac",
+                        [
+                            resource_check(
+                                1,
+                                comments=[
+                                    {"path": "zac", "summary": "CPU limit is not set"},
+                                ],
+                            )
+                        ],
+                    ),
+                ]
+            },
+        ),
+    )
 
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
@@ -327,6 +410,7 @@ def test_check_kube_score_unparseable_vendored_output_fails(vp, libkubescorechec
 
 
 # --- parse_kube_score_object_name ---
+
 
 def test_parse_kube_score_object_name_core_resource_no_namespace(libkubescorecheck):
     assert libkubescorecheck.parse_kube_score_object_name("Service/v1//pabc") == ("Service", "", "pabc")

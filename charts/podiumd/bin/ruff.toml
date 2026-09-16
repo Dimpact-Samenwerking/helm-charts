@@ -41,3 +41,13 @@ select = ["F", "E", "W", "I", "N", "UP", "B", "C4", "SIM"]
 "tests/render-podiumd/conftest.py" = ["E402"]
 "tests/update-component-version/conftest.py" = ["E402"]
 "tests/verify-podiumd/conftest.py" = ["E402"]
+
+# ruff format (AST-preserving -- unlike `ruff check --fix`, it re-serializes
+# the same parse tree, never changes behavior; confirmed it also leaves
+# docstring/comment PROSE completely untouched, only restructures code
+# layout). Shares line-length above with the linter, so both agree on 120.
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

@@ -1,6 +1,7 @@
 """main() — the fixer companion to lib.helm_docs_check.check_helm_docs.
 No real helm-docs/git invocation happens in these tests — `run` is
 monkeypatched, and CHART_DIR points at a disposable tmp_path chart dir."""
+
 from types import SimpleNamespace
 
 import pytest
@@ -15,7 +16,7 @@ def make_chart_dir(tmp_path, gotmpl=False):
     (tmp_path / "values.yaml").write_text("foo: bar\n", encoding="utf-8")
     (tmp_path / "README.md").write_text("# podiumd\n", encoding="utf-8")
     if gotmpl:
-        (tmp_path / "README.md.gotmpl").write_text("{{ template \"chart.header\" . }}\n", encoding="utf-8")
+        (tmp_path / "README.md.gotmpl").write_text('{{ template "chart.header" . }}\n', encoding="utf-8")
     return tmp_path
 
 

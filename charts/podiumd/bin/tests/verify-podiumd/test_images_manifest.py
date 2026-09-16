@@ -2,6 +2,7 @@
 regressions found during development: a version number like "1.17.1-static"
 on a continuation line being mistaken for a new numbered list item, and a
 trailing period being captured as part of a version."""
+
 import yaml
 from dep_helpers import make_dep
 
@@ -60,12 +61,13 @@ def test_parse_changes_block_no_changes_section(libupgradedoc):
 
 # --- check_images_manifest_changes_numbering ---
 
+
 def test_changes_numbering_flags_a_gap(libdocsconsistency):
     """A gap left by a human hand-removing an item's own block without
     renumbering everything after it — real case that surfaced this."""
     text = "# Changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   3. openformulieren 3.4.10 -> 3.5.6.\n"
     issues = libdocsconsistency.check_images_manifest_changes_numbering("images-4.9.0.yaml", text)
-    assert any('item numbered 3 should be 2' in i for i in issues)
+    assert any("item numbered 3 should be 2" in i for i in issues)
 
 
 def test_changes_numbering_correct_sequence_is_clean(libdocsconsistency):
@@ -107,11 +109,13 @@ def test_images_manifest_format_flags_a_numbering_gap(libdocsconsistency, tmp_pa
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
     issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
-    assert any('item numbered 3 should be 2' in i for i in issues)
+    assert any("item numbered 3 should be 2" in i for i in issues)
 
 
 def test_images_manifest_format_missing_file(libdocsconsistency, tmp_path):
-    issues = libdocsconsistency.check_images_manifest_format(tmp_path / "missing.yaml", "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libdocsconsistency.check_images_manifest_format(
+        tmp_path / "missing.yaml", "4.8.5", "4.9.0", DEPS, VALUES, {}
+    )
     assert "does not exist" in issues[0]
 
 
@@ -124,14 +128,13 @@ def test_images_manifest_format_invalid_yaml(libdocsconsistency, tmp_path):
 
 def test_images_manifest_format_missing_required_keys(libdocsconsistency, tmp_path):
     images_path = tmp_path / "images-4.9.0.yaml"
-    images_path.write_text("- name: zac\n  version: \"5.4.3\"\n")
+    images_path.write_text('- name: zac\n  version: "5.4.3"\n')
     issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert any("missing key" in i for i in issues)
 
 
 def test_images_manifest_format_stale_baseline_header(libdocsconsistency, tmp_path):
-    text = REAL_MANIFEST.replace("podiumd 4.8.5", "podiumd 4.8.2").replace(
-        "4.9.0 vs 4.8.5", "4.9.0 vs 4.8.2")
+    text = REAL_MANIFEST.replace("podiumd 4.8.5", "podiumd 4.8.2").replace("4.9.0 vs 4.8.5", "4.9.0 vs 4.8.2")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
     issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
@@ -213,10 +216,12 @@ ZGW_MANIFEST = """\
   digest: "sha256:bbb"
 """
 ZGW_DEPS = [make_dep("zgw-office-addin", "0.0.89")]
-ZGW_VALUES = {"zgw-office-addin": {
-    "frontend": {"image": {"tag": "v0.9.352@sha256:aaa"}},
-    "backend": {"image": {"tag": "v0.9.352@sha256:bbb"}},
-}}
+ZGW_VALUES = {
+    "zgw-office-addin": {
+        "frontend": {"image": {"tag": "v0.9.352@sha256:aaa"}},
+        "backend": {"image": {"tag": "v0.9.352@sha256:bbb"}},
+    }
+}
 
 
 def test_images_manifest_format_multi_image_component_shares_one_comment(libdocsconsistency, tmp_path):
@@ -234,7 +239,9 @@ def test_images_manifest_format_source_vs_baseline(libdocsconsistency, tmp_path)
     baseline_values = {"zac": {"opa": {"image": {"tag": "1.17.1-static@sha256:old"}}}}
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
-    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values)
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values
+    )
     assert issues == []
 
 
@@ -243,7 +250,9 @@ def test_images_manifest_format_source_vs_baseline_mismatch(libdocsconsistency, 
     baseline_values = {"zac": {"opa": {"image": {"tag": "2.0.0-static@sha256:old"}}}}
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
-    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values)
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values
+    )
     assert any('comment says source "1.17.1-static"' in i for i in issues)
 
 
@@ -267,10 +276,12 @@ def redis_operator_values(tag):
     # values.yaml with ONLY the COMPONENT_VERSION_PATHS-shaped field
     # would make current_paths/baseline_paths empty regardless of the
     # fix, silently skipping the check instead of exercising it.
-    return {"redis-operator": {
-        "redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": f"{tag}@sha256:aaa"},
-        "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:bbb"}},
-    }}
+    return {
+        "redis-operator": {
+            "redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": f"{tag}@sha256:aaa"},
+            "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:bbb"}},
+        }
+    }
 
 
 REDIS_OPERATOR_MANIFEST = """\
@@ -298,8 +309,14 @@ def test_images_manifest_format_component_version_path_change_is_recognized(libd
     images_path.write_text(REDIS_OPERATOR_MANIFEST)
 
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", REDIS_OPERATOR_DEPS,
-        redis_operator_values("v0.26.0"), redis_operator_values("v0.25.0"), chart_dir=tmp_path)
+        images_path,
+        "4.8.5",
+        "4.9.0",
+        REDIS_OPERATOR_DEPS,
+        redis_operator_values("v0.26.0"),
+        redis_operator_values("v0.25.0"),
+        chart_dir=tmp_path,
+    )
 
     assert not any("did not change" in i for i in issues)
     assert not any("has no entry" in i for i in issues)
@@ -313,6 +330,7 @@ def make_nested_subchart_tgz(chart_dir, name, version, nested_charts):
     `helm pull`."""
     import tarfile
     from io import BytesIO
+
     charts_dir = chart_dir / "charts"
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
@@ -357,11 +375,13 @@ ECK_STACK_MANIFEST = """\
 
 
 def eck_stack_values(version):
-    return {"kiss-eck": {
-        "eck-elasticsearch": {"version": version},
-        "eck-kibana": {"version": version},
-        "eck-enterprise-search": {"version": version},
-    }}
+    return {
+        "kiss-eck": {
+            "eck-elasticsearch": {"version": version},
+            "eck-kibana": {"version": version},
+            "eck-enterprise-search": {"version": version},
+        }
+    }
 
 
 def test_images_manifest_format_sidecars_recognized_within_group_by_basename(libdocsconsistency, tmp_path):
@@ -374,17 +394,28 @@ def test_images_manifest_format_sidecars_recognized_within_group_by_basename(lib
     so none of them are wrongly flagged as having no preceding comment."""
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": ECK_STACK_DEPS}), encoding="utf-8")
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(eck_stack_values("8.19.19")), encoding="utf-8")
-    make_nested_subchart_tgz(tmp_path, "eck-stack", "0.20.0", {
-        "eck-elasticsearch": "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n",
-        "eck-kibana": "# image: docker.elastic.co/kibana/kibana:9.5.0\n",
-        "eck-enterprise-search": "# image: docker.elastic.co/enterprise-search/enterprise-search:8.19.0\n",
-    })
+    make_nested_subchart_tgz(
+        tmp_path,
+        "eck-stack",
+        "0.20.0",
+        {
+            "eck-elasticsearch": "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n",
+            "eck-kibana": "# image: docker.elastic.co/kibana/kibana:9.5.0\n",
+            "eck-enterprise-search": "# image: docker.elastic.co/enterprise-search/enterprise-search:8.19.0\n",
+        },
+    )
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(ECK_STACK_MANIFEST)
 
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", ECK_STACK_DEPS,
-        eck_stack_values("8.19.19"), eck_stack_values("8.19.3"), chart_dir=tmp_path)
+        images_path,
+        "4.8.5",
+        "4.9.0",
+        ECK_STACK_DEPS,
+        eck_stack_values("8.19.19"),
+        eck_stack_values("8.19.3"),
+        chart_dir=tmp_path,
+    )
 
     assert not any("has no preceding comment" in i for i in issues)
     assert not any("did not change" in i for i in issues)
@@ -422,11 +453,13 @@ def test_images_manifest_format_out_of_order_entries_are_flagged(libdocsconsiste
     )
 
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+    )
 
-    assert any('entry "redis-operator" is listed right after "zac"' in i
-                and "values.yaml lists redis-operator before zac" in i
-                for i in issues)
+    assert any(
+        'entry "redis-operator" is listed right after "zac"' in i and "values.yaml lists redis-operator before zac" in i
+        for i in issues
+    )
 
 
 def test_images_manifest_format_correctly_ordered_entries_are_not_flagged(libdocsconsistency, tmp_path):
@@ -456,7 +489,8 @@ def test_images_manifest_format_correctly_ordered_entries_are_not_flagged(libdoc
     )
 
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+    )
 
     assert not any("is listed right after" in i for i in issues)
 
@@ -495,10 +529,13 @@ def test_images_manifest_format_changes_list_out_of_order_is_flagged(libdocscons
     )
 
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+    )
 
-    assert any('"# Changes:" list has "redis-operator 0.25.0 -> 0.26.0." right after '
-                '"zac 5.0.2 -> 5.4.4."' in i for i in issues)
+    assert any(
+        '"# Changes:" list has "redis-operator 0.25.0 -> 0.26.0." right after "zac 5.0.2 -> 5.4.4."' in i
+        for i in issues
+    )
 
 
 def test_images_manifest_format_changes_list_correct_order_is_not_flagged(libdocsconsistency, tmp_path):
@@ -531,7 +568,8 @@ def test_images_manifest_format_changes_list_correct_order_is_not_flagged(libdoc
     )
 
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+    )
 
     assert not any('"# Changes:" list has' in i for i in issues)
 
@@ -570,7 +608,8 @@ def test_images_manifest_format_entry_with_no_changes_mention_is_flagged(libdocs
     )
 
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+    )
 
     assert any('image "zac" has an entry but no mention in the "# Changes:" list' in i for i in issues)
 
@@ -584,8 +623,9 @@ def test_images_manifest_format_free_form_mention_still_counts_as_covered(libdoc
     NOT be flagged as a missing mention just because the exact display
     name string never appears verbatim."""
     deps = [{"name": "redis-operator", "version": "1.0.0"}]
-    values = {"redis-operator": {"redis-ha": {"image": {
-        "repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:aaaa"}}}}
+    values = {
+        "redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:aaaa"}}}
+    }
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
     images_path = tmp_path / "images-4.9.0.yaml"
@@ -602,7 +642,8 @@ def test_images_manifest_format_free_form_mention_still_counts_as_covered(libdoc
     )
 
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+    )
 
     assert not any("no mention in the" in i for i in issues)
 
@@ -616,10 +657,12 @@ def test_images_manifest_format_one_item_covers_every_entry_in_a_lockstep_group(
     to sit at the lower position. (Comparing by raw position instead of
     display name was an earlier, wrong version of this same check.)"""
     deps = [{"name": "zgw-office-addin", "version": "0.0.89"}]
-    values = {"zgw-office-addin": {
-        "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "0.11.0@sha256:aaaa"}},
-        "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "0.11.0@sha256:bbbb"}},
-    }}
+    values = {
+        "zgw-office-addin": {
+            "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "0.11.0@sha256:aaaa"}},
+            "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "0.11.0@sha256:bbbb"}},
+        }
+    }
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
     images_path = tmp_path / "images-4.9.0.yaml"
@@ -639,7 +682,8 @@ def test_images_manifest_format_one_item_covers_every_entry_in_a_lockstep_group(
     )
 
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+    )
 
     assert not any("no mention in the" in i for i in issues)
 
@@ -688,18 +732,18 @@ def test_images_manifest_format_plain_image_changes_item_target_mismatch(libdocs
 
 
 def test_images_manifest_format_changes_item_matching_neither_dep_nor_entry_still_reported(
-        libdocsconsistency, tmp_path):
-    text = PYTHON_MANIFEST.replace(
-        "Python (ensurePodiumdAdminUser init image)", "Totally Unknown Thing")
+    libdocsconsistency, tmp_path
+):
+    text = PYTHON_MANIFEST.replace("Python (ensurePodiumdAdminUser init image)", "Totally Unknown Thing")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
     issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
-    assert any('Totally Unknown Thing" — no matching Chart.yaml dependency or images-manifest entry' in i
-               for i in issues)
+    assert any(
+        'Totally Unknown Thing" — no matching Chart.yaml dependency or images-manifest entry' in i for i in issues
+    )
 
 
-def test_images_manifest_format_changes_item_resolves_via_canonical_path_segment_name(
-        libdocsconsistency, tmp_path):
+def test_images_manifest_format_changes_item_resolves_via_canonical_path_segment_name(libdocsconsistency, tmp_path):
     """Regression test (real bug, real doc): a canonical sidecar Changes
     item whose own "basename" is a values-tree PATH SEGMENT, not a real
     image-repository basename (see lib.chart.canonical_sidecar_row_names'
@@ -712,8 +756,11 @@ def test_images_manifest_format_changes_item_resolves_via_canonical_path_segment
     to word-match against at all, so that fallback alone would always,
     wrongly, report this as unmatched."""
     deps = [{"name": "keycloak-operator", "version": "1.13.0"}]
-    values = {"keycloak-operator": {"operator": {
-        "image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.3"}}}}
+    values = {
+        "keycloak-operator": {
+            "operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.3"}}
+        }
+    }
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
     images_path = tmp_path / "images-4.9.0.yaml"
@@ -730,19 +777,22 @@ def test_images_manifest_format_changes_item_resolves_via_canonical_path_segment
     )
 
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+    )
 
     assert not any("no matching" in i for i in issues), issues
 
 
-def test_images_manifest_format_changes_item_canonical_path_segment_target_mismatch(
-        libdocsconsistency, tmp_path):
+def test_images_manifest_format_changes_item_canonical_path_segment_target_mismatch(libdocsconsistency, tmp_path):
     """Once resolved via its own known path, a real target-version
     mismatch must still be caught — the canonical-path-segment
     resolution isn't a free pass."""
     deps = [{"name": "keycloak-operator", "version": "1.13.0"}]
-    values = {"keycloak-operator": {"operator": {
-        "image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.3"}}}}
+    values = {
+        "keycloak-operator": {
+            "operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.3"}}
+        }
+    }
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
     images_path = tmp_path / "images-4.9.0.yaml"
@@ -759,7 +809,8 @@ def test_images_manifest_format_changes_item_canonical_path_segment_target_misma
     )
 
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+    )
 
     assert any("target app" in i and "9.9.9" in i for i in issues), issues
 
@@ -796,11 +847,10 @@ def test_images_manifest_format_exact_item_wins_over_fuzzy_changes_item(libdocsc
     reported as wrong/stale instead, and the exact item passes cleanly."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(KISS_MANIFEST)
-    issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", KISS_DEPS, KISS_VALUES, {})
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", KISS_DEPS, KISS_VALUES, {})
     assert any(
         'Changes item "Kiss\'s ECK-managed Elasticsearch/Kibana/Enterprise Search" is wrong or stale '
-        '— not found in Chart.yaml or values.yaml' in i
+        "— not found in Chart.yaml or values.yaml" in i
         for i in issues
     )
     assert not any("8.19.19" in i for i in issues)
@@ -812,8 +862,9 @@ def test_images_manifest_format_exact_item_wins_over_fuzzy_changes_item(libdocsc
 # diff against ---
 
 NEW_DEP_DEPS = DEPS + [make_dep("brp-personen-mock", "1.2.9", alias="brppersonenmock")]
-NEW_DEP_VALUES = dict(VALUES, brppersonenmock={
-    "image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}})
+NEW_DEP_VALUES = dict(
+    VALUES, brppersonenmock={"image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}}
+)
 
 
 def test_images_manifest_format_new_component_image_already_in_historical_manifest(libdocsconsistency, tmp_path):
@@ -837,7 +888,8 @@ def test_images_manifest_format_new_component_image_already_in_historical_manife
     images_path = tmp_path / "docs" / "images" / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", NEW_DEP_DEPS, NEW_DEP_VALUES, VALUES, chart_dir=tmp_path)
+        images_path, "4.8.5", "4.9.0", NEW_DEP_DEPS, NEW_DEP_VALUES, VALUES, chart_dir=tmp_path
+    )
     assert not any("brp-api/personen-mock" in i or "brppersonenmock" in i for i in issues)
 
 
@@ -849,14 +901,12 @@ def test_images_manifest_format_new_component_image_not_in_historical_manifest(l
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": NEW_DEP_DEPS}), encoding="utf-8")
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(NEW_DEP_VALUES), encoding="utf-8")
     (tmp_path / "docs" / "images" / "images-4.8.0.yaml").write_text(
-        "- name: some-other/image\n"
-        "  url: ghcr.io/some-other/image\n"
-        '  version: "1.0.0"\n'
-        '  digest: "sha256:cccc"\n',
+        '- name: some-other/image\n  url: ghcr.io/some-other/image\n  version: "1.0.0"\n  digest: "sha256:cccc"\n',
         encoding="utf-8",
     )
     images_path = tmp_path / "docs" / "images" / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
     issues = libdocsconsistency.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", NEW_DEP_DEPS, NEW_DEP_VALUES, VALUES, chart_dir=tmp_path)
+        images_path, "4.8.5", "4.9.0", NEW_DEP_DEPS, NEW_DEP_VALUES, VALUES, chart_dir=tmp_path
+    )
     assert any('image "brppersonenmock" changed vs 4.8.5 but has no entry' in i for i in issues)

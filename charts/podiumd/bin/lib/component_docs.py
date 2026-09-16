@@ -17,6 +17,7 @@ here.
 Every path here (doc_dir/images_dir/values_path) is passed in explicitly
 rather than read from a module-level constant, since the callers each
 resolve their own CHART_DIR-relative paths independently."""
+
 import re
 
 import yaml
@@ -58,8 +59,24 @@ from lib.upgradedoc import (
     version_change_suffix,
 )
 
-NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
-                "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen"]
+NUMBER_WORDS = [
+    "Zero",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Eleven",
+    "Twelve",
+    "Thirteen",
+    "Fourteen",
+    "Fifteen",
+]
 CHANGES_HEADER_RE = re.compile(r"^(?P<indent>#\s*)(?P<count_word>\w+)\s+changes?:\s*$", re.IGNORECASE)
 # A plain "# Changes:" images-manifest header with no leading count word at
 # all — CHANGES_HEADER_RE requires one ("# Twenty Two changes:"), but a
@@ -376,16 +393,13 @@ STUB_TEMPLATES = {
         "## Component versions ({target} vs {upgrade_docs_baseline})\n\n"
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n\n"
-        "## Changes\n\n"
-        + UPGRADE_CHANGES_STUB_TODO_LINE
+        "## Changes\n\n" + UPGRADE_CHANGES_STUB_TODO_LINE
     ),
     "gemeente-specific": (
         "# Gemeente-specific notes — PodiumD {upgrade_docs_baseline} → {target}\n\n"
         "Findings for this hop that apply to a **specific gemeente or environment** —\n"
         "not to the release in general — are collected here: data quirks, local\n"
-        "overrides, hosting particulars, incident follow-ups.\n\n"
-        + GEMEENTE_SPECIFIC_STUB_LINE
-        + "\n"
+        "overrides, hosting particulars, incident follow-ups.\n\n" + GEMEENTE_SPECIFIC_STUB_LINE + "\n"
         "<!-- Add entries per gemeente/environment:\n\n"
         "## <gemeente> (<env>)\n\n"
         "- What was hit, why it is specific to this environment, and the\n"
@@ -393,8 +407,7 @@ STUB_TEMPLATES = {
         "-->\n"
     ),
     "values-deltas": (
-        "# Values deltas — PodiumD {upgrade_docs_baseline} → {target}\n\n"
-        + VALUES_DELTAS_STUB_TODO_LINE
+        "# Values deltas — PodiumD {upgrade_docs_baseline} → {target}\n\n" + VALUES_DELTAS_STUB_TODO_LINE
     ),
 }
 
@@ -444,11 +457,16 @@ def create_missing_docs(doc_dir, images_dir, upgrade_docs_baseline, target):
     for suffix in STANDARD_SUFFIXES:
         path = doc_dir / f"{upgrade_docs_baseline}-to-{target}-{suffix}.md"
         if not path.is_file():
-            path.write_text(STUB_TEMPLATES[suffix].format(upgrade_docs_baseline=upgrade_docs_baseline, target=target), encoding="utf-8")
+            path.write_text(
+                STUB_TEMPLATES[suffix].format(upgrade_docs_baseline=upgrade_docs_baseline, target=target),
+                encoding="utf-8",
+            )
             created.append(path.name)
     images_path = images_manifest_path(images_dir, target)
     if not images_path.is_file():
-        images_path.write_text(IMAGES_STUB_TEMPLATE.format(upgrade_docs_baseline=upgrade_docs_baseline, target=target), encoding="utf-8")
+        images_path.write_text(
+            IMAGES_STUB_TEMPLATE.format(upgrade_docs_baseline=upgrade_docs_baseline, target=target), encoding="utf-8"
+        )
         created.append(images_path.name)
     return created
 
@@ -515,7 +533,8 @@ def load_baseline_state(chart_yaml_path, values_path, upgrade_docs_baseline):
     image-version (this function's own callers, which check `is None`)
     need no changes of their own."""
     _ref, baseline_deps, baseline_values, _lines, error = resolve_baseline_chart_state(
-        values_path.parent, upgrade_docs_baseline)
+        values_path.parent, upgrade_docs_baseline
+    )
     return (None, None) if error else (baseline_deps, baseline_values)
 
 
@@ -553,8 +572,7 @@ def find_component_row(rows, friendly):
     return None
 
 
-def update_component_table(text, friendly, old_app, new_app, old_chart, new_chart, deps, values,
-                            canonical_names=None):
+def update_component_table(text, friendly, old_app, new_app, old_chart, new_chart, deps, values, canonical_names=None):
     """Update this component's "Component versions" table row if it's
     already mentioned, or insert a new row if it isn't — in values.yaml's
     own top-level component order relative to the rows already there (see
@@ -629,8 +647,9 @@ def remove_component_row(text, friendly):
     return "".join(lines), True
 
 
-def make_changes_section(friendly, target, chart_name, values_key, old_app, new_app,
-                          old_chart, new_chart, image_paths, version_paths=()):
+def make_changes_section(
+    friendly, target, chart_name, values_key, old_app, new_app, old_chart, new_chart, image_paths, version_paths=()
+):
     """`image_paths` (see lib.chart.image_paths_for) are rendered as
     "Image tag pin `<values_key>.<path>.tag`" bullets — the ordinary
     "{repository, tag}" block shape. `version_paths` (see lib.chart.
@@ -774,7 +793,7 @@ def _strip_bare_changes_todo(lines, changes_idx, end_bound):
     Returns end_bound UNCHANGED if there's nothing to strip."""
     if not _is_bare_placeholder_span(lines, changes_idx + 1, end_bound, UPGRADE_CHANGES_STUB_TODO_LINE):
         return end_bound
-    del lines[changes_idx + 1:end_bound]
+    del lines[changes_idx + 1 : end_bound]
     return changes_idx + 1
 
 
@@ -854,8 +873,8 @@ def insert_changes_section(text, section_text, friendly, deps, values, canonical
         lines[insert_at:insert_at] = ["\n"]
         insert_at += 1
     elif blank_count > 1:
-        del lines[insert_at - (blank_count - 1):insert_at]
-        insert_at -= (blank_count - 1)
+        del lines[insert_at - (blank_count - 1) : insert_at]
+        insert_at -= blank_count - 1
 
     lines[insert_at:insert_at] = [section_text]
     return "".join(lines)
@@ -903,7 +922,7 @@ def strip_stale_upgrade_placeholders(text):
         first_block_start = blocks[0]["start"]
         new_end = _strip_bare_changes_todo(lines, changes_idx, first_block_start)
         if new_end != first_block_start:
-            lines[changes_idx + 1:changes_idx + 1] = ["\n"]
+            lines[changes_idx + 1 : changes_idx + 1] = ["\n"]
             changed = True
 
     if not changed:
@@ -945,8 +964,9 @@ def dep_for_values_key(deps, values_key):
     return None
 
 
-def resolve_component_own_version_change(key, target_deps, baseline_deps, target_values, baseline_values, chart_dir,
-                                          upgrade_docs_baseline=None):
+def resolve_component_own_version_change(
+    key, target_deps, baseline_deps, target_values, baseline_values, chart_dir, upgrade_docs_baseline=None
+):
     """(dep, chart_name, old_chart, new_chart, old_app, new_app, unchanged)
     for `key` (a member of lib.upgradedoc.compute_changed_components'
     own result) — `unchanged` is True when BOTH this component's own
@@ -983,8 +1003,9 @@ def resolve_component_own_version_change(key, target_deps, baseline_deps, target
         new_chart = "-"
     else:
         return None
-    chart_unchanged = new_chart == "-" or (old_chart is not None
-                                           and normalize_version(old_chart) == normalize_version(new_chart))
+    chart_unchanged = new_chart == "-" or (
+        old_chart is not None and normalize_version(old_chart) == normalize_version(new_chart)
+    )
     old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
     new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
     if old_app is None and baseline_values:
@@ -1000,7 +1021,8 @@ def resolve_component_own_version_change(key, target_deps, baseline_deps, target
         # THIS component's own Chart.yaml/values.yaml presence is new.
         for path in image_paths_for(chart_name, chart_dir):
             old_app = historical_app_version_for_path(
-                chart_dir, target_deps, target_values, (key,) + tuple(path.split(".")), upgrade_docs_baseline)
+                chart_dir, target_deps, target_values, (key,) + tuple(path.split(".")), upgrade_docs_baseline
+            )
             if old_app is not None:
                 break
     if old_app is None and baseline_values and dep is not None and chart_unchanged:
@@ -1025,13 +1047,23 @@ def resolve_component_own_version_change(key, target_deps, baseline_deps, target
         # row) — see resolve_component_own_version_change's own docstring
         # for why an unchanged own component doesn't get a row/section.
         old_app = actual_app_version(baseline_values, key, chart_name, chart_dir=chart_dir, dep=dep)
-    app_unchanged = (old_app is not None and new_app is not None
-                     and normalize_version(old_app) == normalize_version(new_app))
+    app_unchanged = (
+        old_app is not None and new_app is not None and normalize_version(old_app) == normalize_version(new_app)
+    )
     return dep, chart_name, old_chart, new_chart, old_app, new_app, (chart_unchanged and app_unchanged)
 
 
-def add_missing_component_rows(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
-                                actual_changed_keys, target, upgrade_docs_baseline=None):
+def add_missing_component_rows(
+    text,
+    chart_dir,
+    target_deps,
+    target_values,
+    baseline_deps,
+    baseline_values,
+    actual_changed_keys,
+    target,
+    upgrade_docs_baseline=None,
+):
     """Insert a new "Component versions" table row + matching "### ..."
     Changes section for every key in `actual_changed_keys` (see
     lib.upgradedoc.compute_changed_components) that doesn't already have
@@ -1083,7 +1115,8 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
     added_names = []
     for key in sorted(actual_changed_keys - matched_keys):
         resolved = resolve_component_own_version_change(
-            key, target_deps, baseline_deps, target_values, baseline_values, chart_dir, upgrade_docs_baseline)
+            key, target_deps, baseline_deps, target_values, baseline_values, chart_dir, upgrade_docs_baseline
+        )
         if resolved is None:
             continue
         dep, chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
@@ -1096,8 +1129,15 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
             continue
 
         text, table_action = update_component_table(
-            text, key, old_app, new_app if new_app is not None else "-", old_chart, new_chart,
-            target_deps, target_values)
+            text,
+            key,
+            old_app,
+            new_app if new_app is not None else "-",
+            old_chart,
+            new_chart,
+            target_deps,
+            target_values,
+        )
         if table_action is None:
             continue  # doc has no "Component versions" table at all to insert into
 
@@ -1109,15 +1149,20 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
             # component actually shaped like version_paths (e.g. eck-stack).
             version_paths = version_paths_for(chart_name, chart_dir)
             image_paths = [] if version_paths else image_paths_for(chart_name, chart_dir)
-            section = make_changes_section(key, target, chart_name, key, old_app, new_app,
-                                            old_chart, new_chart, image_paths, version_paths)
+            section = make_changes_section(
+                key, target, chart_name, key, old_app, new_app, old_chart, new_chart, image_paths, version_paths
+            )
         else:
-            chart_suffix = (f"{old_chart} → {new_chart}"
-                             if old_chart and normalize_version(old_chart) != normalize_version(new_chart)
-                             else new_chart)
-            section = (f"### {key} {chart_suffix}\n\n"
-                        f"TODO: describe this component's changes — its app version could not be "
-                        f"resolved automatically.\n\n")
+            chart_suffix = (
+                f"{old_chart} → {new_chart}"
+                if old_chart and normalize_version(old_chart) != normalize_version(new_chart)
+                else new_chart
+            )
+            section = (
+                f"### {key} {chart_suffix}\n\n"
+                f"TODO: describe this component's changes — its app version could not be "
+                f"resolved automatically.\n\n"
+            )
         text = insert_changes_section(text, section, key, target_deps, target_values)
         added_names.append(key)
 
@@ -1159,13 +1204,19 @@ def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_char
     tooling gap (the app version itself is unknown)."""
     if new_app is None:
         if new_chart == "-":
-            return (f"## {friendly} — TODO: describe this component's changes; its app version "
-                     f"could not be resolved automatically.\n")
-        chart_bit = (f"chart {old_chart} → {new_chart}"
-                     if old_chart and normalize_version(old_chart) != normalize_version(new_chart)
-                     else f"chart {new_chart}, unchanged")
-        return (f"## {friendly} {chart_bit} — TODO: describe this component's changes; its app "
-                f"version could not be resolved automatically.\n")
+            return (
+                f"## {friendly} — TODO: describe this component's changes; its app version "
+                f"could not be resolved automatically.\n"
+            )
+        chart_bit = (
+            f"chart {old_chart} → {new_chart}"
+            if old_chart and normalize_version(old_chart) != normalize_version(new_chart)
+            else f"chart {new_chart}, unchanged"
+        )
+        return (
+            f"## {friendly} {chart_bit} — TODO: describe this component's changes; its app "
+            f"version could not be resolved automatically.\n"
+        )
 
     app_bit = component_version_cell(old_app, new_app)
     if new_chart == "-":
@@ -1174,8 +1225,7 @@ def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_char
         chart_bit = f" (chart {new_chart}, new)"
     else:
         chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
-        chart_bit = f" (chart {old_chart} → {new_chart})" if chart_changed \
-            else f" (chart {new_chart}, unchanged)"
+        chart_bit = f" (chart {old_chart} → {new_chart})" if chart_changed else f" (chart {new_chart}, unchanged)"
     return f"## {friendly} {app_bit}{chart_bit}\n"
 
 
@@ -1209,7 +1259,9 @@ def _is_bare_values_deltas_todo_stub(lines):
     — same exact-shape precision as _is_bare_placeholder_span above,
     never a substring/heuristic match."""
     non_blank = [line.strip() for line in lines if line.strip()]
-    return len(non_blank) == 2 and non_blank[0].startswith("# ") and non_blank[1] == VALUES_DELTAS_STUB_TODO_LINE.strip()
+    return (
+        len(non_blank) == 2 and non_blank[0].startswith("# ") and non_blank[1] == VALUES_DELTAS_STUB_TODO_LINE.strip()
+    )
 
 
 def insert_values_delta_section(text, friendly, heading_line, body_lines, deps, values, canonical_names=None):
@@ -1323,8 +1375,8 @@ def append_values_delta_section_body(text, section, new_lines):
     scoped instead of always true EOF), never disturbing whatever
     hand-written prose or previously-added lines already sit there."""
     lines = text.splitlines(keepends=True)
-    head = "".join(lines[:section["end"]])
-    tail = "".join(lines[section["end"]:])
+    head = "".join(lines[: section["end"]])
+    tail = "".join(lines[section["end"] :])
     new_head = append_to_doc(head, new_lines)
     if tail:
         new_head = new_head.rstrip("\n") + "\n\n"
@@ -1356,8 +1408,16 @@ def remove_values_delta_section(text, friendly, deps, canonical_names=None):
     return text, False
 
 
-def sync_values_delta_sections(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
-                                actual_changed_keys, canonical_names=None):
+def sync_values_delta_sections(
+    text,
+    chart_dir,
+    target_deps,
+    target_values,
+    baseline_deps,
+    baseline_values,
+    actual_changed_keys,
+    canonical_names=None,
+):
     """Ensure every key in `actual_changed_keys` has its own values-
     deltas.md section (see find_values_delta_section/insert_values_
     delta_section) carrying every describe_key_changes line not already
@@ -1414,8 +1474,9 @@ def sync_values_delta_sections(text, chart_dir, target_deps, target_values, base
         old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
         new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
         heading_line = values_delta_section_heading(key, old_app, new_app, old_chart, new_chart)
-        text = insert_values_delta_section(text, key, heading_line, key_lines, target_deps, target_values,
-                                            canonical_names)
+        text = insert_values_delta_section(
+            text, key, heading_line, key_lines, target_deps, target_values, canonical_names
+        )
         created_names.append(key)
 
     return text, created_names, updated_names
@@ -1436,7 +1497,7 @@ def prune_empty_values_delta_sections(text):
     sections = parse_values_delta_sections(text)
     removed_headings = []
     for section in reversed(sections):
-        body = "".join(lines[section["start"] + 1:section["end"]]).strip()
+        body = "".join(lines[section["start"] + 1 : section["end"]]).strip()
         if body:
             continue
         start, end = section["start"], section["end"]
@@ -1490,12 +1551,13 @@ def update_images_manifest_entry(lines, entries, entry_line_indices, index, new_
         return values_key if normalize_name(values_key) in normalize_name(entry["name"]) else None
 
     def same_group(entry_a, entry_b):
-        return (component_of(entry_a) is not None
-                and component_of(entry_a) == component_of(entry_b)
-                and entry_a.get("version") == entry_b.get("version"))
+        return (
+            component_of(entry_a) is not None
+            and component_of(entry_a) == component_of(entry_b)
+            and entry_a.get("version") == entry_b.get("version")
+        )
 
-    comment_idx = find_grouped_preceding_comment_line(
-        lines, entries, entry_line_indices, index, same_group)
+    comment_idx = find_grouped_preceding_comment_line(lines, entries, entry_line_indices, index, same_group)
     if comment_idx is not None:
         current_source = extract_source_version(lines[comment_idx])
         if current_source:
@@ -1504,8 +1566,20 @@ def update_images_manifest_entry(lines, entries, entry_line_indices, index, new_
     return changed
 
 
-def update_images_manifest(images_path, friendly, values_key, old_app, new_app, old_chart, new_chart,
-                            paths_to_update, repos, new_tags_by_path, deps, values):
+def update_images_manifest(
+    images_path,
+    friendly,
+    values_key,
+    old_app,
+    new_app,
+    old_chart,
+    new_chart,
+    paths_to_update,
+    repos,
+    new_tags_by_path,
+    deps,
+    values,
+):
     """Update the "# <N> changes:" header list and any existing entries'
     version/digest/comment for this component. Returns (changes_action,
     entry_names_updated, missing_entries) where missing_entries is
@@ -1591,8 +1665,7 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
         if entry is None:
             missing_entries.append((path, repos[path], new_tags_by_path[path]))
             continue
-        if update_images_manifest_entry(
-                lines, entries, entry_line_indices, index, new_tags_by_path[path], values_key):
+        if update_images_manifest_entry(lines, entries, entry_line_indices, index, new_tags_by_path[path], values_key):
             entry_updates.append(entry["name"])
 
     new_text = "".join(lines)
@@ -1601,8 +1674,7 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
     return changes_action, entry_updates, missing_entries
 
 
-def remove_component_from_images_manifest(images_path, friendly, values_key, paths_to_update, repos,
-                                           new_tags_by_path):
+def remove_component_from_images_manifest(images_path, friendly, values_key, paths_to_update, repos, new_tags_by_path):
     """Counterpart to update_images_manifest for a bump that nets out to no
     change from upgrade_docs_baseline at all (see lib.upgradedoc.compute_changed_
     components): still writes each touched entry's final version/digest —
@@ -1659,9 +1731,11 @@ def remove_component_from_images_manifest(images_path, friendly, values_key, pat
         return values_key if normalize_name(values_key) in normalize_name(entry["name"]) else None
 
     def same_group(entry_a, entry_b):
-        return (component_of(entry_a) is not None
-                and component_of(entry_a) == component_of(entry_b)
-                and entry_a.get("version") == entry_b.get("version"))
+        return (
+            component_of(entry_a) is not None
+            and component_of(entry_a) == component_of(entry_b)
+            and entry_a.get("version") == entry_b.get("version")
+        )
 
     entry_updates, comment_lines_to_remove = [], []
     for path in paths_to_update:
@@ -1682,8 +1756,7 @@ def remove_component_from_images_manifest(images_path, friendly, values_key, pat
             new_value = new_app_version if m.group(1) == "version" else digest
             lines[i] = replace_scalar_value(lines[i], new_value)
 
-        comment_idx = find_grouped_preceding_comment_line(
-            lines, entries, entry_line_indices, index, same_group)
+        comment_idx = find_grouped_preceding_comment_line(lines, entries, entry_line_indices, index, same_group)
         if comment_idx is not None and extract_source_version(lines[comment_idx]):
             comment_lines_to_remove.append(comment_idx)
         entry_updates.append(entry["name"])

@@ -4,6 +4,7 @@ pull_chart_values, find_images, version_of, image_paths_for, dotted_key_path,
 subchart_values, subchart_default_repository, resolve_chart_values,
 primary_image_repositories. `helm pull` is mocked via lib.procutil.run, so
 no `helm` binary or network access needed."""
+
 import io
 import tarfile
 from pathlib import Path
@@ -51,6 +52,7 @@ def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None,
 
 # --- get_path ---
 
+
 def test_get_path_nested(libchart):
     assert libchart.get_path({"a": {"b": {"c": 1}}}, "a.b.c") == 1
 
@@ -68,9 +70,12 @@ def test_get_path_non_dict_intermediate_returns_none(libchart):
 # tests/update-component-version/test_update_component_version.py for the
 # ucv.replace_scalar_value re-export, still exercised via that import).
 
+
 def test_replace_scalar_value_preserves_quotes(libchart):
-    assert libchart.replace_scalar_value('      tag: "1.0.0@sha256:aaaa"\n', "2.0.0@sha256:bbbb") == \
-        '      tag: "2.0.0@sha256:bbbb"\n'
+    assert (
+        libchart.replace_scalar_value('      tag: "1.0.0@sha256:aaaa"\n', "2.0.0@sha256:bbbb")
+        == '      tag: "2.0.0@sha256:bbbb"\n'
+    )
 
 
 def test_replace_scalar_value_preserves_bare_style(libchart):
@@ -78,8 +83,8 @@ def test_replace_scalar_value_preserves_bare_style(libchart):
 
 
 def test_replace_scalar_value_preserves_trailing_comment(libchart):
-    result = libchart.replace_scalar_value('    version: 1.0.297  # pinned\n', "1.0.298")
-    assert result == '    version: 1.0.298  # pinned\n'
+    result = libchart.replace_scalar_value("    version: 1.0.297  # pinned\n", "1.0.298")
+    assert result == "    version: 1.0.298  # pinned\n"
 
 
 def test_replace_scalar_value_unparseable_line_raises(libchart):
@@ -97,12 +102,14 @@ def test_replace_scalar_value_preserves_anchor_tag(libchart):
     the very next load. Confirmed empirically to fail without this fix:
     the anchor tag was dropped entirely, producing a bare "tag: 26.7.3"
     line."""
-    assert libchart.replace_scalar_value(
-        '        tag: &keycloakImageVersion "26.7.2"\n', "26.7.3") == \
-        '        tag: &keycloakImageVersion "26.7.3"\n'
-    assert libchart.replace_scalar_value(
-        '        sha: &keycloakImageDigest "aaaa"\n', "dddd") == \
-        '        sha: &keycloakImageDigest "dddd"\n'
+    assert (
+        libchart.replace_scalar_value('        tag: &keycloakImageVersion "26.7.2"\n', "26.7.3")
+        == '        tag: &keycloakImageVersion "26.7.3"\n'
+    )
+    assert (
+        libchart.replace_scalar_value('        sha: &keycloakImageDigest "aaaa"\n', "dddd")
+        == '        sha: &keycloakImageDigest "dddd"\n'
+    )
 
 
 # --- chart_version / SEMVER_RE ---
@@ -110,6 +117,7 @@ def test_replace_scalar_value_preserves_anchor_tag(libchart):
 # version, and create-podiumd-version's own current_chart_version()/
 # *_VERSION_RE re-exports — see those scripts' own tests for the
 # re-export coverage.
+
 
 def test_chart_version_reads_top_level_version(libchart, tmp_path):
     chart_yaml = tmp_path / "Chart.yaml"
@@ -134,17 +142,20 @@ def test_semver_re_rejects_anything_else(libchart):
 # _release_baselines for why podiumd needs two baselines (incremental
 # _UPGRADE_PATHS/images-manifest vs. cumulative release-table.csv).
 
+
 def test_upgrade_docs_baseline_reads_the_key(libchart, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "release-baseline.yaml").write_text(
-        "upgrade_docs: '4.9.0'\nrelease_table: '4.8.5'\n", encoding="utf-8")
+        "upgrade_docs: '4.9.0'\nrelease_table: '4.8.5'\n", encoding="utf-8"
+    )
     assert libchart.upgrade_docs_baseline(tmp_path) == "4.9.0"
 
 
 def test_release_table_baseline_reads_the_key(libchart, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "release-baseline.yaml").write_text(
-        "upgrade_docs: '4.9.0'\nrelease_table: '4.8.5'\n", encoding="utf-8")
+        "upgrade_docs: '4.9.0'\nrelease_table: '4.8.5'\n", encoding="utf-8"
+    )
     assert libchart.release_table_baseline(tmp_path) == "4.8.5"
 
 
@@ -173,6 +184,7 @@ def test_release_table_baseline_none_when_key_missing(libchart, tmp_path):
 # field (or a real registry call) needs — never the STRIPPED form
 # paths_by_repository's own repo-group keys use.
 
+
 def test_full_repository_for_path_docker_hub_repository_gets_docker_io_host(libchart, tmp_path):
     """Docker Hub's own convention: no registry host embedded in
     "repository:" at all."""
@@ -183,10 +195,11 @@ def test_full_repository_for_path_docker_hub_repository_gets_docker_io_host(libc
 
 def test_full_repository_for_path_already_host_qualified_is_unchanged(libchart, tmp_path):
     deps = [{"name": "brp-personen-mock", "alias": "brppersonenmock", "version": "1.2.9"}]
-    values = {"brppersonenmock": {"image": {
-        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:aaaa"}}}
-    assert libchart.full_repository_for_path(tmp_path, deps, values, ("brppersonenmock", "image")) == \
-        "ghcr.io/brp-api/personen-mock"
+    values = {"brppersonenmock": {"image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:aaaa"}}}
+    assert (
+        libchart.full_repository_for_path(tmp_path, deps, values, ("brppersonenmock", "image"))
+        == "ghcr.io/brp-api/personen-mock"
+    )
 
 
 def test_full_repository_for_path_separate_registry_key_is_authoritative(libchart, tmp_path):
@@ -196,10 +209,10 @@ def test_full_repository_for_path_separate_registry_key_is_authoritative(libchar
     own Docker Hub inference, which would wrongly assume "docker.io/
     azure-cli"."""
     deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
-    values = {"mi": {"image": {
-        "registry": "mcr.microsoft.com", "repository": "azure-cli", "tag": "2.90.0@sha256:aaaa"}}}
-    assert libchart.full_repository_for_path(tmp_path, deps, values, ("mi", "image")) == \
-        "mcr.microsoft.com/azure-cli"
+    values = {
+        "mi": {"image": {"registry": "mcr.microsoft.com", "repository": "azure-cli", "tag": "2.90.0@sha256:aaaa"}}
+    }
+    assert libchart.full_repository_for_path(tmp_path, deps, values, ("mi", "image")) == "mcr.microsoft.com/azure-cli"
 
 
 def test_full_repository_for_path_bare_namespace_registry_key_gets_docker_io_host(libchart, tmp_path):
@@ -214,10 +227,11 @@ def test_full_repository_for_path_bare_namespace_registry_key_gets_docker_io_hos
     not the bare, unqualified "wearefrank/zaakbrug" a naive "registry:
     sibling is always a real host" assumption would produce."""
     deps = [{"name": "zaakbrug", "version": "2.3.32"}]
-    values = {"zaakbrug": {"image": {
-        "registry": "wearefrank", "repository": "zaakbrug", "tag": "1.26.18@sha256:aaaa"}}}
-    assert libchart.full_repository_for_path(tmp_path, deps, values, ("zaakbrug", "image")) == \
-        "docker.io/wearefrank/zaakbrug"
+    values = {"zaakbrug": {"image": {"registry": "wearefrank", "repository": "zaakbrug", "tag": "1.26.18@sha256:aaaa"}}}
+    assert (
+        libchart.full_repository_for_path(tmp_path, deps, values, ("zaakbrug", "image"))
+        == "docker.io/wearefrank/zaakbrug"
+    )
 
 
 def test_full_repository_for_path_none_when_unresolvable(libchart, tmp_path):
@@ -228,6 +242,7 @@ def test_full_repository_for_path_none_when_unresolvable(libchart, tmp_path):
 # the replacement for the removed images-baseline.yaml fallback: walks
 # this chart's own past docs/images/images-<version>.yaml manifests,
 # most-recent-first, instead of a separate cumulative side-file.
+
 
 def _write_images_manifest(images_dir, version, entries):
     """`url` defaults to `name` when an entry doesn't give one of its own
@@ -240,8 +255,11 @@ def _write_images_manifest(images_dir, version, entries):
     isn't what any real images-manifest entry ever looks like."""
     images_dir.mkdir(parents=True, exist_ok=True)
     (images_dir / f"images-{version}.yaml").write_text(
-        "".join(f"- name: {e['name']}\n  url: {e.get('url', e['name'])}\n  version: \"{e['version']}\"\n"
-                f"  digest: \"{e['digest']}\"\n" for e in entries),
+        "".join(
+            f'- name: {e["name"]}\n  url: {e.get("url", e["name"])}\n  version: "{e["version"]}"\n'
+            f'  digest: "{e["digest"]}"\n'
+            for e in entries
+        ),
         encoding="utf-8",
     )
 
@@ -284,22 +302,28 @@ def test_historical_app_version_for_repository_stops_at_most_recent_match(libcha
     versions — the most recent one (searched first) wins, not the
     oldest."""
     images_dir = tmp_path / "docs" / "images"
-    _write_images_manifest(images_dir, "4.7.0", [
-        {"name": "brp-api/personen-mock", "version": "2.5.0", "digest": "sha256:aaaa"}])
-    _write_images_manifest(images_dir, "4.8.5", [
-        {"name": "brp-api/personen-mock", "version": "2.6.0", "digest": "sha256:bbbb"}])
+    _write_images_manifest(
+        images_dir, "4.7.0", [{"name": "brp-api/personen-mock", "version": "2.5.0", "digest": "sha256:aaaa"}]
+    )
+    _write_images_manifest(
+        images_dir, "4.8.5", [{"name": "brp-api/personen-mock", "version": "2.6.0", "digest": "sha256:bbbb"}]
+    )
 
-    assert libchart.historical_app_version_for_repository(
-        tmp_path, "brp-api/personen-mock", at_or_before="4.9.0") == "2.6.0"
+    assert (
+        libchart.historical_app_version_for_repository(tmp_path, "brp-api/personen-mock", at_or_before="4.9.0")
+        == "2.6.0"
+    )
 
 
 def test_historical_app_version_for_repository_none_when_never_mentioned(libchart, tmp_path):
     images_dir = tmp_path / "docs" / "images"
-    _write_images_manifest(images_dir, "4.8.5", [
-        {"name": "some-other/image", "version": "1.0.0", "digest": "sha256:aaaa"}])
+    _write_images_manifest(
+        images_dir, "4.8.5", [{"name": "some-other/image", "version": "1.0.0", "digest": "sha256:aaaa"}]
+    )
 
-    assert libchart.historical_app_version_for_repository(
-        tmp_path, "brp-api/personen-mock", at_or_before="4.9.0") is None
+    assert (
+        libchart.historical_app_version_for_repository(tmp_path, "brp-api/personen-mock", at_or_before="4.9.0") is None
+    )
 
 
 def test_historical_app_version_for_repository_ignores_manifests_after_at_or_before(libchart, tmp_path):
@@ -309,24 +333,38 @@ def test_historical_app_version_for_repository_ignores_manifests_after_at_or_bef
     circularity of a "changed vs baseline" check feeding on its own
     target manifest."""
     images_dir = tmp_path / "docs" / "images"
-    _write_images_manifest(images_dir, "4.9.0", [
-        {"name": "brp-api/personen-mock", "version": "2.7.0", "digest": "sha256:bbbb"}])
+    _write_images_manifest(
+        images_dir, "4.9.0", [{"name": "brp-api/personen-mock", "version": "2.7.0", "digest": "sha256:bbbb"}]
+    )
 
-    assert libchart.historical_app_version_for_repository(
-        tmp_path, "brp-api/personen-mock", at_or_before="4.8.5") is None
+    assert (
+        libchart.historical_app_version_for_repository(tmp_path, "brp-api/personen-mock", at_or_before="4.8.5") is None
+    )
 
 
 def test_historical_app_version_for_path_resolves_repo_then_searches(libchart, tmp_path):
     images_dir = tmp_path / "docs" / "images"
-    _write_images_manifest(images_dir, "4.8.0", [
-        {"name": "brp-api/personen-mock", "url": "ghcr.io/brp-api/personen-mock",
-         "version": "2.5.0", "digest": "sha256:aaaa"}])
+    _write_images_manifest(
+        images_dir,
+        "4.8.0",
+        [
+            {
+                "name": "brp-api/personen-mock",
+                "url": "ghcr.io/brp-api/personen-mock",
+                "version": "2.5.0",
+                "digest": "sha256:aaaa",
+            }
+        ],
+    )
     deps = [{"name": "brppersonenmock", "version": "1.2.9"}]
-    values = {"brppersonenmock": {"image": {
-        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}}}
+    values = {"brppersonenmock": {"image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}}}
 
-    assert libchart.historical_app_version_for_path(
-        tmp_path, deps, values, ("brppersonenmock", "image"), at_or_before="4.8.5") == "2.5.0"
+    assert (
+        libchart.historical_app_version_for_path(
+            tmp_path, deps, values, ("brppersonenmock", "image"), at_or_before="4.8.5"
+        )
+        == "2.5.0"
+    )
 
 
 def test_historical_app_version_for_path_rejects_stripped_name_collision(libchart, tmp_path):
@@ -342,13 +380,20 @@ def test_historical_app_version_for_path_rejects_stripped_name_collision(libchar
     path's real, fully-qualified repository (docker.io/redis, Docker
     Hub's own implicit host) correctly rejects it instead."""
     images_dir = tmp_path / "docs" / "images"
-    _write_images_manifest(images_dir, "4.6.4", [
-        {"name": "redis", "url": "quay.io/opstree/redis", "version": "v8.6.2", "digest": "sha256:aaaa"}])
+    _write_images_manifest(
+        images_dir,
+        "4.6.4",
+        [{"name": "redis", "url": "quay.io/opstree/redis", "version": "v8.6.2", "digest": "sha256:aaaa"}],
+    )
     deps = []
     values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.0@sha256:bbbb"}}}}
 
-    assert libchart.historical_app_version_for_path(
-        tmp_path, deps, values, ("global", "images", "redis"), at_or_before="4.9.0") is None
+    assert (
+        libchart.historical_app_version_for_path(
+            tmp_path, deps, values, ("global", "images", "redis"), at_or_before="4.9.0"
+        )
+        is None
+    )
 
 
 def test_historical_app_version_for_repository_url_mismatch_is_not_a_match(libchart, tmp_path):
@@ -356,31 +401,44 @@ def test_historical_app_version_for_repository_url_mismatch_is_not_a_match(libch
     version_for_repository's own expected_url parameter — the lower-
     level primitive historical_app_version_for_path builds on."""
     images_dir = tmp_path / "docs" / "images"
-    _write_images_manifest(images_dir, "4.6.4", [
-        {"name": "redis", "url": "quay.io/opstree/redis", "version": "v8.6.2", "digest": "sha256:aaaa"}])
+    _write_images_manifest(
+        images_dir,
+        "4.6.4",
+        [{"name": "redis", "url": "quay.io/opstree/redis", "version": "v8.6.2", "digest": "sha256:aaaa"}],
+    )
 
-    assert libchart.historical_app_version_for_repository(
-        tmp_path, "redis", at_or_before="4.9.0", expected_url="docker.io/redis") is None
+    assert (
+        libchart.historical_app_version_for_repository(
+            tmp_path, "redis", at_or_before="4.9.0", expected_url="docker.io/redis"
+        )
+        is None
+    )
     # Without expected_url, the exact previous name-only behavior is
     # preserved (a caller with no path/deps/values of its own to resolve
     # a real url from) — still finds the (wrong-for-redis, but that's
     # the caller's own problem to avoid by always passing expected_url
     # when it has one) name-only match.
-    assert libchart.historical_app_version_for_repository(
-        tmp_path, "redis", at_or_before="4.9.0") == "v8.6.2"
+    assert libchart.historical_app_version_for_repository(tmp_path, "redis", at_or_before="4.9.0") == "v8.6.2"
     # A matching url, on the other hand, IS a real match.
-    assert libchart.historical_app_version_for_repository(
-        tmp_path, "redis", at_or_before="4.9.0", expected_url="quay.io/opstree/redis") == "v8.6.2"
+    assert (
+        libchart.historical_app_version_for_repository(
+            tmp_path, "redis", at_or_before="4.9.0", expected_url="quay.io/opstree/redis"
+        )
+        == "v8.6.2"
+    )
 
 
 def test_historical_app_version_for_path_none_when_path_unresolvable(libchart, tmp_path):
     """No dependency/override resolves a repository for this path at
     all — nothing to search images-<version>.yaml for."""
-    assert libchart.historical_app_version_for_path(
-        tmp_path, [], {}, ("brppersonenmock", "image"), at_or_before="4.8.5") is None
+    assert (
+        libchart.historical_app_version_for_path(tmp_path, [], {}, ("brppersonenmock", "image"), at_or_before="4.8.5")
+        is None
+    )
 
 
 # --- write_release_baselines ---
+
 
 def test_write_release_baselines_creates_file_with_both_keys(libchart, tmp_path):
     libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
@@ -442,6 +500,7 @@ def test_write_release_baselines_escapes_backslash_and_double_quote_correctly(li
 
 # --- find_dependency ---
 
+
 def test_find_dependency_by_name(libchart):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
     assert libchart.find_dependency(deps, "zaakafhandelcomponent")["alias"] == "zac"
@@ -461,16 +520,19 @@ def test_find_dependency_not_found_returns_none(libchart):
 # used by show-component-baseline-version, via component_state_at_baseline
 # below.
 
+
 def test_find_app_versions_single_image(libchart):
     values = {"zac": {"image": {"tag": "5.0.2@sha256:abc"}}}
     assert libchart.find_app_versions(values, "zac", ["image"]) == [("image", "5.0.2@sha256:abc")]
 
 
 def test_find_app_versions_multi_image(libchart):
-    values = {"zgw-office-addin": {
-        "frontend": {"image": {"tag": "v0.9.313@sha256:a"}},
-        "backend": {"image": {"tag": "v0.9.313@sha256:b"}},
-    }}
+    values = {
+        "zgw-office-addin": {
+            "frontend": {"image": {"tag": "v0.9.313@sha256:a"}},
+            "backend": {"image": {"tag": "v0.9.313@sha256:b"}},
+        }
+    }
     result = libchart.find_app_versions(values, "zgw-office-addin", ["frontend.image", "backend.image"])
     assert result == [("frontend.image", "v0.9.313@sha256:a"), ("backend.image", "v0.9.313@sha256:b")]
 
@@ -495,6 +557,7 @@ def test_find_app_versions_empty_tag_is_skipped(libchart):
 # finding the dependency and looking up its app version(s) on top of
 # whatever resolve_baseline_chart_state returns.
 
+
 def test_component_state_at_baseline_success(libchart, monkeypatch, tmp_path):
     """chart_dir is a real Path (not the opaque "chart_dir" placeholder the
     two error-path tests below use) since this one actually reaches
@@ -502,17 +565,20 @@ def test_component_state_at_baseline_success(libchart, monkeypatch, tmp_path):
     etc/settings.yaml (missing here, so it falls back to the ["image"]
     default) -- the other two tests return before ever calling it."""
     monkeypatch.setattr(
-        libchart, "resolve_baseline_chart_state",
+        libchart,
+        "resolve_baseline_chart_state",
         lambda chart_dir, baseline: (
             "podiumd-4.8.5",
             [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}],
             {"zac": {"image": {"tag": "5.0.2@sha256:abc"}}},
             ["zac:", "  image:", '    tag: "5.0.2@sha256:abc"'],
             None,
-        ))
+        ),
+    )
 
     ref, dep, values_key, image_paths, app_versions, error = libchart.component_state_at_baseline(
-        tmp_path, "charts/podiumd", "4.8.5", "zac")
+        tmp_path, "charts/podiumd", "4.8.5", "zac"
+    )
 
     assert error is None
     assert ref == "podiumd-4.8.5"
@@ -524,11 +590,14 @@ def test_component_state_at_baseline_success(libchart, monkeypatch, tmp_path):
 
 def test_component_state_at_baseline_propagates_resolve_baseline_chart_state_error(libchart, monkeypatch):
     monkeypatch.setattr(
-        libchart, "resolve_baseline_chart_state",
-        lambda chart_dir, baseline: (None, [], {}, [], "could not resolve baseline '9.9.9' to a git ref (tried ...)"))
+        libchart,
+        "resolve_baseline_chart_state",
+        lambda chart_dir, baseline: (None, [], {}, [], "could not resolve baseline '9.9.9' to a git ref (tried ...)"),
+    )
 
     ref, dep, values_key, image_paths, app_versions, error = libchart.component_state_at_baseline(
-        "chart_dir", "charts/podiumd", "9.9.9", "zac")
+        "chart_dir", "charts/podiumd", "9.9.9", "zac"
+    )
 
     assert ref is dep is values_key is image_paths is app_versions is None
     assert error == "could not resolve baseline '9.9.9' to a git ref (tried ...)"
@@ -536,18 +605,19 @@ def test_component_state_at_baseline_propagates_resolve_baseline_chart_state_err
 
 def test_component_state_at_baseline_dependency_not_found(libchart, monkeypatch):
     monkeypatch.setattr(
-        libchart, "resolve_baseline_chart_state",
-        lambda chart_dir, baseline: ("podiumd-4.8.5", [], {}, [], None))
+        libchart, "resolve_baseline_chart_state", lambda chart_dir, baseline: ("podiumd-4.8.5", [], {}, [], None)
+    )
 
     ref, dep, values_key, image_paths, app_versions, error = libchart.component_state_at_baseline(
-        "chart_dir", "charts/podiumd", "4.8.5", "totally-unknown")
+        "chart_dir", "charts/podiumd", "4.8.5", "totally-unknown"
+    )
 
     assert ref is dep is values_key is image_paths is app_versions is None
-    assert error == ("no dependency named or aliased 'totally-unknown' "
-                      "in charts/podiumd/Chart.yaml at podiumd-4.8.5")
+    assert error == ("no dependency named or aliased 'totally-unknown' in charts/podiumd/Chart.yaml at podiumd-4.8.5")
 
 
 # --- chart_ref ---
+
 
 def test_chart_ref_alias_repository(libchart):
     ref, repo_url = libchart.chart_ref({"name": "zaakafhandelcomponent", "repository": "@zac"})
@@ -580,6 +650,7 @@ def test_chart_ref_unsupported_scheme_raises(libchart):
 
 # --- local_chart_dir ---
 
+
 def test_local_chart_dir_resolves_relative_to_chart_dir(libchart, tmp_path):
     dep = {"name": "mi-data", "repository": "file://../mi-data"}
     assert libchart.local_chart_dir(tmp_path / "podiumd", dep) == (tmp_path / "mi-data").resolve()
@@ -591,6 +662,7 @@ def test_local_chart_dir_none_for_other_schemes(libchart):
 
 
 # --- pull_chart ---
+
 
 def test_pull_chart_local_repository_fails_without_subprocess(libchart, tmp_path):
     dep = {"name": "mi-data", "repository": "file://../mi-data"}
@@ -605,6 +677,7 @@ def test_pull_chart_builds_correct_command(libchart, monkeypatch, tmp_path):
     def fake_run(cmd, **kwargs):
         captured["cmd"] = cmd
         from types import SimpleNamespace
+
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(libchart, "run", fake_run)
@@ -612,8 +685,14 @@ def test_pull_chart_builds_correct_command(libchart, monkeypatch, tmp_path):
     ok, stderr = libchart.pull_chart(dep, "1.0.297", tmp_path)
     assert ok is True
     assert captured["cmd"] == [
-        "helm", "pull", "zac/zaakafhandelcomponent", "--version", "1.0.297",
-        "--untar", "--untardir", str(tmp_path),
+        "helm",
+        "pull",
+        "zac/zaakafhandelcomponent",
+        "--version",
+        "1.0.297",
+        "--untar",
+        "--untardir",
+        str(tmp_path),
     ]
 
 
@@ -623,6 +702,7 @@ def test_pull_chart_https_repo_adds_repo_flag(libchart, monkeypatch, tmp_path):
     def fake_run(cmd, **kwargs):
         captured["cmd"] = cmd
         from types import SimpleNamespace
+
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(libchart, "run", fake_run)
@@ -635,6 +715,7 @@ def test_pull_chart_https_repo_adds_repo_flag(libchart, monkeypatch, tmp_path):
 def test_pull_chart_failure_returns_stderr(libchart, monkeypatch, tmp_path):
     def fake_run(cmd, **kwargs):
         from types import SimpleNamespace
+
         return SimpleNamespace(returncode=1, stdout="", stderr="version not found\n")
 
     monkeypatch.setattr(libchart, "run", fake_run)
@@ -645,6 +726,7 @@ def test_pull_chart_failure_returns_stderr(libchart, monkeypatch, tmp_path):
 
 
 # --- pulled_chart_dir ---
+
 
 def test_pulled_chart_dir_returns_the_single_directory(libchart, tmp_path):
     (tmp_path / "somechart").mkdir()
@@ -658,6 +740,7 @@ def test_pulled_chart_dir_raises_when_empty(libchart, tmp_path):
 
 
 # --- pull_chart_values ---
+
 
 def test_pull_chart_values_reads_pulled_values_yaml(libchart, monkeypatch):
     def fake_pull_chart(dep, version, dest):
@@ -685,6 +768,7 @@ def test_pull_chart_values_raises_on_pull_failure(libchart, monkeypatch):
 # The chart-existence check verify-component-version owns (and
 # verify-image-version no longer reimplements) — pull, report FOUND/
 # MISSING, and either return the pulled values.yaml or exit 1.
+
 
 def test_verify_chart_version_found_returns_values(libchart, tmp_path, monkeypatch, capsys):
     def fake_pull_chart(dep, version, dest):
@@ -734,14 +818,21 @@ def test_verify_chart_version_missing_exits_one(libchart, tmp_path, monkeypatch,
 
 # --- check_image_versions ---
 
+
 def test_check_image_versions_single_path_found(libchart, monkeypatch):
     monkeypatch.setattr(libchart, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:abc"))
     values = {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}
     results = libchart.check_image_versions(values, ["image"], "5.4.3")
-    assert results == [{
-        "path": "image", "repository": "ghcr.io/infonl/zaakafhandelcomponent", "host": "ghcr.io",
-        "repo_path": "infonl/zaakafhandelcomponent", "exists": True, "digest": "sha256:abc",
-    }]
+    assert results == [
+        {
+            "path": "image",
+            "repository": "ghcr.io/infonl/zaakafhandelcomponent",
+            "host": "ghcr.io",
+            "repo_path": "infonl/zaakafhandelcomponent",
+            "exists": True,
+            "digest": "sha256:abc",
+        }
+    ]
 
 
 def test_check_image_versions_reports_missing_tag(libchart, monkeypatch):
@@ -789,6 +880,7 @@ def test_check_image_versions_raises_when_no_path_has_a_repository(libchart, mon
 
 # --- version_of ---
 
+
 def test_version_of_strips_digest(libchart):
     assert libchart.version_of("5.4.3@sha256:abc") == "5.4.3"
     assert libchart.version_of("1.19.0-static") == "1.19.0-static"
@@ -812,8 +904,10 @@ SIBLING_FIELDS = {
 def test_resolved_digest_pin_already_embedded_returned_as_is(libchart):
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
 
-    assert libchart.resolved_digest_pin(
-        values, ("zac", "image"), "5.4.4@sha256:aaaa", SIBLING_FIELDS) == "5.4.4@sha256:aaaa"
+    assert (
+        libchart.resolved_digest_pin(values, ("zac", "image"), "5.4.4@sha256:aaaa", SIBLING_FIELDS)
+        == "5.4.4@sha256:aaaa"
+    )
 
 
 def test_resolved_digest_pin_split_tag_sha_combines_sibling_sha(libchart):
@@ -823,11 +917,22 @@ def test_resolved_digest_pin_split_tag_sha_combines_sibling_sha(libchart):
     real digest-pinned string (e.g. a new images-manifest entry) has to
     read it from the sibling "sha:" field instead."""
     path = ("keycloak-operator", "operator", "config", "keycloakImage")
-    values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
-        "tag": "26.7.2", "sha": "9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"}}}}}
+    values = {
+        "keycloak-operator": {
+            "operator": {
+                "config": {
+                    "keycloakImage": {
+                        "tag": "26.7.2",
+                        "sha": "9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067",
+                    }
+                }
+            }
+        }
+    }
 
     assert libchart.resolved_digest_pin(values, path, "26.7.2", SIBLING_FIELDS) == (
-        "26.7.2@sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067")
+        "26.7.2@sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
+    )
 
 
 def test_resolved_digest_pin_split_tag_sha_no_sha_override_returns_none(libchart):
@@ -857,11 +962,18 @@ def test_resolved_digest_pin_eck_operator_combines_sibling_digest_field(libchart
     field NAME (sibling_fields[path]["sibling_field"]) rather than the
     old hardcoded ".sha"."""
     path = ("eck-operator", "image")
-    values = {"eck-operator": {"image": {
-        "tag": "3.5.0", "digest": "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"}}}
+    values = {
+        "eck-operator": {
+            "image": {
+                "tag": "3.5.0",
+                "digest": "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314",
+            }
+        }
+    }
 
     assert libchart.resolved_digest_pin(values, path, "3.5.0", SIBLING_FIELDS) == (
-        "3.5.0@sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314")
+        "3.5.0@sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
+    )
 
 
 def test_resolved_digest_pin_eck_operator_no_digest_override_returns_none(libchart):
@@ -876,6 +988,7 @@ def test_resolved_digest_pin_eck_operator_no_digest_override_returns_none(libcha
 
 
 # --- find_images ---
+
 
 def test_find_images_nested_dict_and_list(libchart):
     values = {
@@ -896,6 +1009,7 @@ def test_find_images_root_path_label(libchart):
 
 
 # --- image_paths_for ---
+
 
 def test_image_paths_for_multi_image_component(libchart):
     assert libchart.image_paths_for("zgw-office-addin") == ["frontend.image", "backend.image"]
@@ -923,6 +1037,7 @@ def test_image_paths_for_unlisted_component_defaults_to_single_image_block(libch
 
 
 # --- dotted_key_path ---
+
 
 def test_dotted_key_path_nested_component(libchart):
     lines = [
@@ -957,6 +1072,7 @@ def test_dotted_key_path_pops_stack_on_dedent(libchart):
 
 # --- subchart_values ---
 
+
 def test_subchart_values_reads_vendored_tgz(libchart, tmp_path):
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
     dep = {"name": "openzaak", "version": "1.14.2"}
@@ -979,9 +1095,15 @@ def test_subchart_values_missing_member_returns_none(libchart, tmp_path):
 
 # --- subchart_app_version ---
 
+
 def test_subchart_app_version_reads_vendored_chart_yaml(libchart, tmp_path):
-    make_tgz(tmp_path / "charts", "openbao", "0.28.4", {"server": {"image": {"tag": ""}}},
-             chart_yaml={"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.5"})
+    make_tgz(
+        tmp_path / "charts",
+        "openbao",
+        "0.28.4",
+        {"server": {"image": {"tag": ""}}},
+        chart_yaml={"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.5"},
+    )
     dep = {"name": "openbao", "version": "0.28.4"}
     assert libchart.subchart_app_version(tmp_path, dep) == "v2.5.5"
 
@@ -998,19 +1120,31 @@ def test_subchart_app_version_missing_member_returns_none(libchart, tmp_path):
 
 
 def test_subchart_app_version_no_app_version_field_returns_none(libchart, tmp_path):
-    make_tgz(tmp_path / "charts", "openbao", "0.28.4", {"server": {"image": {"tag": ""}}},
-             chart_yaml={"apiVersion": "v2", "version": "0.28.4"})
+    make_tgz(
+        tmp_path / "charts",
+        "openbao",
+        "0.28.4",
+        {"server": {"image": {"tag": ""}}},
+        chart_yaml={"apiVersion": "v2", "version": "0.28.4"},
+    )
     dep = {"name": "openbao", "version": "0.28.4"}
     assert libchart.subchart_app_version(tmp_path, dep) is None
 
 
 # --- nested_subchart_raw_text / nested_subchart_documented_image_repository ---
 
+
 def test_nested_subchart_raw_text_reads_nested_file(libchart, tmp_path):
     dep = {"name": "eck-stack", "version": "0.20.0"}
-    make_tgz(tmp_path / "charts", "eck-stack", "0.20.0", {}, raw_files={
-        "eck-stack/charts/eck-elasticsearch/values.yaml": "# hello\n",
-    })
+    make_tgz(
+        tmp_path / "charts",
+        "eck-stack",
+        "0.20.0",
+        {},
+        raw_files={
+            "eck-stack/charts/eck-elasticsearch/values.yaml": "# hello\n",
+        },
+    )
     assert libchart.nested_subchart_raw_text(tmp_path, dep, "eck-elasticsearch", "values.yaml") == "# hello\n"
 
 
@@ -1023,9 +1157,15 @@ def test_nested_subchart_raw_text_missing_nested_chart_returns_none(libchart, tm
     """The outer .tgz IS vendored, but has no charts/eck-kibana/ inside
     it at all (e.g. a stale/mismatched registry entry) — no crash."""
     dep = {"name": "eck-stack", "version": "0.20.0"}
-    make_tgz(tmp_path / "charts", "eck-stack", "0.20.0", {}, raw_files={
-        "eck-stack/charts/eck-elasticsearch/values.yaml": "# hello\n",
-    })
+    make_tgz(
+        tmp_path / "charts",
+        "eck-stack",
+        "0.20.0",
+        {},
+        raw_files={
+            "eck-stack/charts/eck-elasticsearch/values.yaml": "# hello\n",
+        },
+    )
     assert libchart.nested_subchart_raw_text(tmp_path, dep, "eck-kibana", "values.yaml") is None
 
 
@@ -1035,37 +1175,59 @@ def test_nested_subchart_documented_image_repository_extracts_first_example(libc
     then a digest-suffixed variant, then a bare "@sha256:..." form; only
     the plain repository (no tag, no digest) is wanted."""
     dep = {"name": "eck-stack", "version": "0.20.0"}
-    make_tgz(tmp_path / "charts", "eck-stack", "0.20.0", {}, raw_files={
-        "eck-stack/charts/eck-kibana/values.yaml": (
-            "# Kibana Docker image to deploy.\n#\n"
-            "# image: docker.elastic.co/kibana/kibana:9.5.0\n"
-            "# image: docker.elastic.co/kibana/kibana:9.5.0@sha256:<digest>\n"
-            "# image: docker.elastic.co/kibana/kibana@sha256:<digest>\n"
-        ),
-    })
-    assert (libchart.nested_subchart_documented_image_repository(tmp_path, dep, "eck-kibana")
-            == "docker.elastic.co/kibana/kibana")
+    make_tgz(
+        tmp_path / "charts",
+        "eck-stack",
+        "0.20.0",
+        {},
+        raw_files={
+            "eck-stack/charts/eck-kibana/values.yaml": (
+                "# Kibana Docker image to deploy.\n#\n"
+                "# image: docker.elastic.co/kibana/kibana:9.5.0\n"
+                "# image: docker.elastic.co/kibana/kibana:9.5.0@sha256:<digest>\n"
+                "# image: docker.elastic.co/kibana/kibana@sha256:<digest>\n"
+            ),
+        },
+    )
+    assert (
+        libchart.nested_subchart_documented_image_repository(tmp_path, dep, "eck-kibana")
+        == "docker.elastic.co/kibana/kibana"
+    )
 
 
 def test_nested_subchart_documented_image_repository_no_comment_returns_none(libchart, tmp_path):
     dep = {"name": "eck-stack", "version": "0.20.0"}
-    make_tgz(tmp_path / "charts", "eck-stack", "0.20.0", {}, raw_files={
-        "eck-stack/charts/eck-kibana/values.yaml": "enabled: true\n",
-    })
+    make_tgz(
+        tmp_path / "charts",
+        "eck-stack",
+        "0.20.0",
+        {},
+        raw_files={
+            "eck-stack/charts/eck-kibana/values.yaml": "enabled: true\n",
+        },
+    )
     assert libchart.nested_subchart_documented_image_repository(tmp_path, dep, "eck-kibana") is None
 
 
 # --- subchart_dependencies ---
 
+
 def test_subchart_dependencies_reads_own_chart_yaml(libchart, tmp_path):
     dep = {"name": "openinwoner", "version": "2.4.0"}
-    make_tgz(tmp_path / "charts", "openinwoner", "2.4.0", {}, chart_yaml={
-        "name": "openinwoner", "version": "2.4.0",
-        "dependencies": [
-            {"name": "eck-operator", "version": "3.2.0", "repository": "https://helm.elastic.co"},
-            {"name": "redis", "version": "18.0.0", "repository": "https://charts.bitnami.com/bitnami"},
-        ],
-    })
+    make_tgz(
+        tmp_path / "charts",
+        "openinwoner",
+        "2.4.0",
+        {},
+        chart_yaml={
+            "name": "openinwoner",
+            "version": "2.4.0",
+            "dependencies": [
+                {"name": "eck-operator", "version": "3.2.0", "repository": "https://helm.elastic.co"},
+                {"name": "redis", "version": "18.0.0", "repository": "https://charts.bitnami.com/bitnami"},
+            ],
+        },
+    )
     deps = libchart.subchart_dependencies(tmp_path, dep)
     assert [d["name"] for d in deps] == ["eck-operator", "redis"]
 
@@ -1083,11 +1245,20 @@ def test_subchart_dependencies_no_dependencies_key_returns_empty_list(libchart, 
 
 # --- resolve_subchart_default ---
 
+
 def test_resolve_subchart_default_top_level_uses_deps_own_app_version(libchart, tmp_path):
     dep = {"name": "eck-operator", "version": "3.5.0"}
-    make_tgz(tmp_path / "charts", "eck-operator", "3.5.0", {}, chart_yaml={
-        "name": "eck-operator", "version": "3.5.0", "appVersion": "3.5.0",
-    })
+    make_tgz(
+        tmp_path / "charts",
+        "eck-operator",
+        "3.5.0",
+        {},
+        chart_yaml={
+            "name": "eck-operator",
+            "version": "3.5.0",
+            "appVersion": "3.5.0",
+        },
+    )
     chart_tree_path, version = libchart.resolve_subchart_default(tmp_path, dep, "podiumd", ("image",))
     assert chart_tree_path == "podiumd/charts/eck-operator"
     assert version == "3.5.0"
@@ -1100,15 +1271,23 @@ def test_resolve_subchart_default_nested_dependency_uses_its_own_chart_yaml(libc
     both the chart-tree path and the version must come from the NESTED
     dependency's own files, not openinwoner's."""
     dep = {"name": "openinwoner", "version": "2.4.0"}
-    make_tgz(tmp_path / "charts", "openinwoner", "2.4.0", {}, chart_yaml={
-        "name": "openinwoner", "version": "2.4.0",
-        "dependencies": [{"name": "eck-operator", "version": "3.2.0", "repository": "https://helm.elastic.co"}],
-    }, raw_files={
-        "openinwoner/charts/eck-operator/Chart.yaml": yaml.safe_dump(
-            {"name": "eck-operator", "version": "3.2.0", "appVersion": "3.2.0"}),
-    })
-    chart_tree_path, version = libchart.resolve_subchart_default(
-        tmp_path, dep, "podiumd", ("eck-operator", "image"))
+    make_tgz(
+        tmp_path / "charts",
+        "openinwoner",
+        "2.4.0",
+        {},
+        chart_yaml={
+            "name": "openinwoner",
+            "version": "2.4.0",
+            "dependencies": [{"name": "eck-operator", "version": "3.2.0", "repository": "https://helm.elastic.co"}],
+        },
+        raw_files={
+            "openinwoner/charts/eck-operator/Chart.yaml": yaml.safe_dump(
+                {"name": "eck-operator", "version": "3.2.0", "appVersion": "3.2.0"}
+            ),
+        },
+    )
+    chart_tree_path, version = libchart.resolve_subchart_default(tmp_path, dep, "podiumd", ("eck-operator", "image"))
     assert chart_tree_path == "podiumd/charts/openinwoner/charts/eck-operator"
     assert version == "3.2.0"
 
@@ -1122,11 +1301,18 @@ def test_resolve_subchart_default_no_nested_match_falls_back_to_top_level(libcha
     against the real chart: Helm's own "# Source:" annotations name a
     chart-tree directory by alias when the dependency declares one."""
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
-    make_tgz(tmp_path / "charts", "zaakafhandelcomponent", "1.0.297", {}, chart_yaml={
-        "name": "zaakafhandelcomponent", "version": "1.0.297", "appVersion": "5.4.3",
-    })
-    chart_tree_path, version = libchart.resolve_subchart_default(
-        tmp_path, dep, "podiumd", ("opa", "image"))
+    make_tgz(
+        tmp_path / "charts",
+        "zaakafhandelcomponent",
+        "1.0.297",
+        {},
+        chart_yaml={
+            "name": "zaakafhandelcomponent",
+            "version": "1.0.297",
+            "appVersion": "5.4.3",
+        },
+    )
+    chart_tree_path, version = libchart.resolve_subchart_default(tmp_path, dep, "podiumd", ("opa", "image"))
     assert chart_tree_path == "podiumd/charts/zac"
     assert version == "5.4.3"
 
@@ -1136,16 +1322,25 @@ def test_resolve_subchart_default_matches_nested_dependency_by_alias_too(libchar
     by ITS OWN alias ("kiss-eck"), not its real chart name ("eck-stack")
     — same convention, one level deeper."""
     dep = {"name": "openinwoner", "version": "2.4.0"}
-    make_tgz(tmp_path / "charts", "openinwoner", "2.4.0", {}, chart_yaml={
-        "name": "openinwoner", "version": "2.4.0",
-        "dependencies": [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0",
-                           "repository": "https://helm.elastic.co"}],
-    }, raw_files={
-        "openinwoner/charts/eck-stack/Chart.yaml": yaml.safe_dump(
-            {"name": "eck-stack", "version": "0.20.0", "appVersion": "unused"}),
-    })
-    chart_tree_path, _version = libchart.resolve_subchart_default(
-        tmp_path, dep, "podiumd", ("kiss-eck", "image"))
+    make_tgz(
+        tmp_path / "charts",
+        "openinwoner",
+        "2.4.0",
+        {},
+        chart_yaml={
+            "name": "openinwoner",
+            "version": "2.4.0",
+            "dependencies": [
+                {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0", "repository": "https://helm.elastic.co"}
+            ],
+        },
+        raw_files={
+            "openinwoner/charts/eck-stack/Chart.yaml": yaml.safe_dump(
+                {"name": "eck-stack", "version": "0.20.0", "appVersion": "unused"}
+            ),
+        },
+    )
+    chart_tree_path, _version = libchart.resolve_subchart_default(tmp_path, dep, "podiumd", ("kiss-eck", "image"))
     assert chart_tree_path == "podiumd/charts/openinwoner/charts/kiss-eck"
 
 
@@ -1158,12 +1353,15 @@ def test_resolve_subchart_default_version_none_when_not_vendored(libchart, tmp_p
 
 # --- own_template_files_referencing / resolve_values_path_source ---
 
+
 def test_own_template_files_referencing_finds_a_literal_values_reference(libchart, tmp_path):
     (tmp_path / "templates").mkdir()
     (tmp_path / "templates" / "frankgateway-nginx.yaml").write_text(
-        "image: {{ .Values.frankgateway.nginx.image.repository }}\n", encoding="utf-8")
+        "image: {{ .Values.frankgateway.nginx.image.repository }}\n", encoding="utf-8"
+    )
     (tmp_path / "templates" / "unrelated.yaml").write_text(
-        "image: {{ .Values.apiproxy.image.repository }}\n", encoding="utf-8")
+        "image: {{ .Values.apiproxy.image.repository }}\n", encoding="utf-8"
+    )
     files = libchart.own_template_files_referencing(tmp_path, "frankgateway")
     assert files == ["templates/frankgateway-nginx.yaml"]
 
@@ -1175,7 +1373,8 @@ def test_own_template_files_referencing_no_templates_dir_returns_empty(libchart,
 def test_own_template_files_referencing_no_match_returns_empty(libchart, tmp_path):
     (tmp_path / "templates").mkdir()
     (tmp_path / "templates" / "unrelated.yaml").write_text(
-        "image: {{ .Values.apiproxy.image.repository }}\n", encoding="utf-8")
+        "image: {{ .Values.apiproxy.image.repository }}\n", encoding="utf-8"
+    )
     assert libchart.own_template_files_referencing(tmp_path, "frankgateway") == []
 
 
@@ -1188,7 +1387,8 @@ def test_resolve_values_path_source_real_dependency_shows_chart_and_version(libc
 def test_resolve_values_path_source_orphan_key_shows_local_template(libchart, tmp_path):
     (tmp_path / "templates").mkdir()
     (tmp_path / "templates" / "frankgateway-nginx.yaml").write_text(
-        "image: {{ .Values.frankgateway.nginx.image.repository }}\n", encoding="utf-8")
+        "image: {{ .Values.frankgateway.nginx.image.repository }}\n", encoding="utf-8"
+    )
     source = libchart.resolve_values_path_source(tmp_path, [], ("frankgateway", "nginx", "image"))
     assert source == "local: templates/frankgateway-nginx.yaml"
 
@@ -1199,6 +1399,7 @@ def test_resolve_values_path_source_orphan_key_no_match_says_so(libchart, tmp_pa
 
 
 # --- resolve_chart_values ---
+
 
 def test_resolve_chart_values_prefers_vendored_over_pulling(libchart, tmp_path, monkeypatch):
     def raise_if_pulled(dep, version, dest):
@@ -1261,6 +1462,7 @@ def test_resolve_chart_values_no_pull_allowed_and_not_vendored_returns_error(lib
 
 # --- primary_image_repositories ---
 
+
 def test_primary_image_repositories_own_override_wins(libchart, tmp_path, monkeypatch):
     def raise_if_pulled(dep, version, dest):
         raise AssertionError("own override present — should never consult the subchart")
@@ -1293,10 +1495,15 @@ def test_primary_image_repositories_multi_path_component_reads_subchart_once(lib
     """zgw-office-addin-style: two distinct primary paths, neither with
     its own override — both resolved from the SAME vendored subchart
     values.yaml, read only once and reused across both paths."""
-    make_tgz(tmp_path / "charts", "zgw-office-addin", "0.0.92", {
-        "frontend": {"image": {"repository": "ghcr.io/infonl/zgw-office-addin-frontend"}},
-        "backend": {"image": {"repository": "ghcr.io/infonl/zgw-office-addin-backend"}},
-    })
+    make_tgz(
+        tmp_path / "charts",
+        "zgw-office-addin",
+        "0.0.92",
+        {
+            "frontend": {"image": {"repository": "ghcr.io/infonl/zgw-office-addin-frontend"}},
+            "backend": {"image": {"repository": "ghcr.io/infonl/zgw-office-addin-backend"}},
+        },
+    )
     dep = {"name": "zgw-office-addin", "alias": "", "version": "0.0.92"}
     calls = []
     real_subchart_values = libchart.subchart_values
@@ -1353,21 +1560,26 @@ def test_primary_image_repositories_chart_dir_none_and_needed_returns_error(libc
 
 # --- strip_registry_host ---
 
-@pytest.mark.parametrize("url,expected", [
-    ("quay.io/keycloak/keycloak", "keycloak/keycloak"),
-    ("docker.io/maykinmedia/open-inwoner", "maykinmedia/open-inwoner"),
-    ("ghcr.io/infonl/zaakafhandelcomponent", "infonl/zaakafhandelcomponent"),
-    ("docker.io/library/redis", "library/redis"),
-    ("localhost:5000/foo/bar", "foo/bar"),
-    ("acrprodmgmt.azurecr.io/infonl/zac:5.4.4", "infonl/zac:5.4.4"),
-    ("infonl/zaakafhandelcomponent", "infonl/zaakafhandelcomponent"),  # already stripped
-    ("ghcr.io/infonl/zaakafhandelcomponent@sha256:aaaa", "infonl/zaakafhandelcomponent"),
-])
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("quay.io/keycloak/keycloak", "keycloak/keycloak"),
+        ("docker.io/maykinmedia/open-inwoner", "maykinmedia/open-inwoner"),
+        ("ghcr.io/infonl/zaakafhandelcomponent", "infonl/zaakafhandelcomponent"),
+        ("docker.io/library/redis", "library/redis"),
+        ("localhost:5000/foo/bar", "foo/bar"),
+        ("acrprodmgmt.azurecr.io/infonl/zac:5.4.4", "infonl/zac:5.4.4"),
+        ("infonl/zaakafhandelcomponent", "infonl/zaakafhandelcomponent"),  # already stripped
+        ("ghcr.io/infonl/zaakafhandelcomponent@sha256:aaaa", "infonl/zaakafhandelcomponent"),
+    ],
+)
 def test_strip_registry_host(libchart, url, expected):
     assert libchart.strip_registry_host(url) == expected
 
 
 # --- repository_path_map ---
+
 
 def test_repository_path_map_own_override(libchart, tmp_path):
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
@@ -1394,17 +1606,24 @@ def test_repository_path_map_nested_sidecar_via_subchart_default(libchart, tmp_p
     documentation, not real YAML) — the real repository has to come
     from ZAC's OWN vendored subchart values.yaml, at the path with the
     dependency's own values-tree key ("zac") stripped off."""
-    make_tgz(tmp_path / "charts", "zaakafhandelcomponent", "1.0.297", {
-        "image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"},
-        "opa": {"image": {"repository": "openpolicyagent/opa"}},
-        "office_converter": {"image": {"repository": "gotenberg/gotenberg"}},
-    })
+    make_tgz(
+        tmp_path / "charts",
+        "zaakafhandelcomponent",
+        "1.0.297",
+        {
+            "image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"},
+            "opa": {"image": {"repository": "openpolicyagent/opa"}},
+            "office_converter": {"image": {"repository": "gotenberg/gotenberg"}},
+        },
+    )
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
-    own_values = {"zac": {
-        "image": {"tag": "5.4.4@sha256:aaaa"},
-        "opa": {"image": {"tag": "1.19.1-static@sha256:bbbb"}},
-        "office_converter": {"image": {"tag": "8.36.0@sha256:cccc"}},
-    }}
+    own_values = {
+        "zac": {
+            "image": {"tag": "5.4.4@sha256:aaaa"},
+            "opa": {"image": {"tag": "1.19.1-static@sha256:bbbb"}},
+            "office_converter": {"image": {"tag": "8.36.0@sha256:cccc"}},
+        }
+    }
     paths = [("zac", "image"), ("zac", "opa", "image"), ("zac", "office_converter", "image")]
 
     mapping = libchart.repository_path_map(tmp_path, [dep], own_values, paths, allow_pull=False)
@@ -1420,15 +1639,22 @@ def test_repository_path_map_subchart_values_reused_across_paths(libchart, tmp_p
     """The vendored subchart's own values.yaml is read at most once for
     a given dependency, however many of its own paths need it —
     same caching guarantee as primary_image_repositories."""
-    make_tgz(tmp_path / "charts", "zaakafhandelcomponent", "1.0.297", {
-        "image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"},
-        "opa": {"image": {"repository": "openpolicyagent/opa"}},
-    })
+    make_tgz(
+        tmp_path / "charts",
+        "zaakafhandelcomponent",
+        "1.0.297",
+        {
+            "image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"},
+            "opa": {"image": {"repository": "openpolicyagent/opa"}},
+        },
+    )
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
-    own_values = {"zac": {
-        "image": {"tag": "5.4.4@sha256:aaaa"},
-        "opa": {"image": {"tag": "1.19.1-static@sha256:bbbb"}},
-    }}
+    own_values = {
+        "zac": {
+            "image": {"tag": "5.4.4@sha256:aaaa"},
+            "opa": {"image": {"tag": "1.19.1-static@sha256:bbbb"}},
+        }
+    }
     paths = [("zac", "image"), ("zac", "opa", "image")]
     calls = []
     real_subchart_values = libchart.subchart_values
@@ -1502,11 +1728,16 @@ def test_repository_path_map_skips_unresolvable_and_multiple_deps(libchart, tmp_
 
 # --- global_image_paths ---
 
+
 def test_global_image_paths_reads_every_shared_anchor(libchart):
-    values = {"global": {"images": {
-        "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"},
-        "curl": {"repository": "curlimages/curl", "tag": "8.21.0@sha256:bbbb"},
-    }}}
+    values = {
+        "global": {
+            "images": {
+                "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"},
+                "curl": {"repository": "curlimages/curl", "tag": "8.21.0@sha256:bbbb"},
+            }
+        }
+    }
 
     paths = dict(libchart.global_image_paths(values))
 
@@ -1517,9 +1748,13 @@ def test_global_image_paths_reads_every_shared_anchor(libchart):
 
 
 def test_global_image_paths_skips_entries_without_a_tag(libchart):
-    values = {"global": {"images": {
-        "nginx": {"repository": "nginxinc/nginx-unprivileged"},  # no tag set
-    }}}
+    values = {
+        "global": {
+            "images": {
+                "nginx": {"repository": "nginxinc/nginx-unprivileged"},  # no tag set
+            }
+        }
+    }
 
     assert libchart.global_image_paths(values) == []
 
@@ -1530,6 +1765,7 @@ def test_global_image_paths_no_global_images_block_returns_empty(libchart):
 
 
 # --- repo_group_representative ---
+
 
 def test_repo_group_representative_global_beats_everything(libchart):
     """The shared nginx-unprivileged anchor: aliased by apiproxy's own
@@ -1580,7 +1816,11 @@ def test_repo_group_representative_real_dependency_primary_beats_orphan(libchart
     ]
 
     assert libchart.repo_group_representative(repo_paths, deps) == (
-        "keycloak-operator", "operator", "config", "keycloakImage")
+        "keycloak-operator",
+        "operator",
+        "config",
+        "keycloakImage",
+    )
 
 
 def test_repo_group_representative_order_independent(libchart):
@@ -1594,7 +1834,11 @@ def test_repo_group_representative_order_independent(libchart):
     ]
 
     assert libchart.repo_group_representative(repo_paths, deps) == (
-        "keycloak-operator", "operator", "config", "keycloakImage")
+        "keycloak-operator",
+        "operator",
+        "config",
+        "keycloakImage",
+    )
 
 
 def test_repo_group_representative_orphan_only_falls_back_to_last(libchart):
@@ -1630,8 +1874,9 @@ def test_repository_path_map_prefers_dependency_own_primary_over_orphan(libchart
     first name resolution (never routed through this map at all)."""
     dep = {"name": "keycloak-operator", "alias": "", "version": "26.7.3"}
     own_values = {
-        "keycloak-operator": {"operator": {"config": {
-            "keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}}}},
+        "keycloak-operator": {
+            "operator": {"config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}}}
+        },
         "keycloak": {"image": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}},
     }
     paths = [
@@ -1645,6 +1890,7 @@ def test_repository_path_map_prefers_dependency_own_primary_over_orphan(libchart
 
 
 # --- paths_by_repository ---
+
 
 def test_paths_by_repository_groups_shared_repository(libchart, tmp_path):
     """Several paths resolving to the same repository (e.g. every
@@ -1662,8 +1908,9 @@ def test_paths_by_repository_groups_shared_repository(libchart, tmp_path):
 
     groups = libchart.paths_by_repository(tmp_path, [openzaak, openformulieren], own_values, paths, allow_pull=False)
 
-    assert groups == {"nginxinc/nginx-unprivileged": [
-        ("openzaak", "nginx", "image"), ("openformulieren", "nginx", "image")]}
+    assert groups == {
+        "nginxinc/nginx-unprivileged": [("openzaak", "nginx", "image"), ("openformulieren", "nginx", "image")]
+    }
 
 
 def test_paths_by_repository_matches_repository_path_map_last_survivor(libchart, tmp_path):
@@ -1691,8 +1938,11 @@ def test_paths_by_repository_resolves_via_component_version_repository_sibling(l
     the ordinary "own override, else subchart default" resolution never
     finds on its own."""
     dep = {"name": "redis-operator", "version": "0.26.1"}
-    values = {"redis-operator": {"redisOperator": {
-        "imageName": "quay.io/opstree/redis-operator", "imageTag": "v0.26.0@sha256:aaaa"}}}
+    values = {
+        "redis-operator": {
+            "redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": "v0.26.0@sha256:aaaa"}
+        }
+    }
     paths = [("redis-operator", "redisOperator", "imageTag")]
 
     groups = libchart.paths_by_repository(tmp_path, [dep], values, paths, allow_pull=False)
@@ -1723,13 +1973,19 @@ def test_paths_by_repository_resolves_via_nested_subchart_documented_default(lib
     commented-out example inside its NESTED eck-elasticsearch sub-
     subchart's own values.yaml, which is what this resolves through."""
     dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
-    make_tgz(tmp_path / "charts", "eck-stack", "0.20.0", {}, raw_files={
-        "eck-stack/charts/eck-elasticsearch/values.yaml": (
-            "# Elasticsearch Docker image to deploy.\n#\n"
-            "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n"
-            "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0@sha256:<digest>\n"
-        ),
-    })
+    make_tgz(
+        tmp_path / "charts",
+        "eck-stack",
+        "0.20.0",
+        {},
+        raw_files={
+            "eck-stack/charts/eck-elasticsearch/values.yaml": (
+                "# Elasticsearch Docker image to deploy.\n#\n"
+                "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n"
+                "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0@sha256:<digest>\n"
+            ),
+        },
+    )
     values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
     paths = [("kiss-eck", "eck-elasticsearch", "version")]
 
@@ -1739,6 +1995,7 @@ def test_paths_by_repository_resolves_via_nested_subchart_documented_default(lib
 
 
 # --- canonical_sidecar_row_names ---
+
 
 def test_canonical_sidecar_row_names_dependency_sidecar(libchart, tmp_path):
     dep = {"name": "redis-operator", "alias": "", "version": "0.26.0"}
@@ -1800,8 +2057,7 @@ def test_canonical_sidecar_row_names_self_referential_basename_falls_back_to_pat
     the bare dependency name), and clearly still identifies which
     nested image this is."""
     dep = {"name": "keycloak-operator", "alias": "", "version": "1.12.1"}
-    values = {"keycloak-operator": {"operator": {
-        "image": {"repository": "quay.io/keycloak/keycloak-operator"}}}}
+    values = {"keycloak-operator": {"operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator"}}}}
     paths = [("keycloak-operator", "operator", "image")]
 
     names = libchart.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
@@ -1809,8 +2065,7 @@ def test_canonical_sidecar_row_names_self_referential_basename_falls_back_to_pat
     assert names == {"keycloak-operator - operator": ("keycloak-operator", "operator", "image")}
 
 
-def test_canonical_sidecar_row_names_self_referential_basename_no_fallback_segment_is_excluded(
-        libchart, tmp_path):
+def test_canonical_sidecar_row_names_self_referential_basename_no_fallback_segment_is_excluded(libchart, tmp_path):
     """When the self-referential path has nothing but the top-level key
     and the final image key itself (no distinct segment in between to
     fall back to), there's no useful alternative name at all — still
@@ -1853,8 +2108,7 @@ def test_canonical_sidecar_row_names_excludes_sidecar_sharing_a_global_repositor
     values = {
         "global": {"images": {"nginx": {"repository": "nginxinc/nginx-unprivileged"}}},
         "zac": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged"}}},
-        "frankgateway": {"dashboard": {"auth": {"shim": {
-            "image": {"repository": "nginxinc/nginx-unprivileged"}}}}},
+        "frankgateway": {"dashboard": {"auth": {"shim": {"image": {"repository": "nginxinc/nginx-unprivileged"}}}}},
     }
     paths = [
         ("global", "images", "nginx"),
@@ -1868,10 +2122,12 @@ def test_canonical_sidecar_row_names_excludes_sidecar_sharing_a_global_repositor
 
 
 def test_canonical_sidecar_row_names_multiple_sidecars_stay_distinct(libchart, tmp_path):
-    values = {"redis-operator": {
-        "redis-ha": {"image": {"repository": "quay.io/opstree/redis"}},
-        "redis-exporter": {"image": {"repository": "quay.io/opstree/redis-exporter"}},
-    }}
+    values = {
+        "redis-operator": {
+            "redis-ha": {"image": {"repository": "quay.io/opstree/redis"}},
+            "redis-exporter": {"image": {"repository": "quay.io/opstree/redis-exporter"}},
+        }
+    }
     dep = {"name": "redis-operator", "alias": "", "version": "0.26.0"}
     paths = [("redis-operator", "redis-ha", "image"), ("redis-operator", "redis-exporter", "image")]
 
@@ -1885,12 +2141,18 @@ def test_canonical_sidecar_row_names_multiple_sidecars_stay_distinct(libchart, t
 
 # --- subchart_template_text ---
 
+
 def test_subchart_template_text_concatenates_all_template_files(libchart, tmp_path):
-    make_tgz(tmp_path / "charts", "pabc", "1.1.1", {"image": {"repository": "pabc/pabc-api"}},
-             templates={
-                 "deployment.yaml": "image: {{ .Values.image.repository }}\n",
-                 "service.yaml": "kind: Service\n",
-             })
+    make_tgz(
+        tmp_path / "charts",
+        "pabc",
+        "1.1.1",
+        {"image": {"repository": "pabc/pabc-api"}},
+        templates={
+            "deployment.yaml": "image: {{ .Values.image.repository }}\n",
+            "service.yaml": "kind: Service\n",
+        },
+    )
     dep = {"name": "pabc", "version": "1.1.1"}
     text = libchart.subchart_template_text(tmp_path, dep)
     assert "{{ .Values.image.repository }}" in text
@@ -1914,6 +2176,7 @@ def test_subchart_template_text_no_templates_dir_returns_none(libchart, tmp_path
 
 # --- subchart_default_repository ---
 
+
 def test_subchart_default_repository_resolves_via_alias(libchart, tmp_path):
     """openformulieren is a values.yaml/Chart.yaml alias for the openforms
     subchart — the .tgz and its internal values.yaml are keyed by the
@@ -1929,9 +2192,14 @@ def test_subchart_default_repository_resolves_via_alias(libchart, tmp_path):
 
 
 def test_subchart_default_repository_nested_subpath(libchart, tmp_path):
-    make_tgz(tmp_path / "charts", "zgw-office-addin", "0.9.352", {
-        "frontend": {"image": {"repository": "example/frontend"}},
-    })
+    make_tgz(
+        tmp_path / "charts",
+        "zgw-office-addin",
+        "0.9.352",
+        {
+            "frontend": {"image": {"repository": "example/frontend"}},
+        },
+    )
     deps = [{"name": "zgw-office-addin", "version": "0.9.352"}]
     lines = [
         "zgw-office-addin:",
@@ -1960,10 +2228,15 @@ def test_subchart_default_repository_subchart_has_no_repository_at_path(libchart
 
 
 def test_subchart_default_repository_caches_across_calls(libchart, tmp_path, monkeypatch):
-    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {
-        "image": {"repository": "openzaak/open-zaak"},
-        "worker": {"image": {"repository": "openzaak/open-zaak-worker"}},
-    })
+    make_tgz(
+        tmp_path / "charts",
+        "openzaak",
+        "1.14.2",
+        {
+            "image": {"repository": "openzaak/open-zaak"},
+            "worker": {"image": {"repository": "openzaak/open-zaak-worker"}},
+        },
+    )
     deps = [{"name": "openzaak", "version": "1.14.2"}]
     lines = [
         "openzaak:",
@@ -1989,6 +2262,7 @@ def test_subchart_default_repository_caches_across_calls(libchart, tmp_path, mon
 
 # --- chart_version_lockstep_components (self-resolving wrapper) ---
 
+
 def test_chart_version_lockstep_components_self_resolves_against_real_chart_dir(libchart):
     """Called with no override, resolves chart_dir from lib/chart.py's own
     on-disk location (parents[2]) and reads the REAL etc/settings.yaml --
@@ -2000,14 +2274,14 @@ def test_chart_version_lockstep_components_self_resolves_against_real_chart_dir(
 def test_chart_version_lockstep_components_explicit_override(libchart, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
-        "component_resolution:\n"
-        "  chart_version_lockstep_components: [\"only-this-one\"]\n",
+        'component_resolution:\n  chart_version_lockstep_components: ["only-this-one"]\n',
         encoding="utf-8",
     )
     assert libchart.chart_version_lockstep_components(tmp_path) == frozenset({"only-this-one"})
 
 
 # --- version_repository_path_for / nested_subchart_name_for / nested_subchart_registered_paths ---
+
 
 def test_version_repository_path_for_default(libchart, tmp_path):
     assert libchart.version_repository_path_for("redis-operator", tmp_path) == "redisOperator.imageName"
@@ -2017,9 +2291,7 @@ def test_version_repository_path_for_default(libchart, tmp_path):
 def test_version_repository_path_for_explicit_override(libchart, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
-        "component_resolution:\n"
-        "  version_repository_paths:\n"
-        "    foo-op: \"fooOperator.imageName\"\n",
+        'component_resolution:\n  version_repository_paths:\n    foo-op: "fooOperator.imageName"\n',
         encoding="utf-8",
     )
     assert libchart.version_repository_path_for("foo-op", tmp_path) == "fooOperator.imageName"
@@ -2061,7 +2333,8 @@ def test_nested_subchart_registered_paths_self_resolves_against_real_chart_dir(l
     works end to end against the REAL etc/settings.yaml, not just a
     synthetic chart_dir handed in by a test."""
     assert sorted(libchart.nested_subchart_registered_paths("eck-stack")) == sorted(
-        ["eck-elasticsearch.version", "eck-kibana.version", "eck-enterprise-search.version"])
+        ["eck-elasticsearch.version", "eck-kibana.version", "eck-enterprise-search.version"]
+    )
     assert libchart.nested_subchart_registered_paths("unregistered") == []
 
 
@@ -2078,6 +2351,7 @@ def test_nested_subchart_registered_paths_explicit_override(libchart, tmp_path):
 
 
 # --- component_image_paths / image_paths_for (self-resolving wrappers) ---
+
 
 def test_component_image_paths_self_resolves_against_real_chart_dir(libchart):
     """Called with no override, resolves chart_dir from lib/chart.py's own
@@ -2097,9 +2371,7 @@ def test_component_image_paths_self_resolves_against_real_chart_dir(libchart):
 def test_component_image_paths_explicit_override(libchart, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
-        "component_resolution:\n"
-        "  image_paths:\n"
-        "    only-this-one: [\"image\"]\n",
+        'component_resolution:\n  image_paths:\n    only-this-one: ["image"]\n',
         encoding="utf-8",
     )
     assert libchart.component_image_paths(tmp_path) == {"only-this-one": ["image"]}
@@ -2118,8 +2390,8 @@ def test_image_paths_for_explicit_override(libchart, tmp_path):
     (tmp_path / "etc" / "settings.yaml").write_text(
         "component_resolution:\n"
         "  image_paths:\n"
-        "    only-this-one: [\"frontend.image\", \"backend.image\"]\n"
-        "  default_image_paths: [\"custom-default-image\"]\n",
+        '    only-this-one: ["frontend.image", "backend.image"]\n'
+        '  default_image_paths: ["custom-default-image"]\n',
         encoding="utf-8",
     )
     assert libchart.image_paths_for("only-this-one", tmp_path) == ["frontend.image", "backend.image"]
@@ -2127,6 +2399,7 @@ def test_image_paths_for_explicit_override(libchart, tmp_path):
 
 
 # --- component_version_paths / version_paths_for (self-resolving wrappers) ---
+
 
 def test_component_version_paths_self_resolves_against_real_chart_dir(libchart):
     """Same self-resolving proof as component_image_paths, for the bare-
@@ -2140,9 +2413,7 @@ def test_component_version_paths_self_resolves_against_real_chart_dir(libchart):
 def test_component_version_paths_explicit_override(libchart, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
-        "component_resolution:\n"
-        "  version_paths:\n"
-        "    only-this-one: [\"some.version\"]\n",
+        'component_resolution:\n  version_paths:\n    only-this-one: ["some.version"]\n',
         encoding="utf-8",
     )
     assert libchart.component_version_paths(tmp_path) == {"only-this-one": ["some.version"]}
@@ -2156,9 +2427,7 @@ def test_version_paths_for_self_resolves_against_real_chart_dir(libchart):
 def test_version_paths_for_explicit_override(libchart, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
-        "component_resolution:\n"
-        "  version_paths:\n"
-        "    only-this-one: [\"some.version\"]\n",
+        'component_resolution:\n  version_paths:\n    only-this-one: ["some.version"]\n',
         encoding="utf-8",
     )
     assert libchart.version_paths_for("only-this-one", tmp_path) == ["some.version"]

@@ -8,6 +8,7 @@ schemas fetched over HTTP are reused across runs instead of re-fetched —
 own templates + one run per distinct vendored chart is several
 kubeconform invocations per check_kubeconform call, all hitting largely
 the same set of Kubernetes API kinds/versions."""
+
 import json
 import shutil
 from collections import Counter
@@ -29,10 +30,11 @@ from lib.settings import quality_gates_kubeconform_failing_statuses
 KUBECONFORM_BASE_ARGS = [
     "-strict",  # also catch unknown/duplicate fields, not just type mismatches
     "-ignore-missing-schemas",  # this chart's many CRDs (Keycloak, ECK, Redis, ...) have no
-                                 # schema in kubeconform's registry — skip them, don't error
+    # schema in kubeconform's registry — skip them, don't error
     "-verbose",
     "-summary",
-    "-output", "json",
+    "-output",
+    "json",
 ]
 
 
@@ -75,7 +77,7 @@ def _kubeconform_group_label(key):
 
 
 def _kubeconform_item(entry, locations):
-    """"<kind>/<name>" plus a "(rendered line N)" hint when
+    """ "<kind>/<name>" plus a "(rendered line N)" hint when
     build_resource_locations can locate exactly this kind+name
     unambiguously (kubeconform's own JSON has no namespace field, so a
     kind+name that renders more than once — in different namespaces —
@@ -147,8 +149,10 @@ def check_kubeconform(chart_dir, extra_args):
             (vendored_friendly if chart in vendor_map else vendored_other).append((chart, r))
 
     if own_real:
-        print(f"Found {len(own_real)} real kubeconform issue(s) in this chart's own templates "
-              f"(not cosmetic — these fail the check):")
+        print(
+            f"Found {len(own_real)} real kubeconform issue(s) in this chart's own templates "
+            f"(not cosmetic — these fail the check):"
+        )
         print_grouped_findings(
             [(None, r) for r in own_real],
             key_fn=_kubeconform_group_key,
@@ -159,8 +163,10 @@ def check_kubeconform(chart_dir, extra_args):
         print()
 
     if vendored_friendly:
-        print(f"Found {len(vendored_friendly)} kubeconform issue(s) in partner-maintained "
-              f"vendored sub-chart(s) (reported for visibility, never a failure):")
+        print(
+            f"Found {len(vendored_friendly)} kubeconform issue(s) in partner-maintained "
+            f"vendored sub-chart(s) (reported for visibility, never a failure):"
+        )
         print_grouped_findings(
             vendored_friendly,
             key_fn=lambda entry: (entry[0],) + _kubeconform_group_key(entry),
@@ -172,14 +178,15 @@ def check_kubeconform(chart_dir, extra_args):
 
     if vendored_other:
         by_chart = Counter(chart for chart, _ in vendored_other)
-        print(f"{len(vendored_other)} kubeconform finding(s) across {len(by_chart)} other "
-              f"vendored sub-chart(s) (outside this repo's scope, not shown, never a failure)")
+        print(
+            f"{len(vendored_other)} kubeconform finding(s) across {len(by_chart)} other "
+            f"vendored sub-chart(s) (outside this repo's scope, not shown, never a failure)"
+        )
 
     if not (own_real or vendored_friendly or vendored_other):
         print("OK: no kubeconform findings in the rendered chart")
 
-    detail = (f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, "
-              f"{len(vendored_other)} other-vendor")
+    detail = f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, {len(vendored_other)} other-vendor"
     if own_real:
         return False, detail
     return True, detail

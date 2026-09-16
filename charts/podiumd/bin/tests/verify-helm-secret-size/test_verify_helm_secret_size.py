@@ -6,6 +6,7 @@ podiumd/test_release_secret_size.py) this CLI renders via its OWN `helm
 template <name> <chart_dir> ...` call (an arbitrary --name, so it can't
 go through lib.render_scope.render_chart, which is hardcoded to
 CHART_NAME) — mocked here via vhss.run, never a real helm invocation."""
+
 from types import SimpleNamespace
 
 import pytest
@@ -47,9 +48,18 @@ def test_main_helm_template_command_uses_explicit_name_and_values_file(vhss, mon
 
     monkeypatch.setattr(vhss, "run", fake_run)
     monkeypatch.setattr(vhss, "build_release", lambda *a, **kw: ({}, "1.0.0", []))
-    monkeypatch.setattr("sys.argv", [
-        "verify-helm-secret-size", "--chart", str(tmp_path), "--name", "podiumd", "-f", str(values_path),
-    ])
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "verify-helm-secret-size",
+            "--chart",
+            str(tmp_path),
+            "--name",
+            "podiumd",
+            "-f",
+            str(values_path),
+        ],
+    )
 
     vhss.main()
 
@@ -163,8 +173,9 @@ def test_main_prints_report_on_success(vhss, monkeypatch, tmp_path, capsys):
 
 def test_main_prints_subchart_freshness_warnings_to_stderr(vhss, monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
-    monkeypatch.setattr(vhss, "build_release",
-                         lambda *a, **kw: ({}, "4.9.1", ["Chart.yaml declares zac@1.0.297, stale vendored copy"]))
+    monkeypatch.setattr(
+        vhss, "build_release", lambda *a, **kw: ({}, "4.9.1", ["Chart.yaml declares zac@1.0.297, stale vendored copy"])
+    )
     monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path)])
 
     vhss.main()

@@ -6,6 +6,7 @@ find_versie_groups, select_release_columns,
 missing_required_release_columns, is_semver_compatible, major_minor.
 fetch_page_html's `urlopen` is injected directly, so no network access
 needed."""
+
 import json
 import urllib.error
 
@@ -54,6 +55,7 @@ NO_TH_RELEASE_TABLE_HTML = RELEASE_TABLE_HTML.replace("<th", "<td").replace("</t
 
 # --- page_id_from_url ---
 
+
 def test_page_id_from_url_modern_pages_path(libconfluencetables):
     url = "https://example.atlassian.net/wiki/spaces/PCP/pages/123456789/PodiumD+4.9.0"
     assert libconfluencetables.page_id_from_url(url) == "123456789"
@@ -71,6 +73,7 @@ def test_page_id_from_url_no_match_raises(libconfluencetables):
 
 # --- api_base_url ---
 
+
 def test_api_base_url_cloud_site(libconfluencetables):
     url = "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title"
     assert libconfluencetables.api_base_url(url) == "https://example.atlassian.net/wiki/rest/api"
@@ -82,6 +85,7 @@ def test_api_base_url_server_site(libconfluencetables):
 
 
 # --- fetch_page_html ---
+
 
 class FakeResponse:
     def __init__(self, payload):
@@ -107,11 +111,14 @@ def test_fetch_page_html_sends_basic_auth_and_returns_body_storage(libconfluence
 
     html = libconfluencetables.fetch_page_html(
         "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
-        "kees@info.nl", "s3cr3t", urlopen=fake_urlopen,
+        "kees@info.nl",
+        "s3cr3t",
+        urlopen=fake_urlopen,
     )
     assert html == "<table></table>"
     assert captured["url"] == "https://example.atlassian.net/wiki/rest/api/content/123?expand=body.storage"
     import base64
+
     assert captured["auth"] == "Basic " + base64.b64encode(b"kees@info.nl:s3cr3t").decode()
 
 
@@ -122,7 +129,9 @@ def test_fetch_page_html_missing_body_storage_raises(libconfluencetables):
     with pytest.raises(SystemExit, match="no body.storage.value"):
         libconfluencetables.fetch_page_html(
             "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
-            "kees@info.nl", "s3cr3t", urlopen=fake_urlopen,
+            "kees@info.nl",
+            "s3cr3t",
+            urlopen=fake_urlopen,
         )
 
 
@@ -133,7 +142,9 @@ def test_fetch_page_html_http_error_raises(libconfluencetables):
     with pytest.raises(SystemExit, match="HTTP 401"):
         libconfluencetables.fetch_page_html(
             "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
-            "kees@info.nl", "wrong-token", urlopen=fake_urlopen,
+            "kees@info.nl",
+            "wrong-token",
+            urlopen=fake_urlopen,
         )
 
 
@@ -144,11 +155,14 @@ def test_fetch_page_html_url_error_raises(libconfluencetables):
     with pytest.raises(SystemExit, match="could not reach Confluence"):
         libconfluencetables.fetch_page_html(
             "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
-            "kees@info.nl", "s3cr3t", urlopen=fake_urlopen,
+            "kees@info.nl",
+            "s3cr3t",
+            urlopen=fake_urlopen,
         )
 
 
 # --- extract_tables ---
+
 
 def test_extract_tables_simple(libconfluencetables):
     html = "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>"
@@ -253,9 +267,14 @@ def test_extract_tables_heading_nested_inline_tags_collapsed(libconfluencetables
 
 # --- tables_under_headings ---
 
+
 def test_tables_under_headings_case_insensitive_exact_match(libconfluencetables):
-    tables = [("Product component versies", "rowsA"), ("Overige component versies", "rowsB"),
-              (None, "rowsC"), ("Unrelated", "rowsD")]
+    tables = [
+        ("Product component versies", "rowsA"),
+        ("Overige component versies", "rowsB"),
+        (None, "rowsC"),
+        ("Unrelated", "rowsD"),
+    ]
     matched = libconfluencetables.tables_under_headings(tables, ["product component versies"])
     assert matched == [("Product component versies", "rowsA")]
 
@@ -271,6 +290,7 @@ def test_tables_under_headings_no_match_returns_empty(libconfluencetables):
 
 
 # --- expand_grid ---
+
 
 def test_expand_grid_no_spans(libconfluencetables):
     tables = libconfluencetables.extract_tables(
@@ -312,6 +332,7 @@ def test_expand_grid_full_release_table(libconfluencetables):
 
 
 # --- leading_header_row_count / fallback_header_row_count / effective_header_row_count ---
+
 
 def test_leading_header_row_count_two_header_rows(libconfluencetables):
     tables = libconfluencetables.extract_tables(RELEASE_TABLE_HTML)
@@ -360,6 +381,7 @@ def test_effective_header_row_count_never_zero(libconfluencetables):
 
 # --- header_paths ---
 
+
 def test_header_paths_matches_release_table_structure(libconfluencetables):
     tables = libconfluencetables.extract_tables(RELEASE_TABLE_HTML)
     grid = libconfluencetables.expand_grid(tables[0][1])
@@ -373,6 +395,7 @@ def test_header_paths_matches_release_table_structure(libconfluencetables):
 
 
 # --- find_column ---
+
 
 def test_find_column_case_insensitive_substring_match(libconfluencetables):
     paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "App"]]
@@ -396,9 +419,16 @@ def test_find_column_restricts_to_candidates(libconfluencetables):
 
 # --- find_versie_groups ---
 
+
 def test_find_versie_groups_orders_by_first_appearance(libconfluencetables):
-    paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "App"], ["Versie 4.8", "Helm"],
-             ["Versie 4.9", "App"], ["Versie 4.9", "Helm"]]
+    paths = [
+        [],
+        ["Ontwikkelpartij"],
+        ["Versie 4.8", "App"],
+        ["Versie 4.8", "Helm"],
+        ["Versie 4.9", "App"],
+        ["Versie 4.9", "Helm"],
+    ]
     groups = libconfluencetables.find_versie_groups(paths)
     assert groups == [("Versie 4.8", [2, 3]), ("Versie 4.9", [4, 5])]
 
@@ -424,24 +454,41 @@ def test_find_versie_groups_ignores_non_versie_columns(libconfluencetables):
 
 # --- select_release_columns / missing_required_release_columns ---
 
+
 def test_select_release_columns_full_release_table(libconfluencetables):
     tables = libconfluencetables.extract_tables(RELEASE_TABLE_HTML)
     grid = libconfluencetables.expand_grid(tables[0][1])
     paths = libconfluencetables.header_paths(grid, header_row_count=2)
     columns = libconfluencetables.select_release_columns(paths)
     assert columns == {
-        "first": 0, "vendor": 1, "used_by": None,
-        "source_app": 2, "source_helm": 3, "target_app": 4, "target_helm": 5,
+        "first": 0,
+        "vendor": 1,
+        "used_by": None,
+        "source_app": 2,
+        "source_helm": 3,
+        "target_app": 4,
+        "target_helm": 5,
     }
 
 
 def test_select_release_columns_not_tied_to_specific_version_numbers(libconfluencetables):
-    paths = [[], ["Ontwikkelpartij"], ["Versie 5.0", "App"], ["Versie 5.0", "Helm"],
-             ["Versie 5.1", "App"], ["Versie 5.1", "Helm"]]
+    paths = [
+        [],
+        ["Ontwikkelpartij"],
+        ["Versie 5.0", "App"],
+        ["Versie 5.0", "Helm"],
+        ["Versie 5.1", "App"],
+        ["Versie 5.1", "Helm"],
+    ]
     columns = libconfluencetables.select_release_columns(paths)
     assert columns == {
-        "first": 0, "vendor": 1, "used_by": None,
-        "source_app": 2, "source_helm": 3, "target_app": 4, "target_helm": 5,
+        "first": 0,
+        "vendor": 1,
+        "used_by": None,
+        "source_app": 2,
+        "source_helm": 3,
+        "target_app": 4,
+        "target_helm": 5,
     }
 
 
@@ -458,8 +505,14 @@ def test_select_release_columns_finds_used_by(libconfluencetables):
     """A "Technische component versies"-style table has "Used by" instead
     of "Ontwikkelpartij" — naming which product/Common Ground component
     pulls that piece of tooling in."""
-    paths = [[], ["Used by"], ["Versie 4.8", "App"], ["Versie 4.8", "Helm"],
-             ["Versie 4.9", "App"], ["Versie 4.9", "Helm"]]
+    paths = [
+        [],
+        ["Used by"],
+        ["Versie 4.8", "App"],
+        ["Versie 4.8", "Helm"],
+        ["Versie 4.9", "App"],
+        ["Versie 4.9", "Helm"],
+    ]
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["vendor"] is None
     assert columns["used_by"] == 1
@@ -492,8 +545,14 @@ def test_select_release_columns_none_when_not_exactly_two_versie_groups(libconfl
 def test_missing_required_release_columns_vendor_not_required(libconfluencetables):
     """A "Used by"-style table with no Ontwikkelpartij column at all, but
     every App/Helm column present, must report nothing missing."""
-    paths = [[], ["Used by"], ["Versie 4.8", "App"], ["Versie 4.8", "Helm"],
-             ["Versie 4.9", "App"], ["Versie 4.9", "Helm"]]
+    paths = [
+        [],
+        ["Used by"],
+        ["Versie 4.8", "App"],
+        ["Versie 4.8", "Helm"],
+        ["Versie 4.9", "App"],
+        ["Versie 4.9", "Helm"],
+    ]
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["vendor"] is None
     assert libconfluencetables.missing_required_release_columns(columns) == []
@@ -520,35 +579,43 @@ def test_missing_required_release_columns_reports_missing_app(libconfluencetable
 
 # --- is_semver_compatible ---
 
-@pytest.mark.parametrize("version", [
-    "1.27.4",
-    "v1.25.4",
-    "9.10.1-slim",
-    "1.38.0-glibc",
-    "3.14.7-slim",
-    "0.9.1",
-    "1.0.0+build.1",
-    "3.20",               # allowed variation: missing patch component
-    "3.14-slim",          # same, with a suffix
-    "v.1.25.4",           # allowed variation: stray dot after the "v"
-    "104",                # allowed variation: bare discrete version number (frankgateway)
-    "v104",               # same, with the usual leading "v"
-])
+
+@pytest.mark.parametrize(
+    "version",
+    [
+        "1.27.4",
+        "v1.25.4",
+        "9.10.1-slim",
+        "1.38.0-glibc",
+        "3.14.7-slim",
+        "0.9.1",
+        "1.0.0+build.1",
+        "3.20",  # allowed variation: missing patch component
+        "3.14-slim",  # same, with a suffix
+        "v.1.25.4",  # allowed variation: stray dot after the "v"
+        "104",  # allowed variation: bare discrete version number (frankgateway)
+        "v104",  # same, with the usual leading "v"
+    ],
+)
 def test_is_semver_compatible_accepts_valid_versions(libconfluencetables, version):
     assert libconfluencetables.is_semver_compatible(version) is True
 
 
-@pytest.mark.parametrize("version", [
-    "5.4.3 5.4.4",        # two values run together
-    "0.9.0 0.9.1 (per 4.8.5)",
-    "?",
-    "",
-])
+@pytest.mark.parametrize(
+    "version",
+    [
+        "5.4.3 5.4.4",  # two values run together
+        "0.9.0 0.9.1 (per 4.8.5)",
+        "?",
+        "",
+    ],
+)
 def test_is_semver_compatible_rejects_invalid_versions(libconfluencetables, version):
     assert libconfluencetables.is_semver_compatible(version) is False
 
 
 # --- major_minor ---
+
 
 def test_major_minor_strips_patch_component(libconfluencetables):
     assert libconfluencetables.major_minor("4.9.0") == "4.9"

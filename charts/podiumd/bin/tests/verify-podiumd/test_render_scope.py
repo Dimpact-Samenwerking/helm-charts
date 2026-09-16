@@ -7,6 +7,7 @@ THEIR existing behavior."""
 
 # --- rendered_chart_paths ---
 
+
 def test_rendered_chart_paths_top_level_and_nested(librenderscope):
     """The nested eck-elasticsearch path also implies its own ANCESTOR
     ("podiumd/charts/openinwoner") is live -- see the dedicated umbrella-
@@ -76,6 +77,7 @@ def test_rendered_chart_paths_deduplicates(librenderscope):
 
 
 # --- chart_tree_paths (shared primitive) ---
+
 
 def test_chart_tree_paths_finds_every_match_in_order(librenderscope):
     text = "Error: zac/templates/a.yaml:1\nError: openzaak/templates/c.yaml:1\n"

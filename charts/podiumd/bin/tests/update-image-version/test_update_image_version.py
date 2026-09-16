@@ -5,6 +5,7 @@ imported binding (update_image_version lives in lib.image_version, which
 resolves `registry_tag_exists` via ITS OWN globals — see
 lib.image_version's import — so tests patch that module directly, same as
 tests/lib/test_image_version.py does)."""
+
 import io
 import subprocess
 import tarfile
@@ -47,32 +48,38 @@ def test_wrong_arg_count_prints_docstring_and_exits_one(uiv, monkeypatch, capsys
 
 
 def test_main_updates_matching_pin(uiv, tmp_path, monkeypatch, capsys):
-    values_path = write_values(tmp_path, (
-        "pabc:\n"
-        "  image:\n"
-        "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
-        f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (
+            "pabc:\n"
+            "  image:\n"
+            "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
+            f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
+        ),
+    )
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
 
     uiv.main()
 
     out = capsys.readouterr().out
     assert "values.yaml:4" in out
-    assert f'1.1.2@sha256:{"b" * 64}' in values_path.read_text(encoding="utf-8")
+    assert f"1.1.2@sha256:{'b' * 64}" in values_path.read_text(encoding="utf-8")
 
 
 def test_main_reports_noop_when_already_at_target(uiv, tmp_path, monkeypatch, capsys):
-    values_path = write_values(tmp_path, (
-        "pabc:\n"
-        "  image:\n"
-        "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
-        f'    tag: "1.1.2@sha256:{"a" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (
+            "pabc:\n"
+            "  image:\n"
+            "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
+            f'    tag: "1.1.2@sha256:{"a" * 64}"\n'
+        ),
+    )
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
 
@@ -85,22 +92,20 @@ def test_main_resolves_given_component_key_and_basename(uiv, tmp_path, monkeypat
     """<key> "openklant" scopes the search to that component's own
     values.yaml subtree, where <basename> "open-klant" is pinned."""
     write_chart_yaml(tmp_path, [("openklant", None)])
-    values_path = write_values(tmp_path, (
-        "openklant:\n"
-        "  image:\n"
-        "    repository: maykinmedia/open-klant\n"
-        f'    tag: "2.15.0@sha256:{"a" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (f'openklant:\n  image:\n    repository: maykinmedia/open-klant\n    tag: "2.15.0@sha256:{"a" * 64}"\n'),
+    )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "open-klant", "2.15.1"])
 
     uiv.main()
 
-    assert f'2.15.1@sha256:{"b" * 64}' in values_path.read_text(encoding="utf-8")
+    assert f"2.15.1@sha256:{'b' * 64}" in values_path.read_text(encoding="utf-8")
 
 
 def test_main_accepts_dependency_name_not_just_alias(uiv, tmp_path, monkeypatch):
@@ -113,23 +118,20 @@ def test_main_accepts_dependency_name_not_just_alias(uiv, tmp_path, monkeypatch)
     form via find_dependency. lib.image_version.resolve_key_scope now
     resolves either form to the real values.yaml key first."""
     write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
-    values_path = write_values(tmp_path, (
-        "zac:\n"
-        "  image:\n"
-        "    repository: infonl/zaakafhandelcomponent\n"
-        f'    tag: "5.4.3@sha256:{"a" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (f'zac:\n  image:\n    repository: infonl/zaakafhandelcomponent\n    tag: "5.4.3@sha256:{"a" * 64}"\n'),
+    )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
-    monkeypatch.setattr("sys.argv",
-                         ["update-image-version", "zaakafhandelcomponent", "zaakafhandelcomponent", "5.4.4"])
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv", ["update-image-version", "zaakafhandelcomponent", "zaakafhandelcomponent", "5.4.4"])
 
     uiv.main()
 
-    assert f'5.4.4@sha256:{"b" * 64}' in values_path.read_text(encoding="utf-8")
+    assert f"5.4.4@sha256:{'b' * 64}" in values_path.read_text(encoding="utf-8")
 
 
 def test_main_raises_when_basename_not_unique_under_key(uiv, tmp_path, monkeypatch, capsys):
@@ -137,14 +139,17 @@ def test_main_raises_when_basename_not_unique_under_key(uiv, tmp_path, monkeypat
     can't be identified uniquely (see lib.image_version.
     resolve_scoped_matches) -- an error, never a guess."""
     write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
-    values_path = write_values(tmp_path, (
-        "zac:\n"
-        "  image:\n"
-        f'    repository: org-one/curl\n    tag: "1.0.0@sha256:{"a" * 64}"\n'
-        "  sidecar:\n"
-        "    image:\n"
-        f'      repository: org-two/curl\n      tag: "1.0.0@sha256:{"b" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (
+            "zac:\n"
+            "  image:\n"
+            f'    repository: org-one/curl\n    tag: "1.0.0@sha256:{"a" * 64}"\n'
+            "  sidecar:\n"
+            "    image:\n"
+            f'      repository: org-two/curl\n      tag: "1.0.0@sha256:{"b" * 64}"\n'
+        ),
+    )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     monkeypatch.setattr("sys.argv", ["update-image-version", "zac", "curl", "2.0.0"])
@@ -154,7 +159,9 @@ def test_main_raises_when_basename_not_unique_under_key(uiv, tmp_path, monkeypat
 
 
 def test_main_exits_on_no_match(uiv, tmp_path, monkeypatch, capsys):
-    values_path = write_values(tmp_path, "a:\n  image:\n    repository: org/repo\n    tag: \"1.0.0@sha256:" + "a" * 64 + "\"\n")
+    values_path = write_values(
+        tmp_path, 'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:' + "a" * 64 + '"\n'
+    )
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     monkeypatch.setattr("sys.argv", ["update-image-version", "a", "curl", "8.22.0"])
 
@@ -163,6 +170,7 @@ def test_main_exits_on_no_match(uiv, tmp_path, monkeypatch, capsys):
 
 
 # --- doc updates: single component affected -> full lib.component_docs treatment ---
+
 
 def write_doc(doc_dir, name, text):
     (doc_dir / name).write_text(text, encoding="utf-8")
@@ -174,27 +182,29 @@ def test_main_single_component_updates_upgrade_doc_table_and_changes(uiv, tmp_pa
     update-component-version itself uses -- a real (unchanged) Helm
     chart version shown, not "-"."""
     write_chart_yaml(tmp_path, [("openklant", None)])
-    values_path = write_values(tmp_path, (
-        "openklant:\n"
-        "  image:\n"
-        "    repository: maykinmedia/open-klant\n"
-        f'    tag: "2.15.0@sha256:{"a" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (f'openklant:\n  image:\n    repository: maykinmedia/open-klant\n    tag: "2.15.0@sha256:{"a" * 64}"\n'),
+    )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     (tmp_path / "etc").mkdir(exist_ok=True)
     (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
-              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
-              "## Component versions (1.0.0 vs 0.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n\n"
-              "## Changes\n")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
-              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n")
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-upgrade.md",
+        "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+        "## Component versions (1.0.0 vs 0.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n",
+    )
+    write_doc(
+        uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n"
+    )
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "open-klant", "2.15.1"])
 
     uiv.main()
@@ -224,26 +234,27 @@ def test_main_missing_manifest_entry_instructions_show_fully_qualified_url(uiv, 
     confirmed live in images-4.9.1.yaml — see lib.chart.
     full_repository_for_path)."""
     write_chart_yaml(tmp_path, [("openklant", None)])
-    values_path = write_values(tmp_path, (
-        "openklant:\n"
-        "  image:\n"
-        "    repository: maykinmedia/open-klant\n"
-        f'    tag: "2.15.0@sha256:{"a" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (f'openklant:\n  image:\n    repository: maykinmedia/open-klant\n    tag: "2.15.0@sha256:{"a" * 64}"\n'),
+    )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     (tmp_path / "etc").mkdir(exist_ok=True)
     (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
-              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
-              "## Component versions (1.0.0 vs 0.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n\n"
-              "## Changes\n")
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-upgrade.md",
+        "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+        "## Component versions (1.0.0 vs 0.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n",
+    )
     write_doc(uiv.IMAGES_DIR, "images-1.0.0.yaml", "# Baseline: podiumd 0.9.0.\n#\n# Zero changes:\n#\n\n[]\n")
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "open-klant", "2.15.1"])
 
     uiv.main()
@@ -264,8 +275,7 @@ def _make_vendored_tgz(charts_dir, name, version, chart_yaml):
     return tgz_path
 
 
-def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(
-        uiv, tmp_path, monkeypatch):
+def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(uiv, tmp_path, monkeypatch):
     """Regression test (real bug, real doc): openbao's own "server.image.
     tag" is deliberately left blank at the baseline (see lib.chart.
     COMPONENT_IMAGE_PATHS["openbao"]'s own comment) — its real baseline
@@ -295,50 +305,57 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
         "dependencies:\n"
         "  - name: openbao\n"
         "    version: 0.28.4\n"
-        "    repository: \"@openbao\"\n",
+        '    repository: "@openbao"\n',
         encoding="utf-8",
     )
-    values_path = write_values(tmp_path, (
-        "openbao:\n"
-        "  server:\n"
-        "    image:\n"
-        "      repository: quay.io/openbao/openbao\n"
-        "      tag: \"\"\n"
-    ))
+    values_path = write_values(
+        tmp_path, ('openbao:\n  server:\n    image:\n      repository: quay.io/openbao/openbao\n      tag: ""\n')
+    )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    _make_vendored_tgz(tmp_path / "charts", "openbao", "0.28.4",
-                        {"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.0"})
+    _make_vendored_tgz(
+        tmp_path / "charts", "openbao", "0.28.4", {"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.0"}
+    )
     commit_baseline_tag(tmp_path, "0.9.0")  # baseline: chart 0.28.4, app version blank (subchart-only v2.5.0)
 
     # Simulate "hand-pinned to v2.5.5 by some other means, chart untouched" --
     # real openbao's own actual history this session.
-    write_values(tmp_path, (
-        "openbao:\n"
-        "  server:\n"
-        "    image:\n"
-        "      repository: quay.io/openbao/openbao\n"
-        f'      tag: "v2.5.5@sha256:{"a" * 64}"\n'
-    ))
+    write_values(
+        tmp_path,
+        (
+            "openbao:\n"
+            "  server:\n"
+            "    image:\n"
+            "      repository: quay.io/openbao/openbao\n"
+            f'      tag: "v2.5.5@sha256:{"a" * 64}"\n'
+        ),
+    )
 
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
-              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
-              "## Component versions (1.0.0 vs 0.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n\n"
-              "## Changes\n")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
-              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n")
-    write_doc(uiv.IMAGES_DIR, "images-1.0.0.yaml",
-              "# Baseline: podiumd 0.9.0.\n#\n# Zero changes:\n#\n\n"
-              "- name: openbao\n"
-              "  url: quay.io/openbao/openbao\n"
-              '  version: "v2.5.5"\n'
-              f'  digest: "sha256:{"a" * 64}"\n')
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-upgrade.md",
+        "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+        "## Component versions (1.0.0 vs 0.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n",
+    )
+    write_doc(
+        uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n"
+    )
+    write_doc(
+        uiv.IMAGES_DIR,
+        "images-1.0.0.yaml",
+        "# Baseline: podiumd 0.9.0.\n#\n# Zero changes:\n#\n\n"
+        "- name: openbao\n"
+        "  url: quay.io/openbao/openbao\n"
+        '  version: "v2.5.5"\n'
+        f'  digest: "sha256:{"a" * 64}"\n',
+    )
 
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "openbao", "openbao", "v2.6.0"])
 
     uiv.main()
@@ -378,7 +395,7 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(ui
         "  - name: mi-data\n"
         "    alias: mi\n"
         "    version: 1.0.0\n"
-        "    repository: \"@mi\"\n",
+        '    repository: "@mi"\n',
         encoding="utf-8",
     )
     write_values(tmp_path, "mi:\n  enabled: false\n")
@@ -395,29 +412,30 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(ui
         "  - name: mi-data\n"
         "    alias: mi\n"
         "    version: 1.1.0\n"
-        "    repository: \"@mi\"\n",
+        '    repository: "@mi"\n',
         encoding="utf-8",
     )
-    values_path = write_values(tmp_path, (
-        "mi:\n"
-        "  enabled: false\n"
-        "  image:\n"
-        "    repository: example/mi-data\n"
-        f'    tag: "2.71.0@sha256:{"a" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (f'mi:\n  enabled: false\n  image:\n    repository: example/mi-data\n    tag: "2.71.0@sha256:{"a" * 64}"\n'),
+    )
 
-    write_doc(uiv.DOC_DIR, "4.9.0-to-4.9.1-upgrade.md",
-              "# Upgrade guide: PodiumD 4.9.0 → 4.9.1\n\n"
-              "## Component versions (4.9.1 vs 4.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n\n"
-              "## Changes\n")
-    write_doc(uiv.DOC_DIR, "4.9.0-to-4.9.1-values-deltas.md",
-              "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\nNo changes.\n")
+    write_doc(
+        uiv.DOC_DIR,
+        "4.9.0-to-4.9.1-upgrade.md",
+        "# Upgrade guide: PodiumD 4.9.0 → 4.9.1\n\n"
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n",
+    )
+    write_doc(
+        uiv.DOC_DIR, "4.9.0-to-4.9.1-values-deltas.md", "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\nNo changes.\n"
+    )
 
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "mi", "mi-data", "2.90.0"])
 
     uiv.main()
@@ -447,15 +465,13 @@ def test_main_shows_real_baseline_chart_transition_when_genuinely_tracked(uiv, t
         "  - name: zaakafhandelcomponent\n"
         "    alias: zac\n"
         "    version: 1.0.296\n"
-        "    repository: \"@zac\"\n",
+        '    repository: "@zac"\n',
         encoding="utf-8",
     )
-    write_values(tmp_path, (
-        "zac:\n"
-        "  image:\n"
-        "    repository: infonl/zaakafhandelcomponent\n"
-        f'    tag: "5.0.2@sha256:{"a" * 64}"\n'
-    ))
+    write_values(
+        tmp_path,
+        (f'zac:\n  image:\n    repository: infonl/zaakafhandelcomponent\n    tag: "5.0.2@sha256:{"a" * 64}"\n'),
+    )
     commit_baseline_tag(tmp_path, "4.9.0")  # baseline: chart 1.0.296, app 5.0.2
 
     # Chart bumped (unrelated to this basename bump) since baseline.
@@ -467,28 +483,30 @@ def test_main_shows_real_baseline_chart_transition_when_genuinely_tracked(uiv, t
         "  - name: zaakafhandelcomponent\n"
         "    alias: zac\n"
         "    version: 1.0.297\n"
-        "    repository: \"@zac\"\n",
+        '    repository: "@zac"\n',
         encoding="utf-8",
     )
-    values_path = write_values(tmp_path, (
-        "zac:\n"
-        "  image:\n"
-        "    repository: infonl/zaakafhandelcomponent\n"
-        f'    tag: "5.0.2@sha256:{"a" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (f'zac:\n  image:\n    repository: infonl/zaakafhandelcomponent\n    tag: "5.0.2@sha256:{"a" * 64}"\n'),
+    )
 
-    write_doc(uiv.DOC_DIR, "4.9.0-to-4.9.1-upgrade.md",
-              "# Upgrade guide: PodiumD 4.9.0 → 4.9.1\n\n"
-              "## Component versions (4.9.1 vs 4.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n\n"
-              "## Changes\n")
-    write_doc(uiv.DOC_DIR, "4.9.0-to-4.9.1-values-deltas.md",
-              "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\nNo changes.\n")
+    write_doc(
+        uiv.DOC_DIR,
+        "4.9.0-to-4.9.1-upgrade.md",
+        "# Upgrade guide: PodiumD 4.9.0 → 4.9.1\n\n"
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n",
+    )
+    write_doc(
+        uiv.DOC_DIR, "4.9.0-to-4.9.1-values-deltas.md", "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\nNo changes.\n"
+    )
 
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "zac", "zaakafhandelcomponent", "5.4.3"])
 
     uiv.main()
@@ -526,17 +544,21 @@ def test_main_sidecar_bump_gets_disambiguated_row_name(uiv, tmp_path, monkeypatc
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     (tmp_path / "etc").mkdir(exist_ok=True)
     (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
-              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
-              "## Component versions (1.0.0 vs 0.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n\n"
-              "## Changes\n")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
-              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n")
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-upgrade.md",
+        "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+        "## Component versions (1.0.0 vs 0.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n",
+    )
+    write_doc(
+        uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n"
+    )
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "redis-operator", "redis", "8.6.6"])
 
     uiv.main()
@@ -566,18 +588,22 @@ def test_main_sidecar_bump_does_not_corrupt_dependencys_own_row(uiv, tmp_path, m
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     (tmp_path / "etc").mkdir(exist_ok=True)
     (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
-              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
-              "## Component versions (1.0.0 vs 0.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n"
-              "| redis-operator | 0.25.0 → 0.26.0 | 0.25.0 → 0.26.1 | ACR mirror only |\n\n"
-              "## Changes\n")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
-              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n")
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-upgrade.md",
+        "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+        "## Component versions (1.0.0 vs 0.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator | 0.25.0 → 0.26.0 | 0.25.0 → 0.26.1 | ACR mirror only |\n\n"
+        "## Changes\n",
+    )
+    write_doc(
+        uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n"
+    )
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "redis-operator", "redis", "8.6.6"])
 
     uiv.main()
@@ -600,21 +626,27 @@ def test_main_sidecar_reset_to_baseline_uses_raw_values_key(uiv, tmp_path, monke
     commit_baseline_tag(tmp_path, "0.9.0")  # baseline: redis-ha's redis image at 8.6.2
 
     write_values(tmp_path, REDIS_VALUES_TMPL.format(version="8.6.6", digest="a" * 64))
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
-              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
-              "## Component versions (1.0.0 vs 0.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n"
-              "| redis-operator - redis | 8.6.2 → 8.6.6 | 1.0.0 (unchanged) | - |\n\n"
-              "## Changes\n\n"
-              "### redis-operator - redis 8.6.2 → 8.6.6\n\nblah\n")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
-              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n"
-              "## redis-operator - redis 8.6.2 → 8.6.6 (chart 1.0.0, unchanged) — image tag only\n")
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-upgrade.md",
+        "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+        "## Component versions (1.0.0 vs 0.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator - redis | 8.6.2 → 8.6.6 | 1.0.0 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### redis-operator - redis 8.6.2 → 8.6.6\n\nblah\n",
+    )
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-values-deltas.md",
+        "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n"
+        "## redis-operator - redis 8.6.2 → 8.6.6 (chart 1.0.0, unchanged) — image tag only\n",
+    )
 
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "a" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "a" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "redis-operator", "redis", "8.6.2"])
 
     uiv.main()
@@ -628,6 +660,7 @@ def test_main_sidecar_reset_to_baseline_uses_raw_values_key(uiv, tmp_path, monke
 
 # --- doc updates: multiple components affected -> shared-image (lib.image_docs) treatment ---
 
+
 def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, tmp_path, monkeypatch, capsys):
     """curl, shared via values.yaml's global.images anchor block and
     aliased into two unrelated components -- gets its own table row
@@ -636,42 +669,52 @@ def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, t
     either aliasing component. key=MULTIPLE (see lib.image_version.
     MULTIPLE_KEY) is release-table.csv's own convention for this case."""
     write_chart_yaml(tmp_path, [("keycloak-operator", None), ("zac", None)])
-    values_path = write_values(tmp_path, (
-        "global:\n"
-        "  images:\n"
-        "    curl: &curlImage\n"
-        "      repository: curlimages/curl\n"
-        f'      tag: "8.20.0@sha256:{"a" * 64}"\n'
-        "keycloak-operator:\n"
-        "  jobs:\n"
-        "    ensureOperatorSa:\n"
-        "      image: *curlImage\n"
-        "zac:\n"
-        "  global:\n"
-        "    curlImage: *curlImage\n"
-    ))
+    values_path = write_values(
+        tmp_path,
+        (
+            "global:\n"
+            "  images:\n"
+            "    curl: &curlImage\n"
+            "      repository: curlimages/curl\n"
+            f'      tag: "8.20.0@sha256:{"a" * 64}"\n'
+            "keycloak-operator:\n"
+            "  jobs:\n"
+            "    ensureOperatorSa:\n"
+            "      image: *curlImage\n"
+            "zac:\n"
+            "  global:\n"
+            "    curlImage: *curlImage\n"
+        ),
+    )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     (tmp_path / "etc").mkdir(exist_ok=True)
     (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
-              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
-              "## Component versions (1.0.0 vs 0.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n\n"
-              "## Changes\n")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
-              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n")
-    write_doc(uiv.IMAGES_DIR, "images-1.0.0.yaml",
-              "# Baseline: podiumd 0.9.0.\n#\n# One change:\n#   1. curl 8.20.0 -> 8.20.0.\n#\n\n"
-              "# curl — 8.20.0 -> 8.20.0\n"
-              "- name: curlimages/curl\n"
-              "  url: docker.io/curlimages/curl\n"
-              '  version: "8.20.0"\n'
-              f'  digest: "sha256:{"a" * 64}"\n')
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-upgrade.md",
+        "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+        "## Component versions (1.0.0 vs 0.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n",
+    )
+    write_doc(
+        uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n"
+    )
+    write_doc(
+        uiv.IMAGES_DIR,
+        "images-1.0.0.yaml",
+        "# Baseline: podiumd 0.9.0.\n#\n# One change:\n#   1. curl 8.20.0 -> 8.20.0.\n#\n\n"
+        "# curl — 8.20.0 -> 8.20.0\n"
+        "- name: curlimages/curl\n"
+        "  url: docker.io/curlimages/curl\n"
+        '  version: "8.20.0"\n'
+        f'  digest: "sha256:{"a" * 64}"\n',
+    )
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.21.0"])
 
     uiv.main()
@@ -711,36 +754,43 @@ def test_main_shared_image_sorts_at_its_real_values_yaml_position_not_last(uiv, 
     values.yaml key order, so curl's row/section must land BEFORE it, not
     after."""
     write_chart_yaml(tmp_path, [("keycloak-operator", None)])
-    values_path = write_values(tmp_path, (
-        "global:\n"
-        "  images:\n"
-        "    curl: &curlImage\n"
-        "      repository: curlimages/curl\n"
-        f'      tag: "8.20.0@sha256:{"a" * 64}"\n'
-        "keycloak-operator:\n"
-        "  jobs:\n"
-        "    ensureOperatorSa:\n"
-        "      image: *curlImage\n"
-    ))
+    values_path = write_values(
+        tmp_path,
+        (
+            "global:\n"
+            "  images:\n"
+            "    curl: &curlImage\n"
+            "      repository: curlimages/curl\n"
+            f'      tag: "8.20.0@sha256:{"a" * 64}"\n'
+            "keycloak-operator:\n"
+            "  jobs:\n"
+            "    ensureOperatorSa:\n"
+            "      image: *curlImage\n"
+        ),
+    )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     (tmp_path / "etc").mkdir(exist_ok=True)
     (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
-              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
-              "## Component versions (1.0.0 vs 0.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n"
-              "| keycloak-operator | 1.0.0 (unchanged) | 1.0.0 (unchanged) | - |\n\n"
-              "## Changes\n\n"
-              "### keycloak-operator 1.0.0 (unchanged)\n\n"
-              "Some existing prose about keycloak-operator.\n\n"
-              "- Image / digest: see [`images-1.0.0.yaml`](../images/images-1.0.0.yaml).\n")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
-              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n")
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-upgrade.md",
+        "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+        "## Component versions (1.0.0 vs 0.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| keycloak-operator | 1.0.0 (unchanged) | 1.0.0 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### keycloak-operator 1.0.0 (unchanged)\n\n"
+        "Some existing prose about keycloak-operator.\n\n"
+        "- Image / digest: see [`images-1.0.0.yaml`](../images/images-1.0.0.yaml).\n",
+    )
+    write_doc(
+        uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n"
+    )
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.21.0"])
 
     uiv.main()
@@ -750,8 +800,7 @@ def test_main_shared_image_sorts_at_its_real_values_yaml_position_not_last(uiv, 
     assert upgrade.index("### curl") < upgrade.index("### keycloak-operator")
 
 
-def test_main_shared_image_insertion_gets_blank_line_when_preceding_content_has_none(
-        uiv, tmp_path, monkeypatch):
+def test_main_shared_image_insertion_gets_blank_line_when_preceding_content_has_none(uiv, tmp_path, monkeypatch):
     """Regression test (real bug, real doc): insert_changes_section used
     to assume a blank line already separated the insertion point from
     whatever precedes it — true only by accident. Real case: aaa-dep's
@@ -764,35 +813,42 @@ def test_main_shared_image_insertion_gets_blank_line_when_preceding_content_has_
     point supplies one on its own (section_text always starts directly
     with "### ", never a leading blank)."""
     write_chart_yaml(tmp_path, [("aaa-dep", None), ("zzz-dep", None)])
-    values_path = write_values(tmp_path, (
-        "aaa-dep:\n"
-        "  image:\n"
-        "    repository: example/aaa-dep\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-        "zzz-dep:\n"
-        "  image:\n"
-        "    repository: example/zzz-dep\n"
-        f'    tag: "1.0.0@sha256:{"b" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (
+            "aaa-dep:\n"
+            "  image:\n"
+            "    repository: example/aaa-dep\n"
+            f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
+            "zzz-dep:\n"
+            "  image:\n"
+            "    repository: example/zzz-dep\n"
+            f'    tag: "1.0.0@sha256:{"b" * 64}"\n'
+        ),
+    )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
     (tmp_path / "etc").mkdir(exist_ok=True)
     (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "0.9.0"\n', encoding="utf-8")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
-              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
-              "## Component versions (1.0.0 vs 0.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n"
-              "| aaa-dep | 1.0.0 (unchanged) | 1.0.0 (unchanged) | - |\n\n"
-              "## Changes\n\n"
-              "### aaa-dep 1.0.0 (unchanged)\n\n"
-              "Some existing prose about aaa-dep.\n\n"
-              "- Image / digest: see [`images-1.0.0.yaml`](../images/images-1.0.0.yaml).\n")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
-              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n")
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-upgrade.md",
+        "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+        "## Component versions (1.0.0 vs 0.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| aaa-dep | 1.0.0 (unchanged) | 1.0.0 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### aaa-dep 1.0.0 (unchanged)\n\n"
+        "Some existing prose about aaa-dep.\n\n"
+        "- Image / digest: see [`images-1.0.0.yaml`](../images/images-1.0.0.yaml).\n",
+    )
+    write_doc(
+        uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n"
+    )
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "c" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "c" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "zzz-dep", "zzz-dep", "1.0.1"])
 
     uiv.main()
@@ -804,6 +860,7 @@ def test_main_shared_image_insertion_gets_blank_line_when_preceding_content_has_
 
 # --- shared-image doc updates vs the TRUE git baseline: reset-to-baseline
 # removal, and collapsing more than one bump into a single entry ---
+
 
 def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
@@ -851,31 +908,39 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(uiv, tmp_pat
 
     # Simulate "already bumped to 8.21.0 earlier in this release cycle".
     write_values(tmp_path, CURL_VALUES_TMPL.format(version="8.21.0", digest="a" * 64))
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
-              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
-              "## Component versions (1.0.0 vs 0.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n"
-              "| curl | 8.20.0 → 8.21.0 | - | - |\n\n"
-              "## Changes\n\n"
-              "### curl 8.20.0 → 8.21.0\n\nblah\n")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
-              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n"
-              "## curl 8.20.0 → 8.21.0 — pinned at 1 place in `values.yaml`\n")
-    write_doc(uiv.IMAGES_DIR, "images-1.0.0.yaml",
-              "# Baseline: podiumd 0.9.0.\n#\n# One change:\n#   1. curl 8.20.0 -> 8.21.0.\n#\n\n"
-              "# curl — 8.20.0 -> 8.21.0\n"
-              "- name: curlimages/curl\n"
-              "  url: docker.io/curlimages/curl\n"
-              '  version: "8.21.0"\n'
-              f'  digest: "sha256:{"a" * 64}"\n')
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-upgrade.md",
+        "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+        "## Component versions (1.0.0 vs 0.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| curl | 8.20.0 → 8.21.0 | - | - |\n\n"
+        "## Changes\n\n"
+        "### curl 8.20.0 → 8.21.0\n\nblah\n",
+    )
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-values-deltas.md",
+        "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n## curl 8.20.0 → 8.21.0 — pinned at 1 place in `values.yaml`\n",
+    )
+    write_doc(
+        uiv.IMAGES_DIR,
+        "images-1.0.0.yaml",
+        "# Baseline: podiumd 0.9.0.\n#\n# One change:\n#   1. curl 8.20.0 -> 8.21.0.\n#\n\n"
+        "# curl — 8.20.0 -> 8.21.0\n"
+        "- name: curlimages/curl\n"
+        "  url: docker.io/curlimages/curl\n"
+        '  version: "8.21.0"\n'
+        f'  digest: "sha256:{"a" * 64}"\n',
+    )
 
     import lib.image_version as image_version
+
     # Same digest baseline already recorded -- re-resolving 8.20.0 (a real,
     # immutable released version) from the registry always returns this
     # same digest, exactly like it would outside this mocked test.
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "a" * 64))
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "a" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.20.0"])
 
     uiv.main()
@@ -909,29 +974,33 @@ def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(ui
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", tmp_path / "values.yaml")
     commit_baseline_tag(tmp_path, "0.9.0")  # baseline: curl 8.20.0@sha256:aaaa... everywhere
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
-              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
-              "## Component versions (1.0.0 vs 0.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n\n"
-              "## Changes\n")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
-              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n")
-    write_doc(uiv.IMAGES_DIR, "images-1.0.0.yaml",
-              "# Baseline: podiumd 0.9.0.\n#\n# Zero changes:\n#\n\n"
-              "- name: curlimages/curl\n"
-              "  url: docker.io/curlimages/curl\n"
-              '  version: "8.20.0"\n'
-              f'  digest: "sha256:{"a" * 64}"\n')
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-upgrade.md",
+        "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+        "## Component versions (1.0.0 vs 0.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n",
+    )
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n")
+    write_doc(
+        uiv.IMAGES_DIR,
+        "images-1.0.0.yaml",
+        "# Baseline: podiumd 0.9.0.\n#\n# Zero changes:\n#\n\n"
+        "- name: curlimages/curl\n"
+        "  url: docker.io/curlimages/curl\n"
+        '  version: "8.20.0"\n'
+        f'  digest: "sha256:{"a" * 64}"\n',
+    )
 
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.21.0"])
     uiv.main()
 
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "c" * 64))
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "c" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.22.0"])
     uiv.main()
 
@@ -975,45 +1044,48 @@ def test_main_renders_new_when_shared_image_never_existed_at_baseline(uiv, tmp_p
     convention old_app=None already uses elsewhere for a component with
     no real baseline value at all)."""
     write_chart_yaml(tmp_path, [("keycloak-operator", None)])
-    write_values(tmp_path, (
-        "keycloak-operator:\n"
-        "  image:\n"
-        "    repository: keycloak/keycloak\n"
-        f'    tag: "26.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(
+        tmp_path,
+        (f'keycloak-operator:\n  image:\n    repository: keycloak/keycloak\n    tag: "26.0.0@sha256:{"a" * 64}"\n'),
+    )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", tmp_path / "values.yaml")
     commit_baseline_tag(tmp_path, "0.9.0")  # baseline: no shared curl anchor at all yet
 
     # Mid-cycle, before this run: curl introduced as a brand-new shared
     # anchor at 8.21.0 -- never went through THIS run.
-    write_values(tmp_path, (
-        "global:\n"
-        "  images:\n"
-        "    curl: &curlImage\n"
-        "      repository: curlimages/curl\n"
-        '      tag: "8.21.0@sha256:{digest}"\n'
-        "keycloak-operator:\n"
-        "  image:\n"
-        "    repository: keycloak/keycloak\n"
-        f'    tag: "26.0.0@sha256:{"a" * 64}"\n'
-        "  jobs:\n"
-        "    ensureOperatorSa:\n"
-        "      image: *curlImage\n"
-    ).format(digest="b" * 64))
+    write_values(
+        tmp_path,
+        (
+            "global:\n"
+            "  images:\n"
+            "    curl: &curlImage\n"
+            "      repository: curlimages/curl\n"
+            '      tag: "8.21.0@sha256:{digest}"\n'
+            "keycloak-operator:\n"
+            "  image:\n"
+            "    repository: keycloak/keycloak\n"
+            f'    tag: "26.0.0@sha256:{"a" * 64}"\n'
+            "  jobs:\n"
+            "    ensureOperatorSa:\n"
+            "      image: *curlImage\n"
+        ).format(digest="b" * 64),
+    )
 
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
-              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
-              "## Component versions (1.0.0 vs 0.9.0)\n\n"
-              "| Component | App version | Helm chart | Notes |\n"
-              "| --- | --- | --- | --- |\n\n"
-              "## Changes\n")
-    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
-              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n")
+    write_doc(
+        uiv.DOC_DIR,
+        "0.9.0-to-1.0.0-upgrade.md",
+        "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+        "## Component versions (1.0.0 vs 0.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n",
+    )
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n")
 
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "c" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "c" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.22.0"])
     uiv.main()
 

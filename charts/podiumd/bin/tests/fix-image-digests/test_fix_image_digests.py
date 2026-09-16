@@ -2,6 +2,7 @@
 pure logic plus a mocked-registry integration test. No network access
 needed: registry_tag_exists is monkeypatched wherever a live fetch would
 otherwise happen."""
+
 import io
 import subprocess
 import tarfile
@@ -30,6 +31,7 @@ def write_chart_yaml(chart_dir, deps):
 
 # --- parse_repo ---
 
+
 def test_parse_repo_bare_docker_hub_official_image(sid):
     assert sid.parse_repo("python") == ("docker.io", "library/python")
 
@@ -50,6 +52,7 @@ def test_parse_repo_explicit_host(sid):
 # Its own dedicated tests are tests/verify-podiumd/test_image_digests.py's;
 # no need to duplicate them here.)
 
+
 def test_scan_digest_pins_quoted_and_bare(sid):
     lines = [
         "  a:",
@@ -68,6 +71,7 @@ def test_scan_digest_pins_quoted_and_bare(sid):
 
 # --- find_stale_digests ---
 
+
 def test_find_stale_digests_reports_mismatch(sid, tmp_path, monkeypatch):
     lines = [
         "a:",
@@ -83,7 +87,12 @@ def test_find_stale_digests_reports_mismatch(sid, tmp_path, monkeypatch):
     assert len(stale) == 1
     repository, version, old_digest, new_digest, pin_lines, sliding = stale[0]
     assert (repository, version, old_digest, new_digest, pin_lines, sliding) == (
-        "org/repo", "1.0.0", "a" * 64, f"sha256:{'b' * 64}", [4], False
+        "org/repo",
+        "1.0.0",
+        "a" * 64,
+        f"sha256:{'b' * 64}",
+        [4],
+        False,
     )
 
 
@@ -102,6 +111,7 @@ def test_find_stale_digests_records_unresolved(sid, tmp_path):
 
 
 # --- find_stale_digests: subchart-default repository fallback ---
+
 
 def test_find_stale_digests_falls_back_to_subchart_default_repository(sid, tmp_path, monkeypatch):
     """openzaak/openformulieren-style pins: no repository in values.yaml at
@@ -167,15 +177,18 @@ def test_find_stale_digests_vendors_dependencies_when_tgz_missing(sid, tmp_path,
     assert stale == [] and fetch_errors == []
 
 
-def test_find_stale_digests_warns_and_stays_unresolved_when_repos_configuration_fails(sid, tmp_path, monkeypatch, capsys):
+def test_find_stale_digests_warns_and_stays_unresolved_when_repos_configuration_fails(
+    sid, tmp_path, monkeypatch, capsys
+):
     lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
     write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
 
     def fail_if_called(*args, **kwargs):
         raise AssertionError("vendor_dependencies must never run when ensure_repos_configured failed")
 
-    monkeypatch.setattr(sid, "ensure_repos_configured",
-                         lambda chart_dir: (False, "helm repo add zac failed: network unreachable"))
+    monkeypatch.setattr(
+        sid, "ensure_repos_configured", lambda chart_dir: (False, "helm repo add zac failed: network unreachable")
+    )
     monkeypatch.setattr(sid, "vendor_dependencies", fail_if_called)
 
     stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
@@ -219,7 +232,8 @@ def test_find_stale_digests_never_vendors_when_no_matching_dependency(sid, tmp_p
 def test_find_stale_digests_retries_once_then_gives_up(sid, tmp_path, monkeypatch):
     lines = ["a:", "  image:", "    repository: org/repo", f'    tag: "1.0.0@sha256:{"a" * 64}"']
     monkeypatch.setattr(
-        sid, "registry_tag_exists",
+        sid,
+        "registry_tag_exists",
         lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.URLError("down")),
     )
     stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
@@ -229,8 +243,14 @@ def test_find_stale_digests_retries_once_then_gives_up(sid, tmp_path, monkeypatc
 
 def test_find_stale_digests_dedupes_shared_repo_and_tag(sid, tmp_path, monkeypatch):
     lines = [
-        "a:", "  image:", "    repository: org/repo", f'    tag: "1.0.0@sha256:{"a" * 64}"',
-        "b:", "  image:", "    repository: org/repo", f'    tag: "1.0.0@sha256:{"a" * 64}"',
+        "a:",
+        "  image:",
+        "    repository: org/repo",
+        f'    tag: "1.0.0@sha256:{"a" * 64}"',
+        "b:",
+        "  image:",
+        "    repository: org/repo",
+        f'    tag: "1.0.0@sha256:{"a" * 64}"',
     ]
     calls = []
 
@@ -274,6 +294,7 @@ def test_find_stale_digests_calls_is_sliding_tag_with_live_digest(sid, tmp_path,
 
 # --- main() integration ---
 
+
 def write_values(path, text):
     path.write_text(text, encoding="utf-8")
 
@@ -289,7 +310,7 @@ def test_main_help_flag_prints_usage_and_exits_zero(sid, monkeypatch, capsys, fl
 
 def test_main_dry_run_does_not_write(sid, tmp_path, monkeypatch):
     values_path = tmp_path / "values.yaml"
-    original = "a:\n  image:\n    repository: org/repo\n" f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
+    original = f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'
     write_values(values_path, original)
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
@@ -328,8 +349,9 @@ def test_main_invokes_fix_helm_doc_after_a_real_write(sid, tmp_path, monkeypatch
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
     calls = []
-    monkeypatch.setattr(sid, "run_script",
-                         lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0))[1])
+    monkeypatch.setattr(
+        sid, "run_script", lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0))[1]
+    )
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -353,8 +375,9 @@ def test_main_invokes_fix_doc_consistency_after_fix_helm_doc(sid, tmp_path, monk
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
     calls = []
-    monkeypatch.setattr(sid, "run_script",
-                         lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0))[1])
+    monkeypatch.setattr(
+        sid, "run_script", lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0))[1]
+    )
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -406,8 +429,9 @@ def test_main_propagates_fix_helm_doc_failure_exit_code(sid, tmp_path, monkeypat
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
     calls = []
-    monkeypatch.setattr(sid, "run_script",
-                         lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 1))[1])
+    monkeypatch.setattr(
+        sid, "run_script", lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 1))[1]
+    )
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -472,12 +496,15 @@ def test_main_updates_all_occurrences_of_shared_digest(sid, tmp_path, monkeypatc
     values_path = tmp_path / "values.yaml"
     old_digest = "a" * 64
     new_digest = "b" * 64
-    write_values(values_path, (
-        "a:\n  image:\n    repository: org/repo\n    tag: "
-        f'"1.0.0@sha256:{old_digest}"\n'
-        "b:\n  image:\n    repository: org/repo\n    tag: "
-        f'"1.0.0@sha256:{old_digest}"\n'
-    ))
+    write_values(
+        values_path,
+        (
+            "a:\n  image:\n    repository: org/repo\n    tag: "
+            f'"1.0.0@sha256:{old_digest}"\n'
+            "b:\n  image:\n    repository: org/repo\n    tag: "
+            f'"1.0.0@sha256:{old_digest}"\n'
+        ),
+    )
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{new_digest}"))
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
@@ -495,7 +522,8 @@ def test_main_exits_nonzero_on_fetch_error(sid, tmp_path, monkeypatch):
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(
-        sid, "registry_tag_exists",
+        sid,
+        "registry_tag_exists",
         lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.URLError("down")),
     )
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
@@ -519,22 +547,27 @@ def test_main_exits_zero_when_nothing_stale(sid, tmp_path, monkeypatch):
 
 # --- main(): sliding pins are refreshed by default, same as any other ---
 
+
 def write_two_image_values(path, nginx_digest, zac_digest):
-    write_values(path, (
-        "nginx:\n"
-        "  image:\n"
-        "    repository: nginxinc/nginx-unprivileged\n"
-        f'    tag: "1.31.3@sha256:{nginx_digest}"\n'
-        "zac:\n"
-        "  image:\n"
-        "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
-        f'    tag: "5.1.0@sha256:{zac_digest}"\n'
-    ))
+    write_values(
+        path,
+        (
+            "nginx:\n"
+            "  image:\n"
+            "    repository: nginxinc/nginx-unprivileged\n"
+            f'    tag: "1.31.3@sha256:{nginx_digest}"\n'
+            "zac:\n"
+            "  image:\n"
+            "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+            f'    tag: "5.1.0@sha256:{zac_digest}"\n'
+        ),
+    )
 
 
 def mock_is_sliding_tag_by_repo(monkeypatch, sid, sliding_repos):
-    monkeypatch.setattr(sid, "is_sliding_tag",
-                         lambda values_path, host, repo, version, live_digest: repo in sliding_repos)
+    monkeypatch.setattr(
+        sid, "is_sliding_tag", lambda values_path, host, repo, version, live_digest: repo in sliding_repos
+    )
 
 
 def test_main_default_updates_sliding_and_pinned_alike(sid, tmp_path, monkeypatch, capsys):
@@ -547,10 +580,13 @@ def test_main_default_updates_sliding_and_pinned_alike(sid, tmp_path, monkeypatc
     old_zac, new_zac = "b" * 64, "d" * 64
     write_two_image_values(values_path, old_nginx, old_zac)
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
-    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (
-        (True, f"sha256:{new_nginx}") if repo == "nginxinc/nginx-unprivileged"
-        else (True, f"sha256:{new_zac}")
-    ))
+    monkeypatch.setattr(
+        sid,
+        "registry_tag_exists",
+        lambda host, repo, tag: (
+            (True, f"sha256:{new_nginx}") if repo == "nginxinc/nginx-unprivileged" else (True, f"sha256:{new_zac}")
+        ),
+    )
     mock_is_sliding_tag_by_repo(monkeypatch, sid, {"nginxinc/nginx-unprivileged"})
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
@@ -566,6 +602,7 @@ def test_main_default_updates_sliding_and_pinned_alike(sid, tmp_path, monkeypatc
 
 # --- main(): <key> <basename> scopes to one image ---
 
+
 def test_main_target_updates_sliding_pin(sid, tmp_path, monkeypatch):
     """Naming the image explicitly still works when it happens to be
     sliding -- no different from the default, unscoped behavior."""
@@ -574,10 +611,13 @@ def test_main_target_updates_sliding_pin(sid, tmp_path, monkeypatch):
     zac_digest = "b" * 64
     write_two_image_values(values_path, old_nginx, zac_digest)
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
-    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (
-        (True, f"sha256:{new_nginx}") if repo == "nginxinc/nginx-unprivileged"
-        else (True, f"sha256:{zac_digest}")
-    ))
+    monkeypatch.setattr(
+        sid,
+        "registry_tag_exists",
+        lambda host, repo, tag: (
+            (True, f"sha256:{new_nginx}") if repo == "nginxinc/nginx-unprivileged" else (True, f"sha256:{zac_digest}")
+        ),
+    )
     mock_is_sliding_tag_by_repo(monkeypatch, sid, {"nginxinc/nginx-unprivileged"})
     monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx", "nginx-unprivileged"])
 
@@ -597,10 +637,13 @@ def test_main_target_leaves_other_stale_pins_untouched(sid, tmp_path, monkeypatc
     old_zac, new_zac = "b" * 64, "d" * 64
     write_two_image_values(values_path, old_nginx, old_zac)
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
-    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (
-        (True, f"sha256:{new_nginx}") if repo == "nginxinc/nginx-unprivileged"
-        else (True, f"sha256:{new_zac}")
-    ))
+    monkeypatch.setattr(
+        sid,
+        "registry_tag_exists",
+        lambda host, repo, tag: (
+            (True, f"sha256:{new_nginx}") if repo == "nginxinc/nginx-unprivileged" else (True, f"sha256:{new_zac}")
+        ),
+    )
     mock_is_sliding_tag_by_repo(monkeypatch, sid, set())
     monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx", "nginx-unprivileged"])
 
@@ -618,10 +661,15 @@ def test_main_target_no_stale_digest_reports_nothing_to_do(sid, tmp_path, monkey
     zac_digest = "b" * 64
     write_two_image_values(values_path, nginx_digest, zac_digest)
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
-    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (
-        (True, f"sha256:{nginx_digest}") if repo == "nginxinc/nginx-unprivileged"
-        else (True, f"sha256:{zac_digest}")
-    ))
+    monkeypatch.setattr(
+        sid,
+        "registry_tag_exists",
+        lambda host, repo, tag: (
+            (True, f"sha256:{nginx_digest}")
+            if repo == "nginxinc/nginx-unprivileged"
+            else (True, f"sha256:{zac_digest}")
+        ),
+    )
     mock_is_sliding_tag_by_repo(monkeypatch, sid, set())
     monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx", "nginx-unprivileged"])
 
@@ -640,10 +688,13 @@ def test_main_target_resolves_given_key_and_basename(sid, tmp_path, monkeypatch,
     old_zac, new_zac = "b" * 64, "d" * 64
     write_two_image_values(values_path, old_nginx, old_zac)
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
-    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (
-        (True, f"sha256:{old_nginx}") if repo == "nginxinc/nginx-unprivileged"
-        else (True, f"sha256:{new_zac}")
-    ))
+    monkeypatch.setattr(
+        sid,
+        "registry_tag_exists",
+        lambda host, repo, tag: (
+            (True, f"sha256:{old_nginx}") if repo == "nginxinc/nginx-unprivileged" else (True, f"sha256:{new_zac}")
+        ),
+    )
     mock_is_sliding_tag_by_repo(monkeypatch, sid, set())
     monkeypatch.setattr("sys.argv", ["fix-image-digests", "zac", "zaakafhandelcomponent"])
 

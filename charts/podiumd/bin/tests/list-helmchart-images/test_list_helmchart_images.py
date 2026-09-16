@@ -3,6 +3,7 @@ pull_chart/pulled_chart_dir/find_images/version_of themselves are lib.chart's
 own (see tests/lib/test_chart.py); these tests just cover this script's own
 glue, with `helm pull` mocked out via a fake pull_chart so no `helm` binary
 or network access is needed."""
+
 import pytest
 import yaml
 
@@ -12,6 +13,7 @@ def write_chart_yaml(lhi, dependencies):
 
 
 # --- find_dependency ---
+
 
 def test_find_dependency_by_name(lhi):
     write_chart_yaml(lhi, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
@@ -33,6 +35,7 @@ def test_find_dependency_not_found_raises(lhi):
 
 # --- report_chart ---
 
+
 def write_chart(chart_dir, name, version, app_version=None, dependencies=None, values=None):
     chart_dir.mkdir(parents=True, exist_ok=True)
     chart_yaml = {"name": name, "version": version}
@@ -45,9 +48,14 @@ def write_chart(chart_dir, name, version, app_version=None, dependencies=None, v
 
 
 def test_report_chart_prints_chart_deps_and_images(lhi, tmp_path, capsys):
-    write_chart(tmp_path, "zaakafhandelcomponent", "1.0.297", app_version="5.5",
-                dependencies=[{"name": "opentelemetry-collector", "version": "0.169.0"}],
-                values={"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:abc"}})
+    write_chart(
+        tmp_path,
+        "zaakafhandelcomponent",
+        "1.0.297",
+        app_version="5.5",
+        dependencies=[{"name": "opentelemetry-collector", "version": "0.169.0"}],
+        values={"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:abc"}},
+    )
     lhi.report_chart(tmp_path, "1.0.297", "zac")
     out = capsys.readouterr().out
     assert "Chart: zaakafhandelcomponent 1.0.297 (appVersion: 5.5)" in out
@@ -76,11 +84,17 @@ def test_report_chart_warns_on_version_mismatch(lhi, tmp_path, capsys):
 
 # --- main(): local "file://" dependency ---
 
+
 def test_main_reads_local_chart_source_for_file_dependency(lhi, tmp_path, monkeypatch, capsys):
     write_chart_yaml(lhi, [{"name": "mi-data", "alias": "mi", "repository": "file://../mi-data"}])
     local_dir = tmp_path / "mi-data"
-    write_chart(local_dir, "mi-data", "1.0.0", app_version="1.0.0",
-                values={"image": {"repository": "mcr.microsoft.com/azure-cli", "tag": "2.71.0"}})
+    write_chart(
+        local_dir,
+        "mi-data",
+        "1.0.0",
+        app_version="1.0.0",
+        values={"image": {"repository": "mcr.microsoft.com/azure-cli", "tag": "2.71.0"}},
+    )
     monkeypatch.setattr(lhi, "local_chart_dir", lambda chart_dir, dep: local_dir)
     monkeypatch.setattr("sys.argv", ["list-helmchart-images", "mi-data", "1.0.0"])
 
@@ -103,13 +117,19 @@ def test_main_local_dependency_missing_directory_raises(lhi, tmp_path, monkeypat
 
 # --- main(): pulled (remote) dependency ---
 
+
 def test_main_full_flow_prints_chart_and_images(lhi, monkeypatch, capsys):
     write_chart_yaml(lhi, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
 
     def fake_pull_chart(dep, version, dest):
-        write_chart(dest / "zaakafhandelcomponent", "zaakafhandelcomponent", "1.0.297", app_version="5.5",
-                    dependencies=[{"name": "opentelemetry-collector", "version": "0.169.0"}],
-                    values={"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:abc"}})
+        write_chart(
+            dest / "zaakafhandelcomponent",
+            "zaakafhandelcomponent",
+            "1.0.297",
+            app_version="5.5",
+            dependencies=[{"name": "opentelemetry-collector", "version": "0.169.0"}],
+            values={"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:abc"}},
+        )
         return True, ""
 
     monkeypatch.setattr(lhi, "pull_chart", fake_pull_chart)

@@ -3,6 +3,7 @@ replace_scalar_value, update_chart_yaml, update_values_yaml, main — mostly
 pure logic plus a mocked-subprocess/mocked-registry integration test (no
 helm or network access needed). load_baseline_values and the values-deltas
 key-change tests use a real, hermetic temp git repo."""
+
 import io
 import subprocess
 import tarfile
@@ -44,6 +45,7 @@ def block_real_subprocess_calls(monkeypatch):
 
 # --- find_block_end / find_child_key_line ---
 
+
 def test_find_block_end_stops_at_dedent(ucv):
     lines = [
         "a:\n",
@@ -66,6 +68,7 @@ def test_find_child_key_line_ignores_deeper_nested_same_name(ucv):
 
 
 # --- locate_dotted_key_line ---
+
 
 def test_locate_dotted_key_line_walks_nested_path(ucv):
     lines = [
@@ -117,7 +120,8 @@ def test_locate_tag_and_sha_no_existing_sha_override(ucv):
     """operator.image today: podiumd doesn't override "sha" -- the
     vendored subchart's own default applies as-is."""
     tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(
-        KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.image", "sha")
+        KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.image", "sha"
+    )
     assert tag_idx == 4
     assert tag_indent == 6
     assert sha_idx is None
@@ -127,7 +131,8 @@ def test_locate_tag_and_sha_existing_sha_override(ucv):
     """operator.config.keycloakImage today: podiumd already overrides
     "sha" explicitly."""
     tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(
-        KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.config.keycloakImage", "sha")
+        KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.config.keycloakImage", "sha"
+    )
     assert tag_idx == 8
     assert tag_indent == 8
     assert sha_idx == 9
@@ -141,8 +146,9 @@ def test_locate_tag_and_sha_missing_tag_returns_none(ucv):
 def test_write_tag_and_sha_inserts_new_sha_line_when_absent(ucv):
     lines = list(KEYCLOAK_OPERATOR_LINES)
     tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(lines, "keycloak-operator", "operator.image", "sha")
-    ucv.write_tag_and_sha(lines, tag_idx, tag_indent, sha_idx, "26.7.2", "b" * 64, "sha",
-                           "keycloak-operator.operator.image")
+    ucv.write_tag_and_sha(
+        lines, tag_idx, tag_indent, sha_idx, "26.7.2", "b" * 64, "sha", "keycloak-operator.operator.image"
+    )
     assert lines[tag_idx] == '      tag: "26.7.2"\n'
     assert lines[tag_idx + 1] == f'      sha: "{"b" * 64}"\n'
     # nothing else shifted/corrupted
@@ -152,9 +158,18 @@ def test_write_tag_and_sha_inserts_new_sha_line_when_absent(ucv):
 def test_write_tag_and_sha_replaces_existing_sha_line(ucv):
     lines = list(KEYCLOAK_OPERATOR_LINES)
     tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(
-        lines, "keycloak-operator", "operator.config.keycloakImage", "sha")
-    ucv.write_tag_and_sha(lines, tag_idx, tag_indent, sha_idx, "26.7.3", "c" * 64, "sha",
-                           "keycloak-operator.operator.config.keycloakImage")
+        lines, "keycloak-operator", "operator.config.keycloakImage", "sha"
+    )
+    ucv.write_tag_and_sha(
+        lines,
+        tag_idx,
+        tag_indent,
+        sha_idx,
+        "26.7.3",
+        "c" * 64,
+        "sha",
+        "keycloak-operator.operator.config.keycloakImage",
+    )
     assert lines[tag_idx] == '        tag: "26.7.3"\n'
     assert lines[sha_idx] == f'        sha: "{"c" * 64}"\n'
     assert len(lines) == len(KEYCLOAK_OPERATOR_LINES)  # replaced in place, no line added
@@ -163,9 +178,12 @@ def test_write_tag_and_sha_replaces_existing_sha_line(ucv):
 
 # --- replace_scalar_value ---
 
+
 def test_replace_scalar_value_preserves_quotes(ucv):
-    assert ucv.replace_scalar_value('      tag: "1.0.0@sha256:aaaa"\n', "2.0.0@sha256:bbbb") == \
-        '      tag: "2.0.0@sha256:bbbb"\n'
+    assert (
+        ucv.replace_scalar_value('      tag: "1.0.0@sha256:aaaa"\n', "2.0.0@sha256:bbbb")
+        == '      tag: "2.0.0@sha256:bbbb"\n'
+    )
 
 
 def test_replace_scalar_value_preserves_bare_style(ucv):
@@ -173,11 +191,12 @@ def test_replace_scalar_value_preserves_bare_style(ucv):
 
 
 def test_replace_scalar_value_preserves_trailing_comment(ucv):
-    result = ucv.replace_scalar_value('    version: 1.0.297  # pinned\n', "1.0.298")
-    assert result == '    version: 1.0.298  # pinned\n'
+    result = ucv.replace_scalar_value("    version: 1.0.297  # pinned\n", "1.0.298")
+    assert result == "    version: 1.0.298  # pinned\n"
 
 
 # --- update_chart_yaml ---
+
 
 def write_chart_yaml(path, deps):
     path.write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
@@ -189,11 +208,11 @@ def test_update_chart_yaml_bumps_only_matching_dependency(ucv, tmp_path, monkeyp
         "dependencies:\n"
         "  - name: zaakafhandelcomponent\n"
         "    version: 1.0.296\n"
-        "    repository: \"@zac\"\n"
+        '    repository: "@zac"\n'
         "    alias: zac\n"
         "  - name: openzaak\n"
         "    version: 1.14.2\n"
-        "    repository: \"@maykinmedia\"\n",
+        '    repository: "@maykinmedia"\n',
         encoding="utf-8",
     )
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
@@ -215,15 +234,11 @@ def test_update_chart_yaml_missing_dependency_raises(ucv, tmp_path, monkeypatch)
 
 # --- update_values_yaml ---
 
+
 def test_update_values_yaml_single_image(ucv, tmp_path, monkeypatch):
     values_yaml = tmp_path / "values.yaml"
     values_yaml.write_text(
-        "zac:\n"
-        "  image:\n"
-        '    tag: "5.0.2@sha256:aaaa"\n'
-        "  opa:\n"
-        "    image:\n"
-        '      tag: "1.17.1-static@sha256:bbbb"\n',
+        'zac:\n  image:\n    tag: "5.0.2@sha256:aaaa"\n  opa:\n    image:\n      tag: "1.17.1-static@sha256:bbbb"\n',
         encoding="utf-8",
     )
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
@@ -248,7 +263,8 @@ def test_update_values_yaml_multi_image_lockstep(ucv, tmp_path, monkeypatch):
     )
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
     changes = ucv.update_values_yaml(
-        "zgw-office-addin", ["frontend.image", "backend.image"],
+        "zgw-office-addin",
+        ["frontend.image", "backend.image"],
         {"frontend.image": "v0.9.352@sha256:cccc", "backend.image": "v0.9.352@sha256:dddd"},
     )
     assert len(changes) == 2
@@ -260,13 +276,14 @@ def test_update_values_yaml_multi_image_lockstep(ucv, tmp_path, monkeypatch):
 
 def test_update_values_yaml_missing_path_raises(ucv, tmp_path, monkeypatch):
     values_yaml = tmp_path / "values.yaml"
-    values_yaml.write_text("zac:\n  image:\n    tag: \"5.0.2@sha256:aaaa\"\n", encoding="utf-8")
+    values_yaml.write_text('zac:\n  image:\n    tag: "5.0.2@sha256:aaaa"\n', encoding="utf-8")
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
     with pytest.raises(SystemExit):
         ucv.update_values_yaml("zac", ["frontend.image"], {"frontend.image": "1.0.0@sha256:zzzz"})
 
 
 # --- main() integration ---
+
 
 def setup_repo(tmp_path, monkeypatch, ucv):
     chart_yaml = tmp_path / "Chart.yaml"
@@ -279,15 +296,12 @@ def setup_repo(tmp_path, monkeypatch, ucv):
         "dependencies:\n"
         "  - name: zaakafhandelcomponent\n"
         "    version: 1.0.296\n"
-        "    repository: \"@example\"\n"
+        '    repository: "@example"\n'
         "    alias: zac\n",
         encoding="utf-8",
     )
     values_yaml.write_text(
-        "zac:\n"
-        "  image:\n"
-        "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
-        f'    tag: "5.0.2@sha256:{OLD_DIGEST}"\n',
+        f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.0.2@sha256:{OLD_DIGEST}"\n',
         encoding="utf-8",
     )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
@@ -330,11 +344,21 @@ def mock_verify_passes(monkeypatch, ucv, digest_char="b", calls=None):
     def fake_check_image_versions(values, image_paths, app_version):
         if calls is not None:
             calls.append(image_paths)
-        return [{"path": p, "repository": "ghcr.io/infonl/zaakafhandelcomponent", "host": "ghcr.io",
-                 "repo_path": "infonl/zaakafhandelcomponent", "exists": True, "digest": digest}
-                for p in image_paths]
+        return [
+            {
+                "path": p,
+                "repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                "host": "ghcr.io",
+                "repo_path": "infonl/zaakafhandelcomponent",
+                "exists": True,
+                "digest": digest,
+            }
+            for p in image_paths
+        ]
 
-    monkeypatch.setattr(ucv, "resolve_chart_values", lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None))
+    monkeypatch.setattr(
+        ucv, "resolve_chart_values", lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None)
+    )
     monkeypatch.setattr(ucv, "check_image_versions", fake_check_image_versions)
 
 
@@ -373,7 +397,7 @@ def test_main_alias_component_argument_bumps_all_registered_lockstep_paths(ucv, 
         "dependencies:\n"
         "  - name: kiss-chart\n"
         "    version: 3.0.0\n"
-        "    repository: \"@example\"\n"
+        '    repository: "@example"\n'
         "    alias: kiss\n",
         encoding="utf-8",
     )
@@ -437,7 +461,7 @@ def setup_native_component_repo(tmp_path, monkeypatch, ucv):
         "dependencies:\n"
         "  - name: zaakafhandelcomponent\n"
         "    version: 1.0.297\n"
-        "    repository: \"@example\"\n"
+        '    repository: "@example"\n'
         "    alias: zac\n",
         encoding="utf-8",
     )
@@ -480,7 +504,7 @@ def test_main_native_component_bumps_values_yaml_never_touches_chart_yaml(ucv, t
 
 
 def test_main_native_component_rejects_unregistered_component(ucv, tmp_path, monkeypatch):
-    """"native" is only valid for a settings.yaml component_resolution.
+    """ "native" is only valid for a settings.yaml component_resolution.
     native_components component — a real Chart.yaml dependency like zac
     must be rejected with a clear error rather than silently skipping
     its own chart-version bump."""
@@ -510,7 +534,7 @@ def setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv):
         "dependencies:\n"
         "  - name: keycloak-operator\n"
         "    version: 1.12.1\n"
-        "    repository: \"@adfinis\"\n"
+        '    repository: "@adfinis"\n'
         "    condition: keycloak-operator.enabled\n",
         encoding="utf-8",
     )
@@ -577,7 +601,7 @@ def setup_eck_operator_repo(tmp_path, monkeypatch, ucv):
         "dependencies:\n"
         "  - name: eck-operator\n"
         "    version: 3.5.0\n"
-        "    repository: \"@example\"\n"
+        '    repository: "@example"\n'
         "    condition: eck-operator.enabled\n",
         encoding="utf-8",
     )
@@ -647,7 +671,7 @@ def setup_keycloak_operator_repo_with_operator_image_tag(tmp_path, monkeypatch, 
         "dependencies:\n"
         "  - name: keycloak-operator\n"
         "    version: 1.12.1\n"
-        "    repository: \"@adfinis\"\n"
+        '    repository: "@adfinis"\n'
         "    condition: keycloak-operator.enabled\n",
         encoding="utf-8",
     )
@@ -698,12 +722,13 @@ def test_main_keycloak_operator_operator_image_gets_independent_digest_regressio
     monkeypatched to this tmp_path by the setup helper above, so
     image_paths_for(chart_name, CHART_DIR) picks it up."""
     chart_yaml, values_yaml, operator_old_digest = setup_keycloak_operator_repo_with_operator_image_tag(
-        tmp_path, monkeypatch, ucv)
+        tmp_path, monkeypatch, ucv
+    )
     (tmp_path / "etc").mkdir(exist_ok=True)
     (tmp_path / "etc" / "settings.yaml").write_text(
         "component_resolution:\n"
         "  image_paths:\n"
-        "    keycloak-operator: [\"operator.image\", \"operator.config.keycloakImage\"]\n",
+        '    keycloak-operator: ["operator.image", "operator.config.keycloakImage"]\n',
         encoding="utf-8",
     )
     mock_verify_passes(monkeypatch, ucv)
@@ -770,9 +795,18 @@ def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_r
 
     # The anchor's own site: keycloak-operator.operator.config.keycloakImage
     anchor_tag_idx, anchor_tag_indent, anchor_sha_idx = ucv.locate_tag_and_sha(
-        lines, "keycloak-operator", "operator.config.keycloakImage", "sha")
-    ucv.write_tag_and_sha(lines, anchor_tag_idx, anchor_tag_indent, anchor_sha_idx, "26.7.3", "d" * 64,
-                           "sha", "keycloak-operator.operator.config.keycloakImage")
+        lines, "keycloak-operator", "operator.config.keycloakImage", "sha"
+    )
+    ucv.write_tag_and_sha(
+        lines,
+        anchor_tag_idx,
+        anchor_tag_indent,
+        anchor_sha_idx,
+        "26.7.3",
+        "d" * 64,
+        "sha",
+        "keycloak-operator.operator.config.keycloakImage",
+    )
 
     assert lines[anchor_tag_idx] == '        tag: &keycloakImageVersion "26.7.3"\n'
     assert lines[anchor_sha_idx] == f'        sha: &keycloakImageDigest "{"d" * 64}"\n'
@@ -782,8 +816,9 @@ def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_r
     original_alias_tag_line = lines[alias_tag_idx]
     original_alias_sha_line = lines[alias_sha_idx]
 
-    ucv.write_tag_and_sha(lines, alias_tag_idx, alias_tag_indent, alias_sha_idx, "26.7.3", "d" * 64,
-                           "sha", "keycloak.image")
+    ucv.write_tag_and_sha(
+        lines, alias_tag_idx, alias_tag_indent, alias_sha_idx, "26.7.3", "d" * 64, "sha", "keycloak.image"
+    )
 
     # left completely untouched — never clobbered into a literal
     assert lines[alias_tag_idx] == original_alias_tag_line == "    tag: *keycloakImageVersion\n"
@@ -794,8 +829,9 @@ def test_main_refuses_to_write_when_verify_fails(ucv, tmp_path, monkeypatch):
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     original_chart = chart_yaml.read_text(encoding="utf-8")
     original_values = values_yaml.read_text(encoding="utf-8")
-    monkeypatch.setattr(ucv, "resolve_chart_values",
-                         lambda chart_dir, dep, version, allow_pull=True: (None, None, "version not found"))
+    monkeypatch.setattr(
+        ucv, "resolve_chart_values", lambda chart_dir, dep, version, allow_pull=True: (None, None, "version not found")
+    )
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -822,6 +858,7 @@ def test_main_help_flag_prints_usage_and_exits_zero(ucv, monkeypatch, capsys, fl
 
 
 # --- main() handling already-current versions ---
+
 
 def test_main_skips_chart_write_when_chart_version_unchanged(ucv, tmp_path, monkeypatch, capsys):
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
@@ -875,31 +912,54 @@ def test_main_exits_zero_and_writes_nothing_when_both_unchanged(ucv, tmp_path, m
 
 # --- verify_component_version ---
 
+
 def test_verify_component_version_returns_upstream_image_results(ucv, monkeypatch):
     dep = {"name": "openforms", "alias": "openformulieren", "version": "1.11.0", "repository": "@maykinmedia"}
     digest = "sha256:" + "c" * 64
 
     monkeypatch.setattr(
-        ucv, "resolve_chart_values",
+        ucv,
+        "resolve_chart_values",
         lambda chart_dir, dep_arg, version, allow_pull=True: (
-            {"image": {"repository": "maykinmedia/open-forms"}}, "pulled", None),
+            {"image": {"repository": "maykinmedia/open-forms"}},
+            "pulled",
+            None,
+        ),
     )
     monkeypatch.setattr(
-        ucv, "check_image_versions",
+        ucv,
+        "check_image_versions",
         lambda values, image_paths, app_version: [
-            {"path": "image", "repository": "maykinmedia/open-forms", "host": "docker.io",
-             "repo_path": "maykinmedia/open-forms", "exists": True, "digest": digest}
+            {
+                "path": "image",
+                "repository": "maykinmedia/open-forms",
+                "host": "docker.io",
+                "repo_path": "maykinmedia/open-forms",
+                "exists": True,
+                "digest": digest,
+            }
         ],
     )
     result = ucv.verify_component_version(dep, ["image"], "3.5.6", "1.12.0")
-    assert result == {"image": {"path": "image", "repository": "maykinmedia/open-forms", "host": "docker.io",
-                                 "repo_path": "maykinmedia/open-forms", "exists": True, "digest": digest}}
+    assert result == {
+        "image": {
+            "path": "image",
+            "repository": "maykinmedia/open-forms",
+            "host": "docker.io",
+            "repo_path": "maykinmedia/open-forms",
+            "exists": True,
+            "digest": digest,
+        }
+    }
 
 
 def test_verify_component_version_exits_on_pull_failure(ucv, monkeypatch):
     dep = {"name": "openforms", "repository": "@maykinmedia"}
-    monkeypatch.setattr(ucv, "resolve_chart_values",
-                         lambda chart_dir, dep_arg, version, allow_pull=True: (None, None, "chart version not found"))
+    monkeypatch.setattr(
+        ucv,
+        "resolve_chart_values",
+        lambda chart_dir, dep_arg, version, allow_pull=True: (None, None, "chart version not found"),
+    )
     with pytest.raises(SystemExit):
         ucv.verify_component_version(dep, ["image"], "3.5.6", "9.9.9")
 
@@ -908,15 +968,26 @@ def test_verify_component_version_exits_when_image_does_not_exist(ucv, monkeypat
     dep = {"name": "openforms", "repository": "@maykinmedia"}
 
     monkeypatch.setattr(
-        ucv, "resolve_chart_values",
+        ucv,
+        "resolve_chart_values",
         lambda chart_dir, dep_arg, version, allow_pull=True: (
-            {"image": {"repository": "maykinmedia/open-forms"}}, "pulled", None),
+            {"image": {"repository": "maykinmedia/open-forms"}},
+            "pulled",
+            None,
+        ),
     )
     monkeypatch.setattr(
-        ucv, "check_image_versions",
+        ucv,
+        "check_image_versions",
         lambda values, image_paths, app_version: [
-            {"path": "image", "repository": "maykinmedia/open-forms", "host": "docker.io",
-             "repo_path": "maykinmedia/open-forms", "exists": False, "digest": None}
+            {
+                "path": "image",
+                "repository": "maykinmedia/open-forms",
+                "host": "docker.io",
+                "repo_path": "maykinmedia/open-forms",
+                "exists": False,
+                "digest": None,
+            }
         ],
     )
     with pytest.raises(SystemExit):
@@ -924,6 +995,7 @@ def test_verify_component_version_exits_when_image_does_not_exist(ucv, monkeypat
 
 
 # --- baseline_doc_paths ---
+
 
 def test_baseline_doc_paths_finds_pair(ucv, tmp_path, monkeypatch):
     monkeypatch.setattr(ucv, "DOC_DIR", tmp_path)
@@ -958,6 +1030,7 @@ def write(path, text):
 
 
 # --- load_baseline_values ---
+
 
 def init_git_repo(root):
     git("init", "-q", cwd=root)
@@ -996,6 +1069,7 @@ def test_load_baseline_values_none_outside_git_repo(ucv, tmp_path, monkeypatch):
 
 
 # --- find_component_row / update_component_table ---
+
 
 def test_find_component_row_matches_by_substring(libcomponentdocs):
     rows = [{"name": "ZAC (Zaakafhandelcomponent)", "line_index": 0}]
@@ -1044,13 +1118,13 @@ COMPONENT_VERSIONS_HEADING = "## Component versions (4.9.0 vs 4.8.5)\n\n"
 
 def test_update_component_table_adds_new_row(ucv):
     text = (
-        COMPONENT_VERSIONS_HEADING +
-        "| Component | App version | Helm chart | Notes |\n"
+        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
     )
-    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
-                                                    DEPS, VALUES)
+    new_text, action = ucv.update_component_table(
+        text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", DEPS, VALUES
+    )
     assert action == "added"
     assert "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | - |" in new_text
     assert "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |" in new_text  # untouched
@@ -1065,8 +1139,7 @@ def test_update_component_table_new_row_not_absorbed_by_own_sidecar_rows(ucv):
     own new row must never overwrite one of those sidecar rows instead —
     each keeps its own values, and the dependency gets its own new row."""
     text = (
-        COMPONENT_VERSIONS_HEADING +
-        "| Component | App version | Helm chart | Notes |\n"
+        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| openbao - openbao-csi-provider | 2.0.2 (new) | - | - |\n"
         "| openbao - openbao-snapshot-agent | 0.3.0 (new) | - | - |\n"
@@ -1083,13 +1156,13 @@ def test_update_component_table_new_row_inserted_in_values_yaml_order(ucv):
     order -- the new row must land above the existing zac row, not always
     appended at the end."""
     text = (
-        COMPONENT_VERSIONS_HEADING +
-        "| Component | App version | Helm chart | Notes |\n"
+        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
     )
-    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
-                                                    DEPS, VALUES)
+    new_text, action = ucv.update_component_table(
+        text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", DEPS, VALUES
+    )
     assert action == "added"
     lines = [l for l in new_text.splitlines() if l.startswith("| zac") or l.startswith("| openformulieren")]
     assert lines == [
@@ -1100,13 +1173,13 @@ def test_update_component_table_new_row_inserted_in_values_yaml_order(ucv):
 
 def test_update_component_table_updates_existing_row(ucv):
     text = (
-        COMPONENT_VERSIONS_HEADING +
-        "| Component | App version | Helm chart | Notes |\n"
+        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| openformulieren | 3.4.9 → 3.4.10 | 1.12.0 (unchanged) | - |\n"
     )
-    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
-                                                    [], {})
+    new_text, action = ucv.update_component_table(
+        text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", [], {}
+    )
     assert action == "updated"
     assert "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | - |" in new_text
     assert "3.4.9" not in new_text
@@ -1114,8 +1187,9 @@ def test_update_component_table_updates_existing_row(ucv):
 
 def test_update_component_table_no_table_returns_none_action(ucv):
     text = "# Upgrade guide\n\nJust prose, no table.\n"
-    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
-                                                    [], {})
+    new_text, action = ucv.update_component_table(
+        text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", [], {}
+    )
     assert action is None
 
 
@@ -1124,11 +1198,7 @@ def test_update_component_table_new_component_no_baseline_is_annotated_new(ucv):
     old_app/old_chart args are None) gets "(new)" cells, not a bare
     version indistinguishable from a row whose baseline just wasn't
     passed in."""
-    text = (
-        COMPONENT_VERSIONS_HEADING +
-        "| Component | App version | Helm chart | Notes |\n"
-        "| --- | --- | --- | --- |\n"
-    )
+    text = COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n| --- | --- | --- | --- |\n"
     new_text, action = ucv.update_component_table(text, "openklant", None, "2.15.0", None, "1.11.0", [], {})
     assert action == "added"
     assert "| openklant | 2.15.0 (new) | 1.11.0 (new) | - |" in new_text
@@ -1140,8 +1210,7 @@ def test_update_component_table_empty_table_ignores_unrelated_lower_pipe_table(u
     under the last "| --- |" in the whole doc, which would splice it into
     an unrelated settings-migration table in a "## Changes" subsection."""
     text = (
-        COMPONENT_VERSIONS_HEADING +
-        "| Component | App version | Helm chart | Notes |\n"
+        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "\n"
         "## Changes\n\n"
@@ -1151,8 +1220,9 @@ def test_update_component_table_empty_table_ignores_unrelated_lower_pipe_table(u
         "| --- | --- |\n"
         "| FOO | BAR |\n"
     )
-    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
-                                                    DEPS, VALUES)
+    new_text, action = ucv.update_component_table(
+        text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", DEPS, VALUES
+    )
     assert action == "added"
     lines = new_text.splitlines()
     sep_idx = lines.index("| --- | --- | --- | --- |")
@@ -1165,11 +1235,7 @@ def test_update_component_table_new_sidecar_chart_placeholder_stays_bare(ucv):
     not-applicable placeholder (see add_missing_sidecar_rows) — it must
     never get annotated "(new)" just because old_chart is None too, the
     same way it's never rewritten with a real chart version either."""
-    text = (
-        COMPONENT_VERSIONS_HEADING +
-        "| Component | App version | Helm chart | Notes |\n"
-        "| --- | --- | --- | --- |\n"
-    )
+    text = COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n| --- | --- | --- | --- |\n"
     new_text, action = ucv.update_component_table(text, "kiss - crawler", None, "1.0.0", None, "-", [], {})
     assert action == "added"
     assert "| kiss - crawler | 1.0.0 (new) | - | - |" in new_text
@@ -1177,10 +1243,18 @@ def test_update_component_table_new_sidecar_chart_placeholder_stays_bare(ucv):
 
 # --- make_changes_section / insert_changes_section ---
 
+
 def test_make_changes_section_includes_bullets(ucv):
     section = ucv.make_changes_section(
-        "openformulieren", "4.9.0", "openforms", "openformulieren",
-        "3.4.10", "3.5.6", "1.12.0", "1.12.0", ["image"],
+        "openformulieren",
+        "4.9.0",
+        "openforms",
+        "openformulieren",
+        "3.4.10",
+        "3.5.6",
+        "1.12.0",
+        "1.12.0",
+        ["image"],
     )
     assert section.startswith("### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)")
     assert "Image tag pin `openformulieren.image.tag` `3.4.10` → `3.5.6`" in section
@@ -1196,8 +1270,15 @@ def test_make_changes_section_unchanged_app_version_renders_no_transition(ucv):
     chart_suffix's own existing "(chart ..., unchanged)" convention,
     instead of a meaningless "<app> → <app>" self-transition."""
     section = ucv.make_changes_section(
-        "zac", "4.9.0", "zaakafhandelcomponent", "zac",
-        "5.4.4", "5.4.4", "1.0.297", "1.0.297", ["image"],
+        "zac",
+        "4.9.0",
+        "zaakafhandelcomponent",
+        "zac",
+        "5.4.4",
+        "5.4.4",
+        "1.0.297",
+        "1.0.297",
+        ["image"],
     )
     assert section.startswith("### zac 5.4.4 (unchanged) (chart 1.0.297, unchanged)")
     assert "5.4.4 → 5.4.4" not in section
@@ -1213,8 +1294,15 @@ def test_make_changes_section_old_app_none_renders_new_not_none_arrow(ucv):
     <app>", and the chart side (unchanged here) keeps its ordinary
     "(chart ..., unchanged)" clause."""
     section = ucv.make_changes_section(
-        "openbao", "4.9.1", "openbao", "openbao",
-        None, "v2.5.5", "0.28.4", "0.28.4", ["server.image"],
+        "openbao",
+        "4.9.1",
+        "openbao",
+        "openbao",
+        None,
+        "v2.5.5",
+        "0.28.4",
+        "0.28.4",
+        ["server.image"],
     )
     assert section.startswith("### openbao v2.5.5 (new) (chart 0.28.4, unchanged)")
     assert "None" not in section
@@ -1230,8 +1318,15 @@ def test_make_changes_section_old_chart_none_renders_new_not_none_arrow(ucv):
     and the "Helm chart `...` bump" bullet (which needs a real old_chart
     to describe a transition) is suppressed."""
     section = ucv.make_changes_section(
-        "openbao", "4.9.1", "openbao", "openbao",
-        "v2.5.5", "v2.5.5", None, "0.28.4", ["server.image"],
+        "openbao",
+        "4.9.1",
+        "openbao",
+        "openbao",
+        "v2.5.5",
+        "v2.5.5",
+        None,
+        "0.28.4",
+        ["server.image"],
     )
     assert section.startswith("### openbao v2.5.5 (unchanged) (chart 0.28.4, new)")
     assert "None" not in section
@@ -1240,8 +1335,15 @@ def test_make_changes_section_old_chart_none_renders_new_not_none_arrow(ucv):
 
 def test_make_changes_section_includes_chart_bullet_when_changed(ucv):
     section = ucv.make_changes_section(
-        "zac", "4.9.0", "zaakafhandelcomponent", "zac",
-        "5.0.2", "5.1.0", "1.0.297", "1.0.257", ["image"],
+        "zac",
+        "4.9.0",
+        "zaakafhandelcomponent",
+        "zac",
+        "5.0.2",
+        "5.1.0",
+        "1.0.297",
+        "1.0.257",
+        ["image"],
     )
     assert "Helm chart `zaakafhandelcomponent` `1.0.297` → `1.0.257`" in section
 
@@ -1252,8 +1354,15 @@ def test_make_changes_section_native_component_omits_chart_clause(ucv):
     the "Helm chart" bump bullet entirely, rather than rendering the
     misleading "(chart None, unchanged)"."""
     section = ucv.make_changes_section(
-        "frankgateway", "4.9.0", "frankgateway", "frankgateway",
-        "100", "104", None, "-", ["image"],
+        "frankgateway",
+        "4.9.0",
+        "frankgateway",
+        "frankgateway",
+        "100",
+        "104",
+        None,
+        "-",
+        ["image"],
     )
     assert section.startswith("### frankgateway 100 → 104\n\n")
     assert "chart" not in section.split("\n\n", 1)[0].lower()
@@ -1278,7 +1387,8 @@ def test_insert_changes_section_inserted_in_values_yaml_order(ucv):
     always appended at the end."""
     text = "## Changes\n\n### zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\nblah\n"
     new_text = ucv.insert_changes_section(
-        text, "### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n", "openformulieren", DEPS, VALUES)
+        text, "### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n", "openformulieren", DEPS, VALUES
+    )
     assert new_text.index("### openformulieren") < new_text.index("### zac")
 
 
@@ -1289,6 +1399,7 @@ def test_insert_changes_section_no_changes_heading_appends_at_end(ucv):
 
 
 # --- values_delta_section_heading / describe_key_changes ---
+
 
 def test_values_delta_section_heading_app_and_chart_changed(ucv):
     heading = ucv.values_delta_section_heading("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.13.0")
@@ -1322,12 +1433,16 @@ def test_describe_key_changes_empty_when_nothing_changed(ucv):
 
 # --- values_tree_path_for / find_matching_images_entry / update_images_manifest_entry ---
 
+
 def test_values_tree_path_for_single_image(libcomponentdocs):
     assert libcomponentdocs.values_tree_path_for("zac", "image") == ("zac",)
 
 
 def test_values_tree_path_for_nested_image(libcomponentdocs):
-    assert libcomponentdocs.values_tree_path_for("zgw-office-addin", "frontend.image") == ("zgw-office-addin", "frontend")
+    assert libcomponentdocs.values_tree_path_for("zgw-office-addin", "frontend.image") == (
+        "zgw-office-addin",
+        "frontend",
+    )
 
 
 def test_find_matching_images_entry_matches_by_path(libcomponentdocs):
@@ -1376,7 +1491,8 @@ def test_update_images_manifest_entry_updates_shared_group_comment(libcomponentd
     ]
     entries = [{"name": "zgw-office-addin-frontend"}, {"name": "zgw-office-addin-backend"}]
     changed = libcomponentdocs.update_images_manifest_entry(
-        lines, entries, [1, 5], 1, "v0.9.400@sha256:cccc", "zgw-office-addin")
+        lines, entries, [1, 5], 1, "v0.9.400@sha256:cccc", "zgw-office-addin"
+    )
     assert changed is True
     assert lines[0] == "# ZGW Office Add-in — v0.9.313 -> v0.9.400\n"
     assert '"v0.9.400"' in lines[6]
@@ -1384,6 +1500,7 @@ def test_update_images_manifest_entry_updates_shared_group_comment(libcomponentd
 
 
 # --- update_images_manifest ---
+
 
 def test_update_images_manifest_creates_missing_header(ucv, tmp_path):
     """Regression test (real bug, real doc): update_images_manifest's own
@@ -1411,9 +1528,18 @@ def test_update_images_manifest_creates_missing_header(ucv, tmp_path):
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path, "zac", "zac", "5.1.0", "5.4.3", "1.0.297", "1.0.297",
-        ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"},
-        [], {},
+        images_path,
+        "zac",
+        "zac",
+        "5.1.0",
+        "5.4.3",
+        "1.0.297",
+        "1.0.297",
+        ["image"],
+        {"image": "ghcr.io/infonl/zaakafhandelcomponent"},
+        {"image": "5.4.3@sha256:cccc"},
+        [],
+        {},
     )
     assert changes_action == "added"
     assert entry_updates == ["zac"]
@@ -1446,9 +1572,18 @@ def test_update_images_manifest_no_baseline_app_renders_new(ucv, tmp_path):
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path, "redis", "redis", None, "8.10.1", "-", "-",
-        ["image"], {"image": "redis"}, {"image": "8.10.1@sha256:cccc"},
-        [], {},
+        images_path,
+        "redis",
+        "redis",
+        None,
+        "8.10.1",
+        "-",
+        "-",
+        ["image"],
+        {"image": "redis"},
+        {"image": "8.10.1@sha256:cccc"},
+        [],
+        {},
     )
     assert changes_action == "added"
     text = images_path.read_text(encoding="utf-8")
@@ -1470,9 +1605,18 @@ def test_update_images_manifest_updates_existing_entry(ucv, tmp_path):
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path, "zac", "zac", "5.1.0", "5.4.3", "1.0.297", "1.0.297",
-        ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"},
-        [], {},
+        images_path,
+        "zac",
+        "zac",
+        "5.1.0",
+        "5.4.3",
+        "1.0.297",
+        "1.0.297",
+        ["image"],
+        {"image": "ghcr.io/infonl/zaakafhandelcomponent"},
+        {"image": "5.4.3@sha256:cccc"},
+        [],
+        {},
     )
     assert changes_action == "updated"
     assert entry_updates == ["zac"]
@@ -1499,8 +1643,18 @@ def test_update_images_manifest_native_component_omits_chart_clause(ucv, tmp_pat
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path, "frankgateway", "frankgateway", "100", "104", None, "-",
-        [], {}, {}, [], {},
+        images_path,
+        "frankgateway",
+        "frankgateway",
+        "100",
+        "104",
+        None,
+        "-",
+        [],
+        {},
+        {},
+        [],
+        {},
     )
     assert changes_action == "added"
     assert entry_updates == []
@@ -1531,9 +1685,18 @@ def test_update_images_manifest_recognizes_bare_changes_header(ucv, tmp_path):
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path, "zac", "zac", "5.1.0", "5.4.3", "1.0.297", "1.0.297",
-        ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"},
-        [], {},
+        images_path,
+        "zac",
+        "zac",
+        "5.1.0",
+        "5.4.3",
+        "1.0.297",
+        "1.0.297",
+        ["image"],
+        {"image": "ghcr.io/infonl/zaakafhandelcomponent"},
+        {"image": "5.4.3@sha256:cccc"},
+        [],
+        {},
     )
     assert changes_action == "updated"
     assert entry_updates == ["zac"]
@@ -1557,9 +1720,18 @@ def test_update_images_manifest_bare_header_new_item_no_count_word_invented(ucv,
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path, "openformulieren", "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
-        ["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"},
-        [], {},
+        images_path,
+        "openformulieren",
+        "openformulieren",
+        "3.4.10",
+        "3.5.6",
+        "1.12.0",
+        "1.12.0",
+        ["image"],
+        {"image": "openformulieren/open-forms"},
+        {"image": "3.5.6@sha256:dddd"},
+        [],
+        {},
     )
     assert changes_action == "added"
     assert missing == [("image", "openformulieren/open-forms", "3.5.6@sha256:dddd")]
@@ -1581,9 +1753,18 @@ def test_update_images_manifest_reports_missing_entry(ucv, tmp_path):
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path, "openformulieren", "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
-        ["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"},
-        [], {},
+        images_path,
+        "openformulieren",
+        "openformulieren",
+        "3.4.10",
+        "3.5.6",
+        "1.12.0",
+        "1.12.0",
+        ["image"],
+        {"image": "openformulieren/open-forms"},
+        {"image": "3.5.6@sha256:dddd"},
+        [],
+        {},
     )
     assert changes_action == "added"
     assert entry_updates == []
@@ -1611,9 +1792,18 @@ def test_update_images_manifest_new_item_lands_after_continuation_line(ucv, tmp_
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path, "openformulieren", "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
-        ["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"},
-        [], {},
+        images_path,
+        "openformulieren",
+        "openformulieren",
+        "3.4.10",
+        "3.5.6",
+        "1.12.0",
+        "1.12.0",
+        ["image"],
+        {"image": "openformulieren/open-forms"},
+        {"image": "3.5.6@sha256:dddd"},
+        [],
+        {},
     )
     assert changes_action == "added"
     lines = images_path.read_text(encoding="utf-8").splitlines()
@@ -1649,9 +1839,18 @@ def test_update_images_manifest_new_item_inserted_at_values_yaml_position_not_ap
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:aaaa"}},
     }
     changes_action, _entry_updates, missing = ucv.update_images_manifest(
-        images_path, "redis-operator", "redis-operator", "0.25.0", "0.26.0", "1.0.0", "1.0.0",
-        ["image"], {"image": "opstree/redis-operator"}, {"image": "0.26.0@sha256:bbbb"},
-        deps, values,
+        images_path,
+        "redis-operator",
+        "redis-operator",
+        "0.25.0",
+        "0.26.0",
+        "1.0.0",
+        "1.0.0",
+        ["image"],
+        {"image": "opstree/redis-operator"},
+        {"image": "0.26.0@sha256:bbbb"},
+        deps,
+        values,
     )
     assert changes_action == "added"
     assert missing == [("image", "opstree/redis-operator", "0.26.0@sha256:bbbb")]
@@ -1662,6 +1861,7 @@ def test_update_images_manifest_new_item_inserted_at_values_yaml_position_not_ap
 
 
 # --- main() integration: doc updates end-to-end ---
+
 
 def setup_docs(ucv, monkeypatch, upgrade_text, values_deltas_text=None, images_text=None):
     (ucv.CHART_DIR / "etc").mkdir(exist_ok=True)
@@ -1677,7 +1877,8 @@ def setup_docs(ucv, monkeypatch, upgrade_text, values_deltas_text=None, images_t
 def test_main_adds_new_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
     setup_repo(tmp_path, monkeypatch, ucv)
     setup_docs(
-        ucv, monkeypatch,
+        ucv,
+        monkeypatch,
         upgrade_text=(
             "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
             "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -1742,19 +1943,17 @@ def test_main_missing_manifest_entry_instructions_show_fully_qualified_url(ucv, 
         "dependencies:\n"
         "  - name: zaakafhandelcomponent\n"
         "    version: 1.0.296\n"
-        "    repository: \"@example\"\n"
+        '    repository: "@example"\n'
         "    alias: zac\n",
         encoding="utf-8",
     )
     values_yaml.write_text(
-        "zac:\n"
-        "  image:\n"
-        "    repository: curlimages/curl\n"
-        f'    tag: "5.0.2@sha256:{OLD_DIGEST}"\n',
+        f'zac:\n  image:\n    repository: curlimages/curl\n    tag: "5.0.2@sha256:{OLD_DIGEST}"\n',
         encoding="utf-8",
     )
     setup_docs(
-        ucv, monkeypatch,
+        ucv,
+        monkeypatch,
         upgrade_text=(
             "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
             "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -1787,7 +1986,8 @@ def test_main_fixes_a_preexisting_changes_numbering_gap_when_adding_an_item(ucv,
     manifest_changes_items)."""
     setup_repo(tmp_path, monkeypatch, ucv)
     setup_docs(
-        ucv, monkeypatch,
+        ucv,
+        monkeypatch,
         upgrade_text=(
             "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
             "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -1832,7 +2032,8 @@ def test_main_fixes_a_preexisting_changes_numbering_gap_when_adding_an_item(ucv,
 def test_main_updates_existing_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
     setup_repo(tmp_path, monkeypatch, ucv)
     setup_docs(
-        ucv, monkeypatch,
+        ucv,
+        monkeypatch,
         upgrade_text=(
             "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
             "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -1863,6 +2064,7 @@ def test_main_updates_existing_component_mention_end_to_end(ucv, tmp_path, monke
 # --- main() vs the TRUE git baseline: reset-to-baseline removal, and
 # collapsing more than one bump in a release cycle into a single entry ---
 
+
 def commit_baseline_tag(tmp_path):
     init_git_repo(tmp_path)
     git("add", "-A", cwd=tmp_path)
@@ -1885,14 +2087,12 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(ucv, tmp_path, monkey
     # Simulate "already bumped to 5.5.0 earlier in this release cycle" --
     # chart version stays at baseline (1.0.296), only the app tag moved.
     values_yaml.write_text(
-        "zac:\n"
-        "  image:\n"
-        "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
-        f'    tag: "5.5.0@sha256:{OLD_DIGEST}"\n',
+        f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.5.0@sha256:{OLD_DIGEST}"\n',
         encoding="utf-8",
     )
     setup_docs(
-        ucv, monkeypatch,
+        ucv,
+        monkeypatch,
         upgrade_text=(
             "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
             "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -1967,11 +2167,11 @@ def test_main_new_component_row_renders_new_ignoring_images_baseline(ucv, tmp_pa
         "dependencies:\n"
         "  - name: zaakafhandelcomponent\n"
         "    version: 1.0.296\n"
-        "    repository: \"@example\"\n"
+        '    repository: "@example"\n'
         "    alias: zac\n"
         "  - name: brp-personen-mock\n"
         "    version: 1.2.9\n"
-        "    repository: \"@dimpact\"\n"
+        '    repository: "@dimpact"\n'
         "    alias: brppersonenmock\n",
         encoding="utf-8",
     )
@@ -1985,13 +2185,16 @@ def test_main_new_component_row_renders_new_ignoring_images_baseline(ucv, tmp_pa
         '    tag: ""\n',
         encoding="utf-8",
     )
-    write(ucv.IMAGES_DIR / "images-baseline.yaml",
-          "- name: brp-api/personen-mock\n"
-          "  url: ghcr.io/brp-api/personen-mock\n"
-          '  version: "2.7.0"\n'
-          f'  digest: "{digest}"\n')
+    write(
+        ucv.IMAGES_DIR / "images-baseline.yaml",
+        "- name: brp-api/personen-mock\n"
+        "  url: ghcr.io/brp-api/personen-mock\n"
+        '  version: "2.7.0"\n'
+        f'  digest: "{digest}"\n',
+    )
     setup_docs(
-        ucv, monkeypatch,
+        ucv,
+        monkeypatch,
         upgrade_text=(
             "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
             "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -2000,18 +2203,25 @@ def test_main_new_component_row_renders_new_ignoring_images_baseline(ucv, tmp_pa
             "| zac | 5.0.2 (unchanged) | 1.0.296 (unchanged) | - |\n\n"
             "## Changes\n\n"
         ),
-        images_text=(
-            "# Zero changes:\n"
-            "#\n\n"
-        ),
+        images_text=("# Zero changes:\n#\n\n"),
     )
 
     def fake_check_image_versions(values, image_paths, app_version):
-        return [{"path": p, "repository": "ghcr.io/brp-api/personen-mock", "host": "ghcr.io",
-                 "repo_path": "brp-api/personen-mock", "exists": True, "digest": digest} for p in image_paths]
+        return [
+            {
+                "path": p,
+                "repository": "ghcr.io/brp-api/personen-mock",
+                "host": "ghcr.io",
+                "repo_path": "brp-api/personen-mock",
+                "exists": True,
+                "digest": digest,
+            }
+            for p in image_paths
+        ]
 
-    monkeypatch.setattr(ucv, "resolve_chart_values",
-                         lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None))
+    monkeypatch.setattr(
+        ucv, "resolve_chart_values", lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None)
+    )
     monkeypatch.setattr(ucv, "check_image_versions", fake_check_image_versions)
     monkeypatch.setattr("sys.argv", ["update-component-version", "brppersonenmock", "2.7.0", "1.2.9"])
 
@@ -2029,7 +2239,8 @@ def test_main_collapses_repeated_bump_into_single_baseline_entry(ucv, tmp_path, 
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     commit_baseline_tag(tmp_path)  # baseline: chart 1.0.296, zac 5.0.2@sha256:aaaa...
     setup_docs(
-        ucv, monkeypatch,
+        ucv,
+        monkeypatch,
         upgrade_text=(
             "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
             "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -2092,8 +2303,7 @@ def _make_vendored_tgz(charts_dir, name, version, chart_yaml):
     return tgz_path
 
 
-def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(
-        ucv, tmp_path, monkeypatch):
+def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(ucv, tmp_path, monkeypatch):
     """Regression test (real bug, real doc): openbao's own "server.image.
     tag" is deliberately left blank at the baseline too (see settings.
     yaml's component_resolution.image_paths["openbao"]'s own comment) —
@@ -2112,18 +2322,11 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
-        "version: 4.9.0\n"
-        "dependencies:\n"
-        "  - name: openbao\n"
-        "    version: 0.28.4\n"
-        "    repository: \"@openbao\"\n",
+        'version: 4.9.0\ndependencies:\n  - name: openbao\n    version: 0.28.4\n    repository: "@openbao"\n',
         encoding="utf-8",
     )
     values_yaml.write_text(
-        "openbao:\n"
-        "  server:\n"
-        "    image:\n"
-        "      tag: \"\"\n",
+        'openbao:\n  server:\n    image:\n      tag: ""\n',
         encoding="utf-8",
     )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
@@ -2135,12 +2338,14 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
     monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
     monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
-    _make_vendored_tgz(tmp_path / "charts", "openbao", "0.28.4",
-                        {"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.0"})
+    _make_vendored_tgz(
+        tmp_path / "charts", "openbao", "0.28.4", {"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.0"}
+    )
     commit_baseline_tag(tmp_path)  # baseline: chart 0.28.4, app version blank (subchart-only v2.5.0)
 
     setup_docs(
-        ucv, monkeypatch,
+        ucv,
+        monkeypatch,
         upgrade_text=(
             "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
             "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -2194,12 +2399,7 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(uc
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
-        "version: 4.9.0\n"
-        "dependencies:\n"
-        "  - name: mi-data\n"
-        "    version: 1.0.0\n"
-        "    repository: \"@mi\"\n"
-        "    alias: mi\n",
+        'version: 4.9.0\ndependencies:\n  - name: mi-data\n    version: 1.0.0\n    repository: "@mi"\n    alias: mi\n',
         encoding="utf-8",
     )
     values_yaml.write_text("mi:\n  enabled: false\n", encoding="utf-8")
@@ -2218,25 +2418,17 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(uc
     # mi's own image override -- chart AND app version both moved, never
     # captured in any prior doc.
     chart_yaml.write_text(
-        "version: 4.9.0\n"
-        "dependencies:\n"
-        "  - name: mi-data\n"
-        "    version: 1.1.0\n"
-        "    repository: \"@mi\"\n"
-        "    alias: mi\n",
+        'version: 4.9.0\ndependencies:\n  - name: mi-data\n    version: 1.1.0\n    repository: "@mi"\n    alias: mi\n',
         encoding="utf-8",
     )
     values_yaml.write_text(
-        "mi:\n"
-        "  enabled: false\n"
-        "  image:\n"
-        "    repository: example/mi-data\n"
-        f'    tag: "2.71.0@sha256:{OLD_DIGEST}"\n',
+        f'mi:\n  enabled: false\n  image:\n    repository: example/mi-data\n    tag: "2.71.0@sha256:{OLD_DIGEST}"\n',
         encoding="utf-8",
     )
 
     setup_docs(
-        ucv, monkeypatch,
+        ucv,
+        monkeypatch,
         upgrade_text=(
             "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
             "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -2263,7 +2455,9 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(uc
 def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkeypatch, capsys):
     setup_repo(tmp_path, monkeypatch, ucv)
     (tmp_path / "etc").mkdir(exist_ok=True)
-    write(tmp_path / "etc" / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')  # baseline known, doc itself just missing
+    write(
+        tmp_path / "etc" / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n'
+    )  # baseline known, doc itself just missing
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "e")
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
@@ -2288,6 +2482,7 @@ def test_main_skips_doc_updates_when_no_release_baseline(ucv, tmp_path, monkeypa
 
 # --- main(): values-deltas key-change detection against the real baseline ---
 
+
 def setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv):
     """A real git repo with a baseline commit tagged podiumd-4.8.5, then a
     values.yaml schema key added on top — as if someone hand-edited it to
@@ -2308,7 +2503,7 @@ def setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv):
         "dependencies:\n"
         "  - name: zaakafhandelcomponent\n"
         "    version: 1.0.296\n"
-        "    repository: \"@example\"\n"
+        '    repository: "@example"\n'
         "    alias: zac\n",
         encoding="utf-8",
     )
@@ -2345,15 +2540,18 @@ def setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv):
 
 def test_main_detects_key_added_before_running_against_real_baseline(ucv, tmp_path, monkeypatch):
     setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv)
-    write(ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n\n"
-          "## Changes\n\n")
-    write(ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
-          "**No gemeente `podiumd.yml` changes are required for this hop.**\n")
+    write(
+        ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n\n",
+    )
+    write(
+        ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n**No gemeente `podiumd.yml` changes are required for this hop.**\n",
+    )
 
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "e")
@@ -2376,15 +2574,18 @@ def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, 
     setup_repo(tmp_path, monkeypatch, ucv)
     (tmp_path / "etc").mkdir(exist_ok=True)
     write(tmp_path / "etc" / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')
-    write(ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n\n"
-          "## Changes\n\n")
-    write(ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
-          "**No gemeente `podiumd.yml` changes are required for this hop.**\n")
+    write(
+        ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n\n",
+    )
+    write(
+        ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n**No gemeente `podiumd.yml` changes are required for this hop.**\n",
+    )
 
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "f")
@@ -2415,11 +2616,11 @@ def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkey
         "dependencies:\n"
         "  - name: zaakafhandelcomponent\n"
         "    version: 1.0.296\n"
-        "    repository: \"@example\"\n"
+        '    repository: "@example"\n'
         "    alias: zac\n"
         "  - name: openforms\n"
         "    version: 1.12.0\n"
-        "    repository: \"@maykinmedia\"\n"
+        '    repository: "@maykinmedia"\n'
         "    alias: openformulieren\n",
         encoding="utf-8",
     )

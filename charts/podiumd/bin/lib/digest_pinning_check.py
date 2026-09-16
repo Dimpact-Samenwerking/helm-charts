@@ -51,6 +51,7 @@ no-Dependencies-needed scan — nothing here ever renders or looks past
 podiumd's own values.yaml. See check_shared_image_usage (below) for a
 SEPARATE, render-based check this module also hosts, and check_
 subchart_image_visibility for a third."""
+
 import re
 
 from lib.chart import (
@@ -80,6 +81,7 @@ DIGEST_SUFFIX_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
 # etc/settings.yaml's own "digest_pinning.exceptions" section — see
 # lib.settings.digest_pinning_exceptions, resolved fresh in check_digest_
 # pinning below.
+
 
 def _deps_from_chart_yaml(chart_dir):
     """Chart.yaml's own "dependencies" list, read fresh (chart_dir is all
@@ -186,8 +188,7 @@ def _non_global_shared_repo_groups(values, repo_groups, global_usage):
         repo = get_path(values, ".".join(def_path) + ".repository")
         if isinstance(repo, str) and repo:
             claimed.add(strip_registry_host(repo))
-    return {repo: paths for repo, paths in repo_groups.items()
-            if repo not in claimed and len(paths) > 1}
+    return {repo: paths for repo, paths in repo_groups.items() if repo not in claimed and len(paths) > 1}
 
 
 def _print_path_list(chart_dir, deps, paths):
@@ -231,9 +232,11 @@ def _print_shared_image_usage(chart_dir, deps, values, repo_groups, global_usage
     if underused:
         print()
         noun = "entry" if len(underused) == 1 else "entries"
-        print(f"FAILING: {len(underused)} global.images.* {noun} registered as a shared image "
-              f"but with 0 or 1 real consumer(s) — inline it directly instead of maintaining it "
-              f"as a shared anchor:")
+        print(
+            f"FAILING: {len(underused)} global.images.* {noun} registered as a shared image "
+            f"but with 0 or 1 real consumer(s) — inline it directly instead of maintaining it "
+            f"as a shared anchor:"
+        )
         for def_path in sorted(underused):
             consumers = underused[def_path]
             print(f"  {'.'.join(def_path)} ({len(consumers)} real consumer(s)):")
@@ -242,8 +245,7 @@ def _print_shared_image_usage(chart_dir, deps, values, repo_groups, global_usage
     if well_used:
         print()
         noun = "entry" if len(well_used) == 1 else "entries"
-        print(f"{len(well_used)} global.images.* {noun} genuinely shared (2+ real consumers) "
-              f"— report only:")
+        print(f"{len(well_used)} global.images.* {noun} genuinely shared (2+ real consumers) — report only:")
         for def_path in sorted(well_used):
             consumers = well_used[def_path]
             print(f"  {'.'.join(def_path)} ({len(consumers)} real consumers):")
@@ -251,9 +253,11 @@ def _print_shared_image_usage(chart_dir, deps, values, repo_groups, global_usage
 
     if plain_shared:
         print()
-        print(f"{len(plain_shared)} other image(s) incidentally shared across 2+ values.yaml "
-              f"paths (not a declared global.images.* anchor — report only, bumping one still "
-              f"affects every path listed under it):")
+        print(
+            f"{len(plain_shared)} other image(s) incidentally shared across 2+ values.yaml "
+            f"paths (not a declared global.images.* anchor — report only, bumping one still "
+            f"affects every path listed under it):"
+        )
         for repo in sorted(plain_shared):
             paths = plain_shared[repo]
             print(f"  {repo} ({len(paths)} consumers):")
@@ -272,16 +276,13 @@ def check_digest_pinning(chart_dir):
     images = list(find_image_tag_paths(values))
     exceptions = digest_pinning_exceptions(chart_dir)
 
-    missing = [(path, tag) for path, tag in images
-               if path not in exceptions and not DIGEST_SUFFIX_RE.search(tag)]
+    missing = [(path, tag) for path, tag in images if path not in exceptions and not DIGEST_SUFFIX_RE.search(tag)]
 
     if not missing:
-        print(f"OK: all {len(images)} image tag(s) in values.yaml are digest-pinned "
-              f"({len(exceptions)} exempt)")
+        print(f"OK: all {len(images)} image tag(s) in values.yaml are digest-pinned ({len(exceptions)} exempt)")
         return True, f"{len(images)} pin(s), 0 unpinned"
 
-    print(f"Found {len(missing)} image tag(s) not digest-pinned "
-          f"(missing \"@sha256:<64 hex chars>\"):")
+    print(f'Found {len(missing)} image tag(s) not digest-pinned (missing "@sha256:<64 hex chars>"):')
     for path, tag in sorted(missing):
         print(f"  {'.'.join(path)}.tag: {tag!r}")
 
@@ -502,17 +503,21 @@ def check_subchart_image_visibility(chart_dir, extra_args):
     pinned = [f for f in findings if f[3]]
 
     if floating:
-        print(f"FAILING: {len(floating)} image(s) with a floating, unpinned tag and no podiumd "
-              f"override.\nInvisible to the digest-pinning check above — add a digest-pinned "
-              f"override for each:")
+        print(
+            f"FAILING: {len(floating)} image(s) with a floating, unpinned tag and no podiumd "
+            f"override.\nInvisible to the digest-pinning check above — add a digest-pinned "
+            f"override for each:"
+        )
         for scope_key, subpath, tag, is_pinned in sorted(floating):
             _print_subchart_image_finding(chart_dir, deps, scope_key, subpath, tag, is_pinned)
 
     if pinned:
-        print(f"Report only, NOT failing: {len(pinned)} image(s) defined only in a vendored "
-              f"sub-chart's own default values.yaml, but already digest-pinned there (already "
-              f"reproducible) — decide per image whether it still warrants an explicit podiumd "
-              f"override:")
+        print(
+            f"Report only, NOT failing: {len(pinned)} image(s) defined only in a vendored "
+            f"sub-chart's own default values.yaml, but already digest-pinned there (already "
+            f"reproducible) — decide per image whether it still warrants an explicit podiumd "
+            f"override:"
+        )
         for scope_key, subpath, tag, is_pinned in sorted(pinned):
             _print_subchart_image_finding(chart_dir, deps, scope_key, subpath, tag, is_pinned)
 

@@ -29,6 +29,7 @@ that care about the bucket split itself override render_chart/Chart.yaml
 directly (see the "own/partner/other bucket split" section below, modeled
 on tests/verify-podiumd/test_cve_check.py's own CHART_YAML/VALUES_YAML/
 RENDERED/make_chart_dir/fake_render_chart pattern)."""
+
 import urllib.error
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -88,6 +89,7 @@ def make_run_trivy(vulns_by_ref, calls=None):
         if calls is not None:
             calls.append(ref)
         return vulns_by_ref.get(ref, [])
+
     return _run_trivy
 
 
@@ -96,8 +98,10 @@ def fake_render_chart(rendered="", returncode=1):
     existing test in this file never set up a real render, so
     classify_candidates must degrade to classify_by_key for all of them
     (see _default_render below and this module's own docstring)."""
+
     def render_chart(chart_dir, extra_args):
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
+
     return render_chart
 
 
@@ -107,6 +111,7 @@ def _default_render(libcvediffcheck, monkeypatch):
 
 
 # --- diff_vulns ---
+
 
 def test_diff_vulns_exact_set_difference_per_severity(libcvediffcheck):
     current = [vuln("CRITICAL", "CVE-1", "openssl"), vuln("HIGH", "CVE-2", "libxml2")]
@@ -132,16 +137,24 @@ def test_diff_vulns_never_collapses_into_a_naive_net_count(libcvediffcheck):
 
 # --- check_cve_diff: "upgrade" candidates ---
 
+
 def test_upgrade_candidate_reports_correct_closed_and_introduced(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
-    write_values_yaml(tmp_path, f"""\
+    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+):
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
     tag: "1.0.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
+    )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
     monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
@@ -161,19 +174,24 @@ zac:
     assert "introduced: 1 MEDIUM" in out
 
 
-def test_upgrade_candidate_current_ref_is_the_plain_pinned_tag(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
+def test_upgrade_candidate_current_ref_is_the_plain_pinned_tag(libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
     """Unlike the sliding-digest case below, an "upgrade" candidate's own
     current side is the bare pinned tag -- its digest hasn't drifted, so
     there's nothing to pin more precisely against."""
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
     tag: "1.0.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
+    )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
     monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
@@ -187,14 +205,20 @@ zac:
 
 
 def test_stale_upgrade_cache_entry_is_not_a_candidate(libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
     tag: "1.0.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": stale_upgrade_entry("1.1.0")})
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": stale_upgrade_entry("1.1.0")},
+    )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
 
     calls = []
@@ -209,21 +233,27 @@ zac:
 
 # --- check_cve_diff: "sliding digest" candidates ---
 
+
 def test_sliding_candidate_uses_pinned_digest_not_bare_tag_for_current_side(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
+    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+):
     """The tag alone would now resolve to the NEW upstream digest, not
     what's actually pinned in values.yaml -- current_ref MUST be
     "repo@sha256:<pinned_digest>", never "repo:version"."""
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 openzaak:
   redis:
     image:
       repository: redis
       tag: "8.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache", lambda chart_dir: {})
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins",
-                         lambda chart_dir: [("redis", "8.0", DIGEST_A, f"sha256:{DIGEST_B}")])
+    monkeypatch.setattr(
+        libcvediffcheck, "find_sliding_pins", lambda chart_dir: [("redis", "8.0", DIGEST_A, f"sha256:{DIGEST_B}")]
+    )
 
     calls = []
     vulns_by_ref = {
@@ -245,21 +275,26 @@ openzaak:
 
 # --- check_cve_diff: caching the PROPOSED side ---
 
+
 def test_sliding_candidate_proposed_side_caches_across_runs(libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
     """A sliding candidate's own proposed digest is already known (see
     gather_candidates' own "proposed_digest" field) -- no registry call
     is needed to make it cache-eligible, and a second run reuses the
     cached scan instead of re-invoking trivy."""
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 openzaak:
   redis:
     image:
       repository: redis
       tag: "8.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache", lambda chart_dir: {})
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins",
-                         lambda chart_dir: [("redis", "8.0", DIGEST_A, f"sha256:{DIGEST_B}")])
+    monkeypatch.setattr(
+        libcvediffcheck, "find_sliding_pins", lambda chart_dir: [("redis", "8.0", DIGEST_A, f"sha256:{DIGEST_B}")]
+    )
 
     calls = []
     vulns_by_ref = {
@@ -277,20 +312,27 @@ openzaak:
 
 
 def test_upgrade_candidate_proposed_side_resolves_digest_then_caches_across_runs(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
+    libcvediffcheck, libcvecheck, tmp_path, monkeypatch
+):
     """An "upgrade" candidate's own proposed side is a bare tag -- its
     digest is resolved via ONE registry_tag_exists manifest lookup
     (never a docker pull), called with exactly (host, repo_path,
     newest-tag). Once resolved, a second run reuses the cached scan
     instead of re-invoking trivy, the same as the sliding case."""
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
     tag: "1.0.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
+    )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
 
     resolve_calls = []
@@ -318,19 +360,26 @@ zac:
 
 
 def test_upgrade_candidate_resolve_failure_falls_back_to_uncached_scan(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
+    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+):
     """A network error while resolving the proposed tag's digest must
     never abort the candidate or count as a scan error -- it just falls
     back to an uncached run_trivy call, same as if caching were never
     attempted at all."""
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
     tag: "1.0.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
+    )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
 
     def failing_resolve(host, repo, tag):
@@ -353,29 +402,39 @@ zac:
 
 
 def test_cache_hit_and_fresh_scan_are_both_reported_per_side(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
+    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+):
     """The current side hits a pre-populated cache entry; the proposed
     side doesn't -- the printed output must say so explicitly, per side
     (not a single blanket "unless cached" caveat that never says which
     side actually hit)."""
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
     tag: "1.0.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
+    )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
     monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
     # pre-populate the shared cve-scan cache for the CURRENT side only
-    libcvediffcheck.save_cache(tmp_path, {
-        libcvecheck.cache_key("ghcr.io/infonl/zac", DIGEST_A): {
-            "scanned_at": datetime.now(timezone.utc).isoformat(),
-            "vulnerabilities": [],
+    libcvediffcheck.save_cache(
+        tmp_path,
+        {
+            libcvecheck.cache_key("ghcr.io/infonl/zac", DIGEST_A): {
+                "scanned_at": datetime.now(timezone.utc).isoformat(),
+                "vulnerabilities": [],
+            },
         },
-    })
+    )
 
     trivy_calls = []
     vulns_by_ref = {"ghcr.io/infonl/zac:1.1.0": [vuln("CRITICAL", "CVE-1", "openssl")]}
@@ -391,16 +450,22 @@ zac:
 
 # --- check_cve_diff: no flagged candidate at all ---
 
-def test_no_flagged_upgrade_or_slide_never_scans_anything(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
-    write_values_yaml(tmp_path, f"""\
+
+def test_no_flagged_upgrade_or_slide_never_scans_anything(libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
     tag: "1.0.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.0.0")})
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.0.0")},
+    )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
 
     calls = []
@@ -417,15 +482,22 @@ zac:
 
 # --- detail mode (--detail-cve-diff) ---
 
+
 def test_default_report_is_terse_counts_only(libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
     tag: "1.0.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
+    )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
     monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
@@ -444,15 +516,22 @@ zac:
 
 
 def test_detail_flag_itemizes_high_severity_vulnerability_id_and_package(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
-    write_values_yaml(tmp_path, f"""\
+    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+):
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
     tag: "1.0.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
+    )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
     monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
@@ -470,18 +549,23 @@ zac:
     assert "CVE-1" in out
 
 
-def test_detail_flag_never_itemizes_medium_low_unknown(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
+def test_detail_flag_never_itemizes_medium_low_unknown(libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
     """Same convention as check_cves' own --detail-cve-check: only
     CRITICAL/HIGH ever get itemized, regardless of the flag."""
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
     tag: "1.0.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
+    )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
     monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
@@ -501,16 +585,22 @@ zac:
 
 # --- open_cache_session (shared with check_cves, see lib.cve_check) ---
 
-def test_check_cve_diff_routes_through_open_cache_session(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
-    write_values_yaml(tmp_path, f"""\
+
+def test_check_cve_diff_routes_through_open_cache_session(libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
     tag: "1.0.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
+    )
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
     monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", lambda host, repo, tag: (False, None))
     monkeypatch.setattr(libcvecheck, "run_trivy", make_run_trivy({}))
@@ -529,8 +619,11 @@ zac:
 
 # --- gather_candidates ---
 
+
 def test_gather_candidates_combines_both_sources(libcvediffcheck, tmp_path, monkeypatch):
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
@@ -539,11 +632,16 @@ redis-thing:
   image:
     repository: redis
     tag: "8.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins",
-                         lambda chart_dir: [("redis", "8.0", DIGEST_A, f"sha256:{DIGEST_B}")])
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
+    )
+    monkeypatch.setattr(
+        libcvediffcheck, "find_sliding_pins", lambda chart_dir: [("redis", "8.0", DIGEST_A, f"sha256:{DIGEST_B}")]
+    )
 
     candidates = libcvediffcheck.gather_candidates(tmp_path)
 
@@ -566,7 +664,9 @@ def test_gather_candidates_attaches_the_values_yaml_line_for_both_kinds(libcvedi
     already unpacks it from targets.items(); the "sliding digest" loop
     (whose own find_sliding_pins never returns a line number) looks it up
     from that SAME targets dict, keyed by (repository, version)."""
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zac
@@ -575,11 +675,16 @@ redis-thing:
   image:
     repository: redis
     tag: "8.0@sha256:{DIGEST_A}"
-""")
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache",
-                         lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")})
-    monkeypatch.setattr(libcvediffcheck, "find_sliding_pins",
-                         lambda chart_dir: [("redis", "8.0", DIGEST_A, f"sha256:{DIGEST_B}")])
+""",
+    )
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {"ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0")},
+    )
+    monkeypatch.setattr(
+        libcvediffcheck, "find_sliding_pins", lambda chart_dir: [("redis", "8.0", DIGEST_A, f"sha256:{DIGEST_B}")]
+    )
 
     candidates = libcvediffcheck.gather_candidates(tmp_path)
     by_kind = {c["kind"]: c for c in candidates}
@@ -685,7 +790,8 @@ def _setup_bucket_scenario(libcvediffcheck, libcvecheck, tmp_path, monkeypatch, 
 
 
 def test_check_cve_diff_splits_own_partner_other_in_order_with_correct_content(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
+    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+):
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [vuln("CRITICAL", "CVE-OWN-1", "openssl")],
         "ghcr.io/infonl/zac:1.1.0": [],
@@ -723,7 +829,8 @@ def test_check_cve_diff_splits_own_partner_other_in_order_with_correct_content(
 
 
 def test_check_cve_diff_bucket_with_no_candidates_prints_no_header(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
+    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+):
     """Only own+partner have a flagged candidate here (redis-operator's
     own upgrade cache entry is missing, so it never becomes a candidate at
     all) -- "--- Other-vendor images ---" must not appear anywhere."""
@@ -734,11 +841,15 @@ def test_check_cve_diff_bucket_with_no_candidates_prints_no_header(
         "docker.io/maykinmedia/objects-api:1.1.0": [vuln("HIGH", "CVE-PARTNER-1", "curl")],
     }
     _setup_bucket_scenario(libcvediffcheck, libcvecheck, tmp_path, monkeypatch, vulns_by_ref)
-    monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache", lambda chart_dir: {
-        "ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0"),
-        "maykinmedia/objects-api:1.0.0": fresh_upgrade_entry("1.1.0"),
-        "docker.io/alpine/k8s:1.36.2": fresh_upgrade_entry("1.36.2"),  # no newer tag -- not a candidate
-    })
+    monkeypatch.setattr(
+        libcvediffcheck,
+        "load_upgrade_cache",
+        lambda chart_dir: {
+            "ghcr.io/infonl/zac:1.0.0": fresh_upgrade_entry("1.1.0"),
+            "maykinmedia/objects-api:1.0.0": fresh_upgrade_entry("1.1.0"),
+            "docker.io/alpine/k8s:1.36.2": fresh_upgrade_entry("1.36.2"),  # no newer tag -- not a candidate
+        },
+    )
 
     ok, detail = libcvediffcheck.check_cve_diff(tmp_path, [])
     assert ok is True
@@ -749,8 +860,7 @@ def test_check_cve_diff_bucket_with_no_candidates_prints_no_header(
     assert "--- Other-vendor images ---" not in out
 
 
-def test_check_cve_diff_summary_reports_correct_per_bucket_counts(
-        libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
+def test_check_cve_diff_summary_reports_correct_per_bucket_counts(libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [vuln("CRITICAL", "CVE-OWN-1", "openssl")],
         "ghcr.io/infonl/zac:1.1.0": [],
@@ -767,4 +877,5 @@ def test_check_cve_diff_summary_reports_correct_per_bucket_counts(
         "1 own (1 closed, 0 introduced), "
         "1 partner-vendor (0 closed, 1 introduced), "
         "1 other-vendor (0 closed, 1 introduced); "
-        "0 scan error(s)")
+        "0 scan error(s)"
+    )

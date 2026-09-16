@@ -33,13 +33,7 @@ def test_duplicate_message_includes_the_file_name(vp, tmp_path, capsys):
 
 
 def test_genuine_duplicate_nested_is_caught(vp, tmp_path):
-    content = (
-        "zac:\n"
-        "  image:\n"
-        "    tag: 5.4.3\n"
-        "  image:\n"
-        "    tag: 5.5.0\n"
-    )
+    content = "zac:\n  image:\n    tag: 5.4.3\n  image:\n    tag: 5.5.0\n"
     chart_dir = write_values(tmp_path, content)
     ok, detail = vp.check_duplicate_keys(chart_dir)
     assert ok is False
@@ -71,12 +65,7 @@ def test_list_items_sharing_key_names_are_not_false_positives(vp, tmp_path):
 
 
 def test_duplicate_key_within_a_single_list_item_is_still_caught(vp, tmp_path):
-    content = (
-        "list:\n"
-        "  - name: foo\n"
-        "    value: bar\n"
-        "    value: baz\n"
-    )
+    content = "list:\n  - name: foo\n    value: bar\n    value: baz\n"
     chart_dir = write_values(tmp_path, content)
     ok, detail = vp.check_duplicate_keys(chart_dir)
     assert ok is False

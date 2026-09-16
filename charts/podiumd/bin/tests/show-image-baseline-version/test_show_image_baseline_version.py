@@ -7,6 +7,7 @@ current file.
 
 No <baseline> CLI argument anymore — main() always shows state at BOTH
 release-baseline.yaml baselines (upgrade_docs, release_table)."""
+
 import subprocess
 
 import pytest
@@ -18,10 +19,7 @@ def git(*args, cwd):
 
 def write_zac_values(chart_dir, version, digest):
     (chart_dir / "values.yaml").write_text(
-        "zac:\n"
-        "  image:\n"
-        "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
-        f'    tag: "{version}@sha256:{digest}"\n',
+        f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "{version}@sha256:{digest}"\n',
         encoding="utf-8",
     )
 
@@ -62,6 +60,7 @@ def write_baselines(repo, upgrade_docs=None, release_table=None):
 # --- main() integration ---
 # main() only calls sys.exit() on error paths; on success it just returns,
 # so only the failure-path tests wrap the call in pytest.raises(SystemExit).
+
 
 def set_argv_and_repo(sibv, monkeypatch, repo, key, basename):
     monkeypatch.setattr("sys.argv", ["show-image-baseline-version", key, basename])

@@ -10,6 +10,7 @@ through the helper or was hand-interpolated (e.g.
 `"{{ .repository }}:{{ .tag }}"`) or hardcoded outright. This also means
 the check only ever covers this chart's own templates; a vendored
 sub-chart's templates aren't this repo's source to scan."""
+
 import re
 
 IMAGE_LINE_RE = re.compile(r"^\s*image:\s*(.+)$")
@@ -38,11 +39,13 @@ def check_image_references(chart_dir):
     findings = scan_image_references(chart_dir / "templates")
 
     if not findings:
-        print('OK: every image: field in templates/*.yaml calls the podiumd.image helper')
+        print("OK: every image: field in templates/*.yaml calls the podiumd.image helper")
         return True, "0 violation(s)"
 
-    print(f'Found {len(findings)} image: field(s) not using the podiumd.image helper '
-          f'(.github/copilot-instructions.md "Image References"):')
+    print(
+        f"Found {len(findings)} image: field(s) not using the podiumd.image helper "
+        f'(.github/copilot-instructions.md "Image References"):'
+    )
     for path, line_no, value in findings:
         rel = path.relative_to(chart_dir)
         print(f"  {rel}:{line_no}  {value}")

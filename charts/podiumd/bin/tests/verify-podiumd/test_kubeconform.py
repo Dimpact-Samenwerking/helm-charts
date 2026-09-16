@@ -10,6 +10,7 @@ partner-vendor per-item reporting). All `helm`/`kubeconform` subprocess
 calls are mocked via vp.run; friendly_vendor_charts is mocked too, since
 these tests use tmp_path (no real Chart.yaml) — no real kubeconform or helm
 invocation happens in these tests."""
+
 import json
 from types import SimpleNamespace
 
@@ -47,6 +48,7 @@ RENDERED = (
 def fake_render_chart(rendered=RENDERED, returncode=0):
     def render_chart(chart_dir, extra_args):
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
+
     return render_chart
 
 
@@ -84,6 +86,7 @@ def sequenced_run(own_resources, vendored_resources_by_chart=None, kc_returncode
 
 # --- run_kubeconform / schema cache ---
 
+
 def test_run_kubeconform_creates_cache_dir_and_passes_cache_flag(libkubeconformcheck, monkeypatch, tmp_path):
     """kubeconform requires -cache's target directory to already exist (it
     errors out rather than creating it), so run_kubeconform must mkdir it
@@ -109,6 +112,7 @@ def test_run_kubeconform_creates_cache_dir_and_passes_cache_flag(libkubeconformc
 
 # --- split_rendered_by_source ---
 
+
 def test_split_rendered_by_source_separates_own_and_vendored(librenderscope):
     docs = librenderscope.split_rendered_by_source(RENDERED)
     assert [source for source, _ in docs] == [
@@ -126,14 +130,19 @@ def test_split_rendered_by_source_keeps_doc_separator(librenderscope):
 
 # --- check_kubeconform ---
 
+
 def test_check_kubeconform_no_findings_passes(vp, libkubeconformcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
-    monkeypatch.setattr(libkubeconformcheck, "run", sequenced_run(
-        own_resources=[{"kind": "Service", "name": "frankgateway", "status": "statusValid"}],
-        vendored_resources_by_chart={"zac": [{"kind": "ConfigMap", "name": "zac-config", "status": "statusValid"}]},
-        kc_returncode=0,
-    ))
+    monkeypatch.setattr(
+        libkubeconformcheck,
+        "run",
+        sequenced_run(
+            own_resources=[{"kind": "Service", "name": "frankgateway", "status": "statusValid"}],
+            vendored_resources_by_chart={"zac": [{"kind": "ConfigMap", "name": "zac-config", "status": "statusValid"}]},
+            kc_returncode=0,
+        ),
+    )
 
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is True
@@ -143,10 +152,20 @@ def test_check_kubeconform_no_findings_passes(vp, libkubeconformcheck, tmp_path,
 def test_check_kubeconform_own_schema_violation_fails(vp, libkubeconformcheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
-    monkeypatch.setattr(libkubeconformcheck, "run", sequenced_run(own_resources=[
-        {"kind": "Service", "name": "frankgateway", "status": "statusInvalid",
-         "msg": "jsonschema validation failed: additional properties 'badField' not allowed"},
-    ]))
+    monkeypatch.setattr(
+        libkubeconformcheck,
+        "run",
+        sequenced_run(
+            own_resources=[
+                {
+                    "kind": "Service",
+                    "name": "frankgateway",
+                    "status": "statusInvalid",
+                    "msg": "jsonschema validation failed: additional properties 'badField' not allowed",
+                },
+            ]
+        ),
+    )
 
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is False
@@ -164,9 +183,15 @@ def test_check_kubeconform_own_finding_includes_rendered_line(vp, libkubeconform
     check_kubeconform must print it alongside the kind/name."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
-    monkeypatch.setattr(libkubeconformcheck, "run", sequenced_run(own_resources=[
-        {"kind": "Service", "name": "frankgateway", "status": "statusInvalid", "msg": "bad"},
-    ]))
+    monkeypatch.setattr(
+        libkubeconformcheck,
+        "run",
+        sequenced_run(
+            own_resources=[
+                {"kind": "Service", "name": "frankgateway", "status": "statusInvalid", "msg": "bad"},
+            ]
+        ),
+    )
 
     vp.check_kubeconform(tmp_path, [])
 
@@ -180,10 +205,20 @@ def test_check_kubeconform_own_parse_error_fails(vp, libkubeconformcheck, tmp_pa
     also fail, same as a schema violation."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
-    monkeypatch.setattr(libkubeconformcheck, "run", sequenced_run(own_resources=[
-        {"kind": "Service", "name": "frankgateway", "status": "statusError",
-         "msg": 'error unmarshalling resource: yaml: unmarshal errors:\n  line 14: key "x" already set in map'},
-    ]))
+    monkeypatch.setattr(
+        libkubeconformcheck,
+        "run",
+        sequenced_run(
+            own_resources=[
+                {
+                    "kind": "Service",
+                    "name": "frankgateway",
+                    "status": "statusError",
+                    "msg": 'error unmarshalling resource: yaml: unmarshal errors:\n  line 14: key "x" already set in map',
+                },
+            ]
+        ),
+    )
 
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is False
@@ -197,10 +232,14 @@ def test_check_kubeconform_skipped_crd_is_not_a_finding(vp, libkubeconformcheck,
     CRDs: Keycloak, ECK, Redis, ...) must never count as a finding."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
-    monkeypatch.setattr(libkubeconformcheck, "run", sequenced_run(
-        own_resources=[{"kind": "Keycloak", "name": "keycloak", "status": "statusSkipped"}],
-        kc_returncode=0,
-    ))
+    monkeypatch.setattr(
+        libkubeconformcheck,
+        "run",
+        sequenced_run(
+            own_resources=[{"kind": "Keycloak", "name": "keycloak", "status": "statusSkipped"}],
+            kc_returncode=0,
+        ),
+    )
 
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is True
@@ -214,12 +253,22 @@ def test_check_kubeconform_repeated_root_cause_is_grouped(vp, libkubeconformchec
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
     msg = 'error unmarshalling resource: yaml: unmarshal errors:\n  line 14: key "app.kubernetes.io/name" already set in map'
-    monkeypatch.setattr(libkubeconformcheck, "run", sequenced_run(own_resources=[
-        {"kind": "Service", "name": "frankgateway-shim", "status": "statusError", "msg": msg},
-        {"kind": "Service", "name": "frankgateway", "status": "statusError", "msg": msg},
-        {"kind": "Deployment", "name": "frankgateway", "status": "statusError",
-         "msg": msg + '\n  line 29: key "app.kubernetes.io/name" already set in map'},
-    ]))
+    monkeypatch.setattr(
+        libkubeconformcheck,
+        "run",
+        sequenced_run(
+            own_resources=[
+                {"kind": "Service", "name": "frankgateway-shim", "status": "statusError", "msg": msg},
+                {"kind": "Service", "name": "frankgateway", "status": "statusError", "msg": msg},
+                {
+                    "kind": "Deployment",
+                    "name": "frankgateway",
+                    "status": "statusError",
+                    "msg": msg + '\n  line 29: key "app.kubernetes.io/name" already set in map',
+                },
+            ]
+        ),
+    )
 
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is False
@@ -233,13 +282,23 @@ def test_check_kubeconform_repeated_root_cause_is_grouped(vp, libkubeconformchec
 def test_check_kubeconform_other_vendor_finding_never_fails(vp, libkubeconformcheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
-    monkeypatch.setattr(libkubeconformcheck, "run", sequenced_run(
-        own_resources=[],
-        vendored_resources_by_chart={"zac": [
-            {"kind": "ConfigMap", "name": "zac-config", "status": "statusInvalid",
-             "msg": "some upstream schema violation"},
-        ]},
-    ))
+    monkeypatch.setattr(
+        libkubeconformcheck,
+        "run",
+        sequenced_run(
+            own_resources=[],
+            vendored_resources_by_chart={
+                "zac": [
+                    {
+                        "kind": "ConfigMap",
+                        "name": "zac-config",
+                        "status": "statusInvalid",
+                        "msg": "some upstream schema violation",
+                    },
+                ]
+            },
+        ),
+    )
 
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is True
@@ -251,20 +310,32 @@ def test_check_kubeconform_other_vendor_finding_never_fails(vp, libkubeconformch
     assert "some upstream schema violation" not in out  # not dumped in detail
 
 
-def test_check_kubeconform_friendly_vendor_finding_reported_per_item_never_fails(vp, libkubeconformcheck, tmp_path, monkeypatch, capsys):
+def test_check_kubeconform_friendly_vendor_finding_reported_per_item_never_fails(
+    vp, libkubeconformcheck, tmp_path, monkeypatch, capsys
+):
     """A vendored sub-chart from a listed partner org gets its finding
     printed individually (attributed to the chart it came from, since
     kubeconform is run once per distinct vendored chart precisely so this
     attribution is possible) but must still never fail."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     monkeypatch.setattr(libkubeconformcheck, "friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
-    monkeypatch.setattr(libkubeconformcheck, "run", sequenced_run(
-        own_resources=[],
-        vendored_resources_by_chart={"zac": [
-            {"kind": "ConfigMap", "name": "zac-config", "status": "statusInvalid",
-             "msg": "additional properties 'badField' not allowed"},
-        ]},
-    ))
+    monkeypatch.setattr(
+        libkubeconformcheck,
+        "run",
+        sequenced_run(
+            own_resources=[],
+            vendored_resources_by_chart={
+                "zac": [
+                    {
+                        "kind": "ConfigMap",
+                        "name": "zac-config",
+                        "status": "statusInvalid",
+                        "msg": "additional properties 'badField' not allowed",
+                    },
+                ]
+            },
+        ),
+    )
 
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is True

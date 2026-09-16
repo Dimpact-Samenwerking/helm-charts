@@ -6,6 +6,7 @@ actually changed vs. that baseline has a row/mention/entry in the right
 doc, even if no doc mentions it yet. Only ever this one baseline —
 lib.chart.release_table_baseline never flows into this file; see that
 function's own docstring for why podiumd needs two baselines now."""
+
 import re
 
 import yaml
@@ -84,8 +85,9 @@ def check_doc_title(doc_path, upgrade_docs_baseline, podiumd_version):
     lines = doc_path.read_text(encoding="utf-8").splitlines()
     first_line = lines[0] if lines else ""
     if not re.search(rf"{re.escape(upgrade_docs_baseline)}\s*(?:→|->)\s*{re.escape(podiumd_version)}", first_line):
-        return [f'{doc_path.name} title line "{first_line}" does not read '
-                f'"{upgrade_docs_baseline} → {podiumd_version}"']
+        return [
+            f'{doc_path.name} title line "{first_line}" does not read "{upgrade_docs_baseline} → {podiumd_version}"'
+        ]
     return []
 
 
@@ -138,8 +140,7 @@ def check_baseline_doc_set(doc_dir, upgrade_docs_baseline, podiumd_version):
     return issues
 
 
-SIBLING_DOC_RE = re.compile(
-    r"(\d+\.\d+\.\d+)-to-(\d+\.\d+\.\d+)-(upgrade|gemeente-specific|values-deltas)\.md")
+SIBLING_DOC_RE = re.compile(r"(\d+\.\d+\.\d+)-to-(\d+\.\d+\.\d+)-(upgrade|gemeente-specific|values-deltas)\.md")
 IMAGES_REF_RE = re.compile(r"images-(\d+\.\d+\.\d+)\.yaml")
 
 
@@ -165,16 +166,19 @@ def check_pointer_consistency(doc_path, upgrade_docs_baseline, podiumd_version, 
         if normalize_version(to_v) != normalize_version(podiumd_version):
             continue
         if normalize_version(from_v) != normalize_version(upgrade_docs_baseline):
-            issues.append(f'{doc_path.name}: reference "{m.group(0)}" targets podiumd '
-                           f'{podiumd_version} but its upgrade_docs_baseline is "{from_v}", expected "{upgrade_docs_baseline}"')
+            issues.append(
+                f'{doc_path.name}: reference "{m.group(0)}" targets podiumd '
+                f'{podiumd_version} but its upgrade_docs_baseline is "{from_v}", expected "{upgrade_docs_baseline}"'
+            )
         elif not (doc_dir / m.group(0)).is_file():
             issues.append(f'{doc_path.name}: reference "{m.group(0)}" does not exist')
 
     for m in IMAGES_REF_RE.finditer(text):
         version = m.group(1)
         if normalize_version(version) != normalize_version(podiumd_version):
-            issues.append(f'{doc_path.name}: reference "{m.group(0)}" targets podiumd '
-                           f'{version}, expected "{podiumd_version}"')
+            issues.append(
+                f'{doc_path.name}: reference "{m.group(0)}" targets podiumd {version}, expected "{podiumd_version}"'
+            )
         elif not (images_dir / m.group(0)).is_file():
             issues.append(f'{doc_path.name}: reference "{m.group(0)}" does not exist')
 
@@ -211,8 +215,7 @@ def match_changes_item_to_entry(item_name, entries):
     keycloak-operator dependency) wrongly matched the "keycloak" entry
     (keycloak's own, unrelated primary image) instead of "postgres",
     since match_dependency has no reason to prefer the trailing word."""
-    candidates = [{"name": entry["name"].rsplit("/", 1)[-1], "_entry": entry}
-                  for entry in entries if entry.get("name")]
+    candidates = [{"name": entry["name"].rsplit("/", 1)[-1], "_entry": entry} for entry in entries if entry.get("name")]
     search_text = item_name.split(" - ", 1)[1] if " - " in item_name else item_name
     match = match_dependency(search_text, candidates)
     return match["_entry"] if match else None
@@ -247,8 +250,9 @@ def _images_manifest_changes_items(lines):
     if not item_starts:
         return []
     item_ends = item_starts[1:] + [block_end]
-    return [(CHANGES_ITEM_RE.match(lines[start]).group("rest"), start, end)
-            for start, end in zip(item_starts, item_ends)]
+    return [
+        (CHANGES_ITEM_RE.match(lines[start]).group("rest"), start, end) for start, end in zip(item_starts, item_ends)
+    ]
 
 
 def find_images_manifest_changes_items_out_of_order(text, entries, entry_positions, display_name_positions):
@@ -399,20 +403,25 @@ def check_images_manifest_changes_numbering(images_path_name, text):
         expected = slot + 1
         actual = int(CHANGES_ITEM_RE.match(lines[idx]).group("num"))
         if actual != expected:
-            issues.append(f'{images_path_name}: "# Changes:" item numbered {actual} should be {expected} '
-                           f'(item #{expected} in the list, top to bottom)')
+            issues.append(
+                f'{images_path_name}: "# Changes:" item numbered {actual} should be {expected} '
+                f"(item #{expected} in the list, top to bottom)"
+            )
 
     if header_has_count:
         count_word, noun = images_manifest_changes_count_word(len(item_indices))
         header_m = CHANGES_HEADER_RE.match(lines[header_idx])
         if header_m and header_m.group("count_word").lower() != count_word.lower():
-            issues.append(f'{images_path_name}: header says "{header_m.group("count_word")} {noun}" but there '
-                           f'are actually {len(item_indices)}')
+            issues.append(
+                f'{images_path_name}: header says "{header_m.group("count_word")} {noun}" but there '
+                f"are actually {len(item_indices)}"
+            )
     return issues
 
 
-def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_version, deps, values, baseline_values,
-                                  chart_dir=None):
+def check_images_manifest_format(
+    images_path, upgrade_docs_baseline, podiumd_version, deps, values, baseline_values, chart_dir=None
+):
     """Existence + YAML-validity + header-comment-accuracy precheck for the
     images manifest, run BEFORE the entry-by-entry content checks — mirrors
     check_baseline_doc_set for the three markdown docs. Also checks the
@@ -433,7 +442,7 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     for i, entry in enumerate(entries):
         missing = [k for k in ("name", "url", "version", "digest") if k not in entry]
         if missing:
-            return [f'{images_path.name} entry #{i + 1} is missing key(s): {", ".join(missing)}']
+            return [f"{images_path.name} entry #{i + 1} is missing key(s): {', '.join(missing)}"]
 
     issues = []
 
@@ -446,7 +455,9 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
         # same handling as the "... vs ..." line just below.
         baseline_str = baseline_m.group(1).rstrip(".")
         if normalize_version(baseline_str) != normalize_version(upgrade_docs_baseline):
-            issues.append(f'{images_path.name}: upgrade_docs_baseline line says "{baseline_str}", expected "{upgrade_docs_baseline}"')
+            issues.append(
+                f'{images_path.name}: upgrade_docs_baseline line says "{baseline_str}", expected "{upgrade_docs_baseline}"'
+            )
 
     vs_m = re.search(r"podiumd\s+([\w.\-]+)\s+vs\s+([\w.\-]+)", text)
     if not vs_m:
@@ -454,11 +465,14 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     else:
         vs_target, vs_baseline = vs_m.group(1).rstrip("."), vs_m.group(2).rstrip(".")
         if normalize_version(vs_target) != normalize_version(podiumd_version):
-            issues.append(f'{images_path.name}: "... vs ..." line says target "{vs_target}", '
-                           f'expected "{podiumd_version}"')
+            issues.append(
+                f'{images_path.name}: "... vs ..." line says target "{vs_target}", expected "{podiumd_version}"'
+            )
         if normalize_version(vs_baseline) != normalize_version(upgrade_docs_baseline):
-            issues.append(f'{images_path.name}: "... vs ..." line says upgrade_docs_baseline "{vs_baseline}", '
-                           f'expected "{upgrade_docs_baseline}"')
+            issues.append(
+                f'{images_path.name}: "... vs ..." line says upgrade_docs_baseline "{vs_baseline}", '
+                f'expected "{upgrade_docs_baseline}"'
+            )
 
     issues.extend(check_images_manifest_changes_numbering(images_path.name, text))
 
@@ -479,8 +493,9 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     current_paths.update(global_image_paths(values))
     repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys()) if chart_dir is not None else {}
     repo_map = {repo: repo_group_representative(paths, deps) for repo, paths in repo_groups.items()}
-    canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys()) \
-        if chart_dir is not None else {}
+    canonical_names = (
+        canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys()) if chart_dir is not None else {}
+    )
 
     items = list(parse_changes_block(text))
     # Same two deterministic gaps as lib.docs_consistency's own upgrade-doc
@@ -494,12 +509,15 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     # same for "clamav_exporter (metrics sidecar) ..." vs the exact
     # "ClamAV ..." item.
     duplicate_names, wrong_fuzzy_names = find_wrong_or_duplicate_dependency_claims(
-        [item["name"] for item in items], deps)
+        [item["name"] for item in items], deps
+    )
 
     for item in items:
         if item["name"] in duplicate_names or item["name"] in wrong_fuzzy_names:
-            issues.append(f'{images_path.name}: Changes item "{item["name"]}" is wrong or stale — '
-                           f'not found in Chart.yaml or values.yaml')
+            issues.append(
+                f'{images_path.name}: Changes item "{item["name"]}" is wrong or stale — '
+                f"not found in Chart.yaml or values.yaml"
+            )
             continue
 
         # match_dependency_excluding_sidecar_names, not match_dependency
@@ -533,28 +551,40 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
             entry = None
             path = canonical_names.get(item["name"])
             if path is not None:
-                entry = next((e for e in entries
-                               if resolve_entry_image_path(e, current_paths.keys(), repo_map) == path), None)
+                entry = next(
+                    (e for e in entries if resolve_entry_image_path(e, current_paths.keys(), repo_map) == path), None
+                )
             if entry is None:
                 entry = match_changes_item_to_entry(item["name"], entries)
             if entry is None:
-                issues.append(f'{images_path.name}: Changes item "{item["name"]}" — no matching '
-                               f'Chart.yaml dependency or images-manifest entry')
+                issues.append(
+                    f'{images_path.name}: Changes item "{item["name"]}" — no matching '
+                    f"Chart.yaml dependency or images-manifest entry"
+                )
                 continue
             actual_app = entry.get("version")
             actual_chart = None  # a plain image has no chart version to check
             baseline_app = None  # no baseline lookup available without a component scope
 
         if item["app"] and actual_app and normalize_version(item["app"]) != normalize_version(actual_app):
-            issues.append(f'{images_path.name}: Changes item "{item["name"]}" target app '
-                           f'"{item["app"]}" != values.yaml "{actual_app}"')
+            issues.append(
+                f'{images_path.name}: Changes item "{item["name"]}" target app '
+                f'"{item["app"]}" != values.yaml "{actual_app}"'
+            )
         if item["chart"] and actual_chart and normalize_version(item["chart"]) != normalize_version(actual_chart):
-            issues.append(f'{images_path.name}: Changes item "{item["name"]}" target chart '
-                           f'"{item["chart"]}" != Chart.yaml "{actual_chart}"')
-        if item["app_source"] and baseline_app and \
-                normalize_version(item["app_source"]) != normalize_version(baseline_app):
-            issues.append(f'{images_path.name}: Changes item "{item["name"]}" source app '
-                           f'"{item["app_source"]}" != upgrade_docs_baseline "{baseline_app}"')
+            issues.append(
+                f'{images_path.name}: Changes item "{item["name"]}" target chart '
+                f'"{item["chart"]}" != Chart.yaml "{actual_chart}"'
+            )
+        if (
+            item["app_source"]
+            and baseline_app
+            and normalize_version(item["app_source"]) != normalize_version(baseline_app)
+        ):
+            issues.append(
+                f'{images_path.name}: Changes item "{item["name"]}" source app '
+                f'"{item["app_source"]}" != upgrade_docs_baseline "{baseline_app}"'
+            )
 
     lines = text.splitlines()
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
@@ -577,26 +607,28 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
         return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
 
     for index, (entry, line_idx) in enumerate(zip(entries, entry_line_indices)):
-        comment = find_grouped_preceding_comment(
-            lines, entries, entry_line_indices, index, same_group)
+        comment = find_grouped_preceding_comment(lines, entries, entry_line_indices, index, same_group)
         if not comment:
             issues.append(f'{images_path.name}: entry "{entry["name"]}" has no preceding comment')
             continue
 
         target = extract_target_version(comment)
         if target and normalize_version(target) != normalize_version(entry["version"]):
-            issues.append(f'{images_path.name}: entry "{entry["name"]}" comment says target '
-                           f'"{target}", entry version is "{entry["version"]}"')
+            issues.append(
+                f'{images_path.name}: entry "{entry["name"]}" comment says target '
+                f'"{target}", entry version is "{entry["version"]}"'
+            )
 
         if baseline_paths:
             path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
             baseline_tag = baseline_paths.get(path) if path else None
             baseline_version = baseline_tag.split("@")[0] if baseline_tag else None
             source = extract_source_version(comment)
-            if source and baseline_version and \
-                    normalize_version(source) != normalize_version(baseline_version):
-                issues.append(f'{images_path.name}: entry "{entry["name"]}" comment says source '
-                               f'"{source}", upgrade_docs_baseline actually has "{baseline_version}"')
+            if source and baseline_version and normalize_version(source) != normalize_version(baseline_version):
+                issues.append(
+                    f'{images_path.name}: entry "{entry["name"]}" comment says source '
+                    f'"{source}", upgrade_docs_baseline actually has "{baseline_version}"'
+                )
 
     # Structural, independent of upgrade_docs_baseline: a sidecar image
     # (see is_primary_image_path) needs its OWN indented "#   sidecar:
@@ -610,14 +642,18 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     # silently inherits a header that doesn't describe it at all.
     if chart_dir is not None:
         for name, expected, problem in find_images_manifest_faulty_headers(
-                entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names):
+            entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names
+        ):
             if problem == "missing":
-                issues.append(f'{images_path.name}: entry "{name}" is a sidecar of "{expected.split(" - ")[0]}" '
-                               f'but has no own "#   sidecar: {expected} ..." header — it may be sharing a '
-                               f'preceding entry\'s header, which only describes THAT entry\'s own version bump')
+                issues.append(
+                    f'{images_path.name}: entry "{name}" is a sidecar of "{expected.split(" - ")[0]}" '
+                    f'but has no own "#   sidecar: {expected} ..." header — it may be sharing a '
+                    f"preceding entry's header, which only describes THAT entry's own version bump"
+                )
             else:
-                issues.append(f'{images_path.name}: entry "{name}" has its own sidecar header, but it '
-                               f'does not name "{expected}"')
+                issues.append(
+                    f'{images_path.name}: entry "{name}" has its own sidecar header, but it does not name "{expected}"'
+                )
 
     # Also structural, independent of upgrade_docs_baseline: entries
     # (or shared-header groups) should follow values.yaml's own top-
@@ -626,11 +662,13 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     if chart_dir is not None:
         key_order = values_key_order(values)
         for name_a, name_b in find_images_manifest_out_of_order_names(
-                entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names, key_order,
-                values):
-            issues.append(f'{images_path.name}: entry "{name_b}" is listed right after "{name_a}", but '
-                           f'values.yaml lists {name_b} before {name_a} — entries should follow values.yaml\'s '
-                           f'own component order')
+            entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names, key_order, values
+        ):
+            issues.append(
+                f'{images_path.name}: entry "{name_b}" is listed right after "{name_a}", but '
+                f"values.yaml lists {name_b} before {name_a} — entries should follow values.yaml's "
+                f"own component order"
+            )
 
     # Also structural, independent of upgrade_docs_baseline: the "#
     # Changes:" header's OWN numbered item list should follow the SAME
@@ -639,18 +677,20 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     # relative to them) with nothing else here to catch it.
     if chart_dir is not None:
         entry_positions = images_manifest_entry_positions(text, deps, values, repo_map, canonical_names)
-        display_name_positions = images_manifest_display_name_positions(text, deps, values, repo_map,
-                                                                          canonical_names)
+        display_name_positions = images_manifest_display_name_positions(text, deps, values, repo_map, canonical_names)
         for item_a, item_b in find_images_manifest_changes_items_out_of_order(
-                text, entries, entry_positions, display_name_positions):
-            issues.append(f'{images_path.name}: "# Changes:" list has "{item_b}" right after "{item_a}", but '
-                           f'the entry list has them in the opposite order — Changes items should follow the '
-                           f'same order as the entries below them')
+            text, entries, entry_positions, display_name_positions
+        ):
+            issues.append(
+                f'{images_path.name}: "# Changes:" list has "{item_b}" right after "{item_a}", but '
+                f"the entry list has them in the opposite order — Changes items should follow the "
+                f"same order as the entries below them"
+            )
 
         for name in find_images_manifest_entries_missing_changes_mention(
-                text, entries, deps, values, repo_map, canonical_names):
-            issues.append(f'{images_path.name}: image "{name}" has an entry but no mention in the '
-                           f'"# Changes:" list')
+            text, entries, deps, values, repo_map, canonical_names
+        ):
+            issues.append(f'{images_path.name}: image "{name}" has an entry but no mention in the "# Changes:" list')
 
     # Only checked once there's something real to diff against — without
     # a resolvable upgrade_docs_baseline, "changed" can't be computed at
@@ -658,19 +698,29 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     if baseline_paths and chart_dir is not None:
         unresolvable_paths = set(find_images_without_repository(chart_dir))
         missing_paths, stale_entry_names, unmatched_entry_names = find_images_manifest_list_diff(
-            entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths,
-            chart_dir=chart_dir, deps=deps, upgrade_docs_baseline=upgrade_docs_baseline,
-            values=values, baseline_values=baseline_values)
+            entries,
+            current_paths,
+            baseline_paths,
+            repo_map,
+            repo_groups,
+            unresolvable_paths,
+            chart_dir=chart_dir,
+            deps=deps,
+            upgrade_docs_baseline=upgrade_docs_baseline,
+            values=values,
+            baseline_values=baseline_values,
+        )
         for path in missing_paths:
             name = path_display_name(path, deps, canonical_names)
-            issues.append(f'{images_path.name}: image "{name}" changed vs '
-                           f'{upgrade_docs_baseline} but has no entry')
+            issues.append(f'{images_path.name}: image "{name}" changed vs {upgrade_docs_baseline} but has no entry')
         for name in stale_entry_names:
-            issues.append(f'{images_path.name}: entry "{name}" is listed but its image did not '
-                           f'change vs {upgrade_docs_baseline}')
+            issues.append(
+                f'{images_path.name}: entry "{name}" is listed but its image did not change vs {upgrade_docs_baseline}'
+            )
         for name in unmatched_entry_names:
-            issues.append(f'{images_path.name}: entry "{name}" is wrong or stale — '
-                           f'not found in Chart.yaml or values.yaml')
+            issues.append(
+                f'{images_path.name}: entry "{name}" is wrong or stale — not found in Chart.yaml or values.yaml'
+            )
 
     return issues
 
@@ -702,8 +752,9 @@ def check_values_deltas_content(doc_path, actual_changed_keys, baseline_values, 
     rule existed (see lib.component_docs.prune_empty_values_delta_
     sections, fix-doc-consistency's own cleanup for exactly this)."""
     text = doc_path.read_text(encoding="utf-8")
-    no_changes_claimed = bool(re.search(
-        r"no\s+gemeente\s+`?podiumd\.yml`?\s+changes\s+are\s+required", text, re.IGNORECASE))
+    no_changes_claimed = bool(
+        re.search(r"no\s+gemeente\s+`?podiumd\.yml`?\s+changes\s+are\s+required", text, re.IGNORECASE)
+    )
 
     issues = []
     for values_key in sorted(actual_changed_keys):
@@ -718,12 +769,14 @@ def check_values_deltas_content(doc_path, actual_changed_keys, baseline_values, 
 
         section = find_values_delta_section(text, values_key, deps, canonical_names)
         if section is None:
-            issues.append(f'{doc_path.name}: component "{values_key}" has a values.yaml schema change '
-                           f'vs upgrade_docs_baseline but has no "## ..." section of its own')
+            issues.append(
+                f'{doc_path.name}: component "{values_key}" has a values.yaml schema change '
+                f'vs upgrade_docs_baseline but has no "## ..." section of its own'
+            )
             continue
 
         lines = text.splitlines(keepends=True)
-        section_text = "".join(lines[section["start"]:section["end"]])
+        section_text = "".join(lines[section["start"] : section["end"]])
         backtick_spans = set(re.findall(r"`([^`]+)`", strip_fenced_code_blocks(section_text)))
 
         def mentioned(span):
@@ -732,29 +785,37 @@ def check_values_deltas_content(doc_path, actual_changed_keys, baseline_values, 
         for path in added:
             dotted = ".".join(path)
             if not mentioned(dotted):
-                issues.append(f'{doc_path.name}: key "{dotted}" was added but is not mentioned '
-                               f'(backtick-quoted) in "{values_key}"\'s own section')
+                issues.append(
+                    f'{doc_path.name}: key "{dotted}" was added but is not mentioned '
+                    f'(backtick-quoted) in "{values_key}"\'s own section'
+                )
         for path in removed:
             dotted = ".".join(path)
             if not mentioned(dotted):
-                issues.append(f'{doc_path.name}: key "{dotted}" was removed but is not mentioned '
-                               f'(backtick-quoted) in "{values_key}"\'s own section')
+                issues.append(
+                    f'{doc_path.name}: key "{dotted}" was removed but is not mentioned '
+                    f'(backtick-quoted) in "{values_key}"\'s own section'
+                )
         for old_path, new_path in renamed:
             old_dotted, new_dotted = ".".join(old_path), ".".join(new_path)
             if not (mentioned(old_dotted) and mentioned(new_dotted)):
-                issues.append(f'{doc_path.name}: key "{old_dotted}" appears renamed to "{new_dotted}" '
-                               f'but this rename is not mentioned (backtick-quoted, both sides) in '
-                               f'"{values_key}"\'s own section')
+                issues.append(
+                    f'{doc_path.name}: key "{old_dotted}" appears renamed to "{new_dotted}" '
+                    f"but this rename is not mentioned (backtick-quoted, both sides) in "
+                    f'"{values_key}"\'s own section'
+                )
 
     lines = text.splitlines(keepends=True)
     for section in parse_values_delta_sections(text):
-        if not "".join(lines[section["start"] + 1:section["end"]]).strip():
-            issues.append(f'{doc_path.name}: "## {section["heading"]}" section has nothing under its '
-                           f'own heading')
+        if not "".join(lines[section["start"] + 1 : section["end"]]).strip():
+            issues.append(f'{doc_path.name}: "## {section["heading"]}" section has nothing under its own heading')
 
     if issues and no_changes_claimed:
-        issues.insert(0, f'{doc_path.name}: claims "No gemeente podiumd.yml changes are required" '
-                          f'but {len(issues)} key change(s) were found — see below')
+        issues.insert(
+            0,
+            f'{doc_path.name}: claims "No gemeente podiumd.yml changes are required" '
+            f"but {len(issues)} key change(s) were found — see below",
+        )
     return issues
 
 
@@ -794,8 +855,10 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     if is_bare_version:
         precheck_issues = check_baseline_doc_set(doc_dir, upgrade_docs_baseline, podiumd_version)
         if precheck_issues:
-            print(f"FOUND {len(precheck_issues)} issue(s) with the upgrade_docs_baseline doc set "
-                  f"(checked before any other check on these documents):")
+            print(
+                f"FOUND {len(precheck_issues)} issue(s) with the upgrade_docs_baseline doc set "
+                f"(checked before any other check on these documents):"
+            )
             for issue in sorted(precheck_issues):
                 print(" ", issue)
             return False, f"{len(precheck_issues)} upgrade_docs_baseline doc issue(s)"
@@ -814,14 +877,18 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         # for a precheck that had NOTHING already computed to lose, so it
         # was invisible until a real doc set tripped it.
         images_dir = chart_dir / "docs" / "images"
-        pointer_docs = [doc_dir / f"{upgrade_docs_baseline}-to-{podiumd_version}-{suffix}.md"
-                        for suffix in ("upgrade", "gemeente-specific", "values-deltas")]
+        pointer_docs = [
+            doc_dir / f"{upgrade_docs_baseline}-to-{podiumd_version}-{suffix}.md"
+            for suffix in ("upgrade", "gemeente-specific", "values-deltas")
+        ]
         images_path_for_pointers = images_dir / f"images-{podiumd_version}.yaml"
         if images_path_for_pointers.is_file():
             pointer_docs.append(images_path_for_pointers)
-        pointer_issues = [issue for doc in pointer_docs
-                           for issue in check_pointer_consistency(doc, upgrade_docs_baseline, podiumd_version,
-                                                                   doc_dir, images_dir)]
+        pointer_issues = [
+            issue
+            for doc in pointer_docs
+            for issue in check_pointer_consistency(doc, upgrade_docs_baseline, podiumd_version, doc_dir, images_dir)
+        ]
         mismatches.extend(pointer_issues)
 
     if is_bare_version:
@@ -850,18 +917,20 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                     companion_text = companion_path.read_text(encoding="utf-8")
                     if suffix == "values-deltas" and strip_stale_values_deltas_todo_stub(companion_text)[1]:
                         mismatches.append(
-                            f'{doc_name}: still has its own stale TODO placeholder stranded alongside a '
+                            f"{doc_name}: still has its own stale TODO placeholder stranded alongside a "
                             f'real "## ..." section — run fix-doc-consistency to clear it'
                         )
                     elif suffix == "gemeente-specific" and has_stale_gemeente_specific_placeholder(companion_text):
                         mismatches.append(
                             f'{doc_name}: still has its own stale "_None recorded yet._" placeholder '
                             f'stranded alongside a real "## <gemeente> (<env>)" section — clear it by hand '
-                            f'(nothing auto-fixes this one)'
+                            f"(nothing auto-fixes this one)"
                         )
         else:
-            print(f'WARNING: upgrade_docs_baseline "{upgrade_docs_baseline}" is not a bare version — cannot check '
-                  f'for matching gemeente-specific / values-deltas docs')
+            print(
+                f'WARNING: upgrade_docs_baseline "{upgrade_docs_baseline}" is not a bare version — cannot check '
+                f"for matching gemeente-specific / values-deltas docs"
+            )
 
     baseline_ref, baseline_deps, baseline_values = None, [], {}
     if upgrade_docs_baseline:
@@ -870,8 +939,9 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         # verify-release-table-with-podiumd's own release_table_baseline
         # lookup) — see its own docstring for why (a real bug in this
         # exact resolution used to need fixing in three places at once).
-        baseline_ref, baseline_deps, baseline_values, _baseline_lines, baseline_error = \
-            resolve_baseline_chart_state(chart_dir, upgrade_docs_baseline)
+        baseline_ref, baseline_deps, baseline_values, _baseline_lines, baseline_error = resolve_baseline_chart_state(
+            chart_dir, upgrade_docs_baseline
+        )
         if baseline_error:
             mismatches.append(f'upgrade_docs_baseline "{upgrade_docs_baseline}": {baseline_error}')
 
@@ -879,8 +949,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     # what the docs currently say, so it also catches a component that
     # changed but was never added to any doc at all.
     actual_changed_keys = (
-        compute_changed_components(deps, baseline_deps, values, baseline_values)
-        if baseline_ref else set()
+        compute_changed_components(deps, baseline_deps, values, baseline_values) if baseline_ref else set()
     )
     current_paths = dict(find_image_tag_paths(values))
     current_paths.update(global_image_paths(values))
@@ -893,8 +962,10 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         print(f"WARNING: no upgrade doc matches {doc_glob} — skipping doc check")
     else:
         if len(doc_matches) > 1:
-            print(f"WARNING: multiple upgrade docs match {doc_glob}: "
-                  f"{', '.join(p.name for p in doc_matches)} — using {doc_matches[-1].name}")
+            print(
+                f"WARNING: multiple upgrade docs match {doc_glob}: "
+                f"{', '.join(p.name for p in doc_matches)} — using {doc_matches[-1].name}"
+            )
         doc_path = doc_matches[-1]
         checked.append(doc_path.name)
         if is_bare_version:
@@ -910,7 +981,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         if strip_stale_upgrade_placeholders(doc_path.read_text(encoding="utf-8"))[1]:
             mismatches.append(
                 f'{doc_path.name}: still has a stale "TODO" placeholder stranded alongside real content '
-                f'— run fix-doc-consistency to clear it'
+                f"— run fix-doc-consistency to clear it"
             )
 
         if baseline_ref:
@@ -927,7 +998,8 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         # free-form row fuzzy-matching a dependency another row already
         # exactly claims, e.g. a stale "Kiss Elasticsearch" row).
         duplicate_names, wrong_fuzzy_names = find_wrong_or_duplicate_dependency_claims(
-            [row["name"] for row in rows], deps)
+            [row["name"] for row in rows], deps
+        )
 
         for name in sorted(duplicate_names | wrong_fuzzy_names):
             mismatches.append(
@@ -943,8 +1015,13 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             # for why (a checker/fixer that resolve a row two different ways
             # can silently drift apart on what "correct" even means).
             resolved = resolve_component_row(
-                row["name"], chart_dir, canonical_names, deps, values,
-                baseline_deps=baseline_deps if baseline_ref else None, baseline_values=baseline_values,
+                row["name"],
+                chart_dir,
+                canonical_names,
+                deps,
+                values,
+                baseline_deps=baseline_deps if baseline_ref else None,
+                baseline_values=baseline_values,
                 upgrade_docs_baseline=upgrade_docs_baseline if baseline_ref else None,
             )
             if resolved["kind"] == "unmatched":
@@ -952,7 +1029,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                     f'{doc_path.name}: doc row "{row["name"]}" does not match a Chart.yaml '
                     f'dependency or a canonical sidecar/shared-image name ("<component> - '
                     f'<basename>" or "<basename>", the exact form update-image-version writes) '
-                    f'— wrong phrasing, or a stale row'
+                    f"— wrong phrasing, or a stale row"
                 )
                 continue
 
@@ -994,8 +1071,8 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 # not a doc/reality disagreement this check exists to catch.
                 print(
                     f'WARNING: {doc_path.name}: doc row "{row["name"]}" source version could not '
-                    f'be verified against {baseline_ref} — the component didn\'t exist there yet, '
-                    f'or its version isn\'t resolvable there; source cells left unchecked'
+                    f"be verified against {baseline_ref} — the component didn't exist there yet, "
+                    f"or its version isn't resolvable there; source cells left unchecked"
                 )
                 if resolved["kind"] != "sidecar" and actual_app:
                     baseline_app_by_identity[("dep", values_key)] = None
@@ -1005,14 +1082,16 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             if resolved["kind"] != "sidecar" and actual_app:
                 baseline_app_by_identity[("dep", values_key)] = baseline_app_actual
 
-            if row["chart_source"] and baseline_chart_actual and \
-                    normalize_version(row["chart_source"]) != normalize_version(baseline_chart_actual):
+            if (
+                row["chart_source"]
+                and baseline_chart_actual
+                and normalize_version(row["chart_source"]) != normalize_version(baseline_chart_actual)
+            ):
                 mismatches.append(
                     f'{values_key} ("{row["name"]}") source chart: {baseline_ref} has '
                     f'"{baseline_chart_actual}", {doc_path.name} says "{row["chart_source"]}"'
                 )
-            if baseline_app_actual and \
-                    normalize_version(row["app_source"]) != normalize_version(baseline_app_actual):
+            if baseline_app_actual and normalize_version(row["app_source"]) != normalize_version(baseline_app_actual):
                 mismatches.append(
                     f'{values_key} ("{row["name"]}") source app: {baseline_ref} has '
                     f'"{baseline_app_actual}", {doc_path.name} says "{row["app_source"] or "-"}"'
@@ -1029,7 +1108,8 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 # (almost always a brand-new/changed sidecar nested
                 # under it) already gets its own separate row.
                 resolved = resolve_component_own_version_change(
-                    key, deps, baseline_deps, values, baseline_values, chart_dir, upgrade_docs_baseline)
+                    key, deps, baseline_deps, values, baseline_values, chart_dir, upgrade_docs_baseline
+                )
                 if resolved is not None and resolved[-1]:
                     continue
                 mismatches.append(
@@ -1059,8 +1139,9 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 # fixed in lib.upgradedoc.compute_changed_components and
                 # lib.image_docs.add_missing_sidecar_rows, just never
                 # ported to this one, independent copy of the same check.
-                if (version_of(baseline_tag) if baseline_tag is not None else None) != \
-                        (version_of(current_tag) if current_tag is not None else None):
+                if (version_of(baseline_tag) if baseline_tag is not None else None) != (
+                    version_of(current_tag) if current_tag is not None else None
+                ):
                     mismatches.append(
                         f'{doc_path.name}: sidecar/shared image "{name}" changed vs {baseline_ref} '
                         f'but has no row in the "Component versions" table'
@@ -1071,8 +1152,8 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         for name_a, name_b in find_out_of_order_names(row_names, deps, key_order, canonical_names, values):
             mismatches.append(
                 f'{doc_path.name}: "Component versions" table lists "{name_b}" right after "{name_a}", '
-                f'but values.yaml lists {name_b} before {name_a} — rows should follow values.yaml\'s '
-                f'own component order'
+                f"but values.yaml lists {name_b} before {name_a} — rows should follow values.yaml's "
+                f"own component order"
             )
 
         doc_text = doc_path.read_text(encoding="utf-8")
@@ -1080,8 +1161,8 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         for name_a, name_b in find_out_of_order_names(changes_headings, deps, key_order, canonical_names, values):
             mismatches.append(
                 f'{doc_path.name}: "## Changes" section has "### {name_b}" right after "### {name_a}", '
-                f'but values.yaml lists the {name_b} component before {name_a} — Changes blocks should '
-                f'follow values.yaml\'s own component order'
+                f"but values.yaml lists the {name_b} component before {name_a} — Changes blocks should "
+                f"follow values.yaml's own component order"
             )
 
         # Only checked when the doc actually has a "## Changes" heading at
@@ -1092,7 +1173,8 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         has_changes_section = any(line.strip() == "## Changes" for line in doc_text.splitlines())
         if has_changes_section:
             rows_without_heading, headings_without_row = find_changes_row_correspondence_gaps(
-                rows, changes_headings, deps, canonical_names)
+                rows, changes_headings, deps, canonical_names
+            )
             for name in rows_without_heading:
                 mismatches.append(
                     f'{doc_path.name}: table row "{name}" has no matching "### ..." section under "## Changes"'
@@ -1149,8 +1231,8 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                         mismatches.append(
                             f'{doc_path.name}: "## Changes" section "### {heading}" shows the wrong '
                             f'app-version transition in its own heading — expected "{expected_app_heading}" '
-                            f'(values.yaml/{baseline_ref} show {baseline_app_by_identity[identity]!r} -> '
-                            f'{actual_app!r})'
+                            f"(values.yaml/{baseline_ref} show {baseline_app_by_identity[identity]!r} -> "
+                            f"{actual_app!r})"
                         )
 
     images_path = chart_dir / "docs" / "images" / f"images-{podiumd_version}.yaml"
@@ -1167,8 +1249,13 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     images_format_ok = True
     if is_bare_version:
         format_issues = check_images_manifest_format(
-            images_path, upgrade_docs_baseline, podiumd_version, deps, values,
-            baseline_values if baseline_ref else {}, chart_dir=chart_dir
+            images_path,
+            upgrade_docs_baseline,
+            podiumd_version,
+            deps,
+            values,
+            baseline_values if baseline_ref else {},
+            chart_dir=chart_dir,
         )
         if format_issues:
             images_format_ok = False
@@ -1201,7 +1288,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 noun = "entry" if len(entries_list) == 1 else "entries"
                 mismatches.append(
                     f'{images_path.name}: has {len(entries_list)} {noun} but no "# Changes:" header '
-                    f'at all — every real change is undocumented in the summary list'
+                    f"at all — every real change is undocumented in the summary list"
                 )
 
         for entry in entries_list:
@@ -1215,39 +1302,41 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
 
             version, digest = entry.get("version"), entry.get("digest")
             if not version or not digest:
-                mismatches.append(
-                    f'{name}: entry in {images_path.name} is missing "version" or "digest"'
-                )
+                mismatches.append(f'{name}: entry in {images_path.name} is missing "version" or "digest"')
                 continue
-            expected_tag = f'{version}@{digest}'
+            expected_tag = f"{version}@{digest}"
             actual_tag = resolved_digest_pin(values, path, current_paths[path], sibling_fields) or current_paths[path]
             if actual_tag != expected_tag:
                 mismatches.append(
-                    f'{name}: values.yaml tag is "{actual_tag}", '
-                    f'{images_path.name} says "{expected_tag}"'
+                    f'{name}: values.yaml tag is "{actual_tag}", {images_path.name} says "{expected_tag}"'
                 )
 
             if baseline_ref and baseline_paths.get(path) == expected_tag:
                 mismatches.append(
-                    f'{name}: listed in {images_path.name} as new/changed, but {baseline_ref} '
+                    f"{name}: listed in {images_path.name} as new/changed, but {baseline_ref} "
                     f'already has this exact tag ("{expected_tag}") — did it actually change?'
                 )
 
     if baseline_ref and is_bare_version and actual_changed_keys:
         values_deltas_path = doc_dir / f"{upgrade_docs_baseline}-to-{podiumd_version}-values-deltas.md"
         canonical_names_for_deltas = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
-        mismatches.extend(check_values_deltas_content(
-            values_deltas_path, actual_changed_keys, baseline_values, values, deps, canonical_names_for_deltas))
+        mismatches.extend(
+            check_values_deltas_content(
+                values_deltas_path, actual_changed_keys, baseline_values, values, deps, canonical_names_for_deltas
+            )
+        )
 
         deltas_key_order = values_key_order(values)
-        deltas_headings = [s["heading"] for s in parse_values_delta_sections(
-            values_deltas_path.read_text(encoding="utf-8"))]
-        for name_a, name_b in find_out_of_order_names(deltas_headings, deps, deltas_key_order,
-                                                        canonical_names_for_deltas, values):
+        deltas_headings = [
+            s["heading"] for s in parse_values_delta_sections(values_deltas_path.read_text(encoding="utf-8"))
+        ]
+        for name_a, name_b in find_out_of_order_names(
+            deltas_headings, deps, deltas_key_order, canonical_names_for_deltas, values
+        ):
             mismatches.append(
                 f'{values_deltas_path.name}: "## {name_b}" section comes right after "## {name_a}", '
-                f'but values.yaml lists the {name_b} component before {name_a} — sections should follow '
-                f'values.yaml\'s own component order'
+                f"but values.yaml lists the {name_b} component before {name_a} — sections should follow "
+                f"values.yaml's own component order"
             )
 
     if not checked:

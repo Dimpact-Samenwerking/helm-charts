@@ -45,6 +45,7 @@ over any longer window.
 Never fails regardless of findings — a newer tag being published is
 advisory (worth checking whether it's worth bumping to), not something
 this repo's own content violates."""
+
 import urllib.error
 from datetime import datetime, timezone
 
@@ -137,14 +138,15 @@ def check_image_upgrades(chart_dir, extra_args):
         print(f"{len(fetch_errors)} image(s) could not be checked:")
         for ref in fetch_errors:
             print(f"  {ref}")
-    print(f"{cache_hits}/{len(targets)} image(s) served from cache (checked within the last "
-          f"{ttl_days} day(s))")
+    print(f"{cache_hits}/{len(targets)} image(s) served from cache (checked within the last {ttl_days} day(s))")
 
     own_n, own_up = bucket_totals(own_refs, images)
     partner_n, partner_up = bucket_totals(partner_refs, images)
     other_n, other_up = bucket_totals(other_refs, images)
-    detail = (f"upgradable: {own_up}/{own_n} own, {partner_up}/{partner_n} partner-vendor, "
-              f"{other_up}/{other_n} other-vendor; {len(fetch_errors)} fetch error(s)")
+    detail = (
+        f"upgradable: {own_up}/{own_n} own, {partner_up}/{partner_n} partner-vendor, "
+        f"{other_up}/{other_n} other-vendor; {len(fetch_errors)} fetch error(s)"
+    )
     return True, detail
 
 

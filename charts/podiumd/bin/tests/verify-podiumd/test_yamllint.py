@@ -12,6 +12,7 @@ worth surfacing right now. All `helm`/`yamllint` subprocess calls are
 mocked via vp.run — friendly_vendor_charts is mocked too, since these tests
 use tmp_path (no real Chart.yaml) — no real yamllint or helm invocation
 happens in these tests."""
+
 from types import SimpleNamespace
 
 import pytest
@@ -20,12 +21,14 @@ import pytest
 def fake_run(returncode=0, stdout="", stderr=""):
     def run(cmd, **kwargs):
         return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
+
     return run
 
 
 def fake_render_chart(rendered="", returncode=0):
     def render_chart(chart_dir, extra_args):
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
+
     return render_chart
 
 
@@ -72,12 +75,15 @@ def sequenced_run(yamllint_stdout, yamllint_returncode=1):
     """The yamllint call is check_yamllint's own ONLY remaining `run([...])`
     call (the render moved to render_chart, see _default_render above),
     so no cmd[0] dispatch is needed here any more."""
+
     def run(cmd, **kwargs):
         return SimpleNamespace(returncode=yamllint_returncode, stdout=yamllint_stdout, stderr="")
+
     return run
 
 
 # --- build_line_sources ---
+
 
 def test_build_line_sources_maps_lines_to_preceding_source_comment(librenderscope):
     sources = librenderscope.build_line_sources(RENDERED)
@@ -93,6 +99,7 @@ def test_build_line_sources_line_before_any_source_is_none(librenderscope):
 
 # --- chart_name_from_source ---
 
+
 def test_chart_name_from_source_extracts_chart_immediately_before_templates(librenderscope):
     assert librenderscope.chart_name_from_source("podiumd/charts/zac/templates/configmap.yaml") == "zac"
 
@@ -107,6 +114,7 @@ def test_chart_name_from_source_falls_back_to_raw_string(librenderscope):
 
 
 # --- check_yamllint ---
+
 
 def test_check_yamllint_no_findings_passes(vp, libyamllintcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
@@ -180,7 +188,9 @@ def test_check_yamllint_vendored_key_duplicate_never_fails(vp, libyamllintcheck,
     assert "never a failure" in out
 
 
-def test_check_yamllint_vendored_findings_reported_as_one_line_count(vp, libyamllintcheck, tmp_path, monkeypatch, capsys):
+def test_check_yamllint_vendored_findings_reported_as_one_line_count(
+    vp, libyamllintcheck, tmp_path, monkeypatch, capsys
+):
     """Non-friendly vendored findings are noisy (can be hundreds) and not
     actionable — reported as a single aggregate count, never dumped
     finding-by-finding."""
@@ -200,7 +210,9 @@ def test_check_yamllint_vendored_findings_reported_as_one_line_count(vp, libyaml
     assert "(comments)" not in out
 
 
-def test_check_yamllint_friendly_vendor_finding_reported_per_item_never_fails(vp, libyamllintcheck, tmp_path, monkeypatch, capsys):
+def test_check_yamllint_friendly_vendor_finding_reported_per_item_never_fails(
+    vp, libyamllintcheck, tmp_path, monkeypatch, capsys
+):
     """A vendored sub-chart from a listed partner org (Maykin, Info(NL),
     ICATT, Worth, WeAreFrank, Dimpact, or a local file:// dep) gets its
     finding printed individually — unlike a plain vendored finding, which
@@ -223,7 +235,9 @@ def test_check_yamllint_friendly_vendor_finding_reported_per_item_never_fails(vp
     assert "rendered line(s):" in out
 
 
-def test_check_yamllint_repeated_own_finding_in_one_file_is_grouped(vp, libyamllintcheck, tmp_path, monkeypatch, capsys):
+def test_check_yamllint_repeated_own_finding_in_one_file_is_grouped(
+    vp, libyamllintcheck, tmp_path, monkeypatch, capsys
+):
     """The same root cause (e.g. the frankgateway templates duplicating
     app.kubernetes.io/name once per resource) shows up as several hits in
     one file — these must print as one grouped line with an occurrence

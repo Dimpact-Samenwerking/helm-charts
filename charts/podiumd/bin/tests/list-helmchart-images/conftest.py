@@ -2,6 +2,7 @@
 importable normally) as a module, with its module-level CHART_YAML constant
 repointed at an isolated temp file so tests never read/depend on the real
 chart."""
+
 import importlib.util
 from importlib.machinery import SourceFileLoader
 from pathlib import Path

@@ -14,6 +14,7 @@ override any of these further (e.g. write its own Chart.yaml) for its
 own scenario. Also stubs the unconditional fix-helm-doc
 subprocess call at the end of main(), same convention as
 tests/set-doc-baseline/conftest.py."""
+
 import importlib.util
 import subprocess
 from importlib.machinery import SourceFileLoader

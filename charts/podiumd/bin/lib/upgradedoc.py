@@ -1,5 +1,6 @@
 """Upgrade-doc parsing/matching helpers shared by verify-podiumd's
 docs-consistency check and fix-doc-consistency's version-correction pass."""
+
 import re
 
 import yaml
@@ -227,8 +228,9 @@ def find_out_of_order_names(names, deps, key_order, canonical_names=None, values
     before."""
     violations = []
     for a, b in zip(names, names[1:]):
-        if (component_order_key(b, deps, key_order, canonical_names, values)
-                < component_order_key(a, deps, key_order, canonical_names, values)):
+        if component_order_key(b, deps, key_order, canonical_names, values) < component_order_key(
+            a, deps, key_order, canonical_names, values
+        ):
             violations.append((a, b))
     return violations
 
@@ -274,16 +276,17 @@ def parse_upgrade_doc_changes_blocks(text):
             section_end = i
             break
 
-    heading_indices = [i for i in range(changes_idx + 1, section_end)
-                        if CHANGES_BLOCK_HEADING_RE.match(lines[i])]
+    heading_indices = [i for i in range(changes_idx + 1, section_end) if CHANGES_BLOCK_HEADING_RE.match(lines[i])]
     blocks = []
     for j, start in enumerate(heading_indices):
         end = heading_indices[j + 1] if j + 1 < len(heading_indices) else section_end
-        blocks.append({
-            "heading": CHANGES_BLOCK_HEADING_RE.match(lines[start]).group(1),
-            "start": start,
-            "end": end,
-        })
+        blocks.append(
+            {
+                "heading": CHANGES_BLOCK_HEADING_RE.match(lines[start]).group(1),
+                "start": start,
+                "end": end,
+            }
+        )
     return blocks
 
 
@@ -305,8 +308,9 @@ def sort_upgrade_doc_rows(text, deps, values, canonical_names=None):
 
     key_order = values_key_order(values)
     names = [row["name"] for row in rows]
-    order = sorted(range(len(names)),
-                    key=lambda i: component_order_key(names[i], deps, key_order, canonical_names, values))
+    order = sorted(
+        range(len(names)), key=lambda i: component_order_key(names[i], deps, key_order, canonical_names, values)
+    )
     moved = [(names[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
     if not moved:
         return text, []
@@ -334,14 +338,15 @@ def sort_changes_blocks(text, deps, values, canonical_names=None):
 
     key_order = values_key_order(values)
     headings = [b["heading"] for b in blocks]
-    order = sorted(range(len(headings)),
-                    key=lambda i: component_order_key(headings[i], deps, key_order, canonical_names, values))
+    order = sorted(
+        range(len(headings)), key=lambda i: component_order_key(headings[i], deps, key_order, canonical_names, values)
+    )
     moved = [(headings[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
     if not moved:
         return text, []
 
     lines = text.splitlines(keepends=True)
-    original_texts = ["".join(lines[b["start"]:b["end"]]) for b in blocks]
+    original_texts = ["".join(lines[b["start"] : b["end"]]) for b in blocks]
     new_texts = [original_texts[i] for i in order]
 
     first_start, last_end = blocks[0]["start"], blocks[-1]["end"]
@@ -370,11 +375,13 @@ def parse_values_delta_sections(text):
     sections = []
     for j, start in enumerate(heading_indices):
         end = heading_indices[j + 1] if j + 1 < len(heading_indices) else len(lines)
-        sections.append({
-            "heading": VALUES_DELTA_SECTION_HEADING_RE.match(lines[start]).group(1),
-            "start": start,
-            "end": end,
-        })
+        sections.append(
+            {
+                "heading": VALUES_DELTA_SECTION_HEADING_RE.match(lines[start]).group(1),
+                "start": start,
+                "end": end,
+            }
+        )
     return sections
 
 
@@ -398,8 +405,9 @@ def sort_values_delta_sections(text, deps, values, canonical_names=None):
 
     key_order = values_key_order(values)
     headings = [s["heading"] for s in sections]
-    order = sorted(range(len(headings)),
-                    key=lambda i: component_order_key(headings[i], deps, key_order, canonical_names, values))
+    order = sorted(
+        range(len(headings)), key=lambda i: component_order_key(headings[i], deps, key_order, canonical_names, values)
+    )
     moved = [(headings[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
     if not moved:
         return text, []
@@ -411,7 +419,7 @@ def sort_values_delta_sections(text, deps, values, canonical_names=None):
     # particular, always originally had none, since there's nothing
     # after it to separate from); "\n".join below reinstates exactly one
     # blank line between every section regardless of slot.
-    original_texts = ["".join(lines[s["start"]:s["end"]]).rstrip("\n") + "\n" for s in sections]
+    original_texts = ["".join(lines[s["start"] : s["end"]]).rstrip("\n") + "\n" for s in sections]
     new_texts = [original_texts[i] for i in order]
 
     first_start, last_end = sections[0]["start"], sections[-1]["end"]
@@ -464,14 +472,16 @@ def parse_upgrade_doc_rows(text):
             continue
         if all(re.match(r"^:?-+:?$", c) for c in cells):
             continue
-        rows.append({
-            "line_index": i,
-            "name": cells[0],
-            "app_source": extract_source_version(cells[1]),
-            "app": extract_target_version(cells[1]),
-            "chart_source": extract_source_version(cells[2]),
-            "chart": extract_target_version(cells[2]),
-        })
+        rows.append(
+            {
+                "line_index": i,
+                "name": cells[0],
+                "app_source": extract_source_version(cells[1]),
+                "app": extract_target_version(cells[1]),
+                "chart_source": extract_source_version(cells[2]),
+                "chart": extract_target_version(cells[2]),
+            }
+        )
     return rows
 
 
@@ -669,8 +679,11 @@ def changes_heading_identities(heading, deps, canonical_names):
         return set()
     words = words_of(heading)
     matches = []  # [(start, end, values_key), ...], end exclusive
-    candidates_by_key = [(cand, dep.get("alias", dep["name"]))
-                          for dep in deps for cand in filter(None, [dep.get("name"), dep.get("alias")])]
+    candidates_by_key = [
+        (cand, dep.get("alias", dep["name"]))
+        for dep in deps
+        for cand in filter(None, [dep.get("name"), dep.get("alias")])
+    ]
     candidates_by_key += [(key, key) for key in native_components()]
     for candidate, key in candidates_by_key:
         norm_c = normalize_name(candidate)
@@ -685,9 +698,13 @@ def changes_heading_identities(heading, deps, canonical_names):
                 if acc == norm_c:
                     matches.append((start, end + 1, key))
                     break
-    kept = [key for start, end, key in matches
-            if not any(o_start <= start and end <= o_end and (o_start, o_end) != (start, end)
-                       for o_start, o_end, _ in matches)]
+    kept = [
+        key
+        for start, end, key in matches
+        if not any(
+            o_start <= start and end <= o_end and (o_start, o_end) != (start, end) for o_start, o_end, _ in matches
+        )
+    ]
     return {("dep", key) for key in kept}
 
 
@@ -736,8 +753,11 @@ def find_changes_row_correspondence_gaps(rows, headings, deps, canonical_names):
         if ident not in all_heading_identities:
             rows_without_heading.append(row["name"])
 
-    headings_without_row = [heading for heading, idents in zip(headings, heading_identity_sets)
-                             if len(idents) != 1 or idents.isdisjoint(row_identities)]
+    headings_without_row = [
+        heading
+        for heading, idents in zip(headings, heading_identity_sets)
+        if len(idents) != 1 or idents.isdisjoint(row_identities)
+    ]
 
     return rows_without_heading, headings_without_row
 
@@ -760,8 +780,12 @@ def changes_heading_has_app_version(heading):
     couldn't resolve anything at all at the time) reliably signals no
     app version was ever written."""
     without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
-    return ("→" in without_chart_clause or "->" in without_chart_clause
-            or "(new)" in without_chart_clause or "(unchanged)" in without_chart_clause)
+    return (
+        "→" in without_chart_clause
+        or "->" in without_chart_clause
+        or "(new)" in without_chart_clause
+        or "(unchanged)" in without_chart_clause
+    )
 
 
 def is_exact_dependency_match(name, dep):
@@ -924,9 +948,7 @@ def component_version_cell(old, new):
     return new
 
 
-VERSION_PAIR_RE = re.compile(
-    r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)"
-)
+VERSION_PAIR_RE = re.compile(r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)")
 
 
 VERSION_SPEC_RE = re.compile(
@@ -963,8 +985,10 @@ def replace_version_pair(line, new_source, new_target):
     """Replace the first "<source> -> <target>" (or "→") pair in line with
     new_source/new_target, preserving everything else (the "# <Name> — "
     prefix, arrow style, trailing newline)."""
+
     def repl(m):
         return f"{new_source} {m.group('arrow')} {new_target}"
+
     new_line, count = VERSION_PAIR_RE.subn(repl, line, count=1)
     return new_line if count else line
 
@@ -1054,8 +1078,9 @@ def actual_app_version(values, values_key, component=None, chart_dir=None, dep=N
     return None
 
 
-def resolve_baseline_component_versions(baseline_values, baseline_dep, values_key, image_path, chart_name,
-                                         new_chart, chart_dir=None):
+def resolve_baseline_component_versions(
+    baseline_values, baseline_dep, values_key, image_path, chart_name, new_chart, chart_dir=None
+):
     """(old_app, old_chart) resolved against the TRUE release baseline —
     the single source of truth update-image-version's own update_docs_
     single_component and update-component-version's own main() both
@@ -1109,10 +1134,15 @@ def resolve_baseline_component_versions(baseline_values, baseline_dep, values_ke
     raw_old_chart = str(baseline_dep["version"]) if baseline_dep is not None else None
     baseline_tag = get_path(baseline_values, f"{values_key}.{image_path}.tag") or ""
     old_app = baseline_tag.split("@", 1)[0] or None
-    if (old_app is None and chart_dir is not None and raw_old_chart is not None
-            and normalize_version(raw_old_chart) == normalize_version(new_chart)):
-        old_app = actual_app_version(baseline_values, values_key, chart_name, chart_dir=chart_dir,
-                                      dep={"name": chart_name, "version": new_chart})
+    if (
+        old_app is None
+        and chart_dir is not None
+        and raw_old_chart is not None
+        and normalize_version(raw_old_chart) == normalize_version(new_chart)
+    ):
+        old_app = actual_app_version(
+            baseline_values, values_key, chart_name, chart_dir=chart_dir, dep={"name": chart_name, "version": new_chart}
+        )
     old_chart = raw_old_chart if old_app is not None else None
     return old_app, old_chart
 
@@ -1133,8 +1163,16 @@ def sidecar_tag(values, sidecar_path):
     return tag.split("@", 1)[0] if isinstance(tag, str) and tag else None
 
 
-def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
-                           baseline_deps=None, baseline_values=None, upgrade_docs_baseline=None):
+def resolve_component_row(
+    row_name,
+    chart_dir,
+    canonical_names,
+    deps,
+    values,
+    baseline_deps=None,
+    baseline_values=None,
+    upgrade_docs_baseline=None,
+):
     """Resolve a "Component versions" table row's name to the real
     component it identifies, and its actual target (and, if requested,
     source) versions — the one place both fix-doc-consistency's row-
@@ -1210,8 +1248,11 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
     # native_components component (see lib.chart.native_components) — no
     # Chart.yaml dependency at all, checked only once neither of the above
     # matched, same precedence match_native_component's other callers use.
-    native_key = None if (sidecar_path is not None or dep is not None) \
+    native_key = (
+        None
+        if (sidecar_path is not None or dep is not None)
         else match_native_component(row_name, native_components(chart_dir))
+    )
 
     if sidecar_path is None and dep is None and native_key is None:
         return {"kind": "unmatched"}
@@ -1263,11 +1304,11 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
             baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
             baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
             baseline_repo_groups = (
-                paths_by_repository(chart_dir, deps, baseline_values, baseline_paths.keys())
-                if baseline_values else {}
+                paths_by_repository(chart_dir, deps, baseline_values, baseline_paths.keys()) if baseline_values else {}
             )
             baseline_app = baseline_tag_for_sidecar_path(
-                chart_dir, deps, values, baseline_values, baseline_paths, baseline_repo_groups, sidecar_path)
+                chart_dir, deps, values, baseline_values, baseline_paths, baseline_repo_groups, sidecar_path
+            )
             if baseline_app is None and baseline_values:
                 # Neither an exact match nor this same repository
                 # elsewhere in baseline_values (real case: redis-
@@ -1278,7 +1319,8 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
                 # committed per-release documents, not the removed
                 # images-baseline.yaml side-file).
                 baseline_app = historical_app_version_for_path(
-                    chart_dir, deps, values, sidecar_path, upgrade_docs_baseline)
+                    chart_dir, deps, values, sidecar_path, upgrade_docs_baseline
+                )
             result["baseline_app"] = baseline_app
             result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
         elif dep is not None:
@@ -1301,8 +1343,12 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
                 if baseline_app is None and baseline_values:
                     for path in image_paths_for(dep["name"], chart_dir):
                         baseline_app = historical_app_version_for_path(
-                            chart_dir, deps, values, (result["values_key"],) + tuple(path.split(".")),
-                            upgrade_docs_baseline)
+                            chart_dir,
+                            deps,
+                            values,
+                            (result["values_key"],) + tuple(path.split(".")),
+                            upgrade_docs_baseline,
+                        )
                         if baseline_app is not None:
                             break
                 result["baseline_app"] = baseline_app
@@ -1315,7 +1361,8 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
             if baseline_app is None and baseline_values:
                 for path in image_paths_for(native_key, chart_dir):
                     baseline_app = historical_app_version_for_path(
-                        chart_dir, deps, values, (native_key,) + tuple(path.split(".")), upgrade_docs_baseline)
+                        chart_dir, deps, values, (native_key,) + tuple(path.split(".")), upgrade_docs_baseline
+                    )
                     if baseline_app is not None:
                         break
             result["baseline_app"] = baseline_app
@@ -1506,9 +1553,11 @@ def images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_ma
     factored out, it was duplicated as an identical closure in both
     lib.docs_consistency and fix-doc-consistency."""
     component_a = entry_component(entry_a, current_paths, repo_map)
-    return (component_a is not None
-            and component_a == entry_component(entry_b, current_paths, repo_map)
-            and entry_a.get("version") == entry_b.get("version"))
+    return (
+        component_a is not None
+        and component_a == entry_component(entry_b, current_paths, repo_map)
+        and entry_a.get("version") == entry_b.get("version")
+    )
 
 
 def path_display_name(path, deps, canonical_names):
@@ -1627,17 +1676,18 @@ def header_name_segment(text):
     the rest of the name)."""
     m = VERSION_PAIR_RE.search(text)
     if m:
-        return text[:m.start()].rstrip(" \t—-")
+        return text[: m.start()].rstrip(" \t—-")
     without_trailing_asides = re.sub(r"(\s*\([^)]*\))+$", "", text)
     if without_trailing_asides == text:
         return text.rstrip(" \t—-")
     bare_version = re.search(r"\s[A-Za-z0-9][\w.\-]*$", without_trailing_asides)
-    name = without_trailing_asides[:bare_version.start()] if bare_version else text
+    name = without_trailing_asides[: bare_version.start()] if bare_version else text
     return name.rstrip(" \t—-")
 
 
-def find_images_manifest_faulty_headers(entries, entry_line_indices, lines, deps, current_paths, repo_map,
-                                         canonical_names):
+def find_images_manifest_faulty_headers(
+    entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names
+):
     """[(entry_name, expected_display_name, problem), ...] for every
     SIDECAR entry (see is_primary_image_path — a co-equal primary image
     like zgw-office-addin's frontend/backend is exempt, expected and
@@ -1700,9 +1750,19 @@ def find_images_manifest_faulty_headers(entries, entry_line_indices, lines, deps
     return problems
 
 
-def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_map, repo_groups,
-                                    unresolvable_paths, chart_dir=None, deps=None, upgrade_docs_baseline=None,
-                                    values=None, baseline_values=None):
+def find_images_manifest_list_diff(
+    entries,
+    current_paths,
+    baseline_paths,
+    repo_map,
+    repo_groups,
+    unresolvable_paths,
+    chart_dir=None,
+    deps=None,
+    upgrade_docs_baseline=None,
+    values=None,
+    baseline_values=None,
+):
     """(missing_paths, extra_entry_names) — the images-manifest's own
     "list of changed images" checked against the FULL, actual set of
     every image tag pin whose VERSION (lib.chart.version_of — the tag
@@ -1826,8 +1886,9 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     example of the second kind). All three empty means the manifest
     lists the EXACT set of changed images, nothing more and nothing
     less."""
-    representative_of = {path: repo_map[repo] for repo, paths in repo_groups.items()
-                          for path in paths if repo in repo_map}
+    representative_of = {
+        path: repo_map[repo] for repo, paths in repo_groups.items() for path in paths if repo in repo_map
+    }
     path_to_repo = {path: repo for repo, paths in repo_groups.items() for path in paths}
     # chart_dir is optional here (its one real caller always passes it,
     # but this function's own signature allows None) -- resolved,
@@ -1872,17 +1933,19 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
             if expected_url is None:
                 return True
             historical_version = historical_app_version_for_repository(
-                chart_dir, repo, upgrade_docs_baseline, expected_url=expected_url)
+                chart_dir, repo, upgrade_docs_baseline, expected_url=expected_url
+            )
         else:
             historical_version = historical_app_version_for_repository(chart_dir, repo, upgrade_docs_baseline)
         if historical_version is None:
             return True
         return version_of(tag) != version_of(historical_version)
 
-    changed_paths = {path for path, tag in current_paths.items()
-                      if representative_of.get(path, path) == path
-                      and path not in unresolvable_paths
-                      and pin_changed(path, tag)}
+    changed_paths = {
+        path
+        for path, tag in current_paths.items()
+        if representative_of.get(path, path) == path and path not in unresolvable_paths and pin_changed(path, tag)
+    }
 
     matched_paths = set()
     stale_entry_names, unmatched_entry_names = [], []
@@ -1981,8 +2044,9 @@ def _images_manifest_groups(entries, entry_line_indices, lines, current_paths, r
     def same_group(entry_a, entry_b):
         return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
 
-    comment_idx_for = [find_grouped_preceding_comment_line(lines, entries, entry_line_indices, i, same_group)
-                        for i in range(n)]
+    comment_idx_for = [
+        find_grouped_preceding_comment_line(lines, entries, entry_line_indices, i, same_group) for i in range(n)
+    ]
     index_groups = []
     for i in range(n):
         if i > 0 and comment_idx_for[i] is not None and comment_idx_for[i] == comment_idx_for[i - 1]:
@@ -1998,8 +2062,9 @@ def _images_manifest_groups(entries, entry_line_indices, lines, current_paths, r
     return groups
 
 
-def find_images_manifest_out_of_order_names(entries, entry_line_indices, lines, deps, current_paths, repo_map,
-                                             canonical_names, key_order, values=None):
+def find_images_manifest_out_of_order_names(
+    entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names, key_order, values=None
+):
     """[(name_a, name_b), ...] for every ADJACENT pair of images-
     manifest GROUPS (see _images_manifest_groups) whose relative order
     contradicts values.yaml's own top-level key order (see images_
@@ -2012,12 +2077,12 @@ def find_images_manifest_out_of_order_names(entries, entry_line_indices, lines, 
     entries sharing the same top-level key (e.g. two "global.images.*"
     entries) — omitted, every such pair ties and is never flagged as
     out of order against each other, exactly as before."""
-    groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps,
-                                      canonical_names)
+    groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps, canonical_names)
     violations = []
     for (_, path_a, name_a), (_, path_b, name_b) in zip(groups, groups[1:]):
-        if (images_manifest_entry_order_key(path_b, deps, key_order, values)
-                < images_manifest_entry_order_key(path_a, deps, key_order, values)):
+        if images_manifest_entry_order_key(path_b, deps, key_order, values) < images_manifest_entry_order_key(
+            path_a, deps, key_order, values
+        ):
             violations.append((name_a, name_b))
     return violations
 
@@ -2062,12 +2127,15 @@ def _images_manifest_sorted_groups(entries, entry_line_indices, lines, deps, val
     key)."""
     current_paths = dict(find_all_image_and_version_paths(values, deps))
     current_paths.update(global_image_paths(values))
-    groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps,
-                                      canonical_names)
+    groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps, canonical_names)
     key_order = values_key_order(values)
-    order = sorted(range(len(groups)),
-                    key=lambda gi: images_manifest_entry_order_key(groups[gi][1], deps, key_order, values)) \
-        if len(groups) >= 2 else list(range(len(groups)))
+    order = (
+        sorted(
+            range(len(groups)), key=lambda gi: images_manifest_entry_order_key(groups[gi][1], deps, key_order, values)
+        )
+        if len(groups) >= 2
+        else list(range(len(groups)))
+    )
     return groups, order
 
 
@@ -2099,8 +2167,9 @@ def images_manifest_entry_positions(text, deps, values, repo_map, canonical_name
     if n < 2:
         return {}
 
-    groups, order = _images_manifest_sorted_groups(entries, entry_line_indices, lines, deps, values, repo_map,
-                                                     canonical_names)
+    groups, order = _images_manifest_sorted_groups(
+        entries, entry_line_indices, lines, deps, values, repo_map, canonical_names
+    )
     position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
     positions = {}
     for group_index, (indices, _path, _name) in enumerate(groups):
@@ -2157,8 +2226,9 @@ def images_manifest_display_name_positions(text, deps, values, repo_map, canonic
     if n < 2:
         return {}
 
-    groups, order = _images_manifest_sorted_groups(entries, entry_line_indices, lines, deps, values, repo_map,
-                                                     canonical_names)
+    groups, order = _images_manifest_sorted_groups(
+        entries, entry_line_indices, lines, deps, values, repo_map, canonical_names
+    )
     position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
     positions = {}
     for group_index, (_indices, _path, name) in enumerate(groups):
@@ -2266,8 +2336,9 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     if n < 2:
         return text, []
 
-    groups, order = _images_manifest_sorted_groups(entries, entry_line_indices, lines, deps, values, repo_map,
-                                                     canonical_names)
+    groups, order = _images_manifest_sorted_groups(
+        entries, entry_line_indices, lines, deps, values, repo_map, canonical_names
+    )
     moved = [(groups[i][2], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
 
     starts = [images_manifest_block_start(lines, entry_line_indices[indices[0]]) for indices, _, _ in groups]
@@ -2279,8 +2350,10 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     # below only ever looks at whole groups, so this is the only place
     # that removes a blank line hand-inserted BETWEEN two entries that
     # already share one comment line.
-    per_group_texts = [_collapse_group_internal_blank_lines(t) if len(indices) > 1 else t
-                        for (indices, _, _), t in zip(groups, original_texts)]
+    per_group_texts = [
+        _collapse_group_internal_blank_lines(t) if len(indices) > 1 else t
+        for (indices, _, _), t in zip(groups, original_texts)
+    ]
     components = [path[0] if path else None for _, path, _ in groups]
 
     ordered_texts = [per_group_texts[i] for i in order]
@@ -2306,7 +2379,7 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
             merged_texts.append(run_text)
             run_start = i
 
-    prefix = "".join(lines[:starts[0]])
+    prefix = "".join(lines[: starts[0]])
     new_text = prefix + "".join(merged_texts)
     if new_text == text:
         return text, []
@@ -2362,8 +2435,7 @@ def find_grouped_preceding_comment_line(lines, entries, entry_line_indices, inde
         return comment_idx
     if not same_group(entries[index], entries[index - 1]):
         return None
-    return find_grouped_preceding_comment_line(
-        lines, entries, entry_line_indices, index - 1, same_group)
+    return find_grouped_preceding_comment_line(lines, entries, entry_line_indices, index - 1, same_group)
 
 
 def diff_keys(baseline_node, current_node, path=()):
@@ -2423,8 +2495,7 @@ def pair_renames(added, removed, baseline_node, current_node):
             add_val = get(current_node, add_path)
             rem_val = get(baseline_node, rem_path)
             add_keys, rem_keys = flatten_leaf_keys(add_val), flatten_leaf_keys(rem_val)
-            similar = bool(add_keys and rem_keys and
-                            len(add_keys & rem_keys) / len(add_keys | rem_keys) >= 0.3)
+            similar = bool(add_keys and rem_keys and len(add_keys & rem_keys) / len(add_keys | rem_keys) >= 0.3)
             same_scalar = not isinstance(add_val, (dict, list)) and add_val == rem_val
             if similar or same_scalar:
                 renamed.append((rem_path, add_path))
@@ -2435,7 +2506,8 @@ def pair_renames(added, removed, baseline_node, current_node):
 
 
 BARE_CHART_CLAUSE_RE = re.compile(
-    r"\bchart\s+`?[A-Za-z0-9][\w.\-]*`?\s*(?:→|->)\s*`?[A-Za-z0-9][\w.\-]*`?", re.IGNORECASE)
+    r"\bchart\s+`?[A-Za-z0-9][\w.\-]*`?\s*(?:→|->)\s*`?[A-Za-z0-9][\w.\-]*`?", re.IGNORECASE
+)
 
 
 def _finalize_changes_item(rest):
@@ -2468,7 +2540,7 @@ def _finalize_changes_item(rest):
         if chart_source is None:
             chart_source = extract_source_version(bare_chart_m.group(0))
             chart_target = extract_target_version(bare_chart_m.group(0))
-        app_search_text = rest[:bare_chart_m.start()] + " " + rest[bare_chart_m.end():]
+        app_search_text = rest[: bare_chart_m.start()] + " " + rest[bare_chart_m.end() :]
 
     # extract_source_version/extract_target_version's own "no arrow found"
     # fallback (first word-like token) would otherwise grab whatever text
@@ -2495,8 +2567,13 @@ def _finalize_changes_item(rest):
         idx = app_search_text.find(app_source)
         if idx > 0:
             name = app_search_text[:idx].strip()
-    return {"name": name, "app_source": app_source, "app": app_target,
-            "chart_source": chart_source, "chart": chart_target}
+    return {
+        "name": name,
+        "app_source": app_source,
+        "app": app_target,
+        "chart_source": chart_source,
+        "chart": chart_target,
+    }
 
 
 def parse_changes_block(text):
@@ -2619,9 +2696,12 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
                 changed.add(key)
             continue
         cur_dep, base_dep = current_by_key.get(key), baseline_by_key.get(key)
-        if (cur_dep is None or base_dep is None
-                or normalize_version(cur_dep["version"]) != normalize_version(base_dep["version"])
-                or subtree_paths(key, current_paths) != subtree_paths(key, baseline_paths)):
+        if (
+            cur_dep is None
+            or base_dep is None
+            or normalize_version(cur_dep["version"]) != normalize_version(base_dep["version"])
+            or subtree_paths(key, current_paths) != subtree_paths(key, baseline_paths)
+        ):
             changed.add(key)
     return changed
 

@@ -96,6 +96,7 @@ But the two sides, and the two candidate KINDS, get there differently:
   uncached run_trivy — never treated as a scan failure on its own, the
   same tolerance the tag-check that produced the candidate in the first
   place already has for its own failed lookups."""
+
 import urllib.error
 from collections import Counter
 
@@ -146,12 +147,12 @@ def diff_vulns(current_vulns, proposed_vulns):
 
 
 def _bare_digest(digest_ref):
-    """"sha256:<hex>" -> "<hex>" — lib.cve_check.cache_key expects the
+    """ "sha256:<hex>" -> "<hex>" — lib.cve_check.cache_key expects the
     bare hex digest (it prepends "sha256:" itself), but every digest this
     module gets handed back (find_sliding_pins, registry_tag_exists) has
     the full "sha256:" prefix already on it."""
     prefix = "sha256:"
-    return digest_ref[len(prefix):] if digest_ref.startswith(prefix) else digest_ref
+    return digest_ref[len(prefix) :] if digest_ref.startswith(prefix) else digest_ref
 
 
 def gather_candidates(chart_dir):
@@ -178,30 +179,34 @@ def gather_candidates(chart_dir):
         entry = upgrade_cache.get(upgrade_cache_key(repository, version))
         if entry and upgrade_entry_is_fresh(entry, upgrade_ttl_days) and entry["newest"] != version:
             host, repo_path = parse_repo(repository)
-            candidates.append({
-                "kind": "upgrade",
-                "repository": repository,
-                "version": version,
-                "current_ref": f"{host}/{repo_path}:{version}",
-                "current_digest": digest,
-                "proposed_label": entry["newest"],
-                "proposed_ref": f"{host}/{repo_path}:{entry['newest']}",
-                "proposed_digest": None,
-                "line": line,
-            })
+            candidates.append(
+                {
+                    "kind": "upgrade",
+                    "repository": repository,
+                    "version": version,
+                    "current_ref": f"{host}/{repo_path}:{version}",
+                    "current_digest": digest,
+                    "proposed_label": entry["newest"],
+                    "proposed_ref": f"{host}/{repo_path}:{entry['newest']}",
+                    "proposed_digest": None,
+                    "line": line,
+                }
+            )
 
     for repository, version, pinned_digest, digest in find_sliding_pins(chart_dir):
-        candidates.append({
-            "kind": "sliding digest",
-            "repository": repository,
-            "version": version,
-            "current_ref": f"{repository}@sha256:{pinned_digest}",
-            "current_digest": pinned_digest,
-            "proposed_label": digest,
-            "proposed_ref": f"{repository}@{digest}",
-            "proposed_digest": _bare_digest(digest),
-            "line": targets.get((repository, version), (None, None))[1],
-        })
+        candidates.append(
+            {
+                "kind": "sliding digest",
+                "repository": repository,
+                "version": version,
+                "current_ref": f"{repository}@sha256:{pinned_digest}",
+                "current_digest": pinned_digest,
+                "proposed_label": digest,
+                "proposed_ref": f"{repository}@{digest}",
+                "proposed_digest": _bare_digest(digest),
+                "line": targets.get((repository, version), (None, None))[1],
+            }
+        )
 
     return candidates
 
@@ -213,8 +218,16 @@ def _scan_current(chart_dir, candidate, old_cache, new_cache, ttl_days):
     same lib.cve_check.scan_cached — see its own docstring). `ttl_days`
     (see cve_scan.scan_cache_ttl_days in lib.settings) is resolved once by
     check_cve_diff and threaded straight through."""
-    vulns, _ = scan_cached(chart_dir, candidate["repository"], candidate["current_digest"],
-                            candidate["current_ref"], old_cache, new_cache, ttl_days, label="current")
+    vulns, _ = scan_cached(
+        chart_dir,
+        candidate["repository"],
+        candidate["current_digest"],
+        candidate["current_ref"],
+        old_cache,
+        new_cache,
+        ttl_days,
+        label="current",
+    )
     return vulns
 
 
@@ -239,8 +252,16 @@ def _scan_proposed(chart_dir, candidate, old_cache, new_cache, ttl_days):
         except (urllib.error.URLError, OSError):
             digest = None
 
-    vulns, _ = scan_cached(chart_dir, candidate["repository"], digest, candidate["proposed_ref"],
-                            old_cache, new_cache, ttl_days, label="proposed")
+    vulns, _ = scan_cached(
+        chart_dir,
+        candidate["repository"],
+        digest,
+        candidate["proposed_ref"],
+        old_cache,
+        new_cache,
+        ttl_days,
+        label="proposed",
+    )
     return vulns
 
 
@@ -261,8 +282,10 @@ def _print_direction(label, vulns, detail, high_severities, package_cve_list_thr
 
 
 def _print_candidate_header(i, total, candidate):
-    print(f"[{i}/{total}] {candidate['repository']}: {candidate['version']} -> "
-          f"{candidate['proposed_label']}  [{candidate['kind']}]")
+    print(
+        f"[{i}/{total}] {candidate['repository']}: {candidate['version']} -> "
+        f"{candidate['proposed_label']}  [{candidate['kind']}]"
+    )
 
 
 def print_candidate_result(closed, introduced, detail, high_severities, package_cve_list_threshold):
@@ -290,16 +313,25 @@ def classify_candidates(chart_dir, extra_args, candidates, values_lines):
     rendered_labels = render_image_labels(result.stdout, vendor_map) if result.returncode == 0 else {}
 
     for candidate in candidates:
-        label = rendered_labels.get(
-            (candidate["repository"], candidate["version"], candidate["current_digest"]))
+        label = rendered_labels.get((candidate["repository"], candidate["version"], candidate["current_digest"]))
         if label is None:
             top_key = top_level_key_for_line(values_lines, candidate["line"]) if candidate["line"] else None
             label = classify_by_key(top_key, dep_names, vendor_map)
         candidate["bucket"] = bucket_of(label)
 
 
-def _process_bucket(chart_dir, title, bucket_candidates, old_cache, new_cache, scan_errors, detail,
-                     ttl_days, high_severities, package_cve_list_threshold):
+def _process_bucket(
+    chart_dir,
+    title,
+    bucket_candidates,
+    old_cache,
+    new_cache,
+    scan_errors,
+    detail,
+    ttl_days,
+    high_severities,
+    package_cve_list_threshold,
+):
     """Scan and print one bucket's candidates under its own "--- <title>
     ---" header (skipped entirely when the bucket is empty, via the same
     lib.cve_check.print_bucket_header idiom print_bucket_report itself
@@ -318,14 +350,12 @@ def _process_bucket(chart_dir, title, bucket_candidates, old_cache, new_cache, s
         current_vulns = _scan_current(chart_dir, candidate, old_cache, new_cache, ttl_days)
         if current_vulns is None:
             scan_errors.append(candidate["current_ref"])
-            print(f"  [SCAN-ERR] {candidate['current_ref']}  trivy scan failed or produced "
-                  f"unparseable output")
+            print(f"  [SCAN-ERR] {candidate['current_ref']}  trivy scan failed or produced unparseable output")
             continue
         proposed_vulns = _scan_proposed(chart_dir, candidate, old_cache, new_cache, ttl_days)
         if proposed_vulns is None:
             scan_errors.append(candidate["proposed_ref"])
-            print(f"  [SCAN-ERR] {candidate['proposed_ref']}  trivy scan failed or produced "
-                  f"unparseable output")
+            print(f"  [SCAN-ERR] {candidate['proposed_ref']}  trivy scan failed or produced unparseable output")
             continue
         closed, introduced = diff_vulns(current_vulns, proposed_vulns)
         total_closed += len(closed)
@@ -353,21 +383,47 @@ def check_cve_diff(chart_dir, extra_args, detail=False):
     partner = [c for c in candidates if c["bucket"] == "partner"]
     other = [c for c in candidates if c["bucket"] == "other"]
 
-    print(f"Diffing CVEs for {len(candidates)} upgrade/slide candidate(s) (current vs proposed, "
-          f"via trivy)...")
+    print(f"Diffing CVEs for {len(candidates)} upgrade/slide candidate(s) (current vs proposed, via trivy)...")
 
     old_cache, new_cache = open_cache_session(chart_dir)
     scan_errors = []
 
     own_closed, own_introduced = _process_bucket(
-        chart_dir, "Own images", own, old_cache, new_cache, scan_errors, detail,
-        cve_cache_ttl_days, high_severities, package_cve_list_threshold)
+        chart_dir,
+        "Own images",
+        own,
+        old_cache,
+        new_cache,
+        scan_errors,
+        detail,
+        cve_cache_ttl_days,
+        high_severities,
+        package_cve_list_threshold,
+    )
     partner_closed, partner_introduced = _process_bucket(
-        chart_dir, "Partner-vendor images", partner, old_cache, new_cache, scan_errors, detail,
-        cve_cache_ttl_days, high_severities, package_cve_list_threshold)
+        chart_dir,
+        "Partner-vendor images",
+        partner,
+        old_cache,
+        new_cache,
+        scan_errors,
+        detail,
+        cve_cache_ttl_days,
+        high_severities,
+        package_cve_list_threshold,
+    )
     other_closed, other_introduced = _process_bucket(
-        chart_dir, "Other-vendor images", other, old_cache, new_cache, scan_errors, detail,
-        cve_cache_ttl_days, high_severities, package_cve_list_threshold)
+        chart_dir,
+        "Other-vendor images",
+        other,
+        old_cache,
+        new_cache,
+        scan_errors,
+        detail,
+        cve_cache_ttl_days,
+        high_severities,
+        package_cve_list_threshold,
+    )
 
     save_cache(chart_dir, new_cache)
 
@@ -380,5 +436,6 @@ def check_cve_diff(chart_dir, extra_args, detail=False):
         f"{len(own)} own ({own_closed} closed, {own_introduced} introduced), "
         f"{len(partner)} partner-vendor ({partner_closed} closed, {partner_introduced} introduced), "
         f"{len(other)} other-vendor ({other_closed} closed, {other_introduced} introduced); "
-        f"{len(scan_errors)} scan error(s)")
+        f"{len(scan_errors)} scan error(s)"
+    )
     return True, detail_msg

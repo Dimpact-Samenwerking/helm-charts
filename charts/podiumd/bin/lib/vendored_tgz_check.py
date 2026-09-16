@@ -11,6 +11,7 @@ Runs BEFORE check_dependencies deliberately: check_dependencies's own
 `shutil.rmtree(chart_dir / "charts")` would otherwise silently wipe any
 such extracted directory before this check ever got to see it, making the
 check a no-op if it ran any later in the pipeline."""
+
 import re
 
 # <chart-name>-<version>.tgz — version must start with a digit so a
@@ -43,10 +44,12 @@ def check_vendored_tgz_extraction(chart_dir):
         print("OK: no vendored sub-chart has both a pinned .tgz and an extracted directory")
         return True, "0 conflict(s)"
 
-    print(f"Found {len(extracted)} vendored sub-chart(s) with BOTH a pinned .tgz AND an "
-          f"extracted directory (Helm silently prefers the extracted copy over the pinned "
-          f"package — see .claude/commands/helm-tgz-inspect.md — delete the extracted "
-          f"directory before any helm operation):")
+    print(
+        f"Found {len(extracted)} vendored sub-chart(s) with BOTH a pinned .tgz AND an "
+        f"extracted directory (Helm silently prefers the extracted copy over the pinned "
+        f"package — see .claude/commands/helm-tgz-inspect.md — delete the extracted "
+        f"directory before any helm operation):"
+    )
     for name in extracted:
         print(f"  charts/{name}/  (next to a pinned {name}-<version>.tgz)")
 

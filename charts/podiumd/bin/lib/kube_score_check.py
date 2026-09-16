@@ -3,6 +3,7 @@ requests AND limits — this repo's own documented convention
 (.github/copilot-instructions.md's "Resource Requests and Limits"), not a
 generic kube-score opinion (see quality_gates.kube_score_check_id in
 lib.settings)."""
+
 import json
 import shutil
 from collections import Counter
@@ -32,8 +33,7 @@ def run_kube_score(yaml_text):
     entirely of CRDs, like eck-operator-crds. json.loads("null") returns
     None, which would otherwise be indistinguishable from "unparseable" —
     normalize it to [] so a CRD-only chart doesn't look like a crash."""
-    result = run(["kube-score", "score", "-o", "json", "-"],
-                 input=yaml_text, capture_output=True, text=True)
+    result = run(["kube-score", "score", "-o", "json", "-"], input=yaml_text, capture_output=True, text=True)
     try:
         data = json.loads(result.stdout)
     except json.JSONDecodeError:
@@ -146,9 +146,11 @@ def check_kube_score(chart_dir, extra_args):
             bucket.append((chart, object_name, container, summary))
 
     if own_real:
-        print(f"Found {len(own_real)} real kube-score issue(s) in this chart's own templates "
-              f"(missing resources.requests/.limits — required by "
-              f".github/copilot-instructions.md — these fail the check):")
+        print(
+            f"Found {len(own_real)} real kube-score issue(s) in this chart's own templates "
+            f"(missing resources.requests/.limits — required by "
+            f".github/copilot-instructions.md — these fail the check):"
+        )
         print_grouped_findings(
             own_real,
             key_fn=lambda f: (f[0], f[1]),
@@ -159,10 +161,12 @@ def check_kube_score(chart_dir, extra_args):
         print()
 
     if vendored_partner:
-        print(f"Found {len(vendored_partner)} kube-score issue(s) in partner-maintained vendored "
-              f"sub-chart(s) (missing resources.requests/.limits — wireable via this repo's "
-              f"values.yaml per the same convention, but not yet triaged — reported, does not "
-              f"fail the check):")
+        print(
+            f"Found {len(vendored_partner)} kube-score issue(s) in partner-maintained vendored "
+            f"sub-chart(s) (missing resources.requests/.limits — wireable via this repo's "
+            f"values.yaml per the same convention, but not yet triaged — reported, does not "
+            f"fail the check):"
+        )
         print_grouped_findings(
             vendored_partner,
             key_fn=lambda f: (f[0], f[1], f[2]),
@@ -174,15 +178,16 @@ def check_kube_score(chart_dir, extra_args):
 
     if vendored_other:
         by_chart = Counter(chart for chart, _, _, _ in vendored_other)
-        print(f"{len(vendored_other)} kube-score issue(s) across {len(by_chart)} other vendored "
-              f"sub-chart(s) (missing resources.requests/.limits — still wireable via values.yaml, "
-              f"but not yet triaged; not shown individually, does not fail the check)")
+        print(
+            f"{len(vendored_other)} kube-score issue(s) across {len(by_chart)} other vendored "
+            f"sub-chart(s) (missing resources.requests/.limits — still wireable via values.yaml, "
+            f"but not yet triaged; not shown individually, does not fail the check)"
+        )
 
     if not (own_real or vendored_partner or vendored_other):
         print("OK: no kube-score container-resources findings in the rendered chart")
 
-    detail = (f"{len(own_real)} real (own), {len(vendored_partner)} partner-vendor, "
-              f"{len(vendored_other)} other-vendor")
+    detail = f"{len(own_real)} real (own), {len(vendored_partner)} partner-vendor, {len(vendored_other)} other-vendor"
     if own_real:
         return False, detail
     return True, detail

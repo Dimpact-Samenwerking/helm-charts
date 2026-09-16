@@ -83,6 +83,7 @@ OS/language package version inside that image, so "upgrade to version X"
 for one bundled package isn't an actionable step here — whether a newer
 image tag exists at all is lib.image_upgrade_check's job, not this
 module's."""
+
 import json
 import re
 import shutil
@@ -196,9 +197,21 @@ def run_trivy(image_ref):
     own output couldn't be parsed as JSON (a pull failure or trivy crash,
     not a chart problem)."""
     result = run(
-        ["docker", "run", "--rm", TRIVY_IMAGE, "image", "--ignore-unfixed",
-         "--scanners", "vuln", "--format", "json", image_ref],
-        capture_output=True, text=True,
+        [
+            "docker",
+            "run",
+            "--rm",
+            TRIVY_IMAGE,
+            "image",
+            "--ignore-unfixed",
+            "--scanners",
+            "vuln",
+            "--format",
+            "json",
+            image_ref,
+        ],
+        capture_output=True,
+        text=True,
     )
     try:
         data = json.loads(result.stdout)
@@ -278,7 +291,7 @@ TOP_LEVEL_KEY_RE = re.compile(r"^([a-zA-Z0-9_-]+):")
 
 
 def parse_image_ref(ref):
-    """"<repository>[:<version>]@sha256:<digest>" -> (repository, version,
+    """ "<repository>[:<version>]@sha256:<digest>" -> (repository, version,
     digest). version is None for a tagless digest reference (a valid k8s
     image ref a vendored sub-chart's helper may emit) — the trailing ":"
     of a "host:port" registry is not a tag either (a real tag has no "/")."""
@@ -303,7 +316,7 @@ def top_level_key_for_line(lines, line_no):
 
 
 def classify_source(source, vendor_map):
-    """"own" | a vendor label | "other", from a rendered "# Source:"
+    """ "own" | a vendor label | "other", from a rendered "# Source:"
     path — same rule check_yamllint/check_kubeconform/etc. use."""
     if source.startswith(OWN_TEMPLATES_PREFIX):
         return "own"
@@ -368,8 +381,10 @@ def check_cves(chart_dir, extra_args, detail=False):
     cache_hits = 0
     upgrade_cache = load_upgrade_cache(chart_dir)
 
-    print(f"Scanning {len(targets)} unique pinned image(s) for known CVEs with trivy "
-          f"(pulls every image not already cached — this can take a while)...")
+    print(
+        f"Scanning {len(targets)} unique pinned image(s) for known CVEs with trivy "
+        f"(pulls every image not already cached — this can take a while)..."
+    )
 
     images = {}
     scan_errors = []
@@ -386,8 +401,16 @@ def check_cves(chart_dir, extra_args, detail=False):
         # read/write/scan is the exact same logic lib.cve_diff_check's
         # own current/proposed scans need — see scan_cached's own
         # docstring for why this is shared rather than reimplemented here.
-        vulns, was_cached = scan_cached(chart_dir, repository, digest, image_ref, old_cache, new_cache,
-                                         cve_cache_ttl_days, label=f"[{i}/{len(targets)}] this image")
+        vulns, was_cached = scan_cached(
+            chart_dir,
+            repository,
+            digest,
+            image_ref,
+            old_cache,
+            new_cache,
+            cve_cache_ttl_days,
+            label=f"[{i}/{len(targets)}] this image",
+        )
         if vulns is None:
             scan_errors.append(image_ref)
             print(f"  [SCAN-ERR] {image_ref}  trivy scan failed or produced unparseable output")
@@ -397,8 +420,11 @@ def check_cves(chart_dir, extra_args, detail=False):
 
         upgrade_entry = upgrade_cache.get(upgrade_cache_key(repository, version))
         upgradable_to = None
-        if (upgrade_entry and upgrade_entry_is_fresh(upgrade_entry, upgrade_cache_ttl_days)
-                and upgrade_entry["newest"] != version):
+        if (
+            upgrade_entry
+            and upgrade_entry_is_fresh(upgrade_entry, upgrade_cache_ttl_days)
+            and upgrade_entry["newest"] != version
+        ):
             upgradable_to = upgrade_entry["newest"]
 
         images[image_ref] = {
@@ -427,12 +453,30 @@ def check_cves(chart_dir, extra_args, detail=False):
     own_refs, partner_refs, other_refs = refs_in("own"), refs_in("partner"), refs_in("other")
 
     level = "full" if detail else "totals"
-    print_bucket_report("Own images", own_refs, images, detail_level=level,
-                        high_severities=high_severities, package_cve_list_threshold=package_cve_list_threshold)
-    print_bucket_report("Partner-vendor images", partner_refs, images, detail_level=level,
-                        high_severities=high_severities, package_cve_list_threshold=package_cve_list_threshold)
-    print_bucket_report("Other-vendor images", other_refs, images, detail_level=level,
-                        high_severities=high_severities, package_cve_list_threshold=package_cve_list_threshold)
+    print_bucket_report(
+        "Own images",
+        own_refs,
+        images,
+        detail_level=level,
+        high_severities=high_severities,
+        package_cve_list_threshold=package_cve_list_threshold,
+    )
+    print_bucket_report(
+        "Partner-vendor images",
+        partner_refs,
+        images,
+        detail_level=level,
+        high_severities=high_severities,
+        package_cve_list_threshold=package_cve_list_threshold,
+    )
+    print_bucket_report(
+        "Other-vendor images",
+        other_refs,
+        images,
+        detail_level=level,
+        high_severities=high_severities,
+        package_cve_list_threshold=package_cve_list_threshold,
+    )
 
     if not (own_refs or partner_refs or other_refs):
         print("OK: no known CVEs found across pinned images")
@@ -441,14 +485,18 @@ def check_cves(chart_dir, extra_args, detail=False):
         print(f"{len(scan_errors)} image(s) could not be scanned:")
         for ref in scan_errors:
             print(f"  {ref}")
-    print(f"{cache_hits}/{len(targets)} image(s) served from cache (unchanged digest, "
-          f"scanned within the last {cve_cache_ttl_days} days)")
+    print(
+        f"{cache_hits}/{len(targets)} image(s) served from cache (unchanged digest, "
+        f"scanned within the last {cve_cache_ttl_days} days)"
+    )
 
     own_n, own_cve = bucket_totals(own_refs, images)
     partner_n, partner_cve = bucket_totals(partner_refs, images)
     other_n, other_cve = bucket_totals(other_refs, images)
-    detail = (f"CVEs: {own_cve} own ({own_n} img), {partner_cve} partner-vendor ({partner_n} img), "
-              f"{other_cve} other-vendor ({other_n} img); {len(scan_errors)} scan error(s)")
+    detail = (
+        f"CVEs: {own_cve} own ({own_n} img), {partner_cve} partner-vendor ({partner_n} img), "
+        f"{other_cve} other-vendor ({other_n} img); {len(scan_errors)} scan error(s)"
+    )
     return True, detail
 
 

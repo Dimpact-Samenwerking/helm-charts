@@ -1,5 +1,6 @@
 """Loads fix-image-digests (a hyphenated filename, not importable
 normally) as a module named `sid` so tests can call its functions directly."""
+
 import importlib.util
 import subprocess
 from importlib.machinery import SourceFileLoader

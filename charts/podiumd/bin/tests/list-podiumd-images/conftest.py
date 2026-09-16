@@ -2,6 +2,7 @@
 normally) as a module, with its module-level path constants (CHART_YAML,
 VALUES_YAML, VENDORED_DIR) repointed at an isolated temp directory so tests
 never read/depend on the real chart."""
+
 import importlib.util
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -49,8 +50,9 @@ def stub_render_chart(_module, monkeypatch):
     default (see _AllChartTreePaths) — a test exercising the new
     disabled/nested-disabled behavior overrides this via its own
     monkeypatch.setattr, same as any other autouse default."""
-    monkeypatch.setattr(_module, "render_chart",
-                         lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="", stderr=""))
+    monkeypatch.setattr(
+        _module, "render_chart", lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="", stderr="")
+    )
     monkeypatch.setattr(_module, "rendered_chart_paths", lambda stdout: _AllChartTreePaths())
 
 

@@ -6,6 +6,7 @@ pure I/O already covered in tests/lib/test_chart.py -- this file only
 exercises main()'s own wiring: it reads the CURRENT upgrade_docs
 baseline, writes the new one (release_table is never touched), and
 chains into fix-doc-consistency then fix-helm-doc."""
+
 import subprocess
 
 import pytest
@@ -17,6 +18,7 @@ def git(*args, cwd):
 
 # main() only calls sys.exit() on error paths; on success it just returns,
 # so only the failure-path tests wrap the call in pytest.raises(SystemExit).
+
 
 @pytest.fixture
 def repo(tmp_path):
@@ -78,6 +80,7 @@ def test_main_never_touches_release_table(cpb, repo, monkeypatch):
 
     assert exc_info.value.code == 0
     from lib.chart import release_table_baseline
+
     assert release_table_baseline(repo) == "4.8.0"  # untouched
 
 

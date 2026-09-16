@@ -1,6 +1,7 @@
 """Loads export-confluence-release-table (a hyphenated filename, not
 importable normally) as a module named `ecrt` so tests can call its
 functions directly."""
+
 import importlib.util
 import sys
 from importlib.machinery import SourceFileLoader

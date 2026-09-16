@@ -1,5 +1,6 @@
 """Loads change-podiumd-baseline (a hyphenated filename, not importable
 normally) as a module named `cpb`."""
+
 import importlib.util
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
