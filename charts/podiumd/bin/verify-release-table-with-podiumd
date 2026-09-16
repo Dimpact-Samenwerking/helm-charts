@@ -96,7 +96,7 @@ image lives at operator.config.keycloakImage as a split "tag:"/"sha:"
 field pair — not a plain "image: {repository, tag}" block, so
 scan_version_pins can't see it structurally at all, regardless of scope.
 Its plain "tag:" value (already just the version, no digest suffix) is
-read directly instead — see SPECIAL_CASE_BASENAME_TAG_PATHS.
+read directly instead — see SPECIAL_CASE_BASENAMES/special_case_tag_path.
 
 Also compares version text literally, not semantically: a "v" prefix
 difference between the two sides (e.g. release-table "1.89.0" vs
@@ -149,7 +149,7 @@ from lib.image_version import (
     repository_for_basename_in_scope,
 )
 from lib.release_baseline import resolve_baseline_chart_state
-from lib.settings import release_table_special_case_basename_tag_paths
+from lib.settings import release_table_special_case_basenames
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"
@@ -158,15 +158,17 @@ RELEASE_TABLE_CSV = CHART_DIR / "etc" / "release-table.csv"
 
 UNRESOLVED_COMPONENTS = ("", "UNKNOWN")
 
-# image_basename -> dotted values.yaml path to its own plain "tag:" value,
-# for an image basenames_under_scope can never find via the normal
-# digest-pinned tag scan — see module docstring and
-# lib.digest_pinning_check's own digest_pinning_exceptions (the same
-# underlying exception, documented there for a different check). Now
-# lives in charts/podiumd/etc/settings.yaml's own
-# "release_table_verification.special_case_basename_tag_paths" section
-# (see lib.settings.release_table_special_case_basename_tag_paths).
-SPECIAL_CASE_BASENAME_TAG_PATHS = release_table_special_case_basename_tag_paths(CHART_DIR)
+# Image basenames whose real image lives at a split "tag:"/"sha:" field
+# pair NOT nested under a literal "image:" key — invisible to the normal
+# digest-pinned tag scan (basenames_under_scope) regardless of scope —
+# see module docstring and lib.digest_pinning_check's own digest_pinning_
+# exceptions (the same underlying exception, documented there for a
+# different check). Now lives in charts/podiumd/etc/settings.yaml's own
+# "release_table_verification.special_case_basenames" section (see
+# lib.settings.release_table_special_case_basenames and
+# special_case_tag_path below, which derives the actual path from
+# component_resolution.image_paths rather than hand-duplicating it here).
+SPECIAL_CASE_BASENAMES = release_table_special_case_basenames(CHART_DIR)
 
 
 def load_release_table(path):
@@ -195,14 +197,44 @@ def report_mismatch(findings, tag, row, label, target, actual, actual_source):
 
 def check_special_case_version(row, findings, actual, label):
     """Compares row["target_version_app"] against `actual` (the plain
-    "tag:" value already read from a SPECIAL_CASE_BASENAME_TAG_PATHS
-    path), for an image basenames_under_scope structurally can't see at
-    all. `label` is what a mismatch message calls the image (e.g.
+    "tag:" value already read from a special_case_tag_path path), for an
+    image basenames_under_scope structurally can't see at all. `label`
+    is what a mismatch message calls the image (e.g.
     "keycloak-operator.keycloak"). No-op if `actual` couldn't be resolved
     (get_path found nothing at that path) or target is blank/UNKNOWN."""
     target = row["target_version_app"]
     if actual is not None and is_verifiable_target(target) and actual != target:
         report_mismatch(findings, "IMAGE", row, label, target, actual, "values.yaml")
+
+
+def special_case_tag_path(scope_key, component, basename, chart_dir=None):
+    """The absolute dotted "...tag" path to read `basename`'s own plain
+    tag value from directly, when `basename` is registered in
+    SPECIAL_CASE_BASENAMES (an image living at a split "tag:"/"sha:"
+    field pair NOT nested under a literal "image:" key, invisible to
+    the normal digest-pin scanner regardless of scope — see module
+    docstring). None when `basename` isn't one of these at all, or
+    `component` has no registered image path to derive one from.
+
+    Derived from lib.chart.image_paths_for(component) — the SAME
+    registry component_resolution.image_paths already provides for
+    every other "which path is this component's own primary image"
+    question — rather than a second, hand-duplicated absolute-path
+    string. Only ever called from within `component`'s own scope (a
+    release-table.csv row's own basename is always checked under its
+    own row's component/scope_key — see check_images/check_images_
+    source), so there's no ambiguity about which component's own
+    registration to consult. Uses the FIRST registered path only: no
+    component today has both a special-case basename AND more than one
+    registered image path at once (a component with several real
+    "image:"-shaped paths would already be found by the normal scanner,
+    never reaching this fallback at all)."""
+    if basename not in SPECIAL_CASE_BASENAMES:
+        return None
+    paths = image_paths_for(component, chart_dir)
+    if not paths:
+        return None
+    return f"{scope_key}.{paths[0]}.tag"
 
 
 # Printed as a "missing_from_release_table" finding's own second line
@@ -247,7 +279,7 @@ def is_primary_image(component, lines, pin, chart_dir=None):
     primary), or keycloak-operator's own non-standard split-path SERVER
     image (invisible to basenames_under_scope in the first place, so
     never actually reaches this check — see
-    SPECIAL_CASE_BASENAME_TAG_PATHS instead).
+    SPECIAL_CASE_BASENAMES/special_case_tag_path instead).
 
     Anything NOT in that list — a sidecar/init-container image nested
     elsewhere, e.g. "zac.opentelemetry-collector.image.tag" or
@@ -597,7 +629,7 @@ def check_images(scope_key, component, rows, lines, findings, values, dep=None, 
                         )
                 continue
 
-            basename_special_path = SPECIAL_CASE_BASENAME_TAG_PATHS.get(basename)
+            basename_special_path = special_case_tag_path(scope_key, component, basename, chart_dir)
             if basename_special_path:
                 check_special_case_version(row, findings, get_path(values, basename_special_path),
                                             f"{component}.{basename}")
@@ -647,7 +679,7 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
     table.csv should have recorded a source version for it but never
     did) — silent only when it genuinely doesn't resolve at baseline (the
     correctly-justified blank) OR resolution itself couldn't be confirmed
-    either way (the SPECIAL_CASE_BASENAME_TAG_PATHS-with-no-value and
+    either way (the SPECIAL_CASE_BASENAMES-with-no-value and
     ambiguous-pull-failure tiers below — "can't verify" is never treated
     as "confirmed justified").
 
@@ -750,8 +782,8 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
         resolution itself couldn't be confirmed either way (more than one
         distinct version pinned, or a subchart `helm pull` failure) —
         never treated as "confirmed absent" by either caller; ("special_
-        case_silent",) when basename is a SPECIAL_CASE_BASENAME_TAG_PATHS
-        entry with no value at that path — stops here either way, exactly
+        case_silent",) when basename is a SPECIAL_CASE_BASENAMES entry
+        with no value at that path — stops here either way, exactly
         like the plain verifiable-source path always has (no further
         tiers tried for it), silent for strict_presence too, since "no
         value there" isn't proof the item was truly absent at baseline,
@@ -778,7 +810,7 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
                         f"the release_table baseline ({', '.join(sorted(versions))}) -- can't compare")
             return ("found", next(iter(versions)), "values.yaml")
 
-        basename_special_path = SPECIAL_CASE_BASENAME_TAG_PATHS.get(basename)
+        basename_special_path = special_case_tag_path(scope_key, component, basename, chart_dir)
         if basename_special_path:
             value = get_path(baseline_values, basename_special_path)
             if value is None:

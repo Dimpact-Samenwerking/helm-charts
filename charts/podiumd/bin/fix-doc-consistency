@@ -1497,7 +1497,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
             entry_display = path_display_name(entry_path, deps, canonical_names)
             entry_keys.append(order_key(entry_path, " - " in entry_display))
 
-        header_prefix = "# " if is_primary_image_path(path, deps) else "#   sidecar: "
+        header_prefix = "# " if is_primary_image_path(path, deps, chart_dir) else "#   sidecar: "
         block_lines = [
             f"{header_prefix}{version_text}\n",
             f"- name: {repo}\n",

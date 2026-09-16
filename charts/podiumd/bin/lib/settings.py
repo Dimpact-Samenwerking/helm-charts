@@ -262,24 +262,18 @@ def digest_pinning_exceptions(chart_dir):
     }
 
 
-_DEFAULT_RELEASE_TABLE_SPECIAL_CASE_BASENAME_TAG_PATHS = {
-    "keycloak": "keycloak-operator.operator.config.keycloakImage.tag",
-}
-
-
-def release_table_special_case_basename_tag_paths(chart_dir):
-    """release_table_verification.special_case_basename_tag_paths —
-    replaces verify-release-table-with-podiumd's own SPECIAL_CASE_
-    BASENAME_TAG_PATHS. basename -> the dotted values.yaml "...tag" path
-    to read its version from directly, for an image basenames_under_
-    scope_any_tag can't find via the normal scope_key-scoped scan
-    because it lives nested inside a DIFFERENT component's own subtree
-    than its release-table row name (e.g. "keycloak", nested inside
-    "keycloak-operator"). Kept as a plain dotted string (not split to a
-    tuple) — the one consumer already uses get_path/dotted-string
-    access throughout, never a tuple."""
-    return dict(_get(chart_dir, "release_table_verification", "special_case_basename_tag_paths",
-                      _DEFAULT_RELEASE_TABLE_SPECIAL_CASE_BASENAME_TAG_PATHS))
+def release_table_special_case_basenames(chart_dir):
+    """release_table_verification.special_case_basenames — replaces
+    verify-release-table-with-podiumd's own SPECIAL_CASE_BASENAME_TAG_
+    PATHS (a basename -> absolute dotted path dict that hand-duplicated
+    component_resolution.image_paths' own path a second time). Now just
+    the basename allowlist, default {"keycloak"} — the owning
+    component's own actual "...tag" path is derived from lib.chart.
+    image_paths_for at the point of use (see verify-release-table-with-
+    podiumd's own special_case_tag_path), since a basename here is only
+    ever looked up from within its own owning component's scope, where
+    that registration is already available."""
+    return frozenset(_get(chart_dir, "release_table_verification", "special_case_basenames", ["keycloak"]))
 
 
 def helm_repos_urls_by_alias(chart_dir):

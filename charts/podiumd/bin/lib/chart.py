@@ -193,7 +193,7 @@ def resolved_digest_pin(values, path, tag, sibling_fields):
     return f"{tag}@{digest}" if digest.startswith("sha256:") else f"{tag}@sha256:{digest}"
 
 
-def _is_dependency_primary_rel_path(dep, rel_path):
+def _is_dependency_primary_rel_path(dep, rel_path, chart_dir=None):
     """rel_path (path[1:], dotted) is one of dep's own PRIMARY image/
     version fields — image_paths_for's "image: {tag}" shape first, else
     (same fallback lib.upgradedoc.actual_app_version already uses for
@@ -205,10 +205,11 @@ def _is_dependency_primary_rel_path(dep, rel_path):
     "eck-elasticsearch.version"/"eck-kibana.version". Shared by lib.
     upgradedoc.path_display_name and is_primary_image_path so the two
     can never disagree about which path counts as "the" primary."""
-    return rel_path in set(image_paths_for(dep["name"])) or rel_path in set(version_paths_for(dep["name"]))
+    return (rel_path in set(image_paths_for(dep["name"], chart_dir))
+            or rel_path in set(version_paths_for(dep["name"], chart_dir)))
 
 
-def is_primary_image_path(path, deps):
+def is_primary_image_path(path, deps, chart_dir=None):
     """True when path is one of a Chart.yaml dependency's own PRIMARY
     image/version field(s) — see _is_dependency_primary_rel_path (image_
     paths_for's "image: {tag}" shape, or version_paths_for's own bare-
@@ -221,6 +222,9 @@ def is_primary_image_path(path, deps):
     without needing a canonical_names mapping too — and so
     repo_group_representative (this module) can use it directly, since
     lib.chart is a dependency of lib.upgradedoc, never the reverse.
+    `chart_dir` is optional and self-resolving (see image_paths_for/
+    version_paths_for), so every existing bare caller keeps working
+    unchanged; thread a real one only where already in scope.
 
     ALSO True for a path with NO owning Chart.yaml dependency at all
     (podiumd's own directly-templated top-level block — "keycloak",
@@ -229,14 +233,21 @@ def is_primary_image_path(path, deps):
     real cases): there's no PARENT for such a path to be a SIDECAR of,
     so it's treated as its own standalone/primary entity, never subject
     to sidecar-only rules (needing a "#   sidecar: ..." header, sorting
-    after its own top-level key's primary slot)."""
+    after its own top-level key's primary slot). NOTE: this is
+    deliberately more permissive than verify-release-table-with-
+    podiumd's own, separate is_primary_image — a native/no-dep
+    component CAN have its own real sidecars (e.g. frankgateway's own
+    etcd/dashboard/oauth2-proxy, none of them registered in
+    image_paths_for("frankgateway") == ["image"]), which that script's
+    own primary/basename resolution must still distinguish from
+    frankgateway's own primary image; don't merge the two."""
     if not path:
         return False
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
     dep = by_values_key.get(path[0])
     if dep is None:
         return True
-    return _is_dependency_primary_rel_path(dep, ".".join(path[1:]))
+    return _is_dependency_primary_rel_path(dep, ".".join(path[1:]), chart_dir)
 
 
 # component (name, not alias) -> the sibling dotted path holding a

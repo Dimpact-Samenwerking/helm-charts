@@ -751,7 +751,11 @@ def test_compare_checks_keycloak_special_case_image(vrt):
     """keycloak-operator's own actual Keycloak SERVER image lives as a
     split "tag:"/"sha:" field pair, not a plain "image:" block — invisible
     to the normal digest-pin scan regardless of scope, so its plain tag is
-    read directly instead (see SPECIAL_CASE_BASENAME_TAG_PATHS)."""
+    read directly instead (see SPECIAL_CASE_BASENAMES/special_case_tag_path),
+    using the real production settings.yaml default (this test passes no
+    chart_dir, so image_paths_for("keycloak-operator") self-resolves to
+    it — a real component_resolution.image_paths registration, not a
+    synthetic override)."""
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
     rows = [csv_row("Keycloak", "keycloak-operator", image_basename="keycloak", target_app="26.7.3")]
     findings, _ = vrt.compare(rows, deps, keycloak_values(), [])
