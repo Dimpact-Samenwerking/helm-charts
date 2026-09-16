@@ -140,17 +140,6 @@ digest_pinning:
     "eck-operator.image": {sibling_field: "digest", writable: true}
     "omc.image": {}
 
-release_table_verification:
-  # Image basenames whose real image lives at a split "tag:"/"sha:" field
-  # pair NOT nested under a literal "image:" key (keycloak-operator's own
-  # "operator.config.keycloakImage.tag"/".sha") -- invisible to the normal
-  # digest-pin text scanner (lib.image_version.basenames_under_scope_
-  # any_tag) regardless of scope. The owning component's own actual path
-  # comes from component_resolution.image_paths above (never duplicated
-  # here a second time) -- this list only says WHICH basenames need that
-  # fallback at all.
-  special_case_basenames: ["keycloak"]
-
 component_resolution:
   # Component names whose Chart.yaml dependency chart version and their
   # own resolved app image version are released as the SAME number (e.g.
