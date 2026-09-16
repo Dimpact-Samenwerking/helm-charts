@@ -1389,11 +1389,14 @@ omc:
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["notifynl-omc"]
 
 
-def test_resolve_image_basenames_any_tag_fallback_does_not_fire_when_digest_scan_found_something(ecrt, tmp_path):
-    """The any_tag fallback only fires when the digest-required scan
-    found NOTHING at all for a component's own scope — a component that
-    already resolves via the digest-required scan must be completely
-    unaffected by the fallback existing at all."""
+def test_resolve_image_basenames_any_tag_fallback_does_not_override_digest_scan_result(ecrt, tmp_path):
+    """A basename the digest-required scan already found is never
+    replaced by the any_tag fallback (the fallback is strictly additive,
+    per-basename — see test_resolve_image_basenames_any_tag_fallback_
+    supplements_a_partially_digest_pinned_component below for the case
+    where it genuinely adds something new): a component that's fully
+    digest-pinned is completely unaffected by the fallback existing at
+    all."""
     write_values_yaml_raw(tmp_path, f"""\
 zac:
   image:
@@ -1402,6 +1405,39 @@ zac:
 """)
     rows = [["Product", "", "", "Zaak - ZAC", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"]]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["zaakafhandelcomponent"]
+
+
+def test_resolve_image_basenames_any_tag_fallback_supplements_a_partially_digest_pinned_component(ecrt, tmp_path):
+    """Regression test (real bug, real chart): keycloak-operator's own
+    operator.config.keycloakImage pins its digest as a separate sibling
+    "sha:" field (never embedded in "tag:"), so the digest-required scan
+    can never see it — but keycloak-operator's OTHER image (its own
+    admin-user init container) IS fully digest-pinned, so the whole-
+    component's own digest-required scan is NOT empty. Before this fix,
+    the any_tag fallback only ever fired when a component's ENTIRE scope
+    came up empty (see the omc case above) — a component that's only
+    PARTIALLY resolvable via the digest-required scan silently kept its
+    own unresolvable basename blank forever, exactly the real gap behind
+    verify-release-table-with-podiumd's own former special_case_tag_path
+    workaround. The fallback must now be tried per-basename: "keycloak"
+    (only resolvable via any_tag) gets added, "python" (already resolved
+    via the digest-required scan) is untouched by it."""
+    write_values_yaml_raw(tmp_path, f"""\
+keycloak-operator:
+  operator:
+    config:
+      keycloakImage:
+        repository: &keycloakImageRepo quay.io/keycloak/keycloak
+        tag: &keycloakImageVersion "26.7.3"
+        sha: &keycloakImageDigest "{DIGEST_A}"
+  jobs:
+    ensurePodiumdAdminUser:
+      initImage:
+        repository: python
+        tag: "3.14-slim@sha256:{DIGEST_A}"
+""")
+    rows = [["Overige", "", "", "Keycloak", "keycloak-operator", "", "1", "1", "1", "1"]]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["keycloak"]
 
 
 def test_recompute_image_basenames_updates_only_the_changed_row(ecrt, tmp_path):
