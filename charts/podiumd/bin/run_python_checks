@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#
+# Runs every check from README-coding.md's own "Before committing" section,
+# in the same cheapest-first order, stopping at the first failure: pytest,
+# ruff check, ruff format --check, pylint (too-many-lines only), vulture
+# (dead code). See README-coding.md for what each one covers and why.
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: run_python_checks [-h|--help]
+
+Runs pytest, ruff check, ruff format --check, pylint, and vulture against
+this charts/podiumd/bin/ toolset, in that order, stopping at the first
+failure. Must be run from charts/podiumd/bin/ itself (or invoked as
+./run_python_checks from there) -- see README-coding.md.
+EOF
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    usage
+    exit 0
+fi
+
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+python_scripts() {
+    grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)
+}
+
+echo "=== pytest ==="
+python3 -m pytest -q
+
+echo "=== ruff check ==="
+ruff check .
+
+echo "=== ruff format --check ==="
+ruff format --check .
+
+echo "=== pylint (too-many-lines) ==="
+pylint lib/*.py $(python_scripts) $(find tests -name '*.py')
+
+echo "=== vulture (dead code) ==="
+vulture lib/*.py $(python_scripts)
+
+echo "=== all checks passed ==="

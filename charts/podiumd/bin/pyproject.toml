@@ -66,9 +66,9 @@ line-ending = "auto"
 # Invoke explicitly against the extensionless top-level scripts too (pylint
 # won't discover them via a bare directory/glob scan the way it does *.py
 # files) -- and against tests/ (several test modules are themselves well
-# over 1000 lines), e.g.:
-#   pylint charts/podiumd/bin/lib/*.py charts/podiumd/bin/<script-name...> \
-#       $(find charts/podiumd/bin/tests -name '*.py')
+# over 1000 lines). See README-coding.md and run_python_checks for the full
+# command (filtered to a `python` shebang, so a non-Python executable like
+# run_python_checks itself isn't handed to a Python linter).
 [tool.pylint."messages control"]
 disable = ["all"]
 enable = ["too-many-lines"]
@@ -78,3 +78,27 @@ enable = ["too-many-lines"]
 # why 120: this codebase's deliberate long-docstring style). max-module-
 # lines is left at pylint's own upstream default (1000) -- not re-tuned here.
 max-line-length = 120
+
+# vulture: dead-code detection. Like pylint above, it can't discover the
+# extensionless top-level scripts via a bare directory scan (it only walks
+# *.py files under a directory), so it's invoked the same explicit way. See
+# README-coding.md and run_python_checks for the full command.
+#
+# tests/ is deliberately never passed to vulture at all -- pytest fixtures
+# and mock/stub function signature params are structurally indistinguishable
+# from real dead code to vulture's static analysis (neither is ever "called"
+# in vulture's own sense), and dominated any real signal the one time this
+# was tried against the whole tree (see git history).
+#
+# The names below are the exact, individually-confirmed false positives this
+# scoped (lib/ + scripts only) invocation produces every time, because their
+# only real callers live in the deliberately-excluded tests/ tree, or --
+# for the three HTMLParser overrides -- are dispatched by name from stdlib
+# internals, never called directly by this codebase at all:
+#   - pull_chart_values: called only from tests/lib/test_chart.py.
+#   - find_matches: called only from tests/lib/test_image_version.py.
+#   - handle_starttag, handle_endtag, handle_data: _TableExtractor's own
+#     HTMLParser method overrides in lib/confluence_tables.py, dispatched
+#     by name from HTMLParser.feed() itself.
+[tool.vulture]
+ignore_names = ["pull_chart_values", "find_matches", "handle_starttag", "handle_endtag", "handle_data"]
