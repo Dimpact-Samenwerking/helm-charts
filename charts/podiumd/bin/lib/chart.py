@@ -14,10 +14,13 @@ from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import (
-    component_resolution_chart_version_lockstep_components, component_resolution_default_image_paths,
-    component_resolution_image_paths, component_resolution_native_components,
+    component_resolution_chart_version_lockstep_components,
+    component_resolution_default_image_paths,
+    component_resolution_image_paths,
+    component_resolution_native_components,
     component_resolution_version_path_nested_subcharts,
-    component_resolution_version_paths, component_resolution_version_repository_paths,
+    component_resolution_version_paths,
+    component_resolution_version_repository_paths,
 )
 
 # A BOM breaks YAML tooling that doesn't expect one. Shared by

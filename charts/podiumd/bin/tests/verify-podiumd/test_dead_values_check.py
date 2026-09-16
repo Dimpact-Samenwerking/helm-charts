@@ -12,7 +12,6 @@ import tarfile
 from types import SimpleNamespace
 
 import yaml
-
 from dep_helpers import make_dep
 
 CHART_YAML = "apiVersion: v2\nname: podiumd\nversion: 0.0.1\n"

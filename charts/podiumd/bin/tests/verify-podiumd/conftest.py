@@ -12,8 +12,8 @@ affects code whose global `run` was bound by verify-podiumd's own
 imports, not a lib module's separate `from lib.procutil import run`
 binding. Use e.g. `libyamllintcheck` for those cases."""
 import importlib.util
-from importlib.machinery import SourceFileLoader
 import sys
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
 import pytest

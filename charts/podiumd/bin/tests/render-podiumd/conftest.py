@@ -1,8 +1,8 @@
 """Loads render-podiumd (a hyphenated filename, not importable normally)
 as a module named `rp`."""
 import importlib.util
-from importlib.machinery import SourceFileLoader
 import sys
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
 import pytest

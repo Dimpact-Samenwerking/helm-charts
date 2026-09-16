@@ -5,10 +5,22 @@ import re
 import yaml
 
 from lib.chart import (
-    baseline_tag_for_sidecar_path, component_image_paths, full_repository_for_path, get_path,
-    global_image_paths, historical_app_version_for_path, historical_app_version_for_repository, image_paths_for,
-    is_primary_image_path, native_components, nested_subchart_registered_paths, paths_by_repository,
-    resolved_digest_pin, subchart_app_version, version_of, version_paths_for,
+    baseline_tag_for_sidecar_path,
+    component_image_paths,
+    full_repository_for_path,
+    get_path,
+    global_image_paths,
+    historical_app_version_for_path,
+    historical_app_version_for_repository,
+    image_paths_for,
+    is_primary_image_path,
+    native_components,
+    nested_subchart_registered_paths,
+    paths_by_repository,
+    resolved_digest_pin,
+    subchart_app_version,
+    version_of,
+    version_paths_for,
 )
 from lib.settings import digest_pinning_exceptions
 
@@ -2607,11 +2619,9 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
                 changed.add(key)
             continue
         cur_dep, base_dep = current_by_key.get(key), baseline_by_key.get(key)
-        if cur_dep is None or base_dep is None:
-            changed.add(key)
-        elif normalize_version(cur_dep["version"]) != normalize_version(base_dep["version"]):
-            changed.add(key)
-        elif subtree_paths(key, current_paths) != subtree_paths(key, baseline_paths):
+        if (cur_dep is None or base_dep is None
+                or normalize_version(cur_dep["version"]) != normalize_version(base_dep["version"])
+                or subtree_paths(key, current_paths) != subtree_paths(key, baseline_paths)):
             changed.add(key)
     return changed
 

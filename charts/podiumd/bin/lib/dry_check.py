@@ -5,7 +5,9 @@ call a human should make, not something to gate a build on."""
 import difflib
 
 from lib.settings import (
-    dry_check_high_similarity_threshold, dry_check_min_significant_lines, dry_check_similarity_threshold,
+    dry_check_high_similarity_threshold,
+    dry_check_min_significant_lines,
+    dry_check_similarity_threshold,
 )
 
 

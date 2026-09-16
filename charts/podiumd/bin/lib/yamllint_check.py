@@ -7,8 +7,12 @@ from collections import Counter
 
 from lib.procutil import run
 from lib.render_scope import (
-    OWN_TEMPLATES_PREFIX, build_line_sources, chart_name_from_source, friendly_vendor_charts,
-    print_grouped_findings, render_chart,
+    OWN_TEMPLATES_PREFIX,
+    build_line_sources,
+    chart_name_from_source,
+    friendly_vendor_charts,
+    print_grouped_findings,
+    render_chart,
 )
 from lib.settings import quality_gates_yamllint_failing_rules
 

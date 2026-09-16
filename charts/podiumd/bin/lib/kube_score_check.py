@@ -9,8 +9,14 @@ from collections import Counter
 
 from lib.procutil import run
 from lib.render_scope import (
-    OWN_TEMPLATES_PREFIX, build_resource_locations, chart_name_from_source, friendly_vendor_charts,
-    print_grouped_findings, render_chart, resource_line, split_rendered_by_source,
+    OWN_TEMPLATES_PREFIX,
+    build_resource_locations,
+    chart_name_from_source,
+    friendly_vendor_charts,
+    print_grouped_findings,
+    render_chart,
+    resource_line,
+    split_rendered_by_source,
 )
 from lib.settings import quality_gates_kube_score_check_id
 

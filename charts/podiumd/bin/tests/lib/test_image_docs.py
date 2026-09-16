@@ -8,7 +8,6 @@ import tarfile
 
 import yaml
 
-
 # --- add_missing_sidecar_rows ---
 
 def test_add_missing_sidecar_rows_global_image_gets_one_row_not_per_alias(libimagedocs, tmp_path):
