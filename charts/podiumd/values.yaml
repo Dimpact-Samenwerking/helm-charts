@@ -1076,6 +1076,9 @@ objecten:
     #         token: "REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
     #         contact_person: Person 1
     #         email: person-1@example.com
+    #         permissions:
+    #           - object_type: "REP_ZAC_PRODUCTAANVRAAG_UUID_REP"
+    #             mode: read_only
     #   objecttypes_config_enable: true
     #   objecttypes:
     #     items:
