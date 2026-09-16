@@ -415,7 +415,7 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(ui
         '    repository: "@mi"\n',
         encoding="utf-8",
     )
-    values_path = write_values(
+    write_values(
         tmp_path,
         (f'mi:\n  enabled: false\n  image:\n    repository: example/mi-data\n    tag: "2.71.0@sha256:{"a" * 64}"\n'),
     )
@@ -486,7 +486,7 @@ def test_main_shows_real_baseline_chart_transition_when_genuinely_tracked(uiv, t
         '    repository: "@zac"\n',
         encoding="utf-8",
     )
-    values_path = write_values(
+    write_values(
         tmp_path,
         (f'zac:\n  image:\n    repository: infonl/zaakafhandelcomponent\n    tag: "5.0.2@sha256:{"a" * 64}"\n'),
     )
