@@ -30,8 +30,7 @@ def test_helper_call_quoted_passes(vp, tmp_path):
 
 
 def test_hand_interpolated_repository_and_tag_flagged(vp, tmp_path, capsys):
-    write_template(tmp_path, "frankgateway.yaml",
-                   '          image: "{{ $fg.image.repository }}:{{ $fg.image.tag }}"\n')
+    write_template(tmp_path, "frankgateway.yaml", '          image: "{{ $fg.image.repository }}:{{ $fg.image.tag }}"\n')
     ok, detail = vp.check_image_references(tmp_path)
     assert ok is False
     assert "1 violation(s)" in detail

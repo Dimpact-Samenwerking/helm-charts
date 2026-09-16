@@ -6,6 +6,7 @@ imported binding (check_basename_version lives in lib.image_version,
 which resolves registry_tag_exists via ITS OWN globals — see
 lib.image_version's import — so tests patch that module directly, same
 as tests/update-image-version/test_update_image_version.py does)."""
+
 import pytest
 
 
@@ -43,16 +44,19 @@ def test_wrong_arg_count_prints_docstring_and_exits_one(viv, monkeypatch, capsys
 
 
 def test_main_found_reports_ok(viv, tmp_path, monkeypatch, capsys):
-    values_path = write_values(tmp_path, (
-        "pabc:\n"
-        "  image:\n"
-        "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
-        f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (
+            "pabc:\n"
+            "  image:\n"
+            "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
+            f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
+        ),
+    )
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc", "pabc-api", "1.1.2"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -65,14 +69,18 @@ def test_main_found_reports_ok(viv, tmp_path, monkeypatch, capsys):
 
 
 def test_main_missing_reports_fail(viv, tmp_path, monkeypatch, capsys):
-    values_path = write_values(tmp_path, (
-        "pabc:\n"
-        "  image:\n"
-        "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
-        f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (
+            "pabc:\n"
+            "  image:\n"
+            "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
+            f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
+        ),
+    )
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     import lib.image_version as image_version
+
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (False, None))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc", "pabc-api", "9.9.9"])
 
@@ -89,17 +97,15 @@ def test_main_resolves_given_component_key_and_basename(viv, tmp_path, monkeypat
     """<key> "openklant" scopes the search to that component's own
     values.yaml subtree, where <basename> "open-klant" is pinned."""
     write_chart_yaml(tmp_path, [("openklant", None)])
-    values_path = write_values(tmp_path, (
-        "openklant:\n"
-        "  image:\n"
-        "    repository: maykinmedia/open-klant\n"
-        f'    tag: "2.15.0@sha256:{"a" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (f'openklant:\n  image:\n    repository: maykinmedia/open-klant\n    tag: "2.15.0@sha256:{"a" * 64}"\n'),
+    )
     monkeypatch.setattr(viv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "openklant", "open-klant", "2.15.1"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -121,20 +127,17 @@ def test_main_accepts_dependency_name_not_just_alias(viv, tmp_path, monkeypatch,
     same convention update-component-version's own <component> argument
     already uses via find_dependency."""
     write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
-    values_path = write_values(tmp_path, (
-        "zac:\n"
-        "  image:\n"
-        "    repository: infonl/zaakafhandelcomponent\n"
-        f'    tag: "5.4.3@sha256:{"a" * 64}"\n'
-    ))
+    values_path = write_values(
+        tmp_path,
+        (f'zac:\n  image:\n    repository: infonl/zaakafhandelcomponent\n    tag: "5.4.3@sha256:{"a" * 64}"\n'),
+    )
     monkeypatch.setattr(viv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     import lib.image_version as image_version
-    monkeypatch.setattr(image_version, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
-    monkeypatch.setattr("sys.argv",
-                         ["verify-image-version", "zaakafhandelcomponent", "zaakafhandelcomponent", "5.4.4"])
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv", ["verify-image-version", "zaakafhandelcomponent", "zaakafhandelcomponent", "5.4.4"])
 
     with pytest.raises(SystemExit) as exc_info:
         viv.main()

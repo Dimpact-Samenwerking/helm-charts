@@ -2,6 +2,7 @@
 verify-release-table-with-podiumd. compare() takes plain in-memory
 deps/values/lines/rows, so these tests need neither a real Chart.yaml nor
 network access; main()'s own tests just cover its file-loading/CLI glue."""
+
 import io
 import tarfile
 from pathlib import Path
@@ -28,12 +29,19 @@ def make_vendored_tgz(chart_dir, name, version, values):
         tar.addfile(info, io.BytesIO(data))
 
 
-def csv_row(name, component, alias="", image_basename="", source_app="", source_helm="",
-            target_app="", target_helm=""):
+def csv_row(name, component, alias="", image_basename="", source_app="", source_helm="", target_app="", target_helm=""):
     return {
-        "section": "Product", "vendor": "", "used_by": "", "name": name, "component": component,
-        "alias": alias, "image_basename": image_basename, "source_version_app": source_app,
-        "source_version_helm": source_helm, "target_version_app": target_app, "target_version_helm": target_helm,
+        "section": "Product",
+        "vendor": "",
+        "used_by": "",
+        "name": name,
+        "component": component,
+        "alias": alias,
+        "image_basename": image_basename,
+        "source_version_app": source_app,
+        "source_version_helm": source_helm,
+        "target_version_app": target_app,
+        "target_version_helm": target_helm,
     }
 
 
@@ -41,12 +49,7 @@ def values_lines(*blocks):
     return "\n".join(blocks).splitlines()
 
 
-ZAC_BLOCK = (
-    "zac:\n"
-    "  image:\n"
-    "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
-    f'    tag: "5.4.3@sha256:{DIGEST}"\n'
-)
+ZAC_BLOCK = f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.4.3@sha256:{DIGEST}"\n'
 
 # zac's own PRIMARY image (zac.image, matching lib.chart.
 # DEFAULT_IMAGE_PATHS) plus a sidecar image nested elsewhere (zac.
@@ -107,10 +110,19 @@ def openbao_values(tag=""):
 
 # --- compare(): version mismatches ---
 
+
 def test_compare_reports_chart_version_mismatch(vrt):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     target_app="5.4.3", target_helm="1.0.298")]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            target_app="5.4.3",
+            target_helm="1.0.298",
+        )
+    ]
     findings, unresolved = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     assert any("target 1.0.298 != Chart.yaml 1.0.297" in m for m in findings["mismatches"])
     assert unresolved == []
@@ -118,16 +130,32 @@ def test_compare_reports_chart_version_mismatch(vrt):
 
 def test_compare_reports_image_version_mismatch(vrt):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     target_app="5.4.4", target_helm="1.0.297")]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            target_app="5.4.4",
+            target_helm="1.0.297",
+        )
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     assert any("target 5.4.4 != values.yaml 5.4.3" in m for m in findings["mismatches"])
 
 
 def test_compare_no_findings_when_everything_matches(vrt):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     target_app="5.4.3", target_helm="1.0.297")]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            target_app="5.4.3",
+            target_helm="1.0.297",
+        )
+    ]
     findings, unresolved = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     assert findings == {}
     assert unresolved == []
@@ -136,36 +164,62 @@ def test_compare_no_findings_when_everything_matches(vrt):
 # --- check_chart_version_source / check_images_source ---
 
 ZAC_BASELINE_BLOCK = (
-    "zac:\n"
-    "  image:\n"
-    "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
-    f'    tag: "5.0.2@sha256:{DIGEST}"\n'
+    f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.0.2@sha256:{DIGEST}"\n'
 )
 
 
 def test_compare_reports_chart_version_source_mismatch(vrt):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     source_helm="1.0.250", target_helm="1.0.297")]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            source_helm="1.0.250",
+            target_helm="1.0.297",
+        )
+    ]
     findings, unresolved = vrt.compare(
-        rows, deps, {}, values_lines(ZAC_BLOCK),
-        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=values_lines(ZAC_BASELINE_BLOCK))
-    assert any("[CHART-SOURCE]" in m and "source 1.0.250 != baseline Chart.yaml 1.0.251" in m
-               for m in findings["mismatches"])
+        rows,
+        deps,
+        {},
+        values_lines(ZAC_BLOCK),
+        baseline_deps=baseline_deps,
+        baseline_values={},
+        baseline_lines=values_lines(ZAC_BASELINE_BLOCK),
+    )
+    assert any(
+        "[CHART-SOURCE]" in m and "source 1.0.250 != baseline Chart.yaml 1.0.251" in m for m in findings["mismatches"]
+    )
     assert unresolved == []
 
 
 def test_compare_reports_image_version_source_mismatch(vrt):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     source_app="5.0.1")]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            source_app="5.0.1",
+        )
+    ]
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(ZAC_BLOCK),
-        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=values_lines(ZAC_BASELINE_BLOCK))
-    assert any("[IMAGE-SOURCE]" in m and "source 5.0.1 != baseline values.yaml 5.0.2" in m
-               for m in findings["mismatches"])
+        rows,
+        deps,
+        {},
+        values_lines(ZAC_BLOCK),
+        baseline_deps=baseline_deps,
+        baseline_values={},
+        baseline_lines=values_lines(ZAC_BASELINE_BLOCK),
+    )
+    assert any(
+        "[IMAGE-SOURCE]" in m and "source 5.0.1 != baseline values.yaml 5.0.2" in m for m in findings["mismatches"]
+    )
 
 
 def test_compare_reports_image_version_source_mismatch_bare_baseline_tag(vrt):
@@ -178,12 +232,7 @@ def test_compare_reports_image_version_source_mismatch_bare_baseline_tag(vrt):
     deps = [{"name": "zaakbrug", "version": "1.1.0"}]
     baseline_deps = [{"name": "zaakbrug", "version": "1.0.0"}]
     rows = [csv_row("Zaak Brug", "zaakbrug", image_basename="zaakbrug", source_app="1.26.13")]
-    zaakbrug_current = (
-        "zaakbrug:\n"
-        "  image:\n"
-        "    repository: wearefrank/zaakbrug\n"
-        f'    tag: "1.26.18@sha256:{DIGEST}"\n'
-    )
+    zaakbrug_current = f'zaakbrug:\n  image:\n    repository: wearefrank/zaakbrug\n    tag: "1.26.18@sha256:{DIGEST}"\n'
     zaakbrug_baseline_bare_tag = (
         "zaakbrug:\n"
         "  image:\n"
@@ -191,10 +240,17 @@ def test_compare_reports_image_version_source_mismatch_bare_baseline_tag(vrt):
         '    tag: "1.26.15"\n'  # bare, no digest — the real 4.8.5 shape
     )
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(zaakbrug_current),
-        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=values_lines(zaakbrug_baseline_bare_tag))
-    assert any("[IMAGE-SOURCE]" in m and "source 1.26.13 != baseline values.yaml 1.26.15" in m
-               for m in findings["mismatches"])
+        rows,
+        deps,
+        {},
+        values_lines(zaakbrug_current),
+        baseline_deps=baseline_deps,
+        baseline_values={},
+        baseline_lines=values_lines(zaakbrug_baseline_bare_tag),
+    )
+    assert any(
+        "[IMAGE-SOURCE]" in m and "source 1.26.13 != baseline values.yaml 1.26.15" in m for m in findings["mismatches"]
+    )
     assert not any("wasn't pinned anywhere" in m for m in findings.get("mismatches", []))
 
 
@@ -203,8 +259,18 @@ def test_compare_source_checks_skipped_when_baseline_not_given(vrt):
     'attempted and empty' — so a row with an otherwise-mismatching
     source is never flagged when no baseline was resolved."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     source_app="5.0.1", source_helm="1.0.250", target_app="5.4.3", target_helm="1.0.297")]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            source_app="5.0.1",
+            source_helm="1.0.250",
+            target_app="5.4.3",
+            target_helm="1.0.297",
+        )
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     assert not any("SOURCE" in m for m in findings.get("mismatches", []))
 
@@ -217,17 +283,20 @@ def test_compare_new_dependency_at_baseline_with_blank_source_not_flagged(vrt):
     baseline at all (see is_verifiable_target)."""
     deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
     baseline_deps = []  # mi-data didn't exist at the release_table baseline yet
-    rows = [csv_row("MI-data exports", "mi-data", alias="mi", image_basename="azure-cli",
-                     target_app="2.90.0", target_helm="1.1.0")]
-    mi_block = (
-        "mi:\n"
-        "  image:\n"
-        "    repository: mcr.microsoft.com/azure-cli\n"
-        f'    tag: "2.90.0@sha256:{DIGEST}"\n'
-    )
+    rows = [
+        csv_row(
+            "MI-data exports",
+            "mi-data",
+            alias="mi",
+            image_basename="azure-cli",
+            target_app="2.90.0",
+            target_helm="1.1.0",
+        )
+    ]
+    mi_block = f'mi:\n  image:\n    repository: mcr.microsoft.com/azure-cli\n    tag: "2.90.0@sha256:{DIGEST}"\n'
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(mi_block),
-        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[])
+        rows, deps, {}, values_lines(mi_block), baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[]
+    )
     assert not any("SOURCE" in m for m in findings.get("mismatches", []))
 
 
@@ -239,21 +308,29 @@ def test_compare_new_dependency_at_baseline_with_real_source_is_flagged(vrt):
     case (there's nothing to compare the claimed value AGAINST)."""
     deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
     baseline_deps = []
-    rows = [csv_row("MI-data exports", "mi-data", alias="mi", image_basename="azure-cli",
-                     source_app="2.71.0", source_helm="1.0.0", target_app="2.90.0", target_helm="1.1.0")]
-    mi_block = (
-        "mi:\n"
-        "  image:\n"
-        "    repository: mcr.microsoft.com/azure-cli\n"
-        f'    tag: "2.90.0@sha256:{DIGEST}"\n'
-    )
+    rows = [
+        csv_row(
+            "MI-data exports",
+            "mi-data",
+            alias="mi",
+            image_basename="azure-cli",
+            source_app="2.71.0",
+            source_helm="1.0.0",
+            target_app="2.90.0",
+            target_helm="1.1.0",
+        )
+    ]
+    mi_block = f'mi:\n  image:\n    repository: mcr.microsoft.com/azure-cli\n    tag: "2.90.0@sha256:{DIGEST}"\n'
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(mi_block),
-        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[])
-    assert any("[CHART-SOURCE]" in m and "didn't exist at the release_table baseline yet" in m
-               for m in findings["mismatches"])
-    assert any("[IMAGE-SOURCE]" in m and "wasn't pinned anywhere" in m and "release_table baseline yet" in m
-               for m in findings["mismatches"])
+        rows, deps, {}, values_lines(mi_block), baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[]
+    )
+    assert any(
+        "[CHART-SOURCE]" in m and "didn't exist at the release_table baseline yet" in m for m in findings["mismatches"]
+    )
+    assert any(
+        "[IMAGE-SOURCE]" in m and "wasn't pinned anywhere" in m and "release_table baseline yet" in m
+        for m in findings["mismatches"]
+    )
 
 
 def test_main_unresolvable_release_table_baseline_warns_and_keeps_target_checks(vrt, tmp_path, monkeypatch, capsys):
@@ -270,18 +347,23 @@ def test_main_unresolvable_release_table_baseline_warns_and_keeps_target_checks(
     release_table.parent.mkdir()
 
     chart_yaml.write_text(
-        "dependencies:\n"
-        "  - name: zaakafhandelcomponent\n"
-        "    version: 1.0.298\n"
-        "    alias: zac\n",
+        "dependencies:\n  - name: zaakafhandelcomponent\n    version: 1.0.298\n    alias: zac\n",
         encoding="utf-8",
     )
     values_yaml.write_text(ZAC_BLOCK, encoding="utf-8")
     with release_table.open("w", newline="", encoding="utf-8") as f:
         writer = csv_module.DictWriter(f, fieldnames=list(csv_row("x", "y").keys()))
         writer.writeheader()
-        writer.writerow(csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac",
-                                 image_basename="zaakafhandelcomponent", target_app="5.4.3", target_helm="1.0.297"))
+        writer.writerow(
+            csv_row(
+                "Zaak - ZAC",
+                "zaakafhandelcomponent",
+                alias="zac",
+                image_basename="zaakafhandelcomponent",
+                target_app="5.4.3",
+                target_helm="1.0.297",
+            )
+        )
 
     monkeypatch.setattr(vrt, "CHART_DIR", chart_dir)
     monkeypatch.setattr(vrt, "CHART_YAML", chart_yaml)
@@ -315,16 +397,22 @@ def test_compare_reports_chart_version_never_tracked(vrt):
     deps = [{"name": "openbao", "alias": "", "version": "0.28.4"}]
     rows = [
         {**csv_row("OpenBao", "openbao", image_basename="openbao", target_app="2.5.5"), "section": "Technische"},
-        {**csv_row("OpenBao Schema Job (postgres)", "openbao", image_basename="postgres", target_app="UNKNOWN"),
-         "section": "Technische"},
+        {
+            **csv_row("OpenBao Schema Job (postgres)", "openbao", image_basename="postgres", target_app="UNKNOWN"),
+            "section": "Technische",
+        },
     ]
     findings, _ = vrt.compare(rows, deps, openbao_values(), values_lines(OPENBAO_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "'openbao' has release-table" in m)
-    assert "[CHART] Chart.yaml dependency 'openbao' has release-table.csv row(s), but none records " \
-           "a Helm chart version" in hint
-    assert ('\n      Confluence: remove "OpenBao" from "Technische component versies" and add it instead '
-            'to whichever of "Product/Common Ground/Overige component versies" fits — Name "OpenBao", '
-            'Helm version 0.28.4, App version 2.5.5') in hint
+    assert (
+        "[CHART] Chart.yaml dependency 'openbao' has release-table.csv row(s), but none records "
+        "a Helm chart version" in hint
+    )
+    assert (
+        '\n      Confluence: remove "OpenBao" from "Technische component versies" and add it instead '
+        'to whichever of "Product/Common Ground/Overige component versies" fits — Name "OpenBao", '
+        "Helm version 0.28.4, App version 2.5.5"
+    ) in hint
     assert "postgres" not in hint
 
 
@@ -347,12 +435,20 @@ def test_compare_chart_version_never_tracked_names_primary_row_on_other_table(vr
     specifically, not just "this row" or "the table" -- with the exact
     Helm version to write there."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     target_app="5.4.3")]  # target_helm/source_helm both left blank
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            target_app="5.4.3",
+        )
+    ]  # target_helm/source_helm both left blank
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
-    assert ('Confluence: fill in the Helm version cell on "Zaak - ZAC" ("Product component versies") '
-            'with 1.0.297') in hint
+    assert (
+        'Confluence: fill in the Helm version cell on "Zaak - ZAC" ("Product component versies") with 1.0.297'
+    ) in hint
 
 
 def test_compare_chart_version_never_tracked_no_primary_row_yet(vrt):
@@ -360,8 +456,12 @@ def test_compare_chart_version_never_tracked_no_primary_row_yet(vrt):
     yet (only a sidecar row exists so far) -- the hint must not guess
     which row to point at."""
     deps = [{"name": "openbao", "alias": "", "version": "0.28.4"}]
-    rows = [{**csv_row("OpenBao Schema Job (postgres)", "openbao", image_basename="postgres", target_app="UNKNOWN"),
-             "section": "Technische"}]
+    rows = [
+        {
+            **csv_row("OpenBao Schema Job (postgres)", "openbao", image_basename="postgres", target_app="UNKNOWN"),
+            "section": "Technische",
+        }
+    ]
     findings, _ = vrt.compare(rows, deps, openbao_values(), values_lines(OPENBAO_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "'openbao' has release-table" in m)
     assert "none of the existing row(s) is this chart's own primary-image row yet" in hint
@@ -379,11 +479,7 @@ def test_compare_chart_version_never_tracked_resolves_primary_via_vendored_subch
     instead, with no network access, correctly naming the ONE row that
     claims the resolved "open-zaak" basename."""
     make_vendored_tgz(tmp_path, "openzaak", "4.9.1", {"image": {"repository": "openzaak/open-zaak"}})
-    openzaak_block = (
-        "openzaak:\n"
-        "  image:\n"
-        f'    tag: "3.28.0@sha256:{DIGEST}"\n'
-    )
+    openzaak_block = f'openzaak:\n  image:\n    tag: "3.28.0@sha256:{DIGEST}"\n'
     deps = [{"name": "openzaak", "alias": "", "version": "4.9.1"}]
     rows = [csv_row("Open Zaak", "openzaak", image_basename="open-zaak", target_app="3.28.0")]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(openzaak_block), tmp_path)
@@ -401,8 +497,18 @@ def test_compare_skips_blank_or_unknown_targets(vrt, target_app, target_helm):
     unchanged" case; see the blank-source tests below for what happens
     when neither source nor target has ever recorded a real value."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     source_app="5.4.3", source_helm="1.0.297", target_app=target_app, target_helm=target_helm)]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            source_app="5.4.3",
+            source_helm="1.0.297",
+            target_app=target_app,
+            target_helm=target_helm,
+        )
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     assert findings == {}
 
@@ -418,8 +524,15 @@ def test_compare_blank_source_and_target_app_version_never_recorded_is_reported(
     even when target is blank, and reported as "never recorded" when
     source is blank too."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     source_helm="1.0.297")]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            source_helm="1.0.297",
+        )
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     assert any("has never recorded an app version" in m for m in findings["missing_from_release_table"])
     assert "mismatches" not in findings
@@ -433,11 +546,20 @@ def test_compare_blank_target_but_source_now_stale_is_reported(vrt):
     the "never recorded at all" case above, just with a real (now wrong)
     source on file instead of nothing."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     source_app="5.4.2", source_helm="1.0.297")]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            source_app="5.4.2",
+            source_helm="1.0.297",
+        )
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
-    assert any("target_version_app was never filled in" in m and "5.4.2" in m and "5.4.3" in m
-               for m in findings["mismatches"])
+    assert any(
+        "target_version_app was never filled in" in m and "5.4.2" in m and "5.4.3" in m for m in findings["mismatches"]
+    )
     assert "missing_from_release_table" not in findings
 
 
@@ -447,14 +569,25 @@ def test_compare_blank_target_helm_but_source_now_stale_is_reported(vrt):
     change") but source_version_helm has since drifted from Chart.
     yaml's real current dependency version."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     source_app="5.4.3", source_helm="1.0.296")]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            source_app="5.4.3",
+            source_helm="1.0.296",
+        )
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
-    assert any("target_version_helm was never filled in" in m and "1.0.296" in m and "1.0.297" in m
-               for m in findings["mismatches"])
+    assert any(
+        "target_version_helm was never filled in" in m and "1.0.296" in m and "1.0.297" in m
+        for m in findings["mismatches"]
+    )
 
 
 # --- is_primary_image ---
+
 
 def test_is_primary_image_default_path(vrt):
     """DEFAULT_IMAGE_PATHS (["image"]) covers the common single-image
@@ -496,6 +629,7 @@ def test_is_primary_image_multi_image_component_override(vrt):
 
 # --- compare(): missing from release-table.csv ---
 
+
 def test_compare_reports_dependency_with_no_release_table_row(vrt):
     deps = [{"name": "openklant", "alias": "", "version": "1.11.0"}]
     findings, _ = vrt.compare([], deps, {}, [])
@@ -519,11 +653,12 @@ def test_compare_reports_image_pinned_but_not_tracked(vrt):
     """values.yaml pins an image under zac's own scope that no
     release-table.csv row mentions at all."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="",
-                     target_helm="1.0.297")]
+    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="", target_helm="1.0.297")]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
-    assert any("'zaakafhandelcomponent' is pinned in values.yaml but not tracked" in m
-               for m in findings["missing_from_release_table"])
+    assert any(
+        "'zaakafhandelcomponent' is pinned in values.yaml but not tracked" in m
+        for m in findings["missing_from_release_table"]
+    )
 
 
 def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt):
@@ -539,8 +674,7 @@ def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt):
     separate App/Helm sub-columns — a human needs to know which one to
     fill in."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="",
-                     target_helm="1.0.297")]
+    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="", target_helm="1.0.297")]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
     assert '\n      Confluence: add row to "Product component versies"' in hint
@@ -556,8 +690,14 @@ def test_compare_missing_primary_image_uses_own_table_without_used_by(vrt):
     "Technische component versies": it's this row's own identity, not a
     sibling image being attributed to some other consuming component."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [{**csv_row("Elastic operator", "zaakafhandelcomponent", alias="zac", image_basename="",
-                       target_helm="1.0.297"), "section": "Technische"}]
+    rows = [
+        {
+            **csv_row(
+                "Elastic operator", "zaakafhandelcomponent", alias="zac", image_basename="", target_helm="1.0.297"
+            ),
+            "section": "Technische",
+        }
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
     assert '\n      Confluence: add row to "Technische component versies"' in hint
@@ -572,46 +712,67 @@ def test_compare_missing_sidecar_image_always_goes_to_technische_with_used_by(vr
     regardless of which table the component's own primary row actually
     lives on (here, "Product")."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac",
-                     image_basename="zaakafhandelcomponent", target_helm="1.0.297")]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            target_helm="1.0.297",
+        )
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_WITH_SIDECAR_BLOCK))
-    hint = next(m for m in findings["missing_from_release_table"]
-                if "opentelemetry-collector-contrib" in m)
+    hint = next(m for m in findings["missing_from_release_table"] if "opentelemetry-collector-contrib" in m)
     assert '\n      Confluence: add row to "Technische component versies"' in hint
     assert '"Used by": "zac", Name containing "opentelemetry-collector-contrib"' in hint
 
 
 # --- compare(): missing from Chart.yaml / values.yaml ---
 
+
 def test_compare_reports_row_component_no_longer_a_dependency(vrt):
     rows = [csv_row("Long Gone", "longgone")]
     findings, _ = vrt.compare(rows, [], {}, [])
-    assert any("resolves to component 'longgone', which is not a Chart.yaml dependency" in m
-               for m in findings["missing_from_chart"])
+    assert any(
+        "resolves to component 'longgone', which is not a Chart.yaml dependency" in m
+        for m in findings["missing_from_chart"]
+    )
 
 
 def test_compare_reports_tracked_image_no_longer_pinned(vrt):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     target_helm="1.0.297"),
-            csv_row("Zaak - ZAC OPA", "zaakafhandelcomponent", alias="zac", image_basename="opa",
-                     target_app="1.17.1", target_helm="1.0.297")]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            target_helm="1.0.297",
+        ),
+        csv_row(
+            "Zaak - ZAC OPA",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="opa",
+            target_app="1.17.1",
+            target_helm="1.0.297",
+        ),
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
-    assert any("release-table image 'opa' for component 'zaakafhandelcomponent'" in m
-               for m in findings["missing_from_chart"])
+    assert any(
+        "release-table image 'opa' for component 'zaakafhandelcomponent'" in m for m in findings["missing_from_chart"]
+    )
 
 
 # --- compare(): orphan components (no separate Chart.yaml dependency) ---
+
 
 def test_compare_checks_images_for_orphan_values_yaml_component(vrt):
     """frankgateway-style: no Chart.yaml dependency, but a real top-level
     values.yaml key — its own image(s) are still checked, just without a
     chart-version comparison (no Chart.yaml "version:" to compare against)."""
     frank_block = (
-        "frankgateway:\n"
-        "  image:\n"
-        "    repository: ghcr.io/wearefrank/frank-gateway\n"
-        f'    tag: "1.1.0@sha256:{DIGEST}"\n'
+        f'frankgateway:\n  image:\n    repository: ghcr.io/wearefrank/frank-gateway\n    tag: "1.1.0@sha256:{DIGEST}"\n'
     )
     rows = [csv_row("Frank Gateway", "frankgateway", image_basename="frank-gateway", target_app="1.1.1")]
     findings, unresolved = vrt.compare(rows, [], {"frankgateway": {}}, values_lines(frank_block))
@@ -627,6 +788,7 @@ def test_compare_orphan_component_absent_from_values_yaml_is_missing_from_chart(
 
 
 # --- compare(): ambiguous pins ---
+
 
 def test_compare_reports_ambiguous_when_basename_pinned_at_multiple_versions(vrt):
     block = (
@@ -649,6 +811,7 @@ def test_compare_reports_ambiguous_when_basename_pinned_at_multiple_versions(vrt
 
 # --- compare(): unresolved components ---
 
+
 @pytest.mark.parametrize("component", ["", "UNKNOWN"])
 def test_compare_lists_unresolved_rows_separately(vrt, component):
     rows = [csv_row("Solr", component)]
@@ -660,11 +823,7 @@ def test_compare_lists_unresolved_rows_separately(vrt, component):
 # --- compare(): MULTIPLE (global.images) rows ---
 
 GLOBAL_CURL_BLOCK = (
-    "global:\n"
-    "  images:\n"
-    "    curl:\n"
-    "      repository: docker.io/curlimages/curl\n"
-    f'      tag: "8.22.0@sha256:{DIGEST}"\n'
+    f'global:\n  images:\n    curl:\n      repository: docker.io/curlimages/curl\n      tag: "8.22.0@sha256:{DIGEST}"\n'
 )
 
 
@@ -697,8 +856,10 @@ def test_compare_multiple_row_with_no_image_basename_is_silently_skipped(vrt):
 
 def test_compare_reports_global_image_with_no_release_table_row(vrt):
     findings, _ = vrt.compare([], [], {}, values_lines(GLOBAL_CURL_BLOCK))
-    assert any("'global' image 'curl' is pinned in values.yaml but not tracked" in m
-               for m in findings["missing_from_release_table"])
+    assert any(
+        "'global' image 'curl' is pinned in values.yaml but not tracked" in m
+        for m in findings["missing_from_release_table"]
+    )
 
 
 def test_compare_missing_multiple_image_hint_has_no_used_by_and_guesses_technische(vrt):
@@ -717,6 +878,7 @@ def test_compare_missing_multiple_image_hint_has_no_used_by_and_guesses_technisc
 
 # --- multi-image component (e.g. zgw-office-addin) ---
 
+
 def test_compare_multi_image_component_checks_every_basename(vrt):
     block = (
         "zgw-office-addin:\n"
@@ -730,9 +892,15 @@ def test_compare_multi_image_component_checks_every_basename(vrt):
         f'      tag: "0.11.0@sha256:{"b" * 64}"\n'
     )
     deps = [{"name": "zgw-office-addin", "alias": "", "version": "0.0.92"}]
-    rows = [csv_row("Office Add-in", "zgw-office-addin",
-                     image_basename="zgw-office-addin-frontend,zgw-office-addin-backend",
-                     target_app="0.12.0", target_helm="0.0.92")]
+    rows = [
+        csv_row(
+            "Office Add-in",
+            "zgw-office-addin",
+            image_basename="zgw-office-addin-frontend,zgw-office-addin-backend",
+            target_app="0.12.0",
+            target_helm="0.0.92",
+        )
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(block))
     assert len(findings["mismatches"]) == 2
     assert any("zgw-office-addin-frontend" in m for m in findings["mismatches"])
@@ -781,8 +949,9 @@ def test_compare_checks_keycloak_anchor_decorated_image(vrt):
 
 def test_compare_keycloak_anchor_decorated_image_matching_passes(vrt):
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
-    rows = [csv_row("Keycloak", "keycloak-operator", image_basename="keycloak",
-                     source_helm="1.12.1", target_app="26.7.2")]
+    rows = [
+        csv_row("Keycloak", "keycloak-operator", image_basename="keycloak", source_helm="1.12.1", target_app="26.7.2")
+    ]
     findings, _ = vrt.compare(rows, deps, keycloak_values(), keycloak_lines())
     assert findings == {}
 
@@ -802,8 +971,9 @@ def test_compare_finds_basename_pinned_under_a_sibling_scope(vrt):
         f'      tag: "6.5.1-26@sha256:{"c" * 64}"\n'
     )
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
-    rows = [csv_row("Keycloak Config CLI", "keycloak-operator", image_basename="keycloak-config-cli",
-                     target_app="6.5.2-27")]
+    rows = [
+        csv_row("Keycloak Config CLI", "keycloak-operator", image_basename="keycloak-config-cli", target_app="6.5.2-27")
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(keycloak_config_cli_block))
     assert any("target 6.5.2-27 != values.yaml 6.5.1-26" in m for m in findings["mismatches"])
     assert "missing_from_chart" not in findings
@@ -818,8 +988,15 @@ def test_compare_sibling_scope_basename_matching_passes(vrt):
         f'      tag: "6.5.1-26@sha256:{"c" * 64}"\n'
     )
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
-    rows = [csv_row("Keycloak Config CLI", "keycloak-operator", image_basename="keycloak-config-cli",
-                     source_helm="1.12.1", target_app="6.5.1-26")]
+    rows = [
+        csv_row(
+            "Keycloak Config CLI",
+            "keycloak-operator",
+            image_basename="keycloak-config-cli",
+            source_helm="1.12.1",
+            target_app="6.5.1-26",
+        )
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(keycloak_config_cli_block))
     assert findings == {}
 
@@ -849,12 +1026,26 @@ def test_compare_image_source_sibling_scope_basename_still_matches(vrt):
     )
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
     baseline_deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.0"}]
-    rows = [csv_row("Keycloak Config CLI", "keycloak-operator", image_basename="keycloak-config-cli",
-                     source_app="6.5.1-26", target_app="6.5.2-27",
-                     source_helm="1.12.0", target_helm="1.12.1")]
+    rows = [
+        csv_row(
+            "Keycloak Config CLI",
+            "keycloak-operator",
+            image_basename="keycloak-config-cli",
+            source_app="6.5.1-26",
+            target_app="6.5.2-27",
+            source_helm="1.12.0",
+            target_helm="1.12.1",
+        )
+    ]
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(current_block),
-        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=values_lines(baseline_block))
+        rows,
+        deps,
+        {},
+        values_lines(current_block),
+        baseline_deps=baseline_deps,
+        baseline_values={},
+        baseline_lines=values_lines(baseline_block),
+    )
     assert findings == {}
 
 
@@ -870,13 +1061,7 @@ def test_compare_image_source_rejects_stripped_name_collision(vrt):
     images.redis's own baseline value — the baseline is correctly
     reported as never having had this image pinned at all, not silently
     matched to the wrong one."""
-    current_block = (
-        "global:\n"
-        "  images:\n"
-        "    redis:\n"
-        "      repository: redis\n"
-        f'      tag: "8.0@sha256:{"d" * 64}"\n'
-    )
+    current_block = f'global:\n  images:\n    redis:\n      repository: redis\n      tag: "8.0@sha256:{"d" * 64}"\n'
     baseline_block = (
         "redis-operator:\n"
         "  redis-ha:\n"
@@ -886,10 +1071,18 @@ def test_compare_image_source_rejects_stripped_name_collision(vrt):
     )
     rows = [csv_row("Redis", "MULTIPLE", alias="MULTIPLE", image_basename="redis", source_app="8.0")]
     findings, _ = vrt.compare(
-        rows, [], {}, values_lines(current_block),
-        baseline_deps=[], baseline_values={}, baseline_lines=values_lines(baseline_block))
-    assert any("[IMAGE-SOURCE]" in m and "wasn't pinned anywhere" in m and "release_table baseline yet" in m
-               for m in findings["mismatches"])
+        rows,
+        [],
+        {},
+        values_lines(current_block),
+        baseline_deps=[],
+        baseline_values={},
+        baseline_lines=values_lines(baseline_block),
+    )
+    assert any(
+        "[IMAGE-SOURCE]" in m and "wasn't pinned anywhere" in m and "release_table baseline yet" in m
+        for m in findings["mismatches"]
+    )
     assert not any("8.6.2" in m for m in findings["mismatches"])
 
 
@@ -908,10 +1101,7 @@ def test_compare_image_source_rejects_stripped_name_collision(vrt):
 # gracefully on failure).
 
 CLAMAV_CURRENT_BLOCK = (
-    "clamav:\n"
-    "  image:\n"
-    "    repository: docker.io/clamav/clamav\n"
-    f'    tag: "1.5.3@sha256:{"a" * 64}"\n'
+    f'clamav:\n  image:\n    repository: docker.io/clamav/clamav\n    tag: "1.5.3@sha256:{"a" * 64}"\n'
 )
 CLAMAV_BASELINE_BLOCK = (
     "clamav:\n"
@@ -925,17 +1115,34 @@ def test_compare_image_source_falls_back_to_vendored_subchart_default(vrt, monke
     """Regression test: the vendored-subchart-default fallback resolves a
     real, comparable baseline version instead of reporting "wasn't pinned
     anywhere" — the matching source_app must be accepted as OK."""
-    monkeypatch.setattr(vrt, "primary_image_repositories",
-                         lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"},
-                                                                           None))
+    monkeypatch.setattr(
+        vrt,
+        "primary_image_repositories",
+        lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"}, None),
+    )
     dep = {"name": "clamav", "version": "3.9.0"}
     baseline_dep = {"name": "clamav", "version": "3.7.1"}
-    rows = [csv_row("ClamAV", "clamav", image_basename="clamav", source_app="1.5.2", target_app="1.5.3",
-                     source_helm="3.7.1", target_helm="3.9.0")]
+    rows = [
+        csv_row(
+            "ClamAV",
+            "clamav",
+            image_basename="clamav",
+            source_app="1.5.2",
+            target_app="1.5.3",
+            source_helm="3.7.1",
+            target_helm="3.9.0",
+        )
+    ]
     findings, _ = vrt.compare(
-        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir=Path("/fake/chart/dir"),
-        baseline_deps=[baseline_dep], baseline_values=CLAMAV_BASELINE_VALUES,
-        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK))
+        rows,
+        [dep],
+        {},
+        values_lines(CLAMAV_CURRENT_BLOCK),
+        chart_dir=Path("/fake/chart/dir"),
+        baseline_deps=[baseline_dep],
+        baseline_values=CLAMAV_BASELINE_VALUES,
+        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK),
+    )
     assert findings == {}
 
 
@@ -945,19 +1152,38 @@ def test_compare_image_source_vendored_subchart_default_still_catches_mismatch(v
     release-table.csv's own claimed source — still reported, just via a
     distinctly-worded finding (never silently accepted just because it
     took a different resolution path than the plain text scan)."""
-    monkeypatch.setattr(vrt, "primary_image_repositories",
-                         lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"},
-                                                                           None))
+    monkeypatch.setattr(
+        vrt,
+        "primary_image_repositories",
+        lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"}, None),
+    )
     dep = {"name": "clamav", "version": "3.9.0"}
     baseline_dep = {"name": "clamav", "version": "3.7.1"}
-    rows = [csv_row("ClamAV", "clamav", image_basename="clamav", source_app="1.5.9", target_app="1.5.3",
-                     source_helm="3.7.1", target_helm="3.9.0")]
+    rows = [
+        csv_row(
+            "ClamAV",
+            "clamav",
+            image_basename="clamav",
+            source_app="1.5.9",
+            target_app="1.5.3",
+            source_helm="3.7.1",
+            target_helm="3.9.0",
+        )
+    ]
     findings, _ = vrt.compare(
-        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir=Path("/fake/chart/dir"),
-        baseline_deps=[baseline_dep], baseline_values=CLAMAV_BASELINE_VALUES,
-        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK))
-    assert any("[IMAGE-SOURCE]" in m and "source 1.5.9" in m and "baseline subchart-default values.yaml 1.5.2" in m
-               for m in findings["mismatches"])
+        rows,
+        [dep],
+        {},
+        values_lines(CLAMAV_CURRENT_BLOCK),
+        chart_dir=Path("/fake/chart/dir"),
+        baseline_deps=[baseline_dep],
+        baseline_values=CLAMAV_BASELINE_VALUES,
+        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK),
+    )
+    assert any(
+        "[IMAGE-SOURCE]" in m and "source 1.5.9" in m and "baseline subchart-default values.yaml 1.5.2" in m
+        for m in findings["mismatches"]
+    )
     assert not any("wasn't pinned anywhere" in m for m in findings.get("mismatches", []))
 
 
@@ -967,19 +1193,40 @@ def test_compare_image_source_vendored_subchart_default_resolution_failure_is_re
     "wasn't pinned anywhere" (actively wrong: something WAS pinned, this
     just couldn't confirm what) or crash — it's a distinct, honest
     "can't verify" finding instead."""
-    monkeypatch.setattr(vrt, "primary_image_repositories",
-                         lambda chart_dir, dep, values, allow_pull=True:
-                             ({"image": None}, "helm pull failed: no such chart version"))
+    monkeypatch.setattr(
+        vrt,
+        "primary_image_repositories",
+        lambda chart_dir, dep, values, allow_pull=True: ({"image": None}, "helm pull failed: no such chart version"),
+    )
     dep = {"name": "clamav", "version": "3.9.0"}
     baseline_dep = {"name": "clamav", "version": "3.7.1"}
-    rows = [csv_row("ClamAV", "clamav", image_basename="clamav", source_app="1.5.2", target_app="1.5.3",
-                     source_helm="3.7.1", target_helm="3.9.0")]
+    rows = [
+        csv_row(
+            "ClamAV",
+            "clamav",
+            image_basename="clamav",
+            source_app="1.5.2",
+            target_app="1.5.3",
+            source_helm="3.7.1",
+            target_helm="3.9.0",
+        )
+    ]
     findings, _ = vrt.compare(
-        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir=Path("/fake/chart/dir"),
-        baseline_deps=[baseline_dep], baseline_values=CLAMAV_BASELINE_VALUES,
-        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK))
-    assert any("[IMAGE-SOURCE]" in m and "couldn't be resolved to verify" in m and
-               "helm pull failed: no such chart version" in m for m in findings["ambiguous"])
+        rows,
+        [dep],
+        {},
+        values_lines(CLAMAV_CURRENT_BLOCK),
+        chart_dir=Path("/fake/chart/dir"),
+        baseline_deps=[baseline_dep],
+        baseline_values=CLAMAV_BASELINE_VALUES,
+        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK),
+    )
+    assert any(
+        "[IMAGE-SOURCE]" in m
+        and "couldn't be resolved to verify" in m
+        and "helm pull failed: no such chart version" in m
+        for m in findings["ambiguous"]
+    )
     assert not any("wasn't pinned anywhere" in m for m in findings.get("mismatches", []))
 
 
@@ -994,12 +1241,7 @@ def test_compare_image_source_vendored_subchart_default_resolution_failure_is_re
 # THIS script's own digest-OPTIONAL scanner (scan_version_pins, via
 # resolve_pin_repo's own commented-out-sibling fallback) resolves the
 # same basename regardless — real values.yaml shape, not a synthetic one.
-OMC_BLOCK = (
-    "omc:\n"
-    "  image:\n"
-    "    # repository: docker.io/worthnl/notifynl-omc\n"
-    '    tag: "1.17.19"\n'
-)
+OMC_BLOCK = 'omc:\n  image:\n    # repository: docker.io/worthnl/notifynl-omc\n    tag: "1.17.19"\n'
 
 
 def test_compare_omc_image_matches_via_ordinary_basename_path(vrt):
@@ -1008,8 +1250,16 @@ def test_compare_omc_image_matches_via_ordinary_basename_path(vrt):
     component — no special-casing at all, just a real, non-blank
     image_basename column ("notifynl-omc")."""
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
-    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", image_basename="notifynl-omc",
-                     target_app="1.17.19", target_helm="0.14.1")]
+    rows = [
+        csv_row(
+            "OMC / Notify",
+            "notifynl-omc-nodep",
+            alias="omc",
+            image_basename="notifynl-omc",
+            target_app="1.17.19",
+            target_helm="0.14.1",
+        )
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(OMC_BLOCK))
     assert findings == {}
 
@@ -1019,8 +1269,16 @@ def test_compare_omc_image_mismatch_via_ordinary_basename_path(vrt):
     with what's actually pinned — must still be caught as a real
     [IMAGE] mismatch, exactly like any other component's row."""
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
-    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", image_basename="notifynl-omc",
-                     target_app="1.17.20", target_helm="0.14.1")]
+    rows = [
+        csv_row(
+            "OMC / Notify",
+            "notifynl-omc-nodep",
+            alias="omc",
+            image_basename="notifynl-omc",
+            target_app="1.17.20",
+            target_helm="0.14.1",
+        )
+    ]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(OMC_BLOCK))
     assert any("[IMAGE]" in m and "target 1.17.20 != values.yaml 1.17.19" in m for m in findings["mismatches"])
 
@@ -1030,30 +1288,47 @@ def test_compare_omc_image_source_matches_via_ordinary_basename_path(vrt):
     row round-trips there too, with no special-casing needed."""
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
     baseline_deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.0"}]
-    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", image_basename="notifynl-omc",
-                     source_app="1.17.19", target_helm="0.14.1")]
+    rows = [
+        csv_row(
+            "OMC / Notify",
+            "notifynl-omc-nodep",
+            alias="omc",
+            image_basename="notifynl-omc",
+            source_app="1.17.19",
+            target_helm="0.14.1",
+        )
+    ]
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(OMC_BLOCK),
-        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=values_lines(OMC_BLOCK))
+        rows,
+        deps,
+        {},
+        values_lines(OMC_BLOCK),
+        baseline_deps=baseline_deps,
+        baseline_values={},
+        baseline_lines=values_lines(OMC_BLOCK),
+    )
     assert findings == {}
 
 
 def test_compare_omc_image_source_mismatch_via_ordinary_basename_path(vrt):
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
     baseline_deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.0"}]
-    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", image_basename="notifynl-omc",
-                     source_app="1.17.18")]
-    omc_baseline_block = (
-        "omc:\n"
-        "  image:\n"
-        "    # repository: docker.io/worthnl/notifynl-omc\n"
-        '    tag: "1.17.19"\n'
-    )
+    rows = [
+        csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", image_basename="notifynl-omc", source_app="1.17.18")
+    ]
+    omc_baseline_block = 'omc:\n  image:\n    # repository: docker.io/worthnl/notifynl-omc\n    tag: "1.17.19"\n'
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(OMC_BLOCK),
-        baseline_deps=baseline_deps, baseline_values={}, baseline_lines=values_lines(omc_baseline_block))
-    assert any("[IMAGE-SOURCE]" in m and "source 1.17.18 != baseline values.yaml 1.17.19" in m
-               for m in findings["mismatches"])
+        rows,
+        deps,
+        {},
+        values_lines(OMC_BLOCK),
+        baseline_deps=baseline_deps,
+        baseline_values={},
+        baseline_lines=values_lines(omc_baseline_block),
+    )
+    assert any(
+        "[IMAGE-SOURCE]" in m and "source 1.17.18 != baseline values.yaml 1.17.19" in m for m in findings["mismatches"]
+    )
 
 
 def test_compare_omc_still_catches_genuinely_untracked_sibling_basename(vrt):
@@ -1062,21 +1337,29 @@ def test_compare_omc_still_catches_genuinely_untracked_sibling_basename(vrt):
     unaffected by omc's own row now having a real, non-blank
     image_basename."""
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
-    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", image_basename="notifynl-omc",
-                     target_app="1.17.19", target_helm="0.14.1")]
+    rows = [
+        csv_row(
+            "OMC / Notify",
+            "notifynl-omc-nodep",
+            alias="omc",
+            image_basename="notifynl-omc",
+            target_app="1.17.19",
+            target_helm="0.14.1",
+        )
+    ]
     omc_block_with_sidecar = OMC_BLOCK + (
-        "  sidecar:\n"
-        "    image:\n"
-        "      repository: example/some-other-image\n"
-        f'      tag: "2.0.0@sha256:{"a" * 64}"\n'
+        f'  sidecar:\n    image:\n      repository: example/some-other-image\n      tag: "2.0.0@sha256:{"a" * 64}"\n'
     )
 
     findings, _ = vrt.compare(rows, deps, {}, values_lines(omc_block_with_sidecar))
-    assert any("'some-other-image' is pinned in values.yaml but not tracked" in m
-               for m in findings["missing_from_release_table"])
+    assert any(
+        "'some-other-image' is pinned in values.yaml but not tracked" in m
+        for m in findings["missing_from_release_table"]
+    )
 
 
 # --- print_report(): output is sorted per category ---
+
 
 def test_print_report_sorts_findings_within_each_section(vrt, capsys):
     findings = {
@@ -1106,6 +1389,7 @@ def test_print_report_sorts_unresolved_rows_by_name(vrt, capsys):
 
 # --- main() ---
 
+
 def run_main(vrt, monkeypatch, argv):
     monkeypatch.setattr("sys.argv", ["verify-release-table-with-podiumd", *argv])
     with pytest.raises(SystemExit) as exc_info:
@@ -1128,18 +1412,23 @@ def test_main_exits_zero_when_everything_matches(vrt, tmp_path, monkeypatch, cap
     release_table = tmp_path / "release-table.csv"
 
     chart_yaml.write_text(
-        "dependencies:\n"
-        "  - name: zaakafhandelcomponent\n"
-        "    version: 1.0.297\n"
-        "    alias: zac\n",
+        "dependencies:\n  - name: zaakafhandelcomponent\n    version: 1.0.297\n    alias: zac\n",
         encoding="utf-8",
     )
     values_yaml.write_text(ZAC_BLOCK, encoding="utf-8")
     with release_table.open("w", newline="", encoding="utf-8") as f:
         writer = csv_module.DictWriter(f, fieldnames=list(csv_row("x", "y").keys()))
         writer.writeheader()
-        writer.writerow(csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac",
-                                 image_basename="zaakafhandelcomponent", target_app="5.4.3", target_helm="1.0.297"))
+        writer.writerow(
+            csv_row(
+                "Zaak - ZAC",
+                "zaakafhandelcomponent",
+                alias="zac",
+                image_basename="zaakafhandelcomponent",
+                target_app="5.4.3",
+                target_helm="1.0.297",
+            )
+        )
 
     monkeypatch.setattr(vrt, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(vrt, "VALUES_YAML", values_yaml)
@@ -1158,18 +1447,23 @@ def test_main_exits_one_when_mismatch_found(vrt, tmp_path, monkeypatch, capsys):
     release_table = tmp_path / "release-table.csv"
 
     chart_yaml.write_text(
-        "dependencies:\n"
-        "  - name: zaakafhandelcomponent\n"
-        "    version: 1.0.298\n"
-        "    alias: zac\n",
+        "dependencies:\n  - name: zaakafhandelcomponent\n    version: 1.0.298\n    alias: zac\n",
         encoding="utf-8",
     )
     values_yaml.write_text(ZAC_BLOCK, encoding="utf-8")
     with release_table.open("w", newline="", encoding="utf-8") as f:
         writer = csv_module.DictWriter(f, fieldnames=list(csv_row("x", "y").keys()))
         writer.writeheader()
-        writer.writerow(csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac",
-                                 image_basename="zaakafhandelcomponent", target_app="5.4.3", target_helm="1.0.297"))
+        writer.writerow(
+            csv_row(
+                "Zaak - ZAC",
+                "zaakafhandelcomponent",
+                alias="zac",
+                image_basename="zaakafhandelcomponent",
+                target_app="5.4.3",
+                target_helm="1.0.297",
+            )
+        )
 
     monkeypatch.setattr(vrt, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(vrt, "VALUES_YAML", values_yaml)
@@ -1208,6 +1502,7 @@ def test_main_rejects_unknown_flag(vrt, monkeypatch):
 # additionally verifies that assumption, and skips every target-side check
 # entirely. See module docstring.
 
+
 def test_compare_baseline_only_skips_target_side_checks(vrt):
     """Real target-side mismatches (both [CHART] and [IMAGE]) exist here —
     proven by the second, non-baseline_only call below — but must never
@@ -1215,17 +1510,40 @@ def test_compare_baseline_only_skips_target_side_checks(vrt):
     it's clean here."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.298"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     source_app="5.0.2", source_helm="1.0.297", target_app="9.9.9", target_helm="1.0.297")]
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            source_app="5.0.2",
+            source_helm="1.0.297",
+            target_app="9.9.9",
+            target_helm="1.0.297",
+        )
+    ]
 
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(ZAC_BLOCK), baseline_deps=baseline_deps, baseline_values={},
-        baseline_lines=values_lines(ZAC_BASELINE_BLOCK), baseline_only=True)
+        rows,
+        deps,
+        {},
+        values_lines(ZAC_BLOCK),
+        baseline_deps=baseline_deps,
+        baseline_values={},
+        baseline_lines=values_lines(ZAC_BASELINE_BLOCK),
+        baseline_only=True,
+    )
     assert findings == {}
 
     findings_normal, _ = vrt.compare(
-        rows, deps, {}, values_lines(ZAC_BLOCK), baseline_deps=baseline_deps, baseline_values={},
-        baseline_lines=values_lines(ZAC_BASELINE_BLOCK))
+        rows,
+        deps,
+        {},
+        values_lines(ZAC_BLOCK),
+        baseline_deps=baseline_deps,
+        baseline_values={},
+        baseline_lines=values_lines(ZAC_BASELINE_BLOCK),
+    )
     assert any("[IMAGE]" in m and "target 9.9.9" in m for m in findings_normal["mismatches"])
     assert any("[CHART]" in m and "target 1.0.297 != Chart.yaml 1.0.298" in m for m in findings_normal["mismatches"])
 
@@ -1237,7 +1555,8 @@ def test_compare_chart_version_source_blank_but_justified_no_finding(vrt):
     deps = [{"name": "newthing", "alias": "", "version": "1.0.0"}]
     rows = [csv_row("New Thing", "newthing", target_helm="1.0.0")]  # source_helm blank
     findings, _ = vrt.compare(
-        rows, deps, {}, [], baseline_deps=[], baseline_values={}, baseline_lines=[], baseline_only=True)
+        rows, deps, {}, [], baseline_deps=[], baseline_values={}, baseline_lines=[], baseline_only=True
+    )
     assert findings == {}
 
 
@@ -1249,9 +1568,12 @@ def test_compare_chart_version_source_blank_but_unjustified_reports_presence_fin
     baseline_deps = [{"name": "existingthing", "alias": "", "version": "1.0.0"}]
     rows = [csv_row("Existing Thing", "existingthing", target_helm="1.1.0")]  # source_helm blank
     findings, _ = vrt.compare(
-        rows, deps, {}, [], baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[], baseline_only=True)
-    assert any("[CHART-SOURCE-PRESENCE]" in m and "already existed at the release_table baseline (version 1.0.0)" in m
-               for m in findings["mismatches"])
+        rows, deps, {}, [], baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[], baseline_only=True
+    )
+    assert any(
+        "[CHART-SOURCE-PRESENCE]" in m and "already existed at the release_table baseline (version 1.0.0)" in m
+        for m in findings["mismatches"]
+    )
 
 
 def test_compare_chart_version_source_presence_finding_fires_once_per_dependency_not_per_sidecar_row(vrt):
@@ -1264,15 +1586,30 @@ def test_compare_chart_version_source_presence_finding_fires_once_per_dependency
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
     rows = [
-        csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                 target_app="5.4.3", target_helm="1.0.297"),  # primary row, source_helm blank too
-        {**csv_row("Gotenberg", "zaakafhandelcomponent", alias="zac", image_basename="gotenberg"),
-         "section": "Technische"},
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            target_app="5.4.3",
+            target_helm="1.0.297",
+        ),  # primary row, source_helm blank too
+        {
+            **csv_row("Gotenberg", "zaakafhandelcomponent", alias="zac", image_basename="gotenberg"),
+            "section": "Technische",
+        },
         {**csv_row("Solr", "zaakafhandelcomponent", alias="zac", image_basename="solr"), "section": "Technische"},
     ]
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(ZAC_BLOCK), baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[],
-        baseline_only=True)
+        rows,
+        deps,
+        {},
+        values_lines(ZAC_BLOCK),
+        baseline_deps=baseline_deps,
+        baseline_values={},
+        baseline_lines=[],
+        baseline_only=True,
+    )
     presence_findings = [m for m in findings["mismatches"] if "[CHART-SOURCE-PRESENCE]" in m]
     assert len(presence_findings) == 1
     assert "zaakafhandelcomponent" in presence_findings[0]
@@ -1286,8 +1623,7 @@ def test_compare_chart_version_source_blank_unjustified_case_silent_by_default(v
     deps = [{"name": "existingthing", "alias": "", "version": "1.1.0"}]
     baseline_deps = [{"name": "existingthing", "alias": "", "version": "1.0.0"}]
     rows = [csv_row("Existing Thing", "existingthing", target_helm="1.1.0")]  # source_helm blank
-    findings, _ = vrt.compare(
-        rows, deps, {}, [], baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[])
+    findings, _ = vrt.compare(rows, deps, {}, [], baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[])
     assert findings == {}
 
 
@@ -1298,11 +1634,25 @@ def test_compare_image_source_blank_but_justified_no_finding(vrt):
     nothing to resolve against) -- the blank source_version_app is
     justified, silent under --baseline-only too."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     target_helm="1.0.297")]  # source_app AND source_helm both blank
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            target_helm="1.0.297",
+        )
+    ]  # source_app AND source_helm both blank
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(ZAC_BLOCK), baseline_deps=[], baseline_values={}, baseline_lines=[],
-        baseline_only=True)
+        rows,
+        deps,
+        {},
+        values_lines(ZAC_BLOCK),
+        baseline_deps=[],
+        baseline_values={},
+        baseline_lines=[],
+        baseline_only=True,
+    )
     assert findings == {}
 
 
@@ -1312,13 +1662,30 @@ def test_compare_image_source_blank_but_unjustified_reports_presence_finding_sco
     source_version_app was never justified."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     source_helm="1.0.251", target_helm="1.0.297")]  # source_app blank
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            source_helm="1.0.251",
+            target_helm="1.0.297",
+        )
+    ]  # source_app blank
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(ZAC_BLOCK), baseline_deps=baseline_deps, baseline_values={},
-        baseline_lines=values_lines(ZAC_BASELINE_BLOCK), baseline_only=True)
-    assert any("[IMAGE-SOURCE-PRESENCE]" in m and "already existed at the release_table baseline (values.yaml 5.0.2)"
-               in m for m in findings["mismatches"])
+        rows,
+        deps,
+        {},
+        values_lines(ZAC_BLOCK),
+        baseline_deps=baseline_deps,
+        baseline_values={},
+        baseline_lines=values_lines(ZAC_BASELINE_BLOCK),
+        baseline_only=True,
+    )
+    assert any(
+        "[IMAGE-SOURCE-PRESENCE]" in m and "already existed at the release_table baseline (values.yaml 5.0.2)" in m
+        for m in findings["mismatches"]
+    )
 
 
 def test_compare_image_source_blank_unjustified_case_silent_by_default(vrt):
@@ -1329,11 +1696,26 @@ def test_compare_image_source_blank_unjustified_case_silent_by_default(vrt):
     default behavior completely unaffected."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     source_helm="1.0.251", target_app="5.4.3", target_helm="1.0.297")]  # source_app blank
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="zaakafhandelcomponent",
+            source_helm="1.0.251",
+            target_app="5.4.3",
+            target_helm="1.0.297",
+        )
+    ]  # source_app blank
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(ZAC_BLOCK), baseline_deps=baseline_deps, baseline_values={},
-        baseline_lines=values_lines(ZAC_BASELINE_BLOCK))
+        rows,
+        deps,
+        {},
+        values_lines(ZAC_BLOCK),
+        baseline_deps=baseline_deps,
+        baseline_values={},
+        baseline_lines=values_lines(ZAC_BASELINE_BLOCK),
+    )
     assert findings == {}
 
 
@@ -1343,19 +1725,32 @@ def test_compare_image_source_blank_but_unjustified_reports_presence_finding_sub
     the image only resolves at baseline via the subchart-default
     fallback tier -- must still be caught, not just the plain scoped
     tier."""
-    monkeypatch.setattr(vrt, "primary_image_repositories",
-                         lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"},
-                                                                           None))
+    monkeypatch.setattr(
+        vrt,
+        "primary_image_repositories",
+        lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"}, None),
+    )
     dep = {"name": "clamav", "version": "3.9.0"}
     baseline_dep = {"name": "clamav", "version": "3.7.1"}
-    rows = [csv_row("ClamAV", "clamav", image_basename="clamav", source_helm="3.7.1", target_app="1.5.3",
-                     target_helm="3.9.0")]  # source_app blank
+    rows = [
+        csv_row(
+            "ClamAV", "clamav", image_basename="clamav", source_helm="3.7.1", target_app="1.5.3", target_helm="3.9.0"
+        )
+    ]  # source_app blank
     findings, _ = vrt.compare(
-        rows, [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK), chart_dir=Path("/fake/chart/dir"),
-        baseline_deps=[baseline_dep], baseline_values=CLAMAV_BASELINE_VALUES,
-        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK), baseline_only=True)
-    assert any("[IMAGE-SOURCE-PRESENCE]" in m and "subchart-default values.yaml 1.5.2" in m
-               for m in findings["mismatches"])
+        rows,
+        [dep],
+        {},
+        values_lines(CLAMAV_CURRENT_BLOCK),
+        chart_dir=Path("/fake/chart/dir"),
+        baseline_deps=[baseline_dep],
+        baseline_values=CLAMAV_BASELINE_VALUES,
+        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK),
+        baseline_only=True,
+    )
+    assert any(
+        "[IMAGE-SOURCE-PRESENCE]" in m and "subchart-default values.yaml 1.5.2" in m for m in findings["mismatches"]
+    )
 
 
 def test_compare_baseline_only_image_source_ambiguous_stays_ambiguous_not_a_presence_finding(vrt):
@@ -1375,11 +1770,26 @@ def test_compare_baseline_only_image_source_ambiguous_stays_ambiguous_not_a_pres
     )
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
-    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="curl",
-                     source_helm="1.0.251", target_helm="1.0.297")]  # source_app blank
+    rows = [
+        csv_row(
+            "Zaak - ZAC",
+            "zaakafhandelcomponent",
+            alias="zac",
+            image_basename="curl",
+            source_helm="1.0.251",
+            target_helm="1.0.297",
+        )
+    ]  # source_app blank
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(ZAC_BLOCK), baseline_deps=baseline_deps, baseline_values={},
-        baseline_lines=values_lines(two_versions_block), baseline_only=True)
+        rows,
+        deps,
+        {},
+        values_lines(ZAC_BLOCK),
+        baseline_deps=baseline_deps,
+        baseline_values={},
+        baseline_lines=values_lines(two_versions_block),
+        baseline_only=True,
+    )
     assert findings.get("mismatches", []) == []
     assert any("pinned at 2 different versions" in m for m in findings["ambiguous"])
 
@@ -1410,8 +1820,9 @@ def test_main_baseline_only_end_to_end(vrt, tmp_path, monkeypatch, capsys):
         writer.writeheader()
         # image_basename left blank -- isolates this end-to-end test to the
         # chart-version presence check alone, no subchart/network mocking needed.
-        writer.writerow(csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac",
-                                 target_app="9.9.9", target_helm="1.0.297"))
+        writer.writerow(
+            csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", target_app="9.9.9", target_helm="1.0.297")
+        )
 
     monkeypatch.setattr(vrt, "CHART_DIR", chart_dir)
     monkeypatch.setattr(vrt, "CHART_YAML", chart_yaml)
@@ -1419,9 +1830,16 @@ def test_main_baseline_only_end_to_end(vrt, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vrt, "RELEASE_TABLE_CSV", release_table)
     monkeypatch.setattr(vrt, "release_table_baseline", lambda chart_dir: "1.0.0")
     monkeypatch.setattr(
-        vrt, "resolve_baseline_chart_state",
+        vrt,
+        "resolve_baseline_chart_state",
         lambda chart_dir, baseline: (
-            baseline, [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.290"}], {}, [], None))
+            baseline,
+            [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.290"}],
+            {},
+            [],
+            None,
+        ),
+    )
 
     code = run_main(vrt, monkeypatch, ["--baseline-only"])
     out = capsys.readouterr().out

@@ -24,6 +24,7 @@ subchart has no "adapter" key in its own defaults either — so the
 podiumd-adapter Deployment currently renders "image: :0.6.7@sha256:...",
 confirmed both by rendering the podiumd.image helper directly and
 against a real `helm template` output already checked into this repo."""
+
 from lib.chart import (
     get_path,
     load_yaml,
@@ -92,7 +93,8 @@ def find_images_without_repository(chart_dir, allow_pull=False):
             cache_key = (dep["name"], nested_chart_name)
             if cache_key not in nested_subchart_cache:
                 nested_subchart_cache[cache_key] = nested_subchart_documented_image_repository(
-                    chart_dir, dep, nested_chart_name)
+                    chart_dir, dep, nested_chart_name
+                )
             if nested_subchart_cache[cache_key]:
                 continue
 
@@ -120,10 +122,12 @@ def check_image_repository(chart_dir):
         print("OK: every image tag block resolves to a repository")
         return True, "0 missing repository"
 
-    print(f"Found {len(missing)} image tag block(s) with no resolvable repository "
-          f"(neither podiumd's own values.yaml nor the owning dependency's vendored "
-          f"subchart default) — the podiumd.image helper would render an empty "
-          f"repository, an invalid image reference:")
+    print(
+        f"Found {len(missing)} image tag block(s) with no resolvable repository "
+        f"(neither podiumd's own values.yaml nor the owning dependency's vendored "
+        f"subchart default) — the podiumd.image helper would render an empty "
+        f"repository, an invalid image reference:"
+    )
     for path in missing:
         print(f"  {'.'.join(path)}")
 

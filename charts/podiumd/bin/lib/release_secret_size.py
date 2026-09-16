@@ -70,6 +70,7 @@ Two callers build on this module:
     size.md — only the standalone CLI's own --record does that (this
     codebase's checks are read-only; only dedicated writer scripts touch
     generated docs)."""
+
 import base64
 import datetime
 import gzip
@@ -276,7 +277,7 @@ def over_limit_warning(chart_name, version, size, pct, secret_limit):
     check_release_secret_size (stdout, as part of its own FAIL detail)
     whenever pct >= the configured warn_at_fraction_of_limit."""
     return (
-        f'estimated release Secret payload is at {pct * 100:.1f}% of the Kubernetes 1 MiB Secret '
+        f"estimated release Secret payload is at {pct * 100:.1f}% of the Kubernetes 1 MiB Secret "
         f"limit ({size:,}/{secret_limit:,} bytes) for {chart_name} {version}. This chart is at real "
         'risk of `helm install`/`upgrade` failing with an apiserver "request entity too large" '
         "error. Investigate before releasing (trim CRDs/dashboards/values, or split the chart)."

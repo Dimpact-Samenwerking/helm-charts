@@ -1,5 +1,6 @@
 """Git helpers shared by every script that reads a chart's historical state
 at a baseline release without checking it out."""
+
 import re
 from pathlib import Path
 
@@ -12,8 +13,7 @@ def find_repo_root(start_path):
     """The repo root containing start_path, or None if it isn't inside a git
     repository — callers that treat this as a hard precondition should raise
     themselves; some (e.g. a baseline lookup) treat a miss as recoverable."""
-    result = run(["git", "-C", str(start_path), "rev-parse", "--show-toplevel"],
-                 capture_output=True, text=True)
+    result = run(["git", "-C", str(start_path), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
     if result.returncode != 0:
         return None
     return Path(result.stdout.strip())
@@ -22,8 +22,7 @@ def find_repo_root(start_path):
 def current_branch(repo_root):
     """The current branch name, or "" if HEAD is detached (`git branch
     --show-current` returns nothing in that case)."""
-    result = run(["git", "-C", str(repo_root), "branch", "--show-current"],
-                 capture_output=True, text=True)
+    result = run(["git", "-C", str(repo_root), "branch", "--show-current"], capture_output=True, text=True)
     return result.stdout.strip()
 
 
@@ -37,8 +36,11 @@ def baseline_ref_candidates(baseline):
 
 def resolve_git_ref(repo_root, candidates):
     for ref in candidates:
-        result = run(["git", "-C", str(repo_root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
-                     capture_output=True, text=True)
+        result = run(
+            ["git", "-C", str(repo_root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
+            capture_output=True,
+            text=True,
+        )
         if result.returncode == 0:
             return ref
     return None

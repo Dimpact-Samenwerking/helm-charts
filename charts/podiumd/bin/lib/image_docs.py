@@ -16,6 +16,7 @@ every place they're pinned. The row naturally sorts after every real
 component — lib.upgradedoc.component_order_key's own "unmatched sorts
 last" rule already produces that with no special-casing needed here,
 since a bare basename never matches a Chart.yaml dependency by name."""
+
 import re
 
 from lib.chart import (
@@ -111,8 +112,7 @@ def make_image_changes_section(basename, target, old_version, new_version, pinne
     return "".join(lines)
 
 
-def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_values, target,
-                              upgrade_docs_baseline=None):
+def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_values, target, upgrade_docs_baseline=None):
     """Insert a new "Component versions" table row + matching "### ..."
     Changes section for every canonical sidecar/shared-image name (see
     lib.chart.canonical_sidecar_row_names — "<values_key> - <basename>"
@@ -175,12 +175,12 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
     # tree", not a current-tree question) and reused across every path
     # below rather than recomputed per path.
     baseline_repo_groups = (
-        paths_by_repository(chart_dir, deps, baseline_values, baseline_paths.keys())
-        if baseline_values else {}
+        paths_by_repository(chart_dir, deps, baseline_values, baseline_paths.keys()) if baseline_values else {}
     )
 
-    matched_paths = {path for row in parse_upgrade_doc_rows(text)
-                      for path in [canonical_names.get(row["name"])] if path is not None}
+    matched_paths = {
+        path for row in parse_upgrade_doc_rows(text) for path in [canonical_names.get(row["name"])] if path is not None
+    }
 
     added_names = []
     for name, path in sorted(canonical_names.items()):
@@ -213,12 +213,14 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
         # (ACR-mirror digest provenance, a genuinely different, unrelated
         # question).
         old_app = baseline_tag_for_sidecar_path(
-            chart_dir, deps, target_values, baseline_values, baseline_paths, baseline_repo_groups, path)
+            chart_dir, deps, target_values, baseline_values, baseline_paths, baseline_repo_groups, path
+        )
         if old_app is None and baseline_values:
             old_app = historical_app_version_for_path(chart_dir, deps, target_values, path, upgrade_docs_baseline)
 
-        text, table_action = update_component_table(text, name, old_app, new_app, None, "-", deps, target_values,
-                                                     canonical_names)
+        text, table_action = update_component_table(
+            text, name, old_app, new_app, None, "-", deps, target_values, canonical_names
+        )
         if table_action is None:
             continue  # doc has no "Component versions" table at all to insert into
 
@@ -247,9 +249,11 @@ def build_changes_section_for_row(row, ident, deps, target):
     kind, value = ident
     if row["app"] is None:
         chart_bit = row["chart"] or row["chart_source"] or "-"
-        return (f"### {row['name']} {chart_bit}\n\n"
-                f"TODO: describe this component's changes — its app version could not be "
-                f"resolved from the table row.\n\n")
+        return (
+            f"### {row['name']} {chart_bit}\n\n"
+            f"TODO: describe this component's changes — its app version could not be "
+            f"resolved from the table row.\n\n"
+        )
     if kind == "dep":
         dep = dep_for_values_key(deps, value)
         if dep is None:
@@ -263,15 +267,24 @@ def build_changes_section_for_row(row, ident, deps, target):
         version_paths = version_paths_for(dep["name"])
         image_paths = [] if version_paths else image_paths_for(dep["name"])
         return make_changes_section(
-            row["name"], target, dep["name"], value,
-            row["app_source"] or row["app"], row["app"],
-            row["chart_source"] or row["chart"] or str(dep["version"]), row["chart"] or str(dep["version"]),
-            image_paths, version_paths
+            row["name"],
+            target,
+            dep["name"],
+            value,
+            row["app_source"] or row["app"],
+            row["app"],
+            row["chart_source"] or row["chart"] or str(dep["version"]),
+            row["chart"] or str(dep["version"]),
+            image_paths,
+            version_paths,
         )
     dotted_path = ".".join(value) + ".tag"
     return make_image_changes_section(
-        row["name"], target, row["app_source"] or row["app"], row["app"],
-        [(dotted_path, row["app_source"] or row["app"])]
+        row["name"],
+        target,
+        row["app_source"] or row["app"],
+        row["app"],
+        [(dotted_path, row["app_source"] or row["app"])],
     )
 
 
@@ -420,8 +433,9 @@ def resolve_basename_baseline_version(baseline_values, full_paths):
     return next(iter(versions)) if len(versions) == 1 else None
 
 
-def update_image_manifest(images_path, basename, repository, old_version, new_version, digest, deps=(), values=None,
-                           canonical_names=None):
+def update_image_manifest(
+    images_path, basename, repository, old_version, new_version, digest, deps=(), values=None, canonical_names=None
+):
     """Update the "# <N> changes:" header list and the images-manifest
     entry for a shared image basename bump — keyed by `repository` (an
     entry's "url:" resolving to it, host-stripped same as the "name:"
@@ -640,14 +654,14 @@ IMAGES_BASELINE_HEADER = (
     "#   name = strip_registry(url): upstream url with the registry host removed,\n"
     "#   full <namespace>/<repo> path kept.\n"
     "# Versions are the tags currently pinned in charts/podiumd/values.yaml (or the\n"
-    "# owning subchart). Digests are the tag's own embedded \"@sha256:...\" suffix\n"
+    '# owning subchart). Digests are the tag\'s own embedded "@sha256:..." suffix\n'
     "# when it has one, else resolved live against the source registry\n"
     "# (Docker-Content-Digest / manifest_digest).\n"
     "#\n"
     "# Fully regenerated by fix-doc-consistency on every run (lib.image_docs.\n"
     "# regenerate_images_baseline_manifest) — always a complete, wholesale\n"
     "# snapshot, never incremental patching: no hand-maintained gap-fillers, no\n"
-    "# \"NOT INCLUDED\" exclusion notes, no stale dual-version entries. Editing this\n"
+    '# "NOT INCLUDED" exclusion notes, no stale dual-version entries. Editing this\n'
     "# file by hand is pointless — the next run overwrites it entirely.\n"
 )
 
@@ -727,7 +741,9 @@ def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline
     changed."""
     current_paths = dict(find_all_image_and_version_paths(values, deps))
     current_paths.update(global_image_paths(values))
-    for scope_key, subpath, tag, _already_pinned in find_unresolved_subchart_images(chart_dir, deps, values, rendered_paths):
+    for scope_key, subpath, tag, _already_pinned in find_unresolved_subchart_images(
+        chart_dir, deps, values, rendered_paths
+    ):
         current_paths.setdefault((scope_key, *subpath.split(".")), tag)
     repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys())
     key_order = values_key_order(values)

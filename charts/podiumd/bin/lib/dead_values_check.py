@@ -171,6 +171,7 @@ removable (vs. e.g. read only when some internal, non-Chart.yaml-
 condition feature flag this check doesn't force on is itself turned on
 — see above) is a human's call, not something this scan can decide on
 its own."""
+
 import concurrent.futures
 import copy
 import os
@@ -397,8 +398,9 @@ def _render_with_null_overrides(scope, relative_paths):
     for path in relative_paths:
         _set_null(overlay, path)
     return _with_overlay_file(
-        overlay, lambda overlay_path: _render(scope["chart_name"], scope["chart_path"],
-                                               scope["extra_args"], overlay_path))
+        overlay,
+        lambda overlay_path: _render(scope["chart_name"], scope["chart_path"], scope["extra_args"], overlay_path),
+    )
 
 
 # Two different shapes of Helm error each name the offending chart
@@ -462,7 +464,8 @@ def _make_full_scope(chart_dir, extra_args, enable_overlay):
     dropped = []
     while True:
         result = _with_overlay_file(
-            overlay, lambda overlay_path: _helm_template(CHART_NAME, chart_dir, extra_args, overlay_path))
+            overlay, lambda overlay_path: _helm_template(CHART_NAME, chart_dir, extra_args, overlay_path)
+        )
         scope = {
             "chart_name": CHART_NAME,
             "chart_path": chart_dir,
@@ -473,9 +476,12 @@ def _make_full_scope(chart_dir, extra_args, enable_overlay):
         if result.returncode == 0:
             scope["baseline_docs"] = _parsed_docs(result.stdout)
             if dropped:
-                print(f"Note: could not force-enable {', '.join(sorted(dropped))} (its own values "
-                      f"aren't satisfied by this chart's current CI placeholder values) — tested at "
-                      f"its natural, un-forced default instead", flush=True)
+                print(
+                    f"Note: could not force-enable {', '.join(sorted(dropped))} (its own values "
+                    f"aren't satisfied by this chart's current CI placeholder values) — tested at "
+                    f"its natural, un-forced default instead",
+                    flush=True,
+                )
             return scope
 
         failing = (_error_chart_names(result.stderr) & set(overlay)) - set(dropped)
@@ -587,7 +593,8 @@ def _make_own_scope(chart_dir, coalesced_values):
         temp_dir = _build_own_scope_chart(chart_dir, chart_yaml, kept_deps)
 
         result = _with_overlay_file(
-            coalesced_values, lambda overlay_path: _helm_template(CHART_NAME, temp_dir, [], overlay_path))
+            coalesced_values, lambda overlay_path: _helm_template(CHART_NAME, temp_dir, [], overlay_path)
+        )
         if result.returncode == 0:
             return {
                 "chart_name": CHART_NAME,
@@ -602,8 +609,11 @@ def _make_own_scope(chart_dir, coalesced_values):
         missing = (set(_MISSING_TEMPLATE_RE.findall(result.stderr)) & set(dep_by_name_or_alias)) - keep
         shutil.rmtree(temp_dir, ignore_errors=True)
         if not missing:
-            print("Note: own-templates-only scope render failed — falling back to full-chart scope "
-                  "for keys with no Chart.yaml dependency:", flush=True)
+            print(
+                "Note: own-templates-only scope render failed — falling back to full-chart scope "
+                "for keys with no Chart.yaml dependency:",
+                flush=True,
+            )
             print(result.stderr, end="" if result.stderr.endswith("\n") else "\n", flush=True)
             return None
         keep |= missing
@@ -674,8 +684,12 @@ def _run_dead_value_search(executor, roots, total=None, exempt_full_paths=frozen
             break
 
         futures = {
-            executor.submit(_render_with_null_overrides, scope,
-                             [p[scope["strip"]:] for p in leaf_paths]): (scope, path, node, leaf_paths)
+            executor.submit(_render_with_null_overrides, scope, [p[scope["strip"] :] for p in leaf_paths]): (
+                scope,
+                path,
+                node,
+                leaf_paths,
+            )
             for scope, path, node, leaf_paths in pending
         }
         next_frontier = []
@@ -690,8 +704,11 @@ def _run_dead_value_search(executor, roots, total=None, exempt_full_paths=frozen
             else:
                 resolved += 1  # single leaf that differed (or errored): not dead, done with it
         if total is not None:
-            print(f"  level {level}: {len(pending)} render(s) — {resolved}/{total} leaf(ves) resolved so far "
-                  f"({len(found)} dead, {len(next_frontier)} subtree(s) still being narrowed down)", flush=True)
+            print(
+                f"  level {level}: {len(pending)} render(s) — {resolved}/{total} leaf(ves) resolved so far "
+                f"({len(found)} dead, {len(next_frontier)} subtree(s) still being narrowed down)",
+                flush=True,
+            )
         frontier = next_frontier
     return found
 
@@ -730,9 +747,11 @@ def check_dead_values(chart_dir, extra_args):
     condition_paths = _condition_leaf_paths(chart_dir)
     total = len(candidate_leaf_paths(values, condition_paths))
 
-    print(f"Null-testing {total} values.yaml leaf(ves) against the baseline render "
-          f"(top-down, per-subchart where possible, up to {DEAD_VALUES_MAX_WORKERS} in parallel)...",
-          flush=True)
+    print(
+        f"Null-testing {total} values.yaml leaf(ves) against the baseline render "
+        f"(top-down, per-subchart where possible, up to {DEAD_VALUES_MAX_WORKERS} in parallel)...",
+        flush=True,
+    )
 
     enable_overlay = _enable_overlay(chart_dir)
     full_scope = _make_full_scope(chart_dir, extra_args, enable_overlay)
@@ -750,8 +769,7 @@ def check_dead_values(chart_dir, extra_args):
 
     own_scope = _make_own_scope(chart_dir, _coalesced_values(chart_dir, merged_values, dep_by_key))
     if own_scope is None:
-        print("Own-templates-only scope unavailable — falling back to full-chart scope for those keys",
-              flush=True)
+        print("Own-templates-only scope unavailable — falling back to full-chart scope for those keys", flush=True)
 
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=DEAD_VALUES_MAX_WORKERS) as executor:
@@ -768,16 +786,16 @@ def check_dead_values(chart_dir, extra_args):
             scoped_n = sum(1 for scope, _, _ in roots if scope is not full_scope and scope is not own_scope)
             own_n = sum(1 for scope, _, _ in roots if scope is own_scope)
             full_n = sum(1 for scope, _, _ in roots if scope is full_scope)
-            print(f"  {scoped_n} sub-chart-scoped, {own_n} own-templates-scoped, {full_n} full-chart-scoped",
-                  flush=True)
+            print(
+                f"  {scoped_n} sub-chart-scoped, {own_n} own-templates-scoped, {full_n} full-chart-scoped", flush=True
+            )
 
             print("Searching top-down for dead leaves...", flush=True)
             found = _run_dead_value_search(executor, roots, total, condition_paths)
             confirmed = [path for scope, path in found if scope is full_scope]
             to_confirm = [path for scope, path in found if scope is not full_scope]
             if to_confirm:
-                print(f"Confirming {len(to_confirm)} candidate(s) against the real full-chart baseline...",
-                      flush=True)
+                print(f"Confirming {len(to_confirm)} candidate(s) against the real full-chart baseline...", flush=True)
             dead = confirmed + _confirm_against_full_chart(executor, full_scope, to_confirm)
     finally:
         if own_scope is not None:
@@ -789,9 +807,11 @@ def check_dead_values(chart_dir, extra_args):
         print(f"OK: no dead values.yaml entries found ({total} checked)")
         return True, f"0/{total} dead"
 
-    print(f"Found {len(dead)} values.yaml leaf(ves) whose value never surfaces in the "
-          f"rendered chart (nulling it made no difference to the maximal render) — "
-          f"report only, a human call whether it's genuinely removable:")
+    print(
+        f"Found {len(dead)} values.yaml leaf(ves) whose value never surfaces in the "
+        f"rendered chart (nulling it made no difference to the maximal render) — "
+        f"report only, a human call whether it's genuinely removable:"
+    )
     for path in dead:
         print(f"  {'.'.join(path)}")
 

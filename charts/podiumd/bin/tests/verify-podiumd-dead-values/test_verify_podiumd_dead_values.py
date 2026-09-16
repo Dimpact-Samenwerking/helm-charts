@@ -3,6 +3,7 @@ pre-flight check, the runtime warning, and end-to-end wiring into
 lib.dead_values_check.check_dead_values (mocked out here — its own
 correctness is tests/verify-podiumd/test_dead_values_check.py's job,
 not this script wrapper's)."""
+
 import pytest
 
 

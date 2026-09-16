@@ -1,5 +1,6 @@
 """main() — BOM stripping, dry-run, and exit codes. No git/network needed;
 VALUES_PATH is monkeypatched to a disposable tmp_path file."""
+
 import pytest
 
 BOM = b"\xef\xbb\xbf"

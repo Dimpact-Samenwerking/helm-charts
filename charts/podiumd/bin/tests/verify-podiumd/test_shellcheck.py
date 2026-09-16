@@ -11,6 +11,7 @@ aggregate count; info/style are cosmetic and never reported anywhere. All
 friendly_vendor_charts is mocked too, since these tests use tmp_path (no
 real Chart.yaml) — no real shellcheck or helm invocation happens in these
 tests."""
+
 import json
 from types import SimpleNamespace
 
@@ -44,7 +45,7 @@ RENDERED = (
     "      containers:\n"
     "        - name: wait\n"
     "          image: curlimages/curl\n"
-    "          command: [\"/bin/sh\", \"-c\"]\n"
+    '          command: ["/bin/sh", "-c"]\n'
     "          args:\n"
     "            - |\n"
     "              set -euo pipefail\n"
@@ -60,7 +61,7 @@ RENDERED = (
     "    spec:\n"
     "      initContainers:\n"
     "        - name: wait-for-db\n"
-    "          command: [\"sh\", \"-c\", \"until nc -z db 5432; do sleep 1; done\"]\n"
+    '          command: ["sh", "-c", "until nc -z db 5432; do sleep 1; done"]\n'
 )
 # Absolute (1-based) rendered-output start lines for the two resources above
 # (the line right after each's own "# Source:" comment) — see
@@ -71,11 +72,14 @@ DEPLOYMENT_RENDERED_LINE = 20
 
 # --- find_shell_scripts ---
 
+
 def test_find_shell_scripts_detects_command_then_args_pattern(libshellcheckcheck):
     manifest = {
-        "spec": {"containers": [
-            {"name": "a", "command": ["/bin/sh", "-c"], "args": ["echo hi"]},
-        ]}
+        "spec": {
+            "containers": [
+                {"name": "a", "command": ["/bin/sh", "-c"], "args": ["echo hi"]},
+            ]
+        }
     }
     found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     assert len(found) == 1
@@ -104,9 +108,13 @@ def test_find_shell_scripts_tolerates_scalar_args_alongside_list_command(libshel
     string (a bare-rendered `args: {{ .Values.x }}`, a CRD instance, a
     hand-written Pod) must not raise `list + str` — the scan just uses the
     list half and lets yamllint/kubeconform report the bad field."""
-    manifest = {"spec": {"containers": [
-        {"name": "a", "command": ["sh", "-c", "echo hi"], "args": "{{ .Values.extraArgs }}"},
-    ]}}
+    manifest = {
+        "spec": {
+            "containers": [
+                {"name": "a", "command": ["sh", "-c", "echo hi"], "args": "{{ .Values.extraArgs }}"},
+            ]
+        }
+    }
     found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     assert [f[3] for f in found] == ["echo hi"]
 
@@ -118,11 +126,18 @@ def test_find_shell_scripts_tolerates_scalar_args_alongside_list_command(libshel
 
 def test_find_shell_scripts_recurses_into_nested_structures(libshellcheckcheck):
     manifest = {
-        "spec": {"template": {"spec": {"initContainers": [
-            {"name": "a", "command": ["bash", "-c", "echo one"]},
-        ], "containers": [
-            {"name": "b", "command": ["dash", "-c", "echo two"]},
-        ]}}}
+        "spec": {
+            "template": {
+                "spec": {
+                    "initContainers": [
+                        {"name": "a", "command": ["bash", "-c", "echo one"]},
+                    ],
+                    "containers": [
+                        {"name": "b", "command": ["dash", "-c", "echo two"]},
+                    ],
+                }
+            }
+        }
     }
     found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     assert {f[3] for f in found} == {"echo one", "echo two"}
@@ -135,10 +150,15 @@ def test_find_shell_scripts_recurses_into_nested_structures(libshellcheckcheck):
 # same doc — so a finding can later be resolved to a rendered-output
 # line via lib.render_scope.resource_line.
 
+
 def test_extract_shell_scripts_carries_resource_identity(libshellcheckcheck):
-    docs = [("podiumd/templates/x.yaml",
-             "kind: Job\nmetadata:\n  name: foo\n  namespace: bar\n"
-             "spec:\n  containers:\n    - command: [\"sh\", \"-c\", \"echo hi\"]\n")]
+    docs = [
+        (
+            "podiumd/templates/x.yaml",
+            "kind: Job\nmetadata:\n  name: foo\n  namespace: bar\n"
+            'spec:\n  containers:\n    - command: ["sh", "-c", "echo hi"]\n',
+        )
+    ]
     found = libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES)
     assert len(found) == 1
     source, path, shell, script, kind, namespace, name = found[0]
@@ -149,7 +169,7 @@ def test_extract_shell_scripts_no_identity_when_doc_is_not_a_single_object(libsh
     """A top-level list (not a single k8s object) has no resource identity
     at all — kind/namespace/name must degrade to None rather than crash,
     and _shellcheck_location must skip the rendered-line lookup for it."""
-    docs = [("podiumd/templates/x.yaml", "- command: [\"sh\", \"-c\", \"echo hi\"]\n")]
+    docs = [("podiumd/templates/x.yaml", '- command: ["sh", "-c", "echo hi"]\n')]
     found = libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES)
     assert len(found) == 1
     _source, _path, _shell, _script, kind, namespace, name = found[0]
@@ -163,9 +183,11 @@ def test_extract_shell_scripts_skips_unparseable_doc(libshellcheckcheck):
 
 # --- check_shellcheck ---
 
+
 def fake_render_chart(rendered=RENDERED, returncode=0):
     def render_chart(chart_dir, extra_args):
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
+
     return render_chart
 
 
@@ -198,7 +220,9 @@ def sequenced_run(own_comments, vendored_comments=None, sc_returncode=1):
 def test_check_shellcheck_no_findings_passes(vp, libshellcheckcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
-    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(own_comments=[], vendored_comments=[], sc_returncode=0))
+    monkeypatch.setattr(
+        libshellcheckcheck, "run", sequenced_run(own_comments=[], vendored_comments=[], sc_returncode=0)
+    )
 
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is True
@@ -208,10 +232,20 @@ def test_check_shellcheck_no_findings_passes(vp, libshellcheckcheck, tmp_path, m
 def test_check_shellcheck_own_warning_fails(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
-    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(own_comments=[
-        {"level": "warning", "code": 3040, "line": 1,
-         "message": "In POSIX sh, set option pipefail is undefined."},
-    ]))
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[
+                {
+                    "level": "warning",
+                    "code": 3040,
+                    "line": 1,
+                    "message": "In POSIX sh, set option pipefail is undefined.",
+                },
+            ]
+        ),
+    )
 
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
@@ -225,9 +259,15 @@ def test_check_shellcheck_own_warning_fails(vp, libshellcheckcheck, tmp_path, mo
 def test_check_shellcheck_own_error_fails(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
-    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(own_comments=[
-        {"level": "error", "code": 1072, "line": 2, "message": "Unexpected token."},
-    ]))
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[
+                {"level": "error", "code": 1072, "line": 2, "message": "Unexpected token."},
+            ]
+        ),
+    )
 
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
@@ -235,16 +275,29 @@ def test_check_shellcheck_own_error_fails(vp, libshellcheckcheck, tmp_path, monk
     assert "ERROR" in out
 
 
-def test_check_shellcheck_location_includes_script_line_and_column(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_location_includes_script_line_and_column(
+    vp, libshellcheckcheck, tmp_path, monkeypatch, capsys
+):
     """Beyond source/path, each location also shows shellcheck's own
     line (and column, when shellcheck reports one) — position within
     the embedded script text, not the rendered YAML."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
-    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(own_comments=[
-        {"level": "warning", "code": 2086, "line": 3, "column": 6,
-         "message": "Double quote to prevent globbing and word splitting."},
-    ]))
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[
+                {
+                    "level": "warning",
+                    "code": 2086,
+                    "line": 3,
+                    "column": 6,
+                    "message": "Double quote to prevent globbing and word splitting.",
+                },
+            ]
+        ),
+    )
 
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
@@ -257,9 +310,15 @@ def test_check_shellcheck_location_line_without_column(vp, libshellcheckcheck, t
     not a bare trailing colon."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
-    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(own_comments=[
-        {"level": "error", "code": 1072, "line": 2, "message": "Unexpected token."},
-    ]))
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[
+                {"level": "error", "code": 1072, "line": 2, "message": "Unexpected token."},
+            ]
+        ),
+    )
 
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
@@ -274,10 +333,16 @@ def test_check_shellcheck_info_and_style_never_reported(vp, libshellcheckcheck, 
     mentioned in output or detail at all, same policy as yamllint."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
-    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(own_comments=[
-        {"level": "info", "code": 2086, "line": 1, "message": "Double quote to prevent globbing."},
-        {"level": "style", "code": 2006, "line": 2, "message": "Use $(...) instead of legacy backticks."},
-    ]))
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[
+                {"level": "info", "code": 2086, "line": 1, "message": "Double quote to prevent globbing."},
+                {"level": "style", "code": 2006, "line": 2, "message": "Use $(...) instead of legacy backticks."},
+            ]
+        ),
+    )
 
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is True
@@ -297,22 +362,28 @@ def test_check_shellcheck_repeated_root_cause_is_grouped(vp, libshellcheckcheck,
         "# Source: podiumd/templates/a.yaml\n"
         "spec:\n"
         "  containers:\n"
-        "    - command: [\"/bin/sh\", \"-c\"]\n"
-        "      args: [\"set -euo pipefail\\necho a\"]\n"
+        '    - command: ["/bin/sh", "-c"]\n'
+        '      args: ["set -euo pipefail\\necho a"]\n'
         "---\n"
         "# Source: podiumd/templates/b.yaml\n"
         "spec:\n"
         "  containers:\n"
-        "    - command: [\"/bin/sh\", \"-c\"]\n"
-        "      args: [\"set -euo pipefail\\necho b\"]\n"
+        '    - command: ["/bin/sh", "-c"]\n'
+        '      args: ["set -euo pipefail\\necho b"]\n'
     )
     monkeypatch.setattr(libshellcheckcheck, "render_chart", fake_render_chart(rendered))
 
     def run(cmd, **kwargs):
-        return sc_result([
-            {"level": "warning", "code": 3040, "line": 1,
-             "message": "In POSIX sh, set option pipefail is undefined."},
-        ])
+        return sc_result(
+            [
+                {
+                    "level": "warning",
+                    "code": 3040,
+                    "line": 1,
+                    "message": "In POSIX sh, set option pipefail is undefined.",
+                },
+            ]
+        )
 
     monkeypatch.setattr(libshellcheckcheck, "run", run)
     ok, detail = vp.check_shellcheck(tmp_path, [])
@@ -326,10 +397,14 @@ def test_check_shellcheck_repeated_root_cause_is_grouped(vp, libshellcheckcheck,
 def test_check_shellcheck_other_vendor_finding_never_fails(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
-    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(
-        own_comments=[],
-        vendored_comments=[{"level": "error", "code": 1072, "line": 1, "message": "Unexpected token."}],
-    ))
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[],
+            vendored_comments=[{"level": "error", "code": 1072, "line": 1, "message": "Unexpected token."}],
+        ),
+    )
 
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is True
@@ -341,17 +416,23 @@ def test_check_shellcheck_other_vendor_finding_never_fails(vp, libshellcheckchec
     assert "Unexpected token" not in out  # not dumped in detail
 
 
-def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(
+    vp, libshellcheckcheck, tmp_path, monkeypatch, capsys
+):
     """A vendored sub-chart from a listed partner org (here: zac -> Info(NL))
     gets its finding printed individually — unlike a plain vendored
     finding, which only ever gets an aggregate count — but must still
     never fail."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     monkeypatch.setattr(libshellcheckcheck, "friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
-    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(
-        own_comments=[],
-        vendored_comments=[{"level": "error", "code": 1072, "line": 1, "message": "Unexpected token."}],
-    ))
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[],
+            vendored_comments=[{"level": "error", "code": 1072, "line": 1, "message": "Unexpected token."}],
+        ),
+    )
 
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is True
@@ -370,8 +451,11 @@ def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(
 def test_check_shellcheck_no_scripts_found_passes(vp, libshellcheckcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
-    monkeypatch.setattr(libshellcheckcheck, "render_chart",
-                         fake_render_chart("---\n# Source: podiumd/templates/x.yaml\nkind: ConfigMap\n"))
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "render_chart",
+        fake_render_chart("---\n# Source: podiumd/templates/x.yaml\nkind: ConfigMap\n"),
+    )
 
     def run(cmd, **kwargs):
         raise AssertionError("shellcheck should never be invoked — no scripts to check")

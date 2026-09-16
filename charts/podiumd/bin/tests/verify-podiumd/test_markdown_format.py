@@ -34,12 +34,7 @@ def test_markdown_format_counts_indented_fences(libdocsconsistency, tmp_path):
     is indented, not at column 0. A doc with one column-0 pair plus one
     indented pair is balanced (4 fences) and must not be flagged."""
     doc = tmp_path / "doc.md"
-    doc.write_text(
-        "# Title\n\n"
-        "```sh\necho hi\n```\n\n"
-        "1. Then run:\n\n"
-        "   ```sh\n   echo step\n   ```\n"
-    )
+    doc.write_text("# Title\n\n```sh\necho hi\n```\n\n1. Then run:\n\n   ```sh\n   echo step\n   ```\n")
     assert libdocsconsistency.check_markdown_format(doc) == []
 
 
@@ -93,7 +88,8 @@ def test_check_companion_doc_missing_file(libdocsconsistency, tmp_path):
 
 def test_check_companion_doc_existing_correct_file(libdocsconsistency, tmp_path):
     (tmp_path / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nNo changes.\n")
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nNo changes.\n"
+    )
     name, issues = libdocsconsistency.check_companion_doc(tmp_path, "4.8.5", "4.9.0", "values-deltas")
     assert name == "4.8.5-to-4.9.0-values-deltas.md"
     assert issues == []
@@ -111,8 +107,7 @@ def test_check_baseline_doc_set_all_present_and_valid(libdocsconsistency, tmp_pa
         ("gemeente-specific", "Gemeente-specific notes"),
         ("values-deltas", "Values deltas"),
     ]:
-        (tmp_path / f"4.8.5-to-4.9.0-{suffix}.md").write_text(
-            f"# {title} — PodiumD 4.8.5 → 4.9.0\n\ncontent\n")
+        (tmp_path / f"4.8.5-to-4.9.0-{suffix}.md").write_text(f"# {title} — PodiumD 4.8.5 → 4.9.0\n\ncontent\n")
     assert libdocsconsistency.check_baseline_doc_set(tmp_path, "4.8.5", "4.9.0") == []
 
 

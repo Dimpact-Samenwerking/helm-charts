@@ -1,6 +1,7 @@
 """Chart.yaml/values.yaml helpers shared by every script that resolves a
 podiumd dependency, pulls a specific chart version, or walks a values tree
 for image references."""
+
 import re
 import shutil
 import sys
@@ -208,8 +209,9 @@ def _is_dependency_primary_rel_path(dep, rel_path, chart_dir=None):
     "eck-elasticsearch.version"/"eck-kibana.version". Shared by lib.
     upgradedoc.path_display_name and is_primary_image_path so the two
     can never disagree about which path counts as "the" primary."""
-    return (rel_path in set(image_paths_for(dep["name"], chart_dir))
-            or rel_path in set(version_paths_for(dep["name"], chart_dir)))
+    return rel_path in set(image_paths_for(dep["name"], chart_dir)) or rel_path in set(
+        version_paths_for(dep["name"], chart_dir)
+    )
 
 
 def is_primary_image_path(path, deps, chart_dir=None):
@@ -395,8 +397,6 @@ def chart_version(chart_yaml_path):
     return str(load_yaml(chart_yaml_path)["version"])
 
 
-
-
 RELEASE_BASELINES_FILE_NAME = "etc/release-baseline.yaml"
 
 
@@ -508,8 +508,11 @@ def replace_scalar_value(line, new_value):
     confirmed empirically before this fix (a bare "tag: &keycloakImage
     Version "26.7.2"" line came back as "tag: 26.7.3", the anchor tag
     gone entirely)."""
-    m = re.match(r'^(?P<indent>\s*)(?P<key>[^:\n]+:)\s*(?P<anchor>&\S+\s+)?(?P<quote>["\']?)'
-                 r'(?P<value>.*?)(?P=quote)\s*(?P<comment>#.*)?\s*$', line)
+    m = re.match(
+        r'^(?P<indent>\s*)(?P<key>[^:\n]+:)\s*(?P<anchor>&\S+\s+)?(?P<quote>["\']?)'
+        r"(?P<value>.*?)(?P=quote)\s*(?P<comment>#.*)?\s*$",
+        line,
+    )
     if not m:
         raise SystemExit(f"error: could not parse line for replacement: {line!r}")
     anchor = m.group("anchor") or ""
@@ -548,8 +551,11 @@ def own_template_files_referencing(chart_dir, key):
     if not templates_dir.is_dir():
         return []
     pattern = re.compile(rf"\.Values\.{re.escape(key)}\b")
-    return [str(path.relative_to(chart_dir)) for path in sorted(templates_dir.rglob("*.yaml"))
-            if path.is_file() and pattern.search(path.read_text(encoding="utf-8", errors="replace"))]
+    return [
+        str(path.relative_to(chart_dir))
+        for path in sorted(templates_dir.rglob("*.yaml"))
+        if path.is_file() and pattern.search(path.read_text(encoding="utf-8", errors="replace"))
+    ]
 
 
 def resolve_values_path_source(chart_dir, deps, path):
@@ -625,13 +631,20 @@ def component_state_at_baseline(chart_dir, chart_dir_relpath, baseline, componen
     raises: a caller-facing lookup like this treats "not found" as an
     ordinary, reportable outcome, not an exceptional one."""
     baseline_ref, baseline_deps, baseline_values, _baseline_lines, error = resolve_baseline_chart_state(
-        chart_dir, baseline)
+        chart_dir, baseline
+    )
     if error:
         return None, None, None, None, None, error
     dep = find_dependency(baseline_deps, component)
     if not dep:
-        return None, None, None, None, None, (f"no dependency named or aliased '{component}' "
-                                                f"in {chart_dir_relpath}/Chart.yaml at {baseline_ref}")
+        return (
+            None,
+            None,
+            None,
+            None,
+            None,
+            (f"no dependency named or aliased '{component}' in {chart_dir_relpath}/Chart.yaml at {baseline_ref}"),
+        )
     values_key = dep.get("alias", dep["name"])
     image_paths = image_paths_for(component, chart_dir)
     app_versions = find_app_versions(baseline_values, values_key, image_paths)
@@ -664,15 +677,16 @@ def local_chart_dir(chart_dir, dep):
     repo = dep["repository"]
     if not repo.startswith("file://"):
         return None
-    return (chart_dir / repo[len("file://"):]).resolve()
+    return (chart_dir / repo[len("file://") :]).resolve()
 
 
 def pull_chart(dep, version, dest):
     """Pull a chart version via helm. Returns (ok, stderr)."""
     ref, repo_url = chart_ref(dep)
     if ref is None:
-        return False, (f"dependency '{dep['name']}' uses a local path repository "
-                        f"({dep['repository']}) — not fetchable remotely")
+        return False, (
+            f"dependency '{dep['name']}' uses a local path repository ({dep['repository']}) — not fetchable remotely"
+        )
     cmd = ["helm", "pull", ref, "--version", version, "--untar", "--untardir", str(dest)]
     if repo_url:
         cmd += ["--repo", repo_url]
@@ -744,18 +758,25 @@ def check_image_versions(values, image_paths, app_version):
     chart restructured) — since a caller can't act on zero results
     either way, and silently reporting "0 checked, all fine" would be
     misleading."""
-    repos = [(path, repo) for path in image_paths
-             for repo in [get_path(values, f"{path}.repository")] if isinstance(repo, str) and repo]
+    repos = [
+        (path, repo)
+        for path in image_paths
+        for repo in [get_path(values, f"{path}.repository")]
+        if isinstance(repo, str) and repo
+    ]
     if not repos:
-        raise SystemExit(f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)} "
-                          f"— wrong path? see lib.chart.component_image_paths()")
+        raise SystemExit(
+            f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)} "
+            f"— wrong path? see lib.chart.component_image_paths()"
+        )
 
     results = []
     for path, repo in repos:
         host, repo_path = parse_repo(repo)
         exists, digest = registry_tag_exists(host, repo_path, app_version)
-        results.append({"path": path, "repository": repo, "host": host, "repo_path": repo_path,
-                         "exists": exists, "digest": digest})
+        results.append(
+            {"path": path, "repository": repo, "host": host, "repo_path": repo_path, "exists": exists, "digest": digest}
+        )
     return results
 
 
@@ -775,7 +796,7 @@ def dotted_key_path(lines, line_index):
     source line (and its digest/comment) from a regex match on raw
     `lines` — a full re-parse would lose that line-number association."""
     stack = []
-    for raw in lines[:line_index + 1]:
+    for raw in lines[: line_index + 1]:
         m = KEY_LINE_RE.match(raw)
         if not m:
             continue
@@ -896,8 +917,9 @@ def resolve_subchart_default(chart_dir, dep, chart_name, path):
     the top-level "eck-operator" dependency) — so both halves come from
     the nested dependency's own files in that case, not dep's."""
     base_path = f"{chart_name}/charts/{dep.get('alias') or dep['name']}"
-    nested = next((d for d in subchart_dependencies(chart_dir, dep)
-                    if path and path[0] in (d.get("alias"), d["name"])), None)
+    nested = next(
+        (d for d in subchart_dependencies(chart_dir, dep) if path and path[0] in (d.get("alias"), d["name"])), None
+    )
     if nested is None:
         return base_path, subchart_app_version(chart_dir, dep)
 
@@ -1023,8 +1045,11 @@ def global_image_paths(values):
     images = get_path(values, "global.images")
     if not isinstance(images, dict):
         return []
-    return [(("global", "images", name), block["tag"])
-            for name, block in images.items() if isinstance(block, dict) and block.get("tag")]
+    return [
+        (("global", "images", name), block["tag"])
+        for name, block in images.items()
+        if isinstance(block, dict) and block.get("tag")
+    ]
 
 
 def repo_group_representative(repo_paths, deps):
@@ -1178,7 +1203,8 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
             if cache_key not in nested_subchart_cache:
                 nested_subchart_cache[cache_key] = (
                     nested_subchart_documented_image_repository(chart_dir, dep, nested_chart_name)
-                    if chart_dir is not None else None
+                    if chart_dir is not None
+                    else None
                 )
             nested_repo = nested_subchart_cache[cache_key]
             if nested_repo:
@@ -1187,7 +1213,10 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
 
         if dep["name"] not in subchart_cache:
             if chart_dir is None:
-                subchart_cache[dep["name"]] = (None, f"no chart_dir given — can't resolve {dep['name']}'s subchart default")
+                subchart_cache[dep["name"]] = (
+                    None,
+                    f"no chart_dir given — can't resolve {dep['name']}'s subchart default",
+                )
             else:
                 sub_values, _source, err = resolve_chart_values(chart_dir, dep, dep["version"], allow_pull=allow_pull)
                 subchart_cache[dep["name"]] = (sub_values, err)
@@ -1416,8 +1445,9 @@ def historical_app_version_for_path(chart_dir, deps, values, path, at_or_before=
     return historical_app_version_for_repository(chart_dir, repo, at_or_before, expected_url=expected_url)
 
 
-def baseline_tag_for_sidecar_path(chart_dir, deps, target_values, baseline_values, baseline_paths,
-                                   baseline_repo_groups, path):
+def baseline_tag_for_sidecar_path(
+    chart_dir, deps, target_values, baseline_values, baseline_paths, baseline_repo_groups, path
+):
     """The baseline (pre-upgrade) tag for a sidecar/shared-image (or
     registered bare-version, see below) values-tree `path`, tried in two
     tiers — the one place lib.image_docs.add_missing_sidecar_rows' own
@@ -1497,9 +1527,11 @@ def baseline_tag_for_sidecar_path(chart_dir, deps, target_values, baseline_value
     # cross-check uses, just applied against baseline_values here
     # instead of a past images-<version>.yaml manifest.
     expected_url = full_repository_for_path(chart_dir, deps, target_values, path)
-    matching = [p for p in candidates
-                if expected_url is not None
-                and full_repository_for_path(chart_dir, deps, baseline_values, p) == expected_url]
+    matching = [
+        p
+        for p in candidates
+        if expected_url is not None and full_repository_for_path(chart_dir, deps, baseline_values, p) == expected_url
+    ]
     if not matching:
         return None
     representative = repo_group_representative(matching, deps)
@@ -1522,8 +1554,10 @@ def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
     purpose (one entry, one path, done) — see paths_by_repository's own
     docstring for why a caller needing every path a shared repository
     covers (not just one) should use that function directly instead."""
-    return {repo: repo_group_representative(repo_paths, deps) for repo, repo_paths
-            in paths_by_repository(chart_dir, deps, values, paths, allow_pull=allow_pull).items()}
+    return {
+        repo: repo_group_representative(repo_paths, deps)
+        for repo, repo_paths in paths_by_repository(chart_dir, deps, values, paths, allow_pull=allow_pull).items()
+    }
 
 
 def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False):

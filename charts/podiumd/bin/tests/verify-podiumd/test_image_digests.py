@@ -2,6 +2,7 @@
 pure logic plus a mocked-registry integration test. No network access
 needed: registry_tag_exists is monkeypatched wherever a live fetch would
 otherwise happen."""
+
 import io
 import tarfile
 import urllib.error
@@ -44,8 +45,8 @@ def write_chart_yaml(chart_dir, deps):
     (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
 
 
-
 # --- parse_repo ---
+
 
 def test_parse_repo_bare_docker_hub_official_image(libimagedigests):
     assert libimagedigests.parse_repo("python") == ("docker.io", "library/python")
@@ -56,7 +57,10 @@ def test_parse_repo_bare_docker_hub_namespaced(libimagedigests):
 
 
 def test_parse_repo_explicit_host(libimagedigests):
-    assert libimagedigests.parse_repo("ghcr.io/infonl/zaakafhandelcomponent") == ("ghcr.io", "infonl/zaakafhandelcomponent")
+    assert libimagedigests.parse_repo("ghcr.io/infonl/zaakafhandelcomponent") == (
+        "ghcr.io",
+        "infonl/zaakafhandelcomponent",
+    )
 
 
 def test_parse_repo_explicit_docker_io_host(libimagedigests):
@@ -68,6 +72,7 @@ def test_parse_repo_localhost(libimagedigests):
 
 
 # --- resolve_pin_repo ---
+
 
 def test_resolve_pin_repo_active_sibling_key(libimagedigests):
     lines = [
@@ -176,6 +181,7 @@ def test_resolve_pin_repo_registry_key_order_does_not_matter(libimagedigests):
 
 # --- find_sibling_registry ---
 
+
 def test_find_sibling_registry_found_at_same_indent(libimagedigests):
     lines = ["    image:", "      registry: quay.io", "      repository: opstree/redis"]
     assert libimagedigests.find_sibling_registry(lines, 2, 6) == "quay.io"
@@ -192,6 +198,7 @@ def test_find_sibling_registry_stops_at_dedent(libimagedigests):
 
 
 # --- scan_digest_pins ---
+
 
 def test_scan_digest_pins_quoted_and_bare(libimagedigests):
     lines = [
@@ -261,6 +268,7 @@ def test_scan_digest_pins_tolerates_anchor_tag_on_digest_pinned_line(libimagedig
 # stays on scan_digest_pins, digest-required, completely untouched — see the
 # "still digest-required" tests just above this section, all still passing
 # unchanged.
+
 
 def test_scan_version_pins_finds_bare_tag_with_no_digest(libimagedigests):
     """The exact real-world case that motivated this: podiumd-4.8.5 (this
@@ -334,6 +342,7 @@ def test_scan_version_pins_ignores_non_tag_lines(libimagedigests):
 
 # --- find_inconsistent_version_pins ---
 
+
 def test_find_inconsistent_version_pins_flags_same_repo_different_versions(libimagedigests):
     lines = [
         "a:",
@@ -347,10 +356,12 @@ def test_find_inconsistent_version_pins_flags_same_repo_different_versions(libim
     ]
     pins = libimagedigests.scan_digest_pins(lines)
     drift = libimagedigests.find_inconsistent_version_pins(pins)
-    assert drift == {"curlimages/curl": {
-        "kind": "drift",
-        "pins": [(("8.21.0", "a" * 64), [4]), (("8.20.0", "b" * 64), [8])],
-    }}
+    assert drift == {
+        "curlimages/curl": {
+            "kind": "drift",
+            "pins": [(("8.21.0", "a" * 64), [4]), (("8.20.0", "b" * 64), [8])],
+        }
+    }
 
 
 def test_find_inconsistent_version_pins_flags_same_version_different_digest(libimagedigests):
@@ -372,10 +383,12 @@ def test_find_inconsistent_version_pins_flags_same_version_different_digest(libi
     ]
     pins = libimagedigests.scan_digest_pins(lines)
     drift = libimagedigests.find_inconsistent_version_pins(pins)
-    assert drift == {"curlimages/curl": {
-        "kind": "drift",
-        "pins": [(("8.21.0", "a" * 64), [4]), (("8.21.0", "b" * 64), [8])],
-    }}
+    assert drift == {
+        "curlimages/curl": {
+            "kind": "drift",
+            "pins": [(("8.21.0", "a" * 64), [4]), (("8.21.0", "b" * 64), [8])],
+        }
+    }
 
 
 def test_find_inconsistent_version_pins_flags_matching_pins_as_duplicate(libimagedigests):
@@ -427,6 +440,7 @@ def test_find_inconsistent_version_pins_ignores_unresolved_repository(libimagedi
 # The shared, in-process memoization check_image_digests' own loop and
 # find_sliding_pins both call through, so a --include=cve-diff run (which
 # needs both) only pays for one real per-pin registry lookup, not two.
+
 
 def testcached_tag_exists_only_calls_registry_once_for_same_pin(libimagedigests, tmp_path, monkeypatch):
     calls = []
@@ -488,13 +502,16 @@ def testcached_tag_exists_does_not_cache_a_raised_exception(libimagedigests, tmp
 # TTL) -- an entry either one writes must be directly usable by the
 # other, no format translation.
 
-def testcached_tag_exists_reads_a_fresh_disk_entry_without_a_network_call(
-        libimagedigests, tmp_path, monkeypatch):
+
+def testcached_tag_exists_reads_a_fresh_disk_entry_without_a_network_call(libimagedigests, tmp_path, monkeypatch):
     digest_a = "a" * 64
     key = repo_access_cache.cache_key("registry", ("docker.io", "org/repo", "1.0.0"))
-    repo_access_cache.save_cache(tmp_path, {
-        key: {"checked_at": datetime.now(timezone.utc).isoformat(), "digest": f"sha256:{digest_a}"},
-    })
+    repo_access_cache.save_cache(
+        tmp_path,
+        {
+            key: {"checked_at": datetime.now(timezone.utc).isoformat(), "digest": f"sha256:{digest_a}"},
+        },
+    )
 
     def fail_if_called(host, repo, tag):
         raise AssertionError("should have been served from the disk cache")
@@ -506,11 +523,9 @@ def testcached_tag_exists_reads_a_fresh_disk_entry_without_a_network_call(
     assert result == (True, f"sha256:{digest_a}")
 
 
-def testcached_tag_exists_writes_a_disk_entry_readable_by_repo_access_cache(
-        libimagedigests, tmp_path, monkeypatch):
+def testcached_tag_exists_writes_a_disk_entry_readable_by_repo_access_cache(libimagedigests, tmp_path, monkeypatch):
     digest_a = "a" * 64
-    monkeypatch.setattr(libimagedigests, "registry_tag_exists",
-                         lambda host, repo, tag: (True, f"sha256:{digest_a}"))
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{digest_a}"))
 
     libimagedigests.cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
 
@@ -524,9 +539,12 @@ def testcached_tag_exists_writes_a_disk_entry_readable_by_repo_access_cache(
 def testcached_tag_exists_ignores_a_stale_disk_entry(libimagedigests, tmp_path, monkeypatch):
     stale = datetime.now(timezone.utc) - timedelta(minutes=30 + 1)
     key = repo_access_cache.cache_key("registry", ("docker.io", "org/repo", "1.0.0"))
-    repo_access_cache.save_cache(tmp_path, {
-        key: {"checked_at": stale.isoformat(), "digest": f"sha256:{'a' * 64}"},
-    })
+    repo_access_cache.save_cache(
+        tmp_path,
+        {
+            key: {"checked_at": stale.isoformat(), "digest": f"sha256:{'a' * 64}"},
+        },
+    )
 
     calls = []
 
@@ -542,20 +560,16 @@ def testcached_tag_exists_ignores_a_stale_disk_entry(libimagedigests, tmp_path, 
     assert result == (True, f"sha256:{'b' * 64}")
 
 
-def test_check_image_digests_and_find_sliding_pins_share_the_tag_exists_cache(
-        libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_and_find_sliding_pins_share_the_tag_exists_cache(libimagedigests, tmp_path, monkeypatch):
     """The actual redundancy this cache fixes: check_image_digests' own
     loop and find_sliding_pins (check_cve_diff's own candidate source)
     must not each independently re-query the registry for the same pin
     within one process — "CVE diff" lists "Image digests" as a
     prerequisite specifically so both run in the same invocation."""
     digest_a = "a" * 64
-    (tmp_path / "values.yaml").write_text((
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{digest_a}"\n'
-    ), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(
+        (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{digest_a}"\n'), encoding="utf-8"
+    )
     calls = []
 
     def spy(host, repo, tag):
@@ -572,35 +586,27 @@ def test_check_image_digests_and_find_sliding_pins_share_the_tag_exists_cache(
 
 # --- check_image_digests (mocked registry) ---
 
+
 def write_values(chart_dir, text):
     (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
 
 
 def test_check_image_digests_all_match(vp, libimagedigests, tmp_path, monkeypatch):
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True
     assert "1/1 matched" in detail
 
 
-def test_check_image_digests_no_digest_header_is_unverifiable_not_matched(vp, libimagedigests, tmp_path,
-                                                                          monkeypatch, capsys):
+def test_check_image_digests_no_digest_header_is_unverifiable_not_matched(
+    vp, libimagedigests, tmp_path, monkeypatch, capsys
+):
     """registry_tag_exists returns (True, None) when a 200 manifest response
     carried no Docker-Content-Digest header (some registries/proxies). The
     pin cannot be confirmed, so it must NOT count as matched — it goes in
     the same 'couldn't verify' bucket as an unreachable host."""
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, None))
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True  # not a build failure, same as an unreachable host
@@ -610,12 +616,7 @@ def test_check_image_digests_no_digest_header_is_unverifiable_not_matched(vp, li
 
 
 def test_check_image_digests_reports_mismatch(vp, libimagedigests, tmp_path, monkeypatch, capsys):
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
     monkeypatch.setattr(libimagedigests, "is_sliding_tag", lambda *a, **k: False)
     ok, detail = vp.check_image_digests(tmp_path)
@@ -630,12 +631,7 @@ def test_check_image_digests_reports_mismatch(vp, libimagedigests, tmp_path, mon
 
 
 def test_check_image_digests_reports_missing_tag_as_fetch_error(vp, libimagedigests, tmp_path, monkeypatch, capsys):
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (False, None))
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is False
@@ -646,12 +642,7 @@ def test_check_image_digests_reports_missing_tag_as_fetch_error(vp, libimagedige
 
 
 def test_check_image_digests_retries_once_on_network_error_then_succeeds(vp, libimagedigests, tmp_path, monkeypatch):
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     calls = {"n": 0}
 
     def flaky(host, repo, tag):
@@ -668,14 +659,10 @@ def test_check_image_digests_retries_once_on_network_error_then_succeeds(vp, lib
 
 
 def test_check_image_digests_gives_up_after_one_retry(vp, libimagedigests, tmp_path, monkeypatch):
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(
-        libimagedigests, "registry_tag_exists",
+        libimagedigests,
+        "registry_tag_exists",
         lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.URLError("down")),
     )
     ok, detail = vp.check_image_digests(tmp_path)
@@ -689,16 +676,19 @@ def test_check_image_digests_dedupes_shared_repo_and_tag(vp, libimagedigests, tm
     [DUPLICATE-PIN] failure in its own right (see
     test_check_image_digests_reports_duplicate_pin): the two concerns are
     independent, so both are exercised here."""
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-        "b:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(
+        tmp_path,
+        (
+            "a:\n"
+            "  image:\n"
+            "    repository: org/repo\n"
+            f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
+            "b:\n"
+            "  image:\n"
+            "    repository: org/repo\n"
+            f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
+        ),
+    )
     calls = []
 
     def spy(host, repo, tag):
@@ -714,11 +704,7 @@ def test_check_image_digests_dedupes_shared_repo_and_tag(vp, libimagedigests, tm
 
 
 def test_check_image_digests_skips_unresolved_repository(vp, libimagedigests, tmp_path, monkeypatch):
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     called = []
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda *a: called.append(a))
     ok, detail = vp.check_image_digests(tmp_path)
@@ -730,11 +716,7 @@ def test_check_image_digests_skips_unresolved_repository(vp, libimagedigests, tm
 def test_check_image_digests_unresolved_line_names_the_file(vp, libimagedigests, tmp_path, monkeypatch, capsys):
     """A bare "line N" doesn't say which file N is in — prefix with
     values.yaml, same convention as check_duplicate_keys."""
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda *a: (_ for _ in ()).throw(AssertionError))
     vp.check_image_digests(tmp_path)
     out = capsys.readouterr().out
@@ -743,15 +725,12 @@ def test_check_image_digests_unresolved_line_names_the_file(vp, libimagedigests,
 
 # --- check_image_digests: subchart-default repository fallback ---
 
+
 def test_check_image_digests_falls_back_to_subchart_default_repository(vp, libimagedigests, tmp_path, monkeypatch):
     """openzaak/openformulieren-style pins: no repository in values.yaml at
     all, resolved instead from the vendored subchart's own default (the
     same one Helm merges in at render time)."""
-    write_values(tmp_path, (
-        "openzaak:\n"
-        "  image:\n"
-        f'    tag: "1.27.4@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'openzaak:\n  image:\n    tag: "1.27.4@sha256:{"a" * 64}"\n'))
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
 
@@ -769,11 +748,7 @@ def test_check_image_digests_falls_back_to_subchart_default_repository(vp, libim
 
 
 def test_check_image_digests_falls_back_via_alias(vp, libimagedigests, tmp_path, monkeypatch):
-    write_values(tmp_path, (
-        "openformulieren:\n"
-        "  image:\n"
-        f'    tag: "3.4.10@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'openformulieren:\n  image:\n    tag: "3.4.10@sha256:{"a" * 64}"\n'))
     write_chart_yaml(tmp_path, [make_dep("openforms", "1.12.0", alias="openformulieren")])
     make_tgz(tmp_path / "charts", "openforms", "1.12.0", {"image": {"repository": "openformulieren/open-forms"}})
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
@@ -783,11 +758,7 @@ def test_check_image_digests_falls_back_via_alias(vp, libimagedigests, tmp_path,
 
 
 def test_check_image_digests_stays_unresolved_when_subchart_has_no_default_either(vp, libimagedigests, tmp_path):
-    write_values(tmp_path, (
-        "openzaak:\n"
-        "  image:\n"
-        f'    tag: "1.27.4@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'openzaak:\n  image:\n    tag: "1.27.4@sha256:{"a" * 64}"\n'))
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {}})  # subchart doesn't default one either
     ok, detail = vp.check_image_digests(tmp_path)
@@ -796,11 +767,7 @@ def test_check_image_digests_stays_unresolved_when_subchart_has_no_default_eithe
 
 
 def test_check_image_digests_stays_unresolved_without_chart_yaml(vp, libimagedigests, tmp_path):
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True
     assert "0/0 matched" in detail
@@ -831,12 +798,18 @@ def test_check_image_digests_sliding_drift_warns_but_passes(vp, libimagedigests,
     (see the [DIGEST-GONE] check), no longer a failure at all -- just a
     reported warning pointing at fix-image-digests."""
     write_values(tmp_path, TWO_IMAGES_VALUES)
-    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (
-        (True, f"sha256:{'c' * 64}") if repo == "nginxinc/nginx-unprivileged"
-        else (True, f"sha256:{'b' * 64}")
-    ))
-    monkeypatch.setattr(libimagedigests, "is_sliding_tag",
-                         lambda values_path, host, repo, version, live_digest: repo == "nginxinc/nginx-unprivileged")
+    monkeypatch.setattr(
+        libimagedigests,
+        "registry_tag_exists",
+        lambda host, repo, tag: (
+            (True, f"sha256:{'c' * 64}") if repo == "nginxinc/nginx-unprivileged" else (True, f"sha256:{'b' * 64}")
+        ),
+    )
+    monkeypatch.setattr(
+        libimagedigests,
+        "is_sliding_tag",
+        lambda values_path, host, repo, version, live_digest: repo == "nginxinc/nginx-unprivileged",
+    )
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True
     assert "1 sliding" in detail
@@ -851,12 +824,20 @@ def test_check_image_digests_pinned_drift_still_fails(vp, libimagedigests, tmp_p
     """A component's own release tag drifting is a real failure, even when
     a sliding tag ALSO drifted in the same run."""
     write_values(tmp_path, TWO_IMAGES_VALUES)
-    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (
-        (True, f"sha256:{'a' * 64}") if repo == "nginxinc/nginx-unprivileged"  # unchanged, matches
-        else (True, f"sha256:{'c' * 64}")  # zac drifted — not sliding
-    ))
-    monkeypatch.setattr(libimagedigests, "is_sliding_tag",
-                         lambda values_path, host, repo, version, live_digest: repo == "nginxinc/nginx-unprivileged")
+    monkeypatch.setattr(
+        libimagedigests,
+        "registry_tag_exists",
+        lambda host, repo, tag: (
+            (True, f"sha256:{'a' * 64}")
+            if repo == "nginxinc/nginx-unprivileged"  # unchanged, matches
+            else (True, f"sha256:{'c' * 64}")  # zac drifted — not sliding
+        ),
+    )
+    monkeypatch.setattr(
+        libimagedigests,
+        "is_sliding_tag",
+        lambda values_path, host, repo, version, live_digest: repo == "nginxinc/nginx-unprivileged",
+    )
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is False
     assert "0 sliding" in detail
@@ -872,16 +853,12 @@ def test_check_image_digests_pinned_drift_still_fails(vp, libimagedigests, tmp_p
 # whose manifest URL accepts a digest string in exactly the tag position,
 # so no new registry-layer code is needed, just a second call.
 
+
 def test_check_image_digests_matched_pin_never_gets_a_second_call(vp, libimagedigests, tmp_path, monkeypatch):
     """A matched pin's live digest already equals the pinned one -- it's
     trivially still there, so no second (digest-liveness) call is ever
     made for it."""
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     calls = []
 
     def spy(host, repo, tag):
@@ -895,17 +872,16 @@ def test_check_image_digests_matched_pin_never_gets_a_second_call(vp, libimagedi
 
 
 def test_check_image_digests_sliding_with_digest_still_pullable_only_warns(
-        vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    vp, libimagedigests, tmp_path, monkeypatch, capsys
+):
     """The OLD pinned digest independently resolves upstream — the tag
     merely slid, nothing this repo actually deploys is at risk. Warns
     (via [SLIDING], not a failure) and never reports [DIGEST-GONE]."""
     digest_a = "a" * 64
-    write_values(tmp_path, (
-        "nginx:\n"
-        "  image:\n"
-        "    repository: nginxinc/nginx-unprivileged\n"
-        f'    tag: "1.31.3@sha256:{digest_a}"\n'
-    ))
+    write_values(
+        tmp_path,
+        (f'nginx:\n  image:\n    repository: nginxinc/nginx-unprivileged\n    tag: "1.31.3@sha256:{digest_a}"\n'),
+    )
     calls = []
 
     def spy(host, repo, tag):
@@ -930,12 +906,10 @@ def test_check_image_digests_sliding_with_digest_gone_fails(vp, libimagedigests,
     install/upgrade would fail outright right now, regardless of the
     tag-level slide itself only being a warning."""
     digest_a = "a" * 64
-    write_values(tmp_path, (
-        "nginx:\n"
-        "  image:\n"
-        "    repository: nginxinc/nginx-unprivileged\n"
-        f'    tag: "1.31.3@sha256:{digest_a}"\n'
-    ))
+    write_values(
+        tmp_path,
+        (f'nginx:\n  image:\n    repository: nginxinc/nginx-unprivileged\n    tag: "1.31.3@sha256:{digest_a}"\n'),
+    )
 
     def spy(host, repo, tag):
         if tag == f"sha256:{digest_a}":
@@ -958,12 +932,7 @@ def test_check_image_digests_mismatch_with_digest_gone_fails(vp, libimagedigests
     still just one failure category ([DIGEST-GONE]) added on top of the
     pre-existing [MISMATCH] failure, not a special case."""
     digest_a = "a" * 64
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{digest_a}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{digest_a}"\n'))
 
     def spy(host, repo, tag):
         if tag == f"sha256:{digest_a}":
@@ -985,12 +954,7 @@ def test_check_image_digests_fetch_error_with_digest_gone_fails(vp, libimagedige
     not an UNVERIFIABLE_HOSTS one) — the old digest is STILL checked, and
     found gone here too."""
     digest_a = "a" * 64
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{digest_a}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{digest_a}"\n'))
 
     def spy(host, repo, tag):
         if tag == "1.0.0":
@@ -1008,15 +972,19 @@ def test_check_image_digests_fetch_error_with_digest_gone_fails(vp, libimagedige
 
 
 def test_check_image_digests_unverifiable_host_skips_digest_liveness_check_entirely(
-        vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    vp, libimagedigests, tmp_path, monkeypatch, capsys
+):
     """A host in UNVERIFIABLE_HOSTS is skipped for the SECOND call too —
     no point attempting what's already known to fail anonymously."""
-    write_values(tmp_path, (
-        "pabc:\n"
-        "  image:\n"
-        "    repository: firewalled-registry.example.com/platform-autorisatie-beheer-component/pabc-api\n"
-        f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
-    ))
+    write_values(
+        tmp_path,
+        (
+            "pabc:\n"
+            "  image:\n"
+            "    repository: firewalled-registry.example.com/platform-autorisatie-beheer-component/pabc-api\n"
+            f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
+        ),
+    )
     monkeypatch.setattr(libimagedigests, "UNVERIFIABLE_HOSTS", {"firewalled-registry.example.com"})
     calls = []
 
@@ -1036,17 +1004,21 @@ def test_check_image_digests_unverifiable_host_skips_digest_liveness_check_entir
 
 # --- check_image_digests: split registry:/repository: style resolution ---
 
+
 def test_check_image_digests_split_style_pin_queries_the_correct_registry(vp, libimagedigests, tmp_path, monkeypatch):
     """Regression test for the actual bug: a split-style pin (redis-ha's
     real values.yaml shape) must resolve against ITS OWN registry (quay.io
     here), not silently fall back to docker.io."""
-    write_values(tmp_path, (
-        "redis-ha:\n"
-        "  image:\n"
-        "    registry: quay.io\n"
-        "    repository: opstree/redis\n"
-        f'    tag: "v8.6.6@sha256:{"a" * 64}"\n'
-    ))
+    write_values(
+        tmp_path,
+        (
+            "redis-ha:\n"
+            "  image:\n"
+            "    registry: quay.io\n"
+            "    repository: opstree/redis\n"
+            f'    tag: "v8.6.6@sha256:{"a" * 64}"\n'
+        ),
+    )
     calls = []
 
     def spy(host, repo, tag):
@@ -1061,19 +1033,23 @@ def test_check_image_digests_split_style_pin_queries_the_correct_registry(vp, li
 
 
 def test_check_image_digests_reports_version_drift(vp, libimagedigests, tmp_path, monkeypatch, capsys):
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: curlimages/curl\n"
-        f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
-        "b:\n"
-        "  image:\n"
-        "    repository: curlimages/curl\n"
-        f'    tag: "8.20.0@sha256:{"b" * 64}"\n'
-    ))
+    write_values(
+        tmp_path,
+        (
+            "a:\n"
+            "  image:\n"
+            "    repository: curlimages/curl\n"
+            f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
+            "b:\n"
+            "  image:\n"
+            "    repository: curlimages/curl\n"
+            f'    tag: "8.20.0@sha256:{"b" * 64}"\n'
+        ),
+    )
     digests_by_tag = {"8.21.0": "a" * 64, "8.20.0": "b" * 64}
-    monkeypatch.setattr(libimagedigests, "registry_tag_exists",
-                         lambda host, repo, tag: (True, f"sha256:{digests_by_tag[tag]}"))
+    monkeypatch.setattr(
+        libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{digests_by_tag[tag]}")
+    )
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is False
     assert "1 version-drift finding" in detail
@@ -1088,16 +1064,19 @@ def test_check_image_digests_reports_version_drift(vp, libimagedigests, tmp_path
 
 
 def test_check_image_digests_reports_duplicate_pin(vp, libimagedigests, tmp_path, monkeypatch, capsys):
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: curlimages/curl\n"
-        f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
-        "b:\n"
-        "  image:\n"
-        "    repository: curlimages/curl\n"
-        f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(
+        tmp_path,
+        (
+            "a:\n"
+            "  image:\n"
+            "    repository: curlimages/curl\n"
+            f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
+            "b:\n"
+            "  image:\n"
+            "    repository: curlimages/curl\n"
+            f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
+        ),
+    )
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is False
@@ -1110,12 +1089,7 @@ def test_check_image_digests_reports_duplicate_pin(vp, libimagedigests, tmp_path
 
 
 def test_check_image_digests_no_inconsistency_when_repository_pinned_once(vp, libimagedigests, tmp_path, monkeypatch):
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: curlimages/curl\n"
-        f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    repository: curlimages/curl\n    tag: "8.21.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True
@@ -1125,7 +1099,10 @@ def test_check_image_digests_no_inconsistency_when_repository_pinned_once(vp, li
 
 # --- check_image_digests: UNVERIFIABLE_HOSTS ---
 
-def test_check_image_digests_unverifiable_host_does_not_fail_the_check(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+
+def test_check_image_digests_unverifiable_host_does_not_fail_the_check(
+    vp, libimagedigests, tmp_path, monkeypatch, capsys
+):
     """A registry this environment can never reach anonymously (see
     lib.registry.UNVERIFIABLE_HOSTS) must be reported distinctly from a
     genuine FETCH-ERR, and must not fail the check on its own — it can't
@@ -1133,17 +1110,22 @@ def test_check_image_digests_unverifiable_host_does_not_fail_the_check(vp, libim
     UNVERIFIABLE_HOSTS is empty by default (no such host currently known —
     see its docstring in lib/registry.py), so this injects a fake one
     rather than depending on any real, possibly-transient special case."""
-    write_values(tmp_path, (
-        "pabc:\n"
-        "  image:\n"
-        "    repository: firewalled-registry.example.com/platform-autorisatie-beheer-component/pabc-api\n"
-        f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
-    ))
+    write_values(
+        tmp_path,
+        (
+            "pabc:\n"
+            "  image:\n"
+            "    repository: firewalled-registry.example.com/platform-autorisatie-beheer-component/pabc-api\n"
+            f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
+        ),
+    )
     monkeypatch.setattr(libimagedigests, "UNVERIFIABLE_HOSTS", {"firewalled-registry.example.com"})
     monkeypatch.setattr(
-        libimagedigests, "registry_tag_exists",
-        lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.HTTPError(
-            "https://firewalled-registry.example.com/v2/...", 401, "Unauthorized", {}, None)),
+        libimagedigests,
+        "registry_tag_exists",
+        lambda host, repo, tag: (_ for _ in ()).throw(
+            urllib.error.HTTPError("https://firewalled-registry.example.com/v2/...", 401, "Unauthorized", {}, None)
+        ),
     )
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True
@@ -1156,16 +1138,13 @@ def test_check_image_digests_unverifiable_host_does_not_fail_the_check(vp, libim
 
 
 def test_check_image_digests_non_unverifiable_host_fetch_error_still_fails(vp, libimagedigests, tmp_path, monkeypatch):
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
+    write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(
-        libimagedigests, "registry_tag_exists",
-        lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.HTTPError(
-            "https://docker.io/v2/...", 401, "Unauthorized", {}, None)),
+        libimagedigests,
+        "registry_tag_exists",
+        lambda host, repo, tag: (_ for _ in ()).throw(
+            urllib.error.HTTPError("https://docker.io/v2/...", 401, "Unauthorized", {}, None)
+        ),
     )
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is False

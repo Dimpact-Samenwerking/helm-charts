@@ -7,6 +7,7 @@ absent fall back to their own default, without crashing. A last test
 confirms a chart_dir with no etc/ directory at all doesn't crash
 _load_settings either — mirrors lib.chart._release_baselines' own
 tolerance for a missing etc/release-baseline.yaml."""
+
 import yaml
 
 FULL_SETTINGS = {
@@ -100,45 +101,84 @@ ACCESSOR_CASES = [
     ("quality_gates_markdown_disabled_rules", ["md013", "md014"], ["md013"], list),
     ("quality_gates_kube_score_check_id", "container-resources", "custom-check", None),
     ("helm_doc_max_diff_lines_shown", 40, 100, None),
-    ("vendor_classification_keywords",
-     {"maykinmedia": "Maykin", "infonl": "Info(NL)", "worth-nl": "Worth", "wearefrank": "WeAreFrank",
-      "dimpact": "Dimpact", "icatt-menselijk-digitaal": "ICATT"},
-     {"maykinmedia": "Maykin", "infonl": "Info(NL)"}, dict),
+    (
+        "vendor_classification_keywords",
+        {
+            "maykinmedia": "Maykin",
+            "infonl": "Info(NL)",
+            "worth-nl": "Worth",
+            "wearefrank": "WeAreFrank",
+            "dimpact": "Dimpact",
+            "icatt-menselijk-digitaal": "ICATT",
+        },
+        {"maykinmedia": "Maykin", "infonl": "Info(NL)"},
+        dict,
+    ),
     ("vendor_classification_chart_overrides", {"kiss": "ICATT"}, {"kiss": "ICATT", "foo": "Bar"}, dict),
-    ("helm_repos_urls_by_alias",
-     {"adfinis": "https://charts.adfinis.com",
-      "wiremind": "https://wiremind.github.io/wiremind-helm-charts",
-      "dimpact": "https://Dimpact-Samenwerking.github.io/helm-charts/",
-      "maykinmedia": "https://maykinmedia.github.io/charts/",
-      "kiss-elastic": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic",
-      "zac": "https://infonl.github.io/dimpact-zaakafhandelcomponent/",
-      "zgw-office-addin": "https://infonl.github.io/zgw-office-addin",
-      "worth-nl": "https://worth-nl.github.io/helm-charts",
-      "opstree": "https://ot-container-kit.github.io/helm-charts/"},
-     {"zac": "https://example.invalid/zac/"}, dict),
-    ("component_resolution_chart_version_lockstep_components",
-     frozenset({"kiss-chart", "pabc", "eck-operator"}), frozenset({"kiss-chart", "pabc"}), frozenset),
-    ("component_resolution_native_components",
-     frozenset({"frankgateway"}), frozenset({"other-native"}), frozenset),
-    ("component_resolution_version_repository_paths",
-     {"redis-operator": "redisOperator.imageName"},
-     {"redis-operator": "redisOperator.imageName", "foo-op": "fooOperator.imageName"}, dict),
-    ("component_resolution_version_path_nested_subcharts",
-     {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch", "eck-kibana.version": "eck-kibana",
-                    "eck-enterprise-search.version": "eck-enterprise-search"}},
-     {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch"}}, dict),
-    ("component_resolution_image_paths",
-     {"zgw-office-addin": ["frontend.image", "backend.image"],
-      "keycloak-operator": ["operator.config.keycloakImage"],
-      "openbao": ["server.image"],
-      "internetaakafhandeling": ["web.image", "poller.image"],
-      "kiss-chart": ["image", "settings.syncJobs.image"],
-      "eck-operator": ["image"]},
-     {"widget": ["image"]}, dict),
+    (
+        "helm_repos_urls_by_alias",
+        {
+            "adfinis": "https://charts.adfinis.com",
+            "wiremind": "https://wiremind.github.io/wiremind-helm-charts",
+            "dimpact": "https://Dimpact-Samenwerking.github.io/helm-charts/",
+            "maykinmedia": "https://maykinmedia.github.io/charts/",
+            "kiss-elastic": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic",
+            "zac": "https://infonl.github.io/dimpact-zaakafhandelcomponent/",
+            "zgw-office-addin": "https://infonl.github.io/zgw-office-addin",
+            "worth-nl": "https://worth-nl.github.io/helm-charts",
+            "opstree": "https://ot-container-kit.github.io/helm-charts/",
+        },
+        {"zac": "https://example.invalid/zac/"},
+        dict,
+    ),
+    (
+        "component_resolution_chart_version_lockstep_components",
+        frozenset({"kiss-chart", "pabc", "eck-operator"}),
+        frozenset({"kiss-chart", "pabc"}),
+        frozenset,
+    ),
+    ("component_resolution_native_components", frozenset({"frankgateway"}), frozenset({"other-native"}), frozenset),
+    (
+        "component_resolution_version_repository_paths",
+        {"redis-operator": "redisOperator.imageName"},
+        {"redis-operator": "redisOperator.imageName", "foo-op": "fooOperator.imageName"},
+        dict,
+    ),
+    (
+        "component_resolution_version_path_nested_subcharts",
+        {
+            "eck-stack": {
+                "eck-elasticsearch.version": "eck-elasticsearch",
+                "eck-kibana.version": "eck-kibana",
+                "eck-enterprise-search.version": "eck-enterprise-search",
+            }
+        },
+        {"eck-stack": {"eck-elasticsearch.version": "eck-elasticsearch"}},
+        dict,
+    ),
+    (
+        "component_resolution_image_paths",
+        {
+            "zgw-office-addin": ["frontend.image", "backend.image"],
+            "keycloak-operator": ["operator.config.keycloakImage"],
+            "openbao": ["server.image"],
+            "internetaakafhandeling": ["web.image", "poller.image"],
+            "kiss-chart": ["image", "settings.syncJobs.image"],
+            "eck-operator": ["image"],
+        },
+        {"widget": ["image"]},
+        dict,
+    ),
     ("component_resolution_default_image_paths", ["image"], ["custom-default-image"], list),
-    ("component_resolution_version_paths",
-     {"eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"], "redis-operator": ["redisOperator.imageTag"]},
-     {"widget-b": ["version"]}, dict),
+    (
+        "component_resolution_version_paths",
+        {
+            "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
+            "redis-operator": ["redisOperator.imageTag"],
+        },
+        {"widget-b": ["version"]},
+        dict,
+    ),
 ]
 
 
@@ -178,13 +218,16 @@ def test_partial_settings_file_mixes_overrides_and_defaults(libsettings, tmp_pat
     """Only dry_check is present — every dry_check accessor reads its
     override, every other accessor (including ones in wholly-absent
     sections like cve_scan) falls back to its default without crashing."""
-    write_settings(tmp_path, {
-        "dry_check": {
-            "similarity_threshold": 0.5,
-            "high_similarity_threshold": 0.8,
-            "min_significant_lines": 12,
+    write_settings(
+        tmp_path,
+        {
+            "dry_check": {
+                "similarity_threshold": 0.5,
+                "high_similarity_threshold": 0.8,
+                "min_significant_lines": 12,
+            },
         },
-    })
+    )
     assert libsettings.dry_check_similarity_threshold(tmp_path) == 0.5
     assert libsettings.dry_check_high_similarity_threshold(tmp_path) == 0.8
     assert libsettings.dry_check_min_significant_lines(tmp_path) == 12
@@ -195,12 +238,15 @@ def test_partial_settings_file_mixes_overrides_and_defaults(libsettings, tmp_pat
     assert libsettings.cve_scan_cache_ttl_days(tmp_path) == 7
 
     # a section present but missing one of its keys
-    write_settings(tmp_path, {
-        "release_secret": {
-            "kubernetes_secret_limit_bytes": 2097152,
-            # warn_at_fraction_of_limit intentionally omitted
+    write_settings(
+        tmp_path,
+        {
+            "release_secret": {
+                "kubernetes_secret_limit_bytes": 2097152,
+                # warn_at_fraction_of_limit intentionally omitted
+            },
         },
-    })
+    )
     assert libsettings.release_secret_kubernetes_limit_bytes(tmp_path) == 2097152
     assert libsettings.release_secret_warn_at_fraction_of_limit(tmp_path) == 0.90
 
@@ -240,14 +286,17 @@ def test_digest_pinning_exceptions_missing_file_matches_todays_five_entry_table(
 
 
 def test_digest_pinning_exceptions_full_file_override(libsettings, tmp_path):
-    write_settings(tmp_path, {
-        "digest_pinning": {
-            "exceptions": {
-                "some-component.image": {"sibling_field": "digest", "writable": True},
-                "other-component.image": {},
+    write_settings(
+        tmp_path,
+        {
+            "digest_pinning": {
+                "exceptions": {
+                    "some-component.image": {"sibling_field": "digest", "writable": True},
+                    "other-component.image": {},
+                },
             },
         },
-    })
+    )
     assert libsettings.digest_pinning_exceptions(tmp_path) == {
         ("some-component", "image"): {"sibling_field": "digest", "writable": True},
         ("other-component", "image"): {"sibling_field": None, "writable": False},
@@ -258,14 +307,17 @@ def test_digest_pinning_exceptions_partial_entry_defaults_missing_keys(libsettin
     """An entry that only sets one of sibling_field/writable still comes
     back with BOTH keys present (the other defaulted) -- callers never
     need their own .get() dance."""
-    write_settings(tmp_path, {
-        "digest_pinning": {
-            "exceptions": {
-                "writable-no-sibling.image": {"writable": True},
-                "sibling-not-writable.image": {"sibling_field": "sha"},
+    write_settings(
+        tmp_path,
+        {
+            "digest_pinning": {
+                "exceptions": {
+                    "writable-no-sibling.image": {"writable": True},
+                    "sibling-not-writable.image": {"sibling_field": "sha"},
+                },
             },
         },
-    })
+    )
     result = libsettings.digest_pinning_exceptions(tmp_path)
     assert result[("writable-no-sibling", "image")] == {"sibling_field": None, "writable": True}
     assert result[("sibling-not-writable", "image")] == {"sibling_field": "sha", "writable": False}

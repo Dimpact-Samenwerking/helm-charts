@@ -3,6 +3,7 @@ report_errors_by_subchart — with `helm`/`git` subprocess calls mocked out
 via vp.run, so these tests need neither tool installed nor network access.
 check_dependencies now lives in lib.dependencies (also used by
 fix-image-digests) — see tests/lib/test_dependencies.py."""
+
 import json
 from types import SimpleNamespace
 
@@ -12,6 +13,7 @@ import pytest
 def fake_run(returncode=0, stdout="", stderr=""):
     def _run(cmd, **kwargs):
         return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
+
     return _run
 
 
@@ -23,12 +25,15 @@ def fake_render_chart(returncode=0, stdout="", stderr=""):
     "render_chart" via vp's own globals at call time) rather than
     re-testing render_chart's own caching/subprocess behavior here, which
     already has its own dedicated tests."""
+
     def _render_chart(chart_dir, extra_args):
         return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
+
     return _render_chart
 
 
 # --- check_lint ---
+
 
 def test_check_lint_passes_on_clean_output(vp, tmp_path, monkeypatch):
     monkeypatch.setattr(vp, "run", fake_run(0, "1 chart(s) linted, 0 chart(s) failed\n", ""))
@@ -59,8 +64,11 @@ def test_check_lint_counts_warnings_without_failing(vp, tmp_path, monkeypatch):
 
 # --- check_render ---
 
+
 def test_check_render_success(vp, tmp_path, monkeypatch):
-    rendered = "---\n# Source: podiumd/templates/a.yaml\nkind: Foo\n---\n# Source: podiumd/templates/b.yaml\nkind: Bar\n"
+    rendered = (
+        "---\n# Source: podiumd/templates/a.yaml\nkind: Foo\n---\n# Source: podiumd/templates/b.yaml\nkind: Bar\n"
+    )
     monkeypatch.setattr(vp, "render_chart", fake_render_chart(0, rendered, ""))
     ok, detail = vp.check_render(tmp_path, [])
     assert ok is True
@@ -82,6 +90,7 @@ def test_check_render_zero_manifests_fails(vp, tmp_path, monkeypatch):
 
 
 # --- report_largest_templates / report_errors_by_subchart (just check they don't crash and print something sensible) ---
+
 
 def test_report_largest_templates_output(vp, capsys):
     text = "# Source: a.yaml\nline\nline\n# Source: b.yaml\nline\n"
@@ -108,15 +117,9 @@ def test_report_errors_by_subchart_groups_by_chart(vp, capsys):
 # "(rendered line N)" debugging hint to a finding — none of those three
 # tools reports a line number of its own.
 
+
 def test_build_resource_locations_maps_kind_name_to_start_line(librenderscope):
-    rendered = (
-        "---\n"
-        "# Source: podiumd/templates/a.yaml\n"
-        "apiVersion: v1\n"
-        "kind: Service\n"
-        "metadata:\n"
-        "  name: foo\n"
-    )
+    rendered = "---\n# Source: podiumd/templates/a.yaml\napiVersion: v1\nkind: Service\nmetadata:\n  name: foo\n"
     locations = librenderscope.build_resource_locations(rendered)
     assert locations == {("Service", "", "foo"): 3}
 
@@ -187,6 +190,7 @@ def test_resource_line_none_when_not_found(librenderscope):
 # same reason every other librenderscope test above uses librenderscope,
 # not vp, as the monkeypatch target.
 
+
 @pytest.fixture(autouse=True)
 def _clear_render_cache(librenderscope):
     """render_chart's own in-process memoization (see its own docstring)
@@ -203,6 +207,7 @@ def _clear_render_cache(librenderscope):
 def _sequenced_run(rendered, returncode=0, stderr=""):
     def _run(cmd, **kwargs):
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr=stderr)
+
     return _run
 
 
@@ -306,8 +311,10 @@ def test_render_chart_different_extra_args_is_a_distinct_cache_entry(librendersc
 # full-render,yamllint,kubeconform would) makes exactly ONE real `helm
 # template` subprocess call, not one per check.
 
+
 def test_render_consolidation_one_real_render_across_three_checks(
-        vp, librenderscope, libyamllintcheck, libkubeconformcheck, tmp_path, monkeypatch):
+    vp, librenderscope, libyamllintcheck, libkubeconformcheck, tmp_path, monkeypatch
+):
     rendered = "---\n# Source: podiumd/templates/a.yaml\nkind: ConfigMap\n"
     calls = []
 
@@ -319,8 +326,11 @@ def test_render_consolidation_one_real_render_across_three_checks(
     monkeypatch.setattr(vp.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(libyamllintcheck, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="", stderr=""))
     monkeypatch.setattr(libyamllintcheck, "friendly_vendor_charts", lambda chart_dir: {})
-    monkeypatch.setattr(libkubeconformcheck, "run", lambda cmd, **kw: SimpleNamespace(
-        returncode=0, stdout=json.dumps({"resources": [], "summary": {}}), stderr=""))
+    monkeypatch.setattr(
+        libkubeconformcheck,
+        "run",
+        lambda cmd, **kw: SimpleNamespace(returncode=0, stdout=json.dumps({"resources": [], "summary": {}}), stderr=""),
+    )
     monkeypatch.setattr(libkubeconformcheck, "friendly_vendor_charts", lambda chart_dir: {})
 
     extra_args = []
@@ -336,6 +346,7 @@ def test_render_consolidation_one_real_render_across_three_checks(
 # --- lint_args_for (moved from verify-podiumd — see also
 # tests/verify-podiumd/test_misc.py, which covers the vp.lint_args_for
 # re-export used by main()) ---
+
 
 def test_lint_args_for_lives_in_render_scope(librenderscope, tmp_path):
     (tmp_path / "ci").mkdir()

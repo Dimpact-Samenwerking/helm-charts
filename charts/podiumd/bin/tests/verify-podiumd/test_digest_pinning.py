@@ -7,6 +7,7 @@ a separate, report-only scan for images defined only in a vendored
 dependency's own default values.yaml (see lib.chart.subchart_values),
 which check_digest_pinning can never see since it only ever walks
 podiumd's own values.yaml."""
+
 import io
 import tarfile
 from types import SimpleNamespace
@@ -80,9 +81,12 @@ def stub_render(monkeypatch, libdigestpinningcheck, chart_tree_paths, returncode
     convention) with one that reports exactly `chart_tree_paths` as
     rendered, with no real `helm template` invocation."""
     monkeypatch.setattr(
-        libdigestpinningcheck, "render_chart",
+        libdigestpinningcheck,
+        "render_chart",
         lambda chart_dir, extra_args: SimpleNamespace(
-            returncode=returncode, stdout=render_stdout(chart_tree_paths), stderr=""))
+            returncode=returncode, stdout=render_stdout(chart_tree_paths), stderr=""
+        ),
+    )
 
 
 def test_no_values_yaml_passes(vp, tmp_path):
@@ -92,25 +96,31 @@ def test_no_values_yaml_passes(vp, tmp_path):
 
 
 def test_all_digest_pinned_passes(vp, tmp_path):
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
     tag: "5.0.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is True
     assert detail == "1 pin(s), 0 unpinned"
 
 
 def test_floating_tag_fails(vp, tmp_path, capsys):
-    write_values_yaml(tmp_path, """\
+    write_values_yaml(
+        tmp_path,
+        """\
 clamav:
   metrics:
     image:
       repository: docker.io/sergeymakinen/clamav_exporter
       tag: "v2.1.8"
-""")
+""",
+    )
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is False
     assert detail == "1/1 image(s) not digest-pinned"
@@ -119,7 +129,9 @@ clamav:
 
 
 def test_mix_of_pinned_and_floating_reports_only_the_floating_one(vp, tmp_path):
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
@@ -129,7 +141,8 @@ clamav:
     image:
       repository: docker.io/sergeymakinen/clamav_exporter
       tag: "v2.1.8"
-""")
+""",
+    )
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is False
     assert detail == "1/2 image(s) not digest-pinned"
@@ -140,13 +153,16 @@ def test_keycloak_operator_own_image_is_exempt(vp, tmp_path):
     split tag/sha convention -- embedding @sha256 in tag there would
     produce a double digest. Must never be flagged, regardless of what
     its own tag looks like."""
-    write_values_yaml(tmp_path, """\
+    write_values_yaml(
+        tmp_path,
+        """\
 keycloak-operator:
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
       tag: "26.6.4"
-""")
+""",
+    )
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is True
     assert detail == "1 pin(s), 0 unpinned"
@@ -157,7 +173,9 @@ def test_keycloak_operator_keycloak_image_is_exempt(vp, tmp_path):
     same split tag/sha convention as operator.image above -- only
     visible to this check at all since find_image_tag_paths started
     recognizing "...Image"-suffixed keys, not just the literal "image"."""
-    write_values_yaml(tmp_path, """\
+    write_values_yaml(
+        tmp_path,
+        """\
 keycloak-operator:
   operator:
     config:
@@ -165,7 +183,8 @@ keycloak-operator:
         repository: quay.io/keycloak/keycloak
         tag: "26.7.3"
         sha: "ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
-""")
+""",
+    )
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is True
     assert detail == "1 pin(s), 0 unpinned"
@@ -174,11 +193,14 @@ keycloak-operator:
 def test_omc_own_image_is_exempt(vp, tmp_path):
     """omc's values.yaml comment says the subchart itself can't handle a
     digest-pinned tag -- must never be flagged."""
-    write_values_yaml(tmp_path, """\
+    write_values_yaml(
+        tmp_path,
+        """\
 omc:
   image:
     tag: "1.17.19"
-""")
+""",
+    )
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is True
     assert detail == "1 pin(s), 0 unpinned"
@@ -190,19 +212,24 @@ def test_eck_operator_own_image_is_exempt(vp, tmp_path):
     own templates/_helpers.tpl) -- embedding @sha256 in tag there too
     would produce a double digest. Must never be flagged, regardless of
     what its own tag looks like."""
-    write_values_yaml(tmp_path, """\
+    write_values_yaml(
+        tmp_path,
+        """\
 eck-operator:
   image:
     tag: "3.5.0"
     digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
-""")
+""",
+    )
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is True
     assert detail == "1 pin(s), 0 unpinned"
 
 
 def test_keycloak_operator_exemption_does_not_hide_other_violations(vp, tmp_path):
-    write_values_yaml(tmp_path, """\
+    write_values_yaml(
+        tmp_path,
+        """\
 keycloak-operator:
   operator:
     image:
@@ -213,7 +240,8 @@ keycloak-operator:
       image:
         repository: postgres
         tag: "16"
-""")
+""",
+    )
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is False
     assert detail == "1/2 image(s) not digest-pinned"
@@ -223,18 +251,23 @@ def test_sha256_style_digest_is_case_sensitive_lowercase_hex(vp, tmp_path):
     """A malformed/uppercase digest must still fail -- this check is
     about the shape scan_digest_pins itself requires, not just "has an
     @sha256 substring somewhere"."""
-    write_values_yaml(tmp_path, """\
+    write_values_yaml(
+        tmp_path,
+        """\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
     tag: "5.0.0@sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-""")
+""",
+    )
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is False
 
 
 def test_multiple_violations_all_reported(vp, tmp_path, capsys):
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 clamav:
   metrics:
     image:
@@ -250,7 +283,8 @@ zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
     tag: "5.0.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is False
     assert detail == "2/3 image(s) not digest-pinned"
@@ -266,14 +300,17 @@ def test_suffixed_image_key_is_enforced_too(vp, tmp_path, capsys):
     Python init image. Regression: find_image_tag_paths used to only
     recognize the literal key "image", silently exempting every
     "...Image"-suffixed sibling from digest-pin enforcement entirely."""
-    write_values_yaml(tmp_path, """\
+    write_values_yaml(
+        tmp_path,
+        """\
 keycloak-operator:
   jobs:
     ensurePodiumdAdminUser:
       initImage:
         repository: python
         tag: "3.14-slim"
-""")
+""",
+    )
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is False
     assert detail == "1/1 image(s) not digest-pinned"
@@ -282,13 +319,15 @@ keycloak-operator:
 
 
 def test_plural_images_container_not_treated_as_an_image_block(vp, tmp_path):
-    """"images" (plural, a container of several named templates, e.g.
+    """ "images" (plural, a container of several named templates, e.g.
     global.images.nginx) must not itself be flagged — it doesn't end in
     "Image" (capital I), so only its own literally-"image"/"...Image"-
     keyed children would ever be. Two real consumers given here purely
     so the (unrelated) global.images.* under-use check introduced later
     doesn't also fail this — see its own dedicated tests below."""
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 global:
   images:
     nginx:
@@ -304,7 +343,8 @@ frankgateway:
     image:
       repository: nginxinc/nginx-unprivileged
       tag: "1.31.4@sha256:{DIGEST_A}"
-""")
+""",
+    )
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is True
     assert detail == "2 pin(s), 0 unpinned"
@@ -327,15 +367,19 @@ frankgateway:
 # anchor itself — see _path_chart_tree_path), since that's always
 # considered live whenever anything renders at all.
 
+
 def test_global_image_with_zero_consumers_fails(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
     write_chart_yaml(tmp_path, [])
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 global:
   images:
     nginx:
       repository: nginxinc/nginx-unprivileged
       tag: "1.31.4@sha256:{DIGEST_A}"
-""")
+""",
+    )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd"])
 
     ok, detail = vp.check_shared_image_usage(tmp_path, [])
@@ -352,7 +396,9 @@ def test_global_image_with_exactly_one_consumer_fails(vp, tmp_path, monkeypatch,
     with only one alias site is no different from just setting the
     value directly there."""
     write_chart_yaml(tmp_path, [])
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 global:
   images:
     curl:
@@ -363,7 +409,8 @@ zac:
     image:
       repository: curlimages/curl
       tag: "8.21.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd"])
 
     ok, detail = vp.check_shared_image_usage(tmp_path, [])
@@ -380,7 +427,9 @@ def test_global_image_with_two_or_more_consumers_passes(vp, tmp_path, monkeypatc
     """2+ real consumers is genuinely shared -- working as intended,
     still worth seeing the full consumer list for, but report only."""
     write_chart_yaml(tmp_path, [])
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 global:
   images:
     nginx:
@@ -396,7 +445,8 @@ frankgateway:
     image:
       repository: nginxinc/nginx-unprivileged
       tag: "1.31.4@sha256:{DIGEST_A}"
-""")
+""",
+    )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd"])
 
     ok, detail = vp.check_shared_image_usage(tmp_path, [])
@@ -412,13 +462,16 @@ frankgateway:
 
 
 def test_global_image_consumer_under_a_genuinely_enabled_dependency_counts_normally(
-        vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """The flip side of the render-gate regression tests below: a path
     under a genuinely ENABLED dependency (its own chart-tree path DOES
     render) still counts as a real consumer -- the render-gate fix must
     not regress the already-correct nginx/curl/busybox-shaped case."""
     write_chart_yaml(tmp_path, [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")])
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 global:
   images:
     nginx:
@@ -434,7 +487,8 @@ frankgateway:
     image:
       repository: nginxinc/nginx-unprivileged
       tag: "1.31.4@sha256:{DIGEST_A}"
-""")
+""",
+    )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd", "podiumd/charts/zac"])
 
     ok, detail = vp.check_shared_image_usage(tmp_path, [])
@@ -447,7 +501,8 @@ frankgateway:
 
 
 def test_global_image_zero_live_consumers_because_nested_dependency_tags_disabled_fails(
-        vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """The exact real bug this render-gate fixes, confirmed live against
     the real chart: every Maykin chart's own "<name>.redis.image"
     override (here, openzaak's) configures that chart's OWN NESTED
@@ -458,14 +513,19 @@ def test_global_image_zero_live_consumers_because_nested_dependency_tags_disable
     static scan would have wrongly counted it as one."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(
-        tmp_path / "charts", "openzaak", "1.14.2",
+        tmp_path / "charts",
+        "openzaak",
+        "1.14.2",
         {"image": {"repository": "openzaak/open-zaak", "tag": f"1.14.2@sha256:{DIGEST_A}"}},
         chart_yaml={
-            "name": "openzaak", "version": "1.14.2",
+            "name": "openzaak",
+            "version": "1.14.2",
             "dependencies": [{"name": "redis", "version": "18.0.0", "repository": "@bitnami", "tags": ["redis"]}],
         },
     )
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 global:
   images:
     redis:
@@ -479,7 +539,8 @@ openzaak:
     image:
       repository: redis
       tag: "8.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     # openzaak's own top-level path DOES render; its own nested redis
     # sub-subchart's own path never does (never included here).
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd", "podiumd/charts/openzaak"])
@@ -495,13 +556,17 @@ openzaak:
     assert "openzaak.redis.image" not in out
 
 
-def test_non_global_repository_shared_at_two_or_more_paths_never_fails(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_non_global_repository_shared_at_two_or_more_paths_never_fails(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """A repository shared incidentally (NOT a global.images.*
     registration at all -- e.g. keycloak/keycloak-shaped) is never a
     failure, regardless of consumer count -- purely informational,
     exactly like before this feature's pass/fail split existed."""
     write_chart_yaml(tmp_path, [])
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 keycloak-operator:
   operator:
     config:
@@ -512,7 +577,8 @@ keycloak:
   image:
     repository: quay.io/keycloak/keycloak
     tag: "26.7.3@sha256:{DIGEST_A}"
-""")
+""",
+    )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd"])
 
     ok, detail = vp.check_shared_image_usage(tmp_path, [])
@@ -525,16 +591,21 @@ keycloak:
     assert "keycloak/keycloak (2 consumers):" in out
 
 
-def test_check_shared_image_usage_does_not_report_a_single_use_repository_as_shared(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_check_shared_image_usage_does_not_report_a_single_use_repository_as_shared(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """A repository pinned at exactly one path isn't "shared" in any
     interesting sense -- no false-positive noise for the common case."""
     write_chart_yaml(tmp_path, [])
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
     tag: "5.0.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd"])
 
     ok, detail = vp.check_shared_image_usage(tmp_path, [])
@@ -557,12 +628,15 @@ def test_check_shared_image_usage_render_failure(vp, tmp_path, monkeypatch, libd
 
 
 def test_global_image_usage_excludes_single_use_repos(libdigestpinningcheck, tmp_path):
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
     tag: "5.0.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     values = libdigestpinningcheck.load_yaml(tmp_path / "values.yaml")
     deps = []
     repo_groups = libdigestpinningcheck._repository_groups(tmp_path, values, deps)
@@ -571,7 +645,9 @@ zac:
 
 
 def test_global_image_usage_finds_multi_path_repos(libdigestpinningcheck, tmp_path):
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 global:
   images:
     curl:
@@ -582,7 +658,8 @@ zac:
     image:
       repository: curlimages/curl
       tag: "8.21.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     values = libdigestpinningcheck.load_yaml(tmp_path / "values.yaml")
     deps = []
     repo_groups = libdigestpinningcheck._repository_groups(tmp_path, values, deps)
@@ -597,8 +674,9 @@ def test_path_chart_tree_path_orphan_key_is_always_chart_name(libdigestpinningch
 
 def test_path_chart_tree_path_dependency_resolves_via_resolve_subchart_default(libdigestpinningcheck, tmp_path):
     deps = [make_dep("openzaak", "1.14.2")]
-    assert (libdigestpinningcheck._path_chart_tree_path(tmp_path, deps, ("openzaak", "image"))
-            == "podiumd/charts/openzaak")
+    assert (
+        libdigestpinningcheck._path_chart_tree_path(tmp_path, deps, ("openzaak", "image")) == "podiumd/charts/openzaak"
+    )
 
 
 def test_live_repository_groups_drops_dead_consumer_paths(libdigestpinningcheck, tmp_path):
@@ -607,8 +685,13 @@ def test_live_repository_groups_drops_dead_consumer_paths(libdigestpinningcheck,
     never rendered is dropped entirely, not just from a count."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(
-        tmp_path / "charts", "openzaak", "1.14.2", {}, chart_yaml={
-            "name": "openzaak", "version": "1.14.2",
+        tmp_path / "charts",
+        "openzaak",
+        "1.14.2",
+        {},
+        chart_yaml={
+            "name": "openzaak",
+            "version": "1.14.2",
             "dependencies": [{"name": "redis", "version": "18.0.0", "repository": "@bitnami", "tags": ["redis"]}],
         },
     )
@@ -626,9 +709,14 @@ def test_live_repository_groups_drops_dead_consumer_paths(libdigestpinningcheck,
 
 # --- resolve_values_path_source (chart-name-or-local-file attribution) ---
 
-def test_shared_image_usage_annotates_a_real_dependency_path_with_its_chart(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+
+def test_shared_image_usage_annotates_a_real_dependency_path_with_its_chart(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     write_chart_yaml(tmp_path, [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")])
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 global:
   images:
     nginx:
@@ -644,7 +732,8 @@ frankgateway:
     image:
       repository: nginxinc/nginx-unprivileged
       tag: "1.31.4@sha256:{DIGEST_A}"
-""")
+""",
+    )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd", "podiumd/charts/zac"])
 
     ok, detail = vp.check_shared_image_usage(tmp_path, [])
@@ -654,8 +743,10 @@ frankgateway:
     assert "zac.nginx.image  [chart zaakafhandelcomponent@1.0.297]" in out
 
 
-def test_shared_image_usage_annotates_an_orphan_path_with_its_local_template(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
-    """"frankgateway" has no Chart.yaml dependency of its own at all --
+def test_shared_image_usage_annotates_an_orphan_path_with_its_local_template(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
+    """ "frankgateway" has no Chart.yaml dependency of its own at all --
     it's a native, directly-templated top-level block. The local
     template file that actually references ".Values.frankgateway" must
     be named, deterministically (a literal text search, not a guess)."""
@@ -665,7 +756,9 @@ def test_shared_image_usage_annotates_an_orphan_path_with_its_local_template(vp,
         "image: {{ .Values.frankgateway.nginx.image.repository }}:{{ .Values.frankgateway.nginx.image.tag }}\n",
         encoding="utf-8",
     )
-    write_values_yaml(tmp_path, f"""\
+    write_values_yaml(
+        tmp_path,
+        f"""\
 global:
   images:
     nginx:
@@ -681,7 +774,8 @@ zac:
     image:
       repository: nginxinc/nginx-unprivileged
       tag: "1.31.4@sha256:{DIGEST_A}"
-""")
+""",
+    )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd"])
 
     ok, detail = vp.check_shared_image_usage(tmp_path, [])
@@ -700,6 +794,7 @@ zac:
 # path is CHART_NAME/charts/<dep name> (never the alias — see lib.chart.
 # resolve_subchart_default), so stub_render is always given "podiumd/
 # charts/<name>", not "podiumd/charts/<alias>".
+
 
 def test_no_dependencies_passes(vp, tmp_path, monkeypatch, libdigestpinningcheck):
     write_chart_yaml(tmp_path, [])
@@ -723,14 +818,18 @@ def test_dependency_not_yet_vendored_is_skipped(vp, tmp_path, monkeypatch, libdi
 
 def test_overridden_subchart_image_is_not_reported(vp, tmp_path, monkeypatch, libdigestpinningcheck):
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
-    make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
-              {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}})
-    write_values_yaml(tmp_path, f"""\
+    make_tgz(
+        tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}}
+    )
+    write_values_yaml(
+        tmp_path,
+        f"""\
 openzaak:
   image:
     repository: openzaak/open-zaak
     tag: "1.14.2@sha256:{DIGEST_A}"
-""")
+""",
+    )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak"])
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
     assert ok is True
@@ -742,8 +841,9 @@ def test_unoverridden_floating_subchart_image_fails_the_check(vp, tmp_path, monk
     sub-chart's own default either) is genuinely unpinned and non-
     reproducible — it now FAILS the step, unlike a pinned finding."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2", alias="oz")])
-    make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
-              {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}})
+    make_tgz(
+        tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}}
+    )
     write_values_yaml(tmp_path, "{}\n")
     # chart-tree path is keyed by the dependency's own alias ("oz"),
     # never its real chart name ("openzaak") — Helm's own "# Source:"
@@ -760,15 +860,20 @@ def test_unoverridden_floating_subchart_image_fails_the_check(vp, tmp_path, monk
 
 
 def test_subchart_image_visibility_finding_annotated_with_its_owning_chart(
-        vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """Every finding is annotated via the SAME shared resolver
     (lib.chart.resolve_values_path_source) _print_shared_image_usage
     uses — scope_key here is always a real Chart.yaml dependency's own
     alias-or-name by construction, so this can only ever hit the
     resolver's "chart X@Y" branch, never the local-file one."""
     write_chart_yaml(tmp_path, [make_dep("eck-operator", "3.5.0")])
-    make_tgz(tmp_path / "charts", "eck-operator", "3.5.0",
-              {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": "3.5.0"}})
+    make_tgz(
+        tmp_path / "charts",
+        "eck-operator",
+        "3.5.0",
+        {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": "3.5.0"}},
+    )
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/eck-operator"])
 
@@ -776,17 +881,28 @@ def test_subchart_image_visibility_finding_annotated_with_its_owning_chart(
 
     assert ok is False
     out = capsys.readouterr().out
-    assert "eck-operator.image.tag: '3.5.0' (FLOATING in the sub-chart's own default)  [chart eck-operator@3.5.0]" in out
+    assert (
+        "eck-operator.image.tag: '3.5.0' (FLOATING in the sub-chart's own default)  [chart eck-operator@3.5.0]" in out
+    )
 
 
-def test_unoverridden_already_pinned_subchart_image_never_fails(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_unoverridden_already_pinned_subchart_image_never_fails(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """A PINNED finding (the sub-chart's own default already embeds a
     real digest, podiumd just doesn't override it) is already
     reproducible as-is — report only, never fails the run on its own."""
     write_chart_yaml(tmp_path, [make_dep("zac", "1.0.297", alias="zac")])
-    make_tgz(tmp_path / "charts", "zac", "1.0.297",
-              {"opentelemetry-collector": {"image": {
-                  "repository": "otel/opentelemetry-collector", "tag": f"0.169.0@sha256:{DIGEST_A}"}}})
+    make_tgz(
+        tmp_path / "charts",
+        "zac",
+        "1.0.297",
+        {
+            "opentelemetry-collector": {
+                "image": {"repository": "otel/opentelemetry-collector", "tag": f"0.169.0@sha256:{DIGEST_A}"}
+            }
+        },
+    )
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/zac"])
 
@@ -797,7 +913,10 @@ def test_unoverridden_already_pinned_subchart_image_never_fails(vp, tmp_path, mo
     out = capsys.readouterr().out
     assert "Report only, NOT failing:" in out
     assert "FAILING:" not in out
-    assert f"zac.opentelemetry-collector.image.tag: '0.169.0@sha256:{DIGEST_A}' (pinned in the sub-chart's own default)" in out
+    assert (
+        f"zac.opentelemetry-collector.image.tag: '0.169.0@sha256:{DIGEST_A}' (pinned in the sub-chart's own default)"
+        in out
+    )
 
 
 def test_mix_of_floating_and_pinned_findings_fails_overall(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
@@ -805,15 +924,26 @@ def test_mix_of_floating_and_pinned_findings_fails_overall(vp, tmp_path, monkeyp
     floating finding fails the step), but the pinned one is still
     printed under its own separate, clearly-labeled report-only
     section, never conflated with the failing floating one."""
-    write_chart_yaml(tmp_path, [
-        make_dep("openzaak", "1.14.2"),
-        make_dep("zac", "1.0.297", alias="zac"),
-    ])
-    make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
-              {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}})
-    make_tgz(tmp_path / "charts", "zac", "1.0.297",
-              {"opentelemetry-collector": {"image": {
-                  "repository": "otel/opentelemetry-collector", "tag": f"0.169.0@sha256:{DIGEST_A}"}}})
+    write_chart_yaml(
+        tmp_path,
+        [
+            make_dep("openzaak", "1.14.2"),
+            make_dep("zac", "1.0.297", alias="zac"),
+        ],
+    )
+    make_tgz(
+        tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}}
+    )
+    make_tgz(
+        tmp_path / "charts",
+        "zac",
+        "1.0.297",
+        {
+            "opentelemetry-collector": {
+                "image": {"repository": "otel/opentelemetry-collector", "tag": f"0.169.0@sha256:{DIGEST_A}"}
+            }
+        },
+    )
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak", "podiumd/charts/zac"])
 
@@ -825,7 +955,10 @@ def test_mix_of_floating_and_pinned_findings_fails_overall(vp, tmp_path, monkeyp
     assert "FAILING:" in out
     assert "openzaak.image.tag: '1.14.2' (FLOATING in the sub-chart's own default)" in out
     assert "Report only, NOT failing:" in out
-    assert f"zac.opentelemetry-collector.image.tag: '0.169.0@sha256:{DIGEST_A}' (pinned in the sub-chart's own default)" in out
+    assert (
+        f"zac.opentelemetry-collector.image.tag: '0.169.0@sha256:{DIGEST_A}' (pinned in the sub-chart's own default)"
+        in out
+    )
 
 
 def test_nested_subchart_image_path_resolved_correctly(vp, tmp_path, monkeypatch, libdigestpinningcheck):
@@ -833,15 +966,17 @@ def test_nested_subchart_image_path_resolved_correctly(vp, tmp_path, monkeypatch
     must be checked against the SAME nested path in podiumd's own
     values.yaml, not just its top-level scope."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
-    make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
-              {"redis": {"image": {"repository": "redis", "tag": "8.0"}}})
-    write_values_yaml(tmp_path, f"""\
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"redis": {"image": {"repository": "redis", "tag": "8.0"}}})
+    write_values_yaml(
+        tmp_path,
+        f"""\
 openzaak:
   redis:
     image:
       repository: redis
       tag: "8.0@sha256:{DIGEST_B}"
-""")
+""",
+    )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak"])
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
     assert ok is True
@@ -854,15 +989,22 @@ def test_exempted_digest_pinning_path_never_shows_up_as_unresolved(vp, tmp_path,
     instead of an embedded digest) — it must never appear as "unresolved"
     here, since it has an own_tag by definition."""
     write_chart_yaml(tmp_path, [make_dep("keycloak-operator", "1.0.0")])
-    make_tgz(tmp_path / "charts", "keycloak-operator", "1.0.0",
-              {"operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.6.4"}}})
-    write_values_yaml(tmp_path, """\
+    make_tgz(
+        tmp_path / "charts",
+        "keycloak-operator",
+        "1.0.0",
+        {"operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.6.4"}}},
+    )
+    write_values_yaml(
+        tmp_path,
+        """\
 keycloak-operator:
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
       tag: "26.6.4"
-""")
+""",
+    )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/keycloak-operator"])
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
     assert ok is True
@@ -870,14 +1012,15 @@ keycloak-operator:
 
 
 def test_multiple_unresolved_images_all_reported(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
-    write_chart_yaml(tmp_path, [
-        make_dep("openzaak", "1.14.2"),
-        make_dep("openklant", "2.0.0"),
-    ])
-    make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
-              {"redis": {"image": {"repository": "redis", "tag": "8.0"}}})
-    make_tgz(tmp_path / "charts", "openklant", "2.0.0",
-              {"redis": {"image": {"repository": "redis", "tag": "8.0"}}})
+    write_chart_yaml(
+        tmp_path,
+        [
+            make_dep("openzaak", "1.14.2"),
+            make_dep("openklant", "2.0.0"),
+        ],
+    )
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"redis": {"image": {"repository": "redis", "tag": "8.0"}}})
+    make_tgz(tmp_path / "charts", "openklant", "2.0.0", {"redis": {"image": {"repository": "redis", "tag": "8.0"}}})
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak", "podiumd/charts/openklant"])
 
@@ -891,8 +1034,11 @@ def test_multiple_unresolved_images_all_reported(vp, tmp_path, monkeypatch, libd
 
 
 def test_check_subchart_image_visibility_render_failure(vp, tmp_path, monkeypatch, libdigestpinningcheck):
-    monkeypatch.setattr(libdigestpinningcheck, "render_chart",
-                         lambda chart_dir, extra_args: SimpleNamespace(returncode=1, stdout="", stderr="boom"))
+    monkeypatch.setattr(
+        libdigestpinningcheck,
+        "render_chart",
+        lambda chart_dir, extra_args: SimpleNamespace(returncode=1, stdout="", stderr="boom"),
+    )
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
     assert ok is False
     assert "helm template failed to render" in detail
@@ -900,7 +1046,10 @@ def test_check_subchart_image_visibility_render_failure(vp, tmp_path, monkeypatc
 
 # --- the render-gate itself (rendered_chart_paths) ---
 
-def test_condition_disabled_dependency_not_reported_when_its_own_path_never_renders(vp, tmp_path, monkeypatch, libdigestpinningcheck):
+
+def test_condition_disabled_dependency_not_reported_when_its_own_path_never_renders(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck
+):
     """A dependency whose own chart-tree path never rendered at all (e.g.
     zaakbrug's own condition-disabled "staging" mode, or any dependency
     disabled via Helm's condition:/tags: mechanism) must stay silent
@@ -908,8 +1057,12 @@ def test_condition_disabled_dependency_not_reported_when_its_own_path_never_rend
     regardless of what the dependency's own vendored default looks
     like."""
     write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28")])
-    make_tgz(tmp_path / "charts", "zaakbrug", "2.3.28",
-              {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.9.0"}}})
+    make_tgz(
+        tmp_path / "charts",
+        "zaakbrug",
+        "2.3.28",
+        {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.9.0"}}},
+    )
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, [])  # zaakbrug's own path never rendered
 
@@ -919,7 +1072,9 @@ def test_condition_disabled_dependency_not_reported_when_its_own_path_never_rend
     assert detail == "0 unresolved"
 
 
-def test_null_tag_subchart_default_resolved_via_own_app_version_is_reported(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_null_tag_subchart_default_resolved_via_own_app_version_is_reported(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """A top-level dependency's own default "image: {repository: ...,
     tag: null}" block (no podiumd override at all) — e.g. eck-operator,
     whose own vendored default relies entirely on Helm's ".tag | default
@@ -927,9 +1082,13 @@ def test_null_tag_subchart_default_resolved_via_own_app_version_is_reported(vp, 
     Chart.yaml "appVersion" (never a real digest-pinned tag, so reported
     as FLOATING) once its own chart-tree path renders."""
     write_chart_yaml(tmp_path, [make_dep("eck-operator", "3.5.0")])
-    make_tgz(tmp_path / "charts", "eck-operator", "3.5.0",
-              {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}},
-              chart_yaml={"name": "eck-operator", "version": "3.5.0", "appVersion": "3.5.0"})
+    make_tgz(
+        tmp_path / "charts",
+        "eck-operator",
+        "3.5.0",
+        {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}},
+        chart_yaml={"name": "eck-operator", "version": "3.5.0", "appVersion": "3.5.0"},
+    )
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/eck-operator"])
 
@@ -954,7 +1113,9 @@ def test_null_tag_with_no_repository_is_skipped(vp, tmp_path, monkeypatch, libdi
     assert detail == "0 unresolved"
 
 
-def test_nested_subchart_default_not_reported_when_its_own_path_never_renders(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_nested_subchart_default_not_reported_when_its_own_path_never_renders(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """openinwoner's own vendored default bundles a SEPARATE, same-named
     nested "eck-operator" dependency (its OWN Chart.yaml declares it,
     distinct from the top-level "eck-operator" dependency) — globally
@@ -965,15 +1126,20 @@ def test_nested_subchart_default_not_reported_when_its_own_path_never_renders(vp
     dependency's own image."""
     write_chart_yaml(tmp_path, [make_dep("openinwoner", "1.0.0")])
     make_tgz(
-        tmp_path / "charts", "openinwoner", "1.0.0",
+        tmp_path / "charts",
+        "openinwoner",
+        "1.0.0",
         {"eck-operator": {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}}},
         chart_yaml={
-            "name": "openinwoner", "version": "1.0.0", "appVersion": "1.0.0",
+            "name": "openinwoner",
+            "version": "1.0.0",
+            "appVersion": "1.0.0",
             "dependencies": [{"name": "eck-operator", "version": "3.2.0"}],
         },
         extra_files={
             "charts/eck-operator/Chart.yaml": yaml.safe_dump(
-                {"name": "eck-operator", "version": "3.2.0", "appVersion": "3.2.0"}),
+                {"name": "eck-operator", "version": "3.2.0", "appVersion": "3.2.0"}
+            ),
         },
     )
     write_values_yaml(tmp_path, "{}\n")
@@ -988,27 +1154,37 @@ def test_nested_subchart_default_not_reported_when_its_own_path_never_renders(vp
     assert "eck-operator" not in out
 
 
-def test_nested_subchart_default_reported_when_its_own_path_does_render(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_nested_subchart_default_reported_when_its_own_path_does_render(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """The flip side of the above: when the nested dependency's own
     chart-tree path DOES render, its own image is reported, resolved
     against ITS OWN Chart.yaml appVersion (3.2.0), not the outer
     dependency's (1.0.0)."""
     write_chart_yaml(tmp_path, [make_dep("openinwoner", "1.0.0")])
     make_tgz(
-        tmp_path / "charts", "openinwoner", "1.0.0",
+        tmp_path / "charts",
+        "openinwoner",
+        "1.0.0",
         {"eck-operator": {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}}},
         chart_yaml={
-            "name": "openinwoner", "version": "1.0.0", "appVersion": "1.0.0",
+            "name": "openinwoner",
+            "version": "1.0.0",
+            "appVersion": "1.0.0",
             "dependencies": [{"name": "eck-operator", "version": "3.2.0"}],
         },
         extra_files={
             "charts/eck-operator/Chart.yaml": yaml.safe_dump(
-                {"name": "eck-operator", "version": "3.2.0", "appVersion": "3.2.0"}),
+                {"name": "eck-operator", "version": "3.2.0", "appVersion": "3.2.0"}
+            ),
         },
     )
     write_values_yaml(tmp_path, "{}\n")
-    stub_render(monkeypatch, libdigestpinningcheck,
-                ["podiumd/charts/openinwoner", "podiumd/charts/openinwoner/charts/eck-operator"])
+    stub_render(
+        monkeypatch,
+        libdigestpinningcheck,
+        ["podiumd/charts/openinwoner", "podiumd/charts/openinwoner/charts/eck-operator"],
+    )
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
 
@@ -1020,15 +1196,22 @@ def test_nested_subchart_default_reported_when_its_own_path_does_render(vp, tmp_
 
 # --- zaakbrug.staging is now an ORDINARY finding (SUBCHART_VISIBILITY_EXEMPT removed) ---
 
-def test_zaakbrug_staging_is_now_an_ordinary_unexempted_finding(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+
+def test_zaakbrug_staging_is_now_an_ordinary_unexempted_finding(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """SUBCHART_VISIBILITY_EXEMPT has been removed entirely: zaakbrug's
     own "staging" mode is no longer special-cased — once its own
     chart-tree path actually renders, it's reported exactly like any
     other unresolved subchart-default image, with no exempt bucket, no
     exempt count, no special wording."""
     write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28")])
-    make_tgz(tmp_path / "charts", "zaakbrug", "2.3.28",
-              {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.9.0"}}})
+    make_tgz(
+        tmp_path / "charts",
+        "zaakbrug",
+        "2.3.28",
+        {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.9.0"}}},
+    )
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/zaakbrug"])
 
@@ -1041,13 +1224,19 @@ def test_zaakbrug_staging_is_now_an_ordinary_unexempted_finding(vp, tmp_path, mo
     assert "exempt" not in out
 
 
-def test_zaakbrug_staging_nested_prefix_is_also_an_ordinary_finding(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_zaakbrug_staging_nested_prefix_is_also_an_ordinary_finding(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """staging.apiProxy (a nested sibling under the same "staging" key)
     is likewise just an ordinary finding now — no prefix-match exemption
     left to apply to it at all."""
     write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28")])
-    make_tgz(tmp_path / "charts", "zaakbrug", "2.3.28",
-              {"staging": {"apiProxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "stable"}}}})
+    make_tgz(
+        tmp_path / "charts",
+        "zaakbrug",
+        "2.3.28",
+        {"staging": {"apiProxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "stable"}}}},
+    )
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/zaakbrug"])
 
@@ -1059,12 +1248,17 @@ def test_zaakbrug_staging_nested_prefix_is_also_an_ordinary_finding(vp, tmp_path
     assert "zaakbrug.staging.apiProxy.image.tag" in out
 
 
-def test_multiple_findings_from_different_dependencies_all_reported_plainly(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_multiple_findings_from_different_dependencies_all_reported_plainly(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28"), make_dep("openzaak", "1.14.2")])
-    make_tgz(tmp_path / "charts", "zaakbrug", "2.3.28",
-              {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.9.0"}}})
-    make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
-              {"redis": {"image": {"repository": "redis", "tag": "8.0"}}})
+    make_tgz(
+        tmp_path / "charts",
+        "zaakbrug",
+        "2.3.28",
+        {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.9.0"}}},
+    )
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"redis": {"image": {"repository": "redis", "tag": "8.0"}}})
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/zaakbrug", "podiumd/charts/openzaak"])
 
@@ -1080,22 +1274,31 @@ def test_multiple_findings_from_different_dependencies_all_reported_plainly(vp, 
 
 # --- subchart_template_text (structurally unreferenced keys) ---
 
-def test_unreferenced_subchart_key_is_dropped_when_templates_show_it_is_dead(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+
+def test_unreferenced_subchart_key_is_dropped_when_templates_show_it_is_dead(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """A vendored sub-chart's own top-level values key (e.g. pabc's "web"/
     "poller") that no template in that same sub-chart ever reads is
     structurally inert — reporting it as "unresolved" is just noise, since
     no podiumd override there could ever change what gets rendered."""
     write_chart_yaml(tmp_path, [make_dep("pabc", "1.1.1")])
-    make_tgz(tmp_path / "charts", "pabc", "1.1.1",
-              {"image": {"repository": "pabc/pabc-api", "tag": "1.1.1"},
-               "web": {"image": {"tag": "1.1.1"}}},
-              templates={"deployment.yaml": "image: {{ .Values.image.repository }}:{{ .Values.image.tag }}\n"})
-    write_values_yaml(tmp_path, f"""\
+    make_tgz(
+        tmp_path / "charts",
+        "pabc",
+        "1.1.1",
+        {"image": {"repository": "pabc/pabc-api", "tag": "1.1.1"}, "web": {"image": {"tag": "1.1.1"}}},
+        templates={"deployment.yaml": "image: {{ .Values.image.repository }}:{{ .Values.image.tag }}\n"},
+    )
+    write_values_yaml(
+        tmp_path,
+        f"""\
 pabc:
   image:
     repository: pabc/pabc-api
     tag: "1.1.1@sha256:{DIGEST_A}"
-""")
+""",
+    )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/pabc"])
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
@@ -1106,15 +1309,21 @@ pabc:
     assert "web" not in out
 
 
-def test_referenced_subchart_key_is_still_reported_even_with_templates_present(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_referenced_subchart_key_is_still_reported_even_with_templates_present(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """The flip side of the above: a key a template DOES read must still be
     reported as unresolved — the filter only drops keys with zero textual
     reference anywhere in templates/, not everything just because
     templates/ happens to be readable."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
-    make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
-              {"redis": {"image": {"repository": "redis", "tag": "8.0"}}},
-              templates={"deployment.yaml": "image: {{ .Values.redis.image.repository }}\n"})
+    make_tgz(
+        tmp_path / "charts",
+        "openzaak",
+        "1.14.2",
+        {"redis": {"image": {"repository": "redis", "tag": "8.0"}}},
+        templates={"deployment.yaml": "image: {{ .Values.redis.image.repository }}\n"},
+    )
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak"])
 
@@ -1126,14 +1335,15 @@ def test_referenced_subchart_key_is_still_reported_even_with_templates_present(v
     assert "openzaak.redis.image.tag" in out
 
 
-def test_unreferenced_key_without_a_templates_dir_at_all_is_still_reported(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_unreferenced_key_without_a_templates_dir_at_all_is_still_reported(
+    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+):
     """A vendored .tgz with no templates/ directory at all (the shape
     every other test's make_tgz call already uses) is "can't tell", not
     "definitely unreferenced" — must NOT be filtered out just because the
     haystack subchart_template_text would see is empty."""
     write_chart_yaml(tmp_path, [make_dep("pabc", "1.1.1")])
-    make_tgz(tmp_path / "charts", "pabc", "1.1.1",
-              {"web": {"image": {"tag": "1.1.1"}}})
+    make_tgz(tmp_path / "charts", "pabc", "1.1.1", {"web": {"image": {"tag": "1.1.1"}}})
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/pabc"])
 

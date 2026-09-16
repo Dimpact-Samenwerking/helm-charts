@@ -1,6 +1,7 @@
 """match_dependency and resolve_entry_path — including the two disambiguation
 bugs found (and fixed) during development: resolve_entry_path picking the
 wrong sibling path via naive longest-substring matching."""
+
 from dep_helpers import make_dep
 
 
@@ -20,7 +21,7 @@ def test_match_dependency_no_match_returns_none(libupgradedoc):
 
 
 def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedoc):
-    """"mi" (mi-data's own alias) is a literal substring of
+    """ "mi" (mi-data's own alias) is a literal substring of
     "ensurePodiumdAdminUser" (inside "ad-mi-n") — a raw normalize_name(text)
     containment check would wrongly match it; word-boundary-aligned
     matching must not."""

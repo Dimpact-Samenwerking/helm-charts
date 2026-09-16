@@ -1,6 +1,7 @@
 """Loads fix-node-selector (a hyphenated filename, not importable
 normally) as a module named `sub` so tests can call its functions
 directly."""
+
 import importlib.util
 from importlib.machinery import SourceFileLoader
 from pathlib import Path

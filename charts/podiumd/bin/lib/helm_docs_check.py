@@ -28,6 +28,7 @@ On drift, prints an actual unified diff (capped at helm_doc.
 max_diff_lines_shown, see lib.settings) rather than just a changed-line
 count — seeing WHICH lines moved is what makes the finding actionable; a
 bare count isn't."""
+
 import difflib
 import shutil
 
@@ -62,11 +63,15 @@ def check_helm_docs(chart_dir):
         print(f"OK: {README_FILENAME} matches helm-docs output")
         return True, "in sync"
 
-    diff = list(difflib.unified_diff(
-        original_lines, regenerated_lines,
-        fromfile=f"{README_FILENAME} (current)", tofile=f"{README_FILENAME} (helm-docs)",
-        lineterm="",
-    ))
+    diff = list(
+        difflib.unified_diff(
+            original_lines,
+            regenerated_lines,
+            fromfile=f"{README_FILENAME} (current)",
+            tofile=f"{README_FILENAME} (helm-docs)",
+            lineterm="",
+        )
+    )
     changed = sum(1 for line in diff if line[:1] in ("+", "-") and line[:3] not in ("+++", "---"))
     max_diff_lines = helm_doc_max_diff_lines_shown(chart_dir)
 

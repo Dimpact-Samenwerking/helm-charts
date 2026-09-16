@@ -2,6 +2,7 @@
 `helm-docs --dry-run` regen, diffed against the actual file without ever
 writing to it. No real helm-docs binary is invoked in these tests — `run`
 is mocked throughout."""
+
 from types import SimpleNamespace
 
 
@@ -42,8 +43,7 @@ def test_readme_missing_fails(libhelmdocscheck, vp, tmp_path, monkeypatch):
 def test_helm_docs_command_failure_fails(libhelmdocscheck, vp, tmp_path, monkeypatch):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/helm-docs")
-    monkeypatch.setattr(libhelmdocscheck, "run",
-                         lambda cmd, **kw: helm_docs_result("", returncode=1, stderr="boom"))
+    monkeypatch.setattr(libhelmdocscheck, "run", lambda cmd, **kw: helm_docs_result("", returncode=1, stderr="boom"))
     ok, detail = vp.check_helm_docs(chart_dir)
     assert ok is False
     assert "helm-docs failed" in detail
@@ -64,7 +64,7 @@ def test_in_sync_passes(libhelmdocscheck, vp, tmp_path, monkeypatch, capsys):
 def test_drift_fails_and_reports_changed_line_count(libhelmdocscheck, vp, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/helm-docs")
-    regenerated = README_CONTENT + "| newkey | string | `\"x\"` |  |\n"
+    regenerated = README_CONTENT + '| newkey | string | `"x"` |  |\n'
     monkeypatch.setattr(libhelmdocscheck, "run", lambda cmd, **kw: helm_docs_result(regenerated))
 
     ok, detail = vp.check_helm_docs(chart_dir)
@@ -107,7 +107,7 @@ def test_drift_caps_diff_output_and_reports_how_many_were_dropped(libhelmdocsche
 def test_run_fix_helm_doc_hint_shown_on_drift(libhelmdocscheck, vp, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/helm-docs")
-    regenerated = README_CONTENT + "| newkey | string | `\"x\"` |  |\n"
+    regenerated = README_CONTENT + '| newkey | string | `"x"` |  |\n'
     monkeypatch.setattr(libhelmdocscheck, "run", lambda cmd, **kw: helm_docs_result(regenerated))
 
     vp.check_helm_docs(chart_dir)
@@ -123,8 +123,9 @@ def test_never_writes_to_the_real_readme(libhelmdocscheck, vp, tmp_path, monkeyp
     byte-for-byte untouched — this check is report-only."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/helm-docs")
-    monkeypatch.setattr(libhelmdocscheck, "run",
-                         lambda cmd, **kw: helm_docs_result(README_CONTENT + "totally different\n"))
+    monkeypatch.setattr(
+        libhelmdocscheck, "run", lambda cmd, **kw: helm_docs_result(README_CONTENT + "totally different\n")
+    )
 
     vp.check_helm_docs(chart_dir)
 
@@ -149,7 +150,7 @@ def test_command_uses_dry_run_and_chart_search_root(libhelmdocscheck, vp, tmp_pa
 
 
 def test_command_includes_template_files_when_gotmpl_present(libhelmdocscheck, vp, tmp_path, monkeypatch):
-    chart_dir = make_chart_dir(tmp_path, gotmpl="{{ template \"chart.valuesSection\" . }}\n")
+    chart_dir = make_chart_dir(tmp_path, gotmpl='{{ template "chart.valuesSection" . }}\n')
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/helm-docs")
     captured = {}
 

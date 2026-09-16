@@ -8,6 +8,7 @@ docstring). Split into its own module because both need it: cve_check
 importing from image_upgrade_check (or vice versa) would be circular,
 since image_upgrade_check already imports classification helpers from
 cve_check."""
+
 import json
 from datetime import datetime, timedelta, timezone
 

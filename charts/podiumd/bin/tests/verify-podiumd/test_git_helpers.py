@@ -1,5 +1,6 @@
 """find_repo_root, resolve_git_ref, git_show_yaml — against a real, hermetic
 temp git repo (not the actual project repo)."""
+
 import subprocess
 
 import pytest

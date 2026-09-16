@@ -7,6 +7,7 @@ render fail entirely if nulled), so every other leaf (foo.dead) is
 docstring for the top-down/recurse-on-diff strategy, the per-subchart
 scoped rendering, and the full-chart confirmation safety net this
 exercises."""
+
 import io
 import tarfile
 from types import SimpleNamespace
@@ -16,13 +17,7 @@ from dep_helpers import make_dep
 
 CHART_YAML = "apiVersion: v2\nname: podiumd\nversion: 0.0.1\n"
 
-VALUES_YAML = (
-    "foo:\n"
-    '  used: "abc"\n'
-    '  dead: "xyz"\n'
-    "required:\n"
-    '  field: "present"\n'
-)
+VALUES_YAML = 'foo:\n  used: "abc"\n  dead: "xyz"\nrequired:\n  field: "present"\n'
 
 
 def make_chart_dir(tmp_path, values=VALUES_YAML):
@@ -91,6 +86,7 @@ def fake_run(call_log=None):
     is echoed into the rendered output (so nulling it changes the
     render). Every other leaf (foo.dead) is invisible to this model —
     nulling it can never change anything, i.e. genuinely dead."""
+
     def run(cmd, **kwargs):
         if call_log is not None:
             call_log.append(cmd)
@@ -99,15 +95,15 @@ def fake_run(call_log=None):
             return SimpleNamespace(returncode=1, stdout="", stderr="Error: required.field is required")
         used = _get(overrides, ("foo", "used"), "abc")
         stdout = (
-            "---\n# Source: podiumd/templates/x.yaml\n"
-            "kind: ConfigMap\nmetadata:\n  name: x\n"
-            f"data:\n  used: {used!r}\n"
+            f"---\n# Source: podiumd/templates/x.yaml\nkind: ConfigMap\nmetadata:\n  name: x\ndata:\n  used: {used!r}\n"
         )
         return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
+
     return run
 
 
 # --- flatten_leaves / candidate_leaf_paths (pure, no run()) ---
+
 
 def test_flatten_leaves_scalars_and_empty_containers(libdeadvaluescheck):
     values = {"a": {"b": "x", "c": None}, "d": {}, "e": [], "f": [1, 2]}
@@ -144,16 +140,20 @@ def test_candidate_leaf_paths_skips_exempt_full_paths(libdeadvaluescheck):
 
 
 def test_condition_leaf_paths_reads_every_dependency_condition(libdeadvaluescheck, tmp_path):
-    write_chart_yaml_with_deps(tmp_path, [
-        make_dep("zac", "1.0.0", condition="zac.enabled"),
-        make_dep("eck-stack", "1.0.0", alias="kiss-eck", condition="kiss-eck.enabled"),
-        make_dep("no-condition-dep", "1.0.0"),
-    ])
+    write_chart_yaml_with_deps(
+        tmp_path,
+        [
+            make_dep("zac", "1.0.0", condition="zac.enabled"),
+            make_dep("eck-stack", "1.0.0", alias="kiss-eck", condition="kiss-eck.enabled"),
+            make_dep("no-condition-dep", "1.0.0"),
+        ],
+    )
     paths = libdeadvaluescheck._condition_leaf_paths(tmp_path)
     assert paths == {("zac", "enabled"), ("kiss-eck", "enabled")}
 
 
 # --- check_dead_values (mocked run) ---
+
 
 def test_check_dead_values_finds_the_one_dead_leaf(libdeadvaluescheck, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
@@ -179,7 +179,7 @@ def test_check_dead_values_whole_subtree_confirmed_dead_in_one_render(libdeadval
     combined subtree render, and the one combined re-confirmation against
     the full-chart baseline (own_scope is never trusted alone — see this
     module's docstring's safety-net rationale)."""
-    chart_dir = make_chart_dir(tmp_path, values="foo:\n  dead1: \"x\"\n  dead2: \"y\"\n")
+    chart_dir = make_chart_dir(tmp_path, values='foo:\n  dead1: "x"\n  dead2: "y"\n')
     call_log = []
     monkeypatch.setattr(libdeadvaluescheck, "run", fake_run(call_log))
 
@@ -204,15 +204,7 @@ def test_check_dead_values_deep_dead_subtree_confirmed_regardless_of_depth(libde
     alone)."""
     chart_dir = make_chart_dir(
         tmp_path,
-        values=(
-            "foo:\n"
-            '  used: "abc"\n'
-            "bar:\n"
-            "  a:\n"
-            "    b:\n"
-            '      c: "dead1"\n'
-            '      d: "dead2"\n'
-        ),
+        values=('foo:\n  used: "abc"\nbar:\n  a:\n    b:\n      c: "dead1"\n      d: "dead2"\n'),
     )
     call_log = []
     monkeypatch.setattr(libdeadvaluescheck, "run", fake_run(call_log))
@@ -225,7 +217,7 @@ def test_check_dead_values_deep_dead_subtree_confirmed_regardless_of_depth(libde
 
 
 def test_check_dead_values_nothing_dead_prints_ok(libdeadvaluescheck, tmp_path, monkeypatch, capsys):
-    chart_dir = make_chart_dir(tmp_path, values="foo:\n  used: \"abc\"\n")
+    chart_dir = make_chart_dir(tmp_path, values='foo:\n  used: "abc"\n')
     monkeypatch.setattr(libdeadvaluescheck, "run", fake_run())
 
     ok, detail = libdeadvaluescheck.check_dead_values(chart_dir, [])
@@ -236,7 +228,8 @@ def test_check_dead_values_nothing_dead_prints_ok(libdeadvaluescheck, tmp_path, 
 
 
 def test_check_dead_values_zaakbrug_staging_is_now_an_ordinary_dead_finding(
-        libdeadvaluescheck, tmp_path, monkeypatch, capsys):
+    libdeadvaluescheck, tmp_path, monkeypatch, capsys
+):
     """SUBCHART_VISIBILITY_EXEMPT removed: zaakbrug.staging is no longer
     special-cased at all — it's just another leaf the fake model never
     reads, so it flows through the ordinary top-down search and shows up
@@ -284,6 +277,7 @@ def test_check_dead_values_baseline_render_failure_is_skipped_not_failed(libdead
 
 # --- per-subchart scoped rendering + full-chart confirmation safety net ---
 
+
 def fake_run_scoped(call_log=None, full_reads_dead=False):
     """Models "zac" as a real vendored dependency: a SCOPED render
     (chart_name == "zac", the dependency's own release name) sees its
@@ -296,6 +290,7 @@ def fake_run_scoped(call_log=None, full_reads_dead=False):
     read a dependency-scoped value directly, invisible to that
     dependency's own isolated render (see this module's docstring's
     safety-net rationale)."""
+
     def run(cmd, **kwargs):
         if call_log is not None:
             call_log.append(cmd)
@@ -310,12 +305,11 @@ def fake_run_scoped(call_log=None, full_reads_dead=False):
             if full_reads_dead:
                 dead = _get(overrides, ("zac", "dead"), "xyz")
                 lines.append(f"dead: {dead!r}")
-        stdout = (
-            "---\n# Source: podiumd/templates/x.yaml\n"
-            "kind: ConfigMap\nmetadata:\n  name: x\ndata:\n"
-            + "".join(f"  {line}\n" for line in lines)
+        stdout = "---\n# Source: podiumd/templates/x.yaml\nkind: ConfigMap\nmetadata:\n  name: x\ndata:\n" + "".join(
+            f"  {line}\n" for line in lines
         )
         return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
+
     return run
 
 

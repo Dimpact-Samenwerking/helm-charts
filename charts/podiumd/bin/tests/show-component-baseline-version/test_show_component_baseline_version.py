@@ -9,6 +9,7 @@ show_baseline_section), exercised here via main().
 
 No <baseline> CLI argument anymore — main() always shows state at BOTH
 release-baseline.yaml baselines (upgrade_docs, release_table)."""
+
 import subprocess
 
 import pytest
@@ -26,21 +27,21 @@ def repo(tmp_path):
     git("config", "user.name", "Test", cwd=tmp_path)
     chart_dir = tmp_path / "charts" / "podiumd"
     chart_dir.mkdir(parents=True)
-    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-        ]
-    }))
-    (chart_dir / "values.yaml").write_text(yaml.safe_dump({
-        "zac": {"image": {"tag": "5.0.2@sha256:abc"}}
-    }))
+    (chart_dir / "Chart.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+                ]
+            }
+        )
+    )
+    (chart_dir / "values.yaml").write_text(yaml.safe_dump({"zac": {"image": {"tag": "5.0.2@sha256:abc"}}}))
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "baseline", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    (chart_dir / "values.yaml").write_text(yaml.safe_dump({
-        "zac": {"image": {"tag": "5.4.3@sha256:def"}}
-    }))
+    (chart_dir / "values.yaml").write_text(yaml.safe_dump({"zac": {"image": {"tag": "5.4.3@sha256:def"}}}))
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump zac", cwd=tmp_path)
     return tmp_path
@@ -59,6 +60,7 @@ def write_baselines(repo, upgrade_docs=None, release_table=None):
 # --- main() integration ---
 # main() only calls sys.exit() on error paths; on success it just returns,
 # so only the failure-path tests wrap the call in pytest.raises(SystemExit).
+
 
 def set_argv_and_repo(scbv, monkeypatch, repo, component):
     monkeypatch.setattr("sys.argv", ["show-component-baseline-version", component])

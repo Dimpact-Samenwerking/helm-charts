@@ -1,5 +1,6 @@
 """Loads fix-doc-consistency (a hyphenated filename, not importable
 normally) as a module named `cdb` so tests can call its functions directly."""
+
 import importlib.util
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -38,6 +39,7 @@ def stub_registry_tag_exists(cdb, monkeypatch):
     registry behavior overrides this via its own monkeypatch.setattr,
     same as any other autouse default."""
     import lib.image_docs as image_docs
+
     monkeypatch.setattr(image_docs, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "0" * 64))
 
 
@@ -57,5 +59,6 @@ def stub_render_chart(cdb, monkeypatch):
     overrides this via its own monkeypatch.setattr, same convention
     stub_registry_tag_exists above already uses — patched on cdb's own
     module globals (where main() actually calls it from)."""
-    monkeypatch.setattr(cdb, "render_chart",
-                         lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="", stderr=""))
+    monkeypatch.setattr(
+        cdb, "render_chart", lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="", stderr="")
+    )

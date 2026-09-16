@@ -2,6 +2,7 @@
 file pairs that look like copy-paste (the shape podiumd.storagePVC was
 factored out of) without ever failing the check; deduping is a judgment
 call a human should make, not something to gate a build on."""
+
 import difflib
 
 from lib.settings import (
@@ -37,7 +38,7 @@ def find_similar_template_pairs(templates_dir, similarity_threshold, min_signifi
 
     findings = []
     for i, a in enumerate(candidates):
-        for b in candidates[i + 1:]:
+        for b in candidates[i + 1 :]:
             ratio = difflib.SequenceMatcher(None, significant[a], significant[b]).ratio()
             if ratio >= similarity_threshold:
                 findings.append((ratio, a, b))
@@ -57,12 +58,15 @@ def check_dry(chart_dir):
     min_significant_lines = dry_check_min_significant_lines(chart_dir)
 
     findings, candidate_count = find_similar_template_pairs(
-        chart_dir / "templates", similarity_threshold, min_significant_lines)
+        chart_dir / "templates", similarity_threshold, min_significant_lines
+    )
 
     if not findings:
-        print(f"OK: no structurally-similar template pairs found "
-              f"(compared {candidate_count} template(s) with "
-              f">= {min_significant_lines} significant line(s))")
+        print(
+            f"OK: no structurally-similar template pairs found "
+            f"(compared {candidate_count} template(s) with "
+            f">= {min_significant_lines} significant line(s))"
+        )
         return True, "0 candidate(s)"
 
     print(f"Found {len(findings)} structurally-similar template pair(s):")
@@ -70,14 +74,18 @@ def check_dry(chart_dir):
         pct = round(ratio * 100)
         rel_a, rel_b = a.relative_to(chart_dir), b.relative_to(chart_dir)
         if ratio >= high_similarity_threshold:
-            advice = ("likely worth deduping — near-identical shape, probably just a "
-                      "literal parameter (e.g. a component name) differs; consider a "
-                      "shared named template in _helpers.tpl, as with podiumd.storagePVC")
+            advice = (
+                "likely worth deduping — near-identical shape, probably just a "
+                "literal parameter (e.g. a component name) differs; consider a "
+                "shared named template in _helpers.tpl, as with podiumd.storagePVC"
+            )
         else:
-            advice = ("borderline — inspect manually before deduping; could be a shared "
-                      "skeleton with genuinely different content per file (e.g. different "
-                      "env vars/secrets), where forcing a shared template would add more "
-                      "parameters than it saves")
+            advice = (
+                "borderline — inspect manually before deduping; could be a shared "
+                "skeleton with genuinely different content per file (e.g. different "
+                "env vars/secrets), where forcing a shared template would add more "
+                "parameters than it saves"
+            )
         print(f"  [{pct:3d}% similar] {rel_a}  <->  {rel_b}")
         print(f"      advice: {advice}")
 

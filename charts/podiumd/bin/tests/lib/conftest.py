@@ -1,5 +1,6 @@
 """Makes scripts/lib importable as a regular package for its own test suite,
 the same way each script adds scripts/ to sys.path before `from lib.x import y`."""
+
 import sys
 from pathlib import Path
 

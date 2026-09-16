@@ -6,6 +6,7 @@ releases/fresh checkouts predated it), release-baseline.yaml is
 committed with real values from day one — a missing file, a missing
 key, or a key present but unresolvable are all failures now, checked
 independently per key."""
+
 import subprocess
 
 import pytest

@@ -46,8 +46,9 @@ def test_no_table_returns_empty_list(libdocsconsistency, tmp_path):
 
 def test_lines_that_are_not_full_table_rows_are_skipped(libdocsconsistency, tmp_path):
     doc = tmp_path / "doc.md"
-    doc.write_text("# Title\n\n## Component versions (4.9.0 vs 4.8.5)\n\n"
-                    "| only two cells |\n| ZAC | 5.0.2 -> 5.4.3 | 1.0.297 |\n")
+    doc.write_text(
+        "# Title\n\n## Component versions (4.9.0 vs 4.8.5)\n\n| only two cells |\n| ZAC | 5.0.2 -> 5.4.3 | 1.0.297 |\n"
+    )
     rows = libdocsconsistency.parse_upgrade_doc_rows(doc)
     assert len(rows) == 1
     assert rows[0]["name"] == "ZAC"

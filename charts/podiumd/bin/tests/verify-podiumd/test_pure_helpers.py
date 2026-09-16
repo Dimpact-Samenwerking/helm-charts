@@ -1,6 +1,7 @@
 """normalize_version, normalize_name, words_of, extract_target_version,
 extract_source_version, actual_app_version, find_image_tag_paths,
 baseline_ref_candidates."""
+
 import pytest
 
 
@@ -22,23 +23,29 @@ def test_words_of_splits_on_non_alnum(libupgradedoc):
     assert libupgradedoc.words_of("") == []
 
 
-@pytest.mark.parametrize("cell,expected", [
-    ("5.0.2 → 5.4.3", "5.4.3"),
-    ("5.0.2 -> 5.4.3", "5.4.3"),
-    ("1.0.297 (unchanged)", "1.0.297"),
-    ("`0.0.92`", "0.0.92"),
-    ("v0.9.313 → 0.11.0", "0.11.0"),
-])
+@pytest.mark.parametrize(
+    "cell,expected",
+    [
+        ("5.0.2 → 5.4.3", "5.4.3"),
+        ("5.0.2 -> 5.4.3", "5.4.3"),
+        ("1.0.297 (unchanged)", "1.0.297"),
+        ("`0.0.92`", "0.0.92"),
+        ("v0.9.313 → 0.11.0", "0.11.0"),
+    ],
+)
 def test_extract_target_version(libupgradedoc, cell, expected):
     assert libupgradedoc.extract_target_version(cell) == expected
 
 
-@pytest.mark.parametrize("cell,expected", [
-    ("5.0.2 → 5.4.3", "5.0.2"),
-    ("5.0.2 -> 5.4.3", "5.0.2"),
-    ("1.0.297 (unchanged)", "1.0.297"),
-    ("v0.9.313 → 0.11.0", "v0.9.313"),
-])
+@pytest.mark.parametrize(
+    "cell,expected",
+    [
+        ("5.0.2 → 5.4.3", "5.0.2"),
+        ("5.0.2 -> 5.4.3", "5.0.2"),
+        ("1.0.297 (unchanged)", "1.0.297"),
+        ("v0.9.313 → 0.11.0", "v0.9.313"),
+    ],
+)
 def test_extract_source_version(libupgradedoc, cell, expected):
     assert libupgradedoc.extract_source_version(cell) == expected
 
@@ -59,10 +66,18 @@ def test_actual_app_version_tries_default_image_path(libupgradedoc):
 def test_actual_app_version_uses_component_image_paths_registry(libupgradedoc):
     # zgw-office-addin is registered in lib.chart.COMPONENT_IMAGE_PATHS with
     # a frontend/backend pair instead of the default "image" path.
-    assert libupgradedoc.actual_app_version(
-        {"addin": {"frontend": {"image": {"tag": "0.11.0@sha256:abc"}}}}, "addin", "zgw-office-addin") == "0.11.0"
-    assert libupgradedoc.actual_app_version(
-        {"addin": {"backend": {"image": {"tag": "0.11.0@sha256:abc"}}}}, "addin", "zgw-office-addin") == "0.11.0"
+    assert (
+        libupgradedoc.actual_app_version(
+            {"addin": {"frontend": {"image": {"tag": "0.11.0@sha256:abc"}}}}, "addin", "zgw-office-addin"
+        )
+        == "0.11.0"
+    )
+    assert (
+        libupgradedoc.actual_app_version(
+            {"addin": {"backend": {"image": {"tag": "0.11.0@sha256:abc"}}}}, "addin", "zgw-office-addin"
+        )
+        == "0.11.0"
+    )
 
 
 def test_find_image_tag_paths_finds_sidecars(libupgradedoc):
@@ -92,7 +107,9 @@ def test_find_image_tag_paths_walks_lists(libupgradedoc):
 
 def test_baseline_ref_candidates_bare_version(libgitutil):
     assert libgitutil.baseline_ref_candidates("4.8.5") == [
-        "podiumd-4.8.5", "origin/feature/podiumd-4.8.5", "feature/podiumd-4.8.5"
+        "podiumd-4.8.5",
+        "origin/feature/podiumd-4.8.5",
+        "feature/podiumd-4.8.5",
     ]
 
 

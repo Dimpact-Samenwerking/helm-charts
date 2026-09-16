@@ -3,12 +3,14 @@ doc-update helpers used by update-image-version when a basename bump
 touches more than one Chart.yaml component. Convention confirmed against
 docs/_UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md (curl/nginx-unprivileged/
 busybox each got their own table row + "### <name> ..." Changes block)."""
+
 import io
 import tarfile
 
 import yaml
 
 # --- add_missing_sidecar_rows ---
+
 
 def test_add_missing_sidecar_rows_global_image_gets_one_row_not_per_alias(libimagedocs, tmp_path):
     """Real bug: nginx-unprivileged is aliased by zac's own nginx sidecar
@@ -24,18 +26,22 @@ def test_add_missing_sidecar_rows_global_image_gets_one_row_not_per_alias(libima
         {"name": "frankgateway", "alias": "", "version": "1.1.0"},
     ]
     target_values = {
-        "global": {"images": {"nginx": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+        "global": {"images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
         "zac": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
-        "frankgateway": {"dashboard": {"auth": {"shim": {"image": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}}}},
+        "frankgateway": {
+            "dashboard": {
+                "auth": {"shim": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}}
+            }
+        },
     }
     baseline_values = {
-        "global": {"images": {"nginx": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
+        "global": {"images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
         "zac": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
-        "frankgateway": {"dashboard": {"auth": {"shim": {"image": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}}}},
+        "frankgateway": {
+            "dashboard": {
+                "auth": {"shim": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}}
+            }
+        },
     }
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -44,7 +50,8 @@ def test_add_missing_sidecar_rows_global_image_gets_one_row_not_per_alias(libima
     )
 
     new_text, added = libimagedocs.add_missing_sidecar_rows(
-        text, tmp_path, deps, target_values, baseline_values, "4.9.0")
+        text, tmp_path, deps, target_values, baseline_values, "4.9.0"
+    )
 
     assert added == ["nginx-unprivileged"]
     assert "| nginx-unprivileged | 1.31.3 → 1.31.4 | - | - |" in new_text
@@ -63,13 +70,11 @@ def test_add_missing_sidecar_rows_digest_only_repin_is_not_a_row(libimagedocs, t
     added a nonsensical "1.31.4 → 1.31.4" row/section."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     target_values = {
-        "global": {"images": {"nginx": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+        "global": {"images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
         "zac": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
     }
     baseline_values = {
-        "global": {"images": {"nginx": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:bbbb"}}},
+        "global": {"images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:bbbb"}}},
         "zac": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:bbbb"}}},
     }
     text = (
@@ -79,7 +84,8 @@ def test_add_missing_sidecar_rows_digest_only_repin_is_not_a_row(libimagedocs, t
     )
 
     new_text, added = libimagedocs.add_missing_sidecar_rows(
-        text, tmp_path, deps, target_values, baseline_values, "4.9.0")
+        text, tmp_path, deps, target_values, baseline_values, "4.9.0"
+    )
 
     assert added == []
     assert "nginx-unprivileged" not in new_text
@@ -93,16 +99,12 @@ def test_add_missing_sidecar_rows_global_row_inserted_at_its_own_position_not_la
     images-manifest's own equivalent entry already sorts there."""
     deps = [{"name": "openzaak", "alias": "", "version": "1.14.2"}]
     target_values = {
-        "global": {"images": {"nginx": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
-        "openzaak": {"nginx": {"image": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+        "global": {"images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+        "openzaak": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
     }
     baseline_values = {
-        "global": {"images": {"nginx": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
-        "openzaak": {"nginx": {"image": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
+        "global": {"images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
+        "openzaak": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
     }
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -112,7 +114,8 @@ def test_add_missing_sidecar_rows_global_row_inserted_at_its_own_position_not_la
     )
 
     new_text, added = libimagedocs.add_missing_sidecar_rows(
-        text, tmp_path, deps, target_values, baseline_values, "4.9.0")
+        text, tmp_path, deps, target_values, baseline_values, "4.9.0"
+    )
 
     assert added == ["nginx-unprivileged"]
     rows = [line for line in new_text.splitlines() if line.startswith("|") and "---" not in line]
@@ -120,8 +123,7 @@ def test_add_missing_sidecar_rows_global_row_inserted_at_its_own_position_not_la
     assert rows[2].startswith("| openzaak")
 
 
-def test_add_missing_sidecar_rows_same_repository_at_different_baseline_path_is_an_upgrade(
-        libimagedocs, tmp_path):
+def test_add_missing_sidecar_rows_same_repository_at_different_baseline_path_is_an_upgrade(libimagedocs, tmp_path):
     """Real case: podiumd 4.9.1 consolidated two separate postgres pins
     (keycloak-operator's own ensurePodiumdAdminUser job, at 16.15, and
     openbao's own schemaJob, at 16-alpine) into one new shared
@@ -135,14 +137,13 @@ def test_add_missing_sidecar_rows_same_repository_at_different_baseline_path_is_
     rendering "16-alpine -> 16.15-alpine", never "(new)"."""
     deps = [{"name": "openbao", "version": "2.0.0"}]
     target_values = {
-        "global": {"images": {"postgres": {
-            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
-        "openbao": {"database": {"schemaJob": {"image": {
-            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}},
+        "global": {"images": {"postgres": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
+        "openbao": {
+            "database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}
+        },
     }
     baseline_values = {
-        "openbao": {"database": {"schemaJob": {"image": {
-            "repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
+        "openbao": {"database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
     }
     text = (
         "## Component versions (4.9.1 vs 4.9.0)\n\n"
@@ -151,7 +152,8 @@ def test_add_missing_sidecar_rows_same_repository_at_different_baseline_path_is_
     )
 
     new_text, added = libimagedocs.add_missing_sidecar_rows(
-        text, tmp_path, deps, target_values, baseline_values, "4.9.1")
+        text, tmp_path, deps, target_values, baseline_values, "4.9.1"
+    )
 
     assert added == ["postgres"]
     assert "| postgres | 16-alpine → 16.15-alpine | - | - |" in new_text
@@ -179,7 +181,8 @@ def test_add_missing_sidecar_rows_genuinely_new_repository_still_renders_new(lib
     )
 
     new_text, added = libimagedocs.add_missing_sidecar_rows(
-        text, tmp_path, deps, target_values, baseline_values, "4.9.1")
+        text, tmp_path, deps, target_values, baseline_values, "4.9.1"
+    )
 
     assert added == ["redis"]
     assert "### redis 8.0 (new)" in new_text
@@ -187,9 +190,9 @@ def test_add_missing_sidecar_rows_genuinely_new_repository_still_renders_new(lib
 
 # --- make_image_changes_section ---
 
+
 def test_make_image_changes_section_lists_every_pinned_path(libimagedocs):
-    pinned = [("keycloak-operator.jobs.ensureOperatorSa.image.tag", "8.20.0"),
-              ("zac.global.curlImage.tag", "8.20.0")]
+    pinned = [("keycloak-operator.jobs.ensureOperatorSa.image.tag", "8.20.0"), ("zac.global.curlImage.tag", "8.20.0")]
     section = libimagedocs.make_image_changes_section("curl", "4.9.0", "8.20.0", "8.21.0", pinned)
     assert section.startswith("### curl 8.20.0 → 8.21.0")
     assert "- `keycloak-operator.jobs.ensureOperatorSa.image.tag` `8.20.0` → `8.21.0`" in section
@@ -237,26 +240,31 @@ def test_make_image_changes_section_old_equals_new_renders_unchanged(libimagedoc
 
 # --- update_image_manifest ---
 
+
 def write_manifest(path, text):
     path.write_text(text, encoding="utf-8")
 
 
 def test_update_image_manifest_updates_existing_entry_and_comment(libimagedocs, tmp_path):
     path = tmp_path / "images-4.9.0.yaml"
-    write_manifest(path, (
-        "# Baseline: podiumd 4.8.5.\n"
-        "#\n"
-        "# One change:\n"
-        "#   1. curl 8.20.0 -> 8.20.0.\n"
-        "#\n\n"
-        "# curl — 8.20.0 -> 8.20.0\n"
-        "- name: curlimages/curl\n"
-        "  url: docker.io/curlimages/curl\n"
-        '  version: "8.20.0"\n'
-        '  digest: "sha256:aaaa"\n'
-    ))
+    write_manifest(
+        path,
+        (
+            "# Baseline: podiumd 4.8.5.\n"
+            "#\n"
+            "# One change:\n"
+            "#   1. curl 8.20.0 -> 8.20.0.\n"
+            "#\n\n"
+            "# curl — 8.20.0 -> 8.20.0\n"
+            "- name: curlimages/curl\n"
+            "  url: docker.io/curlimages/curl\n"
+            '  version: "8.20.0"\n'
+            '  digest: "sha256:aaaa"\n'
+        ),
+    )
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
+        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb"
+    )
     assert changes_action == "updated"
     assert entry_updated is True
     text = path.read_text(encoding="utf-8")
@@ -268,19 +276,23 @@ def test_update_image_manifest_updates_existing_entry_and_comment(libimagedocs, 
 
 def test_update_image_manifest_adds_new_changes_item_when_absent(libimagedocs, tmp_path):
     path = tmp_path / "images-4.9.0.yaml"
-    write_manifest(path, (
-        "# Baseline: podiumd 4.8.5.\n"
-        "#\n"
-        "# One change:\n"
-        "#   1. ZAC 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n"
-        "#\n\n"
-        "- name: zac\n"
-        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-        '  version: "5.4.3"\n'
-        '  digest: "sha256:aaaa"\n'
-    ))
+    write_manifest(
+        path,
+        (
+            "# Baseline: podiumd 4.8.5.\n"
+            "#\n"
+            "# One change:\n"
+            "#   1. ZAC 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n"
+            "#\n\n"
+            "- name: zac\n"
+            "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+            '  version: "5.4.3"\n'
+            '  digest: "sha256:aaaa"\n'
+        ),
+    )
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
+        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb"
+    )
     assert changes_action == "added"
     assert entry_updated is False
     text = path.read_text(encoding="utf-8")
@@ -298,19 +310,23 @@ def test_update_image_manifest_new_item_no_baseline_renders_new(libimagedocs, tm
     version at all, old_version=None) rendered as a nonsensical
     "<new> -> <new>" instead of "<new> (new)"."""
     path = tmp_path / "images-4.9.1.yaml"
-    write_manifest(path, (
-        "# Baseline: podiumd 4.9.0.\n"
-        "#\n"
-        "# One change:\n"
-        "#   1. curl 8.20.0 -> 8.21.0.\n"
-        "#\n\n"
-        "- name: curlimages/curl\n"
-        "  url: curlimages/curl\n"
-        '  version: "8.21.0"\n'
-        '  digest: "sha256:bbbb"\n'
-    ))
+    write_manifest(
+        path,
+        (
+            "# Baseline: podiumd 4.9.0.\n"
+            "#\n"
+            "# One change:\n"
+            "#   1. curl 8.20.0 -> 8.21.0.\n"
+            "#\n\n"
+            "- name: curlimages/curl\n"
+            "  url: curlimages/curl\n"
+            '  version: "8.21.0"\n'
+            '  digest: "sha256:bbbb"\n'
+        ),
+    )
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "redis", "redis", None, "8.10.1", "sha256:cccc")
+        path, "redis", "redis", None, "8.10.1", "sha256:cccc"
+    )
     assert changes_action == "added"
     assert entry_updated is False
     text = path.read_text(encoding="utf-8")
@@ -339,15 +355,18 @@ def test_update_image_manifest_new_item_uses_values_yaml_order_not_append(libima
     basename's "Component versions" table row/"### ..." Changes section
     in the upgrade doc, so the two docs can never disagree on order."""
     path = tmp_path / "images-4.9.1.yaml"
-    write_manifest(path, (
-        "# One change:\n"
-        "#   1. mi 2.90.0 (new) (chart 1.1.0, new).\n"
-        "#\n\n"
-        "- name: mi-data\n"
-        "  url: example/mi-data\n"
-        '  version: "2.90.0"\n'
-        '  digest: "sha256:aaaa"\n'
-    ))
+    write_manifest(
+        path,
+        (
+            "# One change:\n"
+            "#   1. mi 2.90.0 (new) (chart 1.1.0, new).\n"
+            "#\n\n"
+            "- name: mi-data\n"
+            "  url: example/mi-data\n"
+            '  version: "2.90.0"\n'
+            '  digest: "sha256:aaaa"\n'
+        ),
+    )
     deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
     values = {
         "global": {"images": {"redis": {"repository": "bitnami/redis", "tag": "8.0@sha256:bbbb"}}},
@@ -356,8 +375,16 @@ def test_update_image_manifest_new_item_uses_values_yaml_order_not_append(libima
     canonical_names = {"redis": ("global", "images", "redis")}
 
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "redis", "bitnami/redis", "7.4", "8.0", "sha256:bbbb",
-        deps=deps, values=values, canonical_names=canonical_names)
+        path,
+        "redis",
+        "bitnami/redis",
+        "7.4",
+        "8.0",
+        "sha256:bbbb",
+        deps=deps,
+        values=values,
+        canonical_names=canonical_names,
+    )
 
     assert changes_action == "added"
     assert entry_updated is False
@@ -382,18 +409,22 @@ def test_update_image_manifest_recognizes_bare_changes_header(libimagedocs, tmp_
     find_images_manifest_changes_header (tried here instead) falls back
     to BARE_CHANGES_HEADER_RE for exactly this bare form."""
     path = tmp_path / "images-4.9.1.yaml"
-    write_manifest(path, (
-        "# Baseline: podiumd 4.9.0.\n"
-        "#\n"
-        "# Changes:\n"
-        "#\n\n"
-        "- name: zac\n"
-        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-        '  version: "5.4.3"\n'
-        '  digest: "sha256:aaaa"\n'
-    ))
+    write_manifest(
+        path,
+        (
+            "# Baseline: podiumd 4.9.0.\n"
+            "#\n"
+            "# Changes:\n"
+            "#\n\n"
+            "- name: zac\n"
+            "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+            '  version: "5.4.3"\n'
+            '  digest: "sha256:aaaa"\n'
+        ),
+    )
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "nginx-unprivileged", "nginxinc/nginx-unprivileged", "1.31.3", "1.31.4", "sha256:bbbb")
+        path, "nginx-unprivileged", "nginxinc/nginx-unprivileged", "1.31.3", "1.31.4", "sha256:bbbb"
+    )
     assert changes_action == "added"
     assert entry_updated is False
     text = path.read_text(encoding="utf-8")
@@ -407,20 +438,24 @@ def test_remove_image_manifest_entry_recognizes_bare_changes_header(libimagedocs
     item, not silently no-op because CHANGES_HEADER_RE alone never
     matched it."""
     path = tmp_path / "images-4.9.1.yaml"
-    write_manifest(path, (
-        "# Baseline: podiumd 4.9.0.\n"
-        "#\n"
-        "# Changes:\n"
-        "#   1. nginx-unprivileged 1.31.3 -> 1.31.4.\n"
-        "#\n\n"
-        "# nginx-unprivileged — 1.31.3 -> 1.31.4\n"
-        "- name: nginx-unprivileged\n"
-        "  url: docker.io/nginxinc/nginx-unprivileged\n"
-        '  version: "1.31.4"\n'
-        '  digest: "sha256:bbbb"\n'
-    ))
+    write_manifest(
+        path,
+        (
+            "# Baseline: podiumd 4.9.0.\n"
+            "#\n"
+            "# Changes:\n"
+            "#   1. nginx-unprivileged 1.31.3 -> 1.31.4.\n"
+            "#\n\n"
+            "# nginx-unprivileged — 1.31.3 -> 1.31.4\n"
+            "- name: nginx-unprivileged\n"
+            "  url: docker.io/nginxinc/nginx-unprivileged\n"
+            '  version: "1.31.4"\n'
+            '  digest: "sha256:bbbb"\n'
+        ),
+    )
     changes_action, entry_updated = libimagedocs.remove_image_manifest_entry(
-        path, "nginx-unprivileged", "nginxinc/nginx-unprivileged", "1.31.3", "sha256:aaaa")
+        path, "nginx-unprivileged", "nginxinc/nginx-unprivileged", "1.31.3", "sha256:aaaa"
+    )
     assert changes_action == "removed"
     assert entry_updated is True
     text = path.read_text(encoding="utf-8")
@@ -430,16 +465,20 @@ def test_remove_image_manifest_entry_recognizes_bare_changes_header(libimagedocs
 
 def test_update_image_manifest_no_matching_entry_reports_not_updated(libimagedocs, tmp_path):
     path = tmp_path / "images-4.9.0.yaml"
-    write_manifest(path, (
-        "# One change:\n"
-        "#   1. ZAC 5.0.2 -> 5.4.3.\n\n"
-        "- name: zac\n"
-        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-        '  version: "5.4.3"\n'
-        '  digest: "sha256:aaaa"\n'
-    ))
+    write_manifest(
+        path,
+        (
+            "# One change:\n"
+            "#   1. ZAC 5.0.2 -> 5.4.3.\n\n"
+            "- name: zac\n"
+            "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+            '  version: "5.4.3"\n'
+            '  digest: "sha256:aaaa"\n'
+        ),
+    )
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
+        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb"
+    )
     assert entry_updated is False
 
 
@@ -448,22 +487,27 @@ def test_update_image_manifest_matches_entry_by_url_repository(libimagedocs, tmp
     by "name:" (which may be a short ACR-mirror slug, not the repository
     itself)."""
     path = tmp_path / "images-4.9.0.yaml"
-    write_manifest(path, (
-        "# One change:\n"
-        "#   1. curl 8.20.0 -> 8.20.0.\n\n"
-        "# curl — 8.20.0 -> 8.20.0\n"
-        "- name: curl\n"
-        "  url: docker.io/curlimages/curl\n"
-        '  version: "8.20.0"\n'
-        '  digest: "sha256:aaaa"\n'
-    ))
+    write_manifest(
+        path,
+        (
+            "# One change:\n"
+            "#   1. curl 8.20.0 -> 8.20.0.\n\n"
+            "# curl — 8.20.0 -> 8.20.0\n"
+            "- name: curl\n"
+            "  url: docker.io/curlimages/curl\n"
+            '  version: "8.20.0"\n'
+            '  digest: "sha256:aaaa"\n'
+        ),
+    )
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
+        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb"
+    )
     assert entry_updated is True
     assert '"8.21.0"' in path.read_text(encoding="utf-8")
 
 
 # --- regenerate_images_baseline_manifest ---
+
 
 def test_regenerate_images_baseline_manifest_full_enumeration_and_sort_order(libimagedocs, tmp_path):
     """Every primary image AND every sidecar is written, one entry per
@@ -487,16 +531,19 @@ def test_regenerate_images_baseline_manifest_full_enumeration_and_sort_order(lib
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path, set())
+        tmp_path, deps, values, images_baseline_path, set()
+    )
 
     assert skipped == []
     assert written == 3
     text = images_baseline_path.read_text(encoding="utf-8")
     names_in_order = [line.split("name: ", 1)[1].strip() for line in text.splitlines() if line.startswith("- name:")]
     assert names_in_order == [
-        "infonl/zaakafhandelcomponent", "openpolicyagent/opa", "openbao/openbao",
+        "infonl/zaakafhandelcomponent",
+        "openpolicyagent/opa",
+        "openbao/openbao",
     ]
-    assert 'url: docker.io/infonl/zaakafhandelcomponent' in text
+    assert "url: docker.io/infonl/zaakafhandelcomponent" in text
     assert 'version: "1.0.297"' in text
     assert f'digest: "sha256:{"a" * 64}"' in text
 
@@ -514,23 +561,31 @@ def test_regenerate_images_baseline_manifest_global_images_use_their_own_real_su
     with BOTH values.yaml AND images-<version>.yaml's own order for
     these same four images."""
     deps = []
-    values = {"global": {"images": {
-        "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.5@sha256:" + "a" * 64},
-        "curl": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:" + "b" * 64},
-        "busybox": {"repository": "library/busybox", "tag": "1.38.0-glibc@sha256:" + "c" * 64},
-        "redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "d" * 64},
-    }}}
+    values = {
+        "global": {
+            "images": {
+                "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.5@sha256:" + "a" * 64},
+                "curl": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:" + "b" * 64},
+                "busybox": {"repository": "library/busybox", "tag": "1.38.0-glibc@sha256:" + "c" * 64},
+                "redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "d" * 64},
+            }
+        }
+    }
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path, set())
+        tmp_path, deps, values, images_baseline_path, set()
+    )
 
     assert skipped == []
     assert written == 4
     text = images_baseline_path.read_text(encoding="utf-8")
     names_in_order = [line.split("name: ", 1)[1].strip() for line in text.splitlines() if line.startswith("- name:")]
     assert names_in_order == [
-        "nginxinc/nginx-unprivileged", "curlimages/curl", "library/busybox", "redis",
+        "nginxinc/nginx-unprivileged",
+        "curlimages/curl",
+        "library/busybox",
+        "redis",
     ]
 
 
@@ -552,7 +607,8 @@ def test_regenerate_images_baseline_manifest_collapses_shared_repository(libimag
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path, set())
+        tmp_path, deps, values, images_baseline_path, set()
+    )
 
     assert skipped == []
     assert written == 2
@@ -573,7 +629,8 @@ def test_regenerate_images_baseline_manifest_embedded_digest_used_directly(libim
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", fail_if_called)
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path, set())
+        tmp_path, deps, values, images_baseline_path, set()
+    )
 
     assert skipped == []
     assert written == 1
@@ -598,7 +655,8 @@ def test_regenerate_images_baseline_manifest_live_lookup_for_bare_tag(libimagedo
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", fake_registry_tag_exists)
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path, set())
+        tmp_path, deps, values, images_baseline_path, set()
+    )
 
     assert skipped == []
     assert written == 1
@@ -617,12 +675,14 @@ def test_regenerate_images_baseline_manifest_skips_when_live_lookup_fails(libima
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path, set())
+        tmp_path, deps, values, images_baseline_path, set()
+    )
 
     assert written == 0
     assert skipped == ["openbao/openbao"]
-    assert images_baseline_path.read_text(encoding="utf-8").strip().endswith(
-        libimagedocs.IMAGES_BASELINE_HEADER.strip())
+    assert (
+        images_baseline_path.read_text(encoding="utf-8").strip().endswith(libimagedocs.IMAGES_BASELINE_HEADER.strip())
+    )
 
 
 def test_regenerate_images_baseline_manifest_wholesale_overwrite(libimagedocs, tmp_path):
@@ -638,7 +698,8 @@ def test_regenerate_images_baseline_manifest_wholesale_overwrite(libimagedocs, t
     new_deps = [{"name": "openbao", "version": "2.0.0"}]
     new_values = {"openbao": {"image": {"repository": "openbao/openbao", "tag": "2.0.0@sha256:" + "f" * 64}}}
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, new_deps, new_values, images_baseline_path, set())
+        tmp_path, new_deps, new_values, images_baseline_path, set()
+    )
 
     assert skipped == []
     assert written == 1
@@ -663,13 +724,15 @@ def test_regenerate_images_baseline_manifest_second_identical_run_does_not_rewri
     values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
 
     written1, skipped1, changed1 = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path, set())
+        tmp_path, deps, values, images_baseline_path, set()
+    )
     assert changed1 is True
     text_after_first = images_baseline_path.read_text(encoding="utf-8")
     mtime_after_first = images_baseline_path.stat().st_mtime_ns
 
     written2, skipped2, changed2 = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path, set())
+        tmp_path, deps, values, images_baseline_path, set()
+    )
 
     assert written2 == written1 == 1
     assert skipped2 == []
@@ -694,12 +757,13 @@ def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_e
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path, set())
+        tmp_path, deps, values, images_baseline_path, set()
+    )
 
     assert skipped == []
     assert written == 2
     text = images_baseline_path.read_text(encoding="utf-8")
-    assert "  digest: \"sha256:" + "a" * 64 + "\"\n\n- name: openbao/openbao\n" in text
+    assert '  digest: "sha256:' + "a" * 64 + '"\n\n- name: openbao/openbao\n' in text
     assert not text.endswith("\n\n")
     assert text.endswith("\n")
 
@@ -714,6 +778,7 @@ def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_e
 # find_unresolved_subchart_images augmentation, gated on rendered_paths
 # (see lib.render_scope.rendered_chart_paths) exactly the same way
 # check_subchart_image_visibility's own findings are gated.
+
 
 def make_subchart_tgz(charts_dir, name, version, values, chart_yaml=None):
     """A minimal vendored <name>-<version>.tgz containing <name>/
@@ -737,7 +802,8 @@ def make_subchart_tgz(charts_dir, name, version, values, chart_yaml=None):
 
 
 def test_regenerate_images_baseline_manifest_includes_subchart_default_only_image_when_rendered(
-        libimagedocs, tmp_path, monkeypatch):
+    libimagedocs, tmp_path, monkeypatch
+):
     """A dependency's own top-level image with NO podiumd override at
     all (null tag in its own vendored default, resolved to that
     dependency's own Chart.yaml appVersion) gets a real entry once its
@@ -746,15 +812,19 @@ def test_regenerate_images_baseline_manifest_includes_subchart_default_only_imag
     check_digest_pinning."""
     deps = [{"name": "eck-operator", "version": "3.5.0"}]
     values = {}
-    make_subchart_tgz(tmp_path / "charts", "eck-operator", "3.5.0",
-                       {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}},
-                       chart_yaml={"name": "eck-operator", "version": "3.5.0", "appVersion": "3.5.0"})
+    make_subchart_tgz(
+        tmp_path / "charts",
+        "eck-operator",
+        "3.5.0",
+        {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}},
+        chart_yaml={"name": "eck-operator", "version": "3.5.0", "appVersion": "3.5.0"},
+    )
     images_baseline_path = tmp_path / "images-baseline.yaml"
-    monkeypatch.setattr(libimagedocs, "registry_tag_exists",
-                         lambda host, repo, tag: (True, "sha256:" + "a" * 64))
+    monkeypatch.setattr(libimagedocs, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "a" * 64))
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path, {"podiumd/charts/eck-operator"})
+        tmp_path, deps, values, images_baseline_path, {"podiumd/charts/eck-operator"}
+    )
 
     assert skipped == []
     assert written == 1
@@ -765,7 +835,8 @@ def test_regenerate_images_baseline_manifest_includes_subchart_default_only_imag
 
 
 def test_regenerate_images_baseline_manifest_excludes_subchart_default_only_image_when_not_rendered(
-        libimagedocs, tmp_path):
+    libimagedocs, tmp_path
+):
     """The flip side: the exact same vendored default, but its own
     chart-tree path never rendered (a dependency — or one of ITS OWN
     nested dependencies — disabled via Helm's condition:/tags:
@@ -775,20 +846,26 @@ def test_regenerate_images_baseline_manifest_excludes_subchart_default_only_imag
     findings are already subject to."""
     deps = [{"name": "eck-operator", "version": "3.5.0"}]
     values = {}
-    make_subchart_tgz(tmp_path / "charts", "eck-operator", "3.5.0",
-                       {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}},
-                       chart_yaml={"name": "eck-operator", "version": "3.5.0", "appVersion": "3.5.0"})
+    make_subchart_tgz(
+        tmp_path / "charts",
+        "eck-operator",
+        "3.5.0",
+        {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}},
+        chart_yaml={"name": "eck-operator", "version": "3.5.0", "appVersion": "3.5.0"},
+    )
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path, set())
+        tmp_path, deps, values, images_baseline_path, set()
+    )
 
     assert skipped == []
     assert written == 0
 
 
 def test_regenerate_images_baseline_manifest_blank_tag_override_not_treated_as_subchart_default_finding(
-        libimagedocs, tmp_path):
+    libimagedocs, tmp_path
+):
     """openbao.server.image style regression: podiumd DOES override this
     path, just with an explicit BLANK "tag: ''" (a deliberate "use the
     sub-chart's own appVersion" convention, not "no override at all").
@@ -799,13 +876,18 @@ def test_regenerate_images_baseline_manifest_blank_tag_override_not_treated_as_s
     it did before this render-gate augmentation existed."""
     deps = [{"name": "openbao", "version": "0.28.4"}]
     values = {"openbao": {"server": {"image": {"repository": "openbao/openbao", "tag": ""}}}}
-    make_subchart_tgz(tmp_path / "charts", "openbao", "0.28.4",
-                       {"server": {"image": {"repository": "openbao/openbao", "tag": "2.5.5"}}},
-                       chart_yaml={"name": "openbao", "version": "0.28.4", "appVersion": "2.5.5"})
+    make_subchart_tgz(
+        tmp_path / "charts",
+        "openbao",
+        "0.28.4",
+        {"server": {"image": {"repository": "openbao/openbao", "tag": "2.5.5"}}},
+        chart_yaml={"name": "openbao", "version": "0.28.4", "appVersion": "2.5.5"},
+    )
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
     written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
-        tmp_path, deps, values, images_baseline_path, {"podiumd/charts/openbao"})
+        tmp_path, deps, values, images_baseline_path, {"podiumd/charts/openbao"}
+    )
 
     assert skipped == []
     assert written == 0

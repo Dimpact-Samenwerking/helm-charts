@@ -3,6 +3,7 @@ into lib.component_docs.existing_doc_baselines/create_missing_docs (both
 covered directly in tests/lib/test_component_docs.py). run_script (the
 fix-helm-doc delegation) is mocked out via cdv.run_script
 directly — no real subprocess needed."""
+
 import subprocess
 
 import pytest
@@ -19,8 +20,7 @@ def setup_dirs(cdv, tmp_path, monkeypatch, baseline="4.8.5"):
     images_dir.mkdir(parents=True)
     if baseline is not None:
         (tmp_path / "etc").mkdir()
-        (tmp_path / "etc" / "release-baseline.yaml").write_text(
-            f'upgrade_docs: "{baseline}"\n', encoding="utf-8")
+        (tmp_path / "etc" / "release-baseline.yaml").write_text(f'upgrade_docs: "{baseline}"\n', encoding="utf-8")
     monkeypatch.setattr(cdv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(cdv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(cdv, "DOC_DIR", doc_dir)
@@ -30,6 +30,7 @@ def setup_dirs(cdv, tmp_path, monkeypatch, baseline="4.8.5"):
 
 
 # --- main(): argument/help handling ---
+
 
 def test_help_flag_prints_docstring_and_exits_zero(cdv, monkeypatch, capsys):
     monkeypatch.setattr("sys.argv", ["create-doc-version", "--help"])
@@ -63,14 +64,14 @@ def test_invalid_baseline_format_fails(cdv, tmp_path, monkeypatch, capsys):
 
 # --- main(): release-baseline.yaml ---
 
+
 def test_no_release_baseline_fails(cdv, tmp_path, monkeypatch, capsys):
     setup_dirs(cdv, tmp_path, monkeypatch, baseline=None)
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
     with pytest.raises(SystemExit) as exc_info:
         cdv.main()
     assert exc_info.value.code == 1
-    assert ("release-baseline.yaml has no upgrade_docs key (or the file doesn't exist "
-            "yet)") in capsys.readouterr().out
+    assert ("release-baseline.yaml has no upgrade_docs key (or the file doesn't exist yet)") in capsys.readouterr().out
 
 
 def test_uses_release_baseline(cdv, tmp_path, monkeypatch, capsys):
@@ -83,6 +84,7 @@ def test_uses_release_baseline(cdv, tmp_path, monkeypatch, capsys):
 
 
 # --- main(): creation ---
+
 
 def test_creates_all_standard_docs_when_none_exist(cdv, tmp_path, monkeypatch, capsys):
     doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
@@ -145,7 +147,9 @@ def test_refuses_when_doc_exists_under_a_different_baseline(cdv, tmp_path, monke
 def test_invokes_fix_helm_doc(cdv, tmp_path, monkeypatch):
     setup_dirs(cdv, tmp_path, monkeypatch)
     calls = []
-    monkeypatch.setattr(cdv, "run_script", lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0))[1])
+    monkeypatch.setattr(
+        cdv, "run_script", lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0))[1]
+    )
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
     cdv.main()

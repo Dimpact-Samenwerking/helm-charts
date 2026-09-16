@@ -1,6 +1,7 @@
 """Verifies every digest-pinned image in values.yaml still matches its live
 upstream registry digest — report-only, never writes to values.yaml (see
 fix-image-digests for that)."""
+
 import re
 import urllib.error
 from datetime import datetime, timezone
@@ -61,19 +62,15 @@ ACTIVE_REPO_RE = re.compile(
 # }}{{ .repository }}"), so this is purely stylistic — but resolve_pin_repo
 # must still honor it, or a split-style pin gets looked up against the
 # wrong (guessed) registry. See find_sibling_registry.
-ACTIVE_REGISTRY_RE = re.compile(
-    r'^(?P<indent>\s*)registry:\s*(?:&\S+\s+)?"?(?P<registry>[\w][\w.\-]*)"?\s*(?:#.*)?$'
-)
+ACTIVE_REGISTRY_RE = re.compile(r'^(?P<indent>\s*)registry:\s*(?:&\S+\s+)?"?(?P<registry>[\w][\w.\-]*)"?\s*(?:#.*)?$')
 # A commented-out "#repository: <value>" key, left as a hint for components
 # whose real repository is overridden at the gemeente/deployment level.
-COMMENTED_REPO_RE = re.compile(
-    r'^\s*#\s*repository:\s*"?(?P<repo>[\w][\w.\-]*(?:/[\w.\-]+)*)"?\s*$'
-)
+COMMENTED_REPO_RE = re.compile(r'^\s*#\s*repository:\s*"?(?P<repo>[\w][\w.\-]*(?:/[\w.\-]+)*)"?\s*$')
 # A one-line "# host/repo:tag[@sha256:...]" reference comment, placed above
 # the "image:" block for the same override components. Tolerates a stray
 # "@" right after the colon, seen on one existing comment in values.yaml.
 REF_COMMENT_RE = re.compile(
-    r'^\s*#\s*(?P<repo>[a-zA-Z0-9][\w.\-]*(?:/[\w.\-]+)*):@?[\w][\w.\-]*(?:@sha256:[0-9a-f]{64})?\s*$'
+    r"^\s*#\s*(?P<repo>[a-zA-Z0-9][\w.\-]*(?:/[\w.\-]+)*):@?[\w][\w.\-]*(?:@sha256:[0-9a-f]{64})?\s*$"
 )
 
 
@@ -193,12 +190,14 @@ def scan_digest_pins(lines):
         if not m:
             continue
         indent = len(m.group("indent"))
-        pins.append({
-            "line": i + 1,
-            "version": m.group("version"),
-            "digest": m.group("digest"),
-            "repository": resolve_pin_repo(lines, i, indent),
-        })
+        pins.append(
+            {
+                "line": i + 1,
+                "version": m.group("version"),
+                "digest": m.group("digest"),
+                "repository": resolve_pin_repo(lines, i, indent),
+            }
+        )
     return pins
 
 
@@ -221,12 +220,14 @@ def scan_version_pins(lines):
         if not m:
             continue
         indent = len(m.group("indent"))
-        pins.append({
-            "line": i + 1,
-            "version": m.group("version"),
-            "digest": m.group("digest"),
-            "repository": resolve_pin_repo(lines, i, indent),
-        })
+        pins.append(
+            {
+                "line": i + 1,
+                "version": m.group("version"),
+                "digest": m.group("digest"),
+                "repository": resolve_pin_repo(lines, i, indent),
+            }
+        )
     return pins
 
 
@@ -353,8 +354,11 @@ def cached_tag_exists(chart_dir, repository, host, repo_path, version, timeout=N
     # (host, repo, tag) callable (no timeout param at all), same
     # established convention as lib.registry._urlopen's own "only pass
     # timeout= when the caller asked for one".
-    result = (registry_tag_exists(host, repo_path, version, timeout=timeout) if timeout is not None
-              else registry_tag_exists(host, repo_path, version))
+    result = (
+        registry_tag_exists(host, repo_path, version, timeout=timeout)
+        if timeout is not None
+        else registry_tag_exists(host, repo_path, version)
+    )
     _tag_exists_cache[key] = result
 
     exists, digest = result
@@ -479,8 +483,10 @@ def check_image_digests(chart_dir):
     pins, targets = resolve_pin_targets(chart_dir)
     unresolved = [p for p in pins if not p["repository"]]
 
-    print(f"Found {len(pins)} digest-pinned image(s), {len(targets)} unique image:tag to check "
-          f"({len(unresolved)} unresolved, skipped)")
+    print(
+        f"Found {len(pins)} digest-pinned image(s), {len(targets)} unique image:tag to check "
+        f"({len(unresolved)} unresolved, skipped)"
+    )
 
     matched = 0
     mismatches = []
@@ -527,8 +533,7 @@ def check_image_digests(chart_dir):
             sliding = is_sliding_tag(values_path, host, repo_path, version, digest)
             if sliding:
                 sliding_mismatches.append((repository, version, pinned_digest, digest, lines_str))
-                print(f"  [SLIDING  ] {host}/{repo_path}:{version}  (known to drift — "
-                      f"refresh with fix-image-digests)")
+                print(f"  [SLIDING  ] {host}/{repo_path}:{version}  (known to drift — refresh with fix-image-digests)")
                 print(f"      pinned:   sha256:{pinned_digest}")
                 print(f"      upstream: {digest}")
                 print(f"      lines:    values.yaml:{lines_str}")
@@ -567,15 +572,19 @@ def check_image_digests(chart_dir):
 
             if digest_error:
                 digest_check_errors.append((repository, version, digest_error, lines_str))
-                print(f"  [FETCH-ERR] {host}/{repo_path}@{digest_ref}  {digest_error}  (while "
-                      f"confirming the currently-pinned digest is still pullable, "
-                      f"values.yaml:{lines_str})")
+                print(
+                    f"  [FETCH-ERR] {host}/{repo_path}@{digest_ref}  {digest_error}  (while "
+                    f"confirming the currently-pinned digest is still pullable, "
+                    f"values.yaml:{lines_str})"
+                )
             elif not digest_exists:
                 digest_gone.append((repository, version, pinned_digest, lines_str))
-                print(f"  [DIGEST-GONE] {host}/{repo_path}@{digest_ref}  the EXACT digest "
-                      f"values.yaml pins TODAY is no longer resolvable upstream at all — "
-                      f"helm install/upgrade would fail outright right now "
-                      f"(values.yaml:{lines_str})")
+                print(
+                    f"  [DIGEST-GONE] {host}/{repo_path}@{digest_ref}  the EXACT digest "
+                    f"values.yaml pins TODAY is no longer resolvable upstream at all — "
+                    f"helm install/upgrade would fail outright right now "
+                    f"(values.yaml:{lines_str})"
+                )
 
     print()
     if unresolved:
@@ -585,20 +594,26 @@ def check_image_digests(chart_dir):
         print()
 
     if unverifiable:
-        print(f"{len(unverifiable)} image(s) on a registry this environment can't reach anonymously "
-              f"(not counted as a failure — see lib.registry.UNVERIFIABLE_HOSTS):")
+        print(
+            f"{len(unverifiable)} image(s) on a registry this environment can't reach anonymously "
+            f"(not counted as a failure — see lib.registry.UNVERIFIABLE_HOSTS):"
+        )
         for repository, version, error, lines_str in unverifiable:
             print(f"  {repository}:{version}  {error}  (values.yaml:{lines_str})")
         print()
 
     if sliding_mismatches:
-        print(f"{len(sliding_mismatches)} sliding digest(s) above are routine, expected drift "
-              f"(not counted as a failure) — still worth running fix-image-digests to refresh them.")
+        print(
+            f"{len(sliding_mismatches)} sliding digest(s) above are routine, expected drift "
+            f"(not counted as a failure) — still worth running fix-image-digests to refresh them."
+        )
     if mismatches:
         print(f"Run fix-image-digests to refresh the {len(mismatches)} stale pinned digest(s) above.")
     if digest_gone:
-        print(f"{len(digest_gone)} pinned digest(s) above are no longer resolvable upstream at all — "
-              f"run fix-image-digests to re-pin against a digest that still exists.")
+        print(
+            f"{len(digest_gone)} pinned digest(s) above are no longer resolvable upstream at all — "
+            f"run fix-image-digests to re-pin against a digest that still exists."
+        )
 
     inconsistent = find_inconsistent_version_pins(pins)
     duplicates = {r: f for r, f in inconsistent.items() if f["kind"] == "duplicate"}
@@ -607,23 +622,29 @@ def check_image_digests(chart_dir):
     for repository, finding in duplicates.items():
         (version, digest), pin_lines = finding["pins"][0]
         lines_str = ", ".join(str(n) for n in sorted(pin_lines))
-        print(f"  [DUPLICATE-PIN] {repository}:{version}  hand-duplicated identically at "
-              f"{len(pin_lines)} places (values.yaml:{lines_str}) instead of a shared YAML anchor "
-              f'("&name" once, "*name" everywhere else) — the un-aliased cop{"y" if len(pin_lines) == 2 else "ies"} '
-              f"can silently drift the next time this image is bumped elsewhere")
+        print(
+            f"  [DUPLICATE-PIN] {repository}:{version}  hand-duplicated identically at "
+            f"{len(pin_lines)} places (values.yaml:{lines_str}) instead of a shared YAML anchor "
+            f'("&name" once, "*name" everywhere else) — the un-aliased cop{"y" if len(pin_lines) == 2 else "ies"} '
+            f"can silently drift the next time this image is bumped elsewhere"
+        )
 
     for repository, finding in drifted.items():
-        print(f"  [VERSION-DRIFT] {repository} pinned at {len(finding['pins'])} different versions/digests "
-              f"across values.yaml:")
+        print(
+            f"  [VERSION-DRIFT] {repository} pinned at {len(finding['pins'])} different versions/digests "
+            f"across values.yaml:"
+        )
         for (version, digest), pin_lines in finding["pins"]:
             lines_str = ", ".join(str(n) for n in pin_lines)
             print(f"      {version}@sha256:{digest}  (values.yaml:{lines_str})")
 
-    detail = (f"{matched}/{len(targets)} matched, {len(sliding_mismatches)} sliding (warning), "
-              f"{len(mismatches)} stale, {len(fetch_errors)} fetch error(s), "
-              f"{len(unverifiable)} unverifiable, "
-              f"{len(digest_gone)} pinned digest(s) gone, {len(digest_check_errors)} digest fetch error(s), "
-              f"{len(duplicates)} duplicate pin(s), {len(drifted)} version-drift finding(s)")
+    detail = (
+        f"{matched}/{len(targets)} matched, {len(sliding_mismatches)} sliding (warning), "
+        f"{len(mismatches)} stale, {len(fetch_errors)} fetch error(s), "
+        f"{len(unverifiable)} unverifiable, "
+        f"{len(digest_gone)} pinned digest(s) gone, {len(digest_check_errors)} digest fetch error(s), "
+        f"{len(duplicates)} duplicate pin(s), {len(drifted)} version-drift finding(s)"
+    )
     if mismatches or fetch_errors or digest_gone or digest_check_errors or inconsistent:
         return False, detail
     return True, detail

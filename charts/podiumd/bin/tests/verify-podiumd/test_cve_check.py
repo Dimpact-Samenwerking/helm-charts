@@ -15,6 +15,7 @@ published at all is lib.image_upgrade_check's job, not this module's —
 see tests/verify-podiumd/test_image_upgrade_check.py — but this module
 DOES read that check's cache (lib.image_upgrade_cache), read-only, to
 annotate a finding as "upgradable"."""
+
 import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -123,6 +124,7 @@ def make_chart_dir(tmp_path, values=VALUES_YAML, chart_yaml=CHART_YAML):
 def fake_render_chart(rendered=RENDERED, returncode=0):
     def render_chart(chart_dir, extra_args):
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
+
     return render_chart
 
 
@@ -153,6 +155,7 @@ def sequenced_run(trivy_by_image=None, ks_returncode=0):
 
 # --- run_trivy ---
 
+
 def test_run_trivy_trims_vulnerabilities_to_reporting_fields(libcvecheck, monkeypatch):
     raw = vuln("HIGH", extra={"Title": "some CVE", "References": ["http://example.com"] * 50})
     output = {"Results": [{"Target": "img", "Vulnerabilities": [raw]}]}
@@ -173,10 +176,13 @@ def test_run_trivy_unparseable_output_returns_none(libcvecheck, monkeypatch):
 # --- scan_cached (the shared primitive check_cves and lib.cve_diff_check
 # both route through) ---
 
+
 def test_scan_cached_reports_a_hit_and_never_calls_run_trivy(libcvecheck, tmp_path, monkeypatch, capsys):
     key = libcvecheck.cache_key("org/repo", DIGEST_A)
-    cached_entry = {"scanned_at": datetime.now(timezone.utc).isoformat(),
-                    "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-CACHED"))]}
+    cached_entry = {
+        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-CACHED"))],
+    }
     old_cache = {key: cached_entry}
     new_cache = {}
 
@@ -186,7 +192,8 @@ def test_scan_cached_reports_a_hit_and_never_calls_run_trivy(libcvecheck, tmp_pa
     monkeypatch.setattr(libcvecheck, "run_trivy", fail_if_called)
 
     vulns, was_cached = libcvecheck.scan_cached(
-        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, new_cache, CVE_CACHE_TTL_DAYS, label="current")
+        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, new_cache, CVE_CACHE_TTL_DAYS, label="current"
+    )
 
     assert was_cached is True
     assert vulns == cached_entry["vulnerabilities"]
@@ -202,7 +209,8 @@ def test_scan_cached_reports_a_fresh_scan_and_writes_the_cache(libcvecheck, tmp_
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: fresh_vulns)
 
     vulns, was_cached = libcvecheck.scan_cached(
-        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, new_cache, CVE_CACHE_TTL_DAYS, label="proposed")
+        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, new_cache, CVE_CACHE_TTL_DAYS, label="proposed"
+    )
 
     assert was_cached is False
     assert vulns == fresh_vulns
@@ -220,7 +228,9 @@ def test_scan_cached_stale_entry_is_not_used(libcvecheck, tmp_path, monkeypatch)
     fresh_vulns = [trimmed(vuln("HIGH", cve="CVE-FRESH"))]
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: fresh_vulns)
 
-    vulns, was_cached = libcvecheck.scan_cached(tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, {}, CVE_CACHE_TTL_DAYS)
+    vulns, was_cached = libcvecheck.scan_cached(
+        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, {}, CVE_CACHE_TTL_DAYS
+    )
 
     assert was_cached is False
     assert vulns == fresh_vulns
@@ -235,7 +245,9 @@ def test_scan_cached_none_digest_skips_the_cache_entirely(libcvecheck, tmp_path,
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: (calls.append(ref), [])[1])
     new_cache = {}
 
-    vulns, was_cached = libcvecheck.scan_cached(tmp_path, "org/repo", None, "org/repo:1.0.0", {}, new_cache, CVE_CACHE_TTL_DAYS)
+    vulns, was_cached = libcvecheck.scan_cached(
+        tmp_path, "org/repo", None, "org/repo:1.0.0", {}, new_cache, CVE_CACHE_TTL_DAYS
+    )
 
     assert was_cached is False
     assert vulns == []
@@ -247,7 +259,9 @@ def test_scan_cached_failed_scan_returns_none_and_is_never_cached(libcvecheck, t
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: None)
     new_cache = {}
 
-    vulns, was_cached = libcvecheck.scan_cached(tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", {}, new_cache, CVE_CACHE_TTL_DAYS)
+    vulns, was_cached = libcvecheck.scan_cached(
+        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", {}, new_cache, CVE_CACHE_TTL_DAYS
+    )
 
     assert vulns is None
     assert was_cached is False
@@ -266,6 +280,7 @@ def test_scan_cached_default_label_is_this_image(libcvecheck, tmp_path, monkeypa
 # so there's no second independently-written copy of it left to drift —
 # see the real bug that happened once, when check_cves' own copy of this
 # step quietly wrote new_cache = {} instead) ---
+
 
 def test_open_cache_session_new_cache_is_a_separate_copy(libcvecheck, tmp_path):
     key = libcvecheck.cache_key("org/repo", DIGEST_A)
@@ -307,6 +322,7 @@ def test_check_cves_routes_through_open_cache_session(vp, libcvecheck, tmp_path,
 
 
 # --- classification ---
+
 
 def test_classify_source_own(libcvecheck):
     assert libcvecheck.classify_source("podiumd/templates/frankgateway.yaml", {}) == "own"
@@ -352,7 +368,10 @@ def test_parse_image_ref_tagless_digest_reference(libcvecheck):
 
 def test_parse_image_ref_registry_port_is_not_a_tag(libcvecheck):
     assert libcvecheck.parse_image_ref(f"registry.example.com:5000/foo/bar@sha256:{DIGEST_A}") == (
-        "registry.example.com:5000/foo/bar", None, DIGEST_A)
+        "registry.example.com:5000/foo/bar",
+        None,
+        DIGEST_A,
+    )
 
 
 def test_top_level_key_for_line(libcvecheck):
@@ -376,6 +395,7 @@ def test_render_image_labels_own_wins_over_other_sources(libcvecheck):
 
 
 # --- per-package grouping/summarization ---
+
 
 def test_severity_label_abbreviates_critical(libcvecheck):
     assert libcvecheck.severity_label("CRITICAL") == "CRIT"
@@ -431,6 +451,7 @@ def test_print_package_line_never_shows_fix_version(libcvecheck, capsys):
 
 # --- check_cves: docker/render preconditions ---
 
+
 def test_check_cves_no_docker_passes_and_skips(vp, tmp_path, monkeypatch):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: None)
@@ -450,24 +471,35 @@ def test_check_cves_render_failure_fails(vp, libcvecheck, tmp_path, monkeypatch)
 
 # --- check_cves: full own/partner/other integration ---
 
+
 def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
     trivy_by_image = {
-        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(stdout=json.dumps(
-            {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1"), vuln("LOW", cve="CVE-OWN-2")]}]})),
-        "docker.io/maykinmedia/objects-api:1.0.0": trivy_result(stdout=json.dumps(
-            {"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-PARTNER-1")]}]})),
-        "docker.io/alpine/k8s:1.36.2": trivy_result(stdout=json.dumps(
-            {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OTHER-1"), vuln("MEDIUM", cve="CVE-OTHER-2")]}]})),
+        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(
+            stdout=json.dumps(
+                {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1"), vuln("LOW", cve="CVE-OWN-2")]}]}
+            )
+        ),
+        "docker.io/maykinmedia/objects-api:1.0.0": trivy_result(
+            stdout=json.dumps({"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-PARTNER-1")]}]})
+        ),
+        "docker.io/alpine/k8s:1.36.2": trivy_result(
+            stdout=json.dumps(
+                {
+                    "Results": [
+                        {"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OTHER-1"), vuln("MEDIUM", cve="CVE-OTHER-2")]}
+                    ]
+                }
+            )
+        ),
     }
     monkeypatch.setattr(libcvecheck, "run", sequenced_run(trivy_by_image=trivy_by_image))
 
     ok, detail = vp.check_cves(chart_dir, [])
     assert ok is True  # never fails regardless of severity
-    assert detail == ("CVEs: 2 own (1 img), 1 partner-vendor (1 img), 2 other-vendor (1 img); "
-                       "0 scan error(s)")
+    assert detail == ("CVEs: 2 own (1 img), 1 partner-vendor (1 img), 2 other-vendor (1 img); 0 scan error(s)")
 
     out = capsys.readouterr().out
     assert "--- Own images ---" in out
@@ -495,7 +527,12 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
 
 
 def test_check_cves_marks_upgradable_from_image_upgrade_cache(
-    vp, libcvecheck, libimageupgradecache, tmp_path, monkeypatch, capsys,
+    vp,
+    libcvecheck,
+    libimageupgradecache,
+    tmp_path,
+    monkeypatch,
+    capsys,
 ):
     """check_cves reads lib.image_upgrade_check's own cache (read-only, no
     registry call of its own) to append " upgradable to X" after an
@@ -505,16 +542,23 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
-    libimageupgradecache.save_cache(chart_dir, {
-        libimageupgradecache.cache_key("ghcr.io/wearefrank/frank-gateway", "104"):
-            {"checked_at": datetime.now(timezone.utc).isoformat(), "newest": "105"},
-    })
+    libimageupgradecache.save_cache(
+        chart_dir,
+        {
+            libimageupgradecache.cache_key("ghcr.io/wearefrank/frank-gateway", "104"): {
+                "checked_at": datetime.now(timezone.utc).isoformat(),
+                "newest": "105",
+            },
+        },
+    )
 
     trivy_by_image = {
-        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(stdout=json.dumps(
-            {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1")]}]})),
-        "docker.io/maykinmedia/objects-api:1.0.0": trivy_result(stdout=json.dumps(
-            {"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-PARTNER-1")]}]})),
+        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(
+            stdout=json.dumps({"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1")]}]})
+        ),
+        "docker.io/maykinmedia/objects-api:1.0.0": trivy_result(
+            stdout=json.dumps({"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-PARTNER-1")]}]})
+        ),
     }
     monkeypatch.setattr(libcvecheck, "run", sequenced_run(trivy_by_image=trivy_by_image))
 
@@ -527,7 +571,12 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
 
 
 def test_check_cves_stale_upgrade_cache_entry_not_marked_upgradable(
-    vp, libcvecheck, libimageupgradecache, tmp_path, monkeypatch, capsys,
+    vp,
+    libcvecheck,
+    libimageupgradecache,
+    tmp_path,
+    monkeypatch,
+    capsys,
 ):
     """A stale (past image_upgrade_check.tag_check_cache_ttl_days) entry
     must not be treated as evidence of an upgrade — cve_check never
@@ -537,14 +586,20 @@ def test_check_cves_stale_upgrade_cache_entry_not_marked_upgradable(
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
     stale = datetime.now(timezone.utc) - timedelta(days=1 + 1)
-    libimageupgradecache.save_cache(chart_dir, {
-        libimageupgradecache.cache_key("ghcr.io/wearefrank/frank-gateway", "104"):
-            {"checked_at": stale.isoformat(), "newest": "105"},
-    })
+    libimageupgradecache.save_cache(
+        chart_dir,
+        {
+            libimageupgradecache.cache_key("ghcr.io/wearefrank/frank-gateway", "104"): {
+                "checked_at": stale.isoformat(),
+                "newest": "105",
+            },
+        },
+    )
 
     trivy_by_image = {
-        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(stdout=json.dumps(
-            {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1")]}]})),
+        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(
+            stdout=json.dumps({"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1")]}]})
+        ),
     }
     monkeypatch.setattr(libcvecheck, "run", sequenced_run(trivy_by_image=trivy_by_image))
 
@@ -562,13 +617,28 @@ def test_check_cves_detail_itemizes_every_bucket(vp, libcvecheck, tmp_path, monk
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
     trivy_by_image = {
-        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(stdout=json.dumps(
-            {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1"), vuln("LOW", cve="CVE-OWN-2")]}]})),
-        "docker.io/maykinmedia/objects-api:1.0.0": trivy_result(stdout=json.dumps(
-            {"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-PARTNER-1", pkg="curl")]}]})),
-        "docker.io/alpine/k8s:1.36.2": trivy_result(stdout=json.dumps(
-            {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OTHER-1", pkg="busybox"),
-                                               vuln("MEDIUM", cve="CVE-OTHER-2")]}]})),
+        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(
+            stdout=json.dumps(
+                {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1"), vuln("LOW", cve="CVE-OWN-2")]}]}
+            )
+        ),
+        "docker.io/maykinmedia/objects-api:1.0.0": trivy_result(
+            stdout=json.dumps({"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-PARTNER-1", pkg="curl")]}]})
+        ),
+        "docker.io/alpine/k8s:1.36.2": trivy_result(
+            stdout=json.dumps(
+                {
+                    "Results": [
+                        {
+                            "Vulnerabilities": [
+                                vuln("CRITICAL", cve="CVE-OTHER-1", pkg="busybox"),
+                                vuln("MEDIUM", cve="CVE-OTHER-2"),
+                            ]
+                        }
+                    ]
+                }
+            )
+        ),
     }
     monkeypatch.setattr(libcvecheck, "run", sequenced_run(trivy_by_image=trivy_by_image))
 
@@ -588,7 +658,9 @@ def test_print_bucket_report_image_line_then_totals_then_packages(libcvecheck, m
     total (if any), then the per-package CRIT/HIGH lines."""
     images = {
         "docker.io/pravega/zookeeper:0.2.15": {
-            "bucket": "own", "vendor_label": None, "upgradable_to": "0.2.16",
+            "bucket": "own",
+            "vendor_label": None,
+            "upgradable_to": "0.2.16",
             "vulns": [
                 vuln("HIGH", cve="CVE-1", pkg="bind9-dnsutils"),
                 vuln("MEDIUM", cve="CVE-2"),
@@ -596,9 +668,14 @@ def test_print_bucket_report_image_line_then_totals_then_packages(libcvecheck, m
             ],
         },
     }
-    libcvecheck.print_bucket_report("Own images", ["docker.io/pravega/zookeeper:0.2.15"], images,
-                                     detail_level="full", high_severities=HIGH_SEVERITIES,
-                                     package_cve_list_threshold=PACKAGE_CVE_LIST_THRESHOLD)
+    libcvecheck.print_bucket_report(
+        "Own images",
+        ["docker.io/pravega/zookeeper:0.2.15"],
+        images,
+        detail_level="full",
+        high_severities=HIGH_SEVERITIES,
+        package_cve_list_threshold=PACKAGE_CVE_LIST_THRESHOLD,
+    )
 
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     header_idx = next(i for i, line in enumerate(lines) if line.startswith("docker.io/pravega/zookeeper:0.2.15"))
@@ -614,7 +691,9 @@ def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(libcv
     Not upgradable here, so no marker."""
     images = {
         "docker.io/maykinmedia/objects-api:1.0.0": {
-            "bucket": "partner", "vendor_label": "Maykin", "upgradable_to": None,
+            "bucket": "partner",
+            "vendor_label": "Maykin",
+            "upgradable_to": None,
             "vulns": [
                 vuln("CRITICAL", cve="CVE-1", pkg="openssl"),
                 vuln("HIGH", cve="CVE-2", pkg="openssl"),
@@ -622,9 +701,14 @@ def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(libcv
             ],
         },
     }
-    libcvecheck.print_bucket_report("Partner-vendor images", ["docker.io/maykinmedia/objects-api:1.0.0"], images,
-                                     detail_level="totals", high_severities=HIGH_SEVERITIES,
-                                     package_cve_list_threshold=PACKAGE_CVE_LIST_THRESHOLD)
+    libcvecheck.print_bucket_report(
+        "Partner-vendor images",
+        ["docker.io/maykinmedia/objects-api:1.0.0"],
+        images,
+        detail_level="totals",
+        high_severities=HIGH_SEVERITIES,
+        package_cve_list_threshold=PACKAGE_CVE_LIST_THRESHOLD,
+    )
 
     out = capsys.readouterr().out
     assert "docker.io/maykinmedia/objects-api:1.0.0 [Maykin]\n" in out
@@ -664,15 +748,14 @@ def test_check_cves_heuristic_fallback_for_disabled_component(vp, libcvecheck, t
     """A pin whose component isn't in the render at all (e.g. disabled in
     the CI values) falls back to the values-key heuristic: not a
     Chart.yaml dependency -> own."""
-    values = VALUES_YAML + (
-        "apiproxy:\n  image:\n    repository: org/apiproxy\n" f'    tag: "1.0.0@sha256:{"d" * 64}"\n'
-    )
+    values = VALUES_YAML + (f'apiproxy:\n  image:\n    repository: org/apiproxy\n    tag: "1.0.0@sha256:{"d" * 64}"\n')
     chart_dir = make_chart_dir(tmp_path, values=values)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
     trivy_by_image = {
-        "docker.io/org/apiproxy:1.0.0": trivy_result(stdout=json.dumps(
-            {"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-APIPROXY")]}]})),
+        "docker.io/org/apiproxy:1.0.0": trivy_result(
+            stdout=json.dumps({"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-APIPROXY")]}]})
+        ),
     }
     monkeypatch.setattr(libcvecheck, "run", sequenced_run(trivy_by_image=trivy_by_image))
 
@@ -690,6 +773,7 @@ def test_check_cves_heuristic_fallback_for_disabled_component(vp, libcvecheck, t
 
 # --- caching ---
 
+
 def test_check_cves_cache_miss_scans_and_persists(vp, libcvecheck, tmp_path, monkeypatch):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
@@ -705,10 +789,15 @@ def test_check_cves_cache_hit_skips_scanning(vp, libcvecheck, tmp_path, monkeypa
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     key = libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A)
-    libcvecheck.save_cache(chart_dir, {
-        key: {"scanned_at": datetime.now(timezone.utc).isoformat(),
-              "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-CACHED"))]},
-    })
+    libcvecheck.save_cache(
+        chart_dir,
+        {
+            key: {
+                "scanned_at": datetime.now(timezone.utc).isoformat(),
+                "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-CACHED"))],
+            },
+        },
+    )
 
     def fail_if_scanned(cmd, **kw):
         if "frank-gateway" in cmd[-1]:
@@ -730,9 +819,12 @@ def test_check_cves_expired_cache_entry_rescans(vp, libcvecheck, tmp_path, monke
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     key = libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A)
     stale = datetime.now(timezone.utc) - timedelta(days=CVE_CACHE_TTL_DAYS + 1)
-    libcvecheck.save_cache(chart_dir, {
-        key: {"scanned_at": stale.isoformat(), "vulnerabilities": [trimmed(vuln("CRITICAL"))]},
-    })
+    libcvecheck.save_cache(
+        chart_dir,
+        {
+            key: {"scanned_at": stale.isoformat(), "vulnerabilities": [trimmed(vuln("CRITICAL"))]},
+        },
+    )
     monkeypatch.setattr(libcvecheck, "run", sequenced_run())  # fresh scans find nothing
 
     ok, detail = vp.check_cves(chart_dir, [])
@@ -757,8 +849,10 @@ def test_check_cves_preserves_entries_for_unpinned_images(vp, libcvecheck, tmp_p
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     unrelated_key = "org/proposed-candidate@sha256:" + "e" * 64
-    unrelated_entry = {"scanned_at": datetime.now(timezone.utc).isoformat(),
-                        "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-PROPOSED"))]}
+    unrelated_entry = {
+        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "vulnerabilities": [trimmed(vuln("CRITICAL", cve="CVE-PROPOSED"))],
+    }
     libcvecheck.save_cache(chart_dir, {unrelated_key: unrelated_entry})
     monkeypatch.setattr(libcvecheck, "run", sequenced_run())
 

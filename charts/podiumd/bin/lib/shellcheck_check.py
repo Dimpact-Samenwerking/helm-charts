@@ -4,6 +4,7 @@ chart's `command: [".../sh", "-c"], args: [<script>]` /
 shell bugs (bad quoting, undefined variables, portability issues) that
 nothing else here checks; helm lint/kubeconform/yamllint all treat the
 script as an opaque string."""
+
 import json
 import shutil
 from collections import Counter
@@ -48,8 +49,7 @@ def find_shell_scripts(obj, source, shell_names, path=""):
             # `args: {{ .Values.x }}`, a CRD instance, a hand-written Pod)
             # would otherwise raise `list + str`; leave reporting that field
             # to yamllint/kubeconform rather than crashing the scan here.
-            combined = (command if isinstance(command, list) else []) + \
-                       (args if isinstance(args, list) else [])
+            combined = (command if isinstance(command, list) else []) + (args if isinstance(args, list) else [])
             shell = _shell_name(combined[0]) if combined else None
             if shell in shell_names:
                 for i, tok in enumerate(combined):
@@ -98,8 +98,7 @@ def run_shellcheck(shell, script_text):
     a dict with level/code/line/message) — or None if shellcheck's own
     output couldn't be parsed as JSON (a shellcheck bug/crash, not a chart
     problem)."""
-    result = run(["shellcheck", "-s", shell, "-f", "json1", "-"],
-                 input=script_text, capture_output=True, text=True)
+    result = run(["shellcheck", "-s", shell, "-f", "json1", "-"], input=script_text, capture_output=True, text=True)
     try:
         return json.loads(result.stdout)["comments"]
     except (json.JSONDecodeError, KeyError):
@@ -117,7 +116,7 @@ def _shellcheck_group_label(key):
 
 
 def _shellcheck_location(finding, locations):
-    """"<source> (<path>) — script line <N>[:<col>] (rendered line M)" for
+    """ "<source> (<path>) — script line <N>[:<col>] (rendered line M)" for
     one finding (source, path, comment, kind, namespace, name). The
     script line/column are shellcheck's own, against the embedded script
     text it was fed — position within that script, NOT a line number in
@@ -199,8 +198,10 @@ def check_shellcheck(chart_dir, extra_args):
                 (vendored_friendly if chart in vendor_map else vendored_other).append(finding)
 
     if own_real:
-        print(f"Found {len(own_real)} real shellcheck issue(s) in this chart's own templates "
-              f"(not cosmetic — these fail the check):")
+        print(
+            f"Found {len(own_real)} real shellcheck issue(s) in this chart's own templates "
+            f"(not cosmetic — these fail the check):"
+        )
         print_grouped_findings(
             own_real,
             key_fn=_shellcheck_group_key,
@@ -211,8 +212,10 @@ def check_shellcheck(chart_dir, extra_args):
         print()
 
     if vendored_friendly:
-        print(f"Found {len(vendored_friendly)} shellcheck issue(s) in partner-maintained "
-              f"vendored sub-chart(s) (reported for visibility, never a failure):")
+        print(
+            f"Found {len(vendored_friendly)} shellcheck issue(s) in partner-maintained "
+            f"vendored sub-chart(s) (reported for visibility, never a failure):"
+        )
         print_grouped_findings(
             vendored_friendly,
             key_fn=_shellcheck_group_key,
@@ -224,14 +227,15 @@ def check_shellcheck(chart_dir, extra_args):
 
     if vendored_other:
         by_chart = Counter(chart_name_from_source(source) for source, *_rest in vendored_other)
-        print(f"{len(vendored_other)} shellcheck finding(s) across {len(by_chart)} other "
-              f"vendored sub-chart(s) (outside this repo's scope, not shown, never a failure)")
+        print(
+            f"{len(vendored_other)} shellcheck finding(s) across {len(by_chart)} other "
+            f"vendored sub-chart(s) (outside this repo's scope, not shown, never a failure)"
+        )
 
     if not (own_real or vendored_friendly or vendored_other):
         print("OK: no shellcheck findings in the rendered chart")
 
-    detail = (f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, "
-              f"{len(vendored_other)} other-vendor")
+    detail = f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, {len(vendored_other)} other-vendor"
     if own_real:
         return False, detail
     return True, detail

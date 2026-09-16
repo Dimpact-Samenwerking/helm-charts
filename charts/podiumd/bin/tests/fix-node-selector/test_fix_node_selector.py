@@ -1,5 +1,6 @@
 """find_fixes/apply_fixes (pure logic) plus a main() integration test
 against real files in tmp_path. No git/network/helm needed."""
+
 import pytest
 
 DEPLOYMENT_MISSING = """apiVersion: apps/v1
@@ -141,6 +142,7 @@ def test_apply_fixes_handles_multiple_documents_without_offset_corruption(sub):
 
 # --- main() integration ---
 
+
 def make_templates(tmp_path, files):
     templates_dir = tmp_path / "templates"
     templates_dir.mkdir()
@@ -213,10 +215,13 @@ def test_main_unresolved_case_exits_nonzero_and_leaves_file_untouched(sub, tmp_p
 
 
 def test_main_fixes_multiple_files(sub, tmp_path, monkeypatch, capsys):
-    chart_dir = make_templates(tmp_path, {
-        "deploy.yaml": DEPLOYMENT_MISSING,
-        "cronjob.yaml": CRONJOB_MISSING,
-    })
+    chart_dir = make_templates(
+        tmp_path,
+        {
+            "deploy.yaml": DEPLOYMENT_MISSING,
+            "cronjob.yaml": CRONJOB_MISSING,
+        },
+    )
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-node-selector"])
 

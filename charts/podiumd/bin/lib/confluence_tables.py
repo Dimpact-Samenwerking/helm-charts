@@ -19,6 +19,7 @@ Cloud's REST API expects. Works against Confluence Cloud
 ("https://<site>.atlassian.net/wiki/...") and Server/DC ("https://<host>/
 display/...") URLs alike — the API root differs (".../wiki/rest/api" vs
 ".../rest/api"), detected from the URL's own path."""
+
 import base64
 import json
 import re
@@ -60,10 +61,13 @@ def fetch_page_html(url, user, token, urlopen=urllib.request.urlopen):
     page_id = page_id_from_url(url)
     api_url = f"{api_base_url(url)}/content/{page_id}?expand=body.storage"
     auth = base64.b64encode(f"{user}:{token}".encode()).decode()
-    request = urllib.request.Request(api_url, headers={
-        "Authorization": f"Basic {auth}",
-        "Accept": "application/json",
-    })
+    request = urllib.request.Request(
+        api_url,
+        headers={
+            "Authorization": f"Basic {auth}",
+            "Accept": "application/json",
+        },
+    )
     try:
         with urlopen(request) as response:
             data = json.load(response)
@@ -397,17 +401,26 @@ def select_release_columns(paths):
         "first": 0 if paths else None,
         "vendor": find_column(paths, ["ontwikkelpartij"]),
         "used_by": find_column(paths, ["used by"]),
-        "source_app": None, "source_helm": None, "target_app": None, "target_helm": None,
+        "source_app": None,
+        "source_helm": None,
+        "target_app": None,
+        "target_helm": None,
     }
     groups = find_versie_groups(paths)
     if len(groups) == 2:
         (_, source_cols), (_, target_cols) = groups
         columns["source_helm"] = find_column(paths, ["helm"], candidates=source_cols)
-        columns["source_app"] = (source_cols[0] if len(source_cols) == 1 and columns["source_helm"] is None
-                                  else find_column(paths, ["app"], candidates=source_cols))
+        columns["source_app"] = (
+            source_cols[0]
+            if len(source_cols) == 1 and columns["source_helm"] is None
+            else find_column(paths, ["app"], candidates=source_cols)
+        )
         columns["target_helm"] = find_column(paths, ["helm"], candidates=target_cols)
-        columns["target_app"] = (target_cols[0] if len(target_cols) == 1 and columns["target_helm"] is None
-                                  else find_column(paths, ["app"], candidates=target_cols))
+        columns["target_app"] = (
+            target_cols[0]
+            if len(target_cols) == 1 and columns["target_helm"] is None
+            else find_column(paths, ["app"], candidates=target_cols)
+        )
     return columns
 
 

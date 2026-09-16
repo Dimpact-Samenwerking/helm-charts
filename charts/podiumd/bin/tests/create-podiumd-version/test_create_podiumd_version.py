@@ -12,6 +12,7 @@ temp git repo (the `repo` fixture) rather than faked outright -- main()
 now resolves both baselines to actual git refs via resolve_baseline_ref
 before it writes anything, and a bare tmp_path isn't a git repo at all,
 so that resolution needs something real to succeed against."""
+
 import subprocess
 
 import pytest
@@ -42,13 +43,14 @@ def repo(tmp_path):
 def write_chart_yaml(path, version, app_version=None):
     app_version = app_version if app_version is not None else version
     path.write_text(
-        f'apiVersion: v2\nname: podiumd\ntype: application\n'
+        f"apiVersion: v2\nname: podiumd\ntype: application\n"
         f'version: {version}\nappVersion: "{app_version}"\ndependencies: []\n',
         encoding="utf-8",
     )
 
 
 # --- current_chart_version / version_tuple ---
+
 
 def test_current_chart_version_reads_chart_yaml(cpv, tmp_path, monkeypatch):
     chart_yaml = tmp_path / "Chart.yaml"
@@ -63,6 +65,7 @@ def test_version_tuple_orders_numerically_not_lexically(cpv):
 
 
 # --- bump_kind ---
+
 
 def test_bump_kind_single_patch_increment(cpv):
     assert cpv.bump_kind("4.9.0", "4.9.1") == "patch"
@@ -100,6 +103,7 @@ def test_bump_kind_lower_target_rejected(cpv):
 
 # --- update_chart_version ---
 
+
 def test_update_chart_version_bumps_both_fields(cpv, tmp_path, monkeypatch):
     chart_yaml = tmp_path / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
@@ -117,7 +121,7 @@ def test_update_chart_version_preserves_quote_style_and_other_lines(cpv, tmp_pat
     chart_yaml = tmp_path / "Chart.yaml"
     chart_yaml.write_text(
         'apiVersion: v2\nname: podiumd\nversion: 4.9.0\nappVersion: "4.9.0"\n'
-        'dependencies:\n  - name: foo\n    version: 1.2.3\n',
+        "dependencies:\n  - name: foo\n    version: 1.2.3\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
@@ -141,6 +145,7 @@ def test_update_chart_version_missing_version_line_raises(cpv, tmp_path, monkeyp
 
 # --- main(): argument/help handling ---
 
+
 def test_help_flag_prints_docstring_and_exits_0(cpv, monkeypatch, capsys):
     monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version", "--help"])
     with pytest.raises(SystemExit) as exc_info:
@@ -158,6 +163,7 @@ def test_unexpected_arg_prints_docstring_and_exits_1(cpv, monkeypatch, capsys):
 
 
 # --- main(): precondition failures ---
+
 
 def test_not_a_git_repo_fails(cpv, monkeypatch, capsys):
     monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
@@ -290,6 +296,7 @@ def test_patch_bump_with_unresolvable_existing_release_table_refused(cpv, repo, 
 
 # --- main(): success path ---
 
+
 def test_minor_bump_writes_both_baselines_and_delegates(cpv, repo, monkeypatch, capsys):
     """Numeric comparison must beat lexical: 4.9.0 -> 4.10.0 would look
     like a *downgrade* under plain string comparison ("4.9.0" > "4.10.0"
@@ -318,8 +325,8 @@ def test_minor_bump_writes_both_baselines_and_delegates(cpv, repo, monkeypatch, 
     assert exc_info.value.code == 0
     assert chart_yaml.read_text().splitlines()[3] == "version: 4.10.0"
     baselines = (repo / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
-    assert 'upgrade_docs: 4.9.0' in baselines or 'upgrade_docs: "4.9.0"' in baselines
-    assert 'release_table: 4.9.0' in baselines or 'release_table: "4.9.0"' in baselines
+    assert "upgrade_docs: 4.9.0" in baselines or 'upgrade_docs: "4.9.0"' in baselines
+    assert "release_table: 4.9.0" in baselines or 'release_table: "4.9.0"' in baselines
     assert len(calls) == 1
     assert calls[0] == [cpv.sys.executable, str(cpv.CREATE_DOC_VERSION_SCRIPT)]
     out = capsys.readouterr().out
@@ -347,7 +354,7 @@ def test_patch_bump_writes_only_upgrade_docs_leaves_release_table(cpv, repo, mon
     assert exc_info.value.code == 0
     assert chart_yaml.read_text().splitlines()[3] == "version: 4.9.1"
     baselines = (repo / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
-    assert 'upgrade_docs: 4.9.0' in baselines or 'upgrade_docs: "4.9.0"' in baselines
+    assert "upgrade_docs: 4.9.0" in baselines or 'upgrade_docs: "4.9.0"' in baselines
     assert "4.8.5" in baselines  # release_table untouched
     out = capsys.readouterr().out
     assert "4.9.0 -> 4.9.1 (patch bump)" in out

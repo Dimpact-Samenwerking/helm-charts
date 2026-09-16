@@ -36,6 +36,7 @@ realm; the images docs repeat "## Changes" per hop). siblings_only
 restricts the rule to duplicates under the SAME parent heading — a
 genuine copy-paste slip is still caught, a correct parallel structure no
 longer is."""
+
 import re
 import shutil
 from pathlib import Path
@@ -138,8 +139,9 @@ def check_markdown(chart_dir):
     tolerates findings the way it used to)."""
     pymarkdown = find_pymarkdown(chart_dir)
     if pymarkdown is None:
-        return False, ("pymarkdown is not installed (see "
-                        "README-release-process.md#setup, or --skip=markdown to bypass)")
+        return False, (
+            "pymarkdown is not installed (see README-release-process.md#setup, or --skip=markdown to bypass)"
+        )
 
     files = find_markdown_files(chart_dir)
     if not files:
@@ -147,9 +149,11 @@ def check_markdown(chart_dir):
         return True, "no markdown files"
 
     disabled_rules = ",".join(quality_gates_markdown_disabled_rules(chart_dir))
-    result = run([pymarkdown, "-d", disabled_rules, *MARKDOWN_PLUGIN_SETTINGS,
-                  "scan", *[str(f) for f in files]],
-                 capture_output=True, text=True)
+    result = run(
+        [pymarkdown, "-d", disabled_rules, *MARKDOWN_PLUGIN_SETTINGS, "scan", *[str(f) for f in files]],
+        capture_output=True,
+        text=True,
+    )
     output = result.stdout + result.stderr
 
     findings = []

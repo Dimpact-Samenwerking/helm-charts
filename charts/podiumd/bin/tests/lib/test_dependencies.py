@@ -2,6 +2,7 @@
 _vendored_state_matches_chart_yaml. `helm` subprocess calls mocked out via
 libdependencies.run, so these tests need neither the binary installed nor
 network access."""
+
 from types import SimpleNamespace
 
 import yaml
@@ -10,6 +11,7 @@ import yaml
 def fake_run(returncode=0, stdout="", stderr=""):
     def _run(cmd, **kwargs):
         return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
+
     return _run
 
 
@@ -37,8 +39,9 @@ def write_matching_lock_state(chart_dir, deps):
 
     (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
     lock_deps = [resolved(dep) for dep in deps]
-    (chart_dir / "Chart.lock").write_text(yaml.safe_dump({"dependencies": lock_deps, "digest": "sha256:aaaa"}),
-                                            encoding="utf-8")
+    (chart_dir / "Chart.lock").write_text(
+        yaml.safe_dump({"dependencies": lock_deps, "digest": "sha256:aaaa"}), encoding="utf-8"
+    )
     charts_dir = chart_dir / "charts"
     charts_dir.mkdir(exist_ok=True)
     for dep in deps:
@@ -47,9 +50,11 @@ def write_matching_lock_state(chart_dir, deps):
 
 # --- ensure_repos_configured ---
 
+
 def test_ensure_repos_configured_success(libdependencies, tmp_path, monkeypatch):
-    monkeypatch.setattr(libdependencies, "helm_repos_urls_by_alias",
-                         lambda chart_dir: {"zac": "https://example.invalid/zac/"})
+    monkeypatch.setattr(
+        libdependencies, "helm_repos_urls_by_alias", lambda chart_dir: {"zac": "https://example.invalid/zac/"}
+    )
     monkeypatch.setattr(libdependencies, "run", fake_run(0))
     ok, msg = libdependencies.ensure_repos_configured(tmp_path)
     assert ok is True
@@ -57,8 +62,9 @@ def test_ensure_repos_configured_success(libdependencies, tmp_path, monkeypatch)
 
 
 def test_ensure_repos_configured_repo_add_failure(libdependencies, tmp_path, monkeypatch):
-    monkeypatch.setattr(libdependencies, "helm_repos_urls_by_alias",
-                         lambda chart_dir: {"zac": "https://example.invalid/zac/"})
+    monkeypatch.setattr(
+        libdependencies, "helm_repos_urls_by_alias", lambda chart_dir: {"zac": "https://example.invalid/zac/"}
+    )
     monkeypatch.setattr(libdependencies, "run", fake_run(1, "", "network unreachable"))
     ok, msg = libdependencies.ensure_repos_configured(tmp_path)
     assert ok is False
@@ -73,9 +79,11 @@ def test_ensure_repos_configured_scopes_repo_update_to_required_repos(libdepende
     used by this chart — ~6.2s vs ~0.6s scoped). Passing helm_repos_urls_
     by_alias' own names restricts it to just the repos this function
     itself added/verified above."""
-    monkeypatch.setattr(libdependencies, "helm_repos_urls_by_alias",
-                         lambda chart_dir: {"zac": "https://example.invalid/zac/",
-                                             "kiss": "https://example.invalid/kiss/"})
+    monkeypatch.setattr(
+        libdependencies,
+        "helm_repos_urls_by_alias",
+        lambda chart_dir: {"zac": "https://example.invalid/zac/", "kiss": "https://example.invalid/kiss/"},
+    )
     calls = []
 
     def recording_run(cmd, **kwargs):
@@ -90,8 +98,9 @@ def test_ensure_repos_configured_scopes_repo_update_to_required_repos(libdepende
 
 
 def test_ensure_repos_configured_repo_update_failure(libdependencies, tmp_path, monkeypatch):
-    monkeypatch.setattr(libdependencies, "helm_repos_urls_by_alias",
-                         lambda chart_dir: {"zac": "https://example.invalid/zac/"})
+    monkeypatch.setattr(
+        libdependencies, "helm_repos_urls_by_alias", lambda chart_dir: {"zac": "https://example.invalid/zac/"}
+    )
 
     def sequenced_run(cmd, **kwargs):
         if cmd[1] == "repo" and cmd[2] == "add":
@@ -105,6 +114,7 @@ def test_ensure_repos_configured_repo_update_failure(libdependencies, tmp_path, 
 
 
 # --- check_dependencies ---
+
 
 def test_check_dependencies_success(libdependencies, tmp_path, monkeypatch, capsys):
     dep_list_output = "NAME\tVERSION\tREPOSITORY\tSTATUS\na\t1.0\t@x\tok\nb\t2.0\t@x\tok\n"
@@ -194,6 +204,7 @@ def test_check_dependencies_bad_status_fails(libdependencies, tmp_path, monkeypa
 
 # --- _vendored_state_matches_chart_yaml / check_dependencies fast path ---
 
+
 def test_vendored_state_matches_chart_yaml_true_when_everything_lines_up(libdependencies, tmp_path):
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_matching_lock_state(tmp_path, deps)
@@ -242,11 +253,11 @@ def test_vendored_state_matches_chart_yaml_int_version_normalized(libdependencie
     string — must still compare equal to Chart.lock's own quoted-string
     form of the same version."""
     (tmp_path / "Chart.yaml").write_text(
-        "dependencies:\n  - name: keycloak\n    version: 26\n    repository: \"@keycloak\"\n",
+        'dependencies:\n  - name: keycloak\n    version: 26\n    repository: "@keycloak"\n',
         encoding="utf-8",
     )
     (tmp_path / "Chart.lock").write_text(
-        "dependencies:\n  - name: keycloak\n    version: \"26\"\n    repository: \"@keycloak\"\ndigest: sha256:aaaa\n",
+        'dependencies:\n  - name: keycloak\n    version: "26"\n    repository: "@keycloak"\ndigest: sha256:aaaa\n',
         encoding="utf-8",
     )
     (tmp_path / "charts").mkdir()

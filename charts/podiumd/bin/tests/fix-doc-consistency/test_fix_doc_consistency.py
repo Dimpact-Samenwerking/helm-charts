@@ -4,6 +4,7 @@ against a real, hermetic temp git repo (git mv shells out to git, so it
 needs a real working tree). existing_doc_baselines itself is
 lib.component_docs' own (see tests/lib/test_component_docs.py) — this
 script only calls through it, exercised here via main()."""
+
 import io
 import subprocess
 import tarfile
@@ -45,6 +46,7 @@ def make_tgz(charts_dir, name, version, values, raw_files=None):
 
 # --- find_collisions ---
 
+
 def test_find_collisions_detects_multiple_sources_for_same_suffix(cdb, tmp_path):
     by_suffix = {
         "upgrade": [("4.8.2", tmp_path / "a.md"), ("4.8.3", tmp_path / "b.md")],
@@ -63,6 +65,7 @@ def test_find_collisions_empty_when_all_unique(cdb, tmp_path):
 
 
 # --- update_title_line ---
+
 
 def test_update_title_line_replaces_arrow_form(cdb):
     text = "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\nbody\n"
@@ -94,6 +97,7 @@ def test_update_title_line_no_match_returns_unchanged(cdb):
 
 # --- update_component_versions_heading ---
 
+
 def test_update_component_versions_heading_replaces_match(cdb):
     text = "## Component versions (4.9.0 vs 4.8.2)\n\nmore\n"
     new_text, changed = cdb.update_component_versions_heading(text, "4.8.2", "4.9.0", "4.8.3")
@@ -110,6 +114,7 @@ def test_update_component_versions_heading_no_match(cdb):
 
 # --- remaining_mentions ---
 
+
 def test_remaining_mentions_finds_all_lines(cdb):
     text = "line one 4.8.2\nline two\nline three 4.8.2 again\n"
     assert cdb.remaining_mentions(text, "4.8.2") == [1, 3]
@@ -120,6 +125,7 @@ def test_remaining_mentions_empty_when_absent(cdb):
 
 
 # --- collapse_multiple_blank_lines ---
+
 
 def test_collapse_multiple_blank_lines_two_blanks_becomes_one(cdb):
     text = "line one\n\n\nline two\n"
@@ -170,6 +176,7 @@ def test_collapse_multiple_blank_lines_single_trailing_newline_untouched(cdb):
 
 
 # --- ensure_blank_lines_around_headings ---
+
 
 def test_ensure_blank_lines_around_headings_adds_missing_blank_above(cdb):
     """Regression test (real bug, real doc): a "### ..." heading landing
@@ -232,26 +239,33 @@ def test_collapse_multiple_blank_lines_also_fixes_missing_blank_around_heading(c
 
 # --- main() integration, against a real temp git repo ---
 
+
 @pytest.fixture
 def repo(tmp_path):
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
-        ],
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+                ],
+            }
+        ),
+    )
     write(tmp_path / "values.yaml", yaml.safe_dump({"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}))
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     (tmp_path / "docs" / "images").mkdir(parents=True)
-    write(doc_dir / "4.8.2-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
-          "This is the upgrade guide for environments already on **4.8.2**.\n\n"
-          "## Component versions (4.9.0 vs 4.8.2)\n")
-    write(doc_dir / "4.8.2-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\nNo changes.\n")
+    write(
+        doc_dir / "4.8.2-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
+        "This is the upgrade guide for environments already on **4.8.2**.\n\n"
+        "## Component versions (4.9.0 vs 4.8.2)\n",
+    )
+    write(doc_dir / "4.8.2-to-4.9.0-values-deltas.md", "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\nNo changes.\n")
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "seed docs", cwd=tmp_path)
     return doc_dir
@@ -287,10 +301,12 @@ def test_main_rewrites_sibling_doc_references_within_the_docs_themselves(cdb, re
     rewritten too, not just flagged for manual review — this chart
     supports exactly one upgrade path per target, so every such reference
     always means the current baseline."""
-    write(repo / "4.8.2-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\n"
-          "Background and failure modes in "
-          "[`4.8.2-to-4.9.0-upgrade.md`](4.8.2-to-4.9.0-upgrade.md).\n")
+    write(
+        repo / "4.8.2-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\n"
+        "Background and failure modes in "
+        "[`4.8.2-to-4.9.0-upgrade.md`](4.8.2-to-4.9.0-upgrade.md).\n",
+    )
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
 
     cdb.main()
@@ -303,8 +319,9 @@ def test_main_rewrites_sibling_doc_references_within_the_docs_themselves(cdb, re
 def test_main_is_tracked_by_git_after_rename(cdb, repo, monkeypatch):
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
     cdb.main()
-    status = subprocess.run(["git", "status", "--porcelain"], cwd=repo.parents[1],
-                             capture_output=True, text=True).stdout
+    status = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=repo.parents[1], capture_output=True, text=True
+    ).stdout
     assert "R  " in status or "renamed" in status.lower() or "4.8.3-to-4.9.0-upgrade.md" in status
 
 
@@ -360,10 +377,12 @@ def test_main_already_at_new_baseline_still_fixes_a_stale_sibling_reference(cdb,
     from an earlier, incomplete rebase (the doc's OWN baseline already
     moved past it, but a link inside it didn't) must still be fixed, or
     nothing else in this script would ever touch that doc again."""
-    write(repo / "4.8.2-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\n"
-          "Background and failure modes in "
-          "[`4.8.1-to-4.9.0-upgrade.md`](4.8.1-to-4.9.0-upgrade.md).\n")
+    write(
+        repo / "4.8.2-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\n"
+        "Background and failure modes in "
+        "[`4.8.1-to-4.9.0-upgrade.md`](4.8.1-to-4.9.0-upgrade.md).\n",
+    )
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
 
     cdb.main()
@@ -385,10 +404,12 @@ def test_main_already_at_new_baseline_with_correct_sibling_ref_is_a_noop(cdb, re
     baseline, so this doc was falsely reported as "fixed" on every run
     with no actual file change (confirmed live: 4 real docs, real user
     session, no diff produced)."""
-    write(repo / "4.8.2-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\n"
-          "Background and failure modes in "
-          "[`4.8.2-to-4.9.0-upgrade.md`](4.8.2-to-4.9.0-upgrade.md).\n")
+    write(
+        repo / "4.8.2-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\n"
+        "Background and failure modes in "
+        "[`4.8.2-to-4.9.0-upgrade.md`](4.8.2-to-4.9.0-upgrade.md).\n",
+    )
     original = (repo / "4.8.2-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
 
@@ -410,8 +431,9 @@ def test_main_already_at_new_baseline_collapses_pre_existing_double_blank_line(c
     values-deltas.md's own separate content-fixing pass), that pre-
     existing violation could survive run after run with fix-doc-
     consistency reporting nothing wrong."""
-    write(repo / "4.8.2-to-4.9.0-gemeente-specific.md",
-          "# Gemeente-specific notes — PodiumD 4.8.2 → 4.9.0\n\n\nNone.\n")
+    write(
+        repo / "4.8.2-to-4.9.0-gemeente-specific.md", "# Gemeente-specific notes — PodiumD 4.8.2 → 4.9.0\n\n\nNone.\n"
+    )
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
 
     cdb.main()
@@ -430,13 +452,15 @@ def test_main_already_at_new_baseline_strips_stale_changes_todo_stub(cdb, repo, 
     beside it forever. This "already at baseline" no-rename path is the
     ONLY place a doc like this ever gets touched again — same reasoning
     as the sibling-reference/blank-line fixes right above."""
-    write(repo / "4.8.2-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.2)\n\n"
-          "## Changes\n\n"
-          "TODO\n\n"
-          "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
-          "PodiumD 4.9.0 introduces **eck-operator** at app version 3.5.0.\n")
+    write(
+        repo / "4.8.2-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.2)\n\n"
+        "## Changes\n\n"
+        "TODO\n\n"
+        "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+        "PodiumD 4.9.0 introduces **eck-operator** at app version 3.5.0.\n",
+    )
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
 
     cdb.main()
@@ -449,17 +473,15 @@ def test_main_already_at_new_baseline_strips_stale_changes_todo_stub(cdb, repo, 
     assert "removed stale TODO placeholder from 1 doc(s): 4.8.2-to-4.9.0-upgrade.md" in out
 
 
-def test_main_already_at_new_baseline_leaves_a_still_empty_changes_section_untouched(
-        cdb, repo, monkeypatch, capsys):
+def test_main_already_at_new_baseline_leaves_a_still_empty_changes_section_untouched(cdb, repo, monkeypatch, capsys):
     """A "## Changes" section that STILL only has the bare TODO (no real
     "### ..." block yet) is the correct, expected state for a doc with
     nothing recorded yet — must never be touched, and must not appear in
     the "removed stale TODO placeholder" summary."""
-    write(repo / "4.8.2-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.2)\n\n"
-          "## Changes\n\n"
-          "TODO\n")
+    write(
+        repo / "4.8.2-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n## Component versions (4.9.0 vs 4.8.2)\n\n## Changes\n\nTODO\n",
+    )
     original = (repo / "4.8.2-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
 
@@ -476,11 +498,13 @@ def test_main_already_at_new_baseline_strips_stale_values_deltas_todo_stub(cdb, 
     deltas.md's own "## eck-operator ..." section was inserted before
     insert_values_delta_section's own insertion-time fix existed,
     leaving the stub TODO sentence stranded beside it forever."""
-    write(repo / "4.8.2-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\n"
-          "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n\n"
-          "## eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
-          "- Key `eck-operator.image` was added.\n")
+    write(
+        repo / "4.8.2-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\n"
+        "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n\n"
+        "## eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
+        "- Key `eck-operator.image` was added.\n",
+    )
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
 
     cdb.main()
@@ -507,8 +531,10 @@ def test_stale_placeholder_functions_are_reused_not_reimplemented(cdb):
     assert cdb.strip_stale_values_deltas_todo_stub is component_docs.strip_stale_values_deltas_todo_stub
     assert docs_consistency.strip_stale_upgrade_placeholders is component_docs.strip_stale_upgrade_placeholders
     assert docs_consistency.strip_stale_values_deltas_todo_stub is component_docs.strip_stale_values_deltas_todo_stub
-    assert (docs_consistency.has_stale_gemeente_specific_placeholder
-            is component_docs.has_stale_gemeente_specific_placeholder)
+    assert (
+        docs_consistency.has_stale_gemeente_specific_placeholder
+        is component_docs.has_stale_gemeente_specific_placeholder
+    )
 
 
 def test_main_no_release_baseline_errors(cdb, monkeypatch):
@@ -576,6 +602,7 @@ def test_main_accepts_valid_semver_baseline(cdb, monkeypatch):
 
 # --- canonical_version_cell ---
 
+
 def test_canonical_version_cell_arrow_form(cdb):
     assert cdb.canonical_version_cell("5.0.2", "5.1.0") == "5.0.2 → 5.1.0"
 
@@ -589,6 +616,7 @@ def test_canonical_version_cell_v_prefix_counts_as_unchanged(cdb):
 
 
 # --- fix_component_version_table ---
+
 
 def target_deps_and_values():
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
@@ -672,10 +700,14 @@ def test_fix_component_version_table_no_baseline_data_reported_unresolved(cdb):
 def redis_sidecar_deps_and_values(target_chart="0.26.1", baseline_chart="0.25.0", target_tag="8.6.6"):
     target_deps = [{"name": "redis-operator", "version": target_chart}]
     baseline_deps = [{"name": "redis-operator", "version": baseline_chart}]
-    target_values = {"redis-operator": {"redis-ha": {"image": {
-        "repository": "quay.io/opstree/redis", "tag": f"{target_tag}@sha256:aaaa"}}}}
-    baseline_values = {"redis-operator": {"redis-ha": {"image": {
-        "repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}}}
+    target_values = {
+        "redis-operator": {
+            "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": f"{target_tag}@sha256:aaaa"}}
+        }
+    }
+    baseline_values = {
+        "redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}}
+    }
     return target_deps, target_values, baseline_deps, baseline_values
 
 
@@ -853,7 +885,8 @@ def test_fix_component_version_table_new_sidecar_app_annotated_new_chart_cell_un
     )
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
     target_values["redis-operator"]["redis-ha"]["preDeleteJob"] = {
-        "image": {"repository": "alpine/k8s", "tag": "1.36.2@sha256:cccc"}}
+        "image": {"repository": "alpine/k8s", "tag": "1.36.2@sha256:cccc"}
+    }
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
         text, None, target_deps, target_values, baseline_deps, baseline_values
@@ -873,8 +906,11 @@ def _write_historical_images_manifest(chart_dir, version, entries):
     images_dir = chart_dir / "docs" / "images"
     images_dir.mkdir(parents=True, exist_ok=True)
     (images_dir / f"images-{version}.yaml").write_text(
-        "".join(f"- name: {e['name']}\n  url: {e.get('url', e['name'])}\n  version: \"{e['version']}\"\n"
-                f"  digest: \"{e['digest']}\"\n" for e in entries),
+        "".join(
+            f'- name: {e["name"]}\n  url: {e.get("url", e["name"])}\n  version: "{e["version"]}"\n'
+            f'  digest: "{e["digest"]}"\n'
+            for e in entries
+        ),
         encoding="utf-8",
     )
 
@@ -887,9 +923,18 @@ def test_fix_component_version_table_new_dependency_known_in_historical_manifest
     "(unchanged)" instead of "(new)"; its CHART cell still correctly
     reads "(new)", since the Chart.yaml dependency line genuinely is
     new. Not the removed images-baseline.yaml side-file."""
-    _write_historical_images_manifest(tmp_path, "4.8.0", [
-        {"name": "brp-api/personen-mock", "url": "ghcr.io/brp-api/personen-mock",
-         "version": "2.7.0-202606230850", "digest": "sha256:aaaa"}])
+    _write_historical_images_manifest(
+        tmp_path,
+        "4.8.0",
+        [
+            {
+                "name": "brp-api/personen-mock",
+                "url": "ghcr.io/brp-api/personen-mock",
+                "version": "2.7.0-202606230850",
+                "digest": "sha256:aaaa",
+            }
+        ],
+    )
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -897,8 +942,11 @@ def test_fix_component_version_table_new_dependency_known_in_historical_manifest
         "| brppersonenmock | 2.7.0-202606230850 | 1.2.9 | - |\n"
     )
     target_deps = [{"name": "brppersonenmock", "version": "1.2.9"}]
-    target_values = {"brppersonenmock": {"image": {
-        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}}}
+    target_values = {
+        "brppersonenmock": {
+            "image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}
+        }
+    }
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
         text, tmp_path, target_deps, target_values, [], {}, upgrade_docs_baseline="4.8.5"
@@ -915,8 +963,11 @@ def test_fix_component_version_table_new_sidecar_known_in_historical_manifest_is
     row starts stale (a wrong target number) so it's guaranteed to be
     rewritten regardless of annotation text — the value under test is
     what it gets rewritten TO."""
-    _write_historical_images_manifest(tmp_path, "4.8.0", [
-        {"name": "alpine/k8s", "url": "quay.io/alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}])
+    _write_historical_images_manifest(
+        tmp_path,
+        "4.8.0",
+        [{"name": "alpine/k8s", "url": "quay.io/alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}],
+    )
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -925,7 +976,8 @@ def test_fix_component_version_table_new_sidecar_known_in_historical_manifest_is
     )
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
     target_values["redis-operator"]["k8s"] = {
-        "image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}}
+        "image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}
+    }
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
         text, tmp_path, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.8.5"
@@ -943,8 +995,11 @@ def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matchi
     only row["app_source"]/row["app"] (the numeric endpoints alone)
     would treat this row as already "matching" and never touch it,
     silently leaving the wrong annotation in place forever."""
-    _write_historical_images_manifest(tmp_path, "4.8.0", [
-        {"name": "alpine/k8s", "url": "quay.io/alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}])
+    _write_historical_images_manifest(
+        tmp_path,
+        "4.8.0",
+        [{"name": "alpine/k8s", "url": "quay.io/alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}],
+    )
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -953,7 +1008,8 @@ def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matchi
     )
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
     target_values["redis-operator"]["k8s"] = {
-        "image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}}
+        "image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}
+    }
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
         text, tmp_path, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.8.5"
@@ -964,6 +1020,7 @@ def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matchi
 
 
 # --- fix_changes_heading_app_versions ---
+
 
 def test_fix_changes_heading_app_versions_corrects_wrong_new_dependency_heading(cdb):
     """Real bug, real doc: mi's own row was already correctly fixed
@@ -989,7 +1046,8 @@ def test_fix_changes_heading_app_versions_corrects_wrong_new_dependency_heading(
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
     assert "### mi 2.90.0 (new) (chart 1.1.0, unchanged)" in new_text
@@ -1021,7 +1079,8 @@ def test_fix_changes_heading_app_versions_syncs_headings_name_to_rows(cdb):
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
     assert "### mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)" in new_text
@@ -1050,7 +1109,8 @@ def test_fix_changes_heading_app_versions_renames_even_when_app_version_already_
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == ["mi 2.90.0 (new) (chart 1.1.0, unchanged)"]
     assert "### mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)" in new_text
@@ -1077,14 +1137,29 @@ def test_fix_changes_heading_app_versions_preserves_deliberately_customized_name
         "Real, hand-written prose describing just the server image bump.\n"
     )
     deps = [{"name": "keycloak-operator", "version": "1.13.0"}]
-    target_values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
-        "repository": "quay.io/keycloak/keycloak", "tag": "26.7.3@sha256:" + "b" * 64}}}}}
+    target_values = {
+        "keycloak-operator": {
+            "operator": {
+                "config": {
+                    "keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3@sha256:" + "b" * 64}
+                }
+            }
+        }
+    }
     baseline_deps = [{"name": "keycloak-operator", "version": "1.12.1"}]
-    baseline_values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
-        "repository": "quay.io/keycloak/keycloak", "tag": "26.7.2@sha256:" + "a" * 64}}}}}
+    baseline_values = {
+        "keycloak-operator": {
+            "operator": {
+                "config": {
+                    "keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.2@sha256:" + "a" * 64}
+                }
+            }
+        }
+    }
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.9.0")
+        text, None, deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.9.0"
+    )
 
     assert updated_headings == []
     assert new_text == text
@@ -1112,7 +1187,8 @@ def test_fix_changes_heading_app_versions_no_version_marker_never_touched(cdb):
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == []
     assert new_text == text
@@ -1132,7 +1208,8 @@ def test_fix_changes_heading_app_versions_already_correct_heading_untouched(cdb)
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == []
     assert new_text == text
@@ -1152,14 +1229,17 @@ def test_fix_changes_heading_app_versions_real_version_bump_still_corrected(cdb)
         "Stale prose from a previous, wrong resolution.\n"
     )
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
-                                        "tag": "5.5.0@sha256:" + "b" * 64}}}
+    target_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.5.0@sha256:" + "b" * 64}}
+    }
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    baseline_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
-                                          "tag": "5.4.0@sha256:" + "a" * 64}}}
+    baseline_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.0@sha256:" + "a" * 64}}
+    }
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.9.0")
+        text, None, deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.9.0"
+    )
 
     assert updated_headings == ["zac 5.4.0 → 5.4.0 (chart 1.0.297, unchanged)"]
     assert "### zac 5.4.0 → 5.5.0 (chart 1.0.297, unchanged)" in new_text
@@ -1185,11 +1265,11 @@ def test_fix_changes_heading_app_versions_corrects_stale_bare_sidecar_heading(cd
         "Some stale prose here.\n"
     )
     deps = []
-    target_values = {"global": {"images": {"redis": {
-        "repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
+    target_values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == ["redis 8.0 → 8.10.1"]
     assert "### redis 8.10.1 (new)" in new_text
@@ -1218,7 +1298,8 @@ def test_fix_changes_heading_app_versions_corrects_stale_real_sidecar_heading(cd
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.8.5")
+        text, None, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.8.5"
+    )
 
     assert updated_headings == ["redis-operator - redis 8.6.1 → 8.6.6 (chart 0.25.0, unchanged)"]
     assert "### redis-operator - redis 8.6.2 → 8.6.6 (chart 0.25.0, unchanged)" in new_text
@@ -1239,11 +1320,11 @@ def test_fix_changes_heading_app_versions_already_correct_sidecar_heading_untouc
         "Some prose here.\n"
     )
     deps = []
-    target_values = {"global": {"images": {"redis": {
-        "repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
+    target_values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == []
     assert new_text == text
@@ -1272,18 +1353,18 @@ def test_fix_changes_heading_app_versions_corrects_moved_repository_sidecar_head
     )
     deps = [{"name": "openbao", "version": "2.0.0"}]
     target_values = {
-        "global": {"images": {"postgres": {
-            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
-        "openbao": {"database": {"schemaJob": {"image": {
-            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}},
+        "global": {"images": {"postgres": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
+        "openbao": {
+            "database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}
+        },
     }
     baseline_values = {
-        "openbao": {"database": {"schemaJob": {"image": {
-            "repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
+        "openbao": {"database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
     }
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, tmp_path, deps, target_values, deps, baseline_values, upgrade_docs_baseline=None)
+        text, tmp_path, deps, target_values, deps, baseline_values, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == ["postgres 16.15-alpine (new)"]
     assert "### postgres 16-alpine → 16.15-alpine" in new_text
@@ -1317,7 +1398,8 @@ def test_fix_values_delta_heading_app_versions_corrects_wrong_name_and_new_depen
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
-        MI_UPGRADE_DOC_TEXT, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+        MI_UPGRADE_DOC_TEXT, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
     assert "## mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)" in new_text
@@ -1334,7 +1416,8 @@ def test_fix_values_delta_heading_app_versions_already_correct_heading_untouched
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
-        MI_UPGRADE_DOC_TEXT, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+        MI_UPGRADE_DOC_TEXT, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == []
     assert new_text == values_deltas_text
@@ -1353,16 +1436,14 @@ def test_fix_values_delta_heading_app_versions_corrects_stale_sidecar_heading(cd
         "| redis | 8.10.1 (new) | - | - |\n"
     )
     values_deltas_text = (
-        "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
-        "## redis 8.0 → 8.10.1\n\n"
-        "- `global.images.redis` added.\n"
+        "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n## redis 8.0 → 8.10.1\n\n- `global.images.redis` added.\n"
     )
     deps = []
-    target_values = {"global": {"images": {"redis": {
-        "repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
+    target_values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
 
     new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
-        redis_upgrade_doc_text, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+        redis_upgrade_doc_text, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == ["redis 8.0 → 8.10.1"]
     assert "## redis 8.10.1 (new)" in new_text
@@ -1379,15 +1460,14 @@ def test_fix_values_delta_heading_app_versions_bare_hand_written_heading_never_t
     completely untouched even though they resolve to a real "dep"
     identity with a resolvable target app version."""
     values_deltas_text = (
-        "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
-        "## mi\n\n"
-        "Free-form prose, no version marker at all.\n"
+        "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n## mi\n\nFree-form prose, no version marker at all.\n"
     )
     deps = [{"name": "mi-data", "alias": "mi", "version": "1.1.0"}]
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
-        MI_UPGRADE_DOC_TEXT, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+        MI_UPGRADE_DOC_TEXT, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == []
     assert new_text == values_deltas_text
@@ -1406,13 +1486,15 @@ def test_fix_values_delta_heading_app_versions_no_upgrade_doc_is_a_noop(cdb):
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
-        "", values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None)
+        "", values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+    )
 
     assert updated_headings == []
     assert new_text == values_deltas_text
 
 
 # --- current_chart_version ---
+
 
 def test_current_chart_version_reads_chart_yaml(cdb, tmp_path, monkeypatch):
     chart_yaml = tmp_path / "Chart.yaml"
@@ -1422,6 +1504,7 @@ def test_current_chart_version_reads_chart_yaml(cdb, tmp_path, monkeypatch):
 
 
 # --- extract_images_baseline / update_sibling_doc_refs / update_images_manifest_baseline ---
+
 
 def test_extract_images_baseline_finds_version(cdb):
     text = "# Baseline: podiumd 4.8.2. Re-verify before release.\n"
@@ -1485,6 +1568,7 @@ def test_update_images_manifest_baseline_no_match_returns_unchanged(cdb):
 
 # --- main() integration: images-<target>.yaml handling ---
 
+
 def test_main_creates_images_manifest_when_missing(cdb, repo, monkeypatch):
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
     cdb.main()
@@ -1500,16 +1584,18 @@ def test_main_creates_images_manifest_when_missing(cdb, repo, monkeypatch):
 
 def test_main_bumps_existing_images_manifest(cdb, repo, monkeypatch):
     images_path = repo.parent / "images" / "images-4.9.0.yaml"
-    write(images_path,
-          "# Baseline: podiumd 4.8.2 (main @ abc1234). Re-verify before release.\n"
-          "#\n"
-          "# Images new or changed in podiumd 4.9.0 vs 4.8.2.\n"
-          "#\n"
-          "# See docs/_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
-          "- name: zac\n"
-          '  url: ghcr.io/infonl/zaakafhandelcomponent\n'
-          '  version: "5.1.0"\n'
-          '  digest: "sha256:aaaa"\n')
+    write(
+        images_path,
+        "# Baseline: podiumd 4.8.2 (main @ abc1234). Re-verify before release.\n"
+        "#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.2.\n"
+        "#\n"
+        "# See docs/_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
+        "- name: zac\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n',
+    )
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.5")
     cdb.main()
 
@@ -1562,6 +1648,7 @@ def test_main_images_baseline_manifest_second_run_reports_unchanged(cdb, repo, m
 
 # --- main() integration: end-to-end component-version-table correction ---
 
+
 @pytest.fixture
 def repo_with_baseline_tag(tmp_path):
     """A repo whose git history has a real "podiumd-4.8.5" tag at an older
@@ -1570,11 +1657,16 @@ def repo_with_baseline_tag(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-        ],
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+                ],
+            }
+        ),
+    )
     write(tmp_path / "values.yaml", yaml.safe_dump({"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}))
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
@@ -1583,18 +1675,25 @@ def repo_with_baseline_tag(tmp_path):
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
-        ],
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+                ],
+            }
+        ),
+    )
     write(tmp_path / "values.yaml", yaml.safe_dump({"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}))
-    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.1.0 | 1.0.251 → 1.0.257 | ACR mirror only |\n")
+    write(
+        doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.1.0 | 1.0.251 → 1.0.257 | ACR mirror only |\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump zac, stale doc table", cwd=tmp_path)
     return doc_dir
@@ -1630,12 +1729,22 @@ def repo_with_mi_shaped_stale_docs(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "mi-data", "alias": "mi", "version": "1.0.0", "repository": "file://../mi-data",
-             "condition": "mi.enabled"},
-        ],
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {
+                        "name": "mi-data",
+                        "alias": "mi",
+                        "version": "1.0.0",
+                        "repository": "file://../mi-data",
+                        "condition": "mi.enabled",
+                    },
+                ],
+            }
+        ),
+    )
     write(tmp_path / "values.yaml", yaml.safe_dump({"mi": {"enabled": False}}))
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
@@ -1644,36 +1753,58 @@ def repo_with_mi_shaped_stale_docs(tmp_path):
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.9.0", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "mi-data", "alias": "mi", "version": "1.1.0", "repository": "file://../mi-data",
-             "condition": "mi.enabled"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "mi": {"enabled": False, "image": {"repository": "mcr.microsoft.com/azure-cli",
-                                            "tag": "2.90.0@sha256:" + "a" * 64}},
-    }))
-    write(doc_dir / "4.9.0-to-4.9.1-upgrade.md",
-          "# Upgrade guide: PodiumD 4.9.0 → 4.9.1\n\n"
-          "## Component versions (4.9.1 vs 4.9.0)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| mi-data (MI-data exports) | 2.71.0 → 2.90.0 | 1.0.0 → 1.1.0 | - |\n\n"
-          "## Changes\n\n"
-          "### mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
-          "Some stale prose here.\n")
-    write(doc_dir / "4.9.0-to-4.9.1-values-deltas.md",
-          "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
-          "## mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
-          "- Key `mi.transfer.noEpsv` (optional) added.\n")
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {
+                        "name": "mi-data",
+                        "alias": "mi",
+                        "version": "1.1.0",
+                        "repository": "file://../mi-data",
+                        "condition": "mi.enabled",
+                    },
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "mi": {
+                    "enabled": False,
+                    "image": {"repository": "mcr.microsoft.com/azure-cli", "tag": "2.90.0@sha256:" + "a" * 64},
+                },
+            }
+        ),
+    )
+    write(
+        doc_dir / "4.9.0-to-4.9.1-upgrade.md",
+        "# Upgrade guide: PodiumD 4.9.0 → 4.9.1\n\n"
+        "## Component versions (4.9.1 vs 4.9.0)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| mi-data (MI-data exports) | 2.71.0 → 2.90.0 | 1.0.0 → 1.1.0 | - |\n\n"
+        "## Changes\n\n"
+        "### mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
+        "Some stale prose here.\n",
+    )
+    write(
+        doc_dir / "4.9.0-to-4.9.1-values-deltas.md",
+        "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
+        "## mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)\n\n"
+        "- Key `mi.transfer.noEpsv` (optional) added.\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "mi bump, stale docs from an old buggy run", cwd=tmp_path)
     return doc_dir
 
 
 def test_main_corrects_mi_shaped_stale_name_and_new_dependency_wording_everywhere(
-        cdb, repo_with_mi_shaped_stale_docs, monkeypatch):
+    cdb, repo_with_mi_shaped_stale_docs, monkeypatch
+):
     """One fix-doc-consistency run corrects all three surfaces to the
     SAME name ("mi-data (MI-data exports)", the row's own — see
     fix_changes_heading_app_versions' own docstring for why that one is
@@ -1695,6 +1826,7 @@ def test_main_corrects_mi_shaped_stale_name_and_new_dependency_wording_everywher
 
 # --- main() integration: adding a missing "Component versions" row ---
 
+
 @pytest.fixture
 def repo_with_undocumented_component_bumps(tmp_path):
     """Three dependencies changed between the baseline tag and HEAD but
@@ -1711,19 +1843,34 @@ def repo_with_undocumented_component_bumps(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-            {"name": "openforms", "alias": "openformulieren", "version": "1.11.0", "repository": "@maykinmedia"},
-            {"name": "keycloak-operator", "version": "1.12.1", "repository": "@adfinis"},
-            {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
-        "openformulieren": {"image": {"tag": "3.4.10@sha256:cccc"}},
-        "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.6.4", "sha": "eeee"}}}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+                    {
+                        "name": "openforms",
+                        "alias": "openformulieren",
+                        "version": "1.11.0",
+                        "repository": "@maykinmedia",
+                    },
+                    {"name": "keycloak-operator", "version": "1.12.1", "repository": "@adfinis"},
+                    {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+                "openformulieren": {"image": {"tag": "3.4.10@sha256:cccc"}},
+                "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.6.4", "sha": "eeee"}}}},
+            }
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     (tmp_path / "docs" / "images").mkdir(parents=True)
@@ -1731,29 +1878,51 @@ def repo_with_undocumented_component_bumps(tmp_path):
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-            {"name": "openforms", "alias": "openformulieren", "version": "1.12.0", "repository": "@maykinmedia"},
-            {"name": "keycloak-operator", "version": "1.13.0", "repository": "@adfinis"},
-            {"name": "redis-operator", "version": "0.27.0", "repository": "@opstree"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
-        "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
-        "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.7.3", "sha": "ffff"}}}},
-    }))
-    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |\n\n"
-          "## Changes\n\n")
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+                    {
+                        "name": "openforms",
+                        "alias": "openformulieren",
+                        "version": "1.12.0",
+                        "repository": "@maykinmedia",
+                    },
+                    {"name": "keycloak-operator", "version": "1.13.0", "repository": "@adfinis"},
+                    {"name": "redis-operator", "version": "0.27.0", "repository": "@opstree"},
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+                "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
+                "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.7.3", "sha": "ffff"}}}},
+            }
+        ),
+    )
+    write(
+        doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |\n\n"
+        "## Changes\n\n",
+    )
     git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump openformulieren + keycloak-operator + redis-operator, no doc rows added",
-        cwd=tmp_path)
+    git(
+        "commit",
+        "-q",
+        "-m",
+        "bump openformulieren + keycloak-operator + redis-operator, no doc rows added",
+        cwd=tmp_path,
+    )
     return doc_dir
 
 
@@ -1768,16 +1937,31 @@ def test_main_collapses_pre_existing_double_blank_line_on_write(cdb, tmp_path, m
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-            {"name": "openforms", "alias": "openformulieren", "version": "1.11.0", "repository": "@maykinmedia"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
-        "openformulieren": {"image": {"tag": "3.4.10@sha256:cccc"}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+                    {
+                        "name": "openforms",
+                        "alias": "openformulieren",
+                        "version": "1.11.0",
+                        "repository": "@maykinmedia",
+                    },
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+                "openformulieren": {"image": {"tag": "3.4.10@sha256:cccc"}},
+            }
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     (tmp_path / "docs" / "images").mkdir(parents=True)
@@ -1785,28 +1969,44 @@ def test_main_collapses_pre_existing_double_blank_line_on_write(cdb, tmp_path, m
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-            {"name": "openforms", "alias": "openformulieren", "version": "1.12.0", "repository": "@maykinmedia"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
-        "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+                    {
+                        "name": "openforms",
+                        "alias": "openformulieren",
+                        "version": "1.12.0",
+                        "repository": "@maykinmedia",
+                    },
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+                "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
+            }
+        ),
+    )
     # Deliberately seeded double blank line between the table and "##
     # Changes" -- unrelated to the row this run is about to add.
-    write(doc_dir / "4.8.5-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |\n\n\n"
-          "## Changes\n\n")
+    write(
+        doc_dir / "4.8.5-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |\n\n\n"
+        "## Changes\n\n",
+    )
     git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump openformulieren, no doc row added, doc has a stray double blank line",
-        cwd=tmp_path)
+    git("commit", "-q", "-m", "bump openformulieren, no doc row added, doc has a stray double blank line", cwd=tmp_path)
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -1816,8 +2016,9 @@ def test_main_collapses_pre_existing_double_blank_line_on_write(cdb, tmp_path, m
     assert "| openformulieren | 3.4.10 → 3.5.6 | 1.11.0 → 1.12.0 | - |" in upgrade  # the real edit still happened
 
 
-def test_main_adds_missing_row_with_resolvable_app_version(cdb, repo_with_undocumented_component_bumps,
-                                                             monkeypatch, capsys):
+def test_main_adds_missing_row_with_resolvable_app_version(
+    cdb, repo_with_undocumented_component_bumps, monkeypatch, capsys
+):
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
     cdb.main()
 
@@ -1831,7 +2032,8 @@ def test_main_adds_missing_row_with_resolvable_app_version(cdb, repo_with_undocu
 
 
 def test_main_adds_missing_row_with_component_specific_image_path(
-        cdb, repo_with_undocumented_component_bumps, monkeypatch, capsys):
+    cdb, repo_with_undocumented_component_bumps, monkeypatch, capsys
+):
     """keycloak-operator's real app version lives at its own registered
     lib.chart.COMPONENT_IMAGE_PATHS split-path — actual_app_version
     resolves it just like a plain "<key>.image.tag" component, so the
@@ -1849,7 +2051,8 @@ def test_main_adds_missing_row_with_component_specific_image_path(
 
 
 def test_main_adds_missing_row_with_unresolvable_app_version_as_todo_stub(
-        cdb, repo_with_undocumented_component_bumps, monkeypatch, capsys):
+    cdb, repo_with_undocumented_component_bumps, monkeypatch, capsys
+):
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
     cdb.main()
 
@@ -1862,7 +2065,8 @@ def test_main_adds_missing_row_with_unresolvable_app_version_as_todo_stub(
 
 
 def test_main_leaves_existing_row_untouched_when_adding_missing_ones(
-        cdb, repo_with_undocumented_component_bumps, monkeypatch):
+    cdb, repo_with_undocumented_component_bumps, monkeypatch
+):
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
     cdb.main()
 
@@ -1887,19 +2091,29 @@ def repo_with_undocumented_sidecar_bump(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-            {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
-        "redis-operator": {"redis-ha": {"image": {
-            "repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}},
-        "global": {"images": {"curlImage": {
-            "repository": "curlimages/curl", "tag": "8.10.1@sha256:cccc"}}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+                    {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+                "redis-operator": {
+                    "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}
+                },
+                "global": {"images": {"curlImage": {"repository": "curlimages/curl", "tag": "8.10.1@sha256:cccc"}}},
+            }
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     (tmp_path / "docs" / "images").mkdir(parents=True)
@@ -1907,28 +2121,36 @@ def repo_with_undocumented_sidecar_bump(tmp_path):
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
-        "redis-operator": {"redis-ha": {"image": {
-            "repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:aaaa"}}},
-        "global": {"images": {"curlImage": {
-            "repository": "curlimages/curl", "tag": "8.11.0@sha256:dddd"}}},
-    }))
-    write(doc_dir / "4.8.5-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |\n"
-          "| redis-operator | - | 0.26.1 (unchanged) | n/a |\n\n"
-          "## Changes\n\n")
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+                "redis-operator": {
+                    "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:aaaa"}}
+                },
+                "global": {"images": {"curlImage": {"repository": "curlimages/curl", "tag": "8.11.0@sha256:dddd"}}},
+            }
+        ),
+    )
+    write(
+        doc_dir / "4.8.5-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |\n"
+        "| redis-operator | - | 0.26.1 (unchanged) | n/a |\n\n"
+        "## Changes\n\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump redis-ha's redis image + shared curl, no sidecar rows added", cwd=tmp_path)
     return doc_dir
 
 
 def test_main_adds_missing_sidecar_row_nested_under_a_dependency(
-        cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys):
+    cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys
+):
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_sidecar_bump, "4.8.5")
     cdb.main()
 
@@ -1941,8 +2163,7 @@ def test_main_adds_missing_sidecar_row_nested_under_a_dependency(
     assert "redis-operator - redis" in out
 
 
-def test_main_adds_missing_sidecar_row_for_global_shared_image(
-        cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
+def test_main_adds_missing_sidecar_row_for_global_shared_image(cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_sidecar_bump, "4.8.5")
     cdb.main()
 
@@ -1965,13 +2186,24 @@ def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [{"name": "redis-operator", "version": "1.36.1", "repository": "@opstree"}],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "redis-operator": {"redis-ha": {"image": {
-            "repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [{"name": "redis-operator", "version": "1.36.1", "repository": "@opstree"}],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "redis-operator": {
+                    "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}
+                },
+            }
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     images_dir = tmp_path / "docs" / "images"
     doc_dir.mkdir(parents=True)
@@ -1980,35 +2212,47 @@ def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path):
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [{"name": "redis-operator", "version": "1.36.2", "repository": "@opstree"}],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "redis-operator": {
-            "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}},
-            "k8s": {"image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}},
-        },
-    }))
-    write(doc_dir / "4.8.5-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| redis-operator | - | 1.36.1 → 1.36.2 | n/a |\n\n"
-          "## Changes\n\n")
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [{"name": "redis-operator", "version": "1.36.2", "repository": "@opstree"}],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "redis-operator": {
+                    "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}},
+                    "k8s": {"image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}},
+                },
+            }
+        ),
+    )
+    write(
+        doc_dir / "4.8.5-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator | - | 1.36.1 → 1.36.2 | n/a |\n\n"
+        "## Changes\n\n",
+    )
     write(images_dir / "images-4.9.0.yaml", "# Baseline: podiumd 4.8.5.\n#\n# Zero changes:\n#\n\n")
-    write(images_dir / "images-4.8.0.yaml",
-          "- name: alpine/k8s\n"
-          "  url: quay.io/alpine/k8s\n"
-          '  version: "1.36.2"\n'
-          '  digest: "sha256:cccc"\n')
+    write(
+        images_dir / "images-4.8.0.yaml",
+        '- name: alpine/k8s\n  url: quay.io/alpine/k8s\n  version: "1.36.2"\n  digest: "sha256:cccc"\n',
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "add k8s sidecar, pinned to an already-mirrored image", cwd=tmp_path)
     return doc_dir
 
 
 def test_main_new_sidecar_row_annotated_unchanged_when_known_in_historical_manifest(
-        cdb, repo_with_new_sidecar_pinned_to_a_known_mirrored_image, monkeypatch):
+    cdb, repo_with_new_sidecar_pinned_to_a_known_mirrored_image, monkeypatch
+):
     """The SAME fallback, applied to add_missing_sidecar_rows: redis-
     operator's own "k8s" sidecar path is brand new (baseline_values has
     nothing for it), but its image pin is already recorded in an
@@ -2023,7 +2267,8 @@ def test_main_new_sidecar_row_annotated_unchanged_when_known_in_historical_manif
 
 
 def test_main_adds_missing_changes_section_for_an_existing_dependency_row(
-        cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys):
+    cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys
+):
     """ZAC's own table row already existed (unchanged, correct) but had
     no "### ..." Changes section of its own at all — add_missing_
     changes_sections fills that in using the SAME make_changes_section
@@ -2040,8 +2285,7 @@ def test_main_adds_missing_changes_section_for_an_existing_dependency_row(
     assert "ZAC (Zaakafhandelcomponent)" in out
 
 
-def test_main_adds_todo_stub_section_when_row_has_no_app_version(
-        cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
+def test_main_adds_todo_stub_section_when_row_has_no_app_version(cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
     """redis-operator's own row app cell is "-" (nothing recorded there
     to build real prose from) — a short TODO-stub section is added
     instead of guessing, the same fallback add_missing_component_rows
@@ -2076,9 +2320,7 @@ def test_main_updates_a_changes_heading_missing_its_app_version(cdb, tmp_path, m
 
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
-        "component_resolution:\n"
-        "  image_paths:\n"
-        "    widget: [\"image\"]\n",
+        'component_resolution:\n  image_paths:\n    widget: ["image"]\n',
         encoding="utf-8",
     )
 
@@ -2086,12 +2328,22 @@ def test_main_updates_a_changes_heading_missing_its_app_version(cdb, tmp_path, m
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [{"name": "widget", "version": "2.0.0", "repository": "@example"}],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "widget": {"image": {"repository": "example/widget", "tag": ""}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [{"name": "widget", "version": "2.0.0", "repository": "@example"}],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "widget": {"image": {"repository": "example/widget", "tag": ""}},
+            }
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     (tmp_path / "docs" / "images").mkdir(parents=True)
@@ -2104,15 +2356,17 @@ def test_main_updates_a_changes_heading_missing_its_app_version(cdb, tmp_path, m
         info.size = len(chart_data)
         tar.addfile(info, io.BytesIO(chart_data))
 
-    write(doc_dir / "4.8.5-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| widget | 9.9.9 (unchanged) | 2.0.0 (unchanged) | - |\n\n"
-          "## Changes\n\n"
-          "### widget 2.0.0\n\n"
-          "TODO: describe this component's changes — its app version could not be resolved automatically.\n\n")
+    write(
+        doc_dir / "4.8.5-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| widget | 9.9.9 (unchanged) | 2.0.0 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### widget 2.0.0\n\n"
+        "TODO: describe this component's changes — its app version could not be resolved automatically.\n\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "seed doc with a stale chart-only heading", cwd=tmp_path)
 
@@ -2126,7 +2380,8 @@ def test_main_updates_a_changes_heading_missing_its_app_version(cdb, tmp_path, m
 
 
 def test_main_adds_sections_for_both_rows_named_by_a_two_component_heading(
-        cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys):
+    cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys
+):
     """A "### ..." heading naming two components at once (real case:
     "### ECK Operator 3.4.0 -> 3.5.0 + ECK Stack (kiss-eck) 0.19.0 ->
     0.20.0") is assessed as a whole, never split — it credits NEITHER
@@ -2138,10 +2393,12 @@ def test_main_adds_sections_for_both_rows_named_by_a_two_component_heading(
     doc_dir = repo_with_undocumented_sidecar_bump
     doc = doc_dir / "4.8.5-to-4.9.0-upgrade.md"
     combined_heading = "### ZAC (Zaakafhandelcomponent) 5.0.2 (unchanged) + redis-operator 0.26.1 (unchanged)\n\n"
-    doc.write_text(doc.read_text(encoding="utf-8").replace(
-        "## Changes\n\n",
-        "## Changes\n\n" + combined_heading + "Some shared prose that must not be touched.\n\n"
-    ), encoding="utf-8")
+    doc.write_text(
+        doc.read_text(encoding="utf-8").replace(
+            "## Changes\n\n", "## Changes\n\n" + combined_heading + "Some shared prose that must not be touched.\n\n"
+        ),
+        encoding="utf-8",
+    )
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -2181,16 +2438,26 @@ def test_main_adds_version_pin_bullet_for_a_version_paths_component(cdb, tmp_pat
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "widget-a", "version": "1.0.0", "repository": "@example"},
-            {"name": "redis-operator", "version": "2.0.0", "repository": "@example"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "widget-a": {"image": {"tag": "1.1.0@sha256:aaaa"}},
-        "redis-operator": {"redisOperator": {"imageTag": "2.1.0"}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "widget-a", "version": "1.0.0", "repository": "@example"},
+                    {"name": "redis-operator", "version": "2.0.0", "repository": "@example"},
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "widget-a": {"image": {"tag": "1.1.0@sha256:aaaa"}},
+                "redis-operator": {"redisOperator": {"imageTag": "2.1.0"}},
+            }
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     (tmp_path / "docs" / "images").mkdir(parents=True)
@@ -2198,18 +2465,25 @@ def test_main_adds_version_pin_bullet_for_a_version_paths_component(cdb, tmp_pat
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "widget-a": {"image": {"tag": "1.2.0@sha256:bbbb"}},
-        "redis-operator": {"redisOperator": {"imageTag": "2.2.0"}},
-    }))
-    write(doc_dir / "4.8.5-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| widget-a | 1.1.0 → 1.2.0 | 1.0.0 (unchanged) | - |\n"
-          "| redis-operator | 2.1.0 → 2.2.0 | 2.0.0 (unchanged) | - |\n\n"
-          "## Changes\n\n")
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "widget-a": {"image": {"tag": "1.2.0@sha256:bbbb"}},
+                "redis-operator": {"redisOperator": {"imageTag": "2.2.0"}},
+            }
+        ),
+    )
+    write(
+        doc_dir / "4.8.5-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| widget-a | 1.1.0 → 1.2.0 | 1.0.0 (unchanged) | - |\n"
+        "| redis-operator | 2.1.0 → 2.2.0 | 2.0.0 (unchanged) | - |\n\n"
+        "## Changes\n\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump", cwd=tmp_path)
 
@@ -2224,15 +2498,17 @@ def test_main_adds_version_pin_bullet_for_a_version_paths_component(cdb, tmp_pat
     assert "Image tag pin `redis-operator" not in upgrade
 
 
-def test_main_does_not_duplicate_an_existing_sidecar_row(
-        cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
+def test_main_does_not_duplicate_an_existing_sidecar_row(cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
     doc_dir = repo_with_undocumented_sidecar_bump
     doc = doc_dir / "4.8.5-to-4.9.0-upgrade.md"
-    doc.write_text(doc.read_text(encoding="utf-8").replace(
-        "| redis-operator | - | 0.26.1 (unchanged) | n/a |\n",
-        "| redis-operator | - | 0.26.1 (unchanged) | n/a |\n"
-        "| redis-operator - redis | 8.6.2 → 8.6.6 | - | already documented by hand |\n"
-    ), encoding="utf-8")
+    doc.write_text(
+        doc.read_text(encoding="utf-8").replace(
+            "| redis-operator | - | 0.26.1 (unchanged) | n/a |\n",
+            "| redis-operator | - | 0.26.1 (unchanged) | n/a |\n"
+            "| redis-operator - redis | 8.6.2 → 8.6.6 | - | already documented by hand |\n",
+        ),
+        encoding="utf-8",
+    )
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -2255,13 +2531,24 @@ def test_main_leaves_unchanged_sidecar_with_no_row_alone(cdb, tmp_path, monkeypa
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [{"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"}],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "redis-operator": {"redis-ha": {"image": {
-            "repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [{"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"}],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "redis-operator": {
+                    "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}
+                },
+            }
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     (tmp_path / "docs" / "images").mkdir(parents=True)
@@ -2269,12 +2556,14 @@ def test_main_leaves_unchanged_sidecar_with_no_row_alone(cdb, tmp_path, monkeypa
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(doc_dir / "4.8.5-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n\n"
-          "## Changes\n\n")
+    write(
+        doc_dir / "4.8.5-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "unrelated commit, redis-ha's own image untouched", cwd=tmp_path)
 
@@ -2299,11 +2588,16 @@ def repo_with_short_alias_collision_risk(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "mi-data", "alias": "mi", "version": "1.0.0", "repository": "@dimpact"},
-        ],
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "mi-data", "alias": "mi", "version": "1.0.0", "repository": "@dimpact"},
+                ],
+            }
+        ),
+    )
     write(tmp_path / "values.yaml", yaml.safe_dump({"mi": {"image": {"tag": "2.0.0@sha256:aaaa"}}}))
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
@@ -2313,13 +2607,15 @@ def repo_with_short_alias_collision_risk(tmp_path):
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(tmp_path / "values.yaml", yaml.safe_dump({"mi": {"image": {"tag": "2.1.0@sha256:bbbb"}}}))
-    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| Python (ensurePodiumdAdminUser init image) | 3.14-slim (unchanged) | 1.0.0 (unchanged) | - |\n\n"
-          "## Changes\n\n")
+    write(
+        doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| Python (ensurePodiumdAdminUser init image) | 3.14-slim (unchanged) | 1.0.0 (unchanged) | - |\n\n"
+        "## Changes\n\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump mi, no doc row added", cwd=tmp_path)
     return doc_dir
@@ -2330,12 +2626,12 @@ def test_main_short_alias_does_not_corrupt_unrelated_row(cdb, repo_with_short_al
     cdb.main()
 
     upgrade = (repo_with_short_alias_collision_risk / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
-    assert ("| Python (ensurePodiumdAdminUser init image) | 3.14-slim (unchanged) | 1.0.0 (unchanged) "
-            "| - |") in upgrade
+    assert ("| Python (ensurePodiumdAdminUser init image) | 3.14-slim (unchanged) | 1.0.0 (unchanged) | - |") in upgrade
     assert "| mi | 2.0.0 → 2.1.0 | 1.0.0 (unchanged) | - |" in upgrade
 
 
 # --- main() integration: values-deltas.md missing top-level component mention ---
+
 
 @pytest.fixture
 def repo_with_unmentioned_component_bump(tmp_path):
@@ -2351,11 +2647,16 @@ def repo_with_unmentioned_component_bump(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
-        ],
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+                ],
+            }
+        ),
+    )
     write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.14@sha256:aaaa"}}}))
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
@@ -2364,11 +2665,18 @@ def repo_with_unmentioned_component_bump(tmp_path):
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zaakbrug": {"image": {"tag": "1.26.15@sha256:bbbb"}, "newFeature": {"enabled": True}},
-    }))
-    write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zaakbrug": {"image": {"tag": "1.26.15@sha256:bbbb"}, "newFeature": {"enabled": True}},
+            }
+        ),
+    )
+    write(
+        doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump zaakbrug, no values-deltas mention", cwd=tmp_path)
     return doc_dir
@@ -2378,8 +2686,7 @@ def test_main_adds_missing_values_delta_bullet(cdb, repo_with_unmentioned_compon
     set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
     cdb.main()
 
-    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
-        encoding="utf-8")
+    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)\n" in deltas
     assert "- Key `zaakbrug.newFeature` was added.\n" in deltas
     assert "No unrelated changes." in deltas  # existing content preserved
@@ -2389,7 +2696,8 @@ def test_main_adds_missing_values_delta_bullet(cdb, repo_with_unmentioned_compon
 
 
 def test_main_collapses_pre_existing_double_blank_line_in_values_deltas(
-        cdb, repo_with_unmentioned_component_bump, monkeypatch):
+    cdb, repo_with_unmentioned_component_bump, monkeypatch
+):
     """Same regression as the upgrade.md write path, for values_deltas_
     path's own write site — a stray double blank line already in the doc
     must never survive a write this script makes, regardless of source."""
@@ -2398,14 +2706,14 @@ def test_main_collapses_pre_existing_double_blank_line_in_values_deltas(
     set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
     cdb.main()
 
-    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
-        encoding="utf-8")
+    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert "\n\n\n" not in deltas
     assert "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)\n" in deltas  # the real edit still happened
 
 
 def test_main_does_not_duplicate_already_mentioned_component_bullet(
-        cdb, repo_with_unmentioned_component_bump, monkeypatch, capsys):
+    cdb, repo_with_unmentioned_component_bump, monkeypatch, capsys
+):
     doc = repo_with_unmentioned_component_bump / "4.8.3-to-4.9.0-values-deltas.md"
     doc.write_text(
         "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
@@ -2416,8 +2724,7 @@ def test_main_does_not_duplicate_already_mentioned_component_bullet(
     set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
     cdb.main()
 
-    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
-        encoding="utf-8")
+    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert deltas.count("## zaakbrug") == 1
     assert deltas.count("zaakbrug.newFeature") == 1
     out = capsys.readouterr().out
@@ -2437,11 +2744,16 @@ def repo_with_pure_version_bump_and_stale_empty_section(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
-        ],
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+                ],
+            }
+        ),
+    )
     write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.14@sha256:aaaa"}}}))
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
@@ -2451,21 +2763,24 @@ def repo_with_pure_version_bump_and_stale_empty_section(tmp_path):
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
     write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.15@sha256:bbbb"}}}))
-    write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
-          "## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)\n")
+    write(
+        doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n## zaakbrug 1.26.14 → 1.26.15 (chart 2.3.28, unchanged)\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump zaakbrug, pure version bump", cwd=tmp_path)
     return doc_dir
 
 
 def test_main_prunes_stale_empty_section_without_recreating_it(
-        cdb, repo_with_pure_version_bump_and_stale_empty_section, monkeypatch, capsys):
+    cdb, repo_with_pure_version_bump_and_stale_empty_section, monkeypatch, capsys
+):
     set_argv_and_dir(cdb, monkeypatch, repo_with_pure_version_bump_and_stale_empty_section, "4.8.5")
     cdb.main()
 
     deltas = (repo_with_pure_version_bump_and_stale_empty_section / "4.8.5-to-4.9.0-values-deltas.md").read_text(
-        encoding="utf-8")
+        encoding="utf-8"
+    )
     assert "## zaakbrug" not in deltas
     out = capsys.readouterr().out
     assert "Removing empty section(s)" in out
@@ -2488,15 +2803,25 @@ def repo_with_unmentioned_native_component_bump(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}},
-        "frankgateway": {"image": {"tag": "100@sha256:aaaa"}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}},
+                "frankgateway": {"image": {"tag": "100@sha256:aaaa"}},
+            }
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     (tmp_path / "docs" / "images").mkdir(parents=True)
@@ -2504,35 +2829,45 @@ def repo_with_unmentioned_native_component_bump(tmp_path):
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}},
-        "frankgateway": {"image": {"tag": "104@sha256:bbbb"}, "nodeSelector": {"disktype": "ssd"}},
-    }))
-    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| zaakbrug | 1.26.15 (unchanged) | 2.3.28 (unchanged) | - |\n\n"
-          "## Changes\n\n")
-    write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}},
+                "frankgateway": {"image": {"tag": "104@sha256:bbbb"}, "nodeSelector": {"disktype": "ssd"}},
+            }
+        ),
+    )
+    write(
+        doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zaakbrug | 1.26.15 (unchanged) | 2.3.28 (unchanged) | - |\n\n"
+        "## Changes\n\n",
+    )
+    write(
+        doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump frankgateway, no row or values-deltas mention", cwd=tmp_path)
     return doc_dir
 
 
 def test_main_adds_missing_native_component_row_and_bullet(
-        cdb, repo_with_unmentioned_native_component_bump, monkeypatch, capsys):
+    cdb, repo_with_unmentioned_native_component_bump, monkeypatch, capsys
+):
     set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_native_component_bump, "4.8.5")
     cdb.main()
 
-    upgrade = (repo_with_unmentioned_native_component_bump / "4.8.5-to-4.9.0-upgrade.md").read_text(
-        encoding="utf-8")
+    upgrade = (repo_with_unmentioned_native_component_bump / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     assert "| frankgateway | 100 → 104 | - | - |" in upgrade
 
     deltas = (repo_with_unmentioned_native_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
-        encoding="utf-8")
+        encoding="utf-8"
+    )
     assert "## frankgateway 100 → 104\n" in deltas
     assert "- Key `frankgateway.nodeSelector` was added.\n" in deltas
 
@@ -2541,8 +2876,9 @@ def test_main_adds_missing_native_component_row_and_bullet(
     assert "Adding new component section(s)" in out
 
 
-def test_main_adds_todo_bullet_when_app_version_unresolvable(cdb, repo_with_undocumented_component_bumps,
-                                                               tmp_path, monkeypatch):
+def test_main_adds_todo_bullet_when_app_version_unresolvable(
+    cdb, repo_with_undocumented_component_bumps, tmp_path, monkeypatch
+):
     """redis-operator is chart-only — no matching values.yaml image at
     all — same fixture as the "Component versions" row tests, exercised
     here for the values-deltas heading instead. A genuine schema change
@@ -2550,27 +2886,39 @@ def test_main_adds_todo_bullet_when_app_version_unresolvable(cdb, repo_with_undo
     real "- Key ..." content to document — a pure, schema-less chart
     bump alone gets no values-deltas.md section at all (see sync_
     values_delta_sections' own docstring)."""
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
-        "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
-        "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.7.3", "sha": "ffff"}}}},
-        "redis-operator": {"redisOperator": {"newFeature": True}},
-    }))
-    write(repo_with_undocumented_component_bumps / "4.8.3-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+                "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
+                "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.7.3", "sha": "ffff"}}}},
+                "redis-operator": {"redisOperator": {"newFeature": True}},
+            }
+        ),
+    )
+    write(
+        repo_with_undocumented_component_bumps / "4.8.3-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n",
+    )
     git("add", "-A", cwd=repo_with_undocumented_component_bumps)
-    git("commit", "-q", "-m", "add values-deltas doc + redis-operator schema key",
-        cwd=repo_with_undocumented_component_bumps)
+    git(
+        "commit",
+        "-q",
+        "-m",
+        "add values-deltas doc + redis-operator schema key",
+        cwd=repo_with_undocumented_component_bumps,
+    )
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
     cdb.main()
 
-    deltas = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-values-deltas.md").read_text(
-        encoding="utf-8")
+    deltas = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert "## redis-operator chart 0.26.1 → 0.27.0 — TODO: describe this component's changes" in deltas
     assert "- Key `redis-operator.redisOperator` was added.\n" in deltas
 
 
 # --- main() integration: values-deltas.md missing key-change mentions ---
+
 
 @pytest.fixture
 def repo_with_undocumented_schema_change(tmp_path):
@@ -2581,15 +2929,27 @@ def repo_with_undocumented_schema_change(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"},
-                "brpApi": {"protocollering": {"verwerking": {"extendWithZaaktype": False, "otherKey": True}}}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {
+                    "image": {"tag": "5.0.2@sha256:bbbb"},
+                    "brpApi": {"protocollering": {"verwerking": {"extendWithZaaktype": False, "otherKey": True}}},
+                },
+            }
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     (tmp_path / "docs" / "images").mkdir(parents=True)
@@ -2597,14 +2957,22 @@ def repo_with_undocumented_schema_change(tmp_path):
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"tag": "5.1.0@sha256:aaaa"},
-                # extendWithZaaktype gone, otherKey remains — undocumented
-                "brpApi": {"protocollering": {"verwerking": {"otherKey": True}}}},
-    }))
-    write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
-          "No gemeente podiumd.yml changes are required for this hop.\n")
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {
+                    "image": {"tag": "5.1.0@sha256:aaaa"},
+                    # extendWithZaaktype gone, otherKey remains — undocumented
+                    "brpApi": {"protocollering": {"verwerking": {"otherKey": True}}},
+                },
+            }
+        ),
+    )
+    write(
+        doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo gemeente podiumd.yml changes are required for this hop.\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump zac, schema change undocumented", cwd=tmp_path)
     return doc_dir
@@ -2614,8 +2982,7 @@ def test_main_adds_missing_key_change_mention(cdb, repo_with_undocumented_schema
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
     cdb.main()
 
-    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(
-        encoding="utf-8")
+    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     # No existing "## ..." section names zac yet, so it gets a brand new
     # one (see sync_values_delta_sections) carrying the missing key-change
     # line as its own body content.
@@ -2626,8 +2993,9 @@ def test_main_adds_missing_key_change_mention(cdb, repo_with_undocumented_schema
     assert "Adding new component section(s)" in out
 
 
-def test_main_does_not_duplicate_already_mentioned_key_change(cdb, repo_with_undocumented_schema_change,
-                                                                monkeypatch, capsys):
+def test_main_does_not_duplicate_already_mentioned_key_change(
+    cdb, repo_with_undocumented_schema_change, monkeypatch, capsys
+):
     doc = repo_with_undocumented_schema_change / "4.8.3-to-4.9.0-values-deltas.md"
     doc.write_text(
         "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
@@ -2637,15 +3005,15 @@ def test_main_does_not_duplicate_already_mentioned_key_change(cdb, repo_with_und
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
     cdb.main()
 
-    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(
-        encoding="utf-8")
+    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert deltas.count("extendWithZaaktype") == 1
     out = capsys.readouterr().out
     assert "Adding missing key-change mention(s)" not in out
 
 
 def test_main_ignores_mention_inside_fenced_code_block_and_does_not_duplicate(
-        cdb, repo_with_undocumented_schema_change, monkeypatch, capsys):
+    cdb, repo_with_undocumented_schema_change, monkeypatch, capsys
+):
     """Regression: a fenced code block earlier in the doc (containing an
     unbalanced backtick, as real-world example snippets often do) used to
     desync backtick-span pairing for the REST of the document, making an
@@ -2664,14 +3032,14 @@ def test_main_ignores_mention_inside_fenced_code_block_and_does_not_duplicate(
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
     cdb.main()
 
-    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(
-        encoding="utf-8")
+    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert deltas.count("extendWithZaaktype") == 1
     out = capsys.readouterr().out
     assert "Adding missing key-change mention(s)" not in out
 
 
 # --- main() integration: renumbering a pre-existing "# Changes:" gap ---
+
 
 @pytest.fixture
 def repo_with_fully_documented_images_but_a_numbering_gap(tmp_path):
@@ -2687,16 +3055,32 @@ def repo_with_fully_documented_images_but_a_numbering_gap(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "version": "1.0.297", "repository": "@zac", "alias": "zac"},
-            {"name": "openforms", "version": "1.12.0", "repository": "@maykinmedia", "alias": "openformulieren"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"tag": "5.0.2@sha256:aaaa"}},
-        "openformulieren": {"image": {"tag": "3.4.10@sha256:bbbb"}},
-    }, sort_keys=False))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "version": "1.0.297", "repository": "@zac", "alias": "zac"},
+                    {
+                        "name": "openforms",
+                        "version": "1.12.0",
+                        "repository": "@maykinmedia",
+                        "alias": "openformulieren",
+                    },
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"tag": "5.0.2@sha256:aaaa"}},
+                "openformulieren": {"image": {"tag": "3.4.10@sha256:bbbb"}},
+            },
+            sort_keys=False,
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     images_dir = tmp_path / "docs" / "images"
     doc_dir.mkdir(parents=True)
@@ -2705,43 +3089,56 @@ def repo_with_fully_documented_images_but_a_numbering_gap(tmp_path):
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"tag": "5.4.3@sha256:cccc"}},
-        "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
-    }, sort_keys=False))
-    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n"
-          "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | n/a |\n\n"
-          "## Changes\n\n")
-    write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
-    write(images_dir / "images-4.9.0.yaml",
-          "# Baseline: podiumd 4.8.5.\n#\n"
-          "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n"
-          "# Changes:\n"
-          "#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3.\n"
-          "#   3. openformulieren 3.4.10 -> 3.5.6.\n#\n\n"
-          "# ZAC — 5.0.2 -> 5.4.3\n"
-          "- name: zac\n"
-          "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-          '  version: "5.4.3"\n'
-          '  digest: "sha256:cccc"\n\n'
-          "# openformulieren — 3.4.10 -> 3.5.6\n"
-          "- name: openformulieren\n"
-          "  url: maykinmedia/open-forms\n"
-          '  version: "3.5.6"\n'
-          '  digest: "sha256:dddd"\n')
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"tag": "5.4.3@sha256:cccc"}},
+                "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
+            },
+            sort_keys=False,
+        ),
+    )
+    write(
+        doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n"
+        "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | n/a |\n\n"
+        "## Changes\n\n",
+    )
+    write(
+        doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n",
+    )
+    write(
+        images_dir / "images-4.9.0.yaml",
+        "# Baseline: podiumd 4.8.5.\n#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n"
+        "# Changes:\n"
+        "#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3.\n"
+        "#   3. openformulieren 3.4.10 -> 3.5.6.\n#\n\n"
+        "# ZAC — 5.0.2 -> 5.4.3\n"
+        "- name: zac\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.4.3"\n'
+        '  digest: "sha256:cccc"\n\n'
+        "# openformulieren — 3.4.10 -> 3.5.6\n"
+        "- name: openformulieren\n"
+        "  url: maykinmedia/open-forms\n"
+        '  version: "3.5.6"\n'
+        '  digest: "sha256:dddd"\n',
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump both, images-manifest header has a gap", cwd=tmp_path)
     return doc_dir, images_dir
 
 
 def test_main_renumbers_a_preexisting_changes_gap(
-        cdb, repo_with_fully_documented_images_but_a_numbering_gap, monkeypatch, capsys):
+    cdb, repo_with_fully_documented_images_but_a_numbering_gap, monkeypatch, capsys
+):
     doc_dir, images_dir = repo_with_fully_documented_images_but_a_numbering_gap
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
@@ -2755,6 +3152,7 @@ def test_main_renumbers_a_preexisting_changes_gap(
 
 
 # --- main() integration: images-baseline.yaml fallback for a brand-new component ---
+
 
 @pytest.fixture
 def repo_with_new_component_pinned_to_a_known_mirrored_image(tmp_path):
@@ -2771,11 +3169,16 @@ def repo_with_new_component_pinned_to_a_known_mirrored_image(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
-        ],
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+                ],
+            }
+        ),
+    )
     write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}}}))
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     images_dir = tmp_path / "docs" / "images"
@@ -2785,44 +3188,70 @@ def repo_with_new_component_pinned_to_a_known_mirrored_image(tmp_path):
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
-            {"name": "brp-personen-mock", "version": "1.2.9", "repository": "@dimpact",
-             "condition": "brppersonenmock.enabled", "alias": "brppersonenmock"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}},
-        "brppersonenmock": {"enabled": False, "image": {
-            "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}},
-    }))
-    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n\n"
-          "## Changes\n\n")
-    write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
-          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
-    write(images_dir / "images-4.9.0.yaml",
-          "# Baseline: podiumd 4.8.5.\n#\n# Zero changes:\n#\n\n"
-          "- name: zaakbrug\n"
-          "  url: wearefrank/zaakbrug\n"
-          '  version: "1.26.15"\n'
-          '  digest: "sha256:aaaa"\n')
-    write(images_dir / "images-4.8.0.yaml",
-          "- name: brp-api/personen-mock\n"
-          "  url: ghcr.io/brp-api/personen-mock\n"
-          '  version: "2.7.0"\n'
-          '  digest: "sha256:bbbb"\n')
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+                    {
+                        "name": "brp-personen-mock",
+                        "version": "1.2.9",
+                        "repository": "@dimpact",
+                        "condition": "brppersonenmock.enabled",
+                        "alias": "brppersonenmock",
+                    },
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}},
+                "brppersonenmock": {
+                    "enabled": False,
+                    "image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"},
+                },
+            }
+        ),
+    )
+    write(
+        doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n\n",
+    )
+    write(
+        doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
+        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n",
+    )
+    write(
+        images_dir / "images-4.9.0.yaml",
+        "# Baseline: podiumd 4.8.5.\n#\n# Zero changes:\n#\n\n"
+        "- name: zaakbrug\n"
+        "  url: wearefrank/zaakbrug\n"
+        '  version: "1.26.15"\n'
+        '  digest: "sha256:aaaa"\n',
+    )
+    write(
+        images_dir / "images-4.8.0.yaml",
+        "- name: brp-api/personen-mock\n"
+        "  url: ghcr.io/brp-api/personen-mock\n"
+        '  version: "2.7.0"\n'
+        '  digest: "sha256:bbbb"\n',
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "add brppersonenmock, pinned to an already-mirrored image", cwd=tmp_path)
     return doc_dir, images_dir
 
 
 def test_main_does_not_add_new_component_image_already_known_in_historical_manifest(
-        cdb, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch, capsys):
+    cdb, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch, capsys
+):
     """brppersonenmock's own SCHEMA is genuinely new, so it still gets a
     real -upgrade.md row/Changes section and values-deltas.md section
     (unaffected by this fallback) — only its IMAGE is recognized as
@@ -2839,7 +3268,8 @@ def test_main_does_not_add_new_component_image_already_known_in_historical_manif
 
 
 def test_main_adds_new_component_image_not_in_historical_manifest(
-        cdb, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch):
+    cdb, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch
+):
     """Same shape, but no historical images-<version>.yaml records this
     exact pin anywhere — still added as changed, same as before this
     fallback existed."""
@@ -2862,7 +3292,8 @@ def test_main_adds_new_component_image_not_in_historical_manifest(
 
 
 def test_main_new_component_row_annotated_unchanged_when_known_in_historical_manifest(
-        cdb, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch):
+    cdb, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch
+):
     """The SAME fallback, applied to -upgrade.md's own "Component
     versions" row instead of images-4.9.0.yaml: brppersonenmock's
     Chart.yaml dependency is brand new (baseline has no matching
@@ -2885,6 +3316,7 @@ def test_main_new_component_row_annotated_unchanged_when_known_in_historical_man
 # upgradedoc.replace_version_spec instead) is already fully tested in
 # tests/lib/test_upgradedoc.py; no duplicate coverage needed here.
 
+
 def test_resolve_entry_version_finds_matching_path(cdb):
     paths = {("zac",): "5.1.0@sha256:aaaa", ("zgw-office-addin", "frontend"): "v0.9.352@sha256:bbbb"}
     assert cdb.resolve_entry_version({"name": "zac"}, paths) == "5.1.0"
@@ -2896,7 +3328,7 @@ def test_resolve_entry_version_none_when_unresolvable(cdb):
 
 
 def test_resolve_entry_version_uses_repo_map_for_strip_registry_names(cdb):
-    """"infonl/zaakafhandelcomponent" doesn't fuzzy-word-match the "zac"
+    """ "infonl/zaakafhandelcomponent" doesn't fuzzy-word-match the "zac"
     values key at all — repo_map is what makes a current-convention
     manifest name resolve."""
     paths = {("zac",): "5.4.4@sha256:aaaa"}
@@ -2906,6 +3338,7 @@ def test_resolve_entry_version_uses_repo_map_for_strip_registry_names(cdb):
 
 
 # --- fix_images_manifest_entries ---
+
 
 def test_fix_images_manifest_entries_corrects_stale_source(cdb):
     text = (
@@ -2926,11 +3359,7 @@ def test_fix_images_manifest_entries_corrects_stale_source(cdb):
 
 
 def test_fix_images_manifest_entries_leaves_correct_entry_untouched(cdb):
-    text = (
-        "# ZAC — 5.0.2 -> 5.1.0\n"
-        "- name: zac\n"
-        '  version: "5.1.0"\n'
-    )
+    text = '# ZAC — 5.0.2 -> 5.1.0\n- name: zac\n  version: "5.1.0"\n'
     target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
@@ -2940,7 +3369,7 @@ def test_fix_images_manifest_entries_leaves_correct_entry_untouched(cdb):
 
 
 def test_fix_images_manifest_entries_reports_missing_comment(cdb):
-    text = "- name: zgw-office-addin-backend\n  version: \"v0.9.352\"\n"
+    text = '- name: zgw-office-addin-backend\n  version: "v0.9.352"\n'
     target_values = {"zgw-office-addin": {"backend": {"image": {"tag": "v0.9.352@sha256:aaaa"}}}}
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, {})
     assert changed == []
@@ -2949,7 +3378,7 @@ def test_fix_images_manifest_entries_reports_missing_comment(cdb):
 
 
 def test_fix_images_manifest_entries_reports_unresolvable_baseline(cdb):
-    text = "# ZAC — 5.0.1 -> 5.1.0\n- name: zac\n  version: \"5.1.0\"\n"
+    text = '# ZAC — 5.0.1 -> 5.1.0\n- name: zac\n  version: "5.1.0"\n'
     target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, {})
     assert changed == []
@@ -2958,7 +3387,7 @@ def test_fix_images_manifest_entries_reports_unresolvable_baseline(cdb):
 
 
 def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(cdb):
-    """"infonl/zaakafhandelcomponent" (the current strip-registry manifest
+    """ "infonl/zaakafhandelcomponent" (the current strip-registry manifest
     naming convention) doesn't fuzzy-word-match the values.yaml key
     ("zac") at all — without repo_map this entry would be unresolved."""
     text = (
@@ -2973,7 +3402,8 @@ def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(c
     repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image")}
 
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, None, [], target_values, baseline_values, repo_map)
+        text, None, [], target_values, baseline_values, repo_map
+    )
     assert unresolved == []
     assert changed == [("infonl/zaakafhandelcomponent", "5.0.2", "5.1.0")]
     assert "# ZAC — 5.0.2 -> 5.1.0" in new_text
@@ -2998,14 +3428,18 @@ def test_fix_images_manifest_entries_fixes_shared_group_comment_via_either_entry
         "- name: zgw-office-addin-backend\n"
         '  version: "v0.9.352"\n'
     )
-    target_values = {"zgw-office-addin": {
-        "frontend": {"image": {"tag": "v0.9.352@sha256:aaaa"}},
-        "backend": {"image": {"tag": "v0.9.352@sha256:bbbb"}},
-    }}
-    baseline_values = {"zgw-office-addin": {
-        "frontend": {"image": {"tag": "v0.9.313@sha256:cccc"}},
-        "backend": {"image": {"tag": "v0.9.313@sha256:dddd"}},
-    }}
+    target_values = {
+        "zgw-office-addin": {
+            "frontend": {"image": {"tag": "v0.9.352@sha256:aaaa"}},
+            "backend": {"image": {"tag": "v0.9.352@sha256:bbbb"}},
+        }
+    }
+    baseline_values = {
+        "zgw-office-addin": {
+            "frontend": {"image": {"tag": "v0.9.313@sha256:cccc"}},
+            "backend": {"image": {"tag": "v0.9.313@sha256:dddd"}},
+        }
+    }
 
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, baseline_values)
     assert unresolved == []
@@ -3035,16 +3469,23 @@ def test_fix_images_manifest_entries_corrects_stale_arrow_to_new(cdb):
         '  digest: "sha256:aaaa"\n'
     )
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    target_values = {"zac": {"opentelemetry-collector": {"image": {
-        "repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:aaaa"}}}}
+    target_values = {
+        "zac": {
+            "opentelemetry-collector": {
+                "image": {"repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:aaaa"}
+            }
+        }
+    }
     # A real, resolved baseline state — zac itself existed, just not this
     # sidecar (genuinely new this hop).
-    baseline_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
-                                          "tag": "5.4.2@sha256:eeee"}}}
+    baseline_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.2@sha256:eeee"}}
+    }
 
     repo_map = {"otel/opentelemetry-collector-contrib": ("zac", "opentelemetry-collector", "image")}
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, None, deps, target_values, baseline_values, repo_map)
+        text, None, deps, target_values, baseline_values, repo_map
+    )
     assert unresolved == []
     assert changed == [("otel/opentelemetry-collector-contrib", None, "0.158.0")]
     assert "opentelemetry-collector-contrib 0.158.0 (new)" in new_text
@@ -3074,13 +3515,15 @@ def test_fix_images_manifest_entries_finds_historical_baseline_for_new_path(cdb,
         '  digest: "sha256:bbbb"\n'
     )
     deps = [{"name": "brp-personen-mock", "alias": "brppersonenmock", "version": "1.2.9"}]
-    target_values = {"brppersonenmock": {"image": {
-        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}}}
+    target_values = {
+        "brppersonenmock": {"image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}}
+    }
     baseline_values = {"unrelated": {"image": {"repository": "example/other", "tag": "1.0.0@sha256:cccc"}}}
 
     repo_map = {"brp-api/personen-mock": ("brppersonenmock", "image")}
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5")
+        text, tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5"
+    )
     assert unresolved == []
     assert changed == []  # already correctly reads "2.6.0 -> 2.7.0"
     assert new_text == text
@@ -3104,19 +3547,19 @@ def test_fix_images_manifest_entries_corrects_moved_repository_comment(cdb, tmp_
     )
     deps = [{"name": "openbao", "version": "2.0.0"}]
     target_values = {
-        "global": {"images": {"postgres": {
-            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
-        "openbao": {"database": {"schemaJob": {"image": {
-            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}},
+        "global": {"images": {"postgres": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
+        "openbao": {
+            "database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}
+        },
     }
     baseline_values = {
-        "openbao": {"database": {"schemaJob": {"image": {
-            "repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
+        "openbao": {"database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
     }
     repo_map = {"postgres": ("global", "images", "postgres")}
 
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5")
+        text, tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5"
+    )
 
     assert unresolved == []
     assert changed == [("postgres", "16-alpine", "16.15-alpine")]
@@ -3139,20 +3582,36 @@ def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched
         '  digest: "sha256:' + "b" * 64 + '"\n'
     )
     deps = [{"name": "keycloak-operator", "version": "1.13.0"}]
-    target_values = {"keycloak-operator": {"jobs": {"ensurePodiumdAdminUser": {"initImage": {
-        "repository": "docker.io/library/python", "tag": "3.14.7-slim@sha256:" + "b" * 64}}}}}
-    baseline_values = {"keycloak-operator": {"jobs": {"ensurePodiumdAdminUser": {"initImage": {
-        "repository": "docker.io/library/python", "tag": "3.14.7-slim@sha256:" + "a" * 64}}}}}
+    target_values = {
+        "keycloak-operator": {
+            "jobs": {
+                "ensurePodiumdAdminUser": {
+                    "initImage": {"repository": "docker.io/library/python", "tag": "3.14.7-slim@sha256:" + "b" * 64}
+                }
+            }
+        }
+    }
+    baseline_values = {
+        "keycloak-operator": {
+            "jobs": {
+                "ensurePodiumdAdminUser": {
+                    "initImage": {"repository": "docker.io/library/python", "tag": "3.14.7-slim@sha256:" + "a" * 64}
+                }
+            }
+        }
+    }
 
     repo_map = {"python": ("keycloak-operator", "jobs", "ensurePodiumdAdminUser", "initImage")}
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, None, deps, target_values, baseline_values, repo_map)
+        text, None, deps, target_values, baseline_values, repo_map
+    )
     assert unresolved == []
     assert changed == []
     assert new_text == text
 
 
 # --- fix_images_manifest_entry_urls ---
+
 
 def test_fix_images_manifest_entry_urls_restores_stripped_host(cdb, tmp_path):
     """Regression test (real bug, real doc): a historical (now-
@@ -3162,15 +3621,28 @@ def test_fix_images_manifest_entry_urls_restores_stripped_host(cdb, tmp_path):
     opentelemetry-collector-contrib" instead of "docker.io/otel/
     opentelemetry-collector-contrib"). Nothing ever re-verified an
     EXISTING entry's own url against what it should actually be."""
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"opentelemetry-collector": {"image": {
-            "repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:aaaa"}}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {
+                    "opentelemetry-collector": {
+                        "image": {"repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:aaaa"}
+                    }
+                },
+            }
+        ),
+    )
     text = (
         "#   sidecar: zac - opentelemetry-collector-contrib 0.158.0 (new)\n"
         "- name: otel/opentelemetry-collector-contrib\n"
@@ -3179,16 +3651,25 @@ def test_fix_images_manifest_entry_urls_restores_stripped_host(cdb, tmp_path):
         '  digest: "sha256:aaaa"\n'
     )
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
-    target_values = {"zac": {"opentelemetry-collector": {"image": {
-        "repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:aaaa"}}}}
+    target_values = {
+        "zac": {
+            "opentelemetry-collector": {
+                "image": {"repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:aaaa"}
+            }
+        }
+    }
 
     repo_map = {"otel/opentelemetry-collector-contrib": ("zac", "opentelemetry-collector", "image")}
-    new_text, changed, unresolved = cdb.fix_images_manifest_entry_urls(
-        text, tmp_path, deps, target_values, repo_map)
+    new_text, changed, unresolved = cdb.fix_images_manifest_entry_urls(text, tmp_path, deps, target_values, repo_map)
 
     assert unresolved == []
-    assert changed == [("otel/opentelemetry-collector-contrib",
-                         "otel/opentelemetry-collector-contrib", "docker.io/otel/opentelemetry-collector-contrib")]
+    assert changed == [
+        (
+            "otel/opentelemetry-collector-contrib",
+            "otel/opentelemetry-collector-contrib",
+            "docker.io/otel/opentelemetry-collector-contrib",
+        )
+    ]
     assert "url: docker.io/otel/opentelemetry-collector-contrib" in new_text
     assert "url: otel/opentelemetry-collector-contrib\n" not in new_text
 
@@ -3202,12 +3683,14 @@ def test_fix_images_manifest_entry_urls_leaves_correct_url_untouched(cdb, images
         '  digest: "sha256:aaaa"\n'
     )
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
-    target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
-                                        "tag": "5.1.0@sha256:aaaa"}}}
+    target_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}}
+    }
 
     repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image")}
     new_text, changed, unresolved = cdb.fix_images_manifest_entry_urls(
-        text, images_manifest_chart_dir, deps, target_values, repo_map)
+        text, images_manifest_chart_dir, deps, target_values, repo_map
+    )
     assert changed == []
     assert unresolved == []
     assert new_text == text
@@ -3216,7 +3699,7 @@ def test_fix_images_manifest_entry_urls_leaves_correct_url_untouched(cdb, images
 def test_fix_images_manifest_entry_urls_reports_unresolvable_entry(cdb, tmp_path):
     write(tmp_path / "Chart.yaml", yaml.safe_dump({"dependencies": []}))
     write(tmp_path / "values.yaml", yaml.safe_dump({}))
-    text = "- name: totally-unknown\n  url: example.com/totally-unknown\n  version: \"1.0.0\"\n"
+    text = '- name: totally-unknown\n  url: example.com/totally-unknown\n  version: "1.0.0"\n'
 
     new_text, changed, unresolved = cdb.fix_images_manifest_entry_urls(text, tmp_path, [], {})
     assert changed == []
@@ -3226,6 +3709,7 @@ def test_fix_images_manifest_entry_urls_reports_unresolvable_entry(cdb, tmp_path
 
 # --- add_missing_images_manifest_entries ---
 
+
 @pytest.fixture
 def images_manifest_chart_dir(tmp_path):
     """A real Chart.yaml + values.yaml on disk (needed by
@@ -3234,27 +3718,40 @@ def images_manifest_chart_dir(tmp_path):
     own "repository:" is set explicitly so its primary image resolves,
     matching lib.chart.paths_by_repository's own "no owning dependency
     needed for an own override" resolution."""
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
+            }
+        ),
+    )
     return tmp_path
 
 
 def test_add_missing_images_manifest_entries_appends_new_entry(cdb, images_manifest_chart_dir):
     text = "# Baseline: podiumd 4.8.5.\n"
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
-    target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
-                                        "tag": "5.1.0@sha256:aaaa"}}}
-    baseline_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
-                                          "tag": "5.0.2@sha256:bbbb"}}}
+    target_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}}
+    }
+    baseline_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}}
+    }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+        text, images_manifest_chart_dir, deps, target_values, baseline_values
+    )
 
     assert skipped == []
     assert added == ["zac"]
@@ -3276,12 +3773,18 @@ def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(cdb
     self-transition or a false "(digest changed)"."""
     text = "# Baseline: podiumd 4.8.5.\n"
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
-    target_values = {"zac": {"opentelemetry-collector": {"image": {
-        "repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:" + "a" * 64}}}}
+    target_values = {
+        "zac": {
+            "opentelemetry-collector": {
+                "image": {"repository": "otel/opentelemetry-collector-contrib", "tag": "0.158.0@sha256:" + "a" * 64}
+            }
+        }
+    }
     baseline_values = {}
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+        text, images_manifest_chart_dir, deps, target_values, baseline_values
+    )
 
     assert skipped == []
     assert added == ["zac - opentelemetry-collector-contrib"]
@@ -3296,29 +3799,40 @@ def test_add_missing_images_manifest_entries_moved_repository_gets_real_transiti
     never existed in baseline_values, but the same "postgres" repository
     already did, at openbao.database.schemaJob.image. Must render the
     real "16-alpine -> 16.15-alpine" transition, never "(new)"."""
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [{"name": "openbao", "version": "2.0.0"}],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "global": {"images": {"postgres": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
-        "openbao": {"database": {"schemaJob": {"image": {
-            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [{"name": "openbao", "version": "2.0.0"}],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "global": {"images": {"postgres": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
+                "openbao": {
+                    "database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}
+                },
+            }
+        ),
+    )
     text = "# Baseline: podiumd 4.8.5.\n"
     deps = [{"name": "openbao", "version": "2.0.0"}]
     target_values = {
-        "global": {"images": {"postgres": {
-            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
-        "openbao": {"database": {"schemaJob": {"image": {
-            "repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}},
+        "global": {"images": {"postgres": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
+        "openbao": {
+            "database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}}
+        },
     }
     baseline_values = {
-        "openbao": {"database": {"schemaJob": {"image": {
-            "repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
+        "openbao": {"database": {"schemaJob": {"image": {"repository": "postgres", "tag": "16-alpine@sha256:bbbb"}}}},
     }
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, tmp_path, deps, target_values, baseline_values)
+        text, tmp_path, deps, target_values, baseline_values
+    )
 
     assert skipped == []
     assert added == ["postgres"]
@@ -3344,7 +3858,8 @@ def test_add_missing_images_manifest_entries_catches_same_version_changed_digest
     baseline_values = {"clamav": {"image": {"repository": "clamav/clamav", "tag": "1.5.4@sha256:" + "a" * 64}}}
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+        text, images_manifest_chart_dir, deps, target_values, baseline_values
+    )
 
     assert skipped == []
     assert added == ["clamav"]
@@ -3360,8 +3875,7 @@ def test_add_missing_images_manifest_entries_catches_same_version_changed_digest
     assert "clamav 1.5.4 -> 1.5.4" not in new_text
 
 
-def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_qualified(
-        cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_qualified(cdb, images_manifest_chart_dir):
     """Regression test: "name:" is the curated ACR mirror slug's own
     starting point — the same STRIPPED repo_map key docs/images/
     acr-mirror-naming.md documents, still a human's job to fix
@@ -3373,18 +3887,19 @@ def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_quali
     yaml's own "repository:" by Docker Hub's own convention)."""
     text = ""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
-    target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
-                                        "tag": "5.1.0@sha256:aaaa"}}}
+    target_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}}
+    }
 
     new_text, added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values={})
+        text, images_manifest_chart_dir, deps, target_values, baseline_values={}
+    )
     assert added == ["zac"]
     assert "- name: infonl/zaakafhandelcomponent" in new_text
     assert "url: ghcr.io/infonl/zaakafhandelcomponent" in new_text
 
 
-def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wording(
-        cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wording(cdb, images_manifest_chart_dir):
     """A genuine version bump (old_version != new_version) still renders
     the normal "<old> -> <new>" arrow form — the "(digest changed)"
     wording is ONLY for the same-version case, never a substitute for a
@@ -3395,7 +3910,8 @@ def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wordi
     baseline_values = {"curl": {"image": {"repository": "curlimages/curl", "tag": "8.21.0@sha256:" + "a" * 64}}}
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+        text, images_manifest_chart_dir, deps, target_values, baseline_values
+    )
 
     assert skipped == []
     assert added == ["curl"]
@@ -3403,8 +3919,7 @@ def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wordi
     assert "digest changed" not in new_text
 
 
-def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_io_host(
-        cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_io_host(cdb, images_manifest_chart_dir):
     """Regression test: a Docker-Hub-hosted image's own "repository:"
     conventionally omits the host entirely (e.g. "curlimages/curl") —
     the entry's "url:" must still come out fully host-qualified
@@ -3414,14 +3929,14 @@ def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_i
     target_values = {"zac": {"image": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:aaaa"}}}
 
     new_text, added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values={})
+        text, images_manifest_chart_dir, deps, target_values, baseline_values={}
+    )
     assert added == ["zac"]
     assert "- name: curlimages/curl" in new_text
     assert "url: docker.io/curlimages/curl" in new_text
 
 
-def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_url(
-        cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_url(cdb, images_manifest_chart_dir):
     """Regression test (mi's own real "azure-cli" case): a component
     whose registry host lives in a SEPARATE sibling "registry:" key
     (Azure Container Registry's own convention) rather than embedded in
@@ -3431,11 +3946,13 @@ def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_u
     would wrongly assume "docker.io/azure-cli")."""
     text = ""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
-    target_values = {"zac": {"image": {
-        "registry": "mcr.microsoft.com", "repository": "azure-cli", "tag": "2.90.0@sha256:aaaa"}}}
+    target_values = {
+        "zac": {"image": {"registry": "mcr.microsoft.com", "repository": "azure-cli", "tag": "2.90.0@sha256:aaaa"}}
+    }
 
     new_text, added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values={})
+        text, images_manifest_chart_dir, deps, target_values, baseline_values={}
+    )
     assert added == ["zac"]
     assert "- name: azure-cli" in new_text
     assert "url: mcr.microsoft.com/azure-cli" in new_text
@@ -3450,13 +3967,16 @@ def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(c
         '  digest: "sha256:aaaa"\n'
     )
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
-    target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
-                                        "tag": "5.1.0@sha256:aaaa"}}}
-    baseline_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
-                                          "tag": "5.0.2@sha256:bbbb"}}}
+    target_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}}
+    }
+    baseline_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}}
+    }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+        text, images_manifest_chart_dir, deps, target_values, baseline_values
+    )
     assert added == []
     assert skipped == []
     assert new_text == text
@@ -3466,24 +3986,30 @@ def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb, im
     """A path whose current tag has no "@sha256:..." at all can't
     produce a valid entry (digest is a required field) — reported as
     skipped, not silently dropped or written incomplete."""
-    write(images_manifest_chart_dir / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0"}},
-    }))
+    write(
+        images_manifest_chart_dir / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0"}},
+            }
+        ),
+    )
     text = ""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
     target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0"}}}
-    baseline_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
-                                          "tag": "5.0.2@sha256:bbbb"}}}
+    baseline_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}}
+    }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+        text, images_manifest_chart_dir, deps, target_values, baseline_values
+    )
     assert added == []
     assert skipped == ["zac"]
     assert new_text == text
 
 
-def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_resolves(
-        cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_resolves(cdb, images_manifest_chart_dir):
     """Regression test (real bug, real chart): eck-operator's own image
     pin uses a split "tag:"/"digest:" convention (not the usual embedded
     "tag: <ver>@sha256:<digest>"). Before lib.chart.SPLIT_TAG_SHA_PATHS
@@ -3496,13 +4022,21 @@ def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_res
     at all, same shape as the real 4.9.1 baseline."""
     text = "# Baseline: podiumd 4.9.1.\n"
     deps = [{"name": "eck-operator", "version": "3.5.0"}]
-    target_values = {"eck-operator": {"enabled": True, "image": {
-        "repository": "docker.elastic.co/eck/eck-operator",
-        "tag": "3.5.0", "digest": "sha256:" + "b" * 64}}}
+    target_values = {
+        "eck-operator": {
+            "enabled": True,
+            "image": {
+                "repository": "docker.elastic.co/eck/eck-operator",
+                "tag": "3.5.0",
+                "digest": "sha256:" + "b" * 64,
+            },
+        }
+    }
     baseline_values = {"eck-operator": {"enabled": True}}
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+        text, images_manifest_chart_dir, deps, target_values, baseline_values
+    )
 
     assert skipped == []
     assert added == ["eck-operator"]
@@ -3519,22 +4053,40 @@ def eck_stack_chart_dir(tmp_path):
     the allow_pull registry fallback exist for. The repository comes
     from the vendored eck-elasticsearch sub-subchart's own commented-
     out documented example, the only place it's recorded."""
-    make_tgz(tmp_path / "charts", "eck-stack", "0.20.0", {}, raw_files={
-        "eck-stack/charts/eck-elasticsearch/values.yaml": (
-            "# Elasticsearch Docker image to deploy.\n#\n"
-            "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n"
+    make_tgz(
+        tmp_path / "charts",
+        "eck-stack",
+        "0.20.0",
+        {},
+        raw_files={
+            "eck-stack/charts/eck-elasticsearch/values.yaml": (
+                "# Elasticsearch Docker image to deploy.\n#\n"
+                "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n"
+            ),
+        },
+    )
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {
+                        "name": "eck-stack",
+                        "alias": "kiss-eck",
+                        "version": "0.20.0",
+                        "repository": "https://helm.elastic.co",
+                    }
+                ],
+            }
         ),
-    })
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0",
-                           "repository": "https://helm.elastic.co"}],
-    }))
+    )
     write(tmp_path / "values.yaml", yaml.safe_dump({"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}))
     return tmp_path
 
 
 def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_registry(
-        cdb, eck_stack_chart_dir, monkeypatch):
+    cdb, eck_stack_chart_dir, monkeypatch
+):
     """Real feature: the repository resolves fine (via the vendored
     subchart's own documented example), but resolved_digest_pin alone
     can never produce a digest for a bare CRD version field — nothing
@@ -3555,7 +4107,8 @@ def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_regi
     monkeypatch.setattr(cdb, "registry_tag_exists", fake_registry_tag_exists)
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        "", eck_stack_chart_dir, deps, target_values, baseline_values, allow_pull=True)
+        "", eck_stack_chart_dir, deps, target_values, baseline_values, allow_pull=True
+    )
 
     assert skipped == []
     assert added == ["kiss-eck"]
@@ -3565,7 +4118,8 @@ def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_regi
 
 
 def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_network(
-        cdb, eck_stack_chart_dir, monkeypatch):
+    cdb, eck_stack_chart_dir, monkeypatch
+):
     """Default allow_pull=False must never call the registry at all —
     left exactly as before: skipped, no network access attempted."""
     deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
@@ -3578,7 +4132,8 @@ def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_netw
     monkeypatch.setattr(cdb, "registry_tag_exists", fail_if_called)
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        "", eck_stack_chart_dir, deps, target_values, baseline_values)
+        "", eck_stack_chart_dir, deps, target_values, baseline_values
+    )
 
     assert added == []
     assert skipped == ["kiss-eck"]
@@ -3586,7 +4141,8 @@ def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_netw
 
 
 def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skips(
-        cdb, eck_stack_chart_dir, monkeypatch):
+    cdb, eck_stack_chart_dir, monkeypatch
+):
     """The registry genuinely has no such tag (exists=False) — still
     reported as skipped, not a crash or a bad/partial entry."""
     deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
@@ -3596,7 +4152,8 @@ def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skip
     monkeypatch.setattr(cdb, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        "", eck_stack_chart_dir, deps, target_values, baseline_values, allow_pull=True)
+        "", eck_stack_chart_dir, deps, target_values, baseline_values, allow_pull=True
+    )
 
     assert added == []
     assert skipped == ["kiss-eck"]
@@ -3608,13 +4165,32 @@ def keycloak_operator_chart_dir(tmp_path):
     uses the adfinis chart's own split "tag:"/"sha:" convention — its
     "tag:" alone never carries "@sha256:...", the real case
     resolved_digest_pin exists for."""
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [{"name": "keycloak-operator", "version": "1.12.1", "repository": "@adfinis"}],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "keycloak-operator": {"operator": {"config": {"keycloakImage": {
-            "repository": "quay.io/keycloak/keycloak", "tag": "26.7.2", "sha": "9d1f1b2b"}}}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [{"name": "keycloak-operator", "version": "1.12.1", "repository": "@adfinis"}],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "keycloak-operator": {
+                    "operator": {
+                        "config": {
+                            "keycloakImage": {
+                                "repository": "quay.io/keycloak/keycloak",
+                                "tag": "26.7.2",
+                                "sha": "9d1f1b2b",
+                            }
+                        }
+                    }
+                },
+            }
+        ),
+    )
     return tmp_path
 
 
@@ -3625,13 +4201,28 @@ def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(cd
     sibling "sha:" field instead. Must be read from there, not skipped."""
     text = ""
     deps = [{"name": "keycloak-operator", "version": "1.12.1"}]
-    target_values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
-        "repository": "quay.io/keycloak/keycloak", "tag": "26.7.2", "sha": "9d1f1b2b"}}}}}
-    baseline_values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
-        "repository": "quay.io/keycloak/keycloak", "tag": "26.6.4", "sha": "eeeeeeee"}}}}}
+    target_values = {
+        "keycloak-operator": {
+            "operator": {
+                "config": {
+                    "keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.2", "sha": "9d1f1b2b"}
+                }
+            }
+        }
+    }
+    baseline_values = {
+        "keycloak-operator": {
+            "operator": {
+                "config": {
+                    "keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.6.4", "sha": "eeeeeeee"}
+                }
+            }
+        }
+    }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, keycloak_operator_chart_dir, deps, target_values, baseline_values)
+        text, keycloak_operator_chart_dir, deps, target_values, baseline_values
+    )
 
     assert skipped == []
     assert added == ["keycloak-operator"]
@@ -3642,24 +4233,40 @@ def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(cd
 
 
 def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still_skipped(
-        cdb, keycloak_operator_chart_dir):
+    cdb, keycloak_operator_chart_dir
+):
     """No podiumd override for the sibling "sha:" field at all (inherits
     the vendored subchart's own default, not visible from values.yaml) —
     genuinely can't produce a digest-pinned entry, so still reported as
     skipped rather than writing one with a missing/wrong digest."""
-    write(keycloak_operator_chart_dir / "values.yaml", yaml.safe_dump({
-        "keycloak-operator": {"operator": {"config": {"keycloakImage": {
-            "repository": "quay.io/keycloak/keycloak", "tag": "26.7.2"}}}},
-    }))
+    write(
+        keycloak_operator_chart_dir / "values.yaml",
+        yaml.safe_dump(
+            {
+                "keycloak-operator": {
+                    "operator": {
+                        "config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.2"}}
+                    }
+                },
+            }
+        ),
+    )
     text = ""
     deps = [{"name": "keycloak-operator", "version": "1.12.1"}]
-    target_values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
-        "repository": "quay.io/keycloak/keycloak", "tag": "26.7.2"}}}}}
-    baseline_values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
-        "repository": "quay.io/keycloak/keycloak", "tag": "26.6.4"}}}}}
+    target_values = {
+        "keycloak-operator": {
+            "operator": {"config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.2"}}}
+        }
+    }
+    baseline_values = {
+        "keycloak-operator": {
+            "operator": {"config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.6.4"}}}
+        }
+    }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, keycloak_operator_chart_dir, deps, target_values, baseline_values)
+        text, keycloak_operator_chart_dir, deps, target_values, baseline_values
+    )
 
     assert added == []
     assert skipped == ["keycloak-operator"]
@@ -3673,16 +4280,21 @@ def global_image_chart_dir(tmp_path):
     global.images.nginx anchor — the same YAML-anchored value, not a
     coincidentally-matching repository."""
     write(tmp_path / "Chart.yaml", yaml.safe_dump({"dependencies": []}))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "global": {"images": {"nginx": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
-        "apiproxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}},
-    }))
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "global": {
+                    "images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}
+                },
+                "apiproxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}},
+            }
+        ),
+    )
     return tmp_path
 
 
-def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per_alias(
-        cdb, global_image_chart_dir):
+def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per_alias(cdb, global_image_chart_dir):
     """Real feature: a shared global.images.* anchor gets exactly ONE
     entry, named via its own bare basename and positioned under
     "global" 's own values.yaml order — never a separate entry for
@@ -3695,18 +4307,17 @@ def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per
     text = ""
     deps = []
     target_values = {
-        "global": {"images": {"nginx": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+        "global": {"images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
         "apiproxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}},
     }
     baseline_values = {
-        "global": {"images": {"nginx": {
-            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
+        "global": {"images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
         "apiproxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}},
     }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, global_image_chart_dir, deps, target_values, baseline_values)
+        text, global_image_chart_dir, deps, target_values, baseline_values
+    )
 
     assert skipped == []
     assert added == ["nginx-unprivileged"]
@@ -3715,23 +4326,32 @@ def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per
     assert "apiproxy" not in new_text
 
 
-def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repository(
-        cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repository(cdb, images_manifest_chart_dir):
     """kiss.adapter.image's own real-world case: no own override AND no
     vendored subchart default — not a real, referenceable image, so
     never auto-added (matches lib.image_repository_check.
     find_images_without_repository's own definition of "unresolvable",
     reused via find_images_manifest_list_diff)."""
-    write(images_manifest_chart_dir / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
-            {"name": "kiss-chart", "alias": "kiss", "version": "3.0.0", "repository": "@kiss"},
-        ],
-    }))
-    write(images_manifest_chart_dir / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
-        "kiss": {"adapter": {"image": {"tag": "0.6.7@sha256:cccc"}}},
-    }))
+    write(
+        images_manifest_chart_dir / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+                    {"name": "kiss-chart", "alias": "kiss", "version": "3.0.0", "repository": "@kiss"},
+                ],
+            }
+        ),
+    )
+    write(
+        images_manifest_chart_dir / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
+                "kiss": {"adapter": {"image": {"tag": "0.6.7@sha256:cccc"}}},
+            }
+        ),
+    )
     text = ""
     deps = [
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"},
@@ -3747,7 +4367,8 @@ def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repo
     }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+        text, images_manifest_chart_dir, deps, target_values, baseline_values
+    )
     assert added == ["zac"]
     assert skipped == []  # kiss.adapter.image is excluded entirely, not reported as skipped either
     assert "kiss" not in new_text
@@ -3758,19 +4379,30 @@ def ordered_images_manifest_chart_dir(tmp_path):
     """Three dependencies, values.yaml top-level order openzaak ->
     keycloak-operator -> zac — keycloak-operator's own postgres sidecar
     resolves via an own override, no vendored subchart tgz needed."""
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "openzaak", "version": "1.14.2", "repository": "@openzaak"},
-            {"name": "keycloak-operator", "version": "1.12.1", "repository": "@adfinis"},
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.29.3@sha256:aaaa"}},
-        "keycloak-operator": {
-            "job": {"postgres": {"image": {"repository": "postgres", "tag": "16.15@sha256:bbbb"}}}},
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:cccc"}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "openzaak", "version": "1.14.2", "repository": "@openzaak"},
+                    {"name": "keycloak-operator", "version": "1.12.1", "repository": "@adfinis"},
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.29.3@sha256:aaaa"}},
+                "keycloak-operator": {
+                    "job": {"postgres": {"image": {"repository": "postgres", "tag": "16.15@sha256:bbbb"}}}
+                },
+                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:cccc"}},
+            }
+        ),
+    )
     return tmp_path
 
 
@@ -3785,8 +4417,7 @@ def _ordered_deps():
 def _ordered_target_values():
     return {
         "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.29.3@sha256:aaaa"}},
-        "keycloak-operator": {
-            "job": {"postgres": {"image": {"repository": "postgres", "tag": "16.15@sha256:bbbb"}}}},
+        "keycloak-operator": {"job": {"postgres": {"image": {"repository": "postgres", "tag": "16.15@sha256:bbbb"}}}},
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:cccc"}},
     }
 
@@ -3794,14 +4425,14 @@ def _ordered_target_values():
 def _ordered_baseline_values():
     return {
         "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.27.4@sha256:aaaa"}},
-        "keycloak-operator": {
-            "job": {"postgres": {"image": {"repository": "postgres", "tag": "16.0@sha256:eeee"}}}},
+        "keycloak-operator": {"job": {"postgres": {"image": {"repository": "postgres", "tag": "16.0@sha256:eeee"}}}},
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:cccc"}},
     }
 
 
 def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_position(
-        cdb, ordered_images_manifest_chart_dir):
+    cdb, ordered_images_manifest_chart_dir
+):
     """A missing entry for the MIDDLE component (values.yaml order
     openzaak -> keycloak-operator -> zac) is inserted between the
     existing openzaak and zac blocks — both in the body and in the "#
@@ -3826,8 +4457,8 @@ def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+    )
 
     assert skipped == []
     assert added == ["keycloak-operator - postgres"]
@@ -3848,7 +4479,8 @@ def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_
 
 
 def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_like_an_item(
-        cdb, ordered_images_manifest_chart_dir):
+    cdb, ordered_images_manifest_chart_dir
+):
     """A wrapped CONTINUATION line that happens to start with a version
     number (e.g. "1.19.1-static, ...") must never be mistaken for a
     genuine "#   N. ..." numbered item — real case this corrupted:
@@ -3884,21 +4516,22 @@ def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_lik
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+    )
 
     assert added == []
     assert skipped == []
     assert set(backfilled) == {"zac", "keycloak-operator - postgres"}
     # Item 1's own two-line prose stays intact and adjacent to whatever
     # item follows it — never torn apart around a newly-inserted item.
-    assert ("#   1. openzaak 1.27.4 -> 1.29.3. Also touches related versions:\n"
-            "#      1.19.1-static and 2.3.4-slim, both unrelated to this number.\n"
-            "#   2.") in new_text
+    assert (
+        "#   1. openzaak 1.27.4 -> 1.29.3. Also touches related versions:\n"
+        "#      1.19.1-static and 2.3.4-slim, both unrelated to this number.\n"
+        "#   2."
+    ) in new_text
 
 
-def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(
-        cdb, ordered_images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(cdb, ordered_images_manifest_chart_dir):
     """The inserted block is properly blank-line-separated from its
     neighbors on both sides — the result parses as a valid, 3-entry
     manifest, not malformed or merged-together YAML."""
@@ -3917,8 +4550,8 @@ def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+    )
 
     assert skipped == []
     assert added == ["keycloak-operator - postgres"]
@@ -3926,8 +4559,7 @@ def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(
     assert [e["name"] for e in entries] == ["openzaak/open-zaak", "postgres", "infonl/zaakafhandelcomponent"]
 
 
-def test_add_missing_images_manifest_entries_no_header_still_orders_body(
-        cdb, ordered_images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_no_header_still_orders_body(cdb, ordered_images_manifest_chart_dir):
     """No "# Changes:" header at all in this file — the body still gets
     ordered correctly; nothing about header-handling is required for
     body ordering to work."""
@@ -3946,8 +4578,8 @@ def test_add_missing_images_manifest_entries_no_header_still_orders_body(
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+    )
 
     assert skipped == []
     assert added == ["keycloak-operator - postgres"]
@@ -3959,7 +4591,8 @@ def test_add_missing_images_manifest_entries_no_header_still_orders_body(
 
 
 def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch(
-        cdb, ordered_images_manifest_chart_dir):
+    cdb, ordered_images_manifest_chart_dir
+):
     """Regression test (real bug, real doc): images-4.9.1.yaml's own
     real intro block ("# Baseline: ...", "# Images new or changed...",
     "# See docs/_UPGRADE_PATHS...") with NO "# Changes:" header at all
@@ -3984,8 +4617,8 @@ def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+    )
 
     assert skipped == []
     assert set(added) == {"keycloak-operator - postgres", "zac"}
@@ -3998,8 +4631,7 @@ def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch
         assert f". {name} " in changes_block, f"{name!r} has no '# Changes:' list item"
 
 
-def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
-        cdb, ordered_images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(cdb, ordered_images_manifest_chart_dir):
     """The real symptom a fresh lib.component_docs.IMAGES_STUB_TEMPLATE
     file has: a bare "# Changes:" header with NO items under it yet
     (not "no header at all" — see the no_header_still_orders_body test
@@ -4024,8 +4656,8 @@ def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+    )
 
     assert skipped == []
     assert set(added) == {"keycloak-operator - postgres", "openzaak", "zac"}
@@ -4038,23 +4670,18 @@ def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
 
 
 def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside_first_entry(
-        cdb, ordered_images_manifest_chart_dir):
+    cdb, ordered_images_manifest_chart_dir
+):
     """Real bug: the fresh stub's own literal bare "[]" (yaml.safe_load's
     empty-list spelling) was left in place while the first real entry got
     inserted right after it — "[]" followed by a "- name: ..." block is
     NOT valid YAML for a single document, so the result couldn't be
     parsed back at all."""
-    text = (
-        "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
-        "#\n"
-        "# Changes:\n"
-        "#\n\n"
-        "[]\n"
-    )
+    text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n\n[]\n"
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+    )
 
     assert skipped == []
     assert set(added) == {"keycloak-operator - postgres", "openzaak", "zac"}
@@ -4063,29 +4690,28 @@ def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside
 
 
 def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicate(
-        cdb, ordered_images_manifest_chart_dir):
+    cdb, ordered_images_manifest_chart_dir
+):
     """Real bug downstream of the "[]" placeholder surviving the first
     insert: since the resulting file was invalid YAML, a second run's own
     `yaml.safe_load(text)` raised and silently fell back to `entries =
     []` — treating the (now actually non-empty) manifest as if it still
     had NOTHING in it, and re-adding every single entry a second time
     right alongside the first copies. A clean run must be idempotent."""
-    text = (
-        "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
-        "#\n"
-        "# Changes:\n"
-        "#\n\n"
-        "[]\n"
-    )
+    text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n\n[]\n"
 
     first_text, first_added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+    )
     assert first_added != []
 
     second_text, second_added, second_skipped, second_backfilled = cdb.add_missing_images_manifest_entries(
-        first_text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        first_text,
+        ordered_images_manifest_chart_dir,
+        _ordered_deps(),
+        _ordered_target_values(),
+        _ordered_baseline_values(),
+    )
 
     assert second_added == []
     assert second_backfilled == []
@@ -4095,7 +4721,8 @@ def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicat
 
 
 def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_entry(
-        cdb, ordered_images_manifest_chart_dir):
+    cdb, ordered_images_manifest_chart_dir
+):
     """A component that already has its own comment+entry block (e.g.
     added by an earlier run of this same function, before header-list
     support existed) but was never given a "# Changes:" header item is
@@ -4128,8 +4755,8 @@ def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+    )
 
     assert added == []
     assert skipped == []
@@ -4148,20 +4775,35 @@ def zgw_office_addin_chart_dir(tmp_path):
     ONE path_display_name, "zgw-office-addin") — each with its own
     explicit "repository:" override, matching lib.chart.paths_by_
     repository's own "no owning dependency needed" resolution."""
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [{"name": "zgw-office-addin", "version": "0.0.89", "repository": "@infonl"}],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zgw-office-addin": {
-            "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "0.11.0@sha256:aaaa"}},
-            "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "0.11.0@sha256:bbbb"}},
-        },
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [{"name": "zgw-office-addin", "version": "0.0.89", "repository": "@infonl"}],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zgw-office-addin": {
+                    "frontend": {
+                        "image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "0.11.0@sha256:aaaa"}
+                    },
+                    "backend": {
+                        "image": {"repository": "infonl/zgw-office-addin-backend", "tag": "0.11.0@sha256:bbbb"}
+                    },
+                },
+            }
+        ),
+    )
     return tmp_path
 
 
 def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_item_not_two(
-        cdb, zgw_office_addin_chart_dir):
+    cdb, zgw_office_addin_chart_dir
+):
     """Real bug: a multi-image lockstep component reports TWO missing_
     paths (frontend + backend), both resolving to the SAME path_display_
     name ("zgw-office-addin") — the per-path loop used to insert a
@@ -4174,17 +4816,22 @@ def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_
     check the backfill pass already uses."""
     text = "# Changes:\n"
     deps = [{"name": "zgw-office-addin", "version": "0.0.89"}]
-    target_values = {"zgw-office-addin": {
-        "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "0.11.0@sha256:aaaa"}},
-        "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "0.11.0@sha256:bbbb"}},
-    }}
-    baseline_values = {"zgw-office-addin": {
-        "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "v0.9.313@sha256:cccc"}},
-        "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "v0.9.313@sha256:dddd"}},
-    }}
+    target_values = {
+        "zgw-office-addin": {
+            "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "0.11.0@sha256:aaaa"}},
+            "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "0.11.0@sha256:bbbb"}},
+        }
+    }
+    baseline_values = {
+        "zgw-office-addin": {
+            "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "v0.9.313@sha256:cccc"}},
+            "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "v0.9.313@sha256:dddd"}},
+        }
+    }
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, zgw_office_addin_chart_dir, deps, target_values, baseline_values)
+        text, zgw_office_addin_chart_dir, deps, target_values, baseline_values
+    )
 
     assert skipped == []
     assert added == ["zgw-office-addin", "zgw-office-addin"]
@@ -4271,7 +4918,8 @@ def test_dedupe_images_manifest_changes_items_no_header_returns_empty(cdb):
 
 
 def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_entry(
-        cdb, ordered_images_manifest_chart_dir):
+    cdb, ordered_images_manifest_chart_dir
+):
     """An entry already named in some existing header item is left
     alone — a dependency-level mention (e.g. "keycloak-operator chart
     unchanged") is NOT enough; only an item naming this exact entry
@@ -4302,8 +4950,8 @@ def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_e
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+    )
 
     assert added == []
     assert skipped == []
@@ -4317,7 +4965,8 @@ def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_e
 
 
 def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_covered(
-        cdb, ordered_images_manifest_chart_dir):
+    cdb, ordered_images_manifest_chart_dir
+):
     """An entry whose exact display name IS already mentioned in an
     existing header item is left alone entirely — nothing added,
     nothing renumbered."""
@@ -4347,8 +4996,8 @@ def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_cover
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+    )
 
     assert added == []
     assert skipped == []
@@ -4357,7 +5006,8 @@ def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_cover
 
 
 def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_insensitive(
-        cdb, ordered_images_manifest_chart_dir):
+    cdb, ordered_images_manifest_chart_dir
+):
     """A header item written in natural prose case ("ZAC
     (Zaakafhandelcomponent) 5.0.2 -> ...") still covers the entry whose
     own display name is the bare, lowercase values key ("zac") — real
@@ -4390,8 +5040,8 @@ def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_ins
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
-        _ordered_baseline_values())
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+    )
 
     # "zac" is already covered (case-insensitively) by item 2 — only
     # keycloak-operator - postgres genuinely needs a new item. The
@@ -4404,8 +5054,7 @@ def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_ins
     assert new_text.count("ZAC (Zaakafhandelcomponent)") == 1  # item 2 untouched, never duplicated
 
 
-def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely(
-        cdb, tmp_path):
+def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely(cdb, tmp_path):
     """An entry whose own display name is path_display_name's raw-
     dotted-path fallback (no real Chart.yaml dependency AND no
     canonical sidecar name resolves it — real case: podiumd's own
@@ -4413,15 +5062,25 @@ def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely
     dependency) is never backfilled a header item, and never reported
     either — a dotted values.yaml path is not a phrase worth adding to
     a curated header list verbatim."""
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "openzaak", "version": "1.14.2", "repository": "@openzaak"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.29.3@sha256:aaaa"}},
-        "keycloak": {"image": {"repository": "keycloak/keycloak", "tag": "26.7.2@sha256:bbbb"}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "openzaak", "version": "1.14.2", "repository": "@openzaak"},
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.29.3@sha256:aaaa"}},
+                "keycloak": {"image": {"repository": "keycloak/keycloak", "tag": "26.7.2@sha256:bbbb"}},
+            }
+        ),
+    )
     deps = [{"name": "openzaak", "version": "1.14.2"}]
     target_values = {
         "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.29.3@sha256:aaaa"}},
@@ -4449,7 +5108,8 @@ def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, tmp_path, deps, target_values, baseline_values)
+        text, tmp_path, deps, target_values, baseline_values
+    )
 
     assert added == []
     assert skipped == []
@@ -4459,15 +5119,18 @@ def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely
 
 # --- main() integration: images-manifest entry-comment correction ---
 
+
 def test_main_corrects_stale_images_manifest_entry_comment(cdb, repo_with_baseline_tag, monkeypatch):
     images_path = repo_with_baseline_tag.parent / "images" / "images-4.9.0.yaml"
-    write(images_path,
-          "# Baseline: podiumd 4.8.5. Re-verify before release.\n\n"
-          "# ZAC — 5.0.1 -> 5.1.0\n"
-          "- name: zac\n"
-          "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-          '  version: "5.1.0"\n'
-          '  digest: "sha256:aaaa"\n')
+    write(
+        images_path,
+        "# Baseline: podiumd 4.8.5. Re-verify before release.\n\n"
+        "# ZAC — 5.0.1 -> 5.1.0\n"
+        "- name: zac\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n',
+    )
     set_argv_and_dir(cdb, monkeypatch, repo_with_baseline_tag, "4.8.5")
     cdb.main()
 
@@ -4485,14 +5148,24 @@ def test_main_corrects_strip_registry_named_entry_via_repo_map(cdb, tmp_path, mo
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}},
+            }
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     images_dir = tmp_path / "docs" / "images"
@@ -4501,23 +5174,32 @@ def test_main_corrects_strip_registry_named_entry_via_repo_map(cdb, tmp_path, mo
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
-    }))
-    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | ACR mirror only |\n")
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
+            }
+        ),
+    )
+    write(
+        doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | ACR mirror only |\n",
+    )
     images_path = images_dir / "images-4.9.0.yaml"
-    write(images_path,
-          "# Baseline: podiumd 4.8.5. Re-verify before release.\n\n"
-          "# ZAC — 5.0.1 -> 5.1.0\n"
-          "- name: infonl/zaakafhandelcomponent\n"
-          "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-          '  version: "5.1.0"\n'
-          '  digest: "sha256:aaaa"\n')
+    write(
+        images_path,
+        "# Baseline: podiumd 4.8.5. Re-verify before release.\n\n"
+        "# ZAC — 5.0.1 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n',
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump zac, stale images-manifest comment", cwd=tmp_path)
 
@@ -4537,14 +5219,24 @@ def test_main_adds_missing_images_manifest_entry(cdb, tmp_path, monkeypatch):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-        ],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+                ],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}},
+            }
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     images_dir = tmp_path / "docs" / "images"
@@ -4553,15 +5245,22 @@ def test_main_adds_missing_images_manifest_entry(cdb, tmp_path, monkeypatch):
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
-    }))
-    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.5)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | ACR mirror only |\n")
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
+            }
+        ),
+    )
+    write(
+        doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | ACR mirror only |\n",
+    )
     images_path = images_dir / "images-4.9.0.yaml"
     write(images_path, "# Baseline: podiumd 4.8.5. Re-verify before release.\n\n[]\n")
     git("add", "-A", cwd=tmp_path)
@@ -4580,6 +5279,7 @@ def test_main_adds_missing_images_manifest_entry(cdb, tmp_path, monkeypatch):
 
 # --- main() integration: reordering the table + Changes section ---
 
+
 @pytest.fixture
 def repo_with_out_of_order_doc(tmp_path):
     """Two components whose "Component versions" table row order and
@@ -4590,36 +5290,50 @@ def repo_with_out_of_order_doc(tmp_path):
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"},
-            {"name": "openinwoner", "version": "2.4.0", "repository": "@maykinmedia"},
-        ],
-    }, sort_keys=False))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"},
+                    {"name": "openinwoner", "version": "2.4.0", "repository": "@maykinmedia"},
+                ],
+            },
+            sort_keys=False,
+        ),
+    )
     # sort_keys=False: values.yaml's own file order IS the ordering signal
     # this feature reads (values_key_order) -- yaml.safe_dump's default
     # alphabetical sort would silently reorder these two keys and defeat
     # the whole point of this fixture (openzaak deliberately BEFORE
     # openinwoner, opposite of the doc's row order below).
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "openzaak": {"image": {"tag": "1.27.4@sha256:aaaa"}},
-        "openinwoner": {"image": {"tag": "2.4.2@sha256:bbbb"}},
-    }, sort_keys=False))
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "openzaak": {"image": {"tag": "1.27.4@sha256:aaaa"}},
+                "openinwoner": {"image": {"tag": "2.4.2@sha256:bbbb"}},
+            },
+            sort_keys=False,
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     (tmp_path / "docs" / "images").mkdir(parents=True)
-    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.3)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| Open Inwoner | 2.4.2 | 2.4.0 | - |\n"
-          "| Open Zaak | 1.27.4 | 1.14.2 | - |\n\n"
-          "## Changes\n\n"
-          "### Open Inwoner 2.4.2 → 2.4.2\n\n"
-          "Inwoner details.\n\n"
-          "### Open Zaak 1.27.4 → 1.27.4\n\n"
-          "Zaak details.\n")
+    write(
+        doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.3)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| Open Inwoner | 2.4.2 | 2.4.0 | - |\n"
+        "| Open Zaak | 1.27.4 | 1.14.2 | - |\n\n"
+        "## Changes\n\n"
+        "### Open Inwoner 2.4.2 → 2.4.2\n\n"
+        "Inwoner details.\n\n"
+        "### Open Zaak 1.27.4 → 1.27.4\n\n"
+        "Zaak details.\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "seed out-of-order doc", cwd=tmp_path)
     return doc_dir
@@ -4672,23 +5386,36 @@ def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(cdb, tmp_p
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [{"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"}],
-    }))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "redis-operator": {"redis-ha": {"image": {
-            "repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:aaaa"}}},
-    }))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [{"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"}],
+            }
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "redis-operator": {
+                    "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:aaaa"}}
+                },
+            }
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     (tmp_path / "docs" / "images").mkdir(parents=True)
-    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.3)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |\n"
-          "| redis-operator | 0.26.1 (unchanged) | 0.26.1 (unchanged) | - |\n")
+    write(
+        doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.3)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |\n"
+        "| redis-operator | 0.26.1 (unchanged) | 0.26.1 (unchanged) | - |\n",
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "seed sidecar-before-parent doc", cwd=tmp_path)
 
@@ -4713,8 +5440,10 @@ def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(cdb, tmp_p
 # BEFORE zac's — position is what sort_images_manifest_changes_items
 # now mirrors, instead of an independently fuzzy-matched dependency
 # order (see the function's own docstring for why that regressed).
-CHANGES_ITEMS_ENTRIES = [{"name": "opstree/redis-operator", "version": "0.26.0"},
-                         {"name": "infonl/zac", "version": "5.4.4"}]
+CHANGES_ITEMS_ENTRIES = [
+    {"name": "opstree/redis-operator", "version": "0.26.0"},
+    {"name": "infonl/zac", "version": "5.4.4"},
+]
 CHANGES_ITEMS_POSITIONS = {"opstree/redis-operator": 0, "infonl/zac": 1}
 
 
@@ -4741,11 +5470,16 @@ def test_sort_images_manifest_changes_items_display_name_exact_match_takes_prior
     real sidecars ("kiss - crawler", "kiss - kiss-elastic-sync") despite
     the entry list itself already grouping all three together. Given
     display_name_positions, matched by EXACT prefix instead."""
-    entries = [{"name": "klantinteractie-servicesysteem/kiss-frontend", "version": "3.0.0"},
-               {"name": "integrations/crawler", "version": "1.0.0"},
-               {"name": "opstree/redis-operator", "version": "0.26.0"}]
-    entry_positions = {"klantinteractie-servicesysteem/kiss-frontend": 0,
-                        "integrations/crawler": 1, "opstree/redis-operator": 2}
+    entries = [
+        {"name": "klantinteractie-servicesysteem/kiss-frontend", "version": "3.0.0"},
+        {"name": "integrations/crawler", "version": "1.0.0"},
+        {"name": "opstree/redis-operator", "version": "0.26.0"},
+    ]
+    entry_positions = {
+        "klantinteractie-servicesysteem/kiss-frontend": 0,
+        "integrations/crawler": 1,
+        "opstree/redis-operator": 2,
+    }
     display_name_positions = {"kiss": 0, "kiss - crawler": 1, "redis-operator": 2}
     lines = [
         "# Changes:\n",
@@ -4755,15 +5489,18 @@ def test_sort_images_manifest_changes_items_display_name_exact_match_takes_prior
         "\n",
     ]
     moved = cdb.sort_images_manifest_changes_items(lines, entries, entry_positions, display_name_positions)
-    assert moved == [("kiss 2.2.4 -> 3.0.0.", 2, 1), ("kiss - crawler 1.0.0 -> 1.0.0.", 3, 2),
-                      ("redis-operator 0.25.0 -> 0.26.0.", 1, 3)]
+    assert moved == [
+        ("kiss 2.2.4 -> 3.0.0.", 2, 1),
+        ("kiss - crawler 1.0.0 -> 1.0.0.", 3, 2),
+        ("redis-operator 0.25.0 -> 0.26.0.", 1, 3),
+    ]
     assert lines[1] == "#   1. kiss 2.2.4 -> 3.0.0.\n"
     assert lines[2] == "#   2. kiss - crawler 1.0.0 -> 1.0.0.\n"
     assert lines[3] == "#   3. redis-operator 0.25.0 -> 0.26.0.\n"
 
 
 def test_sort_images_manifest_changes_items_display_name_prefers_longest_match(cdb):
-    """"keycloak-operator" is itself a valid, shorter prefix of
+    """ "keycloak-operator" is itself a valid, shorter prefix of
     "keycloak-operator - postgres 16 -> 16.15." — the longer, more
     specific display name must win, not the primary's own shorter one."""
     entries = [{"name": "postgres", "version": "16.15"}, {"name": "keycloak/keycloak", "version": "26.7.2"}]
@@ -4883,38 +5620,54 @@ def test_main_reorders_images_manifest_to_match_values_yaml(cdb, tmp_path, monke
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
 
-    write(tmp_path / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-        ],
-    }, sort_keys=False))
-    write(tmp_path / "values.yaml", yaml.safe_dump({
-        "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "0.26.0@sha256:aaaa"}},
-        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.4@sha256:bbbb"}},
-    }, sort_keys=False))
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+                ],
+            },
+            sort_keys=False,
+        ),
+    )
+    write(
+        tmp_path / "values.yaml",
+        yaml.safe_dump(
+            {
+                "redis-operator": {
+                    "image": {"repository": "quay.io/opstree/redis-operator", "tag": "0.26.0@sha256:aaaa"}
+                },
+                "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.4@sha256:bbbb"}},
+            },
+            sort_keys=False,
+        ),
+    )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     images_dir = tmp_path / "docs" / "images"
     images_dir.mkdir(parents=True)
     images_path = images_dir / "images-4.9.0.yaml"
-    write(images_path,
-          "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
-          "#\n"
-          "# Changes:\n"
-          "#   1. zac 5.0.2 -> 5.4.4.\n"
-          "#   2. redis-operator 0.25.0 -> 0.26.0.\n"
-          "\n"
-          "# zac 5.0.2 -> 5.4.4\n"
-          "- name: infonl/zaakafhandelcomponent\n"
-          "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
-          '  version: "5.4.4"\n'
-          '  digest: "sha256:bbbb"\n\n'
-          "# redis-operator 0.25.0 -> 0.26.0\n"
-          "- name: opstree/redis-operator\n"
-          "  url: quay.io/opstree/redis-operator\n"
-          '  version: "0.26.0"\n'
-          '  digest: "sha256:aaaa"\n')
+    write(
+        images_path,
+        "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
+        "#\n"
+        "# Changes:\n"
+        "#   1. zac 5.0.2 -> 5.4.4.\n"
+        "#   2. redis-operator 0.25.0 -> 0.26.0.\n"
+        "\n"
+        "# zac 5.0.2 -> 5.4.4\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.4.4"\n'
+        '  digest: "sha256:bbbb"\n\n'
+        "# redis-operator 0.25.0 -> 0.26.0\n"
+        "- name: opstree/redis-operator\n"
+        "  url: quay.io/opstree/redis-operator\n"
+        '  version: "0.26.0"\n'
+        '  digest: "sha256:aaaa"\n',
+    )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "seed out-of-order images manifest", cwd=tmp_path)
 
@@ -4940,14 +5693,17 @@ def test_main_reorders_images_manifest_to_match_values_yaml(cdb, tmp_path, monke
 
 # --- main() print formatting: multi-item lists split one per line, not comma-joined ---
 
+
 def test_main_reports_unmatched_components_one_per_line(cdb, repo, monkeypatch, capsys):
-    write(repo / "4.8.2-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.2)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| Totally Unknown Thing A | 1.0.0 → 2.0.0 | 1.0.0 → 2.0.0 | - |\n"
-          "| Totally Unknown Thing B | 1.0.0 → 2.0.0 | 1.0.0 → 2.0.0 | - |\n")
+    write(
+        repo / "4.8.2-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.2)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| Totally Unknown Thing A | 1.0.0 → 2.0.0 | 1.0.0 → 2.0.0 | - |\n"
+        "| Totally Unknown Thing B | 1.0.0 → 2.0.0 | 1.0.0 → 2.0.0 | - |\n",
+    )
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
 
     cdb.main()
@@ -4964,23 +5720,35 @@ def test_main_reports_unresolved_source_versions_one_per_line(cdb, repo, monkeyp
     verified must each get their own line, not be crammed onto one
     comma-joined line — the header states the count, one name per line
     follows."""
-    write(repo.parents[1] / "Chart.yaml", yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
-            {"name": "openzaak", "version": "1.14.2", "repository": "@openzaak"},
-        ],
-    }))
-    write(repo.parents[1] / "values.yaml", yaml.safe_dump({
-        "zac": {"image": {"tag": "5.1.0@sha256:aaaa"}},
-        "openzaak": {"image": {"tag": "1.29.3@sha256:bbbb"}},
-    }))
-    write(repo / "4.8.2-to-4.9.0-upgrade.md",
-          "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
-          "## Component versions (4.9.0 vs 4.8.2)\n\n"
-          "| Component | App version | Helm chart | Notes |\n"
-          "| --- | --- | --- | --- |\n"
-          "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.1.0 | 1.0.251 → 1.0.257 | - |\n"
-          "| Open Zaak | 1.27.4 → 1.29.3 | 1.14.2 (unchanged) | - |\n")
+    write(
+        repo.parents[1] / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+                    {"name": "openzaak", "version": "1.14.2", "repository": "@openzaak"},
+                ],
+            }
+        ),
+    )
+    write(
+        repo.parents[1] / "values.yaml",
+        yaml.safe_dump(
+            {
+                "zac": {"image": {"tag": "5.1.0@sha256:aaaa"}},
+                "openzaak": {"image": {"tag": "1.29.3@sha256:bbbb"}},
+            }
+        ),
+    )
+    write(
+        repo / "4.8.2-to-4.9.0-upgrade.md",
+        "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.2)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.1.0 | 1.0.251 → 1.0.257 | - |\n"
+        "| Open Zaak | 1.27.4 → 1.29.3 | 1.14.2 (unchanged) | - |\n",
+    )
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
 
     cdb.main()
@@ -4994,9 +5762,10 @@ def test_main_reports_unresolved_source_versions_one_per_line(cdb, repo, monkeyp
 
 def test_main_reports_unresolved_image_entries_one_per_line(cdb, repo, monkeypatch, capsys):
     images_dir = repo.parent / "images"
-    write(images_dir / "images-4.9.0.yaml",
-          '- name: totally-unknown-a\n  version: "1.0.0"\n'
-          '- name: totally-unknown-b\n  version: "1.0.0"\n')
+    write(
+        images_dir / "images-4.9.0.yaml",
+        '- name: totally-unknown-a\n  version: "1.0.0"\n- name: totally-unknown-b\n  version: "1.0.0"\n',
+    )
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
 
     cdb.main()

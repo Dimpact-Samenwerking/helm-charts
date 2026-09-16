@@ -10,6 +10,7 @@ check_render (verify-podiumd), check_yamllint/check_kubeconform/
 check_shellcheck/check_kube_score (lib/*_check.py), and (rendered_chart_
 paths specifically) check_subchart_image_visibility (lib.
 digest_pinning_check) and list-podiumd-images."""
+
 import re
 from collections import Counter
 
@@ -73,8 +74,7 @@ def render_chart(chart_dir, extra_args):
     key = (str(chart_dir), tuple(extra_args))
     if key in _render_cache:
         return _render_cache[key]
-    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
-                 capture_output=True, text=True)
+    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args], capture_output=True, text=True)
     _render_cache[key] = result
     return result
 
@@ -243,8 +243,7 @@ def friendly_vendor_charts(chart_dir):
     # Only apply an override for a chart that's actually a dependency here
     # — otherwise a name collision with some unrelated future dependency
     # would silently inherit an override meant for a specific chart.
-    mapping = {name: vendor for name, vendor in chart_overrides.items()
-               if name in dep_chart_names}
+    mapping = {name: vendor for name, vendor in chart_overrides.items() if name in dep_chart_names}
     for dep in deps:
         chart_name = dep.get("alias", dep["name"])
         repo = resolve_dependency_repo(dep.get("repository", ""), required_repos)
@@ -267,7 +266,7 @@ def build_line_sources(rendered_text):
     current = None
     for i, line in enumerate(rendered_text.splitlines(), 1):
         if line.startswith("# Source: "):
-            current = line[len("# Source: "):].strip()
+            current = line[len("# Source: ") :].strip()
         sources[i] = current
     return sources
 
@@ -311,7 +310,7 @@ def build_resource_locations(rendered_text):
     locations = {}
     for pos, start in enumerate(marker_indices):
         end = marker_indices[pos + 1] - 1 if pos + 1 < len(marker_indices) else len(lines)
-        doc_lines = lines[start + 1:end]
+        doc_lines = lines[start + 1 : end]
         if doc_lines and doc_lines[-1].strip() == "---":
             doc_lines = doc_lines[:-1]
         try:

@@ -32,14 +32,16 @@ mistaken for one of these); a shared helper template like "podiumd.image"
 or "podiumd.labels" defined in this chart's own _helpers.tpl is a
 different file and never appears in a file's own local defines either
 way, so crediting it here was never a risk to begin with."""
+
 import re
 
 WORKLOAD_KIND_RE = re.compile(r"^kind:\s*(Deployment|StatefulSet|DaemonSet|Job|CronJob)\s*$", re.MULTILINE)
 NAME_RE = re.compile(r"^\s*name:\s*(.+)$", re.MULTILINE)
 NODE_SELECTOR_RE = re.compile(r"\bnodeSelector\s*:")
 DOC_SPLIT_RE = re.compile(r"(?m)^---\s*$")
-DEFINE_BLOCK_RE = re.compile(r'\{\{-?\s*define\s+"(?P<name>[^"]+)"\s*-?\}\}(?P<body>.*?)\{\{-?\s*end\s*-?\}\}',
-                              re.DOTALL)
+DEFINE_BLOCK_RE = re.compile(
+    r'\{\{-?\s*define\s+"(?P<name>[^"]+)"\s*-?\}\}(?P<body>.*?)\{\{-?\s*end\s*-?\}\}', re.DOTALL
+)
 INCLUDE_CALL_RE = re.compile(r'include\s+"(?P<name>[^"]+)"')
 
 
@@ -49,8 +51,7 @@ def _referenced_define_bodies(doc, define_bodies):
     own text calls via a plain `include "X"` — see module docstring for
     why a doc that only includes its pod spec from such a block needs
     that block's own text considered part of its document too."""
-    return [define_bodies[m.group("name")] for m in INCLUDE_CALL_RE.finditer(doc)
-            if m.group("name") in define_bodies]
+    return [define_bodies[m.group("name")] for m in INCLUDE_CALL_RE.finditer(doc) if m.group("name") in define_bodies]
 
 
 def scan_missing_node_selector(templates_dir):
@@ -82,12 +83,13 @@ def check_node_selector(chart_dir):
     findings = scan_missing_node_selector(chart_dir / "templates")
 
     if not findings:
-        print("OK: every Deployment/StatefulSet/DaemonSet/Job/CronJob in templates/*.yaml "
-              "exposes a nodeSelector field")
+        print("OK: every Deployment/StatefulSet/DaemonSet/Job/CronJob in templates/*.yaml exposes a nodeSelector field")
         return True, "0 violation(s)"
 
-    print(f"Found {len(findings)} workload template(s) with no nodeSelector field "
-          f'(.github/copilot-instructions.md "AKS-Blue Cluster Conventions"):')
+    print(
+        f"Found {len(findings)} workload template(s) with no nodeSelector field "
+        f'(.github/copilot-instructions.md "AKS-Blue Cluster Conventions"):'
+    )
     for path, kind, name in findings:
         rel = path.relative_to(chart_dir)
         print(f"  {rel}  {kind}/{name}")

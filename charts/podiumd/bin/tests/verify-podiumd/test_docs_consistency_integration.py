@@ -1,6 +1,7 @@
 """End-to-end check_docs_consistency against a small, realistic podiumd-like
 chart inside a real (hermetic, temp) git repo — exercises the full baseline
 resolution + all the precheck/content-check stages together."""
+
 import subprocess
 
 import pytest
@@ -29,9 +30,11 @@ See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.m
 """
 
 GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
-VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
-                      "## ZAC {app_source} → {app_target} (chart 1.0.297, unchanged) — image tag only\n\n"
-                      "No gemeente podiumd.yml changes are required for this hop.\n")
+VALUES_DELTAS_DOC = (
+    "# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
+    "## ZAC {app_source} → {app_target} (chart 1.0.297, unchanged) — image tag only\n\n"
+    "No gemeente podiumd.yml changes are required for this hop.\n"
+)
 IMAGES_MANIFEST = """\
 # Baseline: podiumd {baseline} (test @ 0000000).
 #
@@ -55,8 +58,9 @@ def git(*args, cwd):
 
 
 def values_yaml(app_version):
-    return (f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n'
-            f'    tag: "{app_version}@sha256:abc"\n')
+    return (
+        f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "{app_version}@sha256:abc"\n'
+    )
 
 
 @pytest.fixture
@@ -82,12 +86,15 @@ def chart_repo(tmp_path):
 
     (chart_dir / "values.yaml").write_text(values_yaml("5.4.3"))
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        UPGRADE_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3"))
+        UPGRADE_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3")
+    )
     (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(GEMEENTE_DOC.format(baseline="4.8.5"))
     (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3"))
+        VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3")
+    )
     (images_dir / "images-4.9.0.yaml").write_text(
-        IMAGES_MANIFEST.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3"))
+        IMAGES_MANIFEST.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3")
+    )
     git("add", "-A", cwd=repo_root)
     git("commit", "-q", "-m", "bump zac to 5.4.3", cwd=repo_root)
 
@@ -108,6 +115,7 @@ def test_fully_consistent_chart_passes_without_baseline(vp, chart_repo):
 # upgrade_placeholders/strip_stale_values_deltas_todo_stub/has_stale_
 # gemeente_specific_placeholder) ---
 
+
 def test_stale_upgrade_placeholder_is_reported_as_a_finding(vp, chart_repo, capsys):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text() + "\n## Changes\n\nTODO\n\n### zac 5.0.2 → 5.4.3\n\nSome prose.\n")
@@ -116,8 +124,7 @@ def test_stale_upgrade_placeholder_is_reported_as_a_finding(vp, chart_repo, caps
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-upgrade.md: still has a stale "TODO" placeholder stranded alongside '
-            'real content') in out
+    assert ('4.8.5-to-4.9.0-upgrade.md: still has a stale "TODO" placeholder stranded alongside real content') in out
 
 
 def test_bare_changes_todo_stub_with_no_real_block_is_not_flagged(vp, chart_repo, capsys):
@@ -151,8 +158,10 @@ def test_stale_values_deltas_placeholder_is_reported_as_a_finding(vp, chart_repo
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-values-deltas.md: still has its own stale TODO placeholder '
-            'stranded alongside a real "## ..." section') in out
+    assert (
+        "4.8.5-to-4.9.0-values-deltas.md: still has its own stale TODO placeholder "
+        'stranded alongside a real "## ..." section'
+    ) in out
 
 
 def test_stale_gemeente_specific_placeholder_is_reported_as_a_finding(vp, chart_repo, capsys):
@@ -171,8 +180,10 @@ def test_stale_gemeente_specific_placeholder_is_reported_as_a_finding(vp, chart_
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-gemeente-specific.md: still has its own stale "_None recorded yet._" '
-            'placeholder stranded alongside a real "## <gemeente> (<env>)" section') in out
+    assert (
+        '4.8.5-to-4.9.0-gemeente-specific.md: still has its own stale "_None recorded yet._" '
+        'placeholder stranded alongside a real "## <gemeente> (<env>)" section'
+    ) in out
 
 
 def test_bare_gemeente_specific_stub_with_no_real_section_is_not_flagged(vp, chart_repo, capsys):
@@ -210,8 +221,10 @@ def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(vp, chart_repo, 
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "Keycloak" does not match a Chart.yaml dependency '
-            'or a canonical sidecar/shared-image name') in out
+    assert (
+        '4.8.5-to-4.9.0-upgrade.md: doc row "Keycloak" does not match a Chart.yaml dependency '
+        "or a canonical sidecar/shared-image name"
+    ) in out
 
 
 def test_duplicate_row_names_are_reported(vp, chart_repo, capsys):
@@ -224,8 +237,10 @@ def test_duplicate_row_names_are_reported(vp, chart_repo, capsys):
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "ZAC (Zaakafhandelcomponent)" is wrong or stale — '
-            'not found in Chart.yaml or values.yaml') in out
+    assert (
+        '4.8.5-to-4.9.0-upgrade.md: doc row "ZAC (Zaakafhandelcomponent)" is wrong or stale — '
+        "not found in Chart.yaml or values.yaml"
+    ) in out
 
 
 def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(vp, chart_repo, capsys):
@@ -242,8 +257,10 @@ def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(vp, chart_repo
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "ZAC (Zaakafhandelcomponent)" is wrong or stale — '
-            'not found in Chart.yaml or values.yaml') in out
+    assert (
+        '4.8.5-to-4.9.0-upgrade.md: doc row "ZAC (Zaakafhandelcomponent)" is wrong or stale — '
+        "not found in Chart.yaml or values.yaml"
+    ) in out
     # The exact row itself, with correct data, is never flagged.
     assert 'doc row "zac" ' not in out
 
@@ -275,10 +292,12 @@ def test_undocumented_new_component_is_caught_everywhere(vp, chart_repo, capsys)
     table, from values-deltas.md, and from the images manifest — not
     silently skipped just because no doc mentions it yet."""
     (chart_repo / "Chart.yaml").write_text(
-        CHART_YAML + '  - name: openformulieren\n    version: "1.12.0"\n    repository: "@openformulieren"\n')
+        CHART_YAML + '  - name: openformulieren\n    version: "1.12.0"\n    repository: "@openformulieren"\n'
+    )
     (chart_repo / "values.yaml").write_text(
-        values_yaml("5.4.3") +
-        'openformulieren:\n  image:\n    repository: openformulieren/open-forms\n    tag: "3.5.6@sha256:cccc"\n')
+        values_yaml("5.4.3")
+        + 'openformulieren:\n  image:\n    repository: openformulieren/open-forms\n    tag: "3.5.6@sha256:cccc"\n'
+    )
 
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
@@ -288,7 +307,7 @@ def test_undocumented_new_component_is_caught_everywhere(vp, chart_repo, capsys)
     assert 'component "openformulieren" changed vs' in out
     assert 'has no row in the "Component versions" table' in out
     assert 'has no "## ..." section of its own' in out
-    assert "openformulieren" in out and 'changed vs 4.8.5 but has no entry' in out
+    assert "openformulieren" in out and "changed vs 4.8.5 but has no entry" in out
 
 
 def test_component_with_only_a_new_sidecar_of_its_own_is_not_flagged_missing_a_row(vp, tmp_path, capsys):
@@ -362,20 +381,22 @@ def test_images_manifest_entry_with_no_real_change_is_caught(vp, chart_repo, cap
     names), not the "did not change" message reserved for an entry that
     DOES resolve to a real, merely-unchanged path."""
     images_path = chart_repo / "docs" / "images" / "images-4.9.0.yaml"
-    images_path.write_text(images_path.read_text() + (
-        '\n# stale entry — does not correspond to any actual change\n'
-        '- name: does-not-exist\n'
-        '  url: ghcr.io/infonl/does-not-exist\n'
-        '  version: "1.0.0"\n'
-        '  digest: "sha256:deadbeef"\n'
-    ))
+    images_path.write_text(
+        images_path.read_text()
+        + (
+            "\n# stale entry — does not correspond to any actual change\n"
+            "- name: does-not-exist\n"
+            "  url: ghcr.io/infonl/does-not-exist\n"
+            '  version: "1.0.0"\n'
+            '  digest: "sha256:deadbeef"\n'
+        )
+    )
 
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
 
     out = capsys.readouterr().out
-    assert ('entry "does-not-exist" is wrong or stale — '
-            'not found in Chart.yaml or values.yaml') in out
+    assert ('entry "does-not-exist" is wrong or stale — not found in Chart.yaml or values.yaml') in out
 
 
 def test_images_manifest_entry_missing_version_or_digest_is_reported_not_crashed(vp, chart_repo, capsys):
@@ -410,8 +431,10 @@ def test_images_manifest_missing_changes_header_entirely_is_caught(vp, chart_rep
     assert ok is False
 
     out = capsys.readouterr().out
-    assert ('images-4.9.0.yaml: has 1 entry but no "# Changes:" header at all — every real change is '
-            'undocumented in the summary list') in out
+    assert (
+        'images-4.9.0.yaml: has 1 entry but no "# Changes:" header at all — every real change is '
+        "undocumented in the summary list"
+    ) in out
 
 
 def test_images_manifest_format_issue_does_not_swallow_other_mismatches(vp, chart_repo, capsys):
@@ -456,8 +479,10 @@ def test_stale_pointer_reference_does_not_block_every_other_check(vp, chart_repo
     out = capsys.readouterr().out
 
     assert ok is False
-    assert ('reference "4.8.3-to-4.9.0-upgrade.md" targets podiumd 4.9.0 but its upgrade_docs_baseline '
-            'is "4.8.3", expected "4.8.5"') in out
+    assert (
+        'reference "4.8.3-to-4.9.0-upgrade.md" targets podiumd 4.9.0 but its upgrade_docs_baseline '
+        'is "4.8.3", expected "4.8.5"'
+    ) in out
     assert 'component "zac" changed vs' in out
     assert 'has no row in the "Component versions" table' in out
 
@@ -489,8 +514,9 @@ KEYCLOAK_UPGRADE_DOC = """\
 See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
 """
 KEYCLOAK_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
-KEYCLOAK_VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
-                              "No gemeente podiumd.yml changes are required for this hop.\n")
+KEYCLOAK_VALUES_DELTAS_DOC = (
+    "# Values deltas — PodiumD {baseline} → 4.9.0\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
+)
 
 
 def keycloak_values(tag):
@@ -540,8 +566,10 @@ def test_component_specific_image_path_mismatch_is_flagged_not_silently_skipped(
     out = capsys.readouterr().out
 
     assert ok is False
-    assert ('keycloak-operator ("keycloak-operator") target app: values.yaml image tag is "26.7.2", '
-            '4.8.5-to-4.9.0-upgrade.md says "-"') in out
+    assert (
+        'keycloak-operator ("keycloak-operator") target app: values.yaml image tag is "26.7.2", '
+        '4.8.5-to-4.9.0-upgrade.md says "-"'
+    ) in out
 
 
 # --- sidecar image (not a dependency's own primary image, but nested
@@ -571,9 +599,11 @@ REDIS_UPGRADE_DOC = """\
 See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
 """
 REDIS_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
-REDIS_VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
-                            "## redis-operator {app_source} → {app_target} — image tag only\n\n"
-                            "No gemeente podiumd.yml changes are required for this hop.\n")
+REDIS_VALUES_DELTAS_DOC = (
+    "# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
+    "## redis-operator {app_source} → {app_target} — image tag only\n\n"
+    "No gemeente podiumd.yml changes are required for this hop.\n"
+)
 REDIS_IMAGES_MANIFEST = """\
 # Baseline: podiumd {baseline} (test @ 0000000).
 #
@@ -593,8 +623,10 @@ REDIS_IMAGES_MANIFEST = """\
 
 
 def redis_values(tag, digest="abc"):
-    return (f'redis-operator:\n  redis-ha:\n    image:\n      repository: quay.io/opstree/redis\n'
-            f'      tag: "{tag}@sha256:{digest}"\n')
+    return (
+        f"redis-operator:\n  redis-ha:\n    image:\n      repository: quay.io/opstree/redis\n"
+        f'      tag: "{tag}@sha256:{digest}"\n'
+    )
 
 
 @pytest.fixture
@@ -623,12 +655,15 @@ def redis_sidecar_chart_repo(tmp_path):
 
     (chart_dir / "values.yaml").write_text(redis_values("8.6.6"))
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"))
+        REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6")
+    )
     (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
     (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"))
+        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6")
+    )
     (images_dir / "images-4.9.0.yaml").write_text(
-        REDIS_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"))
+        REDIS_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6")
+    )
     git("add", "-A", cwd=repo_root)
     git("commit", "-q", "-m", "bump redis-ha's redis image, row uses canonical sidecar name", cwd=repo_root)
 
@@ -648,8 +683,10 @@ def test_sidecar_row_wrong_target_app_is_caught(vp, redis_sidecar_chart_repo, ca
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('redis-operator.redis-ha.image ("redis-operator - redis") target app: values.yaml image tag is '
-            '"8.6.6", 4.8.5-to-4.9.0-upgrade.md says "9.9.9"') in out
+    assert (
+        'redis-operator.redis-ha.image ("redis-operator - redis") target app: values.yaml image tag is '
+        '"8.6.6", 4.8.5-to-4.9.0-upgrade.md says "9.9.9"'
+    ) in out
 
 
 def test_sidecar_row_wrong_source_app_vs_baseline_is_caught(vp, redis_sidecar_chart_repo, capsys):
@@ -660,8 +697,10 @@ def test_sidecar_row_wrong_source_app_vs_baseline_is_caught(vp, redis_sidecar_ch
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('redis-operator.redis-ha.image ("redis-operator - redis") source app: podiumd-4.8.5 has "8.6.2", '
-            '4.8.5-to-4.9.0-upgrade.md says "1.1.1"') in out
+    assert (
+        'redis-operator.redis-ha.image ("redis-operator - redis") source app: podiumd-4.8.5 has "8.6.2", '
+        '4.8.5-to-4.9.0-upgrade.md says "1.1.1"'
+    ) in out
 
 
 def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(vp, redis_sidecar_chart_repo, capsys):
@@ -676,8 +715,10 @@ def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(vp, re
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "Redis (redis-ha)" does not match a Chart.yaml '
-            'dependency or a canonical sidecar/shared-image name') in out
+    assert (
+        '4.8.5-to-4.9.0-upgrade.md: doc row "Redis (redis-ha)" does not match a Chart.yaml '
+        "dependency or a canonical sidecar/shared-image name"
+    ) in out
 
 
 def test_sidecar_digest_only_repin_is_not_flagged_as_changed(vp, tmp_path, capsys):
@@ -727,8 +768,8 @@ def test_sidecar_digest_only_repin_is_not_flagged_as_changed(vp, tmp_path, capsy
     )
     (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
     (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
-        "No gemeente podiumd.yml changes are required for this hop.\n")
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
+    )
     (images_dir / "images-4.9.0.yaml").write_text(
         "# Baseline: podiumd 4.8.5 (test @ 0000000).\n"
         "#\n"
@@ -774,8 +815,9 @@ KEYCLOAK_SPLIT_UPGRADE_DOC = """\
 See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
 """
 KEYCLOAK_SPLIT_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
-KEYCLOAK_SPLIT_VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
-                                    "No gemeente podiumd.yml changes are required for this hop.\n")
+KEYCLOAK_SPLIT_VALUES_DELTAS_DOC = (
+    "# Values deltas — PodiumD {baseline} → 4.9.0\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
+)
 KEYCLOAK_SPLIT_IMAGES_MANIFEST = """\
 # Baseline: podiumd {baseline} (test @ 0000000).
 #
@@ -807,20 +849,20 @@ def keycloak_split_values(app_tag, app_digest, op_tag, op_digest):
     own operator image (operator.image) — neither ever embeds "@sha256"
     in "tag:" directly, unlike every other image in the chart."""
     return (
-        f'keycloak-operator:\n'
-        f'  operator:\n'
-        f'    image:\n'
-        f'      repository: quay.io/keycloak/keycloak-operator\n'
+        f"keycloak-operator:\n"
+        f"  operator:\n"
+        f"    image:\n"
+        f"      repository: quay.io/keycloak/keycloak-operator\n"
         f'      tag: "{op_tag}"\n'
         f'      sha: "{op_digest}"\n'
-        f'    config:\n'
-        f'      keycloakImage:\n'
-        f'        repository: quay.io/keycloak/keycloak\n'
+        f"    config:\n"
+        f"      keycloakImage:\n"
+        f"        repository: quay.io/keycloak/keycloak\n"
         f'        tag: "{app_tag}"\n'
         f'        sha: "{app_digest}"\n'
-        f'keycloak:\n'
-        f'  image:\n'
-        f'    repository: quay.io/keycloak/keycloak\n'
+        f"keycloak:\n"
+        f"  image:\n"
+        f"    repository: quay.io/keycloak/keycloak\n"
         f'    tag: "{app_tag}"\n'
         f'    sha: "{app_digest}"\n'
     )
@@ -847,26 +889,30 @@ def keycloak_split_chart_repo(tmp_path):
     git("config", "user.name", "Test", cwd=repo_root)
 
     (chart_dir / "Chart.yaml").write_text(KEYCLOAK_SPLIT_CHART_YAML)
-    (chart_dir / "values.yaml").write_text(
-        keycloak_split_values("26.7.2", "a" * 64, "26.6.4", "b" * 64))
+    (chart_dir / "values.yaml").write_text(keycloak_split_values("26.7.2", "a" * 64, "26.6.4", "b" * 64))
     git("add", "-A", cwd=repo_root)
     git("commit", "-q", "-m", "baseline", cwd=repo_root)
     git("tag", "podiumd-4.8.5", cwd=repo_root)
 
-    (chart_dir / "values.yaml").write_text(
-        keycloak_split_values("26.7.3", "c" * 64, "26.7.3", "d" * 64))
+    (chart_dir / "values.yaml").write_text(keycloak_split_values("26.7.3", "c" * 64, "26.7.3", "d" * 64))
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         KEYCLOAK_SPLIT_UPGRADE_DOC.format(
-            baseline="4.8.5", app_source="26.7.2", app_target="26.7.3",
-            op_source="26.6.4", op_target="26.7.3"))
-    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(
-        KEYCLOAK_SPLIT_GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        KEYCLOAK_SPLIT_VALUES_DELTAS_DOC.format(baseline="4.8.5"))
+            baseline="4.8.5", app_source="26.7.2", app_target="26.7.3", op_source="26.6.4", op_target="26.7.3"
+        )
+    )
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(KEYCLOAK_SPLIT_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(KEYCLOAK_SPLIT_VALUES_DELTAS_DOC.format(baseline="4.8.5"))
     (images_dir / "images-4.9.0.yaml").write_text(
         KEYCLOAK_SPLIT_IMAGES_MANIFEST.format(
-            baseline="4.8.5", app_source="26.7.2", app_target="26.7.3", app_digest="c" * 64,
-            op_source="26.6.4", op_target="26.7.3", op_digest="d" * 64))
+            baseline="4.8.5",
+            app_source="26.7.2",
+            app_target="26.7.3",
+            app_digest="c" * 64,
+            op_source="26.6.4",
+            op_target="26.7.3",
+            op_digest="d" * 64,
+        )
+    )
     git("add", "-A", cwd=repo_root)
     git("commit", "-q", "-m", "bump keycloak-operator's split tag/sha images", cwd=repo_root)
 
@@ -884,7 +930,7 @@ def test_split_tag_sha_path_digest_is_resolved_not_compared_as_bare_tag(vp, keyc
     out = capsys.readouterr().out
 
     assert ok is True, out
-    assert 'values.yaml tag is' not in out
+    assert "values.yaml tag is" not in out
     # keycloak/keycloak-operator's own repository (quay.io/keycloak/
     # keycloak-operator) matches its own path exactly via repo_map — the
     # per-entry loop must resolve it there, not fall back to
@@ -892,7 +938,7 @@ def test_split_tag_sha_path_digest_is_resolved_not_compared_as_bare_tag(vp, keyc
     # name repeats "keycloak" once for the org and once for the repo,
     # while the values-tree path only has it once, so neither an exact
     # nor a substring match is ever found).
-    assert 'no matching image in values.yaml, skipped' not in out
+    assert "no matching image in values.yaml, skipped" not in out
 
 
 def test_unresolvable_entry_names_the_manifest_file_its_own_message(vp, keycloak_split_chart_repo, capsys):
@@ -909,13 +955,16 @@ def test_unresolvable_entry_names_the_manifest_file_its_own_message(vp, keycloak
     test_images_manifest_entry_missing_version_or_digest_is_reported_
     not_crashed's own docstring for the same reasoning."""
     images_path = keycloak_split_chart_repo / "docs" / "images" / "images-4.9.0.yaml"
-    images_path.write_text(images_path.read_text() + (
-        '\n# stale entry — does not correspond to any actual change\n'
-        '- name: does-not-exist\n'
-        '  url: ghcr.io/infonl/does-not-exist\n'
-        '  version: "1.0.0"\n'
-        '  digest: "sha256:deadbeef"\n'
-    ))
+    images_path.write_text(
+        images_path.read_text()
+        + (
+            "\n# stale entry — does not correspond to any actual change\n"
+            "- name: does-not-exist\n"
+            "  url: ghcr.io/infonl/does-not-exist\n"
+            '  version: "1.0.0"\n'
+            '  digest: "sha256:deadbeef"\n'
+        )
+    )
 
     vp.check_docs_consistency(keycloak_split_chart_repo, upgrade_docs_baseline=None)
     out = capsys.readouterr().out
@@ -955,8 +1004,10 @@ def test_sidecar_with_no_row_at_all_is_caught_as_missing(vp, redis_sidecar_chart
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-upgrade.md: sidecar/shared image "redis-operator - redis" changed vs '
-            'podiumd-4.8.5 but has no row in the "Component versions" table') in out
+    assert (
+        '4.8.5-to-4.9.0-upgrade.md: sidecar/shared image "redis-operator - redis" changed vs '
+        'podiumd-4.8.5 but has no row in the "Component versions" table'
+    ) in out
 
 
 def test_sidecar_missing_from_images_manifest_uses_canonical_name(vp, redis_sidecar_chart_repo, capsys):
@@ -985,7 +1036,8 @@ def test_sidecar_missing_from_images_manifest_uses_canonical_name(vp, redis_side
 
 
 def test_orphan_top_level_block_sharing_a_dependencys_sidecar_repository_is_covered(
-        vp, redis_sidecar_chart_repo, capsys):
+    vp, redis_sidecar_chart_repo, capsys
+):
     """A top-level values.yaml block with no Chart.yaml dependency of its
     own at all (podiumd's own directly-templated "apiproxy"/
     "frankgateway"/"keycloak" blocks are the real cases) that shares the
@@ -996,8 +1048,8 @@ def test_orphan_top_level_block_sharing_a_dependencys_sidecar_repository_is_cove
     at a known Chart.yaml dependency."""
     values_path = redis_sidecar_chart_repo / "values.yaml"
     values_path.write_text(
-        values_path.read_text() +
-        'apiproxy:\n  image:\n    repository: quay.io/opstree/redis\n    tag: "8.6.6@sha256:abc"\n'
+        values_path.read_text()
+        + 'apiproxy:\n  image:\n    repository: quay.io/opstree/redis\n    tag: "8.6.6@sha256:abc"\n'
     )
 
     ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
@@ -1039,14 +1091,16 @@ def test_unchanged_sidecar_with_no_row_is_not_flagged(vp, tmp_path, capsys):
 
     (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
     (chart_dir / "values.yaml").write_text(
-        REDIS_TWO_IMAGES_VALUES_TMPL.format(redis_tag="8.6.2", exporter_tag="1.82.0"))
+        REDIS_TWO_IMAGES_VALUES_TMPL.format(redis_tag="8.6.2", exporter_tag="1.82.0")
+    )
     git("add", "-A", cwd=repo_root)
     git("commit", "-q", "-m", "baseline", cwd=repo_root)
     git("tag", "podiumd-4.8.5", cwd=repo_root)
 
     # redis-ha's own redis image changes; redisExporter does not.
     (chart_dir / "values.yaml").write_text(
-        REDIS_TWO_IMAGES_VALUES_TMPL.format(redis_tag="8.6.6", exporter_tag="1.82.0"))
+        REDIS_TWO_IMAGES_VALUES_TMPL.format(redis_tag="8.6.6", exporter_tag="1.82.0")
+    )
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -1057,9 +1111,11 @@ def test_unchanged_sidecar_with_no_row_is_not_flagged(vp, tmp_path, capsys):
     )
     (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
     (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
-        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"))
+        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6")
+    )
     (images_dir / "images-4.9.0.yaml").write_text(
-        REDIS_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"))
+        REDIS_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6")
+    )
     git("add", "-A", cwd=repo_root)
     git("commit", "-q", "-m", "bump redis-ha's redis image only", cwd=repo_root)
 
@@ -1098,8 +1154,9 @@ def test_new_sidecar_row_known_in_historical_images_manifest_is_not_a_warning(vp
     git("tag", "podiumd-4.8.5", cwd=repo_root)
 
     (chart_dir / "values.yaml").write_text(
-        redis_values("8.6.2") + '  k8s:\n    image:\n      repository: quay.io/alpine/k8s\n'
-                                 '      tag: "1.36.2@sha256:cccc"\n')
+        redis_values("8.6.2") + "  k8s:\n    image:\n      repository: quay.io/alpine/k8s\n"
+        '      tag: "1.36.2@sha256:cccc"\n'
+    )
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -1119,10 +1176,7 @@ def test_new_sidecar_row_known_in_historical_images_manifest_is_not_a_warning(vp
         "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n# Zero changes:\n#\n\n[]\n"
     )
     (images_dir / "images-4.8.0.yaml").write_text(
-        "- name: alpine/k8s\n"
-        "  url: quay.io/alpine/k8s\n"
-        '  version: "1.36.2"\n'
-        '  digest: "sha256:cccc"\n'
+        '- name: alpine/k8s\n  url: quay.io/alpine/k8s\n  version: "1.36.2"\n  digest: "sha256:cccc"\n'
     )
     git("add", "-A", cwd=repo_root)
     git("commit", "-q", "-m", "add k8s sidecar, pinned to an already-mirrored image", cwd=repo_root)
@@ -1238,9 +1292,11 @@ def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_depende
         "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
         "- **redis-operator** app `0.26.1 → 0.27.0` — image tag only.\n"
         "- **ghost** app `0.6.6 → 0.6.7` — image tag only.\n\n"
-        "No gemeente podiumd.yml changes are required for this hop.\n")
+        "No gemeente podiumd.yml changes are required for this hop.\n"
+    )
     (images_dir / "images-4.9.0.yaml").write_text(
-        REDIS_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="0.26.1", app_target="0.27.0"))
+        REDIS_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="0.26.1", app_target="0.27.0")
+    )
     git("add", "-A", cwd=repo_root)
     git("commit", "-q", "-m", "bump redis-operator and its unresolvable ghost sidecar", cwd=repo_root)
 
@@ -1248,8 +1304,10 @@ def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_depende
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "redis-operator - ghost" does not match a Chart.yaml '
-            'dependency or a canonical sidecar/shared-image name') in out
+    assert (
+        '4.8.5-to-4.9.0-upgrade.md: doc row "redis-operator - ghost" does not match a Chart.yaml '
+        "dependency or a canonical sidecar/shared-image name"
+    ) in out
     # The bug this guards against: falling through to match_dependency
     # would fuzzy-match "redis-operator - ghost" onto the real
     # redis-operator dependency and wrongly compare its own actual app
@@ -1264,11 +1322,14 @@ def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, c
     resolve anything to compare against, so silence is correct, not a
     gap."""
     (chart_repo / "Chart.yaml").write_text(
-        CHART_YAML + '  - name: redis-operator\n    version: "0.26.1"\n    repository: "@opstree"\n')
+        CHART_YAML + '  - name: redis-operator\n    version: "0.26.1"\n    repository: "@opstree"\n'
+    )
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
-    doc.write_text(doc.read_text().replace(
-        "See [`",
-        "| redis-operator | - | 0.26.1 (unchanged) | chart-only, no app image |\n\nSee [`"))
+    doc.write_text(
+        doc.read_text().replace(
+            "See [`", "| redis-operator | - | 0.26.1 (unchanged) | chart-only, no app image |\n\nSee [`"
+        )
+    )
 
     vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
@@ -1284,8 +1345,9 @@ def test_component_changed_with_no_key_diffs_needs_no_values_deltas_mention(vp, 
     to (see lib.component_docs.sync_values_delta_sections' own
     docstring) — a plain version bump alone needs no gemeente action."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-values-deltas.md"
-    doc.write_text("# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
-                    "No gemeente podiumd.yml changes are required for this hop.\n")
+    doc.write_text(
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
+    )
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is True, detail
 
@@ -1309,8 +1371,7 @@ dependencies:
 # the ordering signal values_key_order reads, so the doc is expected to
 # list Open Zaak before Open Inwoner too.
 ORDER_VALUES_YAML = (
-    'openzaak:\n  image:\n    tag: "1.27.4@sha256:aaaa"\n'
-    'openinwoner:\n  image:\n    tag: "2.4.2@sha256:bbbb"\n'
+    'openzaak:\n  image:\n    tag: "1.27.4@sha256:aaaa"\nopeninwoner:\n  image:\n    tag: "2.4.2@sha256:bbbb"\n'
 )
 
 ZAAK_ROW = "| Open Zaak | 1.27.4 | 1.14.2 | - |"
@@ -1345,7 +1406,8 @@ def order_chart_dir(tmp_path):
 def test_correctly_ordered_table_and_changes_pass(vp, order_chart_dir):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump 1.27.4 → 1.27.4", "Open Inwoner bump 2.4.2 → 2.4.2"]))
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump 1.27.4 → 1.27.4", "Open Inwoner bump 2.4.2 → 2.4.2"])
+    )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is True, detail
 
@@ -1353,7 +1415,8 @@ def test_correctly_ordered_table_and_changes_pass(vp, order_chart_dir):
 def test_out_of_order_table_row_is_caught(vp, order_chart_dir, capsys):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([INWONER_ROW, ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"]))
+        order_doc([INWONER_ROW, ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"])
+    )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
     assert "mismatch" in detail
@@ -1365,7 +1428,8 @@ def test_out_of_order_table_row_is_caught(vp, order_chart_dir, capsys):
 def test_out_of_order_changes_block_is_caught(vp, order_chart_dir, capsys):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Inwoner bump", "Open Zaak bump"]))
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Inwoner bump", "Open Zaak bump"])
+    )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
     assert "mismatch" in detail
@@ -1385,15 +1449,15 @@ def test_unmatched_summary_row_never_flagged_against_real_components(vp, order_c
     chart_dir, doc_dir = order_chart_dir
     summary_row = "| nginx-unprivileged (shared sidecar) | 1.31.4 | — | - |"
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW, INWONER_ROW, summary_row], ["Open Zaak bump", "Open Inwoner bump"]))
+        order_doc([ZAAK_ROW, INWONER_ROW, summary_row], ["Open Zaak bump", "Open Inwoner bump"])
+    )
     vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert "own component order" not in capsys.readouterr().out
 
 
 def test_table_row_with_no_changes_section_is_caught(vp, order_chart_dir, capsys):
     chart_dir, doc_dir = order_chart_dir
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump"]))
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump"]))
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
     assert "mismatch" in detail
@@ -1403,14 +1467,12 @@ def test_table_row_with_no_changes_section_is_caught(vp, order_chart_dir, capsys
 
 def test_changes_section_with_no_table_row_is_caught(vp, order_chart_dir, capsys):
     chart_dir, doc_dir = order_chart_dir
-    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"]))
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(order_doc([ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"]))
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
     assert "mismatch" in detail
     out = capsys.readouterr().out
-    assert '"## Changes" section "### Open Inwoner bump" has no matching row in the ' \
-           '"Component versions" table' in out
+    assert '"## Changes" section "### Open Inwoner bump" has no matching row in the "Component versions" table' in out
 
 
 def test_heading_naming_two_components_is_flagged_and_neither_row_is_credited(vp, order_chart_dir, capsys):
@@ -1427,13 +1489,16 @@ def test_heading_naming_two_components_is_flagged_and_neither_row_is_credited(vp
     either one's correspondence."""
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump + Open Inwoner bump"]))
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump + Open Inwoner bump"])
+    )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
     assert "mismatch" in detail
     out = capsys.readouterr().out
-    assert '"## Changes" section "### Open Zaak bump + Open Inwoner bump" has no matching row in the ' \
-           '"Component versions" table' in out
+    assert (
+        '"## Changes" section "### Open Zaak bump + Open Inwoner bump" has no matching row in the '
+        '"Component versions" table' in out
+    )
     assert 'table row "Open Zaak" has no matching "### ..." section under "## Changes"' in out
     assert 'table row "Open Inwoner" has no matching "### ..." section under "## Changes"' in out
 
@@ -1447,13 +1512,15 @@ def test_changes_heading_naming_no_real_component_is_caught_as_no_matching_row(v
     resolving to nothing is not itself a pass."""
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump", "Open Inwoner bump", "Unrelated release note"]))
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump", "Open Inwoner bump", "Unrelated release note"])
+    )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
     assert "mismatch" in detail
     out = capsys.readouterr().out
-    assert '"## Changes" section "### Unrelated release note" has no matching row in the ' \
-           '"Component versions" table' in out
+    assert (
+        '"## Changes" section "### Unrelated release note" has no matching row in the "Component versions" table' in out
+    )
 
 
 def test_changes_heading_missing_app_version_is_caught(vp, order_chart_dir, capsys):
@@ -1467,13 +1534,16 @@ def test_changes_heading_missing_app_version_is_caught(vp, order_chart_dir, caps
     ever catch it going stale."""
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump", "Open Inwoner bump 2.4.2 → 2.4.2"]))
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump", "Open Inwoner bump 2.4.2 → 2.4.2"])
+    )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
     assert "mismatch" in detail
     out = capsys.readouterr().out
-    assert '"## Changes" section "### Open Zaak bump" is missing the primary-image app version ' \
-           'in its own heading — values.yaml shows "1.27.4"' in out
+    assert (
+        '"## Changes" section "### Open Zaak bump" is missing the primary-image app version '
+        'in its own heading — values.yaml shows "1.27.4"' in out
+    )
     assert 'section "### Open Inwoner bump 2.4.2 → 2.4.2" is missing the primary-image app version' not in out
 
 
@@ -1513,9 +1583,11 @@ NEW_DEP_UPGRADE_DOC = """\
 See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
 """
 NEW_DEP_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
-NEW_DEP_VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
-                             "## openklant newly added (`openklant.image`)\n\n"
-                             "No gemeente podiumd.yml changes are required for this hop.\n")
+NEW_DEP_VALUES_DELTAS_DOC = (
+    "# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
+    "## openklant newly added (`openklant.image`)\n\n"
+    "No gemeente podiumd.yml changes are required for this hop.\n"
+)
 NEW_DEP_IMAGES_MANIFEST = """\
 # Baseline: podiumd {baseline} (test @ 0000000).
 #
@@ -1535,14 +1607,16 @@ NEW_DEP_IMAGES_MANIFEST = """\
 
 
 def new_dep_values():
-    return ('zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n'
-            '    tag: "5.0.2@sha256:aaaa"\n'
-            'openklant:\n  image:\n    repository: openklant/open-klant\n    tag: "2.15.0@sha256:abc"\n')
+    return (
+        "zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '    tag: "5.0.2@sha256:aaaa"\n'
+        'openklant:\n  image:\n    repository: openklant/open-klant\n    tag: "2.15.0@sha256:abc"\n'
+    )
 
 
 @pytest.fixture
 def new_dependency_chart_repo(tmp_path):
-    """"openklant" doesn't exist at all at the baseline ref — added as a
+    """ "openklant" doesn't exist at all at the baseline ref — added as a
     brand-new Chart.yaml dependency in this release. Its doc row's
     source (baseline) version can never be verified against a baseline
     that has no such dependency at all — this is the exact real-world
@@ -1567,7 +1641,8 @@ def new_dependency_chart_repo(tmp_path):
 
     (chart_dir / "Chart.yaml").write_text(NEW_DEP_CHART_YAML_BASELINE)
     (chart_dir / "values.yaml").write_text(
-        'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.0.2@sha256:aaaa"\n')
+        'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.0.2@sha256:aaaa"\n'
+    )
     git("add", "-A", cwd=repo_root)
     git("commit", "-q", "-m", "baseline", cwd=repo_root)
     git("tag", "podiumd-4.8.5", cwd=repo_root)
@@ -1584,8 +1659,7 @@ def new_dependency_chart_repo(tmp_path):
     return chart_dir
 
 
-def test_new_dependency_unresolvable_baseline_row_is_a_warning_not_a_failure(
-        vp, new_dependency_chart_repo, capsys):
+def test_new_dependency_unresolvable_baseline_row_is_a_warning_not_a_failure(vp, new_dependency_chart_repo, capsys):
     """A doc row for a component that didn't exist at the baseline ref at
     all must be surfaced (never silently treated as clean, since its
     source cells were never actually compared against anything) — but
@@ -1598,8 +1672,9 @@ def test_new_dependency_unresolvable_baseline_row_is_a_warning_not_a_failure(
     out = capsys.readouterr().out
 
     assert ok is True, detail
-    assert ('WARNING: 4.8.5-to-4.9.0-upgrade.md: doc row "openklant" source version could not be '
-            'verified against') in out
+    assert (
+        'WARNING: 4.8.5-to-4.9.0-upgrade.md: doc row "openklant" source version could not be verified against'
+    ) in out
     assert 'openklant" target app' not in out  # target side still resolves fine, no false mismatch there
 
 
@@ -1612,8 +1687,11 @@ def test_plus_in_heading_not_naming_two_real_components_still_resolves_normally(
     single-component heading."""
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW, INWONER_ROW],
-                  ["Open Zaak bump 1.27.4 → 1.27.4 + misc cleanup", "Open Inwoner bump 2.4.2 → 2.4.2"]))
+        order_doc(
+            [ZAAK_ROW, INWONER_ROW],
+            ["Open Zaak bump 1.27.4 → 1.27.4 + misc cleanup", "Open Inwoner bump 2.4.2 → 2.4.2"],
+        )
+    )
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is True, detail
     out = capsys.readouterr().out
@@ -1638,12 +1716,14 @@ dependencies:
 
 
 def two_dep_values(zac_app, openformulieren_app, with_schema_changes=False):
-    zac_extra = '  newFeature:\n    enabled: true\n' if with_schema_changes else ''
-    openformulieren_extra = '  clamavConfigJob:\n    enabled: true\n' if with_schema_changes else ''
-    return (f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n'
-            f'    tag: "{zac_app}@sha256:abc"\n{zac_extra}'
-            f'openformulieren:\n  image:\n    repository: openformulieren/open-forms\n'
-            f'    tag: "{openformulieren_app}@sha256:def"\n{openformulieren_extra}')
+    zac_extra = "  newFeature:\n    enabled: true\n" if with_schema_changes else ""
+    openformulieren_extra = "  clamavConfigJob:\n    enabled: true\n" if with_schema_changes else ""
+    return (
+        f"zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+        f'    tag: "{zac_app}@sha256:abc"\n{zac_extra}'
+        f"openformulieren:\n  image:\n    repository: openformulieren/open-forms\n"
+        f'    tag: "{openformulieren_app}@sha256:def"\n{openformulieren_extra}'
+    )
 
 
 @pytest.fixture
@@ -1682,9 +1762,11 @@ def two_dep_chart_repo(tmp_path):
         "| --- | --- | --- | --- |\n"
         "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n"
         "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | n/a |\n\n"
-        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n")
+        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+    )
     (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(
-        "# Gemeente-specific notes — PodiumD 4.8.5 → 4.9.0\n\nNone.\n")
+        "# Gemeente-specific notes — PodiumD 4.8.5 → 4.9.0\n\nNone.\n"
+    )
     # sections deliberately in the WRONG order: openformulieren (values.yaml's
     # SECOND key) comes before zac (values.yaml's FIRST key)
     (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
@@ -1692,7 +1774,8 @@ def two_dep_chart_repo(tmp_path):
         "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n"
         "- Key `openformulieren.clamavConfigJob` was added.\n\n"
         "## ZAC 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
-        "- Key `zac.newFeature` was added.\n")
+        "- Key `zac.newFeature` was added.\n"
+    )
     (images_dir / "images-4.9.0.yaml").write_text(
         "# Baseline: podiumd 4.8.5 (test @ 0000000).\n#\n"
         "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n"
@@ -1709,7 +1792,8 @@ def two_dep_chart_repo(tmp_path):
         "- name: openformulieren\n"
         "  url: openformulieren/open-forms\n"
         '  version: "3.5.6"\n'
-        '  digest: "sha256:def"\n')
+        '  digest: "sha256:def"\n'
+    )
     git("add", "-A", cwd=repo_root)
     git("commit", "-q", "-m", "bump both zac and openformulieren", cwd=repo_root)
 
@@ -1720,9 +1804,11 @@ def test_values_deltas_sections_out_of_order_is_caught(vp, two_dep_chart_repo, c
     ok, detail = vp.check_docs_consistency(two_dep_chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-values-deltas.md: "## ZAC' in out
-            and 'section comes right after "## openformulieren' in out
-            and 'sections should follow values.yaml\'s own component order' in out)
+    assert (
+        '4.8.5-to-4.9.0-values-deltas.md: "## ZAC' in out
+        and 'section comes right after "## openformulieren' in out
+        and "sections should follow values.yaml's own component order" in out
+    )
 
 
 def test_values_deltas_sections_correctly_ordered_passes(vp, two_dep_chart_repo):
@@ -1732,7 +1818,8 @@ def test_values_deltas_sections_correctly_ordered_passes(vp, two_dep_chart_repo)
         "## ZAC 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
         "- Key `zac.newFeature` was added.\n\n"
         "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n"
-        "- Key `openformulieren.clamavConfigJob` was added.\n")
+        "- Key `openformulieren.clamavConfigJob` was added.\n"
+    )
     ok, detail = vp.check_docs_consistency(two_dep_chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is True, detail
 
@@ -1744,6 +1831,7 @@ def test_values_deltas_sections_correctly_ordered_passes(vp, two_dep_chart_repo)
 # "(unchanged)" while its table row correctly said "(new)", because its
 # baseline app version was only resolvable via a vendored-.tgz fallback
 # the OLD code never attempted for the baseline side) ---
+
 
 def test_changes_heading_wrong_transition_wording_is_caught(vp, chart_repo, capsys):
     """zac really changed 5.0.2 -> 5.4.3 (see chart_repo's own docstring),
@@ -1761,14 +1849,17 @@ def test_changes_heading_wrong_transition_wording_is_caught(vp, chart_repo, caps
         "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n\n"
         "## Changes\n\n"
         "### ZAC (Zaakafhandelcomponent) 5.4.3 (unchanged) (chart 1.0.297, unchanged)\n\n"
-        "blah\n")
+        "blah\n"
+    )
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
     assert "mismatch" in detail
     out = capsys.readouterr().out
-    assert ('"## Changes" section "### ZAC (Zaakafhandelcomponent) 5.4.3 (unchanged) (chart 1.0.297, '
-            'unchanged)" shows the wrong app-version transition in its own heading — expected '
-            '"5.0.2 → 5.4.3" (values.yaml/podiumd-4.8.5 show \'5.0.2\' -> \'5.4.3\')') in out
+    assert (
+        '"## Changes" section "### ZAC (Zaakafhandelcomponent) 5.4.3 (unchanged) (chart 1.0.297, '
+        'unchanged)" shows the wrong app-version transition in its own heading — expected '
+        "\"5.0.2 → 5.4.3\" (values.yaml/podiumd-4.8.5 show '5.0.2' -> '5.4.3')"
+    ) in out
 
 
 def test_changes_heading_correct_transition_wording_passes(vp, chart_repo):
@@ -1781,7 +1872,8 @@ def test_changes_heading_correct_transition_wording_passes(vp, chart_repo):
         "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n\n"
         "## Changes\n\n"
         "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
-        "blah\n")
+        "blah\n"
+    )
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is True, detail
     assert ok is True, detail

@@ -1,6 +1,7 @@
 """resolve_token, extract_release_rows, check_target_matches_chart_version,
 main — with fetch_page_html mocked out, so no network access or real
 Confluence page is needed."""
+
 import csv
 
 import pytest
@@ -25,7 +26,8 @@ def write_values_yaml(chart_dir, keys):
     """A minimal values.yaml with each of `keys` as a top-level key
     mapping to an empty block."""
     (chart_dir / "values.yaml").write_text(
-        "".join(f"{key}: {{}}\n" for key in keys), encoding="utf-8",
+        "".join(f"{key}: {{}}\n" for key in keys),
+        encoding="utf-8",
     )
 
 
@@ -46,6 +48,7 @@ def isolate_chart_dir(ecrt, tmp_path, monkeypatch):
     charts/podiumd/Chart.yaml happens to say on disk (or which branch is
     checked out) at test-run time."""
     monkeypatch.setattr(ecrt, "CHART_DIR", tmp_path)
+
 
 PRODUCT_TABLE_HTML = """
 <h2>Product component versies</h2>
@@ -153,6 +156,7 @@ INCOMPLETE_UNDER_TARGET_HEADING_HTML = (
 
 # --- normalize_version ---
 
+
 def test_normalize_version_leaves_valid_semver_untouched(ecrt):
     assert ecrt.normalize_version("1.27.4") == "1.27.4"
     assert ecrt.normalize_version("9.10.1-slim") == "9.10.1-slim"
@@ -187,8 +191,10 @@ def test_normalize_version_replaces_non_semver_with_unknown(ecrt):
 
 # --- resolve_token ---
 
+
 def make_args(**overrides):
     from types import SimpleNamespace
+
     defaults = {"token_file": None, "token": None}
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -231,8 +237,10 @@ PRODUCT_TABLE_INCONSISTENT_TH_HTML = PRODUCT_TABLE_HTML.replace(
 
 # --- resolve_header_row_count ---
 
+
 def test_resolve_header_row_count_extends_past_inconsistent_th_tagging(ecrt):
     from lib.confluence_tables import expand_grid, extract_tables
+
     _heading, rows = extract_tables(PRODUCT_TABLE_INCONSISTENT_TH_HTML)[0]
     grid = expand_grid(rows)
     assert ecrt.resolve_header_row_count(rows, grid) == 2
@@ -277,6 +285,7 @@ TECHNISCHE_TABLE_TWO_HEADER_ROWS_NO_HELM_HTML = """
 
 def test_resolve_header_row_count_prefers_deeper_count_for_used_by_when_versie_groups_are_single_column(ecrt):
     from lib.confluence_tables import expand_grid, extract_tables
+
     _heading, rows = extract_tables(TECHNISCHE_TABLE_TWO_HEADER_ROWS_NO_HELM_HTML)[0]
     grid = expand_grid(rows)
     assert ecrt.resolve_header_row_count(rows, grid) == 2
@@ -284,8 +293,7 @@ def test_resolve_header_row_count_prefers_deeper_count_for_used_by_when_versie_g
 
 def test_extract_release_rows_technische_table_two_header_rows_still_resolves_used_by(ecrt):
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_TWO_HEADER_ROWS_NO_HELM_HTML)
-    assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "",
-                      "3.4.0", "", "3.5.0", ""]]
+    assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "", "3.4.0", "", "3.5.0", ""]]
 
 
 def test_extract_release_rows_handles_inconsistent_th_tagging(ecrt):
@@ -300,6 +308,7 @@ def test_extract_release_rows_handles_inconsistent_th_tagging(ecrt):
 
 
 # --- check_target_matches_chart_version ---
+
 
 def test_check_target_matches_chart_version_silent_when_major_minor_matches(ecrt, tmp_path, capsys):
     write_chart_yaml(tmp_path, "4.9.0")
@@ -344,6 +353,7 @@ def test_check_target_matches_chart_version_missing_chart_yaml_is_silent(ecrt, t
 
 # --- chart_dependencies ---
 
+
 def test_chart_dependencies_reads_chart_yaml(ecrt, tmp_path):
     write_chart_yaml_with_dependencies(tmp_path, [("internetaakafhandeling", "ita"), ("openzaak", None)])
     assert ecrt.chart_dependencies(tmp_path) == [("internetaakafhandeling", "ita"), ("openzaak", "")]
@@ -354,6 +364,7 @@ def test_chart_dependencies_missing_chart_yaml_returns_empty(ecrt, tmp_path):
 
 
 # --- normalize_name / name_candidates ---
+
 
 def test_normalize_name_strips_all_punctuation(ecrt):
     assert ecrt.normalize_name("Zaak - ZAC") == "zaakzac"
@@ -369,12 +380,13 @@ def test_name_candidates_splits_bracketed_part_from_the_rest(ecrt):
 
 
 def test_name_candidates_dedupes_and_drops_empties(ecrt):
-    """"(KISS)" alone, with nothing outside the brackets, must not
+    """ "(KISS)" alone, with nothing outside the brackets, must not
     produce a spurious empty "rest" candidate."""
     assert ecrt.name_candidates("(KISS)") == ["kiss"]
 
 
 # --- component_and_alias ---
+
 
 def test_component_and_alias_exact_name_match(ecrt):
     deps = [("internetaakafhandeling", "ita")]
@@ -387,7 +399,7 @@ def test_component_and_alias_case_insensitive(ecrt):
 
 
 def test_component_and_alias_resolves_via_alias_substring(ecrt):
-    """"Zaak - ZAC" doesn't equal dependency name "zaakafhandelcomponent"
+    """ "Zaak - ZAC" doesn't equal dependency name "zaakafhandelcomponent"
     exactly, but its own alias "zac" is a literal substring of "Zaak -
     ZAC" (spaces/dash stripped: "zaakzac") — this is the rule that
     resolves most real components (the exact-match rule alone only ever
@@ -415,21 +427,21 @@ def test_component_and_alias_resolves_via_name_relation_without_alias(ecrt):
 
 
 def test_component_and_alias_exact_match_takes_priority_over_alias_relation(ecrt):
-    """"kiss" exactly equals one dependency's own name — that wins over a
+    """ "kiss" exactly equals one dependency's own name — that wins over a
     *different* dependency whose alias merely relates to it."""
     deps = [("kiss-chart", "kiss"), ("kiss", "k")]
     assert ecrt.component_and_alias("kiss", deps) == ("kiss", "k")
 
 
 def test_component_and_alias_unresolved_is_unknown(ecrt):
-    """"Open Zaak" doesn't match any dependency at all — "component"
+    """ "Open Zaak" doesn't match any dependency at all — "component"
     becomes UNKNOWN rather than left blank or guessed at, and "alias"
     stays empty."""
     assert ecrt.component_and_alias("Open Zaak", []) == ("UNKNOWN", "")
 
 
 def test_component_and_alias_exact_alias_match_beats_substring_ambiguity(ecrt):
-    """"kiss" exactly equals "kiss-chart"'s own alias "kiss" — that must
+    """ "kiss" exactly equals "kiss-chart"'s own alias "kiss" — that must
     resolve outright, even though "eck-stack"'s alias "kiss-eck" also
     happens to *contain* "kiss" as a substring. An exact alias match is
     its own tier, ahead of the looser substring-relation tier, precisely
@@ -473,6 +485,7 @@ def test_component_and_alias_clean_exact_match_short_circuits_ambiguous_lower_ti
 
 # --- orphan_values_yaml_keys ---
 
+
 def test_orphan_values_yaml_keys_returns_keys_not_covered_by_any_dependency(ecrt, tmp_path):
     write_values_yaml(tmp_path, ["frankgateway", "global", "zac"])
     deps = [("zaakafhandelcomponent", "zac")]
@@ -494,8 +507,9 @@ def test_orphan_values_yaml_keys_missing_values_yaml_returns_empty(ecrt, tmp_pat
 
 # --- component_and_alias: orphan key fallback ---
 
+
 def test_component_and_alias_resolves_via_orphan_key(ecrt):
-    """"Frank Gateway" matches no real dependency at all, but exactly
+    """ "Frank Gateway" matches no real dependency at all, but exactly
     equals the orphan values.yaml key "frankgateway" — resolved as a
     last resort, with alias left empty (orphan keys aren't Chart.yaml
     aliases)."""
@@ -528,6 +542,7 @@ def test_component_and_alias_still_unknown_when_no_orphan_key_relates_either(ecr
 
 # --- global_image_keys ---
 
+
 def test_global_image_keys_returns_keys_under_global_images(ecrt, tmp_path):
     write_values_yaml_with_global_images(tmp_path, ["nginx", "curl", "busybox"])
     assert ecrt.global_image_keys(tmp_path) == ["nginx", "curl", "busybox"]
@@ -544,14 +559,17 @@ def test_global_image_keys_missing_global_images_returns_empty(ecrt, tmp_path):
 
 # --- component_and_alias: global image key fallback ---
 
+
 def test_component_and_alias_global_image_key_is_always_multiple(ecrt):
-    """"Nginx unprivileged" relates to nothing else at all, but does
+    """ "Nginx unprivileged" relates to nothing else at all, but does
     relate to global image key "nginx" — a key that exists specifically
     because it's shared, via YAML anchor, across multiple unrelated
     components, so it's reported as MULTIPLE rather than a single
     component, even though only one key matched."""
-    assert ecrt.component_and_alias("Nginx unprivileged", [], [], ["nginx", "curl", "busybox"]) == \
-        ("MULTIPLE", "MULTIPLE")
+    assert ecrt.component_and_alias("Nginx unprivileged", [], [], ["nginx", "curl", "busybox"]) == (
+        "MULTIPLE",
+        "MULTIPLE",
+    )
 
 
 def test_component_and_alias_real_dependency_always_wins_over_global_image_key(ecrt):
@@ -592,6 +610,7 @@ def test_component_and_alias_exact_dependency_match_still_wins_despite_global_im
 
 # --- extract_release_rows ---
 
+
 def test_extract_release_rows_matches_and_reports(ecrt, capsys):
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML)
     assert rows == [
@@ -619,26 +638,36 @@ def test_extract_release_rows_resolves_component_and_alias_by_exact_match(ecrt, 
 
 
 def test_extract_release_rows_resolves_component_and_alias_by_alias_substring(ecrt, tmp_path):
-    """"ZAC" doesn't equal dependency name "zaakafhandelcomponent"
+    """ "ZAC" doesn't equal dependency name "zaakafhandelcomponent"
     exactly, but the dependency's own alias "zac" is a substring of it —
     this is the rule that resolves most real components (see
     component_and_alias)."""
     write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
-    assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "zaakafhandelcomponent", "zac", "",
-                        "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
+    assert rows[0] == [
+        "Product",
+        "Info(NL)",
+        "",
+        "ZAC",
+        "zaakafhandelcomponent",
+        "zac",
+        "",
+        "5.0.0",
+        "1.0.290",
+        "5.1.0",
+        "1.0.297",
+    ]
 
 
 def test_extract_release_rows_resolves_component_without_alias_via_name_relation(ecrt, tmp_path):
-    """"Open Zaak" resolves purely via a name relation against a
+    """ "Open Zaak" resolves purely via a name relation against a
     dependency that has no alias at all — "component" gets that
     dependency's name and "alias" stays empty. "ZAC" doesn't relate to
     "openzaak" at all and stays UNKNOWN."""
     write_chart_yaml_with_dependencies(tmp_path, [("openzaak", None)])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     assert rows[0][4] == "UNKNOWN"
-    assert rows[1] == ["Product", "Maykin", "", "Open Zaak", "openzaak", "", "",
-                        "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
+    assert rows[1] == ["Product", "Maykin", "", "Open Zaak", "openzaak", "", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
 
 
 def test_extract_release_rows_not_tied_to_specific_version_numbers(ecrt):
@@ -662,8 +691,9 @@ def test_extract_release_rows_replaces_non_semver_version_with_unknown_and_repor
     assert 'WARNING: "ZAC": target_version_app is not semver-compatible — replaced with UNKNOWN' in out
     # "ZAC" also resolves to component UNKNOWN here (no Chart.yaml/values.yaml
     # at all under the isolated chart_dir this test runs against).
-    assert ('WARNING: "ZAC" did not resolve to any Chart.yaml dependency, orphan '
-            'values.yaml key, or global image key') in out
+    assert (
+        'WARNING: "ZAC" did not resolve to any Chart.yaml dependency, orphan values.yaml key, or global image key'
+    ) in out
 
 
 def test_extract_release_rows_ignores_table_not_under_any_target_heading(ecrt, capsys):
@@ -688,11 +718,14 @@ def test_extract_release_rows_vendor_blank_used_by_populated_for_technische_tabl
     column (vendor blank) but does have "Used by" — the reverse of a
     Product table."""
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML)
-    assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "",
-                      "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+    assert rows == [
+        ["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "", "3.4.0", "3.4.0", "3.5.0", "3.5.0"]
+    ]
     out = capsys.readouterr().out
-    assert ('WARNING: "Elastic operator" (used_by "ZAC") did not resolve to any Chart.yaml '
-            'dependency, orphan values.yaml key, or global image key') in out
+    assert (
+        'WARNING: "Elastic operator" (used_by "ZAC") did not resolve to any Chart.yaml '
+        "dependency, orphan values.yaml key, or global image key"
+    ) in out
 
 
 def test_extract_release_rows_technische_table_without_helm_column(ecrt):
@@ -701,15 +734,14 @@ def test_extract_release_rows_technische_table_without_helm_column(ecrt):
     still be exported, with blank source/target_version_helm cells
     instead of being skipped as missing a required column."""
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_NO_HELM_HTML)
-    assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "",
-                      "3.4.0", "", "3.5.0", ""]]
+    assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "", "3.4.0", "", "3.5.0", ""]]
 
 
 # --- apply_native_helm_marker ---
 
+
 def _row(used_by="", component="frankgateway", source_helm="", target_helm=""):
-    return ["Product", "", used_by, "Frank Gateway", component, "", "",
-            "104", source_helm, "105", target_helm]
+    return ["Product", "", used_by, "Frank Gateway", component, "", "", "104", source_helm, "105", target_helm]
 
 
 def test_apply_native_helm_marker_fills_native_for_resolved_primary_row(ecrt):
@@ -758,8 +790,7 @@ def test_apply_native_helm_marker_skips_row_with_a_real_helm_value(ecrt):
 def test_apply_native_helm_marker_mutates_in_place_and_leaves_other_columns_untouched(ecrt):
     rows = [_row()]
     ecrt.apply_native_helm_marker(rows)
-    assert rows[0] == ["Product", "", "", "Frank Gateway", "frankgateway", "", "",
-                        "104", "NATIVE", "105", "NATIVE"]
+    assert rows[0] == ["Product", "", "", "Frank Gateway", "frankgateway", "", "", "104", "NATIVE", "105", "NATIVE"]
 
 
 def test_extract_release_rows_fills_native_helm_for_orphan_key_component_with_no_helm_column(ecrt, tmp_path):
@@ -772,10 +803,12 @@ def test_extract_release_rows_fills_native_helm_for_orphan_key_component_with_no
     write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
     write_values_yaml(tmp_path, ["frankgateway", "openzaak"])
     html = TECHNISCHE_TABLE_NO_HELM_HTML.replace(
-        "<td>Elastic operator</td>\n<td>ZAC</td>", "<td>Frank Gateway</td>\n<td></td>")
+        "<td>Elastic operator</td>\n<td>ZAC</td>", "<td>Frank Gateway</td>\n<td></td>"
+    )
     rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
-    assert rows == [["Technische", "", "", "Frank Gateway", "frankgateway", "", "",
-                      "3.4.0", "NATIVE", "3.5.0", "NATIVE"]]
+    assert rows == [
+        ["Technische", "", "", "Frank Gateway", "frankgateway", "", "", "3.4.0", "NATIVE", "3.5.0", "NATIVE"]
+    ]
 
 
 def test_extract_release_rows_resolves_component_via_used_by_not_name(ecrt, tmp_path):
@@ -785,8 +818,21 @@ def test_extract_release_rows_resolves_component_via_used_by_not_name(ecrt, tmp_
     Resolution must use it instead of the row's own name."""
     write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML, chart_dir=tmp_path)
-    assert rows == [["Technische", "", "ZAC", "Elastic operator", "zaakafhandelcomponent", "zac", "",
-                      "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+    assert rows == [
+        [
+            "Technische",
+            "",
+            "ZAC",
+            "Elastic operator",
+            "zaakafhandelcomponent",
+            "zac",
+            "",
+            "3.4.0",
+            "3.4.0",
+            "3.5.0",
+            "3.5.0",
+        ]
+    ]
 
 
 def test_extract_release_rows_resolves_exact_alias_match_despite_unrelated_substring_alias(ecrt, tmp_path):
@@ -797,8 +843,9 @@ def test_extract_release_rows_resolves_exact_alias_match_despite_unrelated_subst
     write_chart_yaml_with_dependencies(tmp_path, [("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")])
     html = TECHNISCHE_TABLE_HTML.replace("<td>ZAC</td>", "<td>kiss</td>")
     rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
-    assert rows == [["Technische", "", "kiss", "Elastic operator", "kiss-chart", "kiss", "",
-                      "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+    assert rows == [
+        ["Technische", "", "kiss", "Elastic operator", "kiss-chart", "kiss", "", "3.4.0", "3.4.0", "3.5.0", "3.5.0"]
+    ]
 
 
 def test_extract_release_rows_resolves_component_as_multiple(ecrt, tmp_path):
@@ -808,23 +855,23 @@ def test_extract_release_rows_resolves_component_as_multiple(ecrt, tmp_path):
     write_chart_yaml_with_dependencies(tmp_path, [("foo-chart", "shared"), ("bar-chart", "shared")])
     html = TECHNISCHE_TABLE_HTML.replace("<td>ZAC</td>", "<td>shared</td>")
     rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
-    assert rows == [["Technische", "", "shared", "Elastic operator", "MULTIPLE", "MULTIPLE", "",
-                      "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+    assert rows == [
+        ["Technische", "", "shared", "Elastic operator", "MULTIPLE", "MULTIPLE", "", "3.4.0", "3.4.0", "3.5.0", "3.5.0"]
+    ]
 
 
 def test_extract_release_rows_resolves_component_via_orphan_values_yaml_key(ecrt, tmp_path):
-    """"ZAC" (PRODUCT_TABLE_HTML's own row) doesn't match any real
+    """ "ZAC" (PRODUCT_TABLE_HTML's own row) doesn't match any real
     dependency here, but exactly equals the orphan values.yaml key
     "zac" — resolved end-to-end as a last resort."""
     write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
     write_values_yaml(tmp_path, ["zac", "openzaak"])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
-    assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "zac", "", "",
-                        "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
+    assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "zac", "", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
 
 
 def test_extract_release_rows_resolves_global_image_key_as_multiple(ecrt, tmp_path):
-    """"Open Zaak" resolves normally via its real dependency; "ZAC"
+    """ "Open Zaak" resolves normally via its real dependency; "ZAC"
     matches nothing real but does relate to global image key "zac" —
     resolved end-to-end as MULTIPLE, since a global.images key is never
     treated as a single component's own."""
@@ -835,8 +882,6 @@ def test_extract_release_rows_resolves_global_image_key_as_multiple(ecrt, tmp_pa
         ["Product", "Info(NL)", "", "ZAC", "MULTIPLE", "MULTIPLE", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
         ["Product", "Maykin", "", "Open Zaak", "openzaak", "", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
     ]
-
-
 
 
 def test_extract_release_rows_warns_when_multiple_row_has_no_resolved_image(ecrt, tmp_path, capsys):
@@ -850,8 +895,7 @@ def test_extract_release_rows_warns_when_multiple_row_has_no_resolved_image(ecrt
     write_values_yaml_with_global_images(tmp_path, ["zac"])  # no "repository" key -> unresolvable
     ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     out = capsys.readouterr().out
-    assert ('WARNING: "ZAC" resolved to MULTIPLE but no image_basename could be resolved'
-            in out)
+    assert 'WARNING: "ZAC" resolved to MULTIPLE but no image_basename could be resolved' in out
 
 
 def test_extract_release_rows_no_warning_when_multiple_row_resolves_an_image(ecrt, tmp_path, capsys):
@@ -859,7 +903,8 @@ def test_extract_release_rows_no_warning_when_multiple_row_resolves_an_image(ecr
     an image_basename — only for one that can't."""
     write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
     (tmp_path / "values.yaml").write_text(
-        "global:\n  images:\n    zac:\n      repository: org/zac-base\n", encoding="utf-8")
+        "global:\n  images:\n    zac:\n      repository: org/zac-base\n", encoding="utf-8"
+    )
     ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     out = capsys.readouterr().out
     assert "WARNING" not in out
@@ -873,16 +918,18 @@ def test_extract_release_rows_warns_on_duplicate_component_and_image(ecrt, tmp_p
     claim-and-delete exclusivity — must be flagged as a duplicate."""
     write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
     (tmp_path / "values.yaml").write_text(
-        "global:\n  images:\n    zac:\n      repository: org/zac-base\n", encoding="utf-8")
-    duplicated_zac_row = "<tr><td>ZAC</td><td>Info(NL)</td><td>5.0.0</td><td>1.0.290</td>" \
-                          "<td>5.1.0</td><td>1.0.297</td></tr>"
+        "global:\n  images:\n    zac:\n      repository: org/zac-base\n", encoding="utf-8"
+    )
+    duplicated_zac_row = (
+        "<tr><td>ZAC</td><td>Info(NL)</td><td>5.0.0</td><td>1.0.290</td><td>5.1.0</td><td>1.0.297</td></tr>"
+    )
     html = PRODUCT_TABLE_HTML.replace(
-        "</tr>\n<tr>\n<td>Open Zaak</td>", f"</tr>\n{duplicated_zac_row}\n<tr>\n<td>Open Zaak</td>")
+        "</tr>\n<tr>\n<td>Open Zaak</td>", f"</tr>\n{duplicated_zac_row}\n<tr>\n<td>Open Zaak</td>"
+    )
     rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
     assert sum(1 for row in rows if row[3] == "ZAC") == 2
     out = capsys.readouterr().out
-    assert ('WARNING: 2 rows all resolve to the same component "MULTIPLE" + image '
-            '"zac-base": ZAC, ZAC') in out
+    assert ('WARNING: 2 rows all resolve to the same component "MULTIPLE" + image "zac-base": ZAC, ZAC') in out
 
 
 def test_extract_release_rows_used_by_blank_when_table_has_none(ecrt):
@@ -893,13 +940,13 @@ def test_extract_release_rows_used_by_blank_when_table_has_none(ecrt):
 
 def test_extract_release_rows_combines_multiple_sections(ecrt):
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML + TECHNISCHE_TABLE_HTML)
-    assert [r[0] for r in rows] == ["Product", "Product",
-                                     "Technische"]
+    assert [r[0] for r in rows] == ["Product", "Product", "Technische"]
 
 
 def test_extract_release_rows_custom_headings_overrides_default(ecrt):
-    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML + TECHNISCHE_TABLE_HTML,
-                                      headings=["Technische component versies"])
+    rows = ecrt.extract_release_rows(
+        PRODUCT_TABLE_HTML + TECHNISCHE_TABLE_HTML, headings=["Technische component versies"]
+    )
     assert len(rows) == 1
     assert rows[0][0] == "Technische"
 
@@ -952,8 +999,10 @@ def test_extract_release_rows_warns_when_chart_yaml_version_unparseable(ecrt, tm
     write_chart_yaml(tmp_path, "not-a-version")
     ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     out = capsys.readouterr().out
-    assert ('WARNING: could not verify Confluence target version against Chart.yaml — its own '
-            '"version: not-a-version" isn\'t a valid MAJOR.MINOR(.PATCH)') in out
+    assert (
+        "WARNING: could not verify Confluence target version against Chart.yaml — its own "
+        '"version: not-a-version" isn\'t a valid MAJOR.MINOR(.PATCH)'
+    ) in out
 
 
 def test_extract_release_rows_warns_when_no_target_label_found(ecrt, tmp_path, capsys):
@@ -967,46 +1016,74 @@ def test_extract_release_rows_warns_when_no_target_label_found(ecrt, tmp_path, c
     with pytest.raises(SystemExit):
         ecrt.extract_release_rows(html, chart_dir=tmp_path)
     out = capsys.readouterr().out
-    assert ('WARNING: could not verify Confluence target version against Chart.yaml — no '
-            'table\'s "Versie ..." heading yielded a resolvable target-version group') in out
+    assert (
+        "WARNING: could not verify Confluence target version against Chart.yaml — no "
+        'table\'s "Versie ..." heading yielded a resolvable target-version group'
+    ) in out
 
 
 # --- main() integration ---
 
+
 def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
     output_path = tmp_path / "release-table.csv"
-    monkeypatch.setattr(ecrt.sys, "argv", [
-        "export-confluence-release-table",
-        "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
-        "--user", "kees@info.nl",
-        "--token", "s3cr3t",
-        "--output", str(output_path),
-    ])
+    monkeypatch.setattr(
+        ecrt.sys,
+        "argv",
+        [
+            "export-confluence-release-table",
+            "--url",
+            "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+            "--user",
+            "kees@info.nl",
+            "--token",
+            "s3cr3t",
+            "--output",
+            str(output_path),
+        ],
+    )
     monkeypatch.setattr(ecrt, "fetch_page_html", lambda url, user, token: PRODUCT_TABLE_HTML)
 
     ecrt.main()
 
     with output_path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
-    assert rows[0] == ["section", "vendor", "used_by", "name", "component", "alias", "image_basename",
-                        "source_version_app", "source_version_helm",
-                        "target_version_app", "target_version_helm"]
+    assert rows[0] == [
+        "section",
+        "vendor",
+        "used_by",
+        "name",
+        "component",
+        "alias",
+        "image_basename",
+        "source_version_app",
+        "source_version_helm",
+        "target_version_app",
+        "target_version_helm",
+    ]
     assert rows[1] == ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
-    assert rows[2] == ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "",
-                        "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
+    assert rows[2] == ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
     out = capsys.readouterr().out
     assert f"Wrote 2 row(s) to {output_path}" in out
 
 
 def test_main_passes_resolved_token_and_url_user_through(ecrt, tmp_path, monkeypatch):
     output_path = tmp_path / "out.csv"
-    monkeypatch.setattr(ecrt.sys, "argv", [
-        "export-confluence-release-table",
-        "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
-        "--user", "kees@info.nl",
-        "--token", "s3cr3t",
-        "--output", str(output_path),
-    ])
+    monkeypatch.setattr(
+        ecrt.sys,
+        "argv",
+        [
+            "export-confluence-release-table",
+            "--url",
+            "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+            "--user",
+            "kees@info.nl",
+            "--token",
+            "s3cr3t",
+            "--output",
+            str(output_path),
+        ],
+    )
     captured = {}
 
     def fake_fetch(url, user, token):
@@ -1024,16 +1101,24 @@ def test_main_passes_resolved_token_and_url_user_through(ecrt, tmp_path, monkeyp
 
 def test_main_passes_custom_heading_flags_through(ecrt, tmp_path, monkeypatch):
     output_path = tmp_path / "out.csv"
-    monkeypatch.setattr(ecrt.sys, "argv", [
-        "export-confluence-release-table",
-        "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
-        "--user", "kees@info.nl",
-        "--token", "s3cr3t",
-        "--output", str(output_path),
-        "--heading", "Technische component versies",
-    ])
-    monkeypatch.setattr(ecrt, "fetch_page_html",
-                         lambda url, user, token: PRODUCT_TABLE_HTML + TECHNISCHE_TABLE_HTML)
+    monkeypatch.setattr(
+        ecrt.sys,
+        "argv",
+        [
+            "export-confluence-release-table",
+            "--url",
+            "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+            "--user",
+            "kees@info.nl",
+            "--token",
+            "s3cr3t",
+            "--output",
+            str(output_path),
+            "--heading",
+            "Technische component versies",
+        ],
+    )
+    monkeypatch.setattr(ecrt, "fetch_page_html", lambda url, user, token: PRODUCT_TABLE_HTML + TECHNISCHE_TABLE_HTML)
 
     ecrt.main()
 
@@ -1048,13 +1133,21 @@ def test_main_writes_lf_line_endings(ecrt, tmp_path, monkeypatch):
     every other file in this repo (and git) is LF, so a CRLF write would
     diff on every single re-export even when nothing actually changed."""
     output_path = tmp_path / "out.csv"
-    monkeypatch.setattr(ecrt.sys, "argv", [
-        "export-confluence-release-table",
-        "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
-        "--user", "kees@info.nl",
-        "--token", "s3cr3t",
-        "--output", str(output_path),
-    ])
+    monkeypatch.setattr(
+        ecrt.sys,
+        "argv",
+        [
+            "export-confluence-release-table",
+            "--url",
+            "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+            "--user",
+            "kees@info.nl",
+            "--token",
+            "s3cr3t",
+            "--output",
+            str(output_path),
+        ],
+    )
     monkeypatch.setattr(ecrt, "fetch_page_html", lambda url, user, token: PRODUCT_TABLE_HTML)
 
     ecrt.main()
@@ -1076,20 +1169,20 @@ def write_values_yaml_raw(chart_dir, text):
 
 
 def test_match_one_exact_beats_containment(ecrt):
-    """"Solr" exactly equals candidate "solr", so it must win outright —
+    """ "Solr" exactly equals candidate "solr", so it must win outright —
     even though "solr" also relates to "solr-operator" by containment."""
     assert ecrt._match_one("Solr", {"solr", "solr-operator"}) == "solr"
 
 
 def test_match_one_falls_back_to_unambiguous_containment(ecrt):
-    """"Redis-ha" doesn't exactly equal any candidate, but relates to
+    """ "Redis-ha" doesn't exactly equal any candidate, but relates to
     exactly one ("redis", contained in "redisha") — resolved via the
     fallback tier."""
     assert ecrt._match_one("Redis-ha", {"redis-operator", "redis", "redis-exporter"}) == "redis"
 
 
 def test_match_one_bracket_content_resolves_a_role_named_row(ecrt):
-    """"Zookeeper operator hooks (k8s-kubectl)" shares no text at all with
+    """ "Zookeeper operator hooks (k8s-kubectl)" shares no text at all with
     "k8s-kubectl" as a whole string, but name_candidates' bracket
     extraction tries the bracket content on its own, which matches
     exactly."""
@@ -1097,7 +1190,7 @@ def test_match_one_bracket_content_resolves_a_role_named_row(ecrt):
 
 
 def test_match_one_ambiguous_exact_match_is_none(ecrt):
-    """"Foo (Bar)" yields candidates "foobar", "foo", AND "bar" (see
+    """ "Foo (Bar)" yields candidates "foobar", "foo", AND "bar" (see
     name_candidates) — two DIFFERENT options each exactly matching a
     different one of those candidates is still an ambiguity, never a
     guess."""
@@ -1109,7 +1202,9 @@ def test_match_one_no_relation_is_none(ecrt):
 
 
 def test_basenames_under_scope_finds_nested_pins(ecrt, tmp_path):
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
@@ -1118,14 +1213,17 @@ zac:
     image:
       repository: apache/solr-operator
       tag: "0.9.1@sha256:{DIGEST_B}"
-""")
+""",
+    )
     lines = (tmp_path / "values.yaml").read_text(encoding="utf-8").splitlines()
     available = ecrt.basenames_under_scope(lines, "zac")
     assert set(available) == {"zaakafhandelcomponent", "solr-operator"}
 
 
 def test_basenames_under_scope_ignores_other_components(ecrt, tmp_path):
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
@@ -1134,7 +1232,8 @@ openzaak:
   image:
     repository: openzaak/open-zaak
     tag: "1.0.0@sha256:{DIGEST_B}"
-""")
+""",
+    )
     lines = (tmp_path / "values.yaml").read_text(encoding="utf-8").splitlines()
     assert set(ecrt.basenames_under_scope(lines, "zac")) == {"zaakafhandelcomponent"}
 
@@ -1145,7 +1244,9 @@ def test_resolve_image_basenames_missing_values_yaml_is_blank(ecrt, tmp_path):
 
 
 def test_resolve_image_basenames_technische_row_matches_its_own_image(ecrt, tmp_path):
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
@@ -1154,7 +1255,8 @@ zac:
     image:
       repository: apache/solr-operator
       tag: "0.9.1@sha256:{DIGEST_B}"
-""")
+""",
+    )
     rows = [
         ["Product", "", "", "Zaak - ZAC", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"],
         ["Technische", "", "zac", "Solr operator", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"],
@@ -1163,7 +1265,9 @@ zac:
 
 
 def test_resolve_image_basenames_role_named_row_resolves_via_bracket_hint(ecrt, tmp_path):
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
@@ -1174,11 +1278,22 @@ zac:
         image:
           repository: lachlanevenson/k8s-kubectl
           tag: "v1.25.4@sha256:{DIGEST_C}"
-""")
+""",
+    )
     rows = [
         ["Product", "", "", "Zaak - ZAC", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"],
-        ["Technische", "", "zac", "Zookeeper operator hooks (k8s-kubectl)", "zaakafhandelcomponent", "zac",
-         "1", "1", "1", "1"],
+        [
+            "Technische",
+            "",
+            "zac",
+            "Zookeeper operator hooks (k8s-kubectl)",
+            "zaakafhandelcomponent",
+            "zac",
+            "1",
+            "1",
+            "1",
+            "1",
+        ],
     ]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["zaakafhandelcomponent", "k8s-kubectl"]
 
@@ -1187,7 +1302,9 @@ def test_resolve_image_basenames_primary_row_gets_leftover_after_technische_clai
     """Once every "used_by"-tagged sibling has claimed its own basename,
     whatever's left under that component's scope — here, just its own
     top-level image — goes to the primary (used_by-blank) row."""
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
@@ -1196,7 +1313,8 @@ zac:
     image:
       repository: apache/solr-operator
       tag: "0.9.1@sha256:{DIGEST_B}"
-""")
+""",
+    )
     rows = [
         ["Product", "", "", "Zaak - ZAC", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"],
         ["Technische", "", "zac", "Solr operator", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"],
@@ -1217,7 +1335,9 @@ def test_resolve_image_basenames_primary_claims_its_own_name_before_siblings(ecr
     happen; "Dashboard" itself shares no text with "apisix-dashboard" at
     all, so it's correctly left blank rather than guessed (same
     never-guess policy as test_resolve_image_basenames_unresolvable_technische_row_is_blank)."""
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 frankgateway:
   image:
     repository: ghcr.io/wearefrank/frank-gateway
@@ -1226,7 +1346,8 @@ frankgateway:
     image:
       repository: apache/apisix-dashboard
       tag: "3.0.1-alpine@sha256:{DIGEST_B}"
-""")
+""",
+    )
     rows = [
         ["Common Ground", "WeAreFrank", "", "Frank Gateway", "frankgateway", "", "1", "1", "1", "1"],
         ["Technische", "", "frankgateway", "Frank Gateway Dashboard", "frankgateway", "", "1", "1", "1", "1"],
@@ -1244,7 +1365,9 @@ def test_resolve_image_basenames_primary_row_first_refusal_is_exact_match_only(e
     version is the operator CHART's own release number, not any single
     image's version at all — it correctly stays blank, exactly as before
     this whole fix)."""
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 redis-operator:
   redis:
     image:
@@ -1254,7 +1377,8 @@ redis-operator:
       image:
         repository: quay.io/opstree/redis-exporter
         tag: "v1.89.0@sha256:{DIGEST_B}"
-""")
+""",
+    )
     rows = [
         ["Overige", "", "", "Redis Operator", "redis-operator", "", "1", "1", "1", "1"],
         ["Technische", "", "redis-operator", "Redis-ha", "redis-operator", "", "1", "1", "1", "1"],
@@ -1268,7 +1392,9 @@ def test_resolve_image_basenames_primary_row_gets_multiple_leftover_basenames(ec
     zgw-office-addin, whose frontend and backend always move in
     lockstep and share one row/version) gets every leftover basename
     comma-joined onto its single primary row."""
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 zgw-office-addin:
   frontend:
     image:
@@ -1278,35 +1404,42 @@ zgw-office-addin:
     image:
       repository: ghcr.io/infonl/zgw-office-addin-backend
       tag: "0.11.0@sha256:{DIGEST_B}"
-""")
+""",
+    )
     rows = [["Product", "", "", "Office Add-in", "zgw-office-addin", "", "1", "1", "1", "1"]]
     basenames = ecrt.resolve_image_basenames(rows, tmp_path)
     assert set(basenames[0].split(",")) == {"zgw-office-addin-frontend", "zgw-office-addin-backend"}
 
 
 def test_resolve_image_basenames_unresolvable_technische_row_is_blank(ecrt, tmp_path):
-    """"ITA Poller" shares no text at all with the actual repository
+    """ "ITA Poller" shares no text at all with the actual repository
     basename ("internetaakafhandeling.poller") — left blank rather than
     guessed."""
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 ita:
   poller:
     image:
       repository: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
       tag: "3.2.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     rows = [["Technische", "", "ita", "ITA Poller", "internetaakafhandeling", "ita", "1", "1", "1", "1"]]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
 
 
 def test_resolve_image_basenames_multiple_row_resolves_via_global_image_key(ecrt, tmp_path):
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 global:
   images:
     curl:
       repository: curlimages/curl
       tag: "8.21.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     rows = [["Overige", "", "", "curl", "MULTIPLE", "MULTIPLE", "1", "1", "1", "1"]]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["curl"]
 
@@ -1330,7 +1463,9 @@ def test_resolve_image_basenames_finds_image_under_a_related_orphan_key(ecrt, tm
     itself relates to the dependency (see _extra_scope_keys_by_component)
     must be scanned too, not just the dependency's own top-level key."""
     write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None)])
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 keycloak-operator:
   jobs:
     ensurePodiumdAdminUser:
@@ -1341,7 +1476,8 @@ keycloak:
   image:
     repository: quay.io/keycloak/keycloak
     tag: "26.7.2@sha256:{DIGEST_B}"
-""")
+""",
+    )
     rows = [
         ["Overige", "", "", "Keycloak", "keycloak-operator", "", "1", "1", "1", "1"],
         ["Technische", "", "keycloak-operator", "Python", "keycloak-operator", "", "1", "1", "1", "1"],
@@ -1361,16 +1497,30 @@ def test_extract_release_rows_end_to_end_populates_image_basename(ecrt, tmp_path
     isolation, must insert the resolved basename at the right column."""
     write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
     values_path = tmp_path / "values.yaml"
-    values_path.write_text(f"""\
+    values_path.write_text(
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
     tag: "5.0.0@sha256:{DIGEST_A}"
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
     html = PRODUCT_TABLE_HTML.replace("<td>ZAC</td>", "<td>ZAC</td>")
     rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
-    assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "zaakafhandelcomponent", "zac", "zaakafhandelcomponent",
-                        "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
+    assert rows[0] == [
+        "Product",
+        "Info(NL)",
+        "",
+        "ZAC",
+        "zaakafhandelcomponent",
+        "zac",
+        "zaakafhandelcomponent",
+        "5.0.0",
+        "1.0.290",
+        "5.1.0",
+        "1.0.297",
+    ]
 
 
 def test_resolve_image_basenames_falls_back_to_any_tag_when_digest_required_scan_is_empty(ecrt, tmp_path):
@@ -1379,12 +1529,15 @@ def test_resolve_image_basenames_falls_back_to_any_tag_when_digest_required_scan
     scope finds nothing under "omc" at all, so resolve_image_basenames
     must fall back to the digest-optional basenames_under_scope_any_tag
     instead of leaving the row blank."""
-    write_values_yaml_raw(tmp_path, """\
+    write_values_yaml_raw(
+        tmp_path,
+        """\
 omc:
   image:
     # repository: docker.io/worthnl/notifynl-omc
     tag: "1.17.19"
-""")
+""",
+    )
     rows = [["Product", "", "", "OMC / Notify", "notifynl-omc-nodep", "omc", "1", "1", "1", "1"]]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["notifynl-omc"]
 
@@ -1397,12 +1550,15 @@ def test_resolve_image_basenames_any_tag_fallback_does_not_override_digest_scan_
     where it genuinely adds something new): a component that's fully
     digest-pinned is completely unaffected by the fallback existing at
     all."""
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
     tag: "5.0.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     rows = [["Product", "", "", "Zaak - ZAC", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"]]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["zaakafhandelcomponent"]
 
@@ -1422,7 +1578,9 @@ def test_resolve_image_basenames_any_tag_fallback_supplements_a_partially_digest
     workaround. The fallback must now be tried per-basename: "keycloak"
     (only resolvable via any_tag) gets added, "python" (already resolved
     via the digest-required scan) is untouched by it."""
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 keycloak-operator:
   operator:
     config:
@@ -1435,51 +1593,93 @@ keycloak-operator:
       initImage:
         repository: python
         tag: "3.14-slim@sha256:{DIGEST_A}"
-""")
+""",
+    )
     rows = [["Overige", "", "", "Keycloak", "keycloak-operator", "", "1", "1", "1", "1"]]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["keycloak"]
 
 
 def test_recompute_image_basenames_updates_only_the_changed_row(ecrt, tmp_path):
-    write_values_yaml_raw(tmp_path, """\
+    write_values_yaml_raw(
+        tmp_path,
+        """\
 omc:
   image:
     # repository: docker.io/worthnl/notifynl-omc
     tag: "1.17.19"
-""")
+""",
+    )
     csv_path = tmp_path / "release-table.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f, lineterminator="\n")
         writer.writerow(ecrt.CSV_HEADER)
-        writer.writerow(["Common Ground", "Worth", "", "OMC / Notify", "notifynl-omc-nodep", "omc", "",
-                          "1.17.19", "0.14.1", "1.17.19", "0.14.1"])
-        writer.writerow(["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "",
-                          "5.0.0", "1.0.290", "5.1.0", "1.0.297"])
+        writer.writerow(
+            [
+                "Common Ground",
+                "Worth",
+                "",
+                "OMC / Notify",
+                "notifynl-omc-nodep",
+                "omc",
+                "",
+                "1.17.19",
+                "0.14.1",
+                "1.17.19",
+                "0.14.1",
+            ]
+        )
+        writer.writerow(["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"])
 
     changes = ecrt.recompute_image_basenames(csv_path, tmp_path)
 
     assert changes == [("OMC / Notify", "notifynl-omc-nodep", "", "notifynl-omc")]
     with csv_path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
-    assert rows[1] == ["Common Ground", "Worth", "", "OMC / Notify", "notifynl-omc-nodep", "omc",
-                        "notifynl-omc", "1.17.19", "0.14.1", "1.17.19", "0.14.1"]
-    assert rows[2] == ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "",
-                        "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
+    assert rows[1] == [
+        "Common Ground",
+        "Worth",
+        "",
+        "OMC / Notify",
+        "notifynl-omc-nodep",
+        "omc",
+        "notifynl-omc",
+        "1.17.19",
+        "0.14.1",
+        "1.17.19",
+        "0.14.1",
+    ]
+    assert rows[2] == ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
 
 
 def test_recompute_image_basenames_no_changes_returns_empty_and_leaves_file_untouched(ecrt, tmp_path):
-    write_values_yaml_raw(tmp_path, f"""\
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
 zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
     tag: "5.0.0@sha256:{DIGEST_A}"
-""")
+""",
+    )
     csv_path = tmp_path / "release-table.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f, lineterminator="\n")
         writer.writerow(ecrt.CSV_HEADER)
-        writer.writerow(["Product", "", "", "Zaak - ZAC", "zaakafhandelcomponent", "zac",
-                          "zaakafhandelcomponent", "5.0.0", "1.0.290", "5.1.0", "1.0.297"])
+        writer.writerow(
+            [
+                "Product",
+                "",
+                "",
+                "Zaak - ZAC",
+                "zaakafhandelcomponent",
+                "zac",
+                "zaakafhandelcomponent",
+                "5.0.0",
+                "1.0.290",
+                "5.1.0",
+                "1.0.297",
+            ]
+        )
     before = csv_path.read_text(encoding="utf-8")
 
     changes = ecrt.recompute_image_basenames(csv_path, tmp_path)
@@ -1502,29 +1702,50 @@ def test_recompute_image_basenames_wrong_header_raises(ecrt, tmp_path):
 
 
 def test_main_recompute_basenames_flag_skips_confluence_fetch(ecrt, tmp_path, monkeypatch, capsys):
-    write_values_yaml_raw(tmp_path, """\
+    write_values_yaml_raw(
+        tmp_path,
+        """\
 omc:
   image:
     # repository: docker.io/worthnl/notifynl-omc
     tag: "1.17.19"
-""")
+""",
+    )
     output_path = tmp_path / "release-table.csv"
     with output_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f, lineterminator="\n")
         writer.writerow(ecrt.CSV_HEADER)
-        writer.writerow(["Common Ground", "Worth", "", "OMC / Notify", "notifynl-omc-nodep", "omc", "",
-                          "1.17.19", "0.14.1", "1.17.19", "0.14.1"])
+        writer.writerow(
+            [
+                "Common Ground",
+                "Worth",
+                "",
+                "OMC / Notify",
+                "notifynl-omc-nodep",
+                "omc",
+                "",
+                "1.17.19",
+                "0.14.1",
+                "1.17.19",
+                "0.14.1",
+            ]
+        )
     monkeypatch.setattr(ecrt, "CHART_DIR", tmp_path)
 
     def fail_fetch(*a, **kw):
         raise AssertionError("must not fetch Confluence when --recompute-basenames is set")
 
     monkeypatch.setattr(ecrt, "fetch_page_html", fail_fetch)
-    monkeypatch.setattr(ecrt.sys, "argv", [
-        "export-confluence-release-table",
-        "--recompute-basenames",
-        "--output", str(output_path),
-    ])
+    monkeypatch.setattr(
+        ecrt.sys,
+        "argv",
+        [
+            "export-confluence-release-table",
+            "--recompute-basenames",
+            "--output",
+            str(output_path),
+        ],
+    )
 
     ecrt.main()
 
@@ -1543,8 +1764,15 @@ def test_parse_args_requires_url_and_user_unless_recompute_basenames(ecrt, monke
 
 
 def test_parse_args_recompute_basenames_does_not_require_url_and_user(ecrt, monkeypatch):
-    monkeypatch.setattr(ecrt.sys, "argv", [
-        "export-confluence-release-table", "--recompute-basenames", "--output", "out.csv",
-    ])
+    monkeypatch.setattr(
+        ecrt.sys,
+        "argv",
+        [
+            "export-confluence-release-table",
+            "--recompute-basenames",
+            "--output",
+            "out.csv",
+        ],
+    )
     args = ecrt.parse_args()
     assert args.recompute_basenames is True

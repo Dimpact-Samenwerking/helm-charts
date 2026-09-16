@@ -143,7 +143,9 @@ DEFINE_BLOCK_JOB_WITHOUT_SELECTOR = DEFINE_BLOCK_JOB_WITH_SELECTOR.replace(
   nodeSelector:
     {{- toYaml .Values.nodeSelector | nindent 4 }}
   {{- end }}
-""", "")
+""",
+    "",
+)
 
 
 def test_job_with_selector_in_same_file_define_block_not_flagged(vp, tmp_path):
@@ -166,8 +168,11 @@ def test_unrelated_same_file_define_block_never_credited(vp, tmp_path):
     """A `define` block that HAPPENS to be in the same file but is never
     actually `include`-d by this doc's own chunk must not be credited —
     only a real `include "<name>"` call wires it in."""
-    text = DEFINE_BLOCK_JOB_WITHOUT_SELECTOR + '\n---\n{{- define "podiumd.unused.podTemplate" -}}\n' \
-        "nodeSelector: {}\n" '{{- end }}\n'
+    text = (
+        DEFINE_BLOCK_JOB_WITHOUT_SELECTOR + '\n---\n{{- define "podiumd.unused.podTemplate" -}}\n'
+        "nodeSelector: {}\n"
+        "{{- end }}\n"
+    )
     write_template(tmp_path, "test-seed-job.yaml", text)
     ok, detail = vp.check_node_selector(tmp_path)
     assert ok is False

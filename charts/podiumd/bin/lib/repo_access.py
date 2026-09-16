@@ -15,6 +15,7 @@ on every verify-podiumd re-run, and enough of those in a short dev-loop
 window is exactly what exhausts Docker Hub's anonymous pull-rate limit
 ("Too Many Requests"). A failure is never cached — see that module's own
 docstring for why."""
+
 import re
 import urllib.error
 import urllib.parse
@@ -47,6 +48,7 @@ def is_denylisted_host(host, denylisted_host_suffixes):
     upstream for exactly this reason)."""
     return any(host.endswith(suffix) for suffix in denylisted_host_suffixes)
 
+
 # "- name: <name>" at the start of a Chart.yaml dependency block — used to
 # re-derive a dependency's own source line, since PyYAML's safe_load (what
 # lib.chart.load_yaml uses) doesn't track source lines at all. Same
@@ -59,9 +61,7 @@ DEP_NAME_RE = re.compile(r'^\s*-\s*name:\s*"?([\w.\-]+)"?\s*(?:#.*)?$')
 def _dependency_line_numbers(chart_yaml_text):
     """name -> 1-indexed line number of its "- name: <name>" entry."""
     return {
-        m.group(1): i + 1
-        for i, line in enumerate(chart_yaml_text.splitlines())
-        for m in [DEP_NAME_RE.match(line)] if m
+        m.group(1): i + 1 for i, line in enumerate(chart_yaml_text.splitlines()) for m in [DEP_NAME_RE.match(line)] if m
     }
 
 
@@ -91,7 +91,7 @@ def dependency_repos(chart_dir):
         if repository.startswith("file://"):
             continue
         if repository.startswith("oci://"):
-            host, _, oci_path = repository[len("oci://"):].partition("/")
+            host, _, oci_path = repository[len("oci://") :].partition("/")
             repo_path = f"{oci_path}/{dep['name']}" if oci_path else dep["name"]
             repos.append((name, line, "oci", (host, repo_path, dep["version"])))
         else:
@@ -147,8 +147,9 @@ def _check_registry_repo(chart_dir, host, repo_path, version, timeout_seconds):
     through to the real call on a miss, preserving this check's own reason
     for existing: a fast, bounded preflight, not a call that could hang."""
     try:
-        exists, _ = cached_tag_exists(chart_dir, f"{host}/{repo_path}", host, repo_path, version,
-                                       timeout=timeout_seconds)
+        exists, _ = cached_tag_exists(
+            chart_dir, f"{host}/{repo_path}", host, repo_path, version, timeout=timeout_seconds
+        )
     except (urllib.error.URLError, OSError) as e:
         return False, f"{getattr(e, 'reason', e)}"
     if not exists:
@@ -225,8 +226,9 @@ def check_repo_access(chart_dir):
         entries.append(("image", f"{endpoint}  ({location})", "registry", target))
 
     total_refs = len(chart_deps) + sum(len(lines) for _, lines in img_targets)
-    print(f"Checking access to {len(entries)} unique repo(s)/image(s) "
-          f"for {total_refs} network-resolved reference(s)...")
+    print(
+        f"Checking access to {len(entries)} unique repo(s)/image(s) for {total_refs} network-resolved reference(s)..."
+    )
 
     failures = []
     denied = []
@@ -234,10 +236,12 @@ def check_repo_access(chart_dir):
         host = _host_of(test_kind, target)
         if is_denylisted_host(host, denylisted_host_suffixes):
             denied.append((kind, description, host))
-            print(f"  [DENIED] {kind:5}  {description}  — {host} may not be used: this chart's own "
-                  f"tracked defaults must not reference this registry directly (see "
-                  f"repo_access.never_probe_host_suffixes in lib.settings) — an environment-specific "
-                  f"mirror override belongs in that environment's own podiumd.yml, not here")
+            print(
+                f"  [DENIED] {kind:5}  {description}  — {host} may not be used: this chart's own "
+                f"tracked defaults must not reference this registry directly (see "
+                f"repo_access.never_probe_host_suffixes in lib.settings) — an environment-specific "
+                f"mirror override belongs in that environment's own podiumd.yml, not here"
+            )
             continue
 
         # Re-loaded fresh on every entry (a small JSON file — cheap) rather
@@ -257,8 +261,7 @@ def check_repo_access(chart_dir):
             ok, error = _check_http_repo(target, timeout_seconds)
         else:
             ok, error = _check_registry_repo(chart_dir, *target, timeout_seconds)
-        print(f"  [{'OK' if ok else 'FAIL'}] {kind:5}  {description}"
-              + (f"  — {error}" if error else ""))
+        print(f"  [{'OK' if ok else 'FAIL'}] {kind:5}  {description}" + (f"  — {error}" if error else ""))
         if not ok:
             failures.append((kind, description, error))
         elif test_kind == "http":
@@ -269,10 +272,14 @@ def check_repo_access(chart_dir):
     if failures or denied:
         parts = []
         if failures:
-            parts.append(f"{len(failures)}/{checked} repo(s)/image(s) unreachable or unauthorized — "
-                          + "; ".join(f"{kind} {description}: {error}" for kind, description, error in failures))
+            parts.append(
+                f"{len(failures)}/{checked} repo(s)/image(s) unreachable or unauthorized — "
+                + "; ".join(f"{kind} {description}: {error}" for kind, description, error in failures)
+            )
         if denied:
-            parts.append(f"{len(denied)} repo(s)/image(s) may not be used (denylisted host) — "
-                          + "; ".join(f"{kind} {description} ({host})" for kind, description, host in denied))
+            parts.append(
+                f"{len(denied)} repo(s)/image(s) may not be used (denylisted host) — "
+                + "; ".join(f"{kind} {description} ({host})" for kind, description, host in denied)
+            )
         return False, " | ".join(parts)
     return True, f"{checked} repo(s)/image(s) reachable ({total_refs} references)"

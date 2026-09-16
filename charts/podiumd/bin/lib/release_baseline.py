@@ -25,6 +25,7 @@ readable at all (unlike resolve_baseline_chart_state, which fails hard
 if IT can't be read, precisely because every ITS OWN caller does need
 it) — see resolve_baseline_values' own docstring for exactly how its
 failure semantics differ."""
+
 import yaml
 
 from lib.gitutil import find_repo_root, git_show_text, resolve_baseline_ref

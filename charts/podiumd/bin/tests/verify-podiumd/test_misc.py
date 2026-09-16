@@ -1,5 +1,6 @@
 """die, require_helm, resolve_chart_dir, lint_args_for, print_summary — the
 small orchestration helpers not covered elsewhere."""
+
 from pathlib import Path
 
 import pytest
@@ -76,15 +77,16 @@ def test_print_summary_reports_skip(vp, capsys):
 
 # --- SKIPPABLE_STEPS ---
 
+
 def test_skippable_steps_names_match_main_run_steps(vp):
     """Every (flag, step name) pair in SKIPPABLE_STEPS must name a step that
     main() actually runs — a typo here would silently make a --skip= entry
     do nothing."""
     import inspect
+
     source = inspect.getsource(vp.main)
     for _, step_name in vp.SKIPPABLE_STEPS:
-        assert f'run_step("{step_name}"' in source, \
-            f'no run_step("{step_name}", ...) call found in main()'
+        assert f'run_step("{step_name}"' in source, f'no run_step("{step_name}", ...) call found in main()'
 
 
 def test_skippable_steps_order_matches_main_run_order(vp):
@@ -95,6 +97,7 @@ def test_skippable_steps_order_matches_main_run_order(vp):
     list while actually running much later, right before "Image
     digests")."""
     import inspect
+
     source = inspect.getsource(vp.main)
     positions = [source.index(f'run_step("{step_name}"') for _, step_name in vp.SKIPPABLE_STEPS]
     assert positions == sorted(positions)
@@ -129,6 +132,7 @@ def test_steps_help_is_in_argparse_epilog(vp, monkeypatch, capsys):
 
 # --- main(): --skip= end-to-end ---
 
+
 def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     """--skip=helm-lint,full-render must skip exactly those two steps
     (never calling their check functions) while every other step still runs
@@ -145,6 +149,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
         def check(*args):
             ran.append(name)
             return True, "ok"
+
         return check
 
     monkeypatch.setattr(vp, "check_utf8_format", make_check("utf8"))
@@ -181,10 +186,33 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 
     vp.main()  # must not raise / must not sys.exit
 
-    assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
-                    "release-baseline", "lockstep", "helm-docs", "markdown", "repo-access", "deps", "docs",
-                    "subchart-images", "shared-image-usage", "digests", "yamllint", "kubeconform", "shellcheck",
-                    "kube-score", "release-secret-size", "image-upgrades", "cves", "cve-diff"]
+    assert ran == [
+        "utf8",
+        "dupe",
+        "dry",
+        "image-refs",
+        "node-selector",
+        "digest-pinning",
+        "tgz",
+        "release-baseline",
+        "lockstep",
+        "helm-docs",
+        "markdown",
+        "repo-access",
+        "deps",
+        "docs",
+        "subchart-images",
+        "shared-image-usage",
+        "digests",
+        "yamllint",
+        "kubeconform",
+        "shellcheck",
+        "kube-score",
+        "release-secret-size",
+        "image-upgrades",
+        "cves",
+        "cve-diff",
+    ]
     out = capsys.readouterr().out
     assert "Helm lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
@@ -197,7 +225,9 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
     in detail) — but the whole run must still exit non-zero: a later step
     running fine must never mask an earlier real failure, same as a
     --skip=d step must never mask one either."""
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=dependencies,image-digests,doc-consistency,helm-lint,full-render"])
+    monkeypatch.setattr(
+        vp.sys, "argv", ["verify-podiumd", "--skip=dependencies,image-digests,doc-consistency,helm-lint,full-render"]
+    )
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
     monkeypatch.setattr(vp, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
@@ -207,12 +237,30 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
     def ok(*args):
         return True, "ok"
 
-    for name in ("check_repo_access", "check_duplicate_keys", "check_dry", "check_image_references",
-                 "check_node_selector", "check_digest_pinning", "check_vendored_tgz_extraction",
-                 "check_release_baseline", "check_lockstep_versions", "check_helm_docs", "check_markdown",
-                 "check_subchart_image_visibility", "check_shared_image_usage", "check_image_repository",
-                 "check_yamllint", "check_kubeconform", "check_shellcheck", "check_kube_score",
-                 "check_release_secret_size", "check_image_upgrades", "check_cves", "check_cve_diff"):
+    for name in (
+        "check_repo_access",
+        "check_duplicate_keys",
+        "check_dry",
+        "check_image_references",
+        "check_node_selector",
+        "check_digest_pinning",
+        "check_vendored_tgz_extraction",
+        "check_release_baseline",
+        "check_lockstep_versions",
+        "check_helm_docs",
+        "check_markdown",
+        "check_subchart_image_visibility",
+        "check_shared_image_usage",
+        "check_image_repository",
+        "check_yamllint",
+        "check_kubeconform",
+        "check_shellcheck",
+        "check_kube_score",
+        "check_release_secret_size",
+        "check_image_upgrades",
+        "check_cves",
+        "check_cve_diff",
+    ):
         monkeypatch.setattr(vp, name, ok)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -237,6 +285,7 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
         def check(*args):
             ran.append(name)
             return result
+
         return check
 
     monkeypatch.setattr(vp, "check_utf8_format", make_check("utf8", (False, "BOM found")))
@@ -274,18 +323,43 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
 
     # "UTF-8 format" fails first, but every other step still actually ran —
     # none of them are in "UTF-8 format"'s own STEP_PREREQUISITES chain.
-    assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
-                    "release-baseline", "lockstep", "helm-docs", "markdown", "repo-access", "deps", "docs",
-                    "subchart-images", "shared-image-usage", "image-repository", "digests", "helm-lint",
-                    "full-render", "yamllint", "kubeconform", "shellcheck", "kube-score",
-                    "release-secret-size", "image-upgrades", "cves", "cve-diff"]
+    assert ran == [
+        "utf8",
+        "dupe",
+        "dry",
+        "image-refs",
+        "node-selector",
+        "digest-pinning",
+        "tgz",
+        "release-baseline",
+        "lockstep",
+        "helm-docs",
+        "markdown",
+        "repo-access",
+        "deps",
+        "docs",
+        "subchart-images",
+        "shared-image-usage",
+        "image-repository",
+        "digests",
+        "helm-lint",
+        "full-render",
+        "yamllint",
+        "kubeconform",
+        "shellcheck",
+        "kube-score",
+        "release-secret-size",
+        "image-upgrades",
+        "cves",
+        "cve-diff",
+    ]
     out = capsys.readouterr().out
     assert "UTF-8 format" in out and "FAIL" in out
     assert "One or more checks failed" in out
 
 
 def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys):
-    """"Dependencies" failing must skip every step whose STEP_PREREQUISITES
+    """ "Dependencies" failing must skip every step whose STEP_PREREQUISITES
     chain includes it (render-based checks, image digests, subchart image
     visibility, image repository, doc consistency, ...) rather than
     attempting them against charts/*.tgz that never got populated — a
@@ -301,20 +375,43 @@ def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys)
     def ok(*args):
         return True, "ok"
 
-    for name in ("check_utf8_format", "check_duplicate_keys", "check_dry", "check_image_references",
-                 "check_node_selector", "check_digest_pinning", "check_vendored_tgz_extraction",
-                 "check_release_baseline", "check_lockstep_versions", "check_helm_docs", "check_markdown",
-                 "check_repo_access"):
+    for name in (
+        "check_utf8_format",
+        "check_duplicate_keys",
+        "check_dry",
+        "check_image_references",
+        "check_node_selector",
+        "check_digest_pinning",
+        "check_vendored_tgz_extraction",
+        "check_release_baseline",
+        "check_lockstep_versions",
+        "check_helm_docs",
+        "check_markdown",
+        "check_repo_access",
+    ):
         monkeypatch.setattr(vp, name, ok)
 
     def fail_if_called(*args):
         raise AssertionError("this check should have been skipped as a prerequisite's dependent")
 
     monkeypatch.setattr(vp, "check_dependencies", lambda *a: (False, "helm dependency update failed"))
-    for name in ("check_docs_consistency", "check_subchart_image_visibility", "check_shared_image_usage",
-                 "check_image_repository", "check_image_digests", "check_lint", "check_render",
-                 "check_yamllint", "check_kubeconform", "check_shellcheck", "check_kube_score",
-                 "check_release_secret_size", "check_image_upgrades", "check_cves", "check_cve_diff"):
+    for name in (
+        "check_docs_consistency",
+        "check_subchart_image_visibility",
+        "check_shared_image_usage",
+        "check_image_repository",
+        "check_image_digests",
+        "check_lint",
+        "check_render",
+        "check_yamllint",
+        "check_kubeconform",
+        "check_shellcheck",
+        "check_kube_score",
+        "check_release_secret_size",
+        "check_image_upgrades",
+        "check_cves",
+        "check_cve_diff",
+    ):
         monkeypatch.setattr(vp, name, fail_if_called)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -327,6 +424,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys)
 
 
 # --- prerequisites_for ---
+
 
 def test_prerequisites_for_render_based_check_needs_dependencies(vp):
     assert vp.prerequisites_for("kube-score") == {"Dependencies", "Repo access"}
@@ -374,13 +472,16 @@ def test_prerequisites_for_standalone_check_has_none(vp):
 
 # --- main(): --include= end-to-end ---
 
+
 def _stub_all_checks(vp, monkeypatch, ran):
     """Same stub set test_main_skips_requested_steps_and_runs_the_rest uses
     — shared here so --include= tests don't have to repeat it."""
+
     def make_check(name):
         def check(*args):
             ran.append(name)
             return True, "ok"
+
         return check
 
     monkeypatch.setattr(vp, "require_helm", lambda: None)
@@ -490,8 +591,7 @@ def test_multiple_include_flags_run_the_union_plus_each_ones_prerequisites(vp, m
 def test_multiple_include_flags_each_standalone_step_included_independently(vp, monkeypatch):
     """Two steps in one --include= with no prerequisite between them (neither
     needs "Dependencies") must both run, with no unrelated step pulled in."""
-    monkeypatch.setattr(vp.sys, "argv",
-                         ["verify-podiumd", "--include=image-references,node-selector"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=image-references,node-selector"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
@@ -501,6 +601,7 @@ def test_multiple_include_flags_each_standalone_step_included_independently(vp, 
 
 
 # --- CVE scan joined the same --skip=/--include= family as every other step ---
+
 
 def test_check_cves_no_longer_has_its_own_flag(vp, monkeypatch, capsys):
     """CVE scan used to be gated by a bespoke --check-cves opt-in flag,
@@ -564,7 +665,7 @@ def test_skip_cve_diff_skips_it(vp, monkeypatch, capsys):
 
 
 def test_include_cve_diff_runs_it_plus_its_prerequisites(vp, monkeypatch):
-    """"CVE diff" needs "Image upgrades" (reads that cache to find its own
+    """ "CVE diff" needs "Image upgrades" (reads that cache to find its own
     "has_newer" candidates) AND "Image digests" (calls lib.image_digests.
     find_sliding_pins, which needs Dependencies-populated charts/*.tgz for
     the same subchart-default-repository fallback "Image digests" itself

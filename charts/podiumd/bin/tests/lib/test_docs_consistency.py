@@ -6,6 +6,7 @@ ruled out a real Chart.yaml dependency."""
 
 # --- match_changes_item_to_entry ---
 
+
 def test_match_changes_item_to_entry_canonical_sidecar_name_matches_own_basename(libdocsconsistency):
     """A canonical "<key> - <basename>" sidecar name (see
     lib.chart.canonical_sidecar_row_names) is matched on its OWN
@@ -18,7 +19,8 @@ def test_match_changes_item_to_entry_canonical_sidecar_name_matches_own_basename
     postgres_entry = {"name": "postgres", "version": "16.15"}
 
     match = libdocsconsistency.match_changes_item_to_entry(
-        "keycloak-operator - postgres", [keycloak_entry, postgres_entry])
+        "keycloak-operator - postgres", [keycloak_entry, postgres_entry]
+    )
 
     assert match is postgres_entry
 

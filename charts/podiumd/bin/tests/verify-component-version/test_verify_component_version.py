@@ -6,6 +6,7 @@ tests/lib/test_chart.py — these tests mock them out and only exercise
 this script's own glue: looking up the Chart.yaml dependency, resolving
 image_paths_for(component), and reporting the app-image FOUND/MISSING/
 OK/FAIL lines on top of whatever verify_chart_version already reported."""
+
 import pytest
 import yaml
 
@@ -15,6 +16,7 @@ def write_chart_yaml(vcv, dependencies):
 
 
 # --- find_dependency ---
+
 
 def test_find_dependency_by_name(vcv, tmp_path, monkeypatch):
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
@@ -37,6 +39,7 @@ def test_find_dependency_not_found_raises(vcv, tmp_path, monkeypatch):
 
 # --- main() ---
 
+
 def run_main(vcv, monkeypatch, argv):
     monkeypatch.setattr("sys.argv", ["verify-component-version", *argv])
     with pytest.raises(SystemExit) as exc_info:
@@ -48,10 +51,20 @@ def test_main_single_image_component_success(vcv, tmp_path, monkeypatch, capsys)
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
     monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {"image": {"repository": "x/y"}})
-    monkeypatch.setattr(vcv, "check_image_versions", lambda values, image_paths, app_version: [
-        {"path": "image", "repository": "ghcr.io/infonl/zaakafhandelcomponent", "host": "ghcr.io",
-         "repo_path": "infonl/zaakafhandelcomponent", "exists": True, "digest": "sha256:fake"},
-    ])
+    monkeypatch.setattr(
+        vcv,
+        "check_image_versions",
+        lambda values, image_paths, app_version: [
+            {
+                "path": "image",
+                "repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                "host": "ghcr.io",
+                "repo_path": "infonl/zaakafhandelcomponent",
+                "exists": True,
+                "digest": "sha256:fake",
+            },
+        ],
+    )
 
     exc = run_main(vcv, monkeypatch, ["zac", "5.4.3", "1.0.297"])
     assert exc.code == 0
@@ -68,10 +81,22 @@ def test_main_multi_image_component_checks_both(vcv, tmp_path, monkeypatch, caps
     def fake_check_image_versions(values, image_paths, app_version):
         checked_paths.extend(image_paths)
         return [
-            {"path": "frontend.image", "repository": "ghcr.io/infonl/zgw-office-addin-frontend", "host": "ghcr.io",
-             "repo_path": "infonl/zgw-office-addin-frontend", "exists": True, "digest": "sha256:aaaa"},
-            {"path": "backend.image", "repository": "ghcr.io/infonl/zgw-office-addin-backend", "host": "ghcr.io",
-             "repo_path": "infonl/zgw-office-addin-backend", "exists": True, "digest": "sha256:bbbb"},
+            {
+                "path": "frontend.image",
+                "repository": "ghcr.io/infonl/zgw-office-addin-frontend",
+                "host": "ghcr.io",
+                "repo_path": "infonl/zgw-office-addin-frontend",
+                "exists": True,
+                "digest": "sha256:aaaa",
+            },
+            {
+                "path": "backend.image",
+                "repository": "ghcr.io/infonl/zgw-office-addin-backend",
+                "host": "ghcr.io",
+                "repo_path": "infonl/zgw-office-addin-backend",
+                "exists": True,
+                "digest": "sha256:bbbb",
+            },
         ]
 
     monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {})
@@ -105,13 +130,22 @@ def test_main_alias_argument_resolves_full_multi_path_registration(vcv, tmp_path
     def fake_check_image_versions(values, image_paths, app_version):
         checked_paths.extend(image_paths)
         return [
-            {"path": "image", "repository": "ghcr.io/klantinteractie-servicesysteem/kiss-frontend",
-             "host": "ghcr.io", "repo_path": "klantinteractie-servicesysteem/kiss-frontend",
-             "exists": True, "digest": "sha256:aaaa"},
-            {"path": "settings.syncJobs.image",
-             "repository": "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync", "host": "ghcr.io",
-             "repo_path": "klantinteractie-servicesysteem/kiss-elastic-sync", "exists": True,
-             "digest": "sha256:bbbb"},
+            {
+                "path": "image",
+                "repository": "ghcr.io/klantinteractie-servicesysteem/kiss-frontend",
+                "host": "ghcr.io",
+                "repo_path": "klantinteractie-servicesysteem/kiss-frontend",
+                "exists": True,
+                "digest": "sha256:aaaa",
+            },
+            {
+                "path": "settings.syncJobs.image",
+                "repository": "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync",
+                "host": "ghcr.io",
+                "repo_path": "klantinteractie-servicesysteem/kiss-elastic-sync",
+                "exists": True,
+                "digest": "sha256:bbbb",
+            },
         ]
 
     monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {})
@@ -128,10 +162,20 @@ def test_main_dockerhub_component(vcv, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "openforms", "alias": "openformulieren", "repository": "@maykinmedia"}])
     monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {})
-    monkeypatch.setattr(vcv, "check_image_versions", lambda values, image_paths, app_version: [
-        {"path": "image", "repository": "openformulieren/open-forms", "host": "docker.io",
-         "repo_path": "openformulieren/open-forms", "exists": True, "digest": "sha256:fake"},
-    ])
+    monkeypatch.setattr(
+        vcv,
+        "check_image_versions",
+        lambda values, image_paths, app_version: [
+            {
+                "path": "image",
+                "repository": "openformulieren/open-forms",
+                "host": "docker.io",
+                "repo_path": "openformulieren/open-forms",
+                "exists": True,
+                "digest": "sha256:fake",
+            },
+        ],
+    )
 
     exc = run_main(vcv, monkeypatch, ["openformulieren", "3.5.6", "1.12.0"])
     assert exc.code == 0
@@ -157,10 +201,20 @@ def test_main_missing_app_version_fails(vcv, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
     monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {"image": {"repository": "x/y"}})
-    monkeypatch.setattr(vcv, "check_image_versions", lambda values, image_paths, app_version: [
-        {"path": "image", "repository": "ghcr.io/infonl/zaakafhandelcomponent", "host": "ghcr.io",
-         "repo_path": "infonl/zaakafhandelcomponent", "exists": False, "digest": None},
-    ])
+    monkeypatch.setattr(
+        vcv,
+        "check_image_versions",
+        lambda values, image_paths, app_version: [
+            {
+                "path": "image",
+                "repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                "host": "ghcr.io",
+                "repo_path": "infonl/zaakafhandelcomponent",
+                "exists": False,
+                "digest": None,
+            },
+        ],
+    )
 
     exc = run_main(vcv, monkeypatch, ["zac", "9.9.9", "1.0.297"])
     assert exc.code == 1
@@ -175,8 +229,9 @@ def test_main_no_repository_at_configured_path_propagates(vcv, tmp_path, monkeyp
     repository — main() has nothing to add here either."""
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
-    monkeypatch.setattr(vcv, "verify_chart_version",
-                         lambda chart_dir, dep, version: {"somethingElse": {"repository": "x/y"}})
+    monkeypatch.setattr(
+        vcv, "verify_chart_version", lambda chart_dir, dep, version: {"somethingElse": {"repository": "x/y"}}
+    )
 
     def raise_no_repo(values, image_paths, app_version):
         raise SystemExit(f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)}")

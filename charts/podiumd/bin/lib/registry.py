@@ -1,5 +1,6 @@
 """OCI registry helpers shared by every script that fetches or verifies a
 live image digest — same flow as documented in /fetch-image-digest."""
+
 import json
 import re
 import urllib.error
@@ -105,8 +106,7 @@ def _get_with_dynamic_auth(url, repo, headers, timeout=None, method="GET"):
         query = {"scope": challenge.get("scope") or f"repository:{repo}:pull"}
         if challenge.get("service"):
             query["service"] = challenge["service"]
-        token = _read_token(_urlopen(
-            f"{challenge['realm']}?{urllib.parse.urlencode(query)}", timeout=timeout))
+        token = _read_token(_urlopen(f"{challenge['realm']}?{urllib.parse.urlencode(query)}", timeout=timeout))
         headers = {**headers, "Authorization": f"Bearer {token}"}
         return _urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout)
 
@@ -134,7 +134,7 @@ def parse_repo(repository):
     API even though that prefix is omitted in the human-readable form."""
     first, sep, _ = repository.partition("/")
     if sep and ("." in first or ":" in first or first == "localhost"):
-        return first, repository[len(first) + 1:]
+        return first, repository[len(first) + 1 :]
     if not sep:
         return "docker.io", f"library/{repository}"
     return "docker.io", repository
@@ -208,8 +208,9 @@ def historical_digests_for_tag(values_path, version):
     which is inconclusive (the tag may simply not have been refreshed
     yet, or may have just been introduced)."""
     pattern = re.compile(HISTORICAL_DIGEST_RE_TMPL.format(version=re.escape(version)))
-    result = run(["git", "-C", str(values_path.parent), "log", "-p", "--", values_path.name],
-                 capture_output=True, text=True)
+    result = run(
+        ["git", "-C", str(values_path.parent), "log", "-p", "--", values_path.name], capture_output=True, text=True
+    )
     if result.returncode != 0:
         return set()
     digests = set()
@@ -247,7 +248,7 @@ def _numeric_prefix_and_suffix(tag):
     m = NUMERIC_PREFIX_RE.match(tag)
     if not m:
         return None, tag
-    return m.group(1), tag[m.end():]
+    return m.group(1), tag[m.end() :]
 
 
 def _is_more_specific_tag(candidate, version):
@@ -265,7 +266,7 @@ def _is_more_specific_tag(candidate, version):
     if cand_num is None or ver_num is None:
         return False
     cand_parts, ver_parts = cand_num.split("."), ver_num.split(".")
-    if cand_parts[:len(ver_parts)] != ver_parts:
+    if cand_parts[: len(ver_parts)] != ver_parts:
         return False
     return cand_suffix == ver_suffix or cand_suffix.startswith(ver_suffix)
 
@@ -323,8 +324,7 @@ def find_more_specific_tag_at_same_digest(registry_host, repo, version, live_dig
     found tag name, or None. Only meaningful as a fallback when
     historical_digests_for_tag is inconclusive — this checks the registry's
     CURRENT state, not whether version has actually drifted before."""
-    candidates = sorted(t for t in list_tags(registry_host, repo)
-                         if t != version and _is_more_specific_tag(t, version))
+    candidates = sorted(t for t in list_tags(registry_host, repo) if t != version and _is_more_specific_tag(t, version))
     for t in candidates:
         exists, digest = registry_tag_exists(registry_host, repo, t)
         if exists and digest == live_digest:

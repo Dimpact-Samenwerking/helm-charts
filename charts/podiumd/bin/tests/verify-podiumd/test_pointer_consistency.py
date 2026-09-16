@@ -1,5 +1,6 @@
 """check_pointer_consistency — sibling-doc and images-manifest cross-reference
 validation."""
+
 import pytest
 
 
@@ -33,9 +34,7 @@ def test_reference_to_a_different_historical_hop_is_ignored(libdocsconsistency, 
     the current baseline."""
     doc_dir, images_dir = dirs
     doc = doc_dir / "4.8.5-to-4.9.0-upgrade.md"
-    doc.write_text(
-        "See [`4.8.1-to-4.8.2-gemeente-specific.md`](4.8.1-to-4.8.2-gemeente-specific.md#anchor).\n"
-    )
+    doc.write_text("See [`4.8.1-to-4.8.2-gemeente-specific.md`](4.8.1-to-4.8.2-gemeente-specific.md#anchor).\n")
     assert libdocsconsistency.check_pointer_consistency(doc, "4.8.5", "4.9.0", doc_dir, images_dir) == []
 
 
@@ -46,7 +45,7 @@ def test_stale_baseline_in_sibling_reference_is_flagged(libdocsconsistency, dirs
     doc.write_text("See [`4.8.2-to-4.9.0-values-deltas.md`](4.8.2-to-4.9.0-values-deltas.md).\n")
     issues = libdocsconsistency.check_pointer_consistency(doc, "4.8.5", "4.9.0", doc_dir, images_dir)
     assert issues
-    assert all("expected \"4.8.5\"" in i for i in issues)
+    assert all('expected "4.8.5"' in i for i in issues)
 
 
 def test_reference_to_nonexistent_sibling_is_flagged(libdocsconsistency, dirs):
@@ -70,7 +69,7 @@ def test_images_reference_wrong_version_is_flagged(libdocsconsistency, dirs):
     doc = doc_dir / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text("See [`images-4.9.9.yaml`](../images/images-4.9.9.yaml).\n")
     issues = libdocsconsistency.check_pointer_consistency(doc, "4.8.5", "4.9.0", doc_dir, images_dir)
-    assert any("expected \"4.9.0\"" in i for i in issues)
+    assert any('expected "4.9.0"' in i for i in issues)
 
 
 def test_images_reference_to_nonexistent_file_is_flagged(libdocsconsistency, dirs):
