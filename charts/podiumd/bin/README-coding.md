@@ -133,17 +133,20 @@ cd charts/podiumd/bin
 ./run_python_checks
 ```
 
-Runs everything above in this same order, stopping at the first failure:
-`pytest`, `ruff check`, `ruff format --check`, `pylint`, `vulture`. Equivalent
-to running each command from the sections above by hand, in order:
+Runs everything above fastest-first, stopping at the first failure: `ruff
+check` (~0.03s) → `ruff format --check` (~0.05s) → `vulture` (~0.5s) →
+`pylint` (~6s) → `pytest` (the full suite, ~2-3 minutes) — measured, not
+guessed, so a real problem in the cheap checks fails in well under a
+second instead of waiting on the full test run first. Equivalent to
+running each command from the sections above by hand, in this order:
 
 ```bash
 cd charts/podiumd/bin
-python3 -m pytest -q
 ruff check .
 ruff format --check .
-pylint lib/*.py $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) $(find tests -name '*.py')
 vulture lib/*.py $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+pylint lib/*.py $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) $(find tests -name '*.py')
+python3 -m pytest -q
 ```
 
 A failing `pytest` run or a `ruff check`/`pylint` finding introduced by your own
