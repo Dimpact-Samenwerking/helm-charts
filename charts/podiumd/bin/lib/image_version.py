@@ -158,7 +158,7 @@ def resolve_key_scope(key, deps):
     MULTIPLE_KEY passes through unchanged — resolve_scoped_matches
     translates it to GLOBAL_IMAGES_SCOPE itself, and it never names a
     dependency to begin with. A key matching no Chart.yaml dependency at
-    all also passes through unchanged: a lib.chart.NATIVE_COMPONENTS
+    all also passes through unchanged: a lib.chart.native_components
     component has no alias distinction to resolve (never in Chart.yaml,
     no dep to find), and a genuine typo is already caught by resolve_
     scoped_matches' own "no image pin ... found under" error, just under

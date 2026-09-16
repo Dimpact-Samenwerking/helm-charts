@@ -316,6 +316,12 @@ def component_resolution_chart_version_lockstep_components(chart_dir):
                           ["kiss-chart", "pabc", "eck-operator"]))
 
 
+def component_resolution_native_components(chart_dir):
+    """component_resolution.native_components — replaces lib.chart.
+    NATIVE_COMPONENTS, a frozenset, default frozenset({"frankgateway"})."""
+    return frozenset(_get(chart_dir, "component_resolution", "native_components", ["frankgateway"]))
+
+
 def component_resolution_version_repository_paths(chart_dir):
     """component_resolution.version_repository_paths — replaces
     lib.chart.COMPONENT_VERSION_REPOSITORY_PATHS, default

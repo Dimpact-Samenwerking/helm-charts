@@ -155,6 +155,16 @@ component_resolution:
   # assumed for a component that vendors a THIRD PARTY app at its own
   # independent version (keycloak-operator, eck-stack).
   chart_version_lockstep_components: ["kiss-chart", "pabc", "eck-operator"]
+  # values.yaml top-level keys that are real, documentable components --
+  # with their own app version, own image(s), own upgrade-doc row -- but
+  # have NO backing Chart.yaml dependency at all: implemented directly
+  # via podiumd's own templates, not vendored as a sub-chart.
+  # frankgateway (Frank!Gateway -- WeAreFrank's Apache APISIX
+  # distribution) is the one real case today: it replaced the vendored
+  # apisix sub-chart in podiumd 4.8.2 (#385) and was ported in as native
+  # templates instead, since it needed org-specific OpenBao/Keycloak
+  # integration no generic upstream chart provides.
+  native_components: ["frankgateway"]
   # component (name, not alias) -> the sibling dotted path holding a
   # COMPONENT_VERSION_PATHS entry's own repository -- for the rare case
   # where that repository IS explicitly overridable in podiumd's OWN

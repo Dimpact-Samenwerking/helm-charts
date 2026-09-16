@@ -480,13 +480,14 @@ def test_main_native_component_bumps_values_yaml_never_touches_chart_yaml(ucv, t
 
 
 def test_main_native_component_rejects_unregistered_component(ucv, tmp_path, monkeypatch):
-    """"native" is only valid for a lib.chart.NATIVE_COMPONENTS component —
-    a real Chart.yaml dependency like zac must be rejected with a clear
-    error rather than silently skipping its own chart-version bump."""
+    """"native" is only valid for a settings.yaml component_resolution.
+    native_components component — a real Chart.yaml dependency like zac
+    must be rejected with a clear error rather than silently skipping
+    its own chart-version bump."""
     setup_native_component_repo(tmp_path, monkeypatch, ucv)
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "native"])
 
-    with pytest.raises(SystemExit, match="NATIVE_COMPONENTS"):
+    with pytest.raises(SystemExit, match="native_components"):
         ucv.main()
 
 
