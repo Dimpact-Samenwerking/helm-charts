@@ -194,7 +194,7 @@ Add a DNS A (or CNAME) record for `pabc.<env-domain>` pointing to the cluster's 
 After the first successful deploy, the PABC database must be seeded with:
 
 - The ZAC application roles (`behandelaar`, `beheerder`, `coordinator`, `raadpleger`, `recordmanager`)
-- Functional roles that map 1:1 to the Keycloak group names in the `podiumd` realm
+- Functional roles that map 1:1 to Keycloak realm roles (and the groups of the same name) in the `podiumd` realm
 - A domain and mappings that authorise each group for its intended ZAC roles
 
 **Important:** The `pabc-migrations` job creates the schema only. On a fresh
@@ -223,6 +223,25 @@ This renders `files/pabc-dataset.json` into the `pabc-dataset` ConfigMap and run
 checksum of the dataset and of the rendered pod template, so it does not rerun
 on later upgrades unless one of those changes. A chart version bump on its own
 does not re-seed.
+
+The seed job comes with a second Job, `pabc-keycloak-groups-job-<checksum>`,
+for the Keycloak side. ZAC sends the user's Keycloak **realm roles** to PABC as
+functional roles (not the group names), so the functional roles only work if the
+`podiumd` realm has, per functional role, a realm role with exactly that name,
+attached to a group with the same name. The realm import creates those with
+`keycloak.config.skipGroups`/`skipRoles: false` (O/T); with `true` this Job
+does it. Using `kcadm.sh` from the Keycloak image as the `keycloak-operator`
+service account, it creates per functional role the realm role and the group if
+they are missing and attaches the role to the group. Nothing else: it never
+touches client roles, other groups or existing mappings, and never removes
+anything. It needs `keycloak-operator.enabled` and
+`keycloak-operator.jobs.ensureOperatorSa.clientSecret`, and can be switched off
+with `pabc.seedJob.keycloak.enabled: false`. Users still have to be put in the
+groups, by hand or through the identity provider.
+
+> **Test environments only.** Like the seed job this is meant for empty test
+> environments. Municipalities keep `pabc.seedJob.enabled: false` and map their
+> own realm roles to functional roles in the PABC UI.
 
 Seeding **replaces** all PABC content, so leave it disabled on environments that
 have already been curated through the PABC UI. See
