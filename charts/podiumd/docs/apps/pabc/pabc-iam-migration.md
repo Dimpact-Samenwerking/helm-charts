@@ -60,18 +60,20 @@ The seed job comes with a second Job, `pabc-keycloak-groups-job-<checksum>`,
 for the Keycloak side. ZAC sends the user's Keycloak **realm roles** to PABC as
 functional roles (not the group names), so the functional roles only work if the
 `podiumd` realm has, per functional role, a realm role with exactly that name,
-attached to a group with the same name. The realm import only creates them with
-`keycloak.config.skipGroups` and `skipRoles` set to `false`, which most
-environments leave at `true`. This Job uses `kcadm.sh` from the Keycloak image,
-logged in as the `keycloak-operator` service account, to create one realm role
-and one group per functional role, the `podiumd-admin` realm role and the `zac`
-and `pabc` client roles where they are missing, and adds those roles to the
-groups the same way the realm import does. It only adds, never
-removes, so groups a municipality manages itself keep their own mappings. It
-needs `keycloak-operator.enabled` and
+attached to a group with the same name. The realm import creates those with
+`keycloak.config.skipGroups`/`skipRoles: false` (O/T); with `true` this Job
+does it. Using `kcadm.sh` from the Keycloak image as the `keycloak-operator`
+service account, it creates per functional role the realm role and the group if
+they are missing and attaches the role to the group. Nothing else: it never
+touches client roles, other groups or existing mappings, and never removes
+anything. It needs `keycloak-operator.enabled` and
 `keycloak-operator.jobs.ensureOperatorSa.clientSecret`, and can be switched off
 with `pabc.seedJob.keycloak.enabled: false`. Users still have to be put in the
 groups, by hand or through the identity provider.
+
+> **Test environments only.** Like the seed job this is meant for empty test
+> environments. Municipalities keep `pabc.seedJob.enabled: false` and map their
+> own realm roles to functional roles in the PABC UI.
 
 > **Seeding replaces everything.** The migration service deletes all
 > applications, application roles, functional roles, domains, entity types and
@@ -125,8 +127,8 @@ seed job replaces it and is preferable on managed clusters, for two reasons:
 The Keycloak half of that job created realm roles named after the groups. That
 **is** needed: ZAC resolves functional roles from the realm roles, not from the
 `group_membership` claim. Both the realm import (`skipRoles`/`skipGroups:
-false`) and `pabc-keycloak-groups-job` create these realm roles and attach them
-to the groups.
+false`) and `pabc-keycloak-groups-job` (with `pabc.seedJob.enabled`) create
+these realm roles and attach them to the groups.
 
 Note that the old job's matrix did not give `beheerders` the `recordmanager`
 role. The dataset follows the realm config, which does.
