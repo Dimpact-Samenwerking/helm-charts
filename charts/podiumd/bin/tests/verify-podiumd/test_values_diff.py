@@ -3,100 +3,100 @@ the values.yaml structural-diff machinery, including the real mi.sftp ->
 mi.transfer rename example from the docs."""
 
 
-def test_diff_keys_identical_trees(libupgradedoc):
+def test_diff_keys_identical_trees(libupgradedoccomments):
     tree = {"a": {"b": 1}}
-    assert list(libupgradedoc.diff_keys(tree, tree)) == []
+    assert list(libupgradedoccomments.diff_keys(tree, tree)) == []
 
 
-def test_diff_keys_added_and_removed_at_same_level(libupgradedoc):
+def test_diff_keys_added_and_removed_at_same_level(libupgradedoccomments):
     baseline = {"a": 1, "b": 2}
     current = {"a": 1, "c": 3}
-    result = set(libupgradedoc.diff_keys(baseline, current))
+    result = set(libupgradedoccomments.diff_keys(baseline, current))
     assert result == {("added", ("c",)), ("removed", ("b",))}
 
 
-def test_diff_keys_reports_shallowest_differing_level(libupgradedoc):
+def test_diff_keys_reports_shallowest_differing_level(libupgradedoccomments):
     """A whole new/removed block is reported once, not leaf-by-leaf."""
     baseline = {"mi": {"sftp": {"host": "x", "user": "y", "password": "z"}}}
     current = {"mi": {"transfer": {"mode": "sftp-password", "host": "x"}}}
-    result = list(libupgradedoc.diff_keys(baseline, current))
+    result = list(libupgradedoccomments.diff_keys(baseline, current))
     assert ("removed", ("mi", "sftp")) in result
     assert ("added", ("mi", "transfer")) in result
     # must NOT recurse into "transfer" to also report "mode" as separately added
     assert not any(path[:2] == ("mi", "transfer") and len(path) > 2 for _, path in result)
 
 
-def test_diff_keys_recurses_into_keys_present_in_both(libupgradedoc):
+def test_diff_keys_recurses_into_keys_present_in_both(libupgradedoccomments):
     baseline = {"mi": {"enabled": True, "sftp": {"host": "old"}}}
     current = {"mi": {"enabled": True, "sftp": {"host": "old", "port": 22}}}
-    result = list(libupgradedoc.diff_keys(baseline, current))
+    result = list(libupgradedoccomments.diff_keys(baseline, current))
     assert result == [("added", ("mi", "sftp", "port"))]
 
 
-def test_diff_keys_scalar_value_change_is_not_reported(libupgradedoc):
+def test_diff_keys_scalar_value_change_is_not_reported(libupgradedoccomments):
     baseline = {"a": 1}
     current = {"a": 2}
-    assert list(libupgradedoc.diff_keys(baseline, current)) == []
+    assert list(libupgradedoccomments.diff_keys(baseline, current)) == []
 
 
-def test_diff_keys_non_dict_nodes_yield_nothing(libupgradedoc):
-    assert list(libupgradedoc.diff_keys("x", "y")) == []
-    assert list(libupgradedoc.diff_keys(["a"], ["b"])) == []
+def test_diff_keys_non_dict_nodes_yield_nothing(libupgradedoccomments):
+    assert list(libupgradedoccomments.diff_keys("x", "y")) == []
+    assert list(libupgradedoccomments.diff_keys(["a"], ["b"])) == []
 
 
-def test_flatten_leaf_keys_collects_all_nested_key_names(libupgradedoc):
+def test_flatten_leaf_keys_collects_all_nested_key_names(libupgradedoccomments):
     node = {"host": "x", "auth": {"user": "y", "password": "z"}}
-    assert libupgradedoc.flatten_leaf_keys(node) == {"host", "auth", "user", "password"}
+    assert libupgradedoccomments.flatten_leaf_keys(node) == {"host", "auth", "user", "password"}
 
 
-def test_flatten_leaf_keys_walks_lists(libupgradedoc):
+def test_flatten_leaf_keys_walks_lists(libupgradedoccomments):
     node = [{"a": 1}, {"b": 2}]
-    assert libupgradedoc.flatten_leaf_keys(node) == {"a", "b"}
+    assert libupgradedoccomments.flatten_leaf_keys(node) == {"a", "b"}
 
 
-def test_flatten_leaf_keys_scalar_is_empty(libupgradedoc):
-    assert libupgradedoc.flatten_leaf_keys("scalar") == set()
+def test_flatten_leaf_keys_scalar_is_empty(libupgradedoccomments):
+    assert libupgradedoccomments.flatten_leaf_keys("scalar") == set()
 
 
-def test_pair_renames_detects_similar_blocks(libupgradedoc):
+def test_pair_renames_detects_similar_blocks(libupgradedoccomments):
     """The real mi.sftp -> mi.transfer example: different key, but the new
     block's leaf keys substantially overlap with the old one's."""
     baseline = {"mi": {"sftp": {"host": "x", "user": "y", "password": "z"}}}
     current = {"mi": {"transfer": {"mode": "sftp-password", "host": "x", "user": "y", "password": "z"}}}
     added = [("mi", "transfer")]
     removed = [("mi", "sftp")]
-    renamed, added_left, removed_left = libupgradedoc.pair_renames(added, removed, baseline, current)
+    renamed, added_left, removed_left = libupgradedoccomments.pair_renames(added, removed, baseline, current)
     assert renamed == [(("mi", "sftp"), ("mi", "transfer"))]
     assert added_left == []
     assert removed_left == []
 
 
-def test_pair_renames_does_not_pair_dissimilar_blocks(libupgradedoc):
+def test_pair_renames_does_not_pair_dissimilar_blocks(libupgradedoccomments):
     baseline = {"mi": {"old": {"totally": 1, "different": 2}}}
     current = {"mi": {"new": {"unrelated": 3, "fields": 4}}}
     added = [("mi", "new")]
     removed = [("mi", "old")]
-    renamed, added_left, removed_left = libupgradedoc.pair_renames(added, removed, baseline, current)
+    renamed, added_left, removed_left = libupgradedoccomments.pair_renames(added, removed, baseline, current)
     assert renamed == []
     assert added_left == [("mi", "new")]
     assert removed_left == [("mi", "old")]
 
 
-def test_pair_renames_pairs_identical_scalars(libupgradedoc):
+def test_pair_renames_pairs_identical_scalars(libupgradedoccomments):
     baseline = {"mi": {"oldName": "same-value"}}
     current = {"mi": {"newName": "same-value"}}
     added = [("mi", "newName")]
     removed = [("mi", "oldName")]
-    renamed, added_left, removed_left = libupgradedoc.pair_renames(added, removed, baseline, current)
+    renamed, added_left, removed_left = libupgradedoccomments.pair_renames(added, removed, baseline, current)
     assert renamed == [(("mi", "oldName"), ("mi", "newName"))]
 
 
-def test_pair_renames_ignores_different_parent_paths(libupgradedoc):
+def test_pair_renames_ignores_different_parent_paths(libupgradedoccomments):
     baseline = {"mi": {"a": {"x": 1}}}
     current = {"other": {"b": {"x": 1}}}
     added = [("other", "b")]
     removed = [("mi", "a")]
-    renamed, added_left, removed_left = libupgradedoc.pair_renames(added, removed, baseline, current)
+    renamed, added_left, removed_left = libupgradedoccomments.pair_renames(added, removed, baseline, current)
     assert renamed == []
     assert added_left == [("other", "b")]
     assert removed_left == [("mi", "a")]

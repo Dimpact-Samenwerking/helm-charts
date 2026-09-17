@@ -23,7 +23,15 @@ import lib.registry as registry
 import lib.release_baseline as release_baseline
 import lib.repo_access as repo_access
 import lib.repo_access_cache as repo_access_cache
-import lib.upgradedoc as upgradedoc
+import lib.upgradedoc_app_version_and_image_paths as upgradedoc_app_version_and_image_paths
+import lib.upgradedoc_consistency_checks as upgradedoc_consistency_checks
+import lib.upgradedoc_grouped_comments_and_changes_block as upgradedoc_grouped_comments_and_changes_block
+import lib.upgradedoc_images_manifest_list_diff as upgradedoc_images_manifest_list_diff
+import lib.upgradedoc_images_manifest_ordering as upgradedoc_images_manifest_ordering
+import lib.upgradedoc_resolve_component_row as upgradedoc_resolve_component_row
+import lib.upgradedoc_sorting_and_ordering as upgradedoc_sorting_and_ordering
+import lib.upgradedoc_string_and_parsing_basics as upgradedoc_string_and_parsing_basics
+import lib.upgradedoc_version_cells_and_key_changes as upgradedoc_version_cells_and_key_changes
 
 
 @pytest.fixture(scope="session")
@@ -82,8 +90,48 @@ def librelease_baseline():
 
 
 @pytest.fixture(scope="session")
-def libupgradedoc():
-    return upgradedoc
+def libupgradedocbasics():
+    return upgradedoc_string_and_parsing_basics
+
+
+@pytest.fixture(scope="session")
+def libupgradedocsorting():
+    return upgradedoc_sorting_and_ordering
+
+
+@pytest.fixture(scope="session")
+def libupgradedocconsistency():
+    return upgradedoc_consistency_checks
+
+
+@pytest.fixture(scope="session")
+def libupgradedocresolverow():
+    return upgradedoc_resolve_component_row
+
+
+@pytest.fixture(scope="session")
+def libupgradedocversioncells():
+    return upgradedoc_version_cells_and_key_changes
+
+
+@pytest.fixture(scope="session")
+def libupgradedocappversion():
+    return upgradedoc_app_version_and_image_paths
+
+
+@pytest.fixture(scope="session")
+def libupgradedocmanifestordering():
+    return upgradedoc_images_manifest_ordering
+
+
+@pytest.fixture(scope="session")
+def libupgradedocmanifestdiff():
+    return upgradedoc_images_manifest_list_diff
+
+
+@pytest.fixture(scope="session")
+def libupgradedoccomments():
+    return upgradedoc_grouped_comments_and_changes_block
 
 
 @pytest.fixture(scope="session")

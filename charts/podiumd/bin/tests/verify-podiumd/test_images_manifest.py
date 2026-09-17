@@ -34,8 +34,8 @@ REAL_MANIFEST = """\
 """
 
 
-def test_parse_changes_block_extracts_all_items(libupgradedoc):
-    items = libupgradedoc.parse_changes_block(REAL_MANIFEST)
+def test_parse_changes_block_extracts_all_items(libupgradedoccomments):
+    items = libupgradedoccomments.parse_changes_block(REAL_MANIFEST)
     assert len(items) == 2
     assert items[0]["name"] == "ZAC (Zaakafhandelcomponent)"
     assert items[0]["app_source"] == "5.0.2"
@@ -47,16 +47,16 @@ def test_parse_changes_block_extracts_all_items(libupgradedoc):
     assert items[1]["app"] == "0.11.0"
 
 
-def test_parse_changes_block_does_not_mistake_version_continuation_for_new_item(libupgradedoc):
+def test_parse_changes_block_does_not_mistake_version_continuation_for_new_item(libupgradedoccomments):
     """Regression: "1.17.1-static -> 1.19.0-static" on an indented
     continuation line must not be parsed as a bogus item #17."""
-    items = libupgradedoc.parse_changes_block(REAL_MANIFEST)
+    items = libupgradedoccomments.parse_changes_block(REAL_MANIFEST)
     names = [i["name"] for i in items]
     assert not any("17.1" in n for n in names)
 
 
-def test_parse_changes_block_no_changes_section(libupgradedoc):
-    assert libupgradedoc.parse_changes_block("# just a header\n# no changes block\n") == []
+def test_parse_changes_block_no_changes_section(libupgradedoccomments):
+    assert libupgradedoccomments.parse_changes_block("# just a header\n# no changes block\n") == []
 
 
 # --- check_images_manifest_changes_numbering ---

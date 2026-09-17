@@ -35,43 +35,59 @@ from lib.component_docs import (
 from lib.image_repository_check import find_images_without_repository
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc import (
+from lib.upgradedoc_app_version_and_image_paths import (
     actual_app_version,
-    changes_heading_has_app_version,
-    changes_heading_identities,
-    component_version_cell,
-    compute_changed_components,
-    diff_keys,
-    extract_source_version,
-    extract_target_version,
     find_all_image_and_version_paths,
-    find_changes_row_correspondence_gaps,
-    find_grouped_preceding_comment,
     find_image_tag_paths,
-    find_images_manifest_faulty_headers,
-    find_images_manifest_list_diff,
-    find_images_manifest_out_of_order_names,
-    find_out_of_order_names,
+    resolve_entry_image_path,
+)
+from lib.upgradedoc_consistency_checks import (
+    find_changes_row_correspondence_gaps,
     find_wrong_or_duplicate_dependency_claims,
+)
+from lib.upgradedoc_grouped_comments_and_changes_block import (
+    diff_keys,
+    find_grouped_preceding_comment,
+    pair_renames,
+    parse_changes_block,
+    path_display_name,
+)
+from lib.upgradedoc_images_manifest_list_diff import (
+    compute_changed_components,
+    find_images_manifest_list_diff,
+)
+from lib.upgradedoc_images_manifest_ordering import (
+    find_images_manifest_faulty_headers,
+    find_images_manifest_out_of_order_names,
     images_manifest_display_name_positions,
     images_manifest_entries_share_group,
     images_manifest_entry_positions,
     match_changes_item_display_name,
+)
+from lib.upgradedoc_resolve_component_row import (
+    changes_heading_has_app_version,
+    resolve_component_row,
+)
+from lib.upgradedoc_sorting_and_ordering import (
+    find_out_of_order_names,
+    parse_upgrade_doc_changes_blocks,
+    parse_values_delta_sections,
+    values_key_order,
+)
+from lib.upgradedoc_string_and_parsing_basics import (
+    changes_heading_identities,
+    extract_source_version,
+    extract_target_version,
     match_dependency,
     match_dependency_excluding_sidecar_names,
     normalize_version,
-    pair_renames,
-    parse_changes_block,
-    parse_upgrade_doc_changes_blocks,
-    parse_values_delta_sections,
-    path_display_name,
-    resolve_component_row,
-    resolve_entry_image_path,
-    strip_fenced_code_blocks,
-    values_key_order,
 )
-from lib.upgradedoc import (
+from lib.upgradedoc_string_and_parsing_basics import (
     parse_upgrade_doc_rows as _parse_upgrade_doc_rows,
+)
+from lib.upgradedoc_version_cells_and_key_changes import (
+    component_version_cell,
+    strip_fenced_code_blocks,
 )
 
 

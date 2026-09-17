@@ -31,31 +31,37 @@ from lib.chart import (
 )
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.release_baseline import resolve_baseline_chart_state
-from lib.upgradedoc import (
-    COMPONENT_VERSIONS_HEADING_RE,
-    _word_aligned_spans,
+from lib.upgradedoc_app_version_and_image_paths import (
     actual_app_version,
-    append_to_doc,
-    changes_heading_identities,
-    component_order_key,
-    component_version_cell,
-    extract_source_version,
-    find_grouped_preceding_comment_line,
-    image_manifest_version_text,
-    insertion_index,
-    match_dependency_excluding_sidecar_names,
-    match_native_component,
-    missing_key_change_lines_by_key,
-    normalize_name,
-    normalize_version,
-    parse_upgrade_doc_changes_blocks,
-    parse_upgrade_doc_rows,
-    parse_values_delta_sections,
-    replace_version_pair,
     resolve_entry_path,
-    strip_html_comments,
+)
+from lib.upgradedoc_grouped_comments_and_changes_block import find_grouped_preceding_comment_line
+from lib.upgradedoc_sorting_and_ordering import (
+    component_order_key,
+    insertion_index,
+    parse_upgrade_doc_changes_blocks,
+    parse_values_delta_sections,
     values_key_order,
     values_tree_position,
+)
+from lib.upgradedoc_string_and_parsing_basics import (
+    COMPONENT_VERSIONS_HEADING_RE,
+    _word_aligned_spans,
+    changes_heading_identities,
+    extract_source_version,
+    match_dependency_excluding_sidecar_names,
+    match_native_component,
+    normalize_name,
+    normalize_version,
+    parse_upgrade_doc_rows,
+)
+from lib.upgradedoc_version_cells_and_key_changes import (
+    append_to_doc,
+    component_version_cell,
+    image_manifest_version_text,
+    missing_key_change_lines_by_key,
+    replace_version_pair,
+    strip_html_comments,
     version_change_suffix,
 )
 
