@@ -54,8 +54,10 @@ def test_actual_app_version_image_tag_path_tried_before_version_path(libupgraded
     """The "image: {tag: ...}" pass always runs first — component_version_
     paths() is only ever a fallback for when NONE of a component's
     image_paths_for candidates resolved anything."""
+    import lib.upgradedoc_app_version_and_image_paths as app_version_and_image_paths
+
     monkeypatch.setattr(
-        libupgradedoc,
+        app_version_and_image_paths,
         "version_paths_for",
         lambda component, chart_dir=None: {"widget": ["fallback.version"]}.get(component, []),
     )
