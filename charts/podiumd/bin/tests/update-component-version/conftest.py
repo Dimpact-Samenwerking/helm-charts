@@ -11,6 +11,7 @@ instead (same convention as tests/verify-podiumd/conftest.py's lib*
 fixtures)."""
 
 import importlib.util
+import subprocess
 import sys
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -37,3 +38,24 @@ def ucv():
 @pytest.fixture(scope="session")
 def libcomponentdocs():
     return component_docs
+
+
+@pytest.fixture(autouse=True)
+def block_real_subprocess_calls(monkeypatch):
+    """main() shells out to fix-helm-doc via subprocess.run — fake
+    that (and anything else) here so a test can't accidentally run the real
+    script against the real repo. git commands still run for real, since
+    the hermetic tmp-repo tests (git() helper, init_git_repo) need them.
+    Returns the list of commands seen, for tests that want to assert what
+    main() invoked."""
+    calls = []
+    real_run = subprocess.run
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(cmd)
+        if cmd and cmd[0] == "git":
+            return real_run(cmd, *args, **kwargs)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    return calls
