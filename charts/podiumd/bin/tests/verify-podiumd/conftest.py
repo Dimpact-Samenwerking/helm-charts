@@ -13,6 +13,7 @@ imports, not a lib module's separate `from lib.procutil import run`
 binding. Use e.g. `libyamllintcheck` for those cases."""
 
 import importlib.util
+import subprocess
 import sys
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -187,3 +188,101 @@ def libdeadvaluescheck():
 @pytest.fixture(scope="session")
 def libsettings():
     return settings
+
+
+def _chart_repo_git(*args, cwd):
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+
+
+_CHART_REPO_CHART_YAML = """\
+apiVersion: v2
+name: podiumd
+version: 4.9.0
+dependencies:
+  - name: zaakafhandelcomponent
+    alias: zac
+    version: 1.0.297
+    repository: "@zac"
+"""
+
+_CHART_REPO_UPGRADE_DOC = """\
+# Upgrade guide: PodiumD {baseline} → 4.9.0
+
+## Component versions (4.9.0 vs {baseline})
+
+| Component | App version | Helm chart | Notes |
+| --- | --- | --- | --- |
+| ZAC (Zaakafhandelcomponent) | {app_source} → {app_target} | 1.0.297 (unchanged) | n/a |
+
+See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
+"""
+
+_CHART_REPO_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
+_CHART_REPO_VALUES_DELTAS_DOC = (
+    "# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
+    "## ZAC {app_source} → {app_target} (chart 1.0.297, unchanged) — image tag only\n\n"
+    "No gemeente podiumd.yml changes are required for this hop.\n"
+)
+_CHART_REPO_IMAGES_MANIFEST = """\
+# Baseline: podiumd {baseline} (test @ 0000000).
+#
+# Images new or changed in podiumd 4.9.0 vs {baseline}.
+#
+# Changes:
+#   1. ZAC (Zaakafhandelcomponent) {app_source} -> {app_target} (chart 1.0.297, unchanged).
+#
+# See docs/_UPGRADE_PATHS/{baseline}-to-4.9.0-upgrade.md for the operator upgrade notes.
+
+# ZAC — {app_source} -> {app_target}
+- name: zac
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "{app_target}"
+  digest: "sha256:abc"
+"""
+
+
+def _chart_repo_values_yaml(app_version):
+    return (
+        f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "{app_version}@sha256:abc"\n'
+    )
+
+
+@pytest.fixture
+def chart_repo(tmp_path):
+    """Baseline commit (tagged podiumd-4.8.5) has ZAC 5.0.2; HEAD bumps it to
+    5.4.3 and updates the matching docs to describe that exact change.
+
+    Shared across the test_docs_consistency_integration_*.py files (promoted
+    here since nearly every one of them uses it)."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    images_dir = chart_dir / "docs" / "images"
+    for d in (doc_dir, images_dir):
+        d.mkdir(parents=True)
+
+    _chart_repo_git("init", "-q", cwd=repo_root)
+    _chart_repo_git("config", "user.email", "test@example.com", cwd=repo_root)
+    _chart_repo_git("config", "user.name", "Test", cwd=repo_root)
+
+    (chart_dir / "Chart.yaml").write_text(_CHART_REPO_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(_chart_repo_values_yaml("5.0.2"))
+    _chart_repo_git("add", "-A", cwd=repo_root)
+    _chart_repo_git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    _chart_repo_git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    (chart_dir / "values.yaml").write_text(_chart_repo_values_yaml("5.4.3"))
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        _CHART_REPO_UPGRADE_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3")
+    )
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(_CHART_REPO_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        _CHART_REPO_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3")
+    )
+    (images_dir / "images-4.9.0.yaml").write_text(
+        _CHART_REPO_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3")
+    )
+    _chart_repo_git("add", "-A", cwd=repo_root)
+    _chart_repo_git("commit", "-q", "-m", "bump zac to 5.4.3", cwd=repo_root)
+
+    return chart_dir
