@@ -3,9 +3,9 @@
 {{- /*
 Group -> role mapping, kept in line with the groups section of
 keycloak-podiumd-realm-config.yaml. A functional role in the dataset that is
-missing here still gets its group, just without roles.
+missing here still gets its group and its own realm role (see below).
 */}}
-{{- $realmRoles := dict "administrators" (list "podiumd-admin") }}
+{{- $baseRealmRoles := dict "administrators" (list "podiumd-admin") }}
 {{- $zacRoles := dict
   "administrators" (list "domein_elk_zaaktype" "behandelaar" "beheerder" "coordinator" "raadpleger" "recordmanager")
   "behandelaars" (list "domein_elk_zaaktype" "behandelaar" "raadpleger")
@@ -16,21 +16,34 @@ missing here still gets its group, just without roles.
 }}
 {{- $pabcRoles := dict "administrators" (list "administrator") }}
 {{- $dataset := .Files.Get "files/pabc-dataset.json" | fromJson }}
+{{- /*
+ZAC sends the user's Keycloak REALM roles (realm_access.roles) to PABC as
+functional roles, not the group names. Every functional role therefore also
+needs a realm role with exactly that name, attached to the group of the same
+name, so group membership alone is enough for PABC to recognise the user.
+*/}}
+{{- $realmRoles := dict }}
+{{- range $fr := $dataset.functionalRoles }}
+{{- $_ := set $realmRoles $fr.name (prepend (get $baseRealmRoles $fr.name | default list) $fr.name) }}
+{{- end }}
 {{- $script := include "podiumd.pabcKeycloakGroups.script" (dict "Values" .Values "dataset" $dataset "realmRoles" $realmRoles "zacRoles" $zacRoles "pabcRoles" $pabcRoles) }}
 ---
 # Job: Keycloak side of the PABC seed.
 #
-# ZAC puts the user's group names in the group_membership claim and asks PABC
-# which application roles those functional roles grant. A seeded PABC is
-# therefore only useful when the podiumd realm has groups with exactly the
-# functional role names from files/pabc-dataset.json. The realm import only
-# creates those groups with keycloak.config.skipGroups/skipRoles: false, and
-# most environments keep the default true because keycloak-config-cli would
-# otherwise also rewrite the role mappings of groups they manage themselves.
+# ZAC asks PABC which application roles the user's functional roles grant, and
+# it takes those functional roles from the Keycloak REALM roles in the token
+# (realm_access.roles), not from the group_membership claim. A seeded PABC is
+# therefore only useful when the podiumd realm has, for every functional role
+# in files/pabc-dataset.json, a realm role with exactly that name, attached to
+# a group with the same name. The realm import creates the groups and roles
+# with keycloak.config.skipGroups/skipRoles: false, but most environments keep
+# the default true because keycloak-config-cli would otherwise also rewrite
+# the role mappings of groups they manage themselves.
 #
 # This Job fills that gap through the Keycloak admin API (kcadm.sh from the
 # Keycloak image, authenticated as the keycloak-operator service account):
-#   - creates the podiumd-admin realm role and the zac/pabc client roles if missing
+#   - creates a realm role per functional role, the podiumd-admin realm role
+#     and the zac/pabc client roles if missing
 #   - creates each functional role group if missing
 #   - adds the realm and client roles to those groups
 # Everything is additive: existing groups, roles and mappings are never
