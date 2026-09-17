@@ -22,3 +22,14 @@ def ecrt():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+@pytest.fixture(autouse=True)
+def isolate_chart_dir(ecrt, tmp_path, monkeypatch):
+    """extract_release_rows falls back to the real CHART_DIR (this
+    script's actual parent directory) when no chart_dir is passed
+    explicitly — tests that don't care about
+    check_target_matches_chart_version must not depend on whatever
+    charts/podiumd/Chart.yaml happens to say on disk (or which branch is
+    checked out) at test-run time."""
+    monkeypatch.setattr(ecrt, "CHART_DIR", tmp_path)
