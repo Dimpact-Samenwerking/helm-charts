@@ -1099,6 +1099,21 @@ data:
           description: PodiumD Administrator
         - name: DMT-Functioneel-Beheerder
           description: Datamigratie Functioneel Beheerder
+        # PABC functional roles: ZAC sends the user's realm roles to PABC, so
+        # each functional role in files/pabc-dataset.json needs a realm role
+        # with the same name (attached to the group of that name below).
+        - name: administrators
+          description: PABC functionele rol administrators
+        - name: behandelaars
+          description: PABC functionele rol behandelaars
+        - name: beheerders
+          description: PABC functionele rol beheerders
+        - name: coordinators
+          description: PABC functionele rol coordinators
+        - name: raadplegers
+          description: PABC functionele rol raadplegers
+        - name: recordmanagers
+          description: PABC functionele rol recordmanagers
       client:
         abc:
           - name: administrators
@@ -1159,6 +1174,7 @@ data:
             - "Administrators"
         realmRoles:
           - "podiumd-admin"
+          - "administrators"
         clientRoles:
           zac:
             - "recordmanager"
@@ -1203,6 +1219,8 @@ data:
         attributes:
           description:
             - "Behandelaars"
+        realmRoles:
+          - "behandelaars"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1213,6 +1231,8 @@ data:
         attributes:
           description:
             - "Coordinators"
+        realmRoles:
+          - "coordinators"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1224,6 +1244,8 @@ data:
         attributes:
           description:
             - "Recordmanagers"
+        realmRoles:
+          - "recordmanagers"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1236,6 +1258,8 @@ data:
         attributes:
           description:
             - "Beheerders"
+        realmRoles:
+          - "beheerders"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1249,6 +1273,8 @@ data:
         attributes:
           description:
             - "Raadplegers"
+        realmRoles:
+          - "raadplegers"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"

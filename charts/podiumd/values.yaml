@@ -3623,10 +3623,11 @@ pabc:
         memory: "512Mi"
     # Keycloak side of the seed: a second Job (pabc-keycloak-groups-job-*)
     # that makes sure every functional role in files/pabc-dataset.json exists
-    # as a group in the podiumd realm, with the podiumd-admin realm role and
-    # the zac/pabc client roles attached. ZAC reads the group names from the
-    # group_membership claim and asks PABC what they may do, so without these
-    # groups a seeded PABC still grants nothing. The Job only ever adds
+    # as a realm role and as a group in the podiumd realm, with that realm
+    # role, the podiumd-admin realm role and the zac/pabc client roles attached
+    # to the group. ZAC sends the user's realm roles (not the group names) to
+    # PABC as functional roles, so without these a seeded PABC still grants
+    # nothing. The Job only ever adds
     # (kcadm create/add-roles), it never removes groups, roles or mappings, so
     # it is safe next to skipGroups/skipRoles: true and next to groups a
     # municipality manages itself. Needs keycloak-operator.enabled and
