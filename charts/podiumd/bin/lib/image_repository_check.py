@@ -33,7 +33,7 @@ from lib.chart import (
     resolve_chart_values,
     version_repository_path_for,
 )
-from lib.upgradedoc import find_all_image_and_version_paths
+from lib.upgradedoc_app_version_and_image_paths import find_all_image_and_version_paths
 
 
 def find_images_without_repository(chart_dir, allow_pull=False):

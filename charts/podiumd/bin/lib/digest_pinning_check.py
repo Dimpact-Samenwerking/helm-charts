@@ -68,7 +68,10 @@ from lib.chart import (
 )
 from lib.render_scope import CHART_NAME, render_chart, rendered_chart_paths
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc import find_all_image_and_version_paths, find_image_tag_paths
+from lib.upgradedoc_app_version_and_image_paths import (
+    find_all_image_and_version_paths,
+    find_image_tag_paths,
+)
 
 # "@sha256:<64 hex chars>" at the end of a tag value — the same shape
 # lib.image_digests.DIGEST_PIN_RE requires, checked here as a suffix

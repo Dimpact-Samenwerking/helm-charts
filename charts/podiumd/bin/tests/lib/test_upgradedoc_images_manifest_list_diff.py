@@ -5,13 +5,13 @@ unmatched images-manifest entries, including digest-only repins)."""
 # --- find_images_manifest_list_diff ---
 
 
-def test_find_images_manifest_list_diff_exact_list_reports_nothing(libupgradedoc):
+def test_find_images_manifest_list_diff_exact_list_reports_nothing(libupgradedocmanifestdiff):
     """The manifest lists exactly the one image that actually changed —
     all three halves come back empty."""
     entries = [{"name": "zac"}]
     current_paths = {("zac",): "1.2.0@sha256:new"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set()
     )
     assert missing == []
@@ -19,13 +19,13 @@ def test_find_images_manifest_list_diff_exact_list_reports_nothing(libupgradedoc
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_finds_missing_changed_image(libupgradedoc):
+def test_find_images_manifest_list_diff_finds_missing_changed_image(libupgradedocmanifestdiff):
     """A path whose tag actually changed but has no manifest entry at all
     resolving to it is reported as missing."""
     entries = []
     current_paths = {("zac",): "1.2.0@sha256:new"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set()
     )
     assert missing == [("zac",)]
@@ -33,7 +33,7 @@ def test_find_images_manifest_list_diff_finds_missing_changed_image(libupgradedo
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_finds_entry_for_unchanged_image(libupgradedoc):
+def test_find_images_manifest_list_diff_finds_entry_for_unchanged_image(libupgradedocmanifestdiff):
     """An entry that resolves to a real path, but that path's tag is
     identical between baseline and current — listed without a real
     reason to be there. This is the "stale" bucket, distinct from an
@@ -43,7 +43,7 @@ def test_find_images_manifest_list_diff_finds_entry_for_unchanged_image(libupgra
     entries = [{"name": "zac"}]
     current_paths = {("zac",): "1.1.0@sha256:old"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set()
     )
     assert missing == []
@@ -51,7 +51,7 @@ def test_find_images_manifest_list_diff_finds_entry_for_unchanged_image(libupgra
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_finds_entry_matching_nothing(libupgradedoc):
+def test_find_images_manifest_list_diff_finds_entry_matching_nothing(libupgradedocmanifestdiff):
     """An entry whose name doesn't resolve to any values-tree path at
     all (typo, stale, or a component that's since been removed) lands
     in the SEPARATE "unmatched" bucket, not "stale" — it was never a
@@ -62,7 +62,7 @@ def test_find_images_manifest_list_diff_finds_entry_matching_nothing(libupgraded
     entries = [{"name": "does-not-exist"}]
     current_paths = {("zac",): "1.1.0@sha256:old"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set()
     )
     assert missing == []
@@ -70,7 +70,7 @@ def test_find_images_manifest_list_diff_finds_entry_matching_nothing(libupgraded
     assert unmatched == ["does-not-exist"]
 
 
-def test_find_images_manifest_list_diff_ignores_digest_only_repin_without_values(libupgradedoc):
+def test_find_images_manifest_list_diff_ignores_digest_only_repin_without_values(libupgradedocmanifestdiff):
     """Without values/baseline_values (the full trees resolved_digest_pin
     needs), the digest side of the comparison can never fire at all —
     collapsing back to the old, version-only behaviour. Every real
@@ -79,7 +79,7 @@ def test_find_images_manifest_list_diff_ignores_digest_only_repin_without_values
     entries = []
     current_paths = {("zac",): "1.1.0@sha256:newdigest"}
     baseline_paths = {("zac",): "1.1.0@sha256:olddigest"}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set()
     )
     assert missing == []
@@ -87,7 +87,7 @@ def test_find_images_manifest_list_diff_ignores_digest_only_repin_without_values
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_catches_digest_only_repin_when_both_sides_resolvable(libupgradedoc):
+def test_find_images_manifest_list_diff_catches_digest_only_repin_when_both_sides_resolvable(libupgradedocmanifestdiff):
     """A tag whose VERSION is unchanged but whose embedded digest DOES
     differ IS now reported as missing, given values/baseline_values —
     real case confirmed live against the real chart (clamav 1.5.4:
@@ -101,7 +101,7 @@ def test_find_images_manifest_list_diff_catches_digest_only_repin_when_both_side
     baseline_paths = {("zac",): "1.1.0@sha256:" + "a" * 64}
     values = {"zac": {"image": {"repository": "zac", "tag": "1.1.0@sha256:" + "b" * 64}}}
     baseline_values = {"zac": {"image": {"repository": "zac", "tag": "1.1.0@sha256:" + "a" * 64}}}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries,
         current_paths,
         baseline_paths,
@@ -116,7 +116,9 @@ def test_find_images_manifest_list_diff_catches_digest_only_repin_when_both_side
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_ignores_digest_only_repin_when_only_one_side_resolvable(libupgradedoc):
+def test_find_images_manifest_list_diff_ignores_digest_only_repin_when_only_one_side_resolvable(
+    libupgradedocmanifestdiff,
+):
     """A bare (non-digest-embedding) tag on one side, with no stored
     digest to compare against on that side, is left alone even with
     values/baseline_values given — there is nothing to diff (the
@@ -129,7 +131,7 @@ def test_find_images_manifest_list_diff_ignores_digest_only_repin_when_only_one_
     baseline_paths = {("zac",): "1.1.0@sha256:" + "a" * 64}
     values = {"zac": {"image": {"repository": "zac", "tag": "1.1.0"}}}
     baseline_values = {"zac": {"image": {"repository": "zac", "tag": "1.1.0@sha256:" + "a" * 64}}}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries,
         current_paths,
         baseline_paths,
@@ -144,7 +146,7 @@ def test_find_images_manifest_list_diff_ignores_digest_only_repin_when_only_one_
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_catches_split_tag_sha_digest_repin(libupgradedoc, tmp_path):
+def test_find_images_manifest_list_diff_catches_split_tag_sha_digest_repin(libupgradedocmanifestdiff, tmp_path):
     """keycloak-operator's own split tag:/sha: convention (see lib.
     settings.digest_pinning_exceptions/resolved_digest_pin) never embeds
     "@sha256" in the tag itself — the digest lives in a sibling "sha:"
@@ -163,7 +165,7 @@ def test_find_images_manifest_list_diff_catches_split_tag_sha_digest_repin(libup
     baseline_paths = {path: "26.0.0"}
     values = {"keycloak": {"image": {"repository": "keycloak/keycloak", "tag": "26.0.0", "sha": "b" * 64}}}
     baseline_values = {"keycloak": {"image": {"repository": "keycloak/keycloak", "tag": "26.0.0", "sha": "a" * 64}}}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries,
         current_paths,
         baseline_paths,
@@ -179,14 +181,14 @@ def test_find_images_manifest_list_diff_catches_split_tag_sha_digest_repin(libup
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_still_catches_a_real_version_change(libupgradedoc):
+def test_find_images_manifest_list_diff_still_catches_a_real_version_change(libupgradedocmanifestdiff):
     """A real version bump — even one that ALSO changes the digest, the
     normal shape for any real tag bump — is still reported as missing,
     same as always. Only a version-IDENTICAL digest re-pin is ignored."""
     entries = []
     current_paths = {("zac",): "1.2.0@sha256:newdigest"}
     baseline_paths = {("zac",): "1.1.0@sha256:olddigest"}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set()
     )
     assert missing == [("zac",)]
@@ -194,7 +196,7 @@ def test_find_images_manifest_list_diff_still_catches_a_real_version_change(libu
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_treats_brand_new_path_as_changed(libupgradedoc):
+def test_find_images_manifest_list_diff_treats_brand_new_path_as_changed(libupgradedocmanifestdiff):
     """A path with no baseline entry at all (a genuinely new image, not
     in baseline_paths) is still reported as missing — there is no
     "version" to compare it against, so it can never be mistaken for a
@@ -202,7 +204,7 @@ def test_find_images_manifest_list_diff_treats_brand_new_path_as_changed(libupgr
     entries = []
     current_paths = {("newcomponent", "image"): "1.0.0@sha256:aaaa"}
     baseline_paths = {}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set()
     )
     assert missing == [("newcomponent", "image")]
@@ -210,7 +212,7 @@ def test_find_images_manifest_list_diff_treats_brand_new_path_as_changed(libupgr
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_eck_operator_new_pin_still_reported_as_missing(libupgradedoc):
+def test_find_images_manifest_list_diff_eck_operator_new_pin_still_reported_as_missing(libupgradedocmanifestdiff):
     """Non-regression test: eck-operator's own image path (target has an
     explicit split "tag:"/"digest:" override; baseline has NO "image:"
     key at all under eck-operator, same shape as the real 4.9.1
@@ -237,7 +239,7 @@ def test_find_images_manifest_list_diff_eck_operator_new_pin_still_reported_as_m
     }
     baseline_values = {"eck-operator": {"enabled": True}}
 
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         [],
         current_paths,
         baseline_paths,
@@ -253,7 +255,9 @@ def test_find_images_manifest_list_diff_eck_operator_new_pin_still_reported_as_m
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_brand_new_path_always_changed_regardless_of_repo_match(libupgradedoc):
+def test_find_images_manifest_list_diff_brand_new_path_always_changed_regardless_of_repo_match(
+    libupgradedocmanifestdiff,
+):
     """Regression test: a path with no baseline entry at all (a
     component that didn't exist in Chart.yaml/values.yaml until this
     release, e.g. brppersonenmock, added in 4.9.0) is ALWAYS reported as
@@ -268,7 +272,7 @@ def test_find_images_manifest_list_diff_brand_new_path_always_changed_regardless
     baseline_paths = {}
     repo_map = {"brp-api/personen-mock": ("brppersonenmock", "image")}
     repo_groups = {"brp-api/personen-mock": [("brppersonenmock", "image")]}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set()
     )
     assert missing == [("brppersonenmock", "image")]
@@ -276,7 +280,7 @@ def test_find_images_manifest_list_diff_brand_new_path_always_changed_regardless
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_uses_repo_map_for_resolution(libupgradedoc):
+def test_find_images_manifest_list_diff_uses_repo_map_for_resolution(libupgradedocmanifestdiff):
     """Entry resolution goes through resolve_entry_image_path — a
     strip-registry-shaped name only matches via repo_map, same as that
     function's own exact-hit behavior."""
@@ -285,7 +289,7 @@ def test_find_images_manifest_list_diff_uses_repo_map_for_resolution(libupgraded
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
     repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
     repo_groups = {"infonl/zaakafhandelcomponent": [("zac",)]}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set()
     )
     assert missing == []
@@ -293,7 +297,7 @@ def test_find_images_manifest_list_diff_uses_repo_map_for_resolution(libupgraded
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_collapses_shared_repository_group(libupgradedoc):
+def test_find_images_manifest_list_diff_collapses_shared_repository_group(libupgradedocmanifestdiff):
     """Several paths sharing the same repository (e.g. every
     "<component>.nginx.image" sidecar aliasing the same shared
     global.images.nginx YAML anchor) are ONE image needing at most ONE
@@ -314,7 +318,7 @@ def test_find_images_manifest_list_diff_collapses_shared_repository_group(libupg
     repo_groups = {"nginxinc/nginx-unprivileged": list(current_paths.keys())}
     repo_map = {"nginxinc/nginx-unprivileged": ("openinwoner", "nginx", "image")}
 
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set()
     )
     assert missing == []
@@ -322,7 +326,7 @@ def test_find_images_manifest_list_diff_collapses_shared_repository_group(libupg
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_reports_shared_group_missing_once(libupgradedoc):
+def test_find_images_manifest_list_diff_reports_shared_group_missing_once(libupgradedocmanifestdiff):
     """The same shared-repository group, but with NO entry covering it
     at all — reported as missing exactly ONCE (the group's single
     representative path), never once per aliased usage site."""
@@ -338,7 +342,7 @@ def test_find_images_manifest_list_diff_reports_shared_group_missing_once(libupg
     repo_groups = {"nginxinc/nginx-unprivileged": list(current_paths.keys())}
     repo_map = {"nginxinc/nginx-unprivileged": ("openformulieren", "nginx", "image")}
 
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set()
     )
     assert missing == [("openformulieren", "nginx", "image")]
@@ -346,7 +350,7 @@ def test_find_images_manifest_list_diff_reports_shared_group_missing_once(libupg
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_ignores_non_representative_new_usage(libupgradedoc):
+def test_find_images_manifest_list_diff_ignores_non_representative_new_usage(libupgradedocmanifestdiff):
     """Real bug: kiss's own indexTemplateImage started aliasing curlimages/
     curl for the first time in 4.9.0 (no baseline value for THAT path at
     all — brand new usage, not a version bump), while global.images.curl
@@ -367,7 +371,7 @@ def test_find_images_manifest_list_diff_ignores_non_representative_new_usage(lib
     repo_groups = {"curlimages/curl": list(current_paths.keys())}
     repo_map = {"curlimages/curl": ("global", "images", "curl")}
 
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set()
     )
     assert missing == []
@@ -375,7 +379,9 @@ def test_find_images_manifest_list_diff_ignores_non_representative_new_usage(lib
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_representative_change_still_caught_despite_other_member(libupgradedoc):
+def test_find_images_manifest_list_diff_representative_change_still_caught_despite_other_member(
+    libupgradedocmanifestdiff,
+):
     """The flip side of the above: the representative itself DID change,
     even though some OTHER group member (not the representative) happens
     to be unchanged — still correctly reported as missing."""
@@ -391,13 +397,13 @@ def test_find_images_manifest_list_diff_representative_change_still_caught_despi
     repo_groups = {"nginxinc/nginx-unprivileged": list(current_paths.keys())}
     repo_map = {"nginxinc/nginx-unprivileged": ("global", "images", "nginx")}
 
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set()
     )
     assert missing == [("global", "images", "nginx")]
 
 
-def test_find_images_manifest_list_diff_excludes_unresolvable_path_from_missing(libupgradedoc):
+def test_find_images_manifest_list_diff_excludes_unresolvable_path_from_missing(libupgradedocmanifestdiff):
     """A path with no resolvable repository at all (real case:
     kiss.adapter.image — see lib.image_repository_check.
     find_images_without_repository's own docstring) isn't a real,
@@ -407,7 +413,7 @@ def test_find_images_manifest_list_diff_excludes_unresolvable_path_from_missing(
     entries = []
     current_paths = {("kiss", "adapter", "image"): "0.6.7@sha256:new"}
     baseline_paths = {("kiss", "adapter", "image"): "0.6.6@sha256:old"}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries,
         current_paths,
         baseline_paths,
@@ -420,7 +426,7 @@ def test_find_images_manifest_list_diff_excludes_unresolvable_path_from_missing(
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_flags_entry_for_unresolvable_path_as_stale(libupgradedoc):
+def test_find_images_manifest_list_diff_flags_entry_for_unresolvable_path_as_stale(libupgradedocmanifestdiff):
     """An entry that DOES resolve to a real path, but that path has no
     resolvable repository, is flagged too — such a path isn't a real
     image the manifest has any reason to list at all. It lands in
@@ -431,7 +437,7 @@ def test_find_images_manifest_list_diff_flags_entry_for_unresolvable_path_as_sta
     entries = [{"name": "adapter"}]
     current_paths = {("kiss", "adapter", "image"): "0.6.7@sha256:new"}
     baseline_paths = {("kiss", "adapter", "image"): "0.6.6@sha256:old"}
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries,
         current_paths,
         baseline_paths,
@@ -444,7 +450,7 @@ def test_find_images_manifest_list_diff_flags_entry_for_unresolvable_path_as_sta
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_deps_given_rejects_stripped_name_collision(libupgradedoc, tmp_path):
+def test_find_images_manifest_list_diff_deps_given_rejects_stripped_name_collision(libupgradedocmanifestdiff, tmp_path):
     """Regression test: the same real redis/redis-operator collision
     lib.chart.historical_app_version_for_path already guards against
     (see its own docstring) applies equally to this function's OWN
@@ -473,7 +479,7 @@ def test_find_images_manifest_list_diff_deps_given_rejects_stripped_name_collisi
     repo_groups = {"redis": [("global", "images", "redis")]}
     values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.0@sha256:bbbb"}}}}
 
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries,
         current_paths,
         baseline_paths,
@@ -491,7 +497,7 @@ def test_find_images_manifest_list_diff_deps_given_rejects_stripped_name_collisi
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_without_deps_keeps_old_name_only_behavior(libupgradedoc, tmp_path):
+def test_find_images_manifest_list_diff_without_deps_keeps_old_name_only_behavior(libupgradedocmanifestdiff, tmp_path):
     """The exact same fixture as the collision test above, but WITHOUT
     passing deps — this is deliberately preserved old (unsafe) name-only
     behavior for a caller with no Chart.yaml dependencies of its own to
@@ -514,7 +520,7 @@ def test_find_images_manifest_list_diff_without_deps_keeps_old_name_only_behavio
     repo_groups = {"redis": [("global", "images", "redis")]}
     values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.0@sha256:bbbb"}}}}
 
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries,
         current_paths,
         baseline_paths,
@@ -531,7 +537,7 @@ def test_find_images_manifest_list_diff_without_deps_keeps_old_name_only_behavio
     assert unmatched == []
 
 
-def test_find_images_manifest_list_diff_deps_given_preserves_real_historical_match(libupgradedoc, tmp_path):
+def test_find_images_manifest_list_diff_deps_given_preserves_real_historical_match(libupgradedocmanifestdiff, tmp_path):
     """The EXISTING working case (mi/brppersonenmock — same name AND
     same url, a genuine historical match) must still work unchanged once
     deps/expected_url cross-checking is active: a brand-new path whose
@@ -554,7 +560,7 @@ def test_find_images_manifest_list_diff_deps_given_preserves_real_historical_mat
     repo_groups = {"brp-api/personen-mock": [("brppersonenmock", "image")]}
     values = {"brppersonenmock": {"image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:aaaa"}}}
 
-    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         entries,
         current_paths,
         baseline_paths,

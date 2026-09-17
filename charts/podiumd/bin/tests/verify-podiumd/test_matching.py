@@ -5,52 +5,58 @@ wrong sibling path via naive longest-substring matching."""
 from dep_helpers import make_dep
 
 
-def test_match_dependency_by_name(libupgradedoc):
+def test_match_dependency_by_name(libupgradedocbasics):
     deps = [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")]
-    assert libupgradedoc.match_dependency("ZAC (Zaakafhandelcomponent)", deps) == deps[0]
+    assert libupgradedocbasics.match_dependency("ZAC (Zaakafhandelcomponent)", deps) == deps[0]
 
 
-def test_match_dependency_by_alias(libupgradedoc):
+def test_match_dependency_by_alias(libupgradedocbasics):
     deps = [make_dep("zgw-office-addin", "0.0.92")]
-    assert libupgradedoc.match_dependency("ZGW Office Add-in (frontend + backend)", deps) == deps[0]
+    assert libupgradedocbasics.match_dependency("ZGW Office Add-in (frontend + backend)", deps) == deps[0]
 
 
-def test_match_dependency_no_match_returns_none(libupgradedoc):
+def test_match_dependency_no_match_returns_none(libupgradedocbasics):
     deps = [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")]
-    assert libupgradedoc.match_dependency("Totally Fictitious Component", deps) is None
+    assert libupgradedocbasics.match_dependency("Totally Fictitious Component", deps) is None
 
 
-def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedoc):
+def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedocbasics):
     """ "mi" (mi-data's own alias) is a literal substring of
     "ensurePodiumdAdminUser" (inside "ad-mi-n") — a raw normalize_name(text)
     containment check would wrongly match it; word-boundary-aligned
     matching must not."""
     deps = [make_dep("mi-data", "1.0.0", alias="mi")]
-    assert libupgradedoc.match_dependency("Python (ensurePodiumdAdminUser init image)", deps) is None
+    assert libupgradedocbasics.match_dependency("Python (ensurePodiumdAdminUser init image)", deps) is None
 
 
-def test_match_dependency_prefers_longer_more_specific_match(libupgradedoc):
+def test_match_dependency_prefers_longer_more_specific_match(libupgradedocbasics):
     deps = [
         make_dep("zac", "1.0.297"),
         make_dep("zac-extended-thing", "1.0.0", alias="zacx"),
     ]
     # "zac" is a substring of "zacx" too, but the plain "zac" dep is the
     # better (exact) match for a doc row literally named "ZAC"
-    assert libupgradedoc.match_dependency("ZAC", deps)["name"] == "zac"
+    assert libupgradedocbasics.match_dependency("ZAC", deps)["name"] == "zac"
 
 
-def test_resolve_entry_path_exact_match(libupgradedoc):
+def test_resolve_entry_path_exact_match(libupgradedocappversion):
     paths = [("zac",), ("zac", "opa")]
-    assert libupgradedoc.resolve_entry_path("opa", paths) == ("zac", "opa")
+    assert libupgradedocappversion.resolve_entry_path("opa", paths) == ("zac", "opa")
 
 
-def test_resolve_entry_path_multi_word_entry(libupgradedoc):
+def test_resolve_entry_path_multi_word_entry(libupgradedocappversion):
     paths = [("zgw-office-addin", "frontend"), ("zgw-office-addin", "backend")]
-    assert libupgradedoc.resolve_entry_path("zgw-office-addin-frontend", paths) == ("zgw-office-addin", "frontend")
-    assert libupgradedoc.resolve_entry_path("zgw-office-addin-backend", paths) == ("zgw-office-addin", "backend")
+    assert libupgradedocappversion.resolve_entry_path("zgw-office-addin-frontend", paths) == (
+        "zgw-office-addin",
+        "frontend",
+    )
+    assert libupgradedocappversion.resolve_entry_path("zgw-office-addin-backend", paths) == (
+        "zgw-office-addin",
+        "backend",
+    )
 
 
-def test_resolve_entry_path_disambiguates_sibling_paths_by_last_word(libupgradedoc):
+def test_resolve_entry_path_disambiguates_sibling_paths_by_last_word(libupgradedocappversion):
     """Regression test: zac-solr must resolve to zac.solr-operator.solr, not
     zac.solr-operator.zookeeper-operator.zookeeper, even though both paths
     start with the same "zac"+"solr"+"operator" prefix. Naive
@@ -60,13 +66,13 @@ def test_resolve_entry_path_disambiguates_sibling_paths_by_last_word(libupgraded
         ("zac", "solr-operator", "solr"),
         ("zac", "solr-operator", "zookeeper-operator", "zookeeper"),
     ]
-    assert libupgradedoc.resolve_entry_path("zac-solr", paths) == ("zac", "solr-operator", "solr")
+    assert libupgradedocappversion.resolve_entry_path("zac-solr", paths) == ("zac", "solr-operator", "solr")
 
 
-def test_resolve_entry_path_no_match_returns_none(libupgradedoc):
+def test_resolve_entry_path_no_match_returns_none(libupgradedocappversion):
     paths = [("zac", "opa")]
-    assert libupgradedoc.resolve_entry_path("totally-unrelated", paths) is None
+    assert libupgradedocappversion.resolve_entry_path("totally-unrelated", paths) is None
 
 
-def test_resolve_entry_path_empty_entry_name(libupgradedoc):
-    assert libupgradedoc.resolve_entry_path("", [("zac",)]) is None
+def test_resolve_entry_path_empty_entry_name(libupgradedocappversion):
+    assert libupgradedocappversion.resolve_entry_path("", [("zac",)]) is None

@@ -87,9 +87,10 @@ from lib.image_version import image_basename, update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo, registry_tag_exists
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc import (
-    compute_changed_components, describe_key_changes, normalize_version, resolve_baseline_component_versions,
-)
+from lib.upgradedoc_app_version_and_image_paths import resolve_baseline_component_versions
+from lib.upgradedoc_images_manifest_list_diff import compute_changed_components
+from lib.upgradedoc_string_and_parsing_basics import normalize_version
+from lib.upgradedoc_version_cells_and_key_changes import describe_key_changes
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 CHART_DIR = SCRIPT_DIR.parents[0]
