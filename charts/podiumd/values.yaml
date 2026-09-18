@@ -3237,7 +3237,7 @@ clamav:
     enabled: false
     image:
       repository: docker.io/sergeymakinen/clamav_exporter
-      tag: "v2.1.8@sha256:ac0e23e6b718f265f67de68d9fccbb8e9baccedeba19658fd78dd8a606508e24"
+      tag: "v2.1.9@sha256:ac694b06337090d0ad1d5fb3a44f46e905bdd3f1901758587ae0d650854f8600"
     serviceMonitor:
       enabled: false
   nameOverride: clamav
