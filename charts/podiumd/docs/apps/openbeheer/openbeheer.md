@@ -249,9 +249,9 @@ Disabled by default. First provision everything in the [§ Resources](#resources
      configuration:
        oidcUrl: https://openbeheer.<env>.example.nl
        secrets:
-         keycloak_client_secret: "REP_OPENBEHEER_KEYCLOAK_CLIENT_SECRET_REP"
-         openzaak_openbeheer_secret: "REP_OPENBEHEER_OPENZAAK_SECRET_REP"
-         objecttypen_openbeheer_token: "REP_OPENBEHEER_OBJECTTYPEN_TOKEN_REP"
+         keycloak_client_secret: "REP_OPENBEHEER_OIDC_SECRET_REP"
+         openzaak_openbeheer_secret: "REP_OPENZAAK_OPENBEHEER_SECRET_REP"
+         objecttypen_openbeheer_token: "REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
        data: |-
          oidc_db_config_enable: true
          oidc_db_config_admin_auth:
@@ -306,7 +306,7 @@ Disabled by default. First provision everything in the [§ Resources](#resources
          host: <pg-host>
          name: openbeheer
          username: openbeheer
-         password: "REP_OPENBEHEER_DB_PASSWORD_REP"
+         password: "REP_OPENBEHEER_DATABASE_PASSWORD_REP"
    ```
 
    > `value_from: {env: VAR}` pulls from `configuration.secrets`; the literal `REP_..._REP`
