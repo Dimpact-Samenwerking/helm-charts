@@ -24,6 +24,33 @@
 {{- end }}
 {{- end }}
 {{- end -}}
+{{- /* oidcUrl validation: every component whose Keycloak client is rendered below must carry a
+     real configuration.oidcUrl. The chart ships example.nl defaults, and an unset value renders a
+     syntactically valid client whose redirect URIs point at example.nl — the deploy then succeeds
+     and every login fails with "Invalid parameter: redirect_uri". Fail the render instead, so the
+     mistake surfaces at deploy time rather than at the first login attempt.
+     Components disabled via .enabled=false are skipped; a component with no enabled flag is
+     always deployed and is therefore always checked. See IN-2868. */ -}}
+{{- $oidcClients := list
+  (dict "name" "openzaak"          "enabled" .Values.openzaak.enabled          "oidcUrl" .Values.openzaak.configuration.oidcUrl)
+  (dict "name" "openarchiefbeheer" "enabled" .Values.openarchiefbeheer.enabled "oidcUrl" .Values.openarchiefbeheer.configuration.oidcUrl)
+  (dict "name" "opennotificaties"  "enabled" .Values.opennotificaties.enabled  "oidcUrl" .Values.opennotificaties.configuration.oidcUrl)
+  (dict "name" "objecten"          "enabled" .Values.objecten.enabled          "oidcUrl" .Values.objecten.configuration.oidcUrl)
+  (dict "name" "objecttypen"       "enabled" .Values.objecttypen.enabled       "oidcUrl" .Values.objecttypen.configuration.oidcUrl)
+  (dict "name" "openklant"         "enabled" .Values.openklant.enabled         "oidcUrl" .Values.openklant.configuration.oidcUrl)
+  (dict "name" "openformulieren"   "enabled" .Values.openformulieren.enabled   "oidcUrl" .Values.openformulieren.configuration.oidcUrl)
+  (dict "name" "openinwoner"       "enabled" .Values.openinwoner.enabled       "oidcUrl" .Values.openinwoner.configuration.oidcUrl)
+  (dict "name" "referentielijsten" "enabled" .Values.referentielijsten.enabled "oidcUrl" .Values.referentielijsten.configuration.oidcUrl)
+  (dict "name" "openbeheer"        "enabled" .Values.openbeheer.enabled        "oidcUrl" .Values.openbeheer.configuration.oidcUrl)
+  (dict "name" "openbao"           "enabled" .Values.openbao.enabled           "oidcUrl" .Values.openbao.configuration.oidcUrl)
+-}}
+{{- range $oidcClients }}
+{{- if not (eq .enabled false) }}
+{{- if or (empty .oidcUrl) (contains "example.nl" (.oidcUrl | toString)) }}
+{{- fail (printf "%s: configuration.oidcUrl is not set for this environment (found %q). The Keycloak client's redirect URIs are derived from it, so the deploy would succeed and every login would fail with 'Invalid parameter: redirect_uri'. Set it to the public https URL of %s." .name (.oidcUrl | toString) .name) }}
+{{- end }}
+{{- end }}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
