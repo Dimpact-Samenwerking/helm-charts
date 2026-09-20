@@ -232,12 +232,16 @@ def _print_image_upgrade_findings(scan, total, ttl_days):
     """Prints check_image_upgrades' three report sections (own/partner-
     vendor/other-vendor), the OK-line/fetch-errors sections, and the
     cache-hit summary line -- see check_image_upgrades' own docstring for
-    what each section means."""
+    what each section means. The OK-line is only printed when every image
+    was actually checked: scan.images holds successfully-checked entries
+    only, so with fetch errors "no newer tag" would be vacuously true."""
     print_upgradable("Own images", scan.own_refs, scan.images)
     print_upgradable("Partner-vendor images", scan.partner_refs, scan.images)
     print_upgradable("Other-vendor images", scan.other_refs, scan.images)
 
-    if not any(info["has_newer"] for info in scan.images.values()):
+    if scan.fetch_errors:
+        print(f"INCOMPLETE: {len(scan.fetch_errors)}/{total} image(s) could not be checked for a newer tag")
+    elif not any(info["has_newer"] for info in scan.images.values()):
         print("OK: no newer tag published for any pinned image")
 
     if scan.fetch_errors:
