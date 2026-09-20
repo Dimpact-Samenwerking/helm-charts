@@ -204,7 +204,10 @@ def vendored_state_matches_chart_yaml(chart_dir):
     at all — check_dependencies' own full rebuild-from-scratch path is
     the safe fallback for every one of those, exactly as if this check
     didn't exist at all."""
-    chart_deps, problems = _dependency_state(chart_dir)
+    try:
+        chart_deps, problems = _dependency_state(chart_dir)
+    except (OSError, yaml.YAMLError, KeyError, TypeError):
+        return False
     return bool(chart_deps) and not problems
 
 

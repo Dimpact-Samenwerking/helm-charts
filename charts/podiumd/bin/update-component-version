@@ -586,15 +586,18 @@ def _resolve_against_baseline(ctx, baseline_deps, baseline_values, friendly):
     return old_app, old_chart, reset_to_baseline
 
 
-def _resolve_baseline_comparison(ctx, target, old_app_by_path):
+def _resolve_baseline_comparison(ctx, target, old_app_by_path, paths_to_update):
     """Compare against the TRUE release upgrade_docs_baseline (git-
     resolved), not "whatever this script last left on disk" — the only
     way a component bumped more than once in one cycle still documents as
-    ONE baseline -> final transition. Returns a BaselineComparison."""
+    ONE baseline -> final transition. Returns a BaselineComparison. The
+    fallback old app version comes from the first path that actually
+    changed, not always ctx.image_paths[0], which missed bumps to a later
+    image path."""
     friendly = ctx.values_key
     # Fallback "old" values when upgrade_docs_baseline can't be resolved.
     old_chart = None if ctx.no_chart else str(ctx.dep["version"])
-    old_app = old_app_by_path.get(ctx.image_paths[0])
+    old_app = old_app_by_path.get(paths_to_update[0] if paths_to_update else ctx.image_paths[0])
 
     upgrade_docs_baseline = _read_upgrade_docs_baseline(CHART_DIR)
     upgrade_path, values_deltas_path = baseline_doc_paths(upgrade_docs_baseline, target)
@@ -858,7 +861,7 @@ def main():
         print(f"  {old_v}  ->  {new_v}")
 
     target = current_chart_version()
-    comparison = _resolve_baseline_comparison(ctx, target, old_app_by_path)
+    comparison = _resolve_baseline_comparison(ctx, target, old_app_by_path, paths_to_update)
 
     _update_upgrade_doc_section(ctx, comparison, target, paths_to_update)
     _update_values_deltas_section(ctx, comparison)

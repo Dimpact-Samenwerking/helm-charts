@@ -33,6 +33,16 @@ def test_find_child_key_line_ignores_deeper_nested_same_name():
     assert idx == 1
 
 
+def test_find_child_key_line_returns_none_when_only_a_deeper_nested_match_exists(ucv):
+    lines = [
+        "image:\n",
+        "  other: 1\n",
+        "  nested:\n",
+        "    tag: inner\n",
+    ]
+    assert ucv.find_child_key_line(lines, "tag", 0, 0, len(lines)) is None
+
+
 # --- locate_dotted_key_line ---
 
 

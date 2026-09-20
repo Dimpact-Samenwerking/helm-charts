@@ -194,15 +194,26 @@ def find_images_manifest_changes_items_out_of_order(text, entries, entry_positio
         return []
 
     keys = []
+    resolved = []
     for rest, _start, _end in items:
         display_name = match_changes_item_display_name(rest, display_name_positions)
         if display_name is not None:
             keys.append(display_name_positions[display_name])
+            resolved.append(True)
+            continue
+        entry = match_changes_item_to_entry(rest, entries)
+        if entry and entry["name"] in entry_positions:
+            keys.append(entry_positions[entry["name"]])
+            resolved.append(True)
         else:
-            entry = match_changes_item_to_entry(rest, entries)
-            keys.append(entry_positions.get(entry["name"], len(entry_positions)) if entry else len(entry_positions))
+            keys.append(len(entry_positions))
+            resolved.append(False)
 
-    return [(items[i][0], items[i + 1][0]) for i in range(len(items) - 1) if keys[i + 1] < keys[i]]
+    return [
+        (items[i][0], items[i + 1][0])
+        for i in range(len(items) - 1)
+        if resolved[i] and resolved[i + 1] and keys[i + 1] < keys[i]
+    ]
 
 
 def _covered_changes_display_names(lines, entries, display_name_positions, resolution):
@@ -555,13 +566,22 @@ def _entry_comment_version_mismatches(name, entry, comment, resolution, baseline
 def _entry_comment_issues(name, lines, resolved, entry_line_indices, baseline_paths):
     """One issue per images-manifest entry whose own preceding comment
     is missing, or whose target/source app version disagrees with the
-    entry's own actual version / upgrade_docs_baseline's actual value."""
+    entry's own actual version / upgrade_docs_baseline's actual value.
+    A single issue instead when the parsed entries and the "- name:"
+    lines differ in count (a valid but differently-formatted entry), since
+    entries can't then be paired with their comments."""
 
     def same_group(entry_a, entry_b):
         return images_manifest_entries_share_group(
             entry_a, entry_b, resolved.resolution.current_paths, resolved.resolution.repo_map
         )
 
+    if len(resolved.entries) != len(entry_line_indices):
+        return [
+            f"{name}: found {len(resolved.entries)} manifest entries but "
+            f'{len(entry_line_indices)} lines matched by "^-\\s*name:" -- cannot '
+            f"reliably match entries to their preceding comments"
+        ]
     issues = []
     for index, (entry, _line_idx) in enumerate(zip(resolved.entries, entry_line_indices, strict=True)):
         comment = find_grouped_preceding_comment(lines, resolved.entries, entry_line_indices, index, same_group)

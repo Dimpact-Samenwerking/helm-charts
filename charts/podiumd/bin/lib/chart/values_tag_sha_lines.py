@@ -26,23 +26,27 @@ def find_block_end(lines: list[str], block_start: int, indent: int) -> int:
 
 def find_child_key_line(lines: list[str], key: str, parent_indent: int, block_start: int, block_end: int) -> int | None:
     """The immediate child "<key>:" line inside [block_start, block_end) —
-    smallest indent strictly greater than parent_indent, so a same-named key
-    nested deeper inside a grandchild block is never mistaken for it."""
+    matched only at the block's own immediate-child indent level, so a
+    same-named key nested deeper under a sibling sub-block is never
+    mistaken for a direct child that doesn't actually exist."""
     key_re = re.compile(rf"^(\s*){re.escape(key)}:\s*(.*)$")
     candidates = []
+    child_indents = []
     for i in range(block_start, block_end):
         line = lines[i]
         if not line.strip() or line.lstrip().startswith("#"):
             continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent > parent_indent:
+            child_indents.append(indent)
         m = key_re.match(line)
-        if m:
-            indent = len(m.group(1))
-            if indent > parent_indent:
-                candidates.append((indent, i))
-    if not candidates:
+        if m and len(m.group(1)) > parent_indent:
+            candidates.append((len(m.group(1)), i))
+    if not candidates or not child_indents:
         return None
-    candidates.sort()
-    return candidates[0][1]
+    child_level = min(child_indents)
+    at_child_level = [i for indent, i in candidates if indent == child_level]
+    return at_child_level[0] if at_child_level else None
 
 
 def locate_dotted_key_line(lines: list[str], dotted_path: str) -> tuple[int, int] | None:
