@@ -1,8 +1,10 @@
 """Update the docs for a shared image basename's version bump — the
-"Component versions" table row, "## Changes" section, values-deltas
-bullet, and images-<target>.yaml entry, all keyed by the basename/
-repository itself rather than any one consuming component's values-tree
-path. Used only when a basename bump (lib.image.version.
+"Component versions" table row, "## Changes" section, and
+images-<target>.yaml entry, all keyed by the basename/repository itself
+rather than any one consuming component's values-tree path. Does NOT
+touch values-deltas.md — that doc tracks per-component key add/remove
+deltas, which don't apply to a bare basename bump with no Chart.yaml
+component identity of its own. Used only when a basename bump (lib.image.version.
 update_image_version) actually touches more than one Chart.yaml
 component — a bump resolving to exactly one component (e.g. via a
 dependency alias like "openklant") gets the SAME full-fidelity treatment
@@ -63,7 +65,6 @@ from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
-from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
@@ -321,7 +322,7 @@ def build_changes_section_for_row(row, ident, deps, target):
     names a "dep" identity whose Chart.yaml dependency can't be found
     (shouldn't happen — ident was itself resolved against `deps`)."""
     kind, value = ident
-    if row["app"] is None:
+    if row["app"] is None or row["app"] == "-":
         chart_bit = row["chart"] or row["chart_source"] or "-"
         return (
             f"### {row['name']} {chart_bit}\n\n"
@@ -578,13 +579,16 @@ def _manifest_header_items(lines, header_idx):
 
 
 def _find_manifest_header_item(lines, item_indices, basename):
-    """Index within item_indices whose own item text mentions `basename`
-    (normalized), or None. Shared by update_image_manifest/remove_
-    image_manifest_entry."""
-    norm_basename = normalize_name(basename)
+    """Index within item_indices whose own item text starts with
+    `basename` followed by a space (case-insensitive), or None. Shared by
+    update_image_manifest/remove_image_manifest_entry. An exact prefix,
+    never a normalize_name substring check: that strips hyphens along
+    with everything else, so "nginx" would wrongly match inside
+    "nginx-unprivileged"."""
+    prefix = basename.lower() + " "
     for idx in item_indices:
         m = CHANGES_ITEM_RE.match(lines[idx])
-        if m and norm_basename in normalize_name(m.group("rest")):
+        if m and m.group("rest").strip().lower().startswith(prefix):
             return idx
     return None
 
