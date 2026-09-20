@@ -205,7 +205,8 @@ def rendered_chart_paths(rendered_text):
     owning dependency (or nested dependency — see lib.chart.
     resolve_subchart_default) genuinely renders right now, instead of
     just being vendored on disk."""
-    paths = set(chart_tree_paths(rendered_text))
+    source_lines = "\n".join(line for line in rendered_text.splitlines() if line.startswith("# Source: "))
+    paths = set(chart_tree_paths(source_lines))
     ancestors = set()
     for path in paths:
         segments = path.split("/charts/")
@@ -259,20 +260,20 @@ def friendly_vendor_charts(chart_dir):
 
     chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
     deps = chart_yaml.get("dependencies", [])
-    dep_chart_names = {dep.get("alias", dep["name"]) for dep in deps}
+    dep_chart_names = {dep.get("alias") or dep["name"] for dep in deps}
 
     # Only apply an override for a chart that's actually a dependency here
     # — otherwise a name collision with some unrelated future dependency
     # would silently inherit an override meant for a specific chart.
     mapping = {name: vendor for name, vendor in chart_overrides.items() if name in dep_chart_names}
     for dep in deps:
-        chart_name = dep.get("alias", dep["name"])
+        chart_name = dep.get("alias") or dep["name"]
         repo = resolve_dependency_repo(dep.get("repository", ""), required_repos)
         if repo.startswith("file://"):
             mapping[chart_name] = "Local"
             continue
         for keyword, vendor in keywords.items():
-            if keyword in repo.lower():
+            if keyword.lower() in repo.lower():
                 mapping[chart_name] = vendor
                 break
     return mapping
