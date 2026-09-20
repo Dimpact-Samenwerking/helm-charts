@@ -116,14 +116,17 @@ class SiblingWrite:
     label: str
 
 
-def write_tag_and_sha(lines: list[str], location: tuple[int, int, int | None], write: SiblingWrite) -> None:
+def write_tag_and_sha(lines: list[str], location: tuple[int, int, int | None], write: SiblingWrite) -> bool:
     """Write write.new_version/new_digest_hex into the "tag:"/sibling-field
     lines at `location` (locate_tag_and_sha's own return value), inserting
     a sibling line if none exists. Either line is skipped instead, with a
-    printed note, if it's a bare YAML alias reference. Mutates `lines`."""
+    printed note, if it's a bare YAML alias reference. Mutates `lines`.
+    Returns whether the tag line itself was written (False for a live
+    alias, which keeps resolving to its anchor's value)."""
     tag_line_index, tag_indent, sibling_line_index = location
     sibling_value = f"sha256:{write.new_digest_hex}" if write.sibling_field == "digest" else write.new_digest_hex
-    if is_alias_reference_line(lines[tag_line_index]):
+    tag_written = not is_alias_reference_line(lines[tag_line_index])
+    if not tag_written:
         print(f"  {write.label}.tag: *alias reference — inherits from its own anchor, not written directly")
     else:
         lines[tag_line_index] = replace_scalar_value(lines[tag_line_index], write.new_version)
@@ -138,3 +141,4 @@ def write_tag_and_sha(lines: list[str], location: tuple[int, int, int | None], w
     else:
         indent_str = " " * tag_indent
         lines.insert(tag_line_index + 1, f'{indent_str}{write.sibling_field}: "{sibling_value}"\n')
+    return tag_written

@@ -481,10 +481,11 @@ def _write_split_tag_sha_pins(ctx, split_paths, split_tag_sha_paths, acc):
         located = locate_tag_and_sha(values_lines, ctx.values_key, path, sibling_field)
         if located is None:
             raise SystemExit(f"error: could not find '{ctx.values_key}.{path}.tag' in {VALUES_YAML}")
-        write_tag_and_sha(
+        tag_written = write_tag_and_sha(
             values_lines, located, SiblingWrite(ctx.app_version, digest_hex, sibling_field, f"{ctx.values_key}.{path}")
         )
-        acc.new_tags_by_path[path] = f"{ctx.app_version}@sha256:{digest_hex}"
+        if tag_written:
+            acc.new_tags_by_path[path] = f"{ctx.app_version}@sha256:{digest_hex}"
         sibling_idx = located[2]
         print(
             f"  {ctx.values_key}.{path}: {host}/{repo_path}:{ctx.app_version} -> sha256:{digest_hex}"
@@ -865,7 +866,9 @@ def main():
 
     print()
     print("=== Regenerating README.md (fix-helm-doc) ===")
-    run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
+    fix_helm_doc_result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
+    if fix_helm_doc_result.returncode != 0:
+        raise SystemExit(f"error: fix-helm-doc failed (exit {fix_helm_doc_result.returncode}) — README.md was not regenerated")
 
     # The doc steps above only read a vendored .tgz whose version didn't change.
     print()
