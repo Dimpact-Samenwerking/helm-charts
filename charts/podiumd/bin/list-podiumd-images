@@ -126,7 +126,10 @@ def safe_extract_tgz(tgz_path, dest):
     crafted archive with "../"-escaping member names could write outside
     `dest`. The .tgz here comes from this repo's own vendored charts/
     directory, not attacker-controlled input, but the check is cheap and
-    makes that assumption explicit rather than implicit.
+    makes that assumption explicit rather than implicit. Where the Python
+    version has it, filter="data" is passed as well: it also rejects
+    symlink/hardlink members pointing outside dest, absolute paths and
+    device files, which the member-name check above can't see.
     """
     dest_resolved = dest.resolve()
     with tarfile.open(tgz_path) as tf:
@@ -135,7 +138,10 @@ def safe_extract_tgz(tgz_path, dest):
             if member_path != dest_resolved and dest_resolved not in member_path.parents:
                 raise SystemExit(f"error: {tgz_path} member '{member.name}' would extract outside {dest}")
         # Member paths validated above.
-        tf.extractall(dest)  # nosec B202
+        if hasattr(tarfile, "data_filter"):
+            tf.extractall(dest, filter="data")
+        else:
+            tf.extractall(dest)  # nosec B202
 
 
 def load_chart(dep, tmproot, refresh):
