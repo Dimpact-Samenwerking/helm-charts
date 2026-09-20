@@ -181,8 +181,10 @@ def resolve_pin_repo(lines, tag_line_index, tag_indent):
         if m:
             return m.group("repo")
     for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
-        m = COMMENTED_REPO_RE.match(lines[i])
-        if m:
+        raw = lines[i]
+        m = COMMENTED_REPO_RE.match(raw)
+        indent = len(raw) - len(raw.lstrip(" "))
+        if m and indent == tag_indent:
             return m.group("repo")
     return None
 
