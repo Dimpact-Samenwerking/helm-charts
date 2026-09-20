@@ -591,8 +591,6 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
     assert ok is True
 
     out = capsys.readouterr().out
-    # display_ref (tag-based) is still what's shown to a human — only the
-    # actual scan target underneath is digest-based now.
     assert "ghcr.io/wearefrank/frank-gateway:104 upgradable to 105" in out
     assert "docker.io/maykinmedia/objects-api:1.0.0 [Maykin]\n" in out  # no marker: no cache entry
 

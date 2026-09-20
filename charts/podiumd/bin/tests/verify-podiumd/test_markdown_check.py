@@ -7,11 +7,7 @@ from types import SimpleNamespace
 
 
 def pymarkdown_result(stdout, returncode=4, stderr=""):
-    # 4 (not the old default of 1) matches --return-code-scheme explicit's
-    # "findings reported" exit code, now passed explicitly in the real
-    # invocation — see check_markdown's own fix for why: the OLD default
-    # scheme returns the same exit code (1) for "found real findings" and
-    # "the given path doesn't exist", making the two indistinguishable.
+    # Default 4: --return-code-scheme explicit's "findings reported" code.
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
@@ -208,12 +204,6 @@ def test_no_findings_passes(libmarkdowncheck, vp, tmp_path, monkeypatch, capsys)
 
 
 def test_a_pymarkdown_crash_is_reported_as_a_failure_not_a_clean_pass(libmarkdowncheck, vp, tmp_path, monkeypatch):
-    # Regression test: pymarkdown's OWN default return-code scheme returns
-    # the identical exit code (1) for "found real findings" and "a genuine
-    # failure" (e.g. a bad path), which check_markdown used to not check at
-    # all — any crash with output that didn't match MARKDOWN_FINDING_RE
-    # silently returned a clean pass. --return-code-scheme explicit gives a
-    # real, disjoint failure code (anything other than 0 clean / 4 findings).
     chart_dir = make_chart_dir(tmp_path, files={"docs/foo.md": "# a\n"})
     monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
     monkeypatch.setattr(
