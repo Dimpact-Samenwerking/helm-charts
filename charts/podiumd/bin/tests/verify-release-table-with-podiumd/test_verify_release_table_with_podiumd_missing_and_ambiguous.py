@@ -273,6 +273,30 @@ def test_compare_reports_ambiguous_when_basename_pinned_at_multiple_versions(vrt
     assert "mismatches" not in findings
 
 
+def test_compare_reports_ambiguous_when_unscoped_basename_matches_different_repos(vrt):
+    """A basename absent from the row's own scope but present under two
+    unrelated sibling scopes with DIFFERENT repositories (the real "redis"
+    collision: quay.io/opstree/redis vs. an unrelated redis pin) must not be
+    silently trusted just because both happen to pin the same version."""
+    block = (
+        "zac:\n"
+        "  image:\n"
+        f'    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.4.3@sha256:{DIGEST}"\n'
+        "redis-operator:\n"
+        "  image:\n"
+        f'    repository: quay.io/opstree/redis\n    tag: "7.2.0@sha256:{DIGEST}"\n'
+        "global:\n"
+        "  images:\n"
+        "    redis:\n"
+        f'      repository: docker.io/library/redis\n      tag: "7.2.0@sha256:{DIGEST}"\n'
+    )
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="redis", target_app="7.2.0")]
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(block)))
+    assert any("matches 2 different repositories" in m for m in findings["ambiguous"])
+    assert "mismatches" not in findings
+
+
 # --- compare(): unresolved components ---
 
 

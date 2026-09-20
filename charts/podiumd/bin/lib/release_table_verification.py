@@ -527,7 +527,9 @@ def check_images(ref, rows, state, findings):
     verifiable target_version_app, recording a mismatch (see
     _record_image_result) when they disagree. A pin resolving to more
     than one distinct version is reported as "ambiguous" instead of
-    compared. After the per-row pass, a second pass walks every ACTUAL
+    compared, and so is an unscoped fallback match spanning more than one
+    distinct repository (the same "redis" collision check_images_source
+    guards against on the baseline side). After the per-row pass, a second pass walks every ACTUAL
     basename pinned under `ref.scope_key` that no row claimed at all,
     recording a "missing_from_release_table" finding (with a fix-it hint
     from missing_image_hint, which also needs to know whether it's this
@@ -560,6 +562,15 @@ def check_images(ref, rows, state, findings):
                 # config-cli lives under top-level "keycloak", not
                 # "keycloak-operator").
                 pins = find_matches_any_tag(state.lines, basename) or None
+                if pins is not None:
+                    repos = {strip_registry_host(p["repository"]) for p in pins if p["repository"]}
+                    if len(repos) > 1:
+                        findings["ambiguous"].append(
+                            f"[IMAGE] '{basename}' matches {len(repos)} different repositories outside "
+                            f"'{ref.scope_key}' own scope ({', '.join(sorted(repos))}) -- can't tell which one "
+                            f"this row means"
+                        )
+                        continue
             if pins is None:
                 findings["missing_from_chart"].append(
                     f"[IMAGE] release-table image '{basename}' for component '{ref.component}' "
