@@ -168,6 +168,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
     monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
     monkeypatch.setattr(vp, "check_shared_image_usage", make_check("shared-image-usage"))
+    monkeypatch.setattr(vp, "check_image_repository", make_check("image-repository"))
     monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
     monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
@@ -209,6 +210,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
         "docs",
         "subchart-images",
         "shared-image-usage",
+        "image-repository",
         "digests",
         "yamllint",
         "kubeconform",

@@ -375,7 +375,11 @@ def test_check_dead_values_never_nulls_a_dependencys_own_condition_leaf(libdeadv
     assert detail == "0/1 dead"  # "enabled" excluded entirely; only "used" is a real candidate
     for overlay in seen_overlays:
         zac_view = overlay.get("zac", overlay)
-        assert zac_view.get("enabled") is not None, f"zac.enabled was nulled in {overlay}"
+        # Every overlay is a full deep copy of the base values with only
+        # candidate leaves nulled (see _render_with_null_overrides), so
+        # "enabled" must keep its real original value -- not just non-None,
+        # which an omitted key would also satisfy via dict.get's default.
+        assert zac_view.get("enabled") is True, f"zac.enabled was nulled or dropped in {overlay}"
 
 
 def test_resolve_scope_prefers_own_scope_without_matching_dependency(libdeadvaluescheck, tmp_path):
