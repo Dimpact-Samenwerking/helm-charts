@@ -324,10 +324,24 @@ def classify_candidates(chart_dir, extra_args, candidates, values_lines):
     own _render_cache), and "Image upgrades" already runs before this step
     (STEP_PREREQUISITES) with the same extra_args, so this call is a free
     cache hit in the normal pipeline, not a second real `helm template`."""
-    result = render_chart(chart_dir, extra_args)
-    vendor_map = friendly_vendor_charts(chart_dir)
-    dep_names = dependency_names(chart_dir)
-    rendered_labels = render_image_labels(result.stdout, vendor_map) if result.returncode == 0 else {}
+    # Broad except is deliberate here, matching this function's own explicit
+    # "never a crash or a failed step" contract: render_chart shells out via
+    # subprocess and can raise (e.g. FileNotFoundError if `helm` itself is
+    # missing — check=False only suppresses a non-zero EXIT code, not a
+    # failure to launch the process at all), and friendly_vendor_charts/
+    # dependency_names/render_image_labels were likewise called unguarded
+    # despite this docstring's promise. Any failure here degrades to the
+    # classify_by_key-only fallback path for every candidate, same as a
+    # render that merely returned non-zero already did.
+    try:
+        result = render_chart(chart_dir, extra_args)
+        vendor_map = friendly_vendor_charts(chart_dir)
+        dep_names = dependency_names(chart_dir)
+        rendered_labels = render_image_labels(result.stdout, vendor_map) if result.returncode == 0 else {}
+    except Exception:
+        vendor_map = {}
+        dep_names = set()
+        rendered_labels = {}
 
     for candidate in candidates:
         label = rendered_labels.get((candidate["repository"], candidate["version"], candidate["current_digest"]))
