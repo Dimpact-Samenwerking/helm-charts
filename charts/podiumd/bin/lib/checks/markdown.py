@@ -151,10 +151,27 @@ def check_markdown(chart_dir):
 
     disabled_rules = ",".join(quality_gates_markdown_disabled_rules(chart_dir))
     result = run(
-        [pymarkdown, "-d", disabled_rules, *MARKDOWN_PLUGIN_SETTINGS, "scan", *[str(f) for f in files]],
+        [
+            pymarkdown,
+            "--return-code-scheme",
+            "explicit",
+            "-d",
+            disabled_rules,
+            *MARKDOWN_PLUGIN_SETTINGS,
+            "scan",
+            *[str(f) for f in files],
+        ],
         capture_output=True,
         text=True,
     )
+    # With --return-code-scheme explicit: 0 = no findings, 4 = findings
+    # reported (a normal, successful scan) — anything else is a genuine
+    # failure (bad path, crash, bad args), confirmed empirically since
+    # pymarkdown's own DEFAULT scheme returns the same exit code (1) for
+    # both "found real findings" and "the given path doesn't exist",
+    # which made those two cases indistinguishable from returncode alone.
+    if result.returncode not in (0, 4):
+        return False, f"pymarkdown failed (exit {result.returncode}): {result.stderr.strip() or result.stdout.strip()}"
     output = result.stdout + result.stderr
 
     findings = []

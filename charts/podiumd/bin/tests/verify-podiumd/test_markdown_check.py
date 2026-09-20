@@ -6,7 +6,12 @@ throughout except where find_pymarkdown itself is under test."""
 from types import SimpleNamespace
 
 
-def pymarkdown_result(stdout, returncode=1, stderr=""):
+def pymarkdown_result(stdout, returncode=4, stderr=""):
+    # 4 (not the old default of 1) matches --return-code-scheme explicit's
+    # "findings reported" exit code, now passed explicitly in the real
+    # invocation — see check_markdown's own fix for why: the OLD default
+    # scheme returns the same exit code (1) for "found real findings" and
+    # "the given path doesn't exist", making the two indistinguishable.
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
@@ -202,6 +207,25 @@ def test_no_findings_passes(libmarkdowncheck, vp, tmp_path, monkeypatch, capsys)
     assert "OK: no markdown findings" in capsys.readouterr().out
 
 
+def test_a_pymarkdown_crash_is_reported_as_a_failure_not_a_clean_pass(libmarkdowncheck, vp, tmp_path, monkeypatch):
+    # Regression test: pymarkdown's OWN default return-code scheme returns
+    # the identical exit code (1) for "found real findings" and "a genuine
+    # failure" (e.g. a bad path), which check_markdown used to not check at
+    # all — any crash with output that didn't match MARKDOWN_FINDING_RE
+    # silently returned a clean pass. --return-code-scheme explicit gives a
+    # real, disjoint failure code (anything other than 0 clean / 4 findings).
+    chart_dir = make_chart_dir(tmp_path, files={"docs/foo.md": "# a\n"})
+    monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
+    monkeypatch.setattr(
+        libmarkdowncheck, "run", lambda cmd, **kw: pymarkdown_result("", returncode=1, stderr="not a valid path")
+    )
+
+    ok, detail = vp.check_markdown(chart_dir)
+    assert ok is False
+    assert "pymarkdown failed" in detail
+    assert "not a valid path" in detail
+
+
 def test_findings_fail_the_check(libmarkdowncheck, vp, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path, files={"docs/foo.md": "Not a heading\n"})
     monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
@@ -234,7 +258,8 @@ def test_disables_line_length_and_commands_show_output_rules(libmarkdowncheck, v
 
     cmd = captured["cmd"]
     assert cmd[0] == "/usr/local/bin/pymarkdown"
-    assert cmd[1:3] == ["-d", "md013,md014"]
+    assert cmd[1:3] == ["--return-code-scheme", "explicit"]
+    assert cmd[3:5] == ["-d", "md013,md014"]
     assert "scan" in cmd
     assert cmd.index("-d") < cmd.index("scan")
     assert str(chart_dir / "docs" / "foo.md") in cmd
