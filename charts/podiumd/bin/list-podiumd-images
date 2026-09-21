@@ -46,12 +46,10 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import (
-    full_repository_for_path, local_chart_dir,
-    pulled_chart_dir, subchart_dependencies,
-)
-from lib.chart import pull_chart as _pull_chart
+from lib.chart import full_repository_for_path
 from lib.chart_nested_subchart_identity import nested_subchart_registered_paths
+from lib.chart_pull_and_subchart_resolution import local_chart_dir, pulled_chart_dir, subchart_dependencies
+from lib.chart_pull_and_subchart_resolution import pull_chart as _pull_chart
 from lib.chart_registered_paths import version_paths_for
 from lib.chart_release_baseline_basics import load_yaml
 from lib.chart_values_tree_primitives import find_images, get_path, version_of

@@ -25,12 +25,12 @@ podiumd-adapter Deployment currently renders "image: :0.6.7@sha256:...",
 confirmed both by rendering the podiumd.image helper directly and
 against a real `helm template` output already checked into this repo."""
 
-from lib.chart import resolve_chart_values
 from lib.chart_nested_subchart_identity import (
     nested_subchart_documented_image_repository,
     nested_subchart_name_for,
     version_repository_path_for,
 )
+from lib.chart_pull_and_subchart_resolution import resolve_chart_values
 from lib.chart_release_baseline_basics import load_yaml
 from lib.chart_values_tree_primitives import get_path
 from lib.upgradedoc_app_version_and_image_paths import find_all_image_and_version_paths

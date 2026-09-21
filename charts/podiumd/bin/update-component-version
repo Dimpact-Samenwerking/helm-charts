@@ -66,9 +66,8 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import (
-    check_image_versions, full_repository_for_path, resolve_chart_values,
-)
+from lib.chart import full_repository_for_path
+from lib.chart_pull_and_subchart_resolution import check_image_versions, resolve_chart_values
 from lib.chart_registered_paths import image_paths_for, native_components
 from lib.chart_release_baseline_basics import chart_version as _chart_version
 from lib.chart_release_baseline_basics import upgrade_docs_baseline as _read_upgrade_docs_baseline

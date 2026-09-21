@@ -283,7 +283,9 @@ def test_subchart_default_repository_subchart_has_no_repository_at_path(libchart
     assert libchart.subchart_default_repository(tmp_path, lines, 3, deps) is None
 
 
-def test_subchart_default_repository_caches_across_calls(libchart, tmp_path, monkeypatch):
+def test_subchart_default_repository_caches_across_calls(
+    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
+):
     make_tgz(
         tmp_path / "charts",
         "openzaak",
@@ -303,7 +305,7 @@ def test_subchart_default_repository_caches_across_calls(libchart, tmp_path, mon
         '      tag: "1.27.4@sha256:bbbb"',
     ]
     calls = []
-    real_subchart_values = libchart.subchart_values
+    real_subchart_values = libchartpullandsubchartresolution.subchart_values
 
     def spy(chart_dir, dep):
         calls.append(dep["name"])

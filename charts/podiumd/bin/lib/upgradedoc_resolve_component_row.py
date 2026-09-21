@@ -7,10 +7,10 @@ import re
 
 from lib.chart import (
     baseline_tag_for_sidecar_path,
-    global_image_paths,
     historical_app_version_for_path,
     paths_by_repository,
 )
+from lib.chart_pull_and_subchart_resolution import global_image_paths
 from lib.chart_registered_paths import (
     image_paths_for,
     native_components,

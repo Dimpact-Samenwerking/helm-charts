@@ -13,11 +13,10 @@ import yaml
 
 from lib.chart import (
     canonical_sidecar_row_names,
-    global_image_paths,
     paths_by_repository,
     repo_group_representative,
-    resolved_digest_pin,
 )
+from lib.chart_pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
 from lib.chart_release_baseline_basics import load_yaml
 from lib.chart_values_tree_primitives import version_of
 from lib.component_docs import (

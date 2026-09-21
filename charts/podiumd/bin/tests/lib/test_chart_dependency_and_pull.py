@@ -134,59 +134,69 @@ def test_component_state_at_baseline_dependency_not_found(libchart, monkeypatch)
 # --- chart_ref ---
 
 
-def test_chart_ref_alias_repository(libchart):
-    ref, repo_url = libchart.chart_ref({"name": "zaakafhandelcomponent", "repository": "@zac"})
+def test_chart_ref_alias_repository(libchart, libchartpullandsubchartresolution):
+    ref, repo_url = libchartpullandsubchartresolution.chart_ref({"name": "zaakafhandelcomponent", "repository": "@zac"})
     assert ref == "zac/zaakafhandelcomponent"
     assert repo_url is None
 
 
-def test_chart_ref_oci_repository(libchart):
-    ref, repo_url = libchart.chart_ref(
+def test_chart_ref_oci_repository(libchart, libchartpullandsubchartresolution):
+    ref, repo_url = libchartpullandsubchartresolution.chart_ref(
         {"name": "internetaakafhandeling", "repository": "oci://ghcr.io/interne-taak-afhandeling"}
     )
     assert ref == "oci://ghcr.io/interne-taak-afhandeling/internetaakafhandeling"
     assert repo_url is None
 
 
-def test_chart_ref_https_repository(libchart):
-    ref, repo_url = libchart.chart_ref({"name": "openforms", "repository": "https://maykinmedia.github.io/charts/"})
+def test_chart_ref_https_repository(libchart, libchartpullandsubchartresolution):
+    ref, repo_url = libchartpullandsubchartresolution.chart_ref(
+        {"name": "openforms", "repository": "https://maykinmedia.github.io/charts/"}
+    )
     assert ref == "openforms"
     assert repo_url == "https://maykinmedia.github.io/charts/"
 
 
-def test_chart_ref_file_repository_returns_none_none(libchart):
-    assert libchart.chart_ref({"name": "mi-data", "repository": "file://../mi-data"}) == (None, None)
+def test_chart_ref_file_repository_returns_none_none(libchart, libchartpullandsubchartresolution):
+    assert libchartpullandsubchartresolution.chart_ref({"name": "mi-data", "repository": "file://../mi-data"}) == (
+        None,
+        None,
+    )
 
 
-def test_chart_ref_unsupported_scheme_raises(libchart):
+def test_chart_ref_unsupported_scheme_raises(libchart, libchartpullandsubchartresolution):
     with pytest.raises(SystemExit, match="unsupported repository scheme"):
-        libchart.chart_ref({"name": "x", "repository": "ftp://nope"})
+        libchartpullandsubchartresolution.chart_ref({"name": "x", "repository": "ftp://nope"})
 
 
 # --- local_chart_dir ---
 
 
-def test_local_chart_dir_resolves_relative_to_chart_dir(libchart, tmp_path):
+def test_local_chart_dir_resolves_relative_to_chart_dir(libchart, tmp_path, libchartpullandsubchartresolution):
     dep = {"name": "mi-data", "repository": "file://../mi-data"}
-    assert libchart.local_chart_dir(tmp_path / "podiumd", dep) == (tmp_path / "mi-data").resolve()
+    assert (
+        libchartpullandsubchartresolution.local_chart_dir(tmp_path / "podiumd", dep) == (tmp_path / "mi-data").resolve()
+    )
 
 
-def test_local_chart_dir_none_for_other_schemes(libchart):
-    assert libchart.local_chart_dir(Path("/x"), {"name": "zac", "repository": "@zac"}) is None
-    assert libchart.local_chart_dir(Path("/x"), {"name": "zac", "repository": "oci://ghcr.io/x"}) is None
+def test_local_chart_dir_none_for_other_schemes(libchart, libchartpullandsubchartresolution):
+    assert libchartpullandsubchartresolution.local_chart_dir(Path("/x"), {"name": "zac", "repository": "@zac"}) is None
+    assert (
+        libchartpullandsubchartresolution.local_chart_dir(Path("/x"), {"name": "zac", "repository": "oci://ghcr.io/x"})
+        is None
+    )
 
 
 # --- pull_chart ---
 
 
-def test_pull_chart_local_repository_fails_without_subprocess(libchart, tmp_path):
+def test_pull_chart_local_repository_fails_without_subprocess(libchart, tmp_path, libchartpullandsubchartresolution):
     dep = {"name": "mi-data", "repository": "file://../mi-data"}
-    ok, stderr = libchart.pull_chart(dep, "1.0.0", tmp_path)
+    ok, stderr = libchartpullandsubchartresolution.pull_chart(dep, "1.0.0", tmp_path)
     assert ok is False
     assert "not fetchable remotely" in stderr
 
 
-def test_pull_chart_builds_correct_command(libchart, monkeypatch, tmp_path):
+def test_pull_chart_builds_correct_command(libchart, monkeypatch, tmp_path, libchartpullandsubchartresolution):
     captured = {}
 
     def fake_run(cmd, **kwargs):
@@ -195,9 +205,9 @@ def test_pull_chart_builds_correct_command(libchart, monkeypatch, tmp_path):
 
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(libchart, "run", fake_run)
+    monkeypatch.setattr(libchartpullandsubchartresolution, "run", fake_run)
     dep = {"name": "zaakafhandelcomponent", "repository": "@zac"}
-    ok, stderr = libchart.pull_chart(dep, "1.0.297", tmp_path)
+    ok, stderr = libchartpullandsubchartresolution.pull_chart(dep, "1.0.297", tmp_path)
     assert ok is True
     assert captured["cmd"] == [
         "helm",
@@ -211,7 +221,7 @@ def test_pull_chart_builds_correct_command(libchart, monkeypatch, tmp_path):
     ]
 
 
-def test_pull_chart_https_repo_adds_repo_flag(libchart, monkeypatch, tmp_path):
+def test_pull_chart_https_repo_adds_repo_flag(libchart, monkeypatch, tmp_path, libchartpullandsubchartresolution):
     captured = {}
 
     def fake_run(cmd, **kwargs):
@@ -220,22 +230,22 @@ def test_pull_chart_https_repo_adds_repo_flag(libchart, monkeypatch, tmp_path):
 
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(libchart, "run", fake_run)
+    monkeypatch.setattr(libchartpullandsubchartresolution, "run", fake_run)
     dep = {"name": "openforms", "repository": "https://maykinmedia.github.io/charts/"}
-    libchart.pull_chart(dep, "1.12.0", tmp_path)
+    libchartpullandsubchartresolution.pull_chart(dep, "1.12.0", tmp_path)
     assert "--repo" in captured["cmd"]
     assert "https://maykinmedia.github.io/charts/" in captured["cmd"]
 
 
-def test_pull_chart_failure_returns_stderr(libchart, monkeypatch, tmp_path):
+def test_pull_chart_failure_returns_stderr(libchart, monkeypatch, tmp_path, libchartpullandsubchartresolution):
     def fake_run(cmd, **kwargs):
         from types import SimpleNamespace
 
         return SimpleNamespace(returncode=1, stdout="", stderr="version not found\n")
 
-    monkeypatch.setattr(libchart, "run", fake_run)
+    monkeypatch.setattr(libchartpullandsubchartresolution, "run", fake_run)
     dep = {"name": "zaakafhandelcomponent", "repository": "@zac"}
-    ok, stderr = libchart.pull_chart(dep, "9.9.9", tmp_path)
+    ok, stderr = libchartpullandsubchartresolution.pull_chart(dep, "9.9.9", tmp_path)
     assert ok is False
     assert stderr == "version not found"
 
@@ -243,21 +253,21 @@ def test_pull_chart_failure_returns_stderr(libchart, monkeypatch, tmp_path):
 # --- pulled_chart_dir ---
 
 
-def test_pulled_chart_dir_returns_the_single_directory(libchart, tmp_path):
+def test_pulled_chart_dir_returns_the_single_directory(libchart, tmp_path, libchartpullandsubchartresolution):
     (tmp_path / "somechart").mkdir()
     (tmp_path / "somefile.txt").write_text("x")
-    assert libchart.pulled_chart_dir(tmp_path) == tmp_path / "somechart"
+    assert libchartpullandsubchartresolution.pulled_chart_dir(tmp_path) == tmp_path / "somechart"
 
 
-def test_pulled_chart_dir_raises_when_empty(libchart, tmp_path):
+def test_pulled_chart_dir_raises_when_empty(libchart, tmp_path, libchartpullandsubchartresolution):
     with pytest.raises(SystemExit, match="produced no chart directory"):
-        libchart.pulled_chart_dir(tmp_path)
+        libchartpullandsubchartresolution.pulled_chart_dir(tmp_path)
 
 
 # --- pull_chart_values ---
 
 
-def test_pull_chart_values_reads_pulled_values_yaml(libchart, monkeypatch):
+def test_pull_chart_values_reads_pulled_values_yaml(libchart, monkeypatch, libchartpullandsubchartresolution):
     def fake_pull_chart(dep, version, dest):
         chart_dir = dest / dep["name"]
         chart_dir.mkdir(parents=True)
@@ -266,14 +276,16 @@ def test_pull_chart_values_reads_pulled_values_yaml(libchart, monkeypatch):
         )
         return True, ""
 
-    monkeypatch.setattr(libchart, "pull_chart", fake_pull_chart)
+    monkeypatch.setattr(libchartpullandsubchartresolution, "pull_chart", fake_pull_chart)
     dep = {"name": "openforms", "repository": "@maykinmedia"}
-    values = libchart.pull_chart_values(dep, "1.12.0")
+    values = libchartpullandsubchartresolution.pull_chart_values(dep, "1.12.0")
     assert values == {"image": {"repository": "maykinmedia/open-forms"}}
 
 
-def test_pull_chart_values_raises_on_pull_failure(libchart, monkeypatch):
-    monkeypatch.setattr(libchart, "pull_chart", lambda dep, version, dest: (False, "not found"))
+def test_pull_chart_values_raises_on_pull_failure(libchart, monkeypatch, libchartpullandsubchartresolution):
+    monkeypatch.setattr(
+        libchartpullandsubchartresolution, "pull_chart", lambda dep, version, dest: (False, "not found")
+    )
     dep = {"name": "openforms", "repository": "@maykinmedia"}
     with pytest.raises(SystemExit, match="could not pull"):
-        libchart.pull_chart_values(dep, "9.9.9")
+        libchartpullandsubchartresolution.pull_chart_values(dep, "9.9.9")
