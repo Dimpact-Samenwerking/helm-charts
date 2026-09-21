@@ -146,24 +146,33 @@ def test_release_table_baseline_none_when_key_missing(libchartreleasebaselinebas
 # paths_by_repository's own repo-group keys use.
 
 
-def test_full_repository_for_path_docker_hub_repository_gets_docker_io_host(libchart, tmp_path):
+def test_full_repository_for_path_docker_hub_repository_gets_docker_io_host(
+    libchart, tmp_path, libchartrepoandpathresolution
+):
     """Docker Hub's own convention: no registry host embedded in
     "repository:" at all."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:aaaa"}}}
-    assert libchart.full_repository_for_path(tmp_path, deps, values, ("zac", "image")) == "docker.io/curlimages/curl"
+    assert (
+        libchartrepoandpathresolution.full_repository_for_path(tmp_path, deps, values, ("zac", "image"))
+        == "docker.io/curlimages/curl"
+    )
 
 
-def test_full_repository_for_path_already_host_qualified_is_unchanged(libchart, tmp_path):
+def test_full_repository_for_path_already_host_qualified_is_unchanged(
+    libchart, tmp_path, libchartrepoandpathresolution
+):
     deps = [{"name": "brp-personen-mock", "alias": "brppersonenmock", "version": "1.2.9"}]
     values = {"brppersonenmock": {"image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:aaaa"}}}
     assert (
-        libchart.full_repository_for_path(tmp_path, deps, values, ("brppersonenmock", "image"))
+        libchartrepoandpathresolution.full_repository_for_path(tmp_path, deps, values, ("brppersonenmock", "image"))
         == "ghcr.io/brp-api/personen-mock"
     )
 
 
-def test_full_repository_for_path_separate_registry_key_is_authoritative(libchart, tmp_path):
+def test_full_repository_for_path_separate_registry_key_is_authoritative(
+    libchart, tmp_path, libchartrepoandpathresolution
+):
     """Regression test (mi's own real "azure-cli" case): a sibling
     "registry:" key alongside a bare "repository:" (Azure Container
     Registry's own convention) is used directly — never parse_repo's
@@ -173,10 +182,15 @@ def test_full_repository_for_path_separate_registry_key_is_authoritative(libchar
     values = {
         "mi": {"image": {"registry": "mcr.microsoft.com", "repository": "azure-cli", "tag": "2.90.0@sha256:aaaa"}}
     }
-    assert libchart.full_repository_for_path(tmp_path, deps, values, ("mi", "image")) == "mcr.microsoft.com/azure-cli"
+    assert (
+        libchartrepoandpathresolution.full_repository_for_path(tmp_path, deps, values, ("mi", "image"))
+        == "mcr.microsoft.com/azure-cli"
+    )
 
 
-def test_full_repository_for_path_bare_namespace_registry_key_gets_docker_io_host(libchart, tmp_path):
+def test_full_repository_for_path_bare_namespace_registry_key_gets_docker_io_host(
+    libchart, tmp_path, libchartrepoandpathresolution
+):
     """Regression test (zaakbrug's own real case): the vendored zaakbrug
     chart's own upstream default sets "image.registry: wearefrank"
     alongside "image.repository: zaakbrug" — but "wearefrank" is a bare
@@ -190,10 +204,12 @@ def test_full_repository_for_path_bare_namespace_registry_key_gets_docker_io_hos
     deps = [{"name": "zaakbrug", "version": "2.3.32"}]
     values = {"zaakbrug": {"image": {"registry": "wearefrank", "repository": "zaakbrug", "tag": "1.26.18@sha256:aaaa"}}}
     assert (
-        libchart.full_repository_for_path(tmp_path, deps, values, ("zaakbrug", "image"))
+        libchartrepoandpathresolution.full_repository_for_path(tmp_path, deps, values, ("zaakbrug", "image"))
         == "docker.io/wearefrank/zaakbrug"
     )
 
 
-def test_full_repository_for_path_none_when_unresolvable(libchart, tmp_path):
-    assert libchart.full_repository_for_path(tmp_path, [], {}, ("brppersonenmock", "image")) is None
+def test_full_repository_for_path_none_when_unresolvable(libchart, tmp_path, libchartrepoandpathresolution):
+    assert (
+        libchartrepoandpathresolution.full_repository_for_path(tmp_path, [], {}, ("brppersonenmock", "image")) is None
+    )

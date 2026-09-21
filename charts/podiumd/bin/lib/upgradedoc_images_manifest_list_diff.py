@@ -3,12 +3,10 @@ keys that actually changed since the baseline) and find_images_
 manifest_list_diff (the images-manifest.yaml "changes:" list this
 diff implies), both diffing against the true git baseline."""
 
-from lib.chart import (
-    full_repository_for_path,
-    historical_app_version_for_repository,
-)
+from lib.chart import historical_app_version_for_repository
 from lib.chart_pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
 from lib.chart_registered_paths import native_components
+from lib.chart_repo_and_path_resolution import full_repository_for_path
 from lib.chart_values_tree_primitives import version_of
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc_app_version_and_image_paths import (

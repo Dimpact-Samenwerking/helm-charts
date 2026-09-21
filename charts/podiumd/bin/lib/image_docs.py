@@ -21,16 +21,18 @@ import re
 
 from lib.chart import (
     baseline_tag_for_sidecar_path,
-    canonical_sidecar_row_names,
-    full_repository_for_path,
     historical_app_version_for_path,
-    paths_by_repository,
-    repo_group_representative,
 )
 from lib.chart_pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
 from lib.chart_registered_paths import (
     image_paths_for,
     version_paths_for,
+)
+from lib.chart_repo_and_path_resolution import (
+    canonical_sidecar_row_names,
+    full_repository_for_path,
+    paths_by_repository,
+    repo_group_representative,
 )
 from lib.chart_values_tree_primitives import (
     get_path,
