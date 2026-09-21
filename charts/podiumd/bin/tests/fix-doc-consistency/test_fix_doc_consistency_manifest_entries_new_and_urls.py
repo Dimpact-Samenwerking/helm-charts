@@ -7,6 +7,8 @@ import tarfile
 import pytest
 import yaml
 
+import lib.fix_doc_consistency.manifest_entries_new_and_urls as manifest_entries_new_and_urls
+
 
 def write(path, text):
     path.write_text(text, encoding="utf-8")
@@ -529,7 +531,7 @@ def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_regi
         calls.append((host, repo, tag))
         return True, fake_digest
 
-    monkeypatch.setattr(cdb, "registry_tag_exists", fake_registry_tag_exists)
+    monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", fake_registry_tag_exists)
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
         "", eck_stack_chart_dir, deps, target_values, baseline_values, allow_pull=True
@@ -554,7 +556,7 @@ def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_netw
     def fail_if_called(host, repo, tag):
         raise AssertionError("registry_tag_exists must never be called when allow_pull=False")
 
-    monkeypatch.setattr(cdb, "registry_tag_exists", fail_if_called)
+    monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", fail_if_called)
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
         "", eck_stack_chart_dir, deps, target_values, baseline_values
@@ -574,7 +576,7 @@ def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skip
     target_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
     baseline_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.3"}}}
 
-    monkeypatch.setattr(cdb, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
         "", eck_stack_chart_dir, deps, target_values, baseline_values, allow_pull=True
