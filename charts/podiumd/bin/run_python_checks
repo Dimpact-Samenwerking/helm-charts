@@ -38,10 +38,10 @@ echo "=== ruff format --check ==="
 ruff format --check .
 
 echo "=== vulture (dead code) ==="
-vulture lib/*.py $(python_scripts)
+vulture lib $(python_scripts)
 
 echo "=== pylint (too-many-lines) ==="
-pylint lib/*.py $(python_scripts) $(find tests -name '*.py')
+pylint lib $(python_scripts) $(find tests -name '*.py')
 
 echo "=== pytest ==="
 python3 -m pytest -q

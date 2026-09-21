@@ -18,6 +18,7 @@ import lib.chart_release_baseline_basics as chart_release_baseline_basics
 import lib.chart_repo_and_path_resolution as chart_repo_and_path_resolution
 import lib.chart_values_tree_primitives as chart_values_tree_primitives
 import lib.component_docs as component_docs
+import lib.component_docs.baseline_doc_stubs as component_docs_baseline_doc_stubs
 import lib.confluence_tables as confluence_tables
 import lib.dependencies as dependencies
 import lib.docs_consistency as docs_consistency
@@ -178,6 +179,11 @@ def libimagedocs():
 @pytest.fixture(scope="session")
 def libcomponentdocs():
     return component_docs
+
+
+@pytest.fixture(scope="session")
+def libcomponentdocsbaselinedocstubs():
+    return component_docs_baseline_doc_stubs
 
 
 @pytest.fixture(scope="session")
