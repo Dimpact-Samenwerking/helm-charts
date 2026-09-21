@@ -498,7 +498,9 @@ def _write_delegated_tags(ctx, delegated_paths, acc):
     """Delegate delegated_paths to lib.image.version.update_image_version,
     keyed by each path's own real repository basename (not necessarily
     this component's own name) so a shared image is updated everywhere
-    it's pinned. Updates acc.new_tags_by_path/acc.repos in place."""
+    it's pinned. Updates acc.new_tags_by_path/acc.repos in place. Raises
+    SystemExit when update_image_version reports no change at a path's
+    own line (e.g. a sibling path sharing its basename changed instead)."""
     if not delegated_paths:
         return
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
@@ -516,7 +518,13 @@ def _write_delegated_tags(ctx, delegated_paths, acc):
             print(f"  values.yaml:{c['line']}  ({c['repository']})")
             print(f"    {c['old_version']}@{c['old_digest']}")
             print(f"    {c['new_version']}@{c['new_digest']}")
-        own_change = next(c for c in changes if c["line"] == own_line)
+        own_change = next((c for c in changes if c["line"] == own_line), None)
+        if own_change is None:
+            raise SystemExit(
+                f"error: update_image_version reported no change at values.yaml:{own_line} "
+                f"({ctx.values_key}.{path}) -- was it already at the target version, or does "
+                f"another path share this basename?"
+            )
         acc.new_tags_by_path[path] = f"{own_change['new_version']}@{own_change['new_digest']}"
 
 

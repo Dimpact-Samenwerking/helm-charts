@@ -330,11 +330,14 @@ def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, c
         CHART_YAML + '  - name: redis-operator\n    version: "0.26.1"\n    repository: "@opstree"\n'
     )
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
-    doc.write_text(
-        doc.read_text().replace(
-            "See [`", "| redis-operator | - | 0.26.1 (unchanged) | chart-only, no app image |\n\nSee [`"
-        )
+    new_text = doc.read_text().replace(
+        "See [`", "| redis-operator | - | 0.26.1 (unchanged) | chart-only, no app image |\n\nSee [`"
     )
+    # str.replace() silently no-ops if the anchor text isn't found -- assert
+    # the row was actually inserted, so a fixture change can't quietly turn
+    # this into a vacuous pass (nothing to flag because the row never existed).
+    assert "| redis-operator |" in new_text
+    doc.write_text(new_text)
 
     vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
