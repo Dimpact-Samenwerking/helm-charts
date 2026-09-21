@@ -40,14 +40,16 @@ from lib.chart_values_tree_primitives import (
     version_of,
 )
 from lib.component_docs import (
-    CHANGES_ITEM_RE,
     dep_for_values_key,
-    find_images_manifest_changes_header,
     insert_changes_section,
-    insert_images_manifest_header_item,
     make_changes_section,
     remove_changes_section,
     update_component_table,
+)
+from lib.component_docs.images_manifest_changes_header import (
+    CHANGES_ITEM_RE,
+    find_images_manifest_changes_header,
+    insert_images_manifest_header_item,
 )
 from lib.digest_pinning_check import find_unresolved_subchart_images
 from lib.registry import parse_repo, registry_tag_exists

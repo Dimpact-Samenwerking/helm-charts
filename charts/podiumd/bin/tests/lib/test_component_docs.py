@@ -9,7 +9,7 @@ version's own test suites instead, against realistic doc fixtures."""
 # --- ensure_images_manifest_changes_header ---
 
 
-def test_ensure_images_manifest_changes_header_creates_missing_header(libcomponentdocs):
+def test_ensure_images_manifest_changes_header_creates_missing_header(libcomponentdocs, libcomponentdocsheader):
     """Regression test (real bug, real doc): a file that has lost its
     "# Changes:" header (or never had one) previously stayed that way
     forever — insert_images_manifest_header_item is a documented no-op
@@ -31,43 +31,47 @@ def test_ensure_images_manifest_changes_header_creates_missing_header(libcompone
         "  url: redis\n"
     ).splitlines(keepends=True)
 
-    libcomponentdocs.ensure_images_manifest_changes_header(lines)
+    libcomponentdocsheader.ensure_images_manifest_changes_header(lines)
 
     text = "".join(lines)
     assert "# Images new or changed in podiumd 4.9.1 vs 4.9.0.\n#\n# Changes:\n#\n" in text
     assert "# See docs/_UPGRADE_PATHS" in text  # rest of the header preserved
 
 
-def test_ensure_images_manifest_changes_header_noop_when_bare_header_exists(libcomponentdocs):
+def test_ensure_images_manifest_changes_header_noop_when_bare_header_exists(libcomponentdocs, libcomponentdocsheader):
     lines = (
         "# Images new or changed in podiumd 4.9.1 vs 4.9.0.\n#\n# Changes:\n#   1. redis 8.0 -> 8.0.\n"
     ).splitlines(keepends=True)
     original = list(lines)
 
-    libcomponentdocs.ensure_images_manifest_changes_header(lines)
+    libcomponentdocsheader.ensure_images_manifest_changes_header(lines)
 
     assert lines == original
 
 
-def test_ensure_images_manifest_changes_header_noop_when_counted_header_exists(libcomponentdocs):
+def test_ensure_images_manifest_changes_header_noop_when_counted_header_exists(
+    libcomponentdocs, libcomponentdocsheader
+):
     lines = (
         "# Images new or changed in podiumd 4.9.1 vs 4.9.0.\n#\n# One change:\n#   1. redis 8.0 -> 8.0.\n"
     ).splitlines(keepends=True)
     original = list(lines)
 
-    libcomponentdocs.ensure_images_manifest_changes_header(lines)
+    libcomponentdocsheader.ensure_images_manifest_changes_header(lines)
 
     assert lines == original
 
 
-def test_ensure_images_manifest_changes_header_noop_when_no_intro_anchor_either(libcomponentdocs):
+def test_ensure_images_manifest_changes_header_noop_when_no_intro_anchor_either(
+    libcomponentdocs, libcomponentdocsheader
+):
     """Defensive fallback: a manifest with no recognizable intro line at
     all (never produced by anything in this codebase) must never crash
     — silently does nothing, same as before this fix existed."""
     lines = ("# redis 8.0 -> 8.0\n- name: redis\n  url: redis\n").splitlines(keepends=True)
     original = list(lines)
 
-    libcomponentdocs.ensure_images_manifest_changes_header(lines)
+    libcomponentdocsheader.ensure_images_manifest_changes_header(lines)
 
     assert lines == original
 
@@ -75,60 +79,63 @@ def test_ensure_images_manifest_changes_header_noop_when_no_intro_anchor_either(
 # --- renumber_images_manifest_changes_items ---
 
 
-def test_renumber_images_manifest_changes_items_fixes_a_gap(libcomponentdocs):
+def test_renumber_images_manifest_changes_items_fixes_a_gap(libcomponentdocs, libcomponentdocsheader):
     """A gap left by a human hand-removing an item's own block without
     renumbering everything after it — real case that surfaced this."""
     lines = ("# Changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   3. openformulieren 3.4.10 -> 3.5.6.\n").splitlines(
         keepends=True
     )
-    changed = libcomponentdocs.renumber_images_manifest_changes_items(lines)
+    changed = libcomponentdocsheader.renumber_images_manifest_changes_items(lines)
     assert changed is True
     assert lines[1] == "#   1. zac 5.0.2 -> 5.4.3.\n"
     assert lines[2] == "#   2. openformulieren 3.4.10 -> 3.5.6.\n"
 
 
-def test_renumber_images_manifest_changes_items_already_correct_is_a_noop(libcomponentdocs):
+def test_renumber_images_manifest_changes_items_already_correct_is_a_noop(libcomponentdocs, libcomponentdocsheader):
     lines = ("# Changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   2. openformulieren 3.4.10 -> 3.5.6.\n").splitlines(
         keepends=True
     )
     original = list(lines)
-    changed = libcomponentdocs.renumber_images_manifest_changes_items(lines)
+    changed = libcomponentdocsheader.renumber_images_manifest_changes_items(lines)
     assert changed is False
     assert lines == original
 
 
-def test_renumber_images_manifest_changes_items_updates_count_word(libcomponentdocs):
+def test_renumber_images_manifest_changes_items_updates_count_word(libcomponentdocs, libcomponentdocsheader):
     """A gap fix that changes the item COUNT (not just individual
     numbers) must also update the header's own leading count word."""
     lines = ("# Three changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   4. openformulieren 3.4.10 -> 3.5.6.\n").splitlines(
         keepends=True
     )
-    changed = libcomponentdocs.renumber_images_manifest_changes_items(lines)
+    changed = libcomponentdocsheader.renumber_images_manifest_changes_items(lines)
     assert changed is True
     assert lines[0] == "# Two changes:\n"
     assert lines[2] == "#   2. openformulieren 3.4.10 -> 3.5.6.\n"
 
 
-def test_renumber_images_manifest_changes_items_no_header_is_a_noop(libcomponentdocs):
+def test_renumber_images_manifest_changes_items_no_header_is_a_noop(libcomponentdocs, libcomponentdocsheader):
     lines = ["some: yaml\n"]
-    assert libcomponentdocs.renumber_images_manifest_changes_items(lines) is False
+    assert libcomponentdocsheader.renumber_images_manifest_changes_items(lines) is False
 
 
 # --- images_manifest_order_key ---
 
 
-def test_images_manifest_order_key_bare_string_unaffected_by_values(libcomponentdocs):
+def test_images_manifest_order_key_bare_string_unaffected_by_values(libcomponentdocs, libcomponentdocsheader):
     """A bare STRING values_key (the historical shape — top-level key
     only) keeps the exact prior (index, is_sidecar) behavior, even when
     `values` is given — it's only ever deepened when the caller passes
     a full path TUPLE instead."""
     key_order = ["global", "zac"]
     values = {"global": {"images": {"nginx": {}, "curl": {}}}, "zac": {}}
-    assert libcomponentdocs.images_manifest_order_key(key_order, "global", False, values) == (0, 0)
-    assert libcomponentdocs.images_manifest_order_key(key_order, "global", True, values) == (0, 1)
+    assert libcomponentdocsheader.images_manifest_order_key(key_order, "global", False, values) == (0, 0)
+    assert libcomponentdocsheader.images_manifest_order_key(key_order, "global", True, values) == (
+        0,
+        1,
+    )
 
 
-def test_images_manifest_order_key_path_tuple_resolves_full_nested_position(libcomponentdocs):
+def test_images_manifest_order_key_path_tuple_resolves_full_nested_position(libcomponentdocs, libcomponentdocsheader):
     """Regression test: given a full values-tree path TUPLE (not just
     its own top-level key string) and `values`, this resolves the SAME
     real redis/nginx/curl/busybox sub-order the other two sort-key
@@ -146,7 +153,7 @@ def test_images_manifest_order_key_path_tuple_resolves_full_nested_position(libc
         }
     }
     keys = [
-        libcomponentdocs.images_manifest_order_key(key_order, ("global", "images", name), True, values)
+        libcomponentdocsheader.images_manifest_order_key(key_order, ("global", "images", name), True, values)
         for name in ("nginx", "curl", "busybox", "redis")
     ]
     assert keys == sorted(keys)
@@ -156,14 +163,14 @@ def test_images_manifest_order_key_path_tuple_resolves_full_nested_position(libc
 # --- insert_images_manifest_header_item ---
 
 
-def test_insert_images_manifest_header_item_at_correct_position(libcomponentdocs):
+def test_insert_images_manifest_header_item_at_correct_position(libcomponentdocs, libcomponentdocsheader):
     lines = ("# Changes:\n#   1. openformulieren 3.4.10 -> 3.5.6.\n").splitlines(keepends=True)
     deps = [
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
         {"name": "openformulieren", "version": "1.12.0"},
     ]
     key_order = ["zac", "openformulieren"]
-    libcomponentdocs.insert_images_manifest_header_item(lines, deps, key_order, (0, 0), "zac 5.0.2 -> 5.4.3.")
+    libcomponentdocsheader.insert_images_manifest_header_item(lines, deps, key_order, (0, 0), "zac 5.0.2 -> 5.4.3.")
     assert lines == [
         "# Changes:\n",
         "#   1. zac 5.0.2 -> 5.4.3.\n",
@@ -171,7 +178,7 @@ def test_insert_images_manifest_header_item_at_correct_position(libcomponentdocs
     ]
 
 
-def test_insert_images_manifest_header_item_fixes_a_preexisting_gap(libcomponentdocs):
+def test_insert_images_manifest_header_item_fixes_a_preexisting_gap(libcomponentdocs, libcomponentdocsheader):
     """Inserting a new item must not just shift each EXISTING item's own
     (possibly already-wrong) number by +1 — it must leave the WHOLE list
     gapless 1..N, fixing any pre-existing drift as a side effect (see
@@ -187,7 +194,7 @@ def test_insert_images_manifest_header_item_fixes_a_preexisting_gap(libcomponent
         {"name": "zgw-office-addin", "version": "0.0.89"},
     ]
     key_order = ["openzaak", "zac", "zgw-office-addin"]
-    libcomponentdocs.insert_images_manifest_header_item(lines, deps, key_order, (1, 0), "zac 5.0.2 -> 5.4.3.")
+    libcomponentdocsheader.insert_images_manifest_header_item(lines, deps, key_order, (1, 0), "zac 5.0.2 -> 5.4.3.")
     assert lines == [
         "# Changes:\n",
         "#   1. openzaak 1.27.4 -> 1.29.3.\n",
@@ -971,7 +978,9 @@ def test_prune_empty_values_delta_sections_no_sections_is_unchanged(libcomponent
     assert new_text == text
 
 
-def test_images_stub_template_has_a_changes_header(libcomponentdocs, libcomponentdocsbaselinedocstubs):
+def test_images_stub_template_has_a_changes_header(
+    libcomponentdocs, libcomponentdocsheader, libcomponentdocsbaselinedocstubs
+):
     """A fresh images-manifest stub must include a "# Changes:" anchor
     line, not just the bare "[]" YAML placeholder — without it, find_
     images_manifest_changes_header finds nothing, so add_missing_images_
@@ -981,6 +990,6 @@ def test_images_stub_template_has_a_changes_header(libcomponentdocs, libcomponen
     started as (real symptom reported live)."""
     text = libcomponentdocsbaselinedocstubs.IMAGES_STUB_TEMPLATE.format(upgrade_docs_baseline="4.8.5", target="4.9.0")
     lines = text.splitlines(keepends=True)
-    header_idx, header_has_count = libcomponentdocs.find_images_manifest_changes_header(lines)
+    header_idx, header_has_count = libcomponentdocsheader.find_images_manifest_changes_header(lines)
     assert header_idx is not None
     assert header_has_count is False
