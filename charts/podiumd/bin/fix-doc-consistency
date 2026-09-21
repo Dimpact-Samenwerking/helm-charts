@@ -97,14 +97,17 @@ from lib.chart_release_baseline_basics import chart_version
 from lib.chart_release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart_values_tree_primitives import replace_scalar_value, version_of
 from lib.component_docs import (
-    CHANGES_HEADER_RE, CHANGES_ITEM_RE, NUMBER_WORDS,
-    add_missing_component_rows, ensure_images_manifest_changes_header,
-    find_images_manifest_changes_header, images_manifest_order_key, insert_images_manifest_header_item,
-    prune_empty_values_delta_sections, renumber_images_manifest_changes_items, strip_stale_upgrade_placeholders,
+    add_missing_component_rows,
+    prune_empty_values_delta_sections, strip_stale_upgrade_placeholders,
     strip_stale_values_deltas_todo_stub, sync_values_delta_sections,
 )
 from lib.component_docs.baseline_doc_stubs import (
     IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, existing_doc_baselines,
+)
+from lib.component_docs.images_manifest_changes_header import (
+    CHANGES_HEADER_RE, CHANGES_ITEM_RE, NUMBER_WORDS, ensure_images_manifest_changes_header,
+    find_images_manifest_changes_header, images_manifest_order_key, insert_images_manifest_header_item,
+    renumber_images_manifest_changes_items,
 )
 from lib.docs_consistency import match_changes_item_to_entry
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
