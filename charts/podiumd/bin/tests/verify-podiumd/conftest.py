@@ -32,6 +32,7 @@ import lib.digest_pinning_check as digest_pinning_check
 import lib.docs_consistency as docs_consistency
 import lib.docs_consistency.markdown_format as docs_consistency_markdown_format
 import lib.docs_consistency.pointer_consistency as docs_consistency_pointer_consistency
+import lib.docs_consistency.values_diff as docs_consistency_values_diff
 import lib.dry_check as dry_check
 import lib.gitutil as gitutil
 import lib.helm_docs_check as helm_docs_check
@@ -103,6 +104,11 @@ def libdocsconsistencypointer():
 @pytest.fixture(scope="session")
 def libdocsconsistencymarkdown():
     return docs_consistency_markdown_format
+
+
+@pytest.fixture(scope="session")
+def libdocsconsistencyvaluesdiff():
+    return docs_consistency_values_diff
 
 
 @pytest.fixture(scope="session")
