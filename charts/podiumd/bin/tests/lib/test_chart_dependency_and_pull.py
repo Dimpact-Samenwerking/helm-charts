@@ -14,17 +14,17 @@ import yaml
 # --- find_dependency ---
 
 
-def test_find_dependency_by_name(libchart, libchartvaluestreeprimitives):
+def test_find_dependency_by_name(libchartvaluestreeprimitives):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
     assert libchartvaluestreeprimitives.find_dependency(deps, "zaakafhandelcomponent")["alias"] == "zac"
 
 
-def test_find_dependency_by_alias(libchart, libchartvaluestreeprimitives):
+def test_find_dependency_by_alias(libchartvaluestreeprimitives):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
     assert libchartvaluestreeprimitives.find_dependency(deps, "zac")["name"] == "zaakafhandelcomponent"
 
 
-def test_find_dependency_not_found_returns_none(libchart, libchartvaluestreeprimitives):
+def test_find_dependency_not_found_returns_none(libchartvaluestreeprimitives):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
     assert libchartvaluestreeprimitives.find_dependency(deps, "totally-unknown") is None
 
@@ -34,12 +34,12 @@ def test_find_dependency_not_found_returns_none(libchart, libchartvaluestreeprim
 # below.
 
 
-def test_find_app_versions_single_image(libchart, libchartvaluestreeprimitives):
+def test_find_app_versions_single_image(libchartvaluestreeprimitives):
     values = {"zac": {"image": {"tag": "5.0.2@sha256:abc"}}}
     assert libchartvaluestreeprimitives.find_app_versions(values, "zac", ["image"]) == [("image", "5.0.2@sha256:abc")]
 
 
-def test_find_app_versions_multi_image(libchart, libchartvaluestreeprimitives):
+def test_find_app_versions_multi_image(libchartvaluestreeprimitives):
     values = {
         "zgw-office-addin": {
             "frontend": {"image": {"tag": "v0.9.313@sha256:a"}},
@@ -52,11 +52,11 @@ def test_find_app_versions_multi_image(libchart, libchartvaluestreeprimitives):
     assert result == [("frontend.image", "v0.9.313@sha256:a"), ("backend.image", "v0.9.313@sha256:b")]
 
 
-def test_find_app_versions_missing_key_returns_empty(libchart, libchartvaluestreeprimitives):
+def test_find_app_versions_missing_key_returns_empty(libchartvaluestreeprimitives):
     assert libchartvaluestreeprimitives.find_app_versions({}, "zac", ["image"]) == []
 
 
-def test_find_app_versions_empty_tag_is_skipped(libchart, libchartvaluestreeprimitives):
+def test_find_app_versions_empty_tag_is_skipped(libchartvaluestreeprimitives):
     values = {"zac": {"image": {"tag": ""}}}
     assert libchartvaluestreeprimitives.find_app_versions(values, "zac", ["image"]) == []
 
@@ -73,7 +73,7 @@ def test_find_app_versions_empty_tag_is_skipped(libchart, libchartvaluestreeprim
 # whatever resolve_baseline_chart_state returns.
 
 
-def test_component_state_at_baseline_success(libchart, monkeypatch, tmp_path, libchartrepoandpathresolution):
+def test_component_state_at_baseline_success(monkeypatch, tmp_path, libchartrepoandpathresolution):
     """chart_dir is a real Path (not the opaque "chart_dir" placeholder the
     two error-path tests below use) since this one actually reaches
     image_paths_for(component, chart_dir) -- which now reads chart_dir/
@@ -104,7 +104,7 @@ def test_component_state_at_baseline_success(libchart, monkeypatch, tmp_path, li
 
 
 def test_component_state_at_baseline_propagates_resolve_baseline_chart_state_error(
-    libchart, monkeypatch, libchartrepoandpathresolution
+    monkeypatch, libchartrepoandpathresolution
 ):
     monkeypatch.setattr(
         libchartrepoandpathresolution,
@@ -120,7 +120,7 @@ def test_component_state_at_baseline_propagates_resolve_baseline_chart_state_err
     assert error == "could not resolve baseline '9.9.9' to a git ref (tried ...)"
 
 
-def test_component_state_at_baseline_dependency_not_found(libchart, monkeypatch, libchartrepoandpathresolution):
+def test_component_state_at_baseline_dependency_not_found(monkeypatch, libchartrepoandpathresolution):
     monkeypatch.setattr(
         libchartrepoandpathresolution,
         "resolve_baseline_chart_state",
@@ -138,13 +138,13 @@ def test_component_state_at_baseline_dependency_not_found(libchart, monkeypatch,
 # --- chart_ref ---
 
 
-def test_chart_ref_alias_repository(libchart, libchartpullandsubchartresolution):
+def test_chart_ref_alias_repository(libchartpullandsubchartresolution):
     ref, repo_url = libchartpullandsubchartresolution.chart_ref({"name": "zaakafhandelcomponent", "repository": "@zac"})
     assert ref == "zac/zaakafhandelcomponent"
     assert repo_url is None
 
 
-def test_chart_ref_oci_repository(libchart, libchartpullandsubchartresolution):
+def test_chart_ref_oci_repository(libchartpullandsubchartresolution):
     ref, repo_url = libchartpullandsubchartresolution.chart_ref(
         {"name": "internetaakafhandeling", "repository": "oci://ghcr.io/interne-taak-afhandeling"}
     )
@@ -152,7 +152,7 @@ def test_chart_ref_oci_repository(libchart, libchartpullandsubchartresolution):
     assert repo_url is None
 
 
-def test_chart_ref_https_repository(libchart, libchartpullandsubchartresolution):
+def test_chart_ref_https_repository(libchartpullandsubchartresolution):
     ref, repo_url = libchartpullandsubchartresolution.chart_ref(
         {"name": "openforms", "repository": "https://maykinmedia.github.io/charts/"}
     )
@@ -160,14 +160,14 @@ def test_chart_ref_https_repository(libchart, libchartpullandsubchartresolution)
     assert repo_url == "https://maykinmedia.github.io/charts/"
 
 
-def test_chart_ref_file_repository_returns_none_none(libchart, libchartpullandsubchartresolution):
+def test_chart_ref_file_repository_returns_none_none(libchartpullandsubchartresolution):
     assert libchartpullandsubchartresolution.chart_ref({"name": "mi-data", "repository": "file://../mi-data"}) == (
         None,
         None,
     )
 
 
-def test_chart_ref_unsupported_scheme_raises(libchart, libchartpullandsubchartresolution):
+def test_chart_ref_unsupported_scheme_raises(libchartpullandsubchartresolution):
     with pytest.raises(SystemExit, match="unsupported repository scheme"):
         libchartpullandsubchartresolution.chart_ref({"name": "x", "repository": "ftp://nope"})
 
@@ -175,14 +175,14 @@ def test_chart_ref_unsupported_scheme_raises(libchart, libchartpullandsubchartre
 # --- local_chart_dir ---
 
 
-def test_local_chart_dir_resolves_relative_to_chart_dir(libchart, tmp_path, libchartpullandsubchartresolution):
+def test_local_chart_dir_resolves_relative_to_chart_dir(tmp_path, libchartpullandsubchartresolution):
     dep = {"name": "mi-data", "repository": "file://../mi-data"}
     assert (
         libchartpullandsubchartresolution.local_chart_dir(tmp_path / "podiumd", dep) == (tmp_path / "mi-data").resolve()
     )
 
 
-def test_local_chart_dir_none_for_other_schemes(libchart, libchartpullandsubchartresolution):
+def test_local_chart_dir_none_for_other_schemes(libchartpullandsubchartresolution):
     assert libchartpullandsubchartresolution.local_chart_dir(Path("/x"), {"name": "zac", "repository": "@zac"}) is None
     assert (
         libchartpullandsubchartresolution.local_chart_dir(Path("/x"), {"name": "zac", "repository": "oci://ghcr.io/x"})
@@ -193,14 +193,14 @@ def test_local_chart_dir_none_for_other_schemes(libchart, libchartpullandsubchar
 # --- pull_chart ---
 
 
-def test_pull_chart_local_repository_fails_without_subprocess(libchart, tmp_path, libchartpullandsubchartresolution):
+def test_pull_chart_local_repository_fails_without_subprocess(tmp_path, libchartpullandsubchartresolution):
     dep = {"name": "mi-data", "repository": "file://../mi-data"}
     ok, stderr = libchartpullandsubchartresolution.pull_chart(dep, "1.0.0", tmp_path)
     assert ok is False
     assert "not fetchable remotely" in stderr
 
 
-def test_pull_chart_builds_correct_command(libchart, monkeypatch, tmp_path, libchartpullandsubchartresolution):
+def test_pull_chart_builds_correct_command(monkeypatch, tmp_path, libchartpullandsubchartresolution):
     captured = {}
 
     def fake_run(cmd, **kwargs):
@@ -225,7 +225,7 @@ def test_pull_chart_builds_correct_command(libchart, monkeypatch, tmp_path, libc
     ]
 
 
-def test_pull_chart_https_repo_adds_repo_flag(libchart, monkeypatch, tmp_path, libchartpullandsubchartresolution):
+def test_pull_chart_https_repo_adds_repo_flag(monkeypatch, tmp_path, libchartpullandsubchartresolution):
     captured = {}
 
     def fake_run(cmd, **kwargs):
@@ -241,7 +241,7 @@ def test_pull_chart_https_repo_adds_repo_flag(libchart, monkeypatch, tmp_path, l
     assert "https://maykinmedia.github.io/charts/" in captured["cmd"]
 
 
-def test_pull_chart_failure_returns_stderr(libchart, monkeypatch, tmp_path, libchartpullandsubchartresolution):
+def test_pull_chart_failure_returns_stderr(monkeypatch, tmp_path, libchartpullandsubchartresolution):
     def fake_run(cmd, **kwargs):
         from types import SimpleNamespace
 
@@ -257,13 +257,13 @@ def test_pull_chart_failure_returns_stderr(libchart, monkeypatch, tmp_path, libc
 # --- pulled_chart_dir ---
 
 
-def test_pulled_chart_dir_returns_the_single_directory(libchart, tmp_path, libchartpullandsubchartresolution):
+def test_pulled_chart_dir_returns_the_single_directory(tmp_path, libchartpullandsubchartresolution):
     (tmp_path / "somechart").mkdir()
     (tmp_path / "somefile.txt").write_text("x")
     assert libchartpullandsubchartresolution.pulled_chart_dir(tmp_path) == tmp_path / "somechart"
 
 
-def test_pulled_chart_dir_raises_when_empty(libchart, tmp_path, libchartpullandsubchartresolution):
+def test_pulled_chart_dir_raises_when_empty(tmp_path, libchartpullandsubchartresolution):
     with pytest.raises(SystemExit, match="produced no chart directory"):
         libchartpullandsubchartresolution.pulled_chart_dir(tmp_path)
 
@@ -271,7 +271,7 @@ def test_pulled_chart_dir_raises_when_empty(libchart, tmp_path, libchartpullands
 # --- pull_chart_values ---
 
 
-def test_pull_chart_values_reads_pulled_values_yaml(libchart, monkeypatch, libchartpullandsubchartresolution):
+def test_pull_chart_values_reads_pulled_values_yaml(monkeypatch, libchartpullandsubchartresolution):
     def fake_pull_chart(dep, version, dest):
         chart_dir = dest / dep["name"]
         chart_dir.mkdir(parents=True)
@@ -286,7 +286,7 @@ def test_pull_chart_values_reads_pulled_values_yaml(libchart, monkeypatch, libch
     assert values == {"image": {"repository": "maykinmedia/open-forms"}}
 
 
-def test_pull_chart_values_raises_on_pull_failure(libchart, monkeypatch, libchartpullandsubchartresolution):
+def test_pull_chart_values_raises_on_pull_failure(monkeypatch, libchartpullandsubchartresolution):
     monkeypatch.setattr(
         libchartpullandsubchartresolution, "pull_chart", lambda dep, version, dest: (False, "not found")
     )

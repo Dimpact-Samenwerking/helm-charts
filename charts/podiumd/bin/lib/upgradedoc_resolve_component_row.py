@@ -5,7 +5,7 @@ app version from values.yaml/Chart.yaml/vendored subcharts."""
 
 import re
 
-from lib.chart import (
+from lib.chart_historical_baselines import (
     baseline_tag_for_sidecar_path,
     historical_app_version_for_path,
 )

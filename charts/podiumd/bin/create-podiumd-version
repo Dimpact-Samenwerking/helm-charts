@@ -69,7 +69,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import SEMVER_RE as CHART_VERSION_RE
+from lib.chart_historical_baselines import SEMVER_RE as CHART_VERSION_RE
 from lib.chart_release_baseline_basics import chart_version, write_release_baselines
 from lib.chart_release_baseline_basics import release_table_baseline as read_release_table_baseline
 from lib.chart_values_tree_primitives import replace_scalar_value

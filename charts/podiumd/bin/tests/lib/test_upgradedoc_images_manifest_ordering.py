@@ -23,12 +23,12 @@ GLOBAL_IMAGES_CANONICAL_NAMES = {
 # --- is_primary_image_path ---
 
 
-def test_is_primary_image_path_default_image_key(libchart, libchartregisteredpaths):
+def test_is_primary_image_path_default_image_key(libchartregisteredpaths):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"}]
     assert libchartregisteredpaths.is_primary_image_path(("zac", "image"), deps) is True
 
 
-def test_is_primary_image_path_multi_container_dependency(libchart, libchartregisteredpaths):
+def test_is_primary_image_path_multi_container_dependency(libchartregisteredpaths):
     """zgw-office-addin's frontend + backend are BOTH registered as
     primary images (lib.chart.COMPONENT_IMAGE_PATHS) — co-equal
     containers of one dependency, not one primary + a sidecar."""
@@ -37,12 +37,12 @@ def test_is_primary_image_path_multi_container_dependency(libchart, libchartregi
     assert libchartregisteredpaths.is_primary_image_path(("zgw-office-addin", "backend", "image"), deps) is True
 
 
-def test_is_primary_image_path_nested_sidecar_is_not_primary(libchart, libchartregisteredpaths):
+def test_is_primary_image_path_nested_sidecar_is_not_primary(libchartregisteredpaths):
     deps = [{"name": "redis-operator", "version": "1.0.0"}]
     assert libchartregisteredpaths.is_primary_image_path(("redis-operator", "redis-ha", "image"), deps) is False
 
 
-def test_is_primary_image_path_version_paths_for_field_is_primary(libchart, libchartregisteredpaths):
+def test_is_primary_image_path_version_paths_for_field_is_primary(libchartregisteredpaths):
     """redis-operator's own split "redisOperator.imageTag" field (lib.
     chart.version_paths_for's own bare-scalar fallback for a component
     with no "image: {tag}" block at all — actual_app_version's own
@@ -53,7 +53,7 @@ def test_is_primary_image_path_version_paths_for_field_is_primary(libchart, libc
     assert libchartregisteredpaths.is_primary_image_path(("redis-operator", "redisOperator", "imageTag"), deps) is True
 
 
-def test_is_primary_image_path_eck_stack_registered_version_fields_are_primary(libchart, libchartregisteredpaths):
+def test_is_primary_image_path_eck_stack_registered_version_fields_are_primary(libchartregisteredpaths):
     """eck-stack's own two COMPONENT_VERSION_PATHS entries (eck-
     elasticsearch + eck-kibana) are co-equal primaries, same "no single
     canonical one, list several" shape as zgw-office-addin's frontend +
@@ -67,7 +67,7 @@ def test_is_primary_image_path_eck_stack_registered_version_fields_are_primary(l
     )
 
 
-def test_is_primary_image_path_no_owning_dependency_is_primary(libchart, libchartregisteredpaths):
+def test_is_primary_image_path_no_owning_dependency_is_primary(libchartregisteredpaths):
     """A path with no owning Chart.yaml dependency at all (podiumd's own
     directly-templated top-level block, or the shared "global" anchor)
     has no PARENT to be a sidecar of — treated as its own standalone/
@@ -76,7 +76,7 @@ def test_is_primary_image_path_no_owning_dependency_is_primary(libchart, libchar
     assert libchartregisteredpaths.is_primary_image_path(("global", "images", "nginx"), deps) is True
 
 
-def test_is_primary_image_path_empty_path_is_not_primary(libchart, libchartregisteredpaths):
+def test_is_primary_image_path_empty_path_is_not_primary(libchartregisteredpaths):
     assert libchartregisteredpaths.is_primary_image_path(None, []) is False
     assert libchartregisteredpaths.is_primary_image_path((), []) is False
 

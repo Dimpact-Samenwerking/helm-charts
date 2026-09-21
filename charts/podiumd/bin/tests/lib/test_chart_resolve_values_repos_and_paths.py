@@ -53,9 +53,7 @@ def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None,
 # --- resolve_chart_values ---
 
 
-def test_resolve_chart_values_prefers_vendored_over_pulling(
-    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
-):
+def test_resolve_chart_values_prefers_vendored_over_pulling(tmp_path, monkeypatch, libchartpullandsubchartresolution):
     def raise_if_pulled(dep, version, dest):
         raise AssertionError("should not pull — already vendored at this exact version")
 
@@ -71,7 +69,7 @@ def test_resolve_chart_values_prefers_vendored_over_pulling(
 
 
 def test_resolve_chart_values_falls_back_to_pull_when_not_vendored(
-    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
+    tmp_path, monkeypatch, libchartpullandsubchartresolution
 ):
     def fake_pull_chart(dep, version, dest):
         chart_dir = dest / dep["name"]
@@ -91,9 +89,7 @@ def test_resolve_chart_values_falls_back_to_pull_when_not_vendored(
     assert error is None
 
 
-def test_resolve_chart_values_pull_failure_returns_error(
-    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
-):
+def test_resolve_chart_values_pull_failure_returns_error(tmp_path, monkeypatch, libchartpullandsubchartresolution):
     monkeypatch.setattr(
         libchartpullandsubchartresolution, "pull_chart", lambda dep, version, dest: (False, "version not found")
     )
@@ -107,7 +103,7 @@ def test_resolve_chart_values_pull_failure_returns_error(
 
 
 def test_resolve_chart_values_no_pull_allowed_and_not_vendored_returns_error(
-    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
+    tmp_path, monkeypatch, libchartpullandsubchartresolution
 ):
     def raise_if_pulled(dep, version, dest):
         raise AssertionError("should not pull — allow_pull is False")
@@ -127,9 +123,7 @@ def test_resolve_chart_values_no_pull_allowed_and_not_vendored_returns_error(
 # --- primary_image_repositories ---
 
 
-def test_primary_image_repositories_own_override_wins(
-    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
-):
+def test_primary_image_repositories_own_override_wins(tmp_path, monkeypatch, libchartpullandsubchartresolution):
     def raise_if_pulled(dep, version, dest):
         raise AssertionError("own override present — should never consult the subchart")
 
@@ -145,9 +139,7 @@ def test_primary_image_repositories_own_override_wins(
     assert error is None
 
 
-def test_primary_image_repositories_falls_back_to_subchart_default(
-    libchart, tmp_path, libchartpullandsubchartresolution
-):
+def test_primary_image_repositories_falls_back_to_subchart_default(tmp_path, libchartpullandsubchartresolution):
     """openzaak-style: no "repository:" override of its own at all — only
     a "tag:" — resolved from the vendored subchart's own default instead,
     with no network access (allow_pull=False)."""
@@ -164,7 +156,7 @@ def test_primary_image_repositories_falls_back_to_subchart_default(
 
 
 def test_primary_image_repositories_multi_path_component_reads_subchart_once(
-    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
+    tmp_path, monkeypatch, libchartpullandsubchartresolution
 ):
     """zgw-office-addin-style: two distinct primary paths, neither with
     its own override — both resolved from the SAME vendored subchart
@@ -198,9 +190,7 @@ def test_primary_image_repositories_multi_path_component_reads_subchart_once(
     assert calls == ["zgw-office-addin"]  # fetched once, reused for the second path
 
 
-def test_primary_image_repositories_unresolvable_without_vendored_chart(
-    libchart, tmp_path, libchartpullandsubchartresolution
-):
+def test_primary_image_repositories_unresolvable_without_vendored_chart(tmp_path, libchartpullandsubchartresolution):
     dep = {"name": "openzaak", "alias": "", "version": "4.9.1"}
     own_values = {"openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}}}
 
@@ -212,7 +202,7 @@ def test_primary_image_repositories_unresolvable_without_vendored_chart(
     assert error is not None
 
 
-def test_primary_image_repositories_chart_dir_none_is_safe_when_unneeded(libchart, libchartpullandsubchartresolution):
+def test_primary_image_repositories_chart_dir_none_is_safe_when_unneeded(libchartpullandsubchartresolution):
     """A caller with no vendored-charts location at all (e.g. a pure
     in-memory test) never crashes, as long as no path actually needs the
     subchart fallback — see verify-release-table-with-podiumd's own
@@ -226,9 +216,7 @@ def test_primary_image_repositories_chart_dir_none_is_safe_when_unneeded(libchar
     assert error is None
 
 
-def test_primary_image_repositories_chart_dir_none_and_needed_returns_error(
-    libchart, libchartpullandsubchartresolution
-):
+def test_primary_image_repositories_chart_dir_none_and_needed_returns_error(libchartpullandsubchartresolution):
     dep = {"name": "openzaak", "alias": "", "version": "4.9.1"}
     own_values = {"openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}}}
 
@@ -254,14 +242,14 @@ def test_primary_image_repositories_chart_dir_none_and_needed_returns_error(
         ("ghcr.io/infonl/zaakafhandelcomponent@sha256:aaaa", "infonl/zaakafhandelcomponent"),
     ],
 )
-def test_strip_registry_host(libchart, libchartvaluestreeprimitives, url, expected):
+def test_strip_registry_host(libchartvaluestreeprimitives, url, expected):
     assert libchartvaluestreeprimitives.strip_registry_host(url) == expected
 
 
 # --- repository_path_map ---
 
 
-def test_repository_path_map_own_override(libchart, tmp_path, libchartrepoandpathresolution):
+def test_repository_path_map_own_override(tmp_path, libchartrepoandpathresolution):
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
     own_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
 
@@ -272,7 +260,7 @@ def test_repository_path_map_own_override(libchart, tmp_path, libchartrepoandpat
     assert mapping == {"infonl/zaakafhandelcomponent": ("zac", "image")}
 
 
-def test_repository_path_map_subchart_default(libchart, tmp_path, libchartrepoandpathresolution):
+def test_repository_path_map_subchart_default(tmp_path, libchartrepoandpathresolution):
     make_tgz(tmp_path / "charts", "openzaak", "4.9.1", {"image": {"repository": "openzaak/open-zaak"}})
     dep = {"name": "openzaak", "alias": "", "version": "4.9.1"}
     own_values = {"openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}}}
@@ -284,7 +272,7 @@ def test_repository_path_map_subchart_default(libchart, tmp_path, libchartrepoan
     assert mapping == {"openzaak/open-zaak": ("openzaak", "image")}
 
 
-def test_repository_path_map_nested_sidecar_via_subchart_default(libchart, tmp_path, libchartrepoandpathresolution):
+def test_repository_path_map_nested_sidecar_via_subchart_default(tmp_path, libchartrepoandpathresolution):
     """ZAC's own opa/office_converter sidecars: podiumd's own values.yaml
     only overrides their "tag:" (the "repository:" is commented out for
     documentation, not real YAML) — the real repository has to come
@@ -320,7 +308,7 @@ def test_repository_path_map_nested_sidecar_via_subchart_default(libchart, tmp_p
 
 
 def test_repository_path_map_subchart_values_reused_across_paths(
-    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution, libchartrepoandpathresolution
+    tmp_path, monkeypatch, libchartpullandsubchartresolution, libchartrepoandpathresolution
 ):
     """The vendored subchart's own values.yaml is read at most once for
     a given dependency, however many of its own paths need it —
@@ -357,7 +345,7 @@ def test_repository_path_map_subchart_values_reused_across_paths(
 
 
 def test_repository_path_map_skips_path_with_no_known_dependency_and_no_own_repository(
-    libchart, tmp_path, libchartrepoandpathresolution
+    tmp_path, libchartrepoandpathresolution
 ):
     """A path whose first segment isn't any dependency's own values-tree
     key at all, AND has no own "repository:" override either — nothing
@@ -375,9 +363,7 @@ def test_repository_path_map_skips_path_with_no_known_dependency_and_no_own_repo
     assert mapping == {"infonl/zaakafhandelcomponent": ("zac", "image")}
 
 
-def test_repository_path_map_includes_own_repository_with_no_known_dependency(
-    libchart, tmp_path, libchartrepoandpathresolution
-):
+def test_repository_path_map_includes_own_repository_with_no_known_dependency(tmp_path, libchartrepoandpathresolution):
     """A path whose first segment isn't any Chart.yaml dependency at all
     — one of podiumd's own directly-templated top-level blocks, like the
     real "apiproxy"/"frankgateway"/"keycloak" — is still resolved when
@@ -398,7 +384,7 @@ def test_repository_path_map_includes_own_repository_with_no_known_dependency(
     assert mapping == {"nginxinc/nginx-unprivileged": ("apiproxy", "image")}
 
 
-def test_repository_path_map_skips_unresolvable_and_multiple_deps(libchart, tmp_path, libchartrepoandpathresolution):
+def test_repository_path_map_skips_unresolvable_and_multiple_deps(tmp_path, libchartrepoandpathresolution):
     """A dependency whose repository can't be resolved at all (no
     override, subchart not vendored) is silently skipped, not an error
     for the whole map — the other, resolvable dependencies still end up
@@ -421,7 +407,7 @@ def test_repository_path_map_skips_unresolvable_and_multiple_deps(libchart, tmp_
 # --- global_image_paths ---
 
 
-def test_global_image_paths_reads_every_shared_anchor(libchart, libchartpullandsubchartresolution):
+def test_global_image_paths_reads_every_shared_anchor(libchartpullandsubchartresolution):
     values = {
         "global": {
             "images": {
@@ -439,7 +425,7 @@ def test_global_image_paths_reads_every_shared_anchor(libchart, libchartpullands
     }
 
 
-def test_global_image_paths_skips_entries_without_a_tag(libchart, libchartpullandsubchartresolution):
+def test_global_image_paths_skips_entries_without_a_tag(libchartpullandsubchartresolution):
     values = {
         "global": {
             "images": {
@@ -451,7 +437,7 @@ def test_global_image_paths_skips_entries_without_a_tag(libchart, libchartpullan
     assert libchartpullandsubchartresolution.global_image_paths(values) == []
 
 
-def test_global_image_paths_no_global_images_block_returns_empty(libchart, libchartpullandsubchartresolution):
+def test_global_image_paths_no_global_images_block_returns_empty(libchartpullandsubchartresolution):
     assert libchartpullandsubchartresolution.global_image_paths({}) == []
     assert libchartpullandsubchartresolution.global_image_paths({"global": {"configuration": {}}}) == []
 
@@ -459,7 +445,7 @@ def test_global_image_paths_no_global_images_block_returns_empty(libchart, libch
 # --- repo_group_representative ---
 
 
-def test_repo_group_representative_global_beats_everything(libchart, libchartrepoandpathresolution):
+def test_repo_group_representative_global_beats_everything(libchartrepoandpathresolution):
     """The shared nginx-unprivileged anchor: aliased by apiproxy's own
     top-level image (orphan) AND by a real dependency's own nginx
     sidecar alike. Neither alias site is "the" component this image
@@ -476,7 +462,7 @@ def test_repo_group_representative_global_beats_everything(libchart, libchartrep
     assert libchartrepoandpathresolution.repo_group_representative(repo_paths, deps) == ("global", "images", "nginx")
 
 
-def test_repo_group_representative_global_beats_real_dependency_primary(libchart, libchartrepoandpathresolution):
+def test_repo_group_representative_global_beats_real_dependency_primary(libchartrepoandpathresolution):
     """Even a real dependency's own PRIMARY image (the highest of the
     other tiers) never outranks "global" — structurally impossible in
     practice (a primary app image is never itself a global-anchor
@@ -491,7 +477,7 @@ def test_repo_group_representative_global_beats_real_dependency_primary(libchart
     assert libchartrepoandpathresolution.repo_group_representative(repo_paths, deps) == ("global", "images", "nginx")
 
 
-def test_repo_group_representative_real_dependency_primary_beats_orphan(libchart, libchartrepoandpathresolution):
+def test_repo_group_representative_real_dependency_primary_beats_orphan(libchartrepoandpathresolution):
     """The keycloak/keycloak-operator case: "keycloak.image" is podiumd's
     own directly-templated top-level override (tier 2 — no owning
     Chart.yaml dependency at all) and "keycloak-operator.operator.
@@ -515,7 +501,7 @@ def test_repo_group_representative_real_dependency_primary_beats_orphan(libchart
     )
 
 
-def test_repo_group_representative_order_independent(libchart, libchartrepoandpathresolution):
+def test_repo_group_representative_order_independent(libchartrepoandpathresolution):
     """Same case, paths given in the opposite order — the real
     dependency's own path must still win, not just "whichever came
     first"."""
@@ -533,7 +519,7 @@ def test_repo_group_representative_order_independent(libchart, libchartrepoandpa
     )
 
 
-def test_repo_group_representative_orphan_only_falls_back_to_last(libchart, libchartrepoandpathresolution):
+def test_repo_group_representative_orphan_only_falls_back_to_last(libchartrepoandpathresolution):
     """No real dependency in the group at all (e.g. "apiproxy" and
     "frankgateway" both aliasing the same shared global.images.nginx
     anchor, neither a Chart.yaml dependency of its own) — falls back to
@@ -544,7 +530,7 @@ def test_repo_group_representative_orphan_only_falls_back_to_last(libchart, libc
     assert libchartrepoandpathresolution.repo_group_representative(repo_paths, []) == ("frankgateway", "image")
 
 
-def test_repo_group_representative_sidecars_only_falls_back_to_last(libchart, libchartrepoandpathresolution):
+def test_repo_group_representative_sidecars_only_falls_back_to_last(libchartrepoandpathresolution):
     """No path in the group is a dependency's own PRIMARY path (e.g. two
     unrelated dependencies' sidecars sharing one base image, like nginx)
     — falls back to the last path, same as before this function
@@ -562,9 +548,7 @@ def test_repo_group_representative_sidecars_only_falls_back_to_last(libchart, li
     )
 
 
-def test_repository_path_map_prefers_dependency_own_primary_over_orphan(
-    libchart, tmp_path, libchartrepoandpathresolution
-):
+def test_repository_path_map_prefers_dependency_own_primary_over_orphan(tmp_path, libchartrepoandpathresolution):
     """Integration-level version of the keycloak/keycloak-operator case
     through repository_path_map itself — the map entry for the shared
     repository resolves to the real dependency's own path, not podiumd's
@@ -590,7 +574,7 @@ def test_repository_path_map_prefers_dependency_own_primary_over_orphan(
 # --- paths_by_repository ---
 
 
-def test_paths_by_repository_groups_shared_repository(libchart, tmp_path, libchartrepoandpathresolution):
+def test_paths_by_repository_groups_shared_repository(tmp_path, libchartrepoandpathresolution):
     """Several paths resolving to the same repository (e.g. every
     "<component>.nginx.image" sidecar aliasing the same shared
     global.images.nginx YAML anchor) land together under that one
@@ -613,9 +597,7 @@ def test_paths_by_repository_groups_shared_repository(libchart, tmp_path, libcha
     }
 
 
-def test_paths_by_repository_matches_repository_path_map_last_survivor(
-    libchart, tmp_path, libchartrepoandpathresolution
-):
+def test_paths_by_repository_matches_repository_path_map_last_survivor(tmp_path, libchartrepoandpathresolution):
     """repository_path_map's own single-path result is exactly this
     function's own group, collapsed to its last entry — the two must
     never disagree about which path "wins" for a shared repository."""
@@ -637,9 +619,7 @@ def test_paths_by_repository_matches_repository_path_map_last_survivor(
     assert mapping == {repo: repo_paths[-1] for repo, repo_paths in groups.items()}
 
 
-def test_paths_by_repository_resolves_via_component_version_repository_sibling(
-    libchart, tmp_path, libchartrepoandpathresolution
-):
+def test_paths_by_repository_resolves_via_component_version_repository_sibling(tmp_path, libchartrepoandpathresolution):
     """redis-operator's own image has no "<path>.repository" field at
     all — its repository lives at the sibling "imageName:" field next
     to "imageTag:" (see COMPONENT_VERSION_REPOSITORY_PATHS), a shape
@@ -658,9 +638,7 @@ def test_paths_by_repository_resolves_via_component_version_repository_sibling(
     assert groups == {"opstree/redis-operator": [("redis-operator", "redisOperator", "imageTag")]}
 
 
-def test_paths_by_repository_nested_subchart_not_vendored_falls_through(
-    libchart, tmp_path, libchartrepoandpathresolution
-):
+def test_paths_by_repository_nested_subchart_not_vendored_falls_through(tmp_path, libchartrepoandpathresolution):
     """eck-stack's own COMPONENT_VERSION_PATHS entries ("version:" bare
     fields) have a registered nested-subchart lookup (see
     COMPONENT_VERSION_PATH_NESTED_SUBCHARTS), but the .tgz itself isn't
@@ -676,9 +654,7 @@ def test_paths_by_repository_nested_subchart_not_vendored_falls_through(
     assert groups == {}
 
 
-def test_paths_by_repository_resolves_via_nested_subchart_documented_default(
-    libchart, tmp_path, libchartrepoandpathresolution
-):
+def test_paths_by_repository_resolves_via_nested_subchart_documented_default(tmp_path, libchartrepoandpathresolution):
     """eck-stack's own three "version:" fields have no repository
     anywhere in podiumd's own values.yaml, nor a live default in the
     vendored eck-stack chart's own top-level values.yaml — only a

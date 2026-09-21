@@ -19,7 +19,7 @@ since a bare basename never matches a Chart.yaml dependency by name."""
 
 import re
 
-from lib.chart import (
+from lib.chart_historical_baselines import (
     baseline_tag_for_sidecar_path,
     historical_app_version_for_path,
 )

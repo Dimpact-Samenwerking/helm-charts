@@ -11,15 +11,15 @@ import pytest
 # --- get_path ---
 
 
-def test_get_path_nested(libchart, libchartvaluestreeprimitives):
+def test_get_path_nested(libchartvaluestreeprimitives):
     assert libchartvaluestreeprimitives.get_path({"a": {"b": {"c": 1}}}, "a.b.c") == 1
 
 
-def test_get_path_missing_returns_none(libchart, libchartvaluestreeprimitives):
+def test_get_path_missing_returns_none(libchartvaluestreeprimitives):
     assert libchartvaluestreeprimitives.get_path({"a": {}}, "a.b.c") is None
 
 
-def test_get_path_non_dict_intermediate_returns_none(libchart, libchartvaluestreeprimitives):
+def test_get_path_non_dict_intermediate_returns_none(libchartvaluestreeprimitives):
     assert libchartvaluestreeprimitives.get_path({"a": "scalar"}, "a.b") is None
 
 
@@ -29,31 +29,31 @@ def test_get_path_non_dict_intermediate_returns_none(libchart, libchartvaluestre
 # ucv.replace_scalar_value re-export, still exercised via that import).
 
 
-def test_replace_scalar_value_preserves_quotes(libchart, libchartvaluestreeprimitives):
+def test_replace_scalar_value_preserves_quotes(libchartvaluestreeprimitives):
     assert (
         libchartvaluestreeprimitives.replace_scalar_value('      tag: "1.0.0@sha256:aaaa"\n', "2.0.0@sha256:bbbb")
         == '      tag: "2.0.0@sha256:bbbb"\n'
     )
 
 
-def test_replace_scalar_value_preserves_bare_style(libchart, libchartvaluestreeprimitives):
+def test_replace_scalar_value_preserves_bare_style(libchartvaluestreeprimitives):
     assert (
         libchartvaluestreeprimitives.replace_scalar_value("    version: 1.0.297\n", "1.0.298")
         == "    version: 1.0.298\n"
     )
 
 
-def test_replace_scalar_value_preserves_trailing_comment(libchart, libchartvaluestreeprimitives):
+def test_replace_scalar_value_preserves_trailing_comment(libchartvaluestreeprimitives):
     result = libchartvaluestreeprimitives.replace_scalar_value("    version: 1.0.297  # pinned\n", "1.0.298")
     assert result == "    version: 1.0.298  # pinned\n"
 
 
-def test_replace_scalar_value_unparseable_line_raises(libchart, libchartvaluestreeprimitives):
+def test_replace_scalar_value_unparseable_line_raises(libchartvaluestreeprimitives):
     with pytest.raises(SystemExit):
         libchartvaluestreeprimitives.replace_scalar_value("not a key-value line at all\n", "x")
 
 
-def test_replace_scalar_value_preserves_anchor_tag(libchart, libchartvaluestreeprimitives):
+def test_replace_scalar_value_preserves_anchor_tag(libchartvaluestreeprimitives):
     """Regression test: a line DEFINING a YAML anchor (e.g. keycloak-
     operator.operator.config.keycloakImage's own "tag:"/"sha:" fields,
     aliased elsewhere by keycloak.image via "*anchor") must keep its own
@@ -86,16 +86,16 @@ def test_chart_version_reads_top_level_version(libchartreleasebaselinebasics, tm
     assert libchartreleasebaselinebasics.chart_version(chart_yaml) == "4.9.0"
 
 
-def test_semver_re_matches_bare_version(libchart):
-    assert libchart.SEMVER_RE.match("4.8.2")
-    assert libchart.SEMVER_RE.match("10.20.300")
+def test_semver_re_matches_bare_version(libcharthistoricalbaselines):
+    assert libcharthistoricalbaselines.SEMVER_RE.match("4.8.2")
+    assert libcharthistoricalbaselines.SEMVER_RE.match("10.20.300")
 
 
-def test_semver_re_rejects_anything_else(libchart):
-    assert not libchart.SEMVER_RE.match("4.8")
-    assert not libchart.SEMVER_RE.match("v4.8.2")
-    assert not libchart.SEMVER_RE.match("--help")
-    assert not libchart.SEMVER_RE.match("4.8.2-rc1")
+def test_semver_re_rejects_anything_else(libcharthistoricalbaselines):
+    assert not libcharthistoricalbaselines.SEMVER_RE.match("4.8")
+    assert not libcharthistoricalbaselines.SEMVER_RE.match("v4.8.2")
+    assert not libcharthistoricalbaselines.SEMVER_RE.match("--help")
+    assert not libcharthistoricalbaselines.SEMVER_RE.match("4.8.2-rc1")
 
 
 # --- upgrade_docs_baseline / release_table_baseline ---
@@ -146,9 +146,7 @@ def test_release_table_baseline_none_when_key_missing(libchartreleasebaselinebas
 # paths_by_repository's own repo-group keys use.
 
 
-def test_full_repository_for_path_docker_hub_repository_gets_docker_io_host(
-    libchart, tmp_path, libchartrepoandpathresolution
-):
+def test_full_repository_for_path_docker_hub_repository_gets_docker_io_host(tmp_path, libchartrepoandpathresolution):
     """Docker Hub's own convention: no registry host embedded in
     "repository:" at all."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
@@ -159,9 +157,7 @@ def test_full_repository_for_path_docker_hub_repository_gets_docker_io_host(
     )
 
 
-def test_full_repository_for_path_already_host_qualified_is_unchanged(
-    libchart, tmp_path, libchartrepoandpathresolution
-):
+def test_full_repository_for_path_already_host_qualified_is_unchanged(tmp_path, libchartrepoandpathresolution):
     deps = [{"name": "brp-personen-mock", "alias": "brppersonenmock", "version": "1.2.9"}]
     values = {"brppersonenmock": {"image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:aaaa"}}}
     assert (
@@ -170,9 +166,7 @@ def test_full_repository_for_path_already_host_qualified_is_unchanged(
     )
 
 
-def test_full_repository_for_path_separate_registry_key_is_authoritative(
-    libchart, tmp_path, libchartrepoandpathresolution
-):
+def test_full_repository_for_path_separate_registry_key_is_authoritative(tmp_path, libchartrepoandpathresolution):
     """Regression test (mi's own real "azure-cli" case): a sibling
     "registry:" key alongside a bare "repository:" (Azure Container
     Registry's own convention) is used directly — never parse_repo's
@@ -189,7 +183,7 @@ def test_full_repository_for_path_separate_registry_key_is_authoritative(
 
 
 def test_full_repository_for_path_bare_namespace_registry_key_gets_docker_io_host(
-    libchart, tmp_path, libchartrepoandpathresolution
+    tmp_path, libchartrepoandpathresolution
 ):
     """Regression test (zaakbrug's own real case): the vendored zaakbrug
     chart's own upstream default sets "image.registry: wearefrank"
@@ -209,7 +203,7 @@ def test_full_repository_for_path_bare_namespace_registry_key_gets_docker_io_hos
     )
 
 
-def test_full_repository_for_path_none_when_unresolvable(libchart, tmp_path, libchartrepoandpathresolution):
+def test_full_repository_for_path_none_when_unresolvable(tmp_path, libchartrepoandpathresolution):
     assert (
         libchartrepoandpathresolution.full_repository_for_path(tmp_path, [], {}, ("brppersonenmock", "image")) is None
     )
