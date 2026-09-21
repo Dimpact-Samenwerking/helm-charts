@@ -41,32 +41,34 @@ def test_describe_key_changes_empty_when_nothing_changed(ucv):
 # --- values_tree_path_for / find_matching_images_entry / update_images_manifest_entry ---
 
 
-def test_values_tree_path_for_single_image(libcomponentdocs):
-    assert libcomponentdocs.values_tree_path_for("zac", "image") == ("zac",)
+def test_values_tree_path_for_single_image(libcomponentdocsentries):
+    assert libcomponentdocsentries.values_tree_path_for("zac", "image") == ("zac",)
 
 
-def test_values_tree_path_for_nested_image(libcomponentdocs):
-    assert libcomponentdocs.values_tree_path_for("zgw-office-addin", "frontend.image") == (
+def test_values_tree_path_for_nested_image(libcomponentdocsentries):
+    assert libcomponentdocsentries.values_tree_path_for("zgw-office-addin", "frontend.image") == (
         "zgw-office-addin",
         "frontend",
     )
 
 
-def test_find_matching_images_entry_matches_by_path(libcomponentdocs):
+def test_find_matching_images_entry_matches_by_path(libcomponentdocsentries):
     entries = [{"name": "zac"}, {"name": "zgw-office-addin-frontend"}]
-    entry, idx, index = libcomponentdocs.find_matching_images_entry(entries, [0, 1], ("zgw-office-addin", "frontend"))
+    entry, idx, index = libcomponentdocsentries.find_matching_images_entry(
+        entries, [0, 1], ("zgw-office-addin", "frontend")
+    )
     assert entry["name"] == "zgw-office-addin-frontend"
     assert idx == 1
     assert index == 1
 
 
-def test_find_matching_images_entry_none_when_unmatched(libcomponentdocs):
+def test_find_matching_images_entry_none_when_unmatched(libcomponentdocsentries):
     entries = [{"name": "zac"}]
-    entry, idx, index = libcomponentdocs.find_matching_images_entry(entries, [0], ("openformulieren",))
+    entry, idx, index = libcomponentdocsentries.find_matching_images_entry(entries, [0], ("openformulieren",))
     assert entry is None and idx is None and index is None
 
 
-def test_update_images_manifest_entry_updates_version_digest_and_comment(libcomponentdocs):
+def test_update_images_manifest_entry_updates_version_digest_and_comment(libcomponentdocsentries):
     lines = [
         "# ZAC — 5.0.1 -> 5.1.0\n",
         "- name: zac\n",
@@ -75,14 +77,14 @@ def test_update_images_manifest_entry_updates_version_digest_and_comment(libcomp
         '  digest: "sha256:aaaa"\n',
     ]
     entries = [{"name": "zac"}]
-    changed = libcomponentdocs.update_images_manifest_entry(lines, entries, [1], 0, "5.4.3@sha256:bbbb", "zac")
+    changed = libcomponentdocsentries.update_images_manifest_entry(lines, entries, [1], 0, "5.4.3@sha256:bbbb", "zac")
     assert changed is True
     assert lines[0] == "# ZAC — 5.0.1 -> 5.4.3\n"
     assert '"5.4.3"' in lines[3]
     assert '"sha256:bbbb"' in lines[4]
 
 
-def test_update_images_manifest_entry_updates_shared_group_comment(libcomponentdocs):
+def test_update_images_manifest_entry_updates_shared_group_comment(libcomponentdocsentries):
     """A second entry (backend) sharing the first entry's (frontend)
     comment, separated by a blank line, must still have that shared
     comment's version pair updated — not skipped as "no comment"."""
@@ -97,7 +99,7 @@ def test_update_images_manifest_entry_updates_shared_group_comment(libcomponentd
         '  digest: "sha256:bbbb"\n',
     ]
     entries = [{"name": "zgw-office-addin-frontend"}, {"name": "zgw-office-addin-backend"}]
-    changed = libcomponentdocs.update_images_manifest_entry(
+    changed = libcomponentdocsentries.update_images_manifest_entry(
         lines, entries, [1, 5], 1, "v0.9.400@sha256:cccc", "zgw-office-addin"
     )
     assert changed is True
