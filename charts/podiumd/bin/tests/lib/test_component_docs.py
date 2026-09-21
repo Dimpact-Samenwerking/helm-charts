@@ -323,18 +323,18 @@ def test_create_missing_docs_nothing_to_do_when_all_exist(libcomponentdocs, libc
 # --- values_delta_section_heading ---
 
 
-def test_values_delta_section_heading_app_changed_chart_unchanged(libcomponentdocs):
-    heading = libcomponentdocs.values_delta_section_heading("zac", "5.0.2", "5.4.3", "1.0.297", "1.0.297")
+def test_values_delta_section_heading_app_changed_chart_unchanged(libcomponentdocsdeltas):
+    heading = libcomponentdocsdeltas.values_delta_section_heading("zac", "5.0.2", "5.4.3", "1.0.297", "1.0.297")
     assert heading == "## zac 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n"
 
 
-def test_values_delta_section_heading_native_component_omits_chart_clause(libcomponentdocs):
-    heading = libcomponentdocs.values_delta_section_heading("frankgateway", "100", "104", None, "-")
+def test_values_delta_section_heading_native_component_omits_chart_clause(libcomponentdocsdeltas):
+    heading = libcomponentdocsdeltas.values_delta_section_heading("frankgateway", "100", "104", None, "-")
     assert heading == "## frankgateway 100 → 104\n"
 
 
-def test_values_delta_section_heading_unresolved_app_version_with_chart(libcomponentdocs):
-    heading = libcomponentdocs.values_delta_section_heading("redis-operator", None, None, "0.26.1", "0.27.0")
+def test_values_delta_section_heading_unresolved_app_version_with_chart(libcomponentdocsdeltas):
+    heading = libcomponentdocsdeltas.values_delta_section_heading("redis-operator", None, None, "0.26.1", "0.27.0")
     assert heading == (
         "## redis-operator chart 0.26.1 → 0.27.0 — TODO: describe this component's changes; "
         "its app version could not be resolved automatically.\n"
@@ -738,27 +738,27 @@ def test_strip_stale_upgrade_placeholders_strips_only_the_changes_todo_when_intr
     assert "### eck-operator" in new_text
 
 
-def test_find_values_delta_section_matches_hand_written_heading(libcomponentdocs):
+def test_find_values_delta_section_matches_hand_written_heading(libcomponentdocsdeltas):
     text = "# Values deltas\n\n## KISS 2.2.4 → 3.0.0 — required edits\n\nSome prose.\n"
-    section = libcomponentdocs.find_values_delta_section(text, "kiss", [{"name": "kiss", "version": "3.0.0"}])
+    section = libcomponentdocsdeltas.find_values_delta_section(text, "kiss", [{"name": "kiss", "version": "3.0.0"}])
     assert section is not None
     assert section["heading"] == "KISS 2.2.4 → 3.0.0 — required edits"
 
 
-def test_find_values_delta_section_no_match_returns_none(libcomponentdocs):
+def test_find_values_delta_section_no_match_returns_none(libcomponentdocsdeltas):
     text = "# Values deltas\n\n## zac 5.0.2 → 5.4.3\n\n- Key `zac.a` was added.\n"
-    assert libcomponentdocs.find_values_delta_section(text, "openformulieren", DEPS) is None
+    assert libcomponentdocsdeltas.find_values_delta_section(text, "openformulieren", DEPS) is None
 
 
-def test_insert_values_delta_section_positions_by_values_yaml_order(libcomponentdocs):
+def test_insert_values_delta_section_positions_by_values_yaml_order(libcomponentdocsdeltas):
     text = "# Values deltas\n\n## openformulieren 3.4.10 → 3.5.6\n\n- Key `a` was added.\n"
-    new_text = libcomponentdocs.insert_values_delta_section(
+    new_text = libcomponentdocsdeltas.insert_values_delta_section(
         text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS, {"zac": {}, "openformulieren": {}}
     )
     assert new_text.index("## zac") < new_text.index("## openformulieren")
 
 
-def test_insert_values_delta_section_strips_bare_todo_stub_on_first_insertion(libcomponentdocs):
+def test_insert_values_delta_section_strips_bare_todo_stub_on_first_insertion(libcomponentdocsdeltas):
     """Same class of bug as insert_changes_section's own (see that
     function's tests): a values-deltas.md doc still carrying STUB_
     TEMPLATES["values-deltas"]'s own bare TODO sentence (create-doc-
@@ -768,7 +768,7 @@ def test_insert_values_delta_section_strips_bare_todo_stub_on_first_insertion(li
         "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
         "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
     )
-    new_text = libcomponentdocs.insert_values_delta_section(
+    new_text = libcomponentdocsdeltas.insert_values_delta_section(
         text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS, {"zac": {}}
     )
     assert "TODO" not in new_text
@@ -777,12 +777,12 @@ def test_insert_values_delta_section_strips_bare_todo_stub_on_first_insertion(li
     )
 
 
-def test_insert_values_delta_section_second_insertion_unaffected(libcomponentdocs):
+def test_insert_values_delta_section_second_insertion_unaffected(libcomponentdocsdeltas):
     """Once a real section already exists, `sections` is non-empty and
     the stub-stripping path never fires — matches insert_changes_
     section's own equivalent guarantee."""
     text = "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n## openformulieren 3.4.10 → 3.5.6\n\n- Key `a` was added.\n"
-    new_text = libcomponentdocs.insert_values_delta_section(
+    new_text = libcomponentdocsdeltas.insert_values_delta_section(
         text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS, {"zac": {}, "openformulieren": {}}
     )
     assert "## openformulieren" in new_text
@@ -790,9 +790,9 @@ def test_insert_values_delta_section_second_insertion_unaffected(libcomponentdoc
     assert "TODO" not in new_text
 
 
-def test_insert_values_delta_section_never_strips_real_prose_mentioning_todo(libcomponentdocs):
+def test_insert_values_delta_section_never_strips_real_prose_mentioning_todo(libcomponentdocsdeltas):
     text = "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\nTODO: check with gemeente X about their override Y.\n"
-    new_text = libcomponentdocs.insert_values_delta_section(
+    new_text = libcomponentdocsdeltas.insert_values_delta_section(
         text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS, {"zac": {}}
     )
     assert "TODO: check with gemeente X about their override Y." in new_text
@@ -801,7 +801,7 @@ def test_insert_values_delta_section_never_strips_real_prose_mentioning_todo(lib
 # --- strip_stale_values_deltas_todo_stub (retroactive cleanup, fix-doc-consistency) ---
 
 
-def test_strip_stale_values_deltas_todo_stub_removes_leftover_before_a_real_section(libcomponentdocs):
+def test_strip_stale_values_deltas_todo_stub_removes_leftover_before_a_real_section(libcomponentdocsdeltas):
     """Regression test (real bug, real doc): 4.9.1-to-4.9.2-values-deltas.md's
     own "## eck-operator ..." section was inserted BEFORE insert_values_
     delta_section's own insertion-time fix existed, leaving the stub
@@ -812,7 +812,7 @@ def test_strip_stale_values_deltas_todo_stub_removes_leftover_before_a_real_sect
         "## eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
         "- Key `eck-operator.image` was added.\n"
     )
-    new_text, changed = libcomponentdocs.strip_stale_values_deltas_todo_stub(text)
+    new_text, changed = libcomponentdocsdeltas.strip_stale_values_deltas_todo_stub(text)
     assert changed is True
     assert "TODO" not in new_text
     assert new_text == (
@@ -822,7 +822,7 @@ def test_strip_stale_values_deltas_todo_stub_removes_leftover_before_a_real_sect
     )
 
 
-def test_strip_stale_values_deltas_todo_stub_leaves_a_still_empty_doc_untouched(libcomponentdocs):
+def test_strip_stale_values_deltas_todo_stub_leaves_a_still_empty_doc_untouched(libcomponentdocsdeltas):
     """A doc that STILL only has the bare stub (no real section yet) is
     the correct, expected state for a genuinely new doc -- must never be
     touched."""
@@ -830,26 +830,26 @@ def test_strip_stale_values_deltas_todo_stub_leaves_a_still_empty_doc_untouched(
         "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
         "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
     )
-    new_text, changed = libcomponentdocs.strip_stale_values_deltas_todo_stub(text)
+    new_text, changed = libcomponentdocsdeltas.strip_stale_values_deltas_todo_stub(text)
     assert changed is False
     assert new_text == text
 
 
-def test_strip_stale_values_deltas_todo_stub_never_strips_real_prose_mentioning_todo(libcomponentdocs):
+def test_strip_stale_values_deltas_todo_stub_never_strips_real_prose_mentioning_todo(libcomponentdocsdeltas):
     text = (
         "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n"
         "TODO: check with gemeente X about their override Y.\n\n"
         "## eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
         "- Key `eck-operator.image` was added.\n"
     )
-    new_text, changed = libcomponentdocs.strip_stale_values_deltas_todo_stub(text)
+    new_text, changed = libcomponentdocsdeltas.strip_stale_values_deltas_todo_stub(text)
     assert changed is False
     assert "TODO: check with gemeente X about their override Y." in new_text
 
 
-def test_strip_stale_values_deltas_todo_stub_noop_without_any_section(libcomponentdocs):
+def test_strip_stale_values_deltas_todo_stub_noop_without_any_section(libcomponentdocsdeltas):
     text = "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\nSome hand-written prose, no section yet.\n"
-    new_text, changed = libcomponentdocs.strip_stale_values_deltas_todo_stub(text)
+    new_text, changed = libcomponentdocsdeltas.strip_stale_values_deltas_todo_stub(text)
     assert changed is False
     assert new_text == text
 
@@ -870,53 +870,53 @@ GEMEENTE_STUB = (
 )
 
 
-def test_has_real_gemeente_specific_content_false_for_the_bare_stub(libcomponentdocs):
+def test_has_real_gemeente_specific_content_false_for_the_bare_stub(libcomponentdocsdeltas):
     """The stub's own EXAMPLE "## <gemeente> (<env>)" heading lives
     inside its commented-out template block -- must never count as real
     content on its own."""
-    assert libcomponentdocs.has_real_gemeente_specific_content(GEMEENTE_STUB) is False
+    assert libcomponentdocsdeltas.has_real_gemeente_specific_content(GEMEENTE_STUB) is False
 
 
-def test_has_real_gemeente_specific_content_true_for_a_real_section(libcomponentdocs):
+def test_has_real_gemeente_specific_content_true_for_a_real_section(libcomponentdocsdeltas):
     text = GEMEENTE_STUB + "\n## Utrecht (prod)\n\n- Some real finding.\n"
-    assert libcomponentdocs.has_real_gemeente_specific_content(text) is True
+    assert libcomponentdocsdeltas.has_real_gemeente_specific_content(text) is True
 
 
-def test_has_stale_gemeente_specific_placeholder_true_when_both_present(libcomponentdocs):
+def test_has_stale_gemeente_specific_placeholder_true_when_both_present(libcomponentdocsdeltas):
     """Regression case this checker exists for: a human added a real
     "## <gemeente> (<env>)" finding but left the "_None recorded yet._"
     placeholder in place above it."""
     text = GEMEENTE_STUB + "\n## Utrecht (prod)\n\n- Some real finding.\n"
-    assert libcomponentdocs.has_stale_gemeente_specific_placeholder(text) is True
+    assert libcomponentdocsdeltas.has_stale_gemeente_specific_placeholder(text) is True
 
 
-def test_has_stale_gemeente_specific_placeholder_false_for_the_bare_stub(libcomponentdocs):
+def test_has_stale_gemeente_specific_placeholder_false_for_the_bare_stub(libcomponentdocsdeltas):
     """A doc that STILL only has the bare stub (nothing recorded yet) is
     the correct, expected state -- must never be flagged."""
-    assert libcomponentdocs.has_stale_gemeente_specific_placeholder(GEMEENTE_STUB) is False
+    assert libcomponentdocsdeltas.has_stale_gemeente_specific_placeholder(GEMEENTE_STUB) is False
 
 
-def test_has_stale_gemeente_specific_placeholder_false_once_placeholder_removed_by_hand(libcomponentdocs):
+def test_has_stale_gemeente_specific_placeholder_false_once_placeholder_removed_by_hand(libcomponentdocsdeltas):
     """Once a human clears the placeholder themselves (the only way it
     can ever go -- there's no automated fixer for this one), the finding
     must stop firing."""
     text = GEMEENTE_STUB.replace("_None recorded yet._\n\n", "") + "\n## Utrecht (prod)\n\n- Some real finding.\n"
-    assert libcomponentdocs.has_stale_gemeente_specific_placeholder(text) is False
+    assert libcomponentdocsdeltas.has_stale_gemeente_specific_placeholder(text) is False
 
 
-def test_append_values_delta_section_body_adds_after_existing_content(libcomponentdocs):
+def test_append_values_delta_section_body_adds_after_existing_content(libcomponentdocsdeltas):
     text = "# Values deltas\n\n## KISS — required edits\n\nSome prose.\n\n## PABC\n\nOther prose.\n"
-    sections = libcomponentdocs.find_values_delta_section(text, "kiss", [{"name": "kiss", "version": "1.0.0"}])
-    new_text = libcomponentdocs.append_values_delta_section_body(text, sections, ["- Key `kiss.a` was added.\n"])
+    sections = libcomponentdocsdeltas.find_values_delta_section(text, "kiss", [{"name": "kiss", "version": "1.0.0"}])
+    new_text = libcomponentdocsdeltas.append_values_delta_section_body(text, sections, ["- Key `kiss.a` was added.\n"])
     assert "Some prose.\n\n- Key `kiss.a` was added.\n\n## PABC" in new_text
 
 
-def test_remove_values_delta_section_never_removes_multi_identity_heading(libcomponentdocs):
+def test_remove_values_delta_section_never_removes_multi_identity_heading(libcomponentdocsdeltas):
     """A hand-written section covering several components at once must
     never be deleted just because one of them reset to baseline."""
     text = "# Values deltas\n\n## ZAC and ZGW Office Add-in — no changes\n\nProse.\n"
     deps = DEPS + [{"name": "zgw-office-addin", "version": "0.0.89"}]
-    new_text, removed = libcomponentdocs.remove_values_delta_section(text, "zac", deps)
+    new_text, removed = libcomponentdocsdeltas.remove_values_delta_section(text, "zac", deps)
     assert removed is False
     assert new_text == text
 
@@ -924,14 +924,14 @@ def test_remove_values_delta_section_never_removes_multi_identity_heading(libcom
 # --- sync_values_delta_sections ---
 
 
-def test_sync_values_delta_sections_skips_key_with_no_schema_change(libcomponentdocs, tmp_path):
+def test_sync_values_delta_sections_skips_key_with_no_schema_change(libcomponentdocsdeltas, tmp_path):
     """A pure app/chart version bump — no describe_key_changes lines at
     all — gets no brand-new section: a heading with nothing under it is
     worse than no heading (values-deltas.md exists for gemeente-
     actionable schema changes, not a general changelog)."""
     text = "# Values deltas\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
     values = {"zac": {"image": {}}}
-    new_text, created, updated = libcomponentdocs.sync_values_delta_sections(
+    new_text, created, updated = libcomponentdocsdeltas.sync_values_delta_sections(
         text, tmp_path, DEPS, values, DEPS, values, {"zac"}
     )
     assert created == []
@@ -939,11 +939,11 @@ def test_sync_values_delta_sections_skips_key_with_no_schema_change(libcomponent
     assert new_text == text
 
 
-def test_sync_values_delta_sections_creates_section_only_when_key_lines_exist(libcomponentdocs, tmp_path):
+def test_sync_values_delta_sections_creates_section_only_when_key_lines_exist(libcomponentdocsdeltas, tmp_path):
     text = "# Values deltas\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
     baseline_values = {"zac": {"image": {}}}
     target_values = {"zac": {"image": {}, "newFeature": True}}
-    new_text, created, updated = libcomponentdocs.sync_values_delta_sections(
+    new_text, created, updated = libcomponentdocsdeltas.sync_values_delta_sections(
         text, tmp_path, DEPS, target_values, DEPS, baseline_values, {"zac"}
     )
     assert created == ["zac"]
@@ -954,30 +954,30 @@ def test_sync_values_delta_sections_creates_section_only_when_key_lines_exist(li
 # --- prune_empty_values_delta_sections ---
 
 
-def test_prune_empty_values_delta_sections_removes_a_heading_with_nothing_under_it(libcomponentdocs):
+def test_prune_empty_values_delta_sections_removes_a_heading_with_nothing_under_it(libcomponentdocsdeltas):
     text = (
         "# Values deltas\n\n"
         "## zac 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
         "## openformulieren 3.4.10 → 3.5.6\n\n"
         "- Key `openformulieren.a` was added.\n"
     )
-    new_text, removed = libcomponentdocs.prune_empty_values_delta_sections(text)
+    new_text, removed = libcomponentdocsdeltas.prune_empty_values_delta_sections(text)
     assert removed == ["zac 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)"]
     assert "## zac" not in new_text
     assert "## openformulieren" in new_text
     assert "- Key `openformulieren.a` was added.\n" in new_text
 
 
-def test_prune_empty_values_delta_sections_never_removes_hand_written_prose(libcomponentdocs):
+def test_prune_empty_values_delta_sections_never_removes_hand_written_prose(libcomponentdocsdeltas):
     text = "# Values deltas\n\n## KISS — required edits\n\nSome real prose here.\n"
-    new_text, removed = libcomponentdocs.prune_empty_values_delta_sections(text)
+    new_text, removed = libcomponentdocsdeltas.prune_empty_values_delta_sections(text)
     assert removed == []
     assert new_text == text
 
 
-def test_prune_empty_values_delta_sections_no_sections_is_unchanged(libcomponentdocs):
+def test_prune_empty_values_delta_sections_no_sections_is_unchanged(libcomponentdocsdeltas):
     text = "# Values deltas\n\nTODO.\n"
-    new_text, removed = libcomponentdocs.prune_empty_values_delta_sections(text)
+    new_text, removed = libcomponentdocsdeltas.prune_empty_values_delta_sections(text)
     assert removed == []
     assert new_text == text
 

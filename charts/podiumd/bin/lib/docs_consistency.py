@@ -19,11 +19,6 @@ from lib.chart_repo_and_path_resolution import (
     repo_group_representative,
 )
 from lib.chart_values_tree_primitives import version_of
-from lib.component_docs import (
-    find_values_delta_section,
-    has_stale_gemeente_specific_placeholder,
-    strip_stale_values_deltas_todo_stub,
-)
 from lib.component_docs.changes_section import (
     resolve_component_own_version_change,
     strip_stale_upgrade_placeholders,
@@ -34,6 +29,11 @@ from lib.component_docs.images_manifest_changes_header import (
     find_images_manifest_changes_header,
     find_images_manifest_changes_items,
     images_manifest_changes_count_word,
+)
+from lib.component_docs.values_delta_sections import (
+    find_values_delta_section,
+    has_stale_gemeente_specific_placeholder,
+    strip_stale_values_deltas_todo_stub,
 )
 from lib.image_repository_check import find_images_without_repository
 from lib.release_baseline import resolve_baseline_chart_state
