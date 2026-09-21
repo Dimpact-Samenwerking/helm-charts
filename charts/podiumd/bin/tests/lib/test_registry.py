@@ -7,6 +7,7 @@ git repo (git log needs a real working tree)."""
 import json
 import subprocess
 import urllib.error
+
 from io import BytesIO
 
 import pytest

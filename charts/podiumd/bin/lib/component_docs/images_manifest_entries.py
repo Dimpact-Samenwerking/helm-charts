@@ -8,27 +8,28 @@ import re
 import yaml
 
 from lib.chart.values_tree_primitives import replace_scalar_value
-from lib.component_docs.images_manifest_changes_header import (
-    CHANGES_HEADER_RE,
-    CHANGES_ITEM_RE,
-    NUMBER_WORDS,
-    ensure_images_manifest_changes_header,
-    find_images_manifest_changes_header,
-    images_manifest_order_key,
-    insert_images_manifest_header_item,
-)
+from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
+from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
+from lib.component_docs.images_manifest_changes_header import NUMBER_WORDS
+from lib.component_docs.images_manifest_changes_header import ensure_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import images_manifest_order_key
+from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.sorting_and_ordering import values_key_order
-from lib.upgradedoc.string_and_parsing_basics import extract_source_version, normalize_name, normalize_version
-from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text, replace_version_pair
+from lib.upgradedoc.string_and_parsing_basics import extract_source_version
+from lib.upgradedoc.string_and_parsing_basics import normalize_name
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
+from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
 
 
 def values_tree_path_for(values_key, image_path):
     """The find_image_tag_paths key for a component_image_paths()-style
     dotted path (e.g. "frontend.image") under this component's values_key."""
     segments = image_path.split(".")
-    return (values_key,) + tuple(segments[:-1])
+    return (values_key, *tuple(segments[:-1]))
 
 
 def find_matching_images_entry(entries, entry_line_indices, target_path):

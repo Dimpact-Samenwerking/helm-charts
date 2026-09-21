@@ -7,22 +7,22 @@ script as an opaque string."""
 
 import json
 import shutil
+
 from collections import Counter
 
 import yaml
 
 from lib.procutil import run
-from lib.render_scope import (
-    OWN_TEMPLATES_PREFIX,
-    build_resource_locations,
-    chart_name_from_source,
-    friendly_vendor_charts,
-    print_grouped_findings,
-    render_chart,
-    resource_line,
-    split_rendered_by_source,
-)
-from lib.settings import quality_gates_shellcheck_failing_levels, quality_gates_shellcheck_shell_names
+from lib.render_scope import OWN_TEMPLATES_PREFIX
+from lib.render_scope import build_resource_locations
+from lib.render_scope import chart_name_from_source
+from lib.render_scope import friendly_vendor_charts
+from lib.render_scope import print_grouped_findings
+from lib.render_scope import render_chart
+from lib.render_scope import resource_line
+from lib.render_scope import split_rendered_by_source
+from lib.settings import quality_gates_shellcheck_failing_levels
+from lib.settings import quality_gates_shellcheck_shell_names
 
 
 def _shell_name(token):
@@ -183,9 +183,7 @@ def check_shellcheck(chart_dir, extra_args):
         comments = run_shellcheck(shell, script_text)
         if comments is None:
             return False, "shellcheck produced unparseable output"
-        for c in comments:
-            if c.get("level") in failing_levels:
-                own_real.append((source, path, c, kind, namespace, name))
+        own_real.extend((source, path, c, kind, namespace, name) for c in comments if c.get("level") in failing_levels)
 
     for source, path, shell, script_text, kind, namespace, name in extract_shell_scripts(vendored_docs, shell_names):
         comments = run_shellcheck(shell, script_text)

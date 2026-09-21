@@ -332,6 +332,7 @@ Usage:
 
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
+
 import argparse
 import re
 import shutil
@@ -342,12 +343,42 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart.values_tree_primitives import UTF8_BOM
 from lib.chart.release_baseline_basics import RELEASE_BASELINES_FILE_NAME
 from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.gitutil import find_repo_root, resolve_baseline_ref
+from lib.chart.values_tree_primitives import UTF8_BOM
+from lib.checks.cve import check_cves
+from lib.checks.cve_diff import check_cve_diff
+from lib.checks.digest_pinning import check_digest_pinning
+from lib.checks.digest_pinning import check_shared_image_usage
+from lib.checks.digest_pinning import check_subchart_image_visibility
+from lib.checks.dry import check_dry
+from lib.checks.helm_docs import check_helm_docs
+from lib.checks.kube_score import check_kube_score
+from lib.checks.kubeconform import check_kubeconform
+from lib.checks.lockstep import check_lockstep_versions
+from lib.checks.markdown import check_markdown
+from lib.checks.node_selector import check_node_selector
+from lib.checks.shellcheck import check_shellcheck
+from lib.checks.vendored_tgz import check_vendored_tgz_extraction
+from lib.checks.yamllint import check_yamllint
+from lib.dependencies import check_dependencies
+from lib.dependencies import ensure_repos_configured
+from lib.docs_consistency import check_docs_consistency
+from lib.gitutil import find_repo_root
+from lib.gitutil import resolve_baseline_ref
+from lib.image.digests import check_image_digests
+from lib.image.references_check import check_image_references
+from lib.image.repository_check import check_image_repository
+from lib.image.upgrade_check import check_image_upgrades
 from lib.procutil import run
+from lib.release_secret_size import check_release_secret_size
+from lib.render_scope import lint_args_for
+from lib.render_scope import render_chart
+from lib.render_scope import report_errors_by_subchart
+from lib.render_scope import report_largest_templates
+from lib.repo_access import check_repo_access
+from lib.settings import render_report_top_n_largest_templates_shown
 
 # Each check's actual logic lives in its own lib module (see that module's
 # docstring for what it does and why) — main()'s run_step() pipeline is the
@@ -356,31 +387,7 @@ from lib.procutil import run
 # see charts/podiumd/bin/tests/verify-podiumd/conftest.py's lib*
 # fixtures — rather than through this file, so this import list stays
 # exactly what main() calls, no re-exports to keep in sync by hand.
-from lib.checks.dry import check_dry
-from lib.image.digests import check_image_digests
-from lib.checks.cve import check_cves
-from lib.dependencies import check_dependencies, ensure_repos_configured
-from lib.repo_access import check_repo_access
-from lib.image.upgrade_check import check_image_upgrades
-from lib.checks.cve_diff import check_cve_diff
-from lib.image.references_check import check_image_references
-from lib.image.repository_check import check_image_repository
-from lib.checks.digest_pinning import check_digest_pinning, check_shared_image_usage, check_subchart_image_visibility
-from lib.checks.node_selector import check_node_selector
-from lib.docs_consistency import check_docs_consistency
-from lib.checks.lockstep import check_lockstep_versions
-from lib.checks.helm_docs import check_helm_docs
-from lib.checks.markdown import check_markdown
-from lib.checks.vendored_tgz import check_vendored_tgz_extraction
-from lib.render_scope import (
-    CHART_NAME, lint_args_for, render_chart, report_errors_by_subchart, report_largest_templates,
-)
-from lib.checks.yamllint import check_yamllint
-from lib.checks.kubeconform import check_kubeconform
-from lib.checks.shellcheck import check_shellcheck
-from lib.checks.kube_score import check_kube_score
-from lib.release_secret_size import check_release_secret_size
-from lib.settings import render_report_top_n_largest_templates_shown
+
 
 DEFAULT_CHART_DIR = SCRIPT_DIR.parent
 
@@ -411,7 +418,7 @@ def resolve_chart_dir():
 def check_utf8_format(chart_dir):
     values_path = chart_dir / "values.yaml"
     data = values_path.read_bytes()
-    if data[:len(UTF8_BOM)] == UTF8_BOM:
+    if data[: len(UTF8_BOM)] == UTF8_BOM:
         return False, "BOM found — run fix-utf8-bom to fix (this script never writes to values.yaml)"
     print(f"OK: no BOM in {values_path.name}")
     return True, "no BOM"
@@ -432,8 +439,10 @@ def check_release_baseline(chart_dir):
         return False, f"{baselines_file.name}: not inside a git repository"
 
     failures, resolved = [], []
-    for key, baseline in (("upgrade_docs", read_upgrade_docs_baseline(chart_dir)),
-                          ("release_table", read_release_table_baseline(chart_dir))):
+    for key, baseline in (
+        ("upgrade_docs", read_upgrade_docs_baseline(chart_dir)),
+        ("release_table", read_release_table_baseline(chart_dir)),
+    ):
         if baseline is None:
             failures.append(f"{key}: missing from {baselines_file.name}")
             continue
@@ -472,7 +481,7 @@ def check_duplicate_keys(chart_dir):
             parent = " > ".join(scope_id) if scope_id else "(root)"
             duplicates.append(
                 f'{values_path.name}:{line_no}: duplicate "{key}" under [{parent}] '
-                f'(first line {scope_keys[scope_id][key]})'
+                f"(first line {scope_keys[scope_id][key]})"
             )
         else:
             scope_keys[scope_id][key] = line_no
@@ -689,9 +698,11 @@ def prerequisites_for(step_name):
 
 # Rendered into --help's epilog (see main()) — built from SKIPPABLE_STEPS
 # rather than a hand-maintained list, so it can't drift out of sync with it.
-STEPS_HELP = "\nSteps usable with --skip=/--include= (in run order):\n" + "\n".join(
-    f"  {flag:<18}{step_name}" for flag, step_name in SKIPPABLE_STEPS
-) + "\n"
+STEPS_HELP = (
+    "\nSteps usable with --skip=/--include= (in run order):\n"
+    + "\n".join(f"  {flag:<18}{step_name}" for flag, step_name in SKIPPABLE_STEPS)
+    + "\n"
+)
 
 REQUIRED_TOOLS_HELP = """
 Required external tools: see charts/podiumd/bin/README-release-process.md#setup
@@ -704,27 +715,43 @@ skipped, never blocks a run.
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Verify the podiumd chart.",
-                                     epilog=STEPS_HELP + REQUIRED_TOOLS_HELP,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--detail-cve-check", action="store_true",
-                        help="CVE scan: itemize CRITICAL/HIGH findings per affected package for "
-                             "EVERY image bucket (own, partner-vendor, AND other-vendor), not just "
-                             "the terse per-image severity totals a normal run prints")
-    parser.add_argument("--detail-cve-diff", action="store_true",
-                        help="CVE diff: itemize the actual CRITICAL/HIGH VulnerabilityID+PkgName "
-                             "pairs closed/introduced by each upgrade/slide candidate, not just the "
-                             "terse per-severity counts a normal run prints")
-    parser.add_argument("--skip", default=None, metavar="STEP1,STEP2,...",
-                        help="comma-separated (no spaces) list of steps to skip (e.g. to iterate "
-                             "faster, or work around a known-broken step) — shown as SKIP in the "
-                             "summary, never counted as a failure. Cannot combine with --include. "
-                             "See the step list below")
-    parser.add_argument("--include", default=None, metavar="STEP1,STEP2,...",
-                        help="comma-separated (no spaces) list of steps to run — plus any step(s) "
-                             "each one needs as a prerequisite (see STEP_PREREQUISITES). Every step "
-                             "not included (directly or as a prerequisite of an included step) shows "
-                             "as SKIP. Cannot combine with --skip. See the step list below")
+    parser = argparse.ArgumentParser(
+        description="Verify the podiumd chart.",
+        epilog=STEPS_HELP + REQUIRED_TOOLS_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--detail-cve-check",
+        action="store_true",
+        help="CVE scan: itemize CRITICAL/HIGH findings per affected package for "
+        "EVERY image bucket (own, partner-vendor, AND other-vendor), not just "
+        "the terse per-image severity totals a normal run prints",
+    )
+    parser.add_argument(
+        "--detail-cve-diff",
+        action="store_true",
+        help="CVE diff: itemize the actual CRITICAL/HIGH VulnerabilityID+PkgName "
+        "pairs closed/introduced by each upgrade/slide candidate, not just the "
+        "terse per-severity counts a normal run prints",
+    )
+    parser.add_argument(
+        "--skip",
+        default=None,
+        metavar="STEP1,STEP2,...",
+        help="comma-separated (no spaces) list of steps to skip (e.g. to iterate "
+        "faster, or work around a known-broken step) — shown as SKIP in the "
+        "summary, never counted as a failure. Cannot combine with --include. "
+        "See the step list below",
+    )
+    parser.add_argument(
+        "--include",
+        default=None,
+        metavar="STEP1,STEP2,...",
+        help="comma-separated (no spaces) list of steps to run — plus any step(s) "
+        "each one needs as a prerequisite (see STEP_PREREQUISITES). Every step "
+        "not included (directly or as a prerequisite of an included step) shows "
+        "as SKIP. Cannot combine with --skip. See the step list below",
+    )
     args = parser.parse_args()
 
     valid_flags = {flag for flag, _ in SKIPPABLE_STEPS}
@@ -735,8 +762,10 @@ def main():
         flags = [f for f in raw.split(",") if f]
         unknown = [f for f in flags if f not in valid_flags]
         if unknown:
-            parser.error(f"{option_name}: unknown step(s): {', '.join(unknown)} — valid steps: "
-                          f"{', '.join(flag for flag, _ in SKIPPABLE_STEPS)}")
+            parser.error(
+                f"{option_name}: unknown step(s): {', '.join(unknown)} — valid steps: "
+                f"{', '.join(flag for flag, _ in SKIPPABLE_STEPS)}"
+            )
         return flags
 
     skip_flags = parse_step_list(args.skip, "--skip")
@@ -799,26 +828,33 @@ def main():
     run_step("UTF-8 format", "UTF-8 format check", check_utf8_format, chart_dir)
     run_step("Dupe check", "Duplicate key scan", check_duplicate_keys, chart_dir)
     run_step("DRY check", "Template duplication scan", check_dry, chart_dir)
-    run_step("Image references", "Checking image: fields use the podiumd.image helper",
-             check_image_references, chart_dir)
-    run_step("Node selector", "Checking workloads expose a nodeSelector field",
-             check_node_selector, chart_dir)
-    run_step("Digest pinning", "Checking every image tag is digest-pinned",
-             check_digest_pinning, chart_dir)
-    run_step("Vendored tgz", "Checking for extracted dirs shadowing a pinned .tgz",
-             check_vendored_tgz_extraction, chart_dir)
-    run_step("Release baseline", "Checking release-baseline resolves to a real release",
-             check_release_baseline, chart_dir)
-    run_step("Lockstep versions", "Checking registered lockstep image/version groups agree",
-             check_lockstep_versions, chart_dir)
+    run_step(
+        "Image references", "Checking image: fields use the podiumd.image helper", check_image_references, chart_dir
+    )
+    run_step("Node selector", "Checking workloads expose a nodeSelector field", check_node_selector, chart_dir)
+    run_step("Digest pinning", "Checking every image tag is digest-pinned", check_digest_pinning, chart_dir)
+    run_step(
+        "Vendored tgz", "Checking for extracted dirs shadowing a pinned .tgz", check_vendored_tgz_extraction, chart_dir
+    )
+    run_step(
+        "Release baseline", "Checking release-baseline resolves to a real release", check_release_baseline, chart_dir
+    )
+    run_step(
+        "Lockstep versions",
+        "Checking registered lockstep image/version groups agree",
+        check_lockstep_versions,
+        chart_dir,
+    )
 
-    run_step("Helm doc", "Checking README.md against values.yaml (helm-docs)",
-             check_helm_docs, chart_dir)
-    run_step("Markdown lint", "Checking markdown docs with pymarkdown",
-             check_markdown, chart_dir)
+    run_step("Helm doc", "Checking README.md against values.yaml (helm-docs)", check_helm_docs, chart_dir)
+    run_step("Markdown lint", "Checking markdown docs with pymarkdown", check_markdown, chart_dir)
 
-    run_step("Repo access", "Checking access to Chart.yaml's dependency repos and values.yaml's image registries",
-             check_repo_access, chart_dir)
+    run_step(
+        "Repo access",
+        "Checking access to Chart.yaml's dependency repos and values.yaml's image registries",
+        check_repo_access,
+        chart_dir,
+    )
 
     log("Ensuring dependency repos are configured")
     ok, msg = ensure_repos_configured(chart_dir)
@@ -828,23 +864,36 @@ def main():
     run_step("Dependencies", "Resolving dependencies (helm dependency update)", check_dependencies, chart_dir)
 
     upgrade_docs_baseline = read_upgrade_docs_baseline(chart_dir)
-    run_step("Doc consistency", "Checking versions against upgrade docs",
-             check_docs_consistency, chart_dir, upgrade_docs_baseline)
+    run_step(
+        "Doc consistency",
+        "Checking versions against upgrade docs",
+        check_docs_consistency,
+        chart_dir,
+        upgrade_docs_baseline,
+    )
 
     extra_args = lint_args_for(chart_dir)
-    run_step("Subchart image visibility",
-             "Checking for images defined only in a vendored sub-chart's own default values.yaml",
-             check_subchart_image_visibility, chart_dir, extra_args)
+    run_step(
+        "Subchart image visibility",
+        "Checking for images defined only in a vendored sub-chart's own default values.yaml",
+        check_subchart_image_visibility,
+        chart_dir,
+        extra_args,
+    )
 
-    run_step("Shared image usage",
-             "Checking global.images.* shared-anchor usage against the real render",
-             check_shared_image_usage, chart_dir, extra_args)
+    run_step(
+        "Shared image usage",
+        "Checking global.images.* shared-anchor usage against the real render",
+        check_shared_image_usage,
+        chart_dir,
+        extra_args,
+    )
 
-    run_step("Image repository", "Checking every image tag block resolves to a repository",
-             check_image_repository, chart_dir)
+    run_step(
+        "Image repository", "Checking every image tag block resolves to a repository", check_image_repository, chart_dir
+    )
 
-    run_step("Image digests", "Checking image digests against upstream registries",
-             check_image_digests, chart_dir)
+    run_step("Image digests", "Checking image digests against upstream registries", check_image_digests, chart_dir)
 
     run_step("Helm lint", "helm lint", check_lint, chart_dir, extra_args)
     run_step("Full render", "Full render", check_render, chart_dir, extra_args)
@@ -852,13 +901,30 @@ def main():
     run_step("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
     run_step("shellcheck", "shellcheck (embedded shell scripts)", check_shellcheck, chart_dir, extra_args)
     run_step("kube-score", "kube-score (resource requests/limits)", check_kube_score, chart_dir, extra_args)
-    run_step("Release secret size", "Estimating the Helm release Secret size",
-             check_release_secret_size, chart_dir, extra_args)
+    run_step(
+        "Release secret size",
+        "Estimating the Helm release Secret size",
+        check_release_secret_size,
+        chart_dir,
+        extra_args,
+    )
     run_step("Image upgrades", "Checking for newer published tags", check_image_upgrades, chart_dir, extra_args)
-    run_step("CVE scan", "Scanning pinned images for known CVEs (trivy)", check_cves, chart_dir, extra_args,
-              args.detail_cve_check)
-    run_step("CVE diff", "Diffing CVEs for upgrade/slide candidates (current vs proposed, trivy)",
-             check_cve_diff, chart_dir, extra_args, args.detail_cve_diff)
+    run_step(
+        "CVE scan",
+        "Scanning pinned images for known CVEs (trivy)",
+        check_cves,
+        chart_dir,
+        extra_args,
+        args.detail_cve_check,
+    )
+    run_step(
+        "CVE diff",
+        "Diffing CVEs for upgrade/slide candidates (current vs proposed, trivy)",
+        check_cve_diff,
+        chart_dir,
+        extra_args,
+        args.detail_cve_diff,
+    )
 
     overall_ok = not failed_or_blocked
     print_summary(results, overall_ok=overall_ok)

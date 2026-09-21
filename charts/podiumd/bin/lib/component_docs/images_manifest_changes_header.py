@@ -15,7 +15,8 @@ lib.component_docs package."""
 
 import re
 
-from lib.upgradedoc.sorting_and_ordering import insertion_index, values_tree_position
+from lib.upgradedoc.sorting_and_ordering import insertion_index
+from lib.upgradedoc.sorting_and_ordering import values_tree_position
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 
 NUMBER_WORDS = [
@@ -226,7 +227,7 @@ def images_manifest_order_key(key_order, values_key, is_sidecar, values=None):
     except ValueError:
         return (len(key_order), 1 if is_sidecar else 0)
     if values is not None and len(path) > 1:
-        return (idx,) + values_tree_position(values, path)[1:]
+        return (idx, *values_tree_position(values, path)[1:])
     return (idx, 1 if is_sidecar else 0)
 
 

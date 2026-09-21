@@ -253,7 +253,7 @@ def test_print_table_shows_unchanged_for_empty_target(qrt, capsys, rows):
 
 def run_main(qrt, monkeypatch, csv_path, argv):
     monkeypatch.setattr(qrt, "DEFAULT_INPUT", csv_path)
-    monkeypatch.setattr("sys.argv", ["query-release-table"] + argv)
+    monkeypatch.setattr("sys.argv", ["query-release-table", *argv])
 
 
 def test_main_prints_matches(qrt, monkeypatch, csv_path, capsys):

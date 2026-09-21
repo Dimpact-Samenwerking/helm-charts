@@ -12,17 +12,16 @@ paths specifically) check_subchart_image_visibility (lib.
 checks.digest_pinning) and list-podiumd-images."""
 
 import re
+
 from collections import Counter
 
 import yaml
 
 from lib.chart.release_baseline_basics import load_yaml
 from lib.procutil import run
-from lib.settings import (
-    helm_repos_urls_by_alias,
-    vendor_classification_chart_overrides,
-    vendor_classification_keywords,
-)
+from lib.settings import helm_repos_urls_by_alias
+from lib.settings import vendor_classification_chart_overrides
+from lib.settings import vendor_classification_keywords
 
 CHART_NAME = "podiumd"
 

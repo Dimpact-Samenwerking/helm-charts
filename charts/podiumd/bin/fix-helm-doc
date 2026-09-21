@@ -21,14 +21,18 @@ Does not stage or commit — review the diff and stage it yourself.
 
 Requires the `helm-docs` binary on PATH (https://github.com/norwoodj/helm-docs).
 """
+
 import shutil
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.checks.helm_docs import README_FILENAME, TEMPLATE_FILENAME, check_helm_docs
+from lib.checks.helm_docs import README_FILENAME
+from lib.checks.helm_docs import TEMPLATE_FILENAME
+from lib.checks.helm_docs import check_helm_docs
 from lib.procutil import run
 
 CHART_DIR = SCRIPT_DIR.parent

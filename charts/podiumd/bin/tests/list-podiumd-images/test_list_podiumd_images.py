@@ -9,6 +9,7 @@ tests/lib/test_chart.py — and reads its own source directory instead."""
 
 import subprocess
 import tarfile
+
 from types import SimpleNamespace
 
 import pytest

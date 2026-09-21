@@ -5,7 +5,9 @@ reused directly from lib.checks.cve). No real helm/registry invocation
 happens in these tests — `run` and `find_newest_same_variant_tag` are
 mocked throughout."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 from types import SimpleNamespace
 
 DIGEST_A = "a" * 64  # own: frankgateway

@@ -6,13 +6,11 @@ component's own PRIMARY image path (as opposed to a sidecar)."""
 
 from pathlib import Path
 
-from lib.settings import (
-    component_resolution_chart_version_lockstep_components,
-    component_resolution_default_image_paths,
-    component_resolution_image_paths,
-    component_resolution_native_components,
-    component_resolution_version_paths,
-)
+from lib.settings import component_resolution_chart_version_lockstep_components
+from lib.settings import component_resolution_default_image_paths
+from lib.settings import component_resolution_image_paths
+from lib.settings import component_resolution_native_components
+from lib.settings import component_resolution_version_paths
 
 
 def component_image_paths(chart_dir=None):

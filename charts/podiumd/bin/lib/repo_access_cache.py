@@ -34,7 +34,10 @@ anonymous pull-rate limit during this session), short enough that a
 real access change is still caught again soon."""
 
 import json
-from datetime import datetime, timedelta, timezone
+
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 
 from lib.gitutil import find_repo_root
 

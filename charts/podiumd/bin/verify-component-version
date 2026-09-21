@@ -36,7 +36,9 @@ Exit code is non-zero if the chart version can't even be pulled, or if
 any of the component's app image versions do not exist yet — safe to use
 as a gate before bumping Chart.yaml/values.yaml.
 """
+
 import sys
+
 from pathlib import Path
 
 import yaml
@@ -44,7 +46,8 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart.pull_and_subchart_resolution import check_image_versions, verify_chart_version
+from lib.chart.pull_and_subchart_resolution import check_image_versions
+from lib.chart.pull_and_subchart_resolution import verify_chart_version
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.values_tree_primitives import find_dependency as _find_dependency
 

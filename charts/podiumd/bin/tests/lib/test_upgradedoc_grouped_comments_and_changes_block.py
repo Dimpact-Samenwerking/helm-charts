@@ -154,9 +154,9 @@ def test_find_grouped_preceding_comment_does_not_inherit_across_different_compon
     """A ZAC entry right after ZGW's group, with no comment of its own, must
     NOT inherit ZGW's comment just because it's the immediately preceding
     entry — they resolve to different components."""
-    lines = ZGW_GROUPED_LINES + ["\n", "- name: zac\n", '  version: "5.1.0"\n']
-    entries = ZGW_ENTRIES + [{"name": "zac", "version": "5.1.0"}]
-    entry_line_indices = ZGW_ENTRY_LINE_INDICES + [7]
+    lines = [*ZGW_GROUPED_LINES, "\n", "- name: zac\n", '  version: "5.1.0"\n']
+    entries = [*ZGW_ENTRIES, {"name": "zac", "version": "5.1.0"}]
+    entry_line_indices = [*ZGW_ENTRY_LINE_INDICES, 7]
 
     comment = libupgradedoccomments.find_grouped_preceding_comment(lines, entries, entry_line_indices, 2, same_group)
     assert comment == ""
@@ -216,9 +216,9 @@ def test_find_grouped_preceding_comment_line_inherits_sibling_line_across_blank_
 
 
 def test_find_grouped_preceding_comment_line_none_for_different_component(libupgradedoccomments):
-    lines = ZGW_GROUPED_LINES + ["\n", "- name: zac\n", '  version: "5.1.0"\n']
-    entries = ZGW_ENTRIES + [{"name": "zac", "version": "5.1.0"}]
-    entry_line_indices = ZGW_ENTRY_LINE_INDICES + [7]
+    lines = [*ZGW_GROUPED_LINES, "\n", "- name: zac\n", '  version: "5.1.0"\n']
+    entries = [*ZGW_ENTRIES, {"name": "zac", "version": "5.1.0"}]
+    entry_line_indices = [*ZGW_ENTRY_LINE_INDICES, 7]
 
     idx = libupgradedoccomments.find_grouped_preceding_comment_line(lines, entries, entry_line_indices, 2, same_group)
     assert idx is None

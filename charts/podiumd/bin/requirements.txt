@@ -6,3 +6,7 @@ ruff
 pymarkdownlnt
 pylint
 vulture
+isort
+pytest
+bandit
+basedpyright

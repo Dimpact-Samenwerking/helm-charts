@@ -25,7 +25,9 @@ Usage:
 Example:
     change-podiumd-baseline 4.8.5
 """
+
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -34,7 +36,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart.release_baseline_basics import write_release_baselines
-from lib.gitutil import find_repo_root, resolve_baseline_ref
+from lib.gitutil import find_repo_root
+from lib.gitutil import resolve_baseline_ref
 from lib.procutil import run_script
 
 CHART_DIR = SCRIPT_DIR.parent
@@ -74,11 +77,9 @@ def main():
     write_release_baselines(CHART_DIR, upgrade_docs=new_baseline)
 
     if old_baseline == new_baseline:
-        print(f"release-baseline.yaml: upgrade_docs already {new_baseline} "
-              f"(resolved to {ref}) — nothing changed")
+        print(f"release-baseline.yaml: upgrade_docs already {new_baseline} (resolved to {ref}) — nothing changed")
     else:
-        print(f"release-baseline.yaml: upgrade_docs {old_baseline or '(none)'} -> {new_baseline} "
-              f"(resolved to {ref})")
+        print(f"release-baseline.yaml: upgrade_docs {old_baseline or '(none)'} -> {new_baseline} (resolved to {ref})")
 
     print()
     print(f"=== Running fix-doc-consistency (upgrade_docs baseline {new_baseline}) ===")

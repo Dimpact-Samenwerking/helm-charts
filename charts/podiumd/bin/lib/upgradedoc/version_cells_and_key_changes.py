@@ -5,11 +5,9 @@ change_lines_by_key's values.yaml-schema-diff prose."""
 
 import re
 
-from lib.upgradedoc.grouped_comments_and_changes_block import (
-    VERSION_SPEC_RE,
-    diff_keys,
-    pair_renames,
-)
+from lib.upgradedoc.grouped_comments_and_changes_block import VERSION_SPEC_RE
+from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys
+from lib.upgradedoc.grouped_comments_and_changes_block import pair_renames
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 
 VERSION_PAIR_RE = re.compile(r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)")
@@ -164,15 +162,11 @@ def describe_key_changes(values_key, baseline_subtree, current_subtree):
     renamed, added, removed = pair_renames(added, removed, baseline_subtree, current_subtree)
 
     def dotted(path):
-        return ".".join((values_key,) + path)
+        return ".".join((values_key, *path))
 
-    lines = []
-    for path in added:
-        lines.append(f"- Key `{dotted(path)}` was added.\n")
-    for path in removed:
-        lines.append(f"- Key `{dotted(path)}` was removed.\n")
-    for old_path, new_path in renamed:
-        lines.append(f"- Key `{dotted(old_path)}` was renamed to `{dotted(new_path)}`.\n")
+    lines = [f"- Key `{dotted(path)}` was added.\n" for path in added]
+    lines.extend(f"- Key `{dotted(path)}` was removed.\n" for path in removed)
+    lines.extend(f"- Key `{dotted(old_path)}` was renamed to `{dotted(new_path)}`.\n" for old_path, new_path in renamed)
     return lines
 
 

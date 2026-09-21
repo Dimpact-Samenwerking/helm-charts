@@ -62,18 +62,23 @@ Example:
         # "4.9.1", then runs create-doc-version (which picks that same
         # "4.9.1" back up from release-baseline.yaml)
 """
+
 import re
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart.historical_baselines import SEMVER_RE as CHART_VERSION_RE
-from lib.chart.release_baseline_basics import chart_version, write_release_baselines
+from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
+from lib.chart.release_baseline_basics import write_release_baselines
 from lib.chart.values_tree_primitives import replace_scalar_value
-from lib.gitutil import current_branch, find_repo_root, resolve_baseline_ref
+from lib.gitutil import current_branch
+from lib.gitutil import find_repo_root
+from lib.gitutil import resolve_baseline_ref
 from lib.procutil import run_script
 
 CHART_DIR = SCRIPT_DIR.parent
@@ -92,7 +97,7 @@ def version_tuple(v):
 
 
 def bump_kind(baseline, target):
-    """"patch", "minor", or None (not a valid single-increment jump —
+    """ "patch", "minor", or None (not a valid single-increment jump —
     covers a same-or-lower target, a skipped version, and any
     major-version change, which is out of scope for this tool
     entirely)."""
@@ -141,8 +146,10 @@ def main():
     branch = current_branch(repo_root)
     m = BRANCH_RE.match(branch)
     if not m:
-        print(f"error: current branch '{branch or '(detached HEAD)'}' does not match "
-              f"'feature/podiumd-<MAJOR.MINOR.PATCH>' — refusing to guess the target version")
+        print(
+            f"error: current branch '{branch or '(detached HEAD)'}' does not match "
+            f"'feature/podiumd-<MAJOR.MINOR.PATCH>' — refusing to guess the target version"
+        )
         sys.exit(1)
     target = m.group(1)
 
@@ -153,10 +160,12 @@ def main():
 
     kind = bump_kind(baseline, target)
     if kind is None:
-        print(f"error: {baseline} -> {target} is not a single patch increment (same "
-              f"major.minor, patch+1) or a single minor increment (same major, minor+1, "
-              f"patch 0) — refusing. A major-version change is out of scope for this tool; "
-              f"a skipped version or a same-or-lower target isn't supported either.")
+        print(
+            f"error: {baseline} -> {target} is not a single patch increment (same "
+            f"major.minor, patch+1) or a single minor increment (same major, minor+1, "
+            f"patch 0) — refusing. A major-version change is out of scope for this tool; "
+            f"a skipped version or a same-or-lower target isn't supported either."
+        )
         sys.exit(1)
 
     new_release_table = baseline if kind == "minor" else read_release_table_baseline(CHART_DIR)
@@ -164,9 +173,11 @@ def main():
     resolved_refs = {}
     for label, value in (("upgrade_docs", baseline), ("release_table", new_release_table)):
         if value is None:
-            print("error: release_table baseline is not yet recorded in release-baseline.yaml "
-                  "— cannot open a patch release without one already set (a minor-bump run "
-                  "records it for the first time; there's no fallback for a patch bump)")
+            print(
+                "error: release_table baseline is not yet recorded in release-baseline.yaml "
+                "— cannot open a patch release without one already set (a minor-bump run "
+                "records it for the first time; there's no fallback for a patch bump)"
+            )
             sys.exit(1)
         ref, error = resolve_baseline_ref(repo_root, value)
         if error:
@@ -177,16 +188,15 @@ def main():
     changed = update_chart_version(target)
     print(f"{CHART_YAML.name}: {', '.join(changed)} {baseline} -> {target} ({kind} bump)")
 
-    write_release_baselines(CHART_DIR, upgrade_docs=baseline,
-                             release_table=(baseline if kind == "minor" else None))
-    print(f"release-baseline.yaml: upgrade_docs {baseline} "
-          f"(resolved to {resolved_refs['upgrade_docs']})")
+    write_release_baselines(CHART_DIR, upgrade_docs=baseline, release_table=(baseline if kind == "minor" else None))
+    print(f"release-baseline.yaml: upgrade_docs {baseline} (resolved to {resolved_refs['upgrade_docs']})")
     if kind == "minor":
-        print(f"release-baseline.yaml: release_table {baseline} "
-              f"(resolved to {resolved_refs['release_table']})")
+        print(f"release-baseline.yaml: release_table {baseline} (resolved to {resolved_refs['release_table']})")
     else:
-        print(f"release-baseline.yaml: release_table unchanged ({new_release_table}, "
-              f"resolved to {resolved_refs['release_table']})")
+        print(
+            f"release-baseline.yaml: release_table unchanged ({new_release_table}, "
+            f"resolved to {resolved_refs['release_table']})"
+        )
 
     print()
     print(f"=== Running create-doc-version (upgrade_docs baseline {baseline}) ===")

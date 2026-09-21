@@ -47,13 +47,24 @@ advisory (worth checking whether it's worth bumping to), not something
 this repo's own content violates."""
 
 import urllib.error
-from datetime import datetime, timezone
 
-from lib.checks.cve import bucket_of, classify_by_key, dependency_names, render_image_labels, top_level_key_for_line
+from datetime import datetime
+from datetime import timezone
+
+from lib.checks.cve import bucket_of
+from lib.checks.cve import classify_by_key
+from lib.checks.cve import dependency_names
+from lib.checks.cve import render_image_labels
+from lib.checks.cve import top_level_key_for_line
 from lib.image.digests import unique_digest_pin_targets
-from lib.image.upgrade_cache import cache_entry_is_fresh, cache_key, load_cache, save_cache
-from lib.registry import find_newest_same_variant_tag, parse_repo
-from lib.render_scope import friendly_vendor_charts, render_chart
+from lib.image.upgrade_cache import cache_entry_is_fresh
+from lib.image.upgrade_cache import cache_key
+from lib.image.upgrade_cache import load_cache
+from lib.image.upgrade_cache import save_cache
+from lib.registry import find_newest_same_variant_tag
+from lib.registry import parse_repo
+from lib.render_scope import friendly_vendor_charts
+from lib.render_scope import render_chart
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
 
 

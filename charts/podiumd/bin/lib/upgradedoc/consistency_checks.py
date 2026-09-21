@@ -5,13 +5,11 @@ corresponds to no real row, or text claiming a dependency that
 doesn't exist, rather than ever guessing a match."""
 
 from lib.chart.registered_paths import native_components
-from lib.upgradedoc.string_and_parsing_basics import (
-    changes_heading_identities,
-    match_canonical_sidecar_name,
-    match_dependency_excluding_sidecar_names,
-    match_native_component,
-    normalize_name,
-)
+from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
+from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
+from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
+from lib.upgradedoc.string_and_parsing_basics import match_native_component
+from lib.upgradedoc.string_and_parsing_basics import normalize_name
 
 
 def resolve_component_identity(text, deps, canonical_names):

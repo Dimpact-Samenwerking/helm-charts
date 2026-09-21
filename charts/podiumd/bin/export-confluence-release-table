@@ -17,24 +17,34 @@ Usage:
     export-confluence-release-table --url <page-url> --user <email>
         # prompts for the token, or reads CONFLUENCE_API_TOKEN if set
 """
+
 import argparse
 import csv
 import getpass
 import os
 import re
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart.release_baseline_basics import load_yaml
-from lib.confluence_tables import (
-    effective_header_row_count, expand_grid, extract_tables, fetch_page_html,
-    find_versie_groups, header_paths, is_semver_compatible, major_minor,
-    missing_required_release_columns, select_release_columns, tables_under_headings,
-)
-from lib.image.version import basenames_under_scope, basenames_under_scope_any_tag, image_basename
+from lib.confluence_tables import effective_header_row_count
+from lib.confluence_tables import expand_grid
+from lib.confluence_tables import extract_tables
+from lib.confluence_tables import fetch_page_html
+from lib.confluence_tables import find_versie_groups
+from lib.confluence_tables import header_paths
+from lib.confluence_tables import is_semver_compatible
+from lib.confluence_tables import major_minor
+from lib.confluence_tables import missing_required_release_columns
+from lib.confluence_tables import select_release_columns
+from lib.confluence_tables import tables_under_headings
+from lib.image.version import basenames_under_scope
+from lib.image.version import basenames_under_scope_any_tag
+from lib.image.version import image_basename
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_OUTPUT = CHART_DIR / "etc" / "release-table.csv"
@@ -48,8 +58,19 @@ DEFAULT_HEADINGS = [
     "Technische component versies",
 ]
 
-CSV_HEADER = ["section", "vendor", "used_by", "name", "component", "alias", "image_basename",
-              "source_version_app", "source_version_helm", "target_version_app", "target_version_helm"]
+CSV_HEADER = [
+    "section",
+    "vendor",
+    "used_by",
+    "name",
+    "component",
+    "alias",
+    "image_basename",
+    "source_version_app",
+    "source_version_helm",
+    "target_version_app",
+    "target_version_helm",
+]
 
 # Stripped from the end of a matched heading before it goes into the CSV's
 # "section" column — "Product component versies" -> "Product", etc. Only
@@ -104,31 +125,39 @@ def resolve_header_row_count(rows, grid):
         if best_count is None:
             best_count, best_columns = count, columns
             continue
-        if any(columns[key] is not None and best_columns[key] is None
-               for key in ("vendor", "used_by", "source_helm", "target_helm")):
+        if any(
+            columns[key] is not None and best_columns[key] is None
+            for key in ("vendor", "used_by", "source_helm", "target_helm")
+        ):
             best_count, best_columns = count, columns
     return best_count if best_count is not None else base
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--url", help="Confluence page URL (required unless --recompute-basenames)")
     parser.add_argument("--user", help="Atlassian account email (required unless --recompute-basenames)")
     parser.add_argument("--token", help="API token (prefer --token-file or CONFLUENCE_API_TOKEN instead)")
     parser.add_argument("--token-file", help="path to a file containing just the API token")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help=f"CSV output path (default: {DEFAULT_OUTPUT})")
-    parser.add_argument("--heading", action="append",
-                         help="only use table(s) directly under this heading (repeatable; "
-                              f"default: {', '.join(DEFAULT_HEADINGS)})")
-    parser.add_argument("--recompute-basenames", action="store_true",
-                         help="Recompute ONLY the image_basename column of the CSV already at "
-                              "--output, from the rows it already has — no Confluence fetch, no "
-                              "--url/--user needed. Goes through the exact same resolve_image_"
-                              "basenames real exports use, against chart_dir's CURRENT values.yaml, "
-                              "so a values.yaml-only change can be picked up without needing "
-                              "Confluence credentials at all. Every other column is left untouched.")
+    parser.add_argument(
+        "--heading",
+        action="append",
+        help=f"only use table(s) directly under this heading (repeatable; default: {', '.join(DEFAULT_HEADINGS)})",
+    )
+    parser.add_argument(
+        "--recompute-basenames",
+        action="store_true",
+        help="Recompute ONLY the image_basename column of the CSV already at "
+        "--output, from the rows it already has — no Confluence fetch, no "
+        "--url/--user needed. Goes through the exact same resolve_image_"
+        "basenames real exports use, against chart_dir's CURRENT values.yaml, "
+        "so a values.yaml-only change can be picked up without needing "
+        "Confluence credentials at all. Every other column is left untouched.",
+    )
     args = parser.parse_args()
     if not args.recompute_basenames and not (args.url and args.user):
         parser.error("--url and --user are required unless --recompute-basenames is set")
@@ -150,7 +179,7 @@ def section_name(heading):
     "Product component versies" -> "Product". Unchanged if it doesn't end
     with that exact suffix (e.g. a custom --heading), rather than
     corrupting text this didn't anticipate."""
-    return heading[:-len(SECTION_SUFFIX)] if heading.endswith(SECTION_SUFFIX) else heading
+    return heading[: -len(SECTION_SUFFIX)] if heading.endswith(SECTION_SUFFIX) else heading
 
 
 def check_target_matches_chart_version(target_labels, chart_dir):
@@ -176,12 +205,16 @@ def check_target_matches_chart_version(target_labels, chart_dir):
     chart_version = str(load_yaml(chart_yaml_path).get("version", ""))
     chart_major_minor = major_minor(chart_version)
     if chart_major_minor is None:
-        print(f'WARNING: could not verify Confluence target version against Chart.yaml — '
-              f'its own "version: {chart_version}" isn\'t a valid MAJOR.MINOR(.PATCH)')
+        print(
+            f"WARNING: could not verify Confluence target version against Chart.yaml — "
+            f'its own "version: {chart_version}" isn\'t a valid MAJOR.MINOR(.PATCH)'
+        )
         return
     if not target_labels:
-        print('WARNING: could not verify Confluence target version against Chart.yaml — '
-              'no table\'s "Versie ..." heading yielded a resolvable target-version group')
+        print(
+            "WARNING: could not verify Confluence target version against Chart.yaml — "
+            'no table\'s "Versie ..." heading yielded a resolvable target-version group'
+        )
         return
 
     mismatched = sorted({label for label in target_labels if major_minor(label) != chart_major_minor})
@@ -228,7 +261,7 @@ def name_candidates(name):
     candidates = [normalize_name(name)]
     match = BRACKETED_RE.search(name)
     if match:
-        rest = name[:match.start()] + name[match.end():]
+        rest = name[: match.start()] + name[match.end() :]
         candidates += [normalize_name(rest), normalize_name(match.group(1))]
     return list(dict.fromkeys(c for c in candidates if c))
 
@@ -422,8 +455,7 @@ def component_and_alias(name, dependencies, orphan_keys=(), global_image_keys=()
     candidates = name_candidates(name)
 
     def relates_to_global_key():
-        return any(_related(candidate, normalize_name(key))
-                   for candidate in candidates for key in global_image_keys)
+        return any(_related(candidate, normalize_name(key)) for candidate in candidates for key in global_image_keys)
 
     exact = _resolve_against(candidates, dependencies, _EXACT_TIERS)
     if exact:
@@ -596,7 +628,7 @@ def resolve_image_basenames(rows, chart_dir):
         by_component.setdefault(component, {"alias": alias, "indices": []})["indices"].append(i)
 
     for component, info in by_component.items():
-        scope_keys = [info["alias"] or component] + extra_scopes.get(component, [])
+        scope_keys = [info["alias"] or component, *extra_scopes.get(component, [])]
         available = {}
         for scope_key in scope_keys:
             for basename, pins in basenames_under_scope(lines, scope_key).items():
@@ -688,8 +720,10 @@ def recompute_image_basenames(csv_path, chart_dir):
         reader = csv.reader(f)
         header = next(reader, None)
         if header != CSV_HEADER:
-            raise SystemExit(f"error: {csv_path}'s header doesn't match the expected CSV_HEADER — "
-                              f"refusing to recompute a file this script didn't write")
+            raise SystemExit(
+                f"error: {csv_path}'s header doesn't match the expected CSV_HEADER — "
+                f"refusing to recompute a file this script didn't write"
+            )
         rows = list(reader)
 
     # resolve_image_basenames expects rows shaped exactly like extract_
@@ -697,12 +731,12 @@ def recompute_image_basenames(csv_path, chart_dir):
     # (it inserts that itself, by position) — so strip it out here and
     # re-insert only the (possibly new) value at that same position below.
     basename_idx = CSV_HEADER.index("image_basename")
-    stripped = [row[:basename_idx] + row[basename_idx + 1:] for row in rows]
+    stripped = [row[:basename_idx] + row[basename_idx + 1 :] for row in rows]
     new_basenames = resolve_image_basenames(stripped, chart_dir)
 
     name_idx, component_idx = CSV_HEADER.index("name"), CSV_HEADER.index("component")
     changes = []
-    for row, new_basename in zip(rows, new_basenames):
+    for row, new_basename in zip(rows, new_basenames, strict=False):
         old_basename = row[basename_idx]
         if new_basename != old_basename:
             changes.append((row[name_idx], row[component_idx], old_basename, new_basename))
@@ -830,35 +864,39 @@ def extract_release_rows(html, headings=None, chart_dir=None):
             component, alias = component_and_alias(used_by or name, dependencies, orphan_keys, global_keys)
             if component == "UNKNOWN":
                 used_by_suffix = f' (used_by "{used_by}")' if used_by else ""
-                print(f'WARNING: "{name}"{used_by_suffix} did not resolve to any Chart.yaml '
-                      f'dependency, orphan values.yaml key, or global image key')
+                print(
+                    f'WARNING: "{name}"{used_by_suffix} did not resolve to any Chart.yaml '
+                    f"dependency, orphan values.yaml key, or global image key"
+                )
             # source_app/target_app are guaranteed resolved (see
             # missing_required_release_columns above); source_helm/
             # target_helm are optional and blank exactly like a missing
             # vendor/used_by cell when this table has no Helm sub-column.
-            version_columns = ("source_version_app", "source_version_helm",
-                                "target_version_app", "target_version_helm")
-            versions = [normalize_version(data_row[columns[key]]) if columns[key] is not None else ""
-                        for key in ("source_app", "source_helm", "target_app", "target_helm")]
-            for column_name, value in zip(version_columns, versions):
+            version_columns = ("source_version_app", "source_version_helm", "target_version_app", "target_version_helm")
+            versions = [
+                normalize_version(data_row[columns[key]]) if columns[key] is not None else ""
+                for key in ("source_app", "source_helm", "target_app", "target_helm")
+            ]
+            for column_name, value in zip(version_columns, versions, strict=False):
                 if value == "UNKNOWN":
-                    print(f'WARNING: "{name}": {column_name} is not semver-compatible — '
-                          f'replaced with UNKNOWN')
+                    print(f'WARNING: "{name}": {column_name} is not semver-compatible — replaced with UNKNOWN')
             unknown_count += sum(1 for v in versions if v == "UNKNOWN")
-            rows_out.append([section_name(heading), vendor, used_by, name, component, alias] + versions)
+            rows_out.append([section_name(heading), vendor, used_by, name, component, alias, *versions])
             matched += 1
         print(f'"{heading}": {matched} row(s) matched')
 
     check_target_matches_chart_version(target_labels, chart_dir)
 
     if not rows_out:
-        raise SystemExit("error: every matching-heading table was missing a required column "
-                          "(source/target Versie ... App) — see the skip reason(s) above")
+        raise SystemExit(
+            "error: every matching-heading table was missing a required column "
+            "(source/target Versie ... App) — see the skip reason(s) above"
+        )
     if unknown_count:
         print(f"{unknown_count} version value(s) were not semver-compatible — replaced with UNKNOWN")
 
     basenames = resolve_image_basenames(rows_out, chart_dir)
-    for row, basename in zip(rows_out, basenames):
+    for row, basename in zip(rows_out, basenames, strict=False):
         # A MULTIPLE row (see component_and_alias/global_image_keys) with
         # no resolved basename is otherwise silent all the way through:
         # this export just writes the blank column, and verify-release-
@@ -870,8 +908,10 @@ def extract_release_rows(html, headings=None, chart_dir=None):
         # Confluence row text this needs (see component_and_alias's own
         # docstring) before a re-export can resolve it.
         if row[4] == "MULTIPLE" and not basename:
-            print(f'WARNING: "{row[3]}" resolved to MULTIPLE but no image_basename could be '
-                  f'resolved — its image will be untracked in {DEFAULT_OUTPUT.name}')
+            print(
+                f'WARNING: "{row[3]}" resolved to MULTIPLE but no image_basename could be '
+                f"resolved — its image will be untracked in {DEFAULT_OUTPUT.name}"
+            )
         row.insert(6, basename)
     apply_native_helm_marker(rows_out)
 
@@ -891,8 +931,10 @@ def extract_release_rows(html, headings=None, chart_dir=None):
             by_pair.setdefault((component, basename), []).append(row[3])
     for (component, basename), names in sorted(by_pair.items()):
         if len(names) > 1:
-            print(f'WARNING: {len(names)} rows all resolve to the same component "{component}" + '
-                  f'image "{basename}": {", ".join(names)}')
+            print(
+                f'WARNING: {len(names)} rows all resolve to the same component "{component}" + '
+                f'image "{basename}": {", ".join(names)}'
+            )
 
     return rows_out
 

@@ -37,7 +37,9 @@ Example:
         # 4.9.0-to-4.10.0-{upgrade,gemeente-specific,values-deltas}.md
         # and images-4.10.0.yaml don't already exist
 """
+
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -46,7 +48,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.component_docs.baseline_doc_stubs import create_missing_docs, existing_doc_baselines
+from lib.component_docs.baseline_doc_stubs import create_missing_docs
+from lib.component_docs.baseline_doc_stubs import existing_doc_baselines
 from lib.procutil import run_script
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -70,8 +73,10 @@ def main():
 
     upgrade_docs_baseline = read_upgrade_docs_baseline(CHART_DIR)
     if upgrade_docs_baseline is None:
-        print("error: release-baseline.yaml has no upgrade_docs key (or the file doesn't "
-              "exist yet) — run create-podiumd-version to set it first")
+        print(
+            "error: release-baseline.yaml has no upgrade_docs key (or the file doesn't "
+            "exist yet) — run create-podiumd-version to set it first"
+        )
         sys.exit(1)
 
     if not BASELINE_VERSION_RE.match(upgrade_docs_baseline):
@@ -80,12 +85,15 @@ def main():
     target = current_chart_version()
 
     by_suffix = existing_doc_baselines(DOC_DIR, target)
-    mismatched = {suffix: entries for suffix, entries in by_suffix.items()
-                  if any(b != upgrade_docs_baseline for b, _ in entries)}
+    mismatched = {
+        suffix: entries for suffix, entries in by_suffix.items() if any(b != upgrade_docs_baseline for b, _ in entries)
+    }
     if mismatched:
-        print(f"error: doc(s) already exist for target {target} under a different upgrade_docs_baseline "
-              f"than '{upgrade_docs_baseline}' — refusing to create fresh docs next to them:")
-        for suffix, entries in sorted(mismatched.items()):
+        print(
+            f"error: doc(s) already exist for target {target} under a different upgrade_docs_baseline "
+            f"than '{upgrade_docs_baseline}' — refusing to create fresh docs next to them:"
+        )
+        for _suffix, entries in sorted(mismatched.items()):
             for b, path in sorted(entries):
                 print(f"  {path.name}  (upgrade_docs_baseline {b})")
         print()

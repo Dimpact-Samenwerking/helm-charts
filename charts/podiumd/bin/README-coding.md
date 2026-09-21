@@ -9,8 +9,10 @@ the test suite and the linters. For installing the tools themselves (`ruff`,
 - [Running the tests](#running-the-tests)
 - [Running the linters](#running-the-linters)
   - [ruff (lint + format)](#ruff-lint--format)
-  - [pylint (too-many-lines only)](#pylint-too-many-lines-only)
   - [vulture (dead code)](#vulture-dead-code)
+  - [bandit (security)](#bandit-security)
+  - [pylint](#pylint)
+  - [basedpyright (type checking)](#basedpyright-type-checking)
 - [Before committing](#before-committing)
 
 ## Running the tests
@@ -39,10 +41,11 @@ The full suite currently runs ~2300+ tests in a couple of minutes.
 
 ## Running the linters
 
-Both tools are configured from the single `pyproject.toml` in this same directory
-(`[tool.ruff]`/`[tool.pylint]`) — no separate `ruff.toml`/`pylintrc` files, and
-no flags needed for either to find it, as long as you're running them from
-somewhere under `charts/podiumd/bin/`.
+All four tools are configured from the single `pyproject.toml` in this same
+directory (`[tool.ruff]`/`[tool.pylint]`/`[tool.bandit]`/`[tool.basedpyright]`)
+— no separate `ruff.toml`/`pylintrc`/etc. files, and no flags needed for any
+of them to find it, as long as you're running them from somewhere under
+`charts/podiumd/bin/`.
 
 ### ruff (lint + format)
 
@@ -50,11 +53,15 @@ somewhere under `charts/podiumd/bin/`.
 cd charts/podiumd/bin
 
 # Lint check only, no changes
-ruff check .
+ruff check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 
 # Lint check + apply every AUTO-fixable finding
-ruff check --fix .
+ruff check --fix . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 ```
+
+The extensionless top-level scripts need to be passed explicitly — ruff only
+auto-discovers `*.py` files via a bare `.`, the same file-discovery gap
+`pylint`/`vulture` below have always had.
 
 **Always review `ruff check --fix`'s own diff by hand before trusting it** —
 it's usually safe, but it has produced real regressions in this codebase before:
@@ -66,10 +73,10 @@ correct, but worth cleaning up by hand rather than leaving it looking like that.
 
 ```bash
 # Format check only, no changes (exits non-zero if anything would reformat)
-ruff format --check .
+ruff format --check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 
 # Actually reformat
-ruff format .
+ruff format . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 ```
 
 `ruff format` is AST-preserving (re-serializes the same parse tree — unlike
@@ -79,29 +86,6 @@ blank lines, quote style). Still worth running `ruff format --check` again
 right after formatting once, to confirm it's idempotent (0 further changes) —
 it always has been so far, but that's a cheap, worthwhile sanity check whenever
 a lot of files change at once.
-
-### pylint (too-many-lines only)
-
-pylint is deliberately narrow here — see `pyproject.toml`'s own comment: it's
-added on top of ruff for exactly one thing ruff has no rule for at all, total
-module line count (`too-many-lines`, default threshold 1000 lines). It is not
-a general second linter running in parallel with ruff.
-
-```bash
-cd charts/podiumd/bin
-pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) $(find tests -name '*.py')
-```
-
-The explicit file list matters: pylint has no config option to auto-discover
-this directory's own extensionless top-level scripts (`fix-doc-consistency`,
-`verify-podiumd`, etc. — they have no `.py` suffix for it to glob on), so a
-bare `pylint .` silently misses all of them. The command above explicitly
-includes `lib` (a directory argument, not a `lib/*.py` glob, so pylint
-recurses into subpackages like `lib/component_docs/` too), every executable
-top-level script (filtered to those with a `python` shebang, so a
-non-Python executable like `run_python_checks` itself doesn't get handed to
-a Python linter), and every test file under `tests/` (several test modules
-are themselves well over 1000 lines).
 
 ### vulture (dead code)
 
@@ -131,6 +115,64 @@ it), or it's a new false positive of the same two shapes above — in which
 case add it to `ignore_names` with the same kind of explanation, don't just
 suppress it silently.
 
+### bandit (security)
+
+```bash
+cd charts/podiumd/bin
+bandit -c pyproject.toml -r lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) -q
+```
+
+Same file-discovery/`tests/`-exclusion shape as vulture above: `lib` is
+passed as a directory so bandit recurses into subpackages, the extensionless
+top-level scripts are passed explicitly, and `tests/` is deliberately left
+out — every `assert` statement would otherwise flag `B101` (assert_used),
+the same false-positive class ruff's own `tests/**` `S101` exemption
+documents for the identical check under a different tool. `pyproject.toml`'s
+own `[tool.bandit]` `skips` documents the checks ruff's `S` rules already
+own elsewhere.
+
+### pylint
+
+Two invocations, because `pyproject.toml` has no per-directory scoping for
+pylint's message-control (unlike ruff's `per-file-ignores`): `lib` and the
+top-level scripts get the full default pylint rule set; `tests/`
+additionally disables 7 checks that are false positives only there (pytest
+fixture signatures, sys.path-hack conftest imports, shared assertion
+boilerplate) — see `pyproject.toml`'s own `[tool.pylint."messages control"]`
+comment for the full list and reasoning.
+
+```bash
+cd charts/podiumd/bin
+pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+PYTHONPATH=. pylint --disable=missing-function-docstring,wrong-import-position,unused-argument,protected-access,unused-variable,redefined-outer-name,duplicate-code \
+    $(find tests -name '*.py')
+```
+
+`lib` isn't an analyzed target in the second invocation, so its imports need
+`PYTHONPATH=.` (not the target list) to resolve — otherwise pylint can't see
+`lib.*` at all and every cross-package import in `tests/` raises a false
+`import-error`.
+
+The explicit file list matters: pylint has no config option to auto-discover
+this directory's own extensionless top-level scripts (`fix-doc-consistency`,
+`verify-podiumd`, etc. — they have no `.py` suffix for it to glob on), so a
+bare `pylint .` silently misses all of them. `lib` is passed as a directory
+argument, not a `lib/*.py` glob, so pylint recurses into subpackages like
+`lib/component_docs/` too — same reason as vulture above.
+
+### basedpyright (type checking)
+
+```bash
+cd charts/podiumd/bin
+basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) tests
+```
+
+`typeCheckingMode = "strict"` in `pyproject.toml` — every function parameter
+needs a type annotation. Unlike the other tools here, basedpyright walks
+`tests/` too (fixture/mock signatures benefit from typing same as
+production code); the extensionless top-level scripts still need to be
+passed explicitly, same file-discovery gap as pylint/vulture/bandit above.
+
 ## Before committing
 
 ```bash
@@ -140,21 +182,26 @@ cd charts/podiumd/bin
 
 Runs everything above fastest-first, stopping at the first failure: `ruff
 check` (~0.03s) → `ruff format --check` (~0.05s) → `vulture` (~0.5s) →
-`pylint` (~6s) → `pytest` (the full suite, ~2-3 minutes) — measured, not
-guessed, so a real problem in the cheap checks fails in well under a
-second instead of waiting on the full test run first. Equivalent to
-running each command from the sections above by hand, in this order:
+`bandit` (~1.7s) → `pylint` (~6s) → `basedpyright` (~8.6s) → `pytest` (the
+full suite, ~2-3 minutes) — measured, not guessed, so a real problem in the
+cheap checks fails in well under a second instead of waiting on the full
+test run first. Equivalent to running each command from the sections above
+by hand, in this order:
 
 ```bash
 cd charts/podiumd/bin
-ruff check .
-ruff format --check .
+ruff check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+ruff format --check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 vulture lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
-pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) $(find tests -name '*.py')
+bandit -c pyproject.toml -r lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) -q
+pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+PYTHONPATH=. pylint --disable=missing-function-docstring,wrong-import-position,unused-argument,protected-access,unused-variable,redefined-outer-name,duplicate-code \
+    $(find tests -name '*.py')
+basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) tests
 python3 -m pytest -q
 ```
 
-A failing `pytest` run or a `ruff check`/`pylint` finding introduced by your own
-change should be fixed before committing; a pre-existing finding you didn't
-touch is fine to leave (see this repo's own git history — findings get worked
-through in batches, not all at once).
+A failing `pytest` run or a `ruff check`/`pylint`/`bandit`/`basedpyright`
+finding introduced by your own change should be fixed before committing; a
+pre-existing finding you didn't touch is fine to leave (see this repo's own
+git history — findings get worked through in batches, not all at once).

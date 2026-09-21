@@ -121,8 +121,10 @@ Usage:
 Exit code is non-zero if any version mismatch, missing-from-release-table,
 or missing-from-chart-or-values item was found.
 """
+
 import csv
 import sys
+
 from collections import defaultdict
 from pathlib import Path
 
@@ -131,14 +133,19 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart.pull_and_subchart_resolution import primary_image_repositories
 from lib.chart.registered_paths import image_paths_for
-from lib.chart.release_baseline_basics import load_yaml, release_table_baseline
-from lib.chart.values_tree_primitives import (
-    dotted_key_path, find_dependency, get_path, strip_registry_host, version_of,
-)
-from lib.image.version import (
-    GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, basenames_under_scope_any_tag, find_matches_any_tag, image_basename,
-    repository_for_basename_in_scope,
-)
+from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.release_baseline_basics import release_table_baseline
+from lib.chart.values_tree_primitives import dotted_key_path
+from lib.chart.values_tree_primitives import find_dependency
+from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import strip_registry_host
+from lib.chart.values_tree_primitives import version_of
+from lib.image.version import GLOBAL_IMAGES_SCOPE
+from lib.image.version import MULTIPLE_KEY
+from lib.image.version import basenames_under_scope_any_tag
+from lib.image.version import find_matches_any_tag
+from lib.image.version import image_basename
+from lib.image.version import repository_for_basename_in_scope
 from lib.release_baseline import resolve_baseline_chart_state
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -260,8 +267,11 @@ def primary_image_basename(chart_dir, lines, scope_key, component, dep, values):
     claiming to be primary, which shouldn't happen given image_paths_
     for's own paths are always distinct, but is never guessed at
     regardless."""
-    primaries = {basename for basename, pins in basenames_under_scope_any_tag(lines, scope_key).items()
-                 if any(is_primary_image(component, lines, pin, chart_dir) for pin in pins)}
+    primaries = {
+        basename
+        for basename, pins in basenames_under_scope_any_tag(lines, scope_key).items()
+        if any(is_primary_image(component, lines, pin, chart_dir) for pin in pins)
+    }
     if primaries:
         return next(iter(primaries)) if len(primaries) == 1 else None
     if dep is None:
@@ -340,18 +350,22 @@ def missing_chart_version_hint(chart_dir, lines, scope_key, component, dep, valu
     finding for it), says so instead of guessing which row to point at."""
     primary_row = find_primary_row(chart_dir, lines, scope_key, component, dep, values, rows)
     if primary_row is None:
-        return ("Confluence: none of the existing row(s) is this chart's own primary-image row yet "
-                "(see the companion [IMAGE] finding for its own basename, if listed) — add the Helm "
-                "version to that row once it exists")
+        return (
+            "Confluence: none of the existing row(s) is this chart's own primary-image row yet "
+            "(see the companion [IMAGE] finding for its own basename, if listed) — add the Helm "
+            "version to that row once it exists"
+        )
     name = primary_row["name"]
     where = f'"{primary_row["section"]} component versies"'
     chart_version = str(dep["version"])
     if where == TECHNISCHE_TABLE_HINT:
         app_version = row_app_version(primary_row)
         app_version_suffix = f", App version {app_version}" if app_version else ""
-        return (f'Confluence: remove "{name}" from {where} and add it instead to whichever of '
-                f'"Product/Common Ground/Overige component versies" fits — Name "{name}", '
-                f"Helm version {chart_version}{app_version_suffix}")
+        return (
+            f'Confluence: remove "{name}" from {where} and add it instead to whichever of '
+            f'"Product/Common Ground/Overige component versies" fits — Name "{name}", '
+            f"Helm version {chart_version}{app_version_suffix}"
+        )
     return f'Confluence: fill in the Helm version cell on "{name}" ({where}) with {chart_version}'
 
 
@@ -500,8 +514,11 @@ def check_images(scope_key, component, rows, lines, findings, values, dep=None, 
     # only ever consulted below for a basename release-table.csv doesn't
     # track yet, to decide whether it's this component's own primary image
     # (no "Used by" needed) or a sidecar (always needs one).
-    primary_basename = None if component == MULTIPLE_KEY else primary_image_basename(
-        chart_dir, lines, scope_key, component, dep, values)
+    primary_basename = (
+        None
+        if component == MULTIPLE_KEY
+        else primary_image_basename(chart_dir, lines, scope_key, component, dep, values)
+    )
 
     for row in rows:
         target = row["target_version_app"]
@@ -534,8 +551,9 @@ def check_images(scope_key, component, rows, lines, findings, values, dep=None, 
                 actual = next(iter(versions))
                 if is_verifiable_target(target):
                     if actual != target:
-                        report_mismatch(findings, "IMAGE", row, f"{component}.{basename}", target,
-                                         actual, "values.yaml")
+                        report_mismatch(
+                            findings, "IMAGE", row, f"{component}.{basename}", target, actual, "values.yaml"
+                        )
                 else:
                     # target_version_app blank ("no planned change" — see
                     # is_verifiable_target) must never mean "nothing left
@@ -580,8 +598,19 @@ def check_images(scope_key, component, rows, lines, findings, values, dep=None, 
             )
 
 
-def check_images_source(scope_key, component, rows, lines, baseline_lines, baseline_values, findings,
-                         dep=None, baseline_deps=None, chart_dir=None, strict_presence=False):
+def check_images_source(
+    scope_key,
+    component,
+    rows,
+    lines,
+    baseline_lines,
+    baseline_values,
+    findings,
+    dep=None,
+    baseline_deps=None,
+    chart_dir=None,
+    strict_presence=False,
+):
     """The SOURCE-side sibling of check_images — mirrors its own two-tier
     resolution (basenames_under_scope, falling back to a plain find_
     matches search) exactly, but against baseline_lines/baseline_values
@@ -671,8 +700,9 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
     actively wrong: something WAS pinned, this just couldn't confirm
     what) and never a crash."""
     baseline_basenames = basenames_under_scope_any_tag(baseline_lines, scope_key)
-    baseline_dep = (find_dependency(baseline_deps, dep["name"])
-                     if dep is not None and baseline_deps is not None else None)
+    baseline_dep = (
+        find_dependency(baseline_deps, dep["name"]) if dep is not None and baseline_deps is not None else None
+    )
     subchart_repos_state = None  # lazily filled: (repos, error) from primary_image_repositories, at most once
 
     def resolve_subchart_source(basename):
@@ -680,15 +710,16 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
         if baseline_dep is None:
             return None, None
         if subchart_repos_state is None:
-            subchart_repos_state = primary_image_repositories(chart_dir, baseline_dep, baseline_values,
-                                                                allow_pull=True)
+            subchart_repos_state = primary_image_repositories(chart_dir, baseline_dep, baseline_values, allow_pull=True)
         repos, error = subchart_repos_state
         matching_paths = [p for p, repo in repos.items() if repo and image_basename(repo) == basename]
         if matching_paths:
             tag = get_path(baseline_values, f"{scope_key}.{matching_paths[0]}.tag")
             return (version_of(tag) if isinstance(tag, str) and tag else None), None
-        if error and all(not get_path(baseline_values, f"{scope_key}.{p}.repository")
-                          for p in image_paths_for(baseline_dep["name"], chart_dir)):
+        if error and all(
+            not get_path(baseline_values, f"{scope_key}.{p}.repository")
+            for p in image_paths_for(baseline_dep["name"], chart_dir)
+        ):
             # No path resolved to `basename`, but the resolution itself
             # failed AND this dependency has no explicit override for
             # ANY of its own primary paths at this baseline — plausibly
@@ -718,25 +749,32 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
             if fallback_pins:
                 current_repo = repository_for_basename_in_scope(lines, scope_key, basename)
                 fallback_pins = [
-                    p for p in fallback_pins if current_repo is not None and p["repository"]
+                    p
+                    for p in fallback_pins
+                    if current_repo is not None
+                    and p["repository"]
                     and strip_registry_host(p["repository"]) == strip_registry_host(current_repo)
                 ]
             pins = fallback_pins or None
         if pins is not None:
             versions = {p["version"] for p in pins}
             if len(versions) > 1:
-                return ("ambiguous",
-                        f"'{basename}' under '{scope_key}' is pinned at {len(versions)} different versions at "
-                        f"the release_table baseline ({', '.join(sorted(versions))}) -- can't compare")
+                return (
+                    "ambiguous",
+                    f"'{basename}' under '{scope_key}' is pinned at {len(versions)} different versions at "
+                    f"the release_table baseline ({', '.join(sorted(versions))}) -- can't compare",
+                )
             return ("found", next(iter(versions)), "values.yaml")
 
         subchart_actual, subchart_error = resolve_subchart_source(basename)
         if subchart_error:
-            return ("ambiguous",
-                    f"'{basename}' under '{scope_key}' relies entirely on its vendored subchart's own default "
-                    f"repository at the release_table baseline (no override in values.yaml there), but its "
-                    f"historical chart version {baseline_dep['version']} couldn't be resolved to verify: "
-                    f"{subchart_error}")
+            return (
+                "ambiguous",
+                f"'{basename}' under '{scope_key}' relies entirely on its vendored subchart's own default "
+                f"repository at the release_table baseline (no override in values.yaml there), but its "
+                f"historical chart version {baseline_dep['version']} couldn't be resolved to verify: "
+                f"{subchart_error}",
+            )
         if subchart_actual is not None:
             return ("found", subchart_actual, "subchart-default values.yaml")
         return ("absent",)
@@ -784,8 +822,17 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
             )
 
 
-def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, baseline_values=None, baseline_lines=None,
-            baseline_only=False):
+def compare(
+    rows,
+    deps,
+    values,
+    lines,
+    chart_dir=None,
+    baseline_deps=None,
+    baseline_values=None,
+    baseline_lines=None,
+    baseline_only=False,
+):
     """{"mismatches", "ambiguous", "missing_from_release_table",
     "missing_from_chart"}: str -> [str, ...], plus the separate list of
     rows whose component export-confluence-release-table never
@@ -842,8 +889,16 @@ def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, basel
     if not baseline_only:
         check_images(GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, multiple_rows, lines, findings, values)
     if baseline_deps is not None:
-        check_images_source(GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, multiple_rows, lines, baseline_lines,
-                             baseline_values, findings, strict_presence=baseline_only)
+        check_images_source(
+            GLOBAL_IMAGES_SCOPE,
+            MULTIPLE_KEY,
+            multiple_rows,
+            lines,
+            baseline_lines,
+            baseline_values,
+            findings,
+            strict_presence=baseline_only,
+        )
 
     checked_components = set()
     for dep in deps:
@@ -864,11 +919,20 @@ def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, basel
             check_chart_version(dep, scope_key, rows_for_component, lines, values, chart_dir, findings)
             check_images(scope_key, component, rows_for_component, lines, findings, values, dep, chart_dir)
         if baseline_deps is not None:
-            check_chart_version_source(dep, rows_for_component, baseline_deps, findings,
-                                        strict_presence=baseline_only)
-            check_images_source(scope_key, component, rows_for_component, lines, baseline_lines, baseline_values,
-                                 findings, dep=dep, baseline_deps=baseline_deps, chart_dir=chart_dir,
-                                 strict_presence=baseline_only)
+            check_chart_version_source(dep, rows_for_component, baseline_deps, findings, strict_presence=baseline_only)
+            check_images_source(
+                scope_key,
+                component,
+                rows_for_component,
+                lines,
+                baseline_lines,
+                baseline_values,
+                findings,
+                dep=dep,
+                baseline_deps=baseline_deps,
+                chart_dir=chart_dir,
+                strict_presence=baseline_only,
+            )
 
     for component, rows_for_component in rows_by_component.items():
         if component in checked_components:
@@ -882,8 +946,16 @@ def compare(rows, deps, values, lines, chart_dir=None, baseline_deps=None, basel
             if not baseline_only:
                 check_images(component, component, rows_for_component, lines, findings, values)
             if baseline_deps is not None:
-                check_images_source(component, component, rows_for_component, lines, baseline_lines,
-                                     baseline_values, findings, strict_presence=baseline_only)
+                check_images_source(
+                    component,
+                    component,
+                    rows_for_component,
+                    lines,
+                    baseline_lines,
+                    baseline_values,
+                    findings,
+                    strict_presence=baseline_only,
+                )
         else:
             for row in rows_for_component:
                 findings["missing_from_chart"].append(
@@ -957,21 +1029,31 @@ def main():
         print("WARNING: release_table baseline not set in release-baseline.yaml — skipping source-version checks\n")
     else:
         _baseline_ref, resolved_deps, resolved_values, resolved_lines, baseline_error = resolve_baseline_chart_state(
-            CHART_DIR, baseline)
+            CHART_DIR, baseline
+        )
         if baseline_error:
-            print(f'WARNING: release_table baseline "{baseline}": {baseline_error} — skipping source-version '
-                  f"checks\n")
+            print(f'WARNING: release_table baseline "{baseline}": {baseline_error} — skipping source-version checks\n')
         else:
             baseline_deps, baseline_values, baseline_lines = resolved_deps, resolved_values, resolved_lines
 
     if baseline_only and baseline_deps is None:
-        print("error: --baseline-only has nothing to check — the release_table baseline could not be "
-              "resolved (see the WARNING above)")
+        print(
+            "error: --baseline-only has nothing to check — the release_table baseline could not be "
+            "resolved (see the WARNING above)"
+        )
         sys.exit(1)
 
-    findings, unresolved = compare(rows, deps, values, lines, CHART_DIR,
-                                    baseline_deps=baseline_deps, baseline_values=baseline_values,
-                                    baseline_lines=baseline_lines, baseline_only=baseline_only)
+    findings, unresolved = compare(
+        rows,
+        deps,
+        values,
+        lines,
+        CHART_DIR,
+        baseline_deps=baseline_deps,
+        baseline_values=baseline_values,
+        baseline_lines=baseline_lines,
+        baseline_only=baseline_only,
+    )
     any_findings = print_report(findings, unresolved)
     sys.exit(1 if any_findings else 0)
 

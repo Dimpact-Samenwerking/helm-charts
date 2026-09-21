@@ -23,14 +23,19 @@ Usage:
     fix-node-selector             # insert nodeSelector where missing
     fix-node-selector --dry-run   # report only, no write
 """
+
 import re
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.checks.node_selector import DOC_SPLIT_RE, NAME_RE, NODE_SELECTOR_RE, WORKLOAD_KIND_RE
+from lib.checks.node_selector import DOC_SPLIT_RE
+from lib.checks.node_selector import NAME_RE
+from lib.checks.node_selector import NODE_SELECTOR_RE
+from lib.checks.node_selector import WORKLOAD_KIND_RE
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 
@@ -49,7 +54,7 @@ def split_docs_with_offsets(text):
     seps = list(DOC_SPLIT_RE.finditer(text))
     starts = [0] + [m.end() for m in seps]
     ends = [m.start() for m in seps] + [len(text)]
-    return [(text[s:e], s) for s, e in zip(starts, ends)]
+    return [(text[s:e], s) for s, e in zip(starts, ends, strict=False)]
 
 
 def find_fixes(text):
@@ -120,16 +125,20 @@ def main():
         total_fixed += len(fixes)
 
     if total_fixed == 0 and not total_unresolved:
-        print("OK: every Deployment/StatefulSet/DaemonSet/Job/CronJob in templates/*.yaml "
-              "already exposes a nodeSelector field")
+        print(
+            "OK: every Deployment/StatefulSet/DaemonSet/Job/CronJob in templates/*.yaml "
+            "already exposes a nodeSelector field"
+        )
         sys.exit(0)
 
     if dry_run:
         print(f"\n{total_fixed} nodeSelector insertion(s) would be made (dry-run, not writing)")
         sys.exit(1)
 
-    print(f"\nInserted nodeSelector into {total_fixed} template(s)"
-          + (f"; {len(total_unresolved)} left unresolved — review by hand" if total_unresolved else ""))
+    print(
+        f"\nInserted nodeSelector into {total_fixed} template(s)"
+        + (f"; {len(total_unresolved)} left unresolved — review by hand" if total_unresolved else "")
+    )
     sys.exit(1 if total_unresolved else 0)
 
 

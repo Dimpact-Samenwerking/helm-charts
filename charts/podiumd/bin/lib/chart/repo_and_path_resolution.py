@@ -9,20 +9,19 @@ default_repository, subchart_needs_vendoring)."""
 
 import tarfile
 
-from lib.chart.nested_subchart_identity import (
-    nested_subchart_documented_image_repository,
-    nested_subchart_name_for,
-    version_repository_path_for,
-)
-from lib.chart.pull_and_subchart_resolution import resolve_chart_values, subchart_values
-from lib.chart.registered_paths import image_paths_for, is_primary_image_path, native_components
-from lib.chart.values_tree_primitives import (
-    dotted_key_path,
-    find_app_versions,
-    find_dependency,
-    get_path,
-    strip_registry_host,
-)
+from lib.chart.nested_subchart_identity import nested_subchart_documented_image_repository
+from lib.chart.nested_subchart_identity import nested_subchart_name_for
+from lib.chart.nested_subchart_identity import version_repository_path_for
+from lib.chart.pull_and_subchart_resolution import resolve_chart_values
+from lib.chart.pull_and_subchart_resolution import subchart_values
+from lib.chart.registered_paths import image_paths_for
+from lib.chart.registered_paths import is_primary_image_path
+from lib.chart.registered_paths import native_components
+from lib.chart.values_tree_primitives import dotted_key_path
+from lib.chart.values_tree_primitives import find_app_versions
+from lib.chart.values_tree_primitives import find_dependency
+from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import strip_registry_host
 from lib.registry import parse_repo
 from lib.release_baseline import resolve_baseline_chart_state
 

@@ -3,20 +3,20 @@
 # Runs every check from README-coding.md's own "Before committing" section,
 # stopping at the first failure. Ordered fastest-first (measured, not
 # guessed): ruff check (~0.03s) -> ruff format --check (~0.05s) -> vulture
-# (~0.5s) -> pylint (~6s) -> pytest (the full suite, ~2-3 minutes) -- so a
-# real problem in the cheap checks fails in well under a second instead of
-# waiting on the full test run first. See README-coding.md for what each
-# one covers and why.
+# (~0.5s) -> bandit (~1.7s) -> pylint (~6s) -> basedpyright (~8.6s) ->
+# pytest (the full suite, ~2-3 minutes) -- so a real problem in the cheap
+# checks fails in well under a second instead of waiting on the full test
+# run first. See README-coding.md for what each one covers and why.
 set -euo pipefail
 
 usage() {
     cat <<'EOF'
 Usage: run_python_checks [-h|--help]
 
-Runs ruff check, ruff format --check, vulture, pylint, and pytest against
-this charts/podiumd/bin/ toolset, fastest first, stopping at the first
-failure. Must be run from charts/podiumd/bin/ itself (or invoked as
-./run_python_checks from there) -- see README-coding.md.
+Runs ruff check, ruff format --check, vulture, bandit, pylint, basedpyright,
+and pytest against this charts/podiumd/bin/ toolset, fastest first, stopping
+at the first failure. Must be run from charts/podiumd/bin/ itself (or
+invoked as ./run_python_checks from there) -- see README-coding.md.
 EOF
 }
 
@@ -31,17 +31,40 @@ python_scripts() {
     grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)
 }
 
+# ruff only auto-discovers *.py files -- the extensionless top-level
+# scripts need to be passed explicitly too, same as vulture/pylint below.
 echo "=== ruff check ==="
-ruff check .
+ruff check . $(python_scripts)
 
 echo "=== ruff format --check ==="
-ruff format --check .
+ruff format --check . $(python_scripts)
 
 echo "=== vulture (dead code) ==="
 vulture lib $(python_scripts)
 
-echo "=== pylint (too-many-lines) ==="
-pylint lib $(python_scripts) $(find tests -name '*.py')
+# tests/ excluded, same as vulture above -- every `assert` statement would
+# otherwise flag B101 (assert_used), dominating any real signal.
+echo "=== bandit (security) ==="
+bandit -c pyproject.toml -r lib $(python_scripts) -q
+
+# Two invocations: lib/ and the top-level scripts get the full default
+# pylint rule set; tests/ additionally disables 7 checks that are false
+# positives only there (pytest fixture signatures, sys.path-hack conftest
+# imports, shared assertion boilerplate) -- see pyproject.toml's own
+# [tool.pylint."messages control"] comment for why this can't be scoped in
+# the config file itself.
+echo "=== pylint (lib + scripts) ==="
+pylint lib $(python_scripts)
+
+echo "=== pylint (tests) ==="
+# lib isn't a target here, so its imports need PYTHONPATH (not an analyzed
+# target list) to resolve -- otherwise pylint can't see lib.* at all and
+# every cross-package import raises a false import-error.
+PYTHONPATH=. pylint --disable=missing-function-docstring,wrong-import-position,unused-argument,protected-access,unused-variable,redefined-outer-name,duplicate-code \
+    $(find tests -name '*.py')
+
+echo "=== basedpyright (type checking) ==="
+basedpyright lib $(python_scripts) tests
 
 echo "=== pytest ==="
 python3 -m pytest -q

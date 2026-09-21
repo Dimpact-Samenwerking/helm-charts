@@ -13,6 +13,7 @@ real Chart.yaml) — no real shellcheck or helm invocation happens in these
 tests."""
 
 import json
+
 from types import SimpleNamespace
 
 import pytest

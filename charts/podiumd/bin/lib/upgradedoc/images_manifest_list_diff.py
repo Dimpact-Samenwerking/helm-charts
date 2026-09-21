@@ -4,15 +4,14 @@ manifest_list_diff (the images-manifest.yaml "changes:" list this
 diff implies), both diffing against the true git baseline."""
 
 from lib.chart.historical_baselines import historical_app_version_for_repository
-from lib.chart.pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
+from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import native_components
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.values_tree_primitives import version_of
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import (
-    find_all_image_and_version_paths,
-    resolve_entry_image_path,
-)
+from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 
 

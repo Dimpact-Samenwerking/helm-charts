@@ -6,32 +6,36 @@ import re
 
 import yaml
 
-from lib.chart.historical_baselines import baseline_tag_for_sidecar_path, historical_app_version_for_path
+from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
+from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.nested_subchart_identity import documented_repository_for_path
-from lib.chart.pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
+from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import is_primary_image_path
-from lib.chart.repo_and_path_resolution import (
-    canonical_sidecar_row_names,
-    full_repository_for_path,
-    paths_by_repository,
-    repo_group_representative,
-)
-from lib.chart.values_tree_primitives import replace_scalar_value, version_of
-from lib.component_docs.images_manifest_changes_header import (
-    ensure_images_manifest_changes_header,
-    find_images_manifest_changes_header,
-    images_manifest_order_key,
-    insert_images_manifest_header_item,
-)
+from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
+from lib.chart.repo_and_path_resolution import full_repository_for_path
+from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.chart.values_tree_primitives import version_of
+from lib.component_docs.images_manifest_changes_header import ensure_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import images_manifest_order_key
+from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.image.repository_check import find_images_without_repository
-from lib.registry import parse_repo, registry_tag_exists
+from lib.registry import parse_repo
+from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths, resolve_entry_image_path
+from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
 from lib.upgradedoc.images_manifest_ordering import images_manifest_block_start
-from lib.upgradedoc.sorting_and_ordering import insertion_index, values_key_order
-from lib.upgradedoc.string_and_parsing_basics import extract_source_version, extract_target_version, normalize_version
+from lib.upgradedoc.sorting_and_ordering import insertion_index
+from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import extract_source_version
+from lib.upgradedoc.string_and_parsing_basics import extract_target_version
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 
 
@@ -436,7 +440,7 @@ def add_missing_images_manifest_entries(
         body_slot = insertion_index(new_key, entry_keys)
         if body_slot < len(entry_line_indices):
             insert_at = images_manifest_block_start(lines, entry_line_indices[body_slot])
-            lines[insert_at:insert_at] = block_lines + ["\n"]
+            lines[insert_at:insert_at] = [*block_lines, "\n"]
         else:
             lines.append("\n")
             lines.extend(block_lines)

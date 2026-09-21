@@ -20,33 +20,144 @@
 # outliers (a handful of lines even past that). Shared by [tool.ruff.format]
 # below too, so linter and formatter agree.
 line-length = 120
+indent-width = 4
+force-exclude = true
 
-# F = pyflakes: unused imports (F401), unused locals (F841), etc. This exists
-#     specifically so a lib/ refactor can't silently leave dead imports
-#     behind again (see git history on this file's directory).
-# E, W = pycodestyle errors/warnings.
-# I = isort: import sorting/grouping.
-# N = pep8-naming.
-# UP = pyupgrade: outdated syntax for the actual supported Python version.
-# B = flake8-bugbear: likely-real bugs (mutable default args, bare except,
-#     loop-variable closures, etc.) pyflakes alone doesn't catch.
-# C4 = flake8-comprehensions: unnecessary/inefficient comprehension patterns.
-# SIM = flake8-simplify: needlessly convoluted control flow.
 [tool.ruff.lint]
-select = ["F", "E", "W", "I", "N", "UP", "B", "C4", "SIM"]
+select = [
+    "A",     # flake8-builtins
+    "AIR",
+    # "ANN", # flake8-annotations
+    "ARG",
+    "ASYNC",
+    "B",    # flake8-bugbear
+    "BLE",
+    "C4",   # flake8-comprehensions
+    "C90",  # maccabe
+    "COM",  # flake8-commas
+    #"D",    # pydocstyle
+    "DJ",
+    "DTZ",
+    "E",    # pycodestyle
+    "EM",
+    "ERA",  # flake8-eradicate
+    "EXE",  # flake8-executable
+    "F",    # Pyflakes
+    "FA",   # flake8-future-annotations
+    "FBT",  # flake8-boolean-trap
+    "FLY",  # pyflint
+    "FURB", # refurb
+    "G",    # flake8-logging-format
+    "I",    # isort
+    "ICN",  # flake8-import-conventions
+    "ISC",  # flake8-implicit-str-concat
+    "INP",
+    "INT",
+    "LOG",  # flake8-logging
+    "N",    # pep8-naming
+    "NPY",
+    "PD",
+    "PERF", # perflint
+    "PGH",
+    "PIE",  # flake8-pie
+    "PT",   # flake8-pytest-style
+    "PTH",  # flake8-use-pathlib
+    "PYI",
+    "Q",    # flake8-quotes
+    "RET",  # flake8-return
+    "RSE",  # flake8-raise
+    "RUF",  # ruff
+    "S",    # flake8-bandit
+    "SIM",  # flake8-simplify
+    "SLF",  # flake8-self
+    "SLOT", # flake8-slots
+    "T10",
+    "T20",
+    "TCH",
+    "TID",
+    "TRY",  # tryceratops
+    "UP",   # pyupgrade
+    "W",    # pycodestyle
+    "YTT",  # flake8-2020
+]
+ignore = [
+    "COM812", # Conflicts when used with the formatter
+    "I001", # This rule conflicts with isort, disabled
+    "ISC001", # Rule may cause conflicts when used with the formatter, disable is recommended by ruff
+    "T201", # 'print' statement found, sometimes these are deliberate
+    "UP038", # deprecated: https://github.com/astral-sh/ruff/issues/18727
+    "EXE001", # shebang permission mismatch between host and Docker container
+    "E501", # line-too-long: pylint's job now (C0301), avoid flagging the same line twice
+    "ERA001", # commented-out-code: all current hits are explanatory prose (e.g. a rendered-
+              # output line-number comment) that structurally resembles code, not real dead code
+]
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.flake8-bandit]
+check-typed-exception = true  # Enable additional checks for try-except-pass
 
 [tool.ruff.lint.per-file-ignores]
-# Every one of these test conftest.py files inserts its own script's
-# directory onto sys.path before importing that script's own sibling lib.*
-# modules -- these aren't installed as a package, so this is the only way
-# for a conftest.py to import them at all. E402 (import not at top of file)
-# is the deliberate, necessary consequence of that, not a real ordering
-# problem -- confirmed the only 4 files this affects, all of them this
-# exact same pattern.
+# Every one of these test conftest.py files, and every extensionless
+# top-level script below, inserts its own directory onto sys.path before
+# importing its sibling lib.* modules -- these aren't installed as a
+# package, so this is the only way to import them at all. E402 (import not
+# at top of file) is the deliberate, necessary consequence of that, not a
+# real ordering problem.
 "tests/lib/conftest.py" = ["E402"]
 "tests/render-podiumd/conftest.py" = ["E402"]
 "tests/update-component-version/conftest.py" = ["E402"]
 "tests/verify-podiumd/conftest.py" = ["E402"]
+"change-podiumd-baseline" = ["E402"]
+"create-doc-version" = ["E402"]
+"create-podiumd-version" = ["E402"]
+"export-confluence-release-table" = ["E402"]
+"fix-doc-consistency" = ["E402"]
+"fix-helm-doc" = ["E402"]
+"fix-image-digests" = ["E402"]
+"fix-markdown" = ["E402"]
+"fix-node-selector" = ["E402"]
+"fix-utf8-bom" = ["E402"]
+"fix-vendored-tgz" = ["E402"]
+"list-helmchart-images" = ["E402"]
+"list-podiumd-images" = ["E402"]
+"render-podiumd" = ["E402"]
+"show-component-baseline-version" = ["E402"]
+"show-image-baseline-version" = ["E402"]
+"update-component-version" = ["E402"]
+"update-image-version" = ["E402"]
+"verify-component-version" = ["E402"]
+"verify-helm-secret-size" = ["E402"]
+"verify-image-version" = ["E402"]
+"verify-podiumd" = ["E402"]
+"verify-podiumd-dead-values" = ["E402"]
+"verify-release-table-with-podiumd" = ["E402"]
+
+# S101 (assert), ARG001/ARG005 (unused argument), SLF001 (private-member-
+# access -- tests reach into a module's own _private helpers on purpose to
+# verify them directly), INP001 (no __init__.py -- deliberate, these dirs
+# are never imported as a package, only loaded ad hoc via SourceFileLoader/
+# conftest.py fixtures), PT018 (composite assert -- this codebase's own
+# established one-assert-per-behavior-with-context style), and RUF059
+# (unused unpacked variable -- e.g. `_old, new = ...`, kept for readability
+# even when only one side is asserted on): tests/ is pytest's own
+# assert-per-check style plus fixture/mock/stub signature params that are
+# structurally indistinguishable from a real unused arg -- same false-
+# positive class [tool.vulture]'s own ignore_names comment above documents
+# for this directory, just under a different tool.
+"tests/**" = ["S101", "ARG001", "ARG005", "SLF001", "INP001", "PT018", "RUF059"]
+
+# S310 (audit URL open for permitted schemes): every urlopen() call in these
+# 3 files targets a known, config-derived trusted host (container registry
+# API, helm repo index.yaml, Confluence API base URL) -- never an attacker-
+# controllable scheme. Scoped here, not a global ignore, since S310 is a
+# real check worth keeping everywhere else.
+"lib/registry.py" = ["S310"]
+"lib/repo_access.py" = ["S310"]
+"lib/confluence_tables.py" = ["S310"]
 
 # ruff format (AST-preserving -- unlike `ruff check --fix`, it re-serializes
 # the same parse tree, never changes behavior; confirmed it also leaves
@@ -58,10 +169,11 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
-# pylint is added on top ONLY for the one thing ruff has no equivalent rule
-# for at all: total module line count. Narrow and deliberate on purpose,
-# matching ruff's own "one rule, one documented reason" precedent above --
-# not a general-purpose second linter running in parallel with the first.
+# pylint runs alongside ruff for checks ruff has no equivalent for (total
+# module line count, subprocess-run-check, etc.). Where the two genuinely
+# overlap, one tool owns the rule and the other is disabled for it here --
+# same "one rule, one documented reason" precedent as [tool.ruff.lint]
+# ignore above (see its own E501 entry for the same pattern in reverse).
 #
 # Invoke explicitly against the extensionless top-level scripts too (pylint
 # won't discover them via a bare directory/glob scan the way it does *.py
@@ -69,15 +181,42 @@ line-ending = "auto"
 # over 1000 lines). See README-coding.md and run_python_checks for the full
 # command (filtered to a `python` shebang, so a non-Python executable like
 # run_python_checks itself isn't handed to a Python linter).
-[tool.pylint."messages control"]
-disable = ["all"]
-enable = ["too-many-lines"]
+#
+# This file has no per-directory scoping (unlike ruff's [tool.ruff.lint.
+# per-file-ignores]) -- pylint reads one config for the whole run. 7 checks
+# are false positives ONLY under tests/ (pytest fixture signatures,
+# sys.path-hack conftest imports, shared assertion boilerplate) and must
+# stay enabled for lib/ and the top-level scripts, so they're disabled via
+# a second, tests/-only `--disable` CLI flag in run_python_checks instead
+# of here: missing-function-docstring, wrong-import-position,
+# unused-argument, protected-access, unused-variable, redefined-outer-name,
+# duplicate-code. See run_python_checks for the two invocations and each
+# flag's own reasoning.
+
+[tool.pylint.basic]
+# Default module-rgx is snake_case-only and flags every extensionless
+# top-level script's deliberate kebab-case name (e.g. "verify-podiumd") as
+# invalid-name. Widened to allow hyphens; variable/function/class naming
+# (variable-rgx, function-rgx, class-rgx, ...) is untouched and still checked.
+module-rgx = "^(([a-z_][a-z0-9_-]*)|(__.*__))$"
 
 [tool.pylint.format]
 # Matches [tool.ruff] line-length above (see that section's own comment for
 # why 120: this codebase's deliberate long-docstring style). max-module-
 # lines is left at pylint's own upstream default (1000) -- not re-tuned here.
 max-line-length = 120
+
+[tool.isort]
+# Configured to be compatible with 'ruff format'
+#   not 100% compatible with ruff import optimization ('ruff check --select I --fix'), use isort only
+line_length = 120
+multi_line_output = 3
+lines_between_types = 1
+use_parentheses = true
+include_trailing_comma = true
+force_single_line = true
+default_section = "THIRDPARTY"
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 
 # vulture: dead-code detection. Like pylint above, it can't discover the
 # extensionless top-level scripts via a bare directory scan (it only walks
@@ -101,4 +240,33 @@ max-line-length = 120
 #     HTMLParser method overrides in lib/confluence_tables.py, dispatched
 #     by name from HTMLParser.feed() itself.
 [tool.vulture]
-ignore_names = ["pull_chart_values", "find_matches", "handle_starttag", "handle_endtag", "handle_data"]
+ignore_names = [
+    "pull_chart_values",
+    "find_matches",
+    "handle_starttag",
+    "handle_endtag",
+    "handle_data"
+]
+
+[tool.bandit]
+skips = [
+    # covered by ruff:
+    "B108",
+    "B110",  # S110 in ruff
+    "B501",
+]
+
+[tool.basedpyright]
+exclude = [
+    "**/__pycache__",
+]
+typeCheckingMode = "strict"
+reportOptionalMemberAccess = false
+reportAttributeAccessIssue = false
+reportMissingTypeArgument = false
+reportUnknownArgumentType = false
+reportUnknownParameterType = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnusedImport = false  # done by ruff F401
+reportUntypedBaseClass = false # dony by ruff N801

@@ -9,49 +9,40 @@ function's own docstring for why podiumd needs two baselines now."""
 
 import re
 
-from lib.chart.pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
+from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.release_baseline_basics import load_yaml
-from lib.chart.repo_and_path_resolution import (
-    canonical_sidecar_row_names,
-    paths_by_repository,
-    repo_group_representative,
-)
+from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
+from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.values_tree_primitives import version_of
-from lib.component_docs.changes_section import (
-    resolve_component_own_version_change,
-    strip_stale_upgrade_placeholders,
-)
+from lib.component_docs.changes_section import resolve_component_own_version_change
+from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
-from lib.component_docs.values_delta_sections import (
-    has_stale_gemeente_specific_placeholder,
-    strip_stale_values_deltas_todo_stub,
-)
+from lib.component_docs.values_delta_sections import has_stale_gemeente_specific_placeholder
+from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
 from lib.docs_consistency.images_manifest_format import check_images_manifest_format
-from lib.docs_consistency.markdown_format import check_baseline_doc_set, check_companion_doc, check_doc_title
+from lib.docs_consistency.markdown_format import check_baseline_doc_set
+from lib.docs_consistency.markdown_format import check_companion_doc
+from lib.docs_consistency.markdown_format import check_doc_title
 from lib.docs_consistency.pointer_consistency import check_pointer_consistency
 from lib.docs_consistency.values_diff import check_values_deltas_content
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths, resolve_entry_image_path
-from lib.upgradedoc.consistency_checks import (
-    find_changes_row_correspondence_gaps,
-    find_wrong_or_duplicate_dependency_claims,
-)
+from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
+from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
+from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
+from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
-from lib.upgradedoc.resolve_component_row import (
-    changes_heading_has_app_version,
-    resolve_component_row,
-)
-from lib.upgradedoc.sorting_and_ordering import (
-    find_out_of_order_names,
-    parse_upgrade_doc_changes_blocks,
-    parse_values_delta_sections,
-    values_key_order,
-)
-from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities, normalize_version
-from lib.upgradedoc.string_and_parsing_basics import (
-    parse_upgrade_doc_rows as _parse_upgrade_doc_rows,
-)
+from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
+from lib.upgradedoc.resolve_component_row import resolve_component_row
+from lib.upgradedoc.sorting_and_ordering import find_out_of_order_names
+from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
+from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 
 
@@ -241,10 +232,10 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             [row["name"] for row in rows], deps
         )
 
-        for name in sorted(duplicate_names | wrong_fuzzy_names):
-            mismatches.append(
-                f'{doc_path.name}: doc row "{name}" is wrong or stale — not found in Chart.yaml or values.yaml'
-            )
+        mismatches.extend(
+            f'{doc_path.name}: doc row "{name}" is wrong or stale — not found in Chart.yaml or values.yaml'
+            for name in sorted(duplicate_names | wrong_fuzzy_names)
+        )
 
         for row in rows:
             if row["name"] in duplicate_names or row["name"] in wrong_fuzzy_names:
@@ -415,15 +406,15 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             rows_without_heading, headings_without_row = find_changes_row_correspondence_gaps(
                 rows, changes_headings, deps, canonical_names
             )
-            for name in rows_without_heading:
-                mismatches.append(
-                    f'{doc_path.name}: table row "{name}" has no matching "### ..." section under "## Changes"'
-                )
-            for heading in headings_without_row:
-                mismatches.append(
-                    f'{doc_path.name}: "## Changes" section "### {heading}" has no matching row in the '
-                    f'"Component versions" table'
-                )
+            mismatches.extend(
+                f'{doc_path.name}: table row "{name}" has no matching "### ..." section under "## Changes"'
+                for name in rows_without_heading
+            )
+            mismatches.extend(
+                f'{doc_path.name}: "## Changes" section "### {heading}" has no matching row in the '
+                f'"Component versions" table'
+                for heading in headings_without_row
+            )
 
             # A heading naming exactly one "dep" component that DOES have a
             # real, resolved app version (see resolved_app_by_identity)

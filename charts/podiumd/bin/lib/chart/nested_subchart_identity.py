@@ -5,12 +5,11 @@ repository) for a path settings.yaml registers this way."""
 
 import re
 import tarfile
+
 from pathlib import Path
 
-from lib.settings import (
-    component_resolution_version_path_nested_subcharts,
-    component_resolution_version_repository_paths,
-)
+from lib.settings import component_resolution_version_path_nested_subcharts
+from lib.settings import component_resolution_version_repository_paths
 
 
 def version_repository_path_for(component, chart_dir):

@@ -4,6 +4,7 @@ on a continuation line being mistaken for a new numbered list item, and a
 trailing period being captured as part of a version."""
 
 import yaml
+
 from dep_helpers import make_dep
 
 REAL_MANIFEST = """\
@@ -329,6 +330,7 @@ def make_nested_subchart_tgz(chart_dir, name, version, nested_charts):
     nested_subchart_documented_image_repository without a real
     `helm pull`."""
     import tarfile
+
     from io import BytesIO
 
     charts_dir = chart_dir / "charts"
@@ -859,7 +861,7 @@ def test_images_manifest_format_exact_item_wins_over_fuzzy_changes_item(libimage
 # fallback for a brand-new component with nothing in baseline_values to
 # diff against ---
 
-NEW_DEP_DEPS = DEPS + [make_dep("brp-personen-mock", "1.2.9", alias="brppersonenmock")]
+NEW_DEP_DEPS = [*DEPS, make_dep("brp-personen-mock", "1.2.9", alias="brppersonenmock")]
 NEW_DEP_VALUES = dict(
     VALUES, brppersonenmock={"image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}}
 )

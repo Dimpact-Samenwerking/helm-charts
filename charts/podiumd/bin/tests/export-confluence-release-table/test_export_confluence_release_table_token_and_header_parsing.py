@@ -129,7 +129,8 @@ PRODUCT_TABLE_INCONSISTENT_TH_HTML = PRODUCT_TABLE_HTML.replace(
 
 
 def test_resolve_header_row_count_extends_past_inconsistent_th_tagging(ecrt):
-    from lib.confluence_tables import expand_grid, extract_tables
+    from lib.confluence_tables import expand_grid
+    from lib.confluence_tables import extract_tables
 
     _heading, rows = extract_tables(PRODUCT_TABLE_INCONSISTENT_TH_HTML)[0]
     grid = expand_grid(rows)
@@ -174,7 +175,8 @@ TECHNISCHE_TABLE_TWO_HEADER_ROWS_NO_HELM_HTML = """
 
 
 def test_resolve_header_row_count_prefers_deeper_count_for_used_by_when_versie_groups_are_single_column(ecrt):
-    from lib.confluence_tables import expand_grid, extract_tables
+    from lib.confluence_tables import expand_grid
+    from lib.confluence_tables import extract_tables
 
     _heading, rows = extract_tables(TECHNISCHE_TABLE_TWO_HEADER_ROWS_NO_HELM_HTML)[0]
     grid = expand_grid(rows)

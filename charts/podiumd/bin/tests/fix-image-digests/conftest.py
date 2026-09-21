@@ -3,6 +3,7 @@ normally) as a module named `sid` so tests can call its functions directly."""
 
 import importlib.util
 import subprocess
+
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 

@@ -64,7 +64,9 @@ component.
 After writing, re-render the chart (verify-podiumd or /helm-render-all)
 to confirm before committing.
 """
+
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -74,32 +76,36 @@ from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names, full_repository_for_path
-from lib.chart.values_tree_primitives import dotted_key_path, find_dependency
+from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
+from lib.chart.repo_and_path_resolution import full_repository_for_path
+from lib.chart.values_tree_primitives import dotted_key_path
+from lib.chart.values_tree_primitives import find_dependency
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
-from lib.component_docs.baseline_doc_stubs import (
-    baseline_doc_paths, images_manifest_path, load_baseline_state, load_baseline_values,
-)
-from lib.component_docs.changes_section import (
-    dep_for_values_key, insert_changes_section, make_changes_section,
-    remove_changes_section, remove_component_row, update_component_table,
-)
-from lib.component_docs.images_manifest_entries import (
-    remove_component_from_images_manifest, update_images_manifest,
-)
-from lib.component_docs.values_delta_sections import (
-    insert_values_delta_section, remove_values_delta_section, values_delta_section_heading,
-)
-from lib.image.docs import (
-    make_image_changes_section, remove_image_manifest_entry,
-    resolve_basename_baseline_version, update_image_manifest,
-)
-from lib.image.version import resolve_key_scope, update_image_version
+from lib.component_docs.baseline_doc_stubs import baseline_doc_paths
+from lib.component_docs.baseline_doc_stubs import images_manifest_path
+from lib.component_docs.baseline_doc_stubs import load_baseline_state
+from lib.component_docs.baseline_doc_stubs import load_baseline_values
+from lib.component_docs.changes_section import dep_for_values_key
+from lib.component_docs.changes_section import insert_changes_section
+from lib.component_docs.changes_section import make_changes_section
+from lib.component_docs.changes_section import remove_changes_section
+from lib.component_docs.changes_section import remove_component_row
+from lib.component_docs.changes_section import update_component_table
+from lib.component_docs.images_manifest_entries import remove_component_from_images_manifest
+from lib.component_docs.images_manifest_entries import update_images_manifest
+from lib.component_docs.values_delta_sections import insert_values_delta_section
+from lib.component_docs.values_delta_sections import remove_values_delta_section
+from lib.component_docs.values_delta_sections import values_delta_section_heading
+from lib.image.docs import make_image_changes_section
+from lib.image.docs import remove_image_manifest_entry
+from lib.image.docs import resolve_basename_baseline_version
+from lib.image.docs import update_image_manifest
+from lib.image.version import resolve_key_scope
+from lib.image.version import update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo
-from lib.upgradedoc.app_version_and_image_paths import (
-    find_all_image_and_version_paths, resolve_baseline_component_versions,
-)
+from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import resolve_baseline_component_versions
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
@@ -135,8 +141,9 @@ def group_changes_by_component(changes, values_lines_before_write):
     return groups, full_paths
 
 
-def update_docs_single_component(new_version, target, deps, values, dep, values_key, group, basename,
-                                  canonical_names=None):
+def update_docs_single_component(
+    new_version, target, deps, values, dep, values_key, group, basename, canonical_names=None
+):
     """The exact update-component-version doc-update flow (see that
     script's own main() for the version this was factored out of),
     applied to a basename bump that happens to affect only this one
@@ -203,17 +210,27 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
         # helper, so the two scripts can never drift on this again.
         baseline_dep = dep_for_values_key(baseline_deps, values_key)
         old_app, old_chart_str = resolve_baseline_component_versions(
-            baseline_values, baseline_dep, values_key, image_paths[0], chart_name, chart_version_str,
-            chart_dir=CHART_DIR)
+            baseline_values,
+            baseline_dep,
+            values_key,
+            image_paths[0],
+            chart_name,
+            chart_version_str,
+            chart_dir=CHART_DIR,
+        )
 
     if upgrade_path is None:
         print()
         if upgrade_docs_baseline is None:
-            print("No release-baseline.yaml upgrade_docs key found — run create-podiumd-version/"
-                  "change-podiumd-baseline first; skipping doc updates.")
+            print(
+                "No release-baseline.yaml upgrade_docs key found — run create-podiumd-version/"
+                "change-podiumd-baseline first; skipping doc updates."
+            )
         else:
-            print(f"No upgrade doc found for target {target} — run create-doc-version first "
-                  f"to scaffold it; skipping doc updates.")
+            print(
+                f"No upgrade doc found for target {target} — run create-doc-version first "
+                f"to scaffold it; skipping doc updates."
+            )
     elif reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, row_removed = remove_component_row(text, friendly)
@@ -222,7 +239,9 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
             upgrade_path.write_text(new_text, encoding="utf-8")
         print()
         print(f"=== Updating {upgrade_path.name} ===")
-        print(f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — nothing left to document")
+        print(
+            f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — nothing left to document"
+        )
         if row_removed:
             print("  removed table row")
         if section_removed:
@@ -230,12 +249,21 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
     else:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, table_action = update_component_table(
-            text, friendly, old_app, new_version, old_chart_str, chart_version_str, deps, values,
-            canonical_names)
+            text, friendly, old_app, new_version, old_chart_str, chart_version_str, deps, values, canonical_names
+        )
         if table_action is not None:
             new_text, _ = remove_changes_section(new_text, friendly)
-            section = make_changes_section(friendly, target, chart_name, values_key, old_app, new_version,
-                                            old_chart_str, chart_version_str, image_paths)
+            section = make_changes_section(
+                friendly,
+                target,
+                chart_name,
+                values_key,
+                old_app,
+                new_version,
+                old_chart_str,
+                chart_version_str,
+                image_paths,
+            )
             new_text = insert_changes_section(new_text, section, friendly, deps, values, canonical_names)
             upgrade_path.write_text(new_text, encoding="utf-8")
             print()
@@ -250,16 +278,24 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
             values_deltas_path.write_text(text, encoding="utf-8")
             print()
             print(f"=== Updating {values_deltas_path.name} ===")
-            print(f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — "
-                  f"{'removed its section' if section_removed else 'nothing to remove'}")
+            print(
+                f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — "
+                f"{'removed its section' if section_removed else 'nothing to remove'}"
+            )
         else:
-            baseline_values_at_release = baseline_values if baseline_deps is not None else load_baseline_values(
-                VALUES_YAML, upgrade_docs_baseline)
+            baseline_values_at_release = (
+                baseline_values
+                if baseline_deps is not None
+                else load_baseline_values(VALUES_YAML, upgrade_docs_baseline)
+            )
             key_lines = []
             no_baseline_ref = baseline_values_at_release is None
             if not no_baseline_ref:
-                baseline_subtree = (baseline_values_at_release.get(values_key, {})
-                                     if isinstance(baseline_values_at_release, dict) else {})
+                baseline_subtree = (
+                    baseline_values_at_release.get(values_key, {})
+                    if isinstance(baseline_values_at_release, dict)
+                    else {}
+                )
                 current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
                 key_lines = describe_key_changes(values_key, baseline_subtree, current_subtree)
 
@@ -269,10 +305,12 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
             # than no heading.
             if key_lines:
                 no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
-                heading_line = values_delta_section_heading(friendly, old_app, new_version, chart_version_str,
-                                                              chart_version_str)
-                text = insert_values_delta_section(text, friendly, heading_line, key_lines, deps, values,
-                                                    canonical_names)
+                heading_line = values_delta_section_heading(
+                    friendly, old_app, new_version, chart_version_str, chart_version_str
+                )
+                text = insert_values_delta_section(
+                    text, friendly, heading_line, key_lines, deps, values, canonical_names
+                )
                 values_deltas_path.write_text(text, encoding="utf-8")
                 print()
                 print(f"=== Updating {values_deltas_path.name} ===")
@@ -280,19 +318,22 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
                 for line in key_lines:
                     print(f"  {line.rstrip()}")
                 if no_changes_claimed:
-                    print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
-                          "gemeente ACTION, not about whether anything changed, so it may still hold; "
-                          "double-check it's still true now that this bullet's been added")
+                    print(
+                        "  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
+                        "gemeente ACTION, not about whether anything changed, so it may still hold; "
+                        "double-check it's still true now that this bullet's been added"
+                    )
             elif section_removed:
                 values_deltas_path.write_text(text, encoding="utf-8")
                 print()
                 print(f"=== Updating {values_deltas_path.name} ===")
-                print(f"  removed stale section for {friendly} — no values-schema change to document for "
-                      f"this bump")
+                print(f"  removed stale section for {friendly} — no values-schema change to document for this bump")
             if no_baseline_ref:
                 print()
-                print(f"  note: could not resolve upgrade_docs_baseline {upgrade_docs_baseline} to a git ref — skipping "
-                      f"added/removed/renamed key detection for values-deltas.md")
+                print(
+                    f"  note: could not resolve upgrade_docs_baseline {upgrade_docs_baseline} to a git ref — skipping "
+                    f"added/removed/renamed key detection for values-deltas.md"
+                )
     elif upgrade_path is not None:
         print()
         print(f"No values-deltas.md found for upgrade_docs_baseline {upgrade_docs_baseline} — skipping that update.")
@@ -305,18 +346,31 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
 
     if reset_to_baseline:
         changes_action, entry_updates = remove_component_from_images_manifest(
-            images_path, friendly, values_key, image_paths, repos, new_tags_by_path)
+            images_path, friendly, values_key, image_paths, repos, new_tags_by_path
+        )
         print()
         print(f"=== Updating {images_path.name} ===")
         if changes_action:
-            print(f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — removed 'changes:' list entry")
+            print(
+                f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — removed 'changes:' list entry"
+            )
         for name in entry_updates:
             print(f"  updated entry '{name}' (now matches upgrade_docs_baseline — no longer a documented change)")
         return
 
     changes_action, entry_updates, missing_entries = update_images_manifest(
-        images_path, friendly, values_key, old_app, new_version, old_chart_str, chart_version_str,
-        image_paths, repos, new_tags_by_path, deps=deps, values=values,
+        images_path,
+        friendly,
+        values_key,
+        old_app,
+        new_version,
+        old_chart_str,
+        chart_version_str,
+        image_paths,
+        repos,
+        new_tags_by_path,
+        deps=deps,
+        values=values,
     )
     print()
     print(f"=== Updating {images_path.name} ===")
@@ -325,8 +379,10 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
     for name in entry_updates:
         print(f"  updated entry '{name}'")
     if missing_entries:
-        print("  No existing entry for the following — add manually (see "
-              "docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):")
+        print(
+            "  No existing entry for the following — add manually (see "
+            "docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):"
+        )
         for path, repo, new_tag in missing_entries:
             new_app_version, digest = new_tag.split("@", 1)
             # repo (group["repos"], the raw values.yaml/text-scan
@@ -337,8 +393,7 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
             # full_repository_for_path's own docstring for why
             # reconstructing one from a stripped/bare string can't be
             # done correctly without this resolution).
-            full_repo = full_repository_for_path(
-                CHART_DIR, deps, values, (values_key,) + tuple(path.split("."))) or repo
+            full_repo = full_repository_for_path(CHART_DIR, deps, values, (values_key, *tuple(path.split(".")))) or repo
             print(f"    # {friendly} — {group['old_app_by_path'].get(path) or '(none)'} -> {new_app_version}")
             print("    - name: <ACR-mirror-name>")
             print(f"      url: {full_repo}")
@@ -364,7 +419,9 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
     # A basename bump always targets every matching pin uniformly, so
     # resolve_basename_baseline_version only has an opinion when every
     # touched pin actually started at the same upgrade_docs_baseline version.
-    baseline_values = load_baseline_values(VALUES_YAML, upgrade_docs_baseline) if upgrade_docs_baseline is not None else None
+    baseline_values = (
+        load_baseline_values(VALUES_YAML, upgrade_docs_baseline) if upgrade_docs_baseline is not None else None
+    )
     # baseline_version is None for two DIFFERENT reasons this used to
     # conflate: resolve_basename_baseline_version's own "didn't all agree,
     # or any of them isn't found there at all" (see its own docstring) is
@@ -382,10 +439,13 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
     # 8.22.0"). Only fall back to the pre-run value when baseline_values
     # itself is None -- the git ref genuinely couldn't be resolved at
     # all, not "resolved but this basename has no opinion there".
-    baseline_version = resolve_basename_baseline_version(baseline_values, pinned) if baseline_values is not None else None
+    baseline_version = (
+        resolve_basename_baseline_version(baseline_values, pinned) if baseline_values is not None else None
+    )
     old_version = baseline_version if baseline_values is not None else changes[0]["old_version"]
-    reset_to_baseline = (baseline_version is not None
-                          and normalize_version(new_version) == normalize_version(baseline_version))
+    reset_to_baseline = baseline_version is not None and normalize_version(new_version) == normalize_version(
+        baseline_version
+    )
     if baseline_values is not None:
         # Keep each path's own per-path old version (used by
         # make_image_changes_section's per-pin listing) consistent with
@@ -400,11 +460,15 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
     if upgrade_path is None:
         print()
         if upgrade_docs_baseline is None:
-            print("No release-baseline.yaml upgrade_docs key found — run create-podiumd-version/"
-                  "change-podiumd-baseline first; skipping doc updates.")
+            print(
+                "No release-baseline.yaml upgrade_docs key found — run create-podiumd-version/"
+                "change-podiumd-baseline first; skipping doc updates."
+            )
         else:
-            print(f"No upgrade doc found for target {target} — run create-doc-version first "
-                  f"to scaffold it; skipping doc updates.")
+            print(
+                f"No upgrade doc found for target {target} — run create-doc-version first "
+                f"to scaffold it; skipping doc updates."
+            )
     elif reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, row_removed = remove_component_row(text, basename)
@@ -413,7 +477,9 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
             upgrade_path.write_text(new_text, encoding="utf-8")
         print()
         print(f"=== Updating {upgrade_path.name} ===")
-        print(f"  {basename} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — nothing left to document")
+        print(
+            f"  {basename} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — nothing left to document"
+        )
         if row_removed:
             print("  removed table row")
         if section_removed:
@@ -421,7 +487,8 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
     else:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, table_action = update_component_table(
-            text, basename, old_version, new_version, None, "-", deps, values, canonical_names)
+            text, basename, old_version, new_version, None, "-", deps, values, canonical_names
+        )
         if table_action is not None:
             new_text, _ = remove_changes_section(new_text, basename)
             section = make_image_changes_section(basename, target, old_version, new_version, pinned)
@@ -446,14 +513,15 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
             values_deltas_path.write_text(text, encoding="utf-8")
             print()
             print(f"=== Updating {values_deltas_path.name} ===")
-            print(f"  {basename} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — "
-                  f"{'removed its section' if section_removed else 'nothing to remove'}")
+            print(
+                f"  {basename} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — "
+                f"{'removed its section' if section_removed else 'nothing to remove'}"
+            )
         elif section_removed:
             values_deltas_path.write_text(text, encoding="utf-8")
             print()
             print(f"=== Updating {values_deltas_path.name} ===")
-            print(f"  removed stale section for {basename} — no values-schema change to document for "
-                  f"this bump")
+            print(f"  removed stale section for {basename} — no values-schema change to document for this bump")
     elif upgrade_path is not None:
         print()
         print(f"No values-deltas.md found for upgrade_docs_baseline {upgrade_docs_baseline} — skipping that update.")
@@ -473,23 +541,36 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
         host, repo_path = parse_repo(repository)
         if reset_to_baseline:
             changes_action, entry_updated = remove_image_manifest_entry(
-                images_path, basename, repo_path, c["new_version"], c["new_digest"])
+                images_path, basename, repo_path, c["new_version"], c["new_digest"]
+            )
             if changes_action:
                 print("  removed 'changes:' list entry")
             if entry_updated:
-                print(f"  updated entry for {repo_path} (now matches upgrade_docs_baseline — no longer a documented change)")
+                print(
+                    f"  updated entry for {repo_path} (now matches upgrade_docs_baseline — no longer a documented change)"
+                )
             continue
 
         changes_action, entry_updated = update_image_manifest(
-            images_path, basename, repo_path, old_version, c["new_version"], c["new_digest"],
-            deps=deps, values=values, canonical_names=canonical_names)
+            images_path,
+            basename,
+            repo_path,
+            old_version,
+            c["new_version"],
+            c["new_digest"],
+            deps=deps,
+            values=values,
+            canonical_names=canonical_names,
+        )
         if changes_action:
             print(f"  {changes_action} 'changes:' list entry")
         if entry_updated:
             print(f"  updated entry for {repo_path}")
         else:
-            print(f"  No existing entry for {repo_path} — add manually (see "
-                  f"docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):")
+            print(
+                f"  No existing entry for {repo_path} — add manually (see "
+                f"docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):"
+            )
             print(f"    # {basename} — {old_version} -> {c['new_version']}")
             print("    - name: <ACR-mirror-name>")
             print(f"      url: {host}/{repo_path}")
@@ -512,14 +593,16 @@ def update_docs(basename, new_version, changes, values_lines_before_write):
     groups, full_paths = group_changes_by_component(changes, values_lines_before_write)
     values_key, group = next(iter(groups.items()))
 
-    all_paths = ([p for p, _tag in find_all_image_and_version_paths(values, deps)]
-                 + [p for p, _tag in global_image_paths(values)])
+    all_paths = [p for p, _tag in find_all_image_and_version_paths(values, deps)] + [
+        p for p, _tag in global_image_paths(values)
+    ]
     canonical_names = canonical_sidecar_row_names(CHART_DIR, deps, values, all_paths)
 
     dep = find_dependency(deps, values_key)
     if dep is not None:
-        update_docs_single_component(new_version, target, deps, values, dep, values_key, group, basename,
-                                      canonical_names)
+        update_docs_single_component(
+            new_version, target, deps, values, dep, values_key, group, basename, canonical_names
+        )
         return
 
     update_docs_shared_image(basename, new_version, changes, full_paths, target, deps, values, canonical_names)

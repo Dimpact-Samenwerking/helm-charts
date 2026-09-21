@@ -9,7 +9,9 @@ Usage:
     fix-utf8-bom             # strip the BOM in place, if present
     fix-utf8-bom --dry-run   # report only, no write
 """
+
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -35,7 +37,7 @@ def main():
         print(f"BOM found in {VALUES_PATH} (dry-run, not writing)")
         sys.exit(1)
 
-    VALUES_PATH.write_bytes(data[len(BOM):])
+    VALUES_PATH.write_bytes(data[len(BOM) :])
     print(f"BOM removed from {VALUES_PATH} — re-stage this file before committing")
     sys.exit(0)
 

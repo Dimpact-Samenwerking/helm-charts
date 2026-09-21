@@ -74,7 +74,7 @@ Example:
         # upgrade_docs is "4.8.3", renames *-to-4.9.0-*.md accordingly
         # and repairs their content against Chart.yaml/values.yaml
 """
-import re
+
 import sys
 from pathlib import Path
 
@@ -85,47 +85,77 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart.pull_and_subchart_resolution import global_image_paths
-from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names, paths_by_repository, repo_group_representative
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.repo_and_path_resolution import (
+    canonical_sidecar_row_names,
+    paths_by_repository,
+    repo_group_representative,
+)
 from lib.component_docs.baseline_doc_stubs import (
-    IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, existing_doc_baselines,
+    IMAGES_STUB_TEMPLATE,
+    STANDARD_SUFFIXES,
+    STUB_TEMPLATES,
+    existing_doc_baselines,
 )
 from lib.component_docs.changes_section import add_missing_component_rows, strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import renumber_images_manifest_changes_items
 from lib.component_docs.values_delta_sections import (
-    prune_empty_values_delta_sections, strip_stale_values_deltas_todo_stub, sync_values_delta_sections,
+    prune_empty_values_delta_sections,
+    strip_stale_values_deltas_todo_stub,
+    sync_values_delta_sections,
 )
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import (
-    extract_images_baseline, update_images_manifest_baseline, update_sibling_doc_refs,
+    extract_images_baseline,
+    update_images_manifest_baseline,
+    update_sibling_doc_refs,
 )
 from lib.fix_doc_consistency.component_version_table import (
-    fix_changes_heading_app_versions, fix_component_version_table, fix_values_delta_heading_app_versions,
+    fix_changes_heading_app_versions,
+    fix_component_version_table,
+    fix_values_delta_heading_app_versions,
 )
 from lib.fix_doc_consistency.manifest_changes_items import (
-    dedupe_images_manifest_changes_items, sort_images_manifest_changes_items,
+    dedupe_images_manifest_changes_items,
+    sort_images_manifest_changes_items,
 )
-from lib.fix_doc_consistency.manifest_entries_core import fix_images_manifest_entries, resolve_entry_version
+from lib.fix_doc_consistency.manifest_entries_core import (
+    fix_images_manifest_entries,
+    resolve_entry_version,  # noqa: F401 -- test-only, see cdb.resolve_entry_version in tests/fix-doc-consistency
+)
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import (
-    add_missing_images_manifest_entries, fix_images_manifest_entry_urls,
+    add_missing_images_manifest_entries,
+    fix_images_manifest_entry_urls,
 )
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import (
-    collapse_multiple_blank_lines, ensure_blank_lines_around_headings, find_collisions, git_mv, join_and,
-    remaining_mentions, update_component_versions_heading, update_title_line,
+    collapse_multiple_blank_lines,
+    ensure_blank_lines_around_headings,  # noqa: F401 -- test-only, see cdb.ensure_blank_lines_around_headings in tests/fix-doc-consistency
+    find_collisions,
+    git_mv,
+    join_and,
+    remaining_mentions,
+    update_component_versions_heading,
+    update_title_line,
 )
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image.docs import (
-    add_missing_changes_sections, add_missing_sidecar_rows, regenerate_images_baseline_manifest,
+    add_missing_changes_sections,
+    add_missing_sidecar_rows,
+    regenerate_images_baseline_manifest,
     update_stale_app_version_headings,
 )
 from lib.render_scope import lint_args_for, render_chart, rendered_chart_paths
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths, find_image_tag_paths
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.images_manifest_ordering import (
-    images_manifest_display_name_positions, images_manifest_entry_positions, sort_images_manifest_entries,
+    images_manifest_display_name_positions,
+    images_manifest_entry_positions,
+    sort_images_manifest_entries,
 )
 from lib.upgradedoc.sorting_and_ordering import sort_changes_blocks, sort_upgrade_doc_rows, sort_values_delta_sections
-from lib.upgradedoc.version_cells_and_key_changes import canonical_version_cell
+from lib.upgradedoc.version_cells_and_key_changes import (
+    canonical_version_cell,  # noqa: F401 -- test-only, see cdb.canonical_version_cell in tests/fix-doc-consistency
+)
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
@@ -136,6 +166,7 @@ IMAGES_DIR = SCRIPT_DIR.parents[0] / "docs" / "images"
 def current_chart_version():
     return chart_version(CHART_YAML)
 
+
 # The exact shape a baseline argument must have — bare MAJOR.MINOR.PATCH,
 # matching every doc filename's own "<baseline>-to-<target>-*.md" pattern
 # (see lib.component_docs.DOC_FILENAME_RE_TMPL). Anything else (a flag
@@ -144,6 +175,7 @@ def current_chart_version():
 # renaming docs to nonsense like "--help-to-4.9.0-upgrade.md".
 # (BASELINE_VERSION_RE is lib.chart.historical_baselines.SEMVER_RE, imported under this
 # script's own established name.)
+
 
 def images_manifest_path(target):
     return IMAGES_DIR / f"images-{target}.yaml"
@@ -173,8 +205,6 @@ def load_baseline_state(new_baseline):
     return baseline_chart_yaml.get("dependencies", []), baseline_values
 
 
-
-
 def main():
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
@@ -185,9 +215,11 @@ def main():
 
     new_baseline = read_upgrade_docs_baseline(CHART_YAML.parent)
     if new_baseline is None:
-        print("error: release-baseline.yaml has no upgrade_docs key (or the file doesn't "
-              "exist yet) — run create-podiumd-version (new release cycle) or "
-              "change-podiumd-baseline <baseline> (existing cycle) to set it first")
+        print(
+            "error: release-baseline.yaml has no upgrade_docs key (or the file doesn't "
+            "exist yet) — run create-podiumd-version (new release cycle) or "
+            "change-podiumd-baseline <baseline> (existing cycle) to set it first"
+        )
         sys.exit(1)
 
     if not BASELINE_VERSION_RE.match(new_baseline):
@@ -222,8 +254,9 @@ def main():
         if suffix not in by_suffix:
             new_name = f"{new_baseline}-to-{target}-{suffix}.md"
             new_path = DOC_DIR / new_name
-            new_path.write_text(STUB_TEMPLATES[suffix].format(upgrade_docs_baseline=new_baseline, target=target),
-                                 encoding="utf-8")
+            new_path.write_text(
+                STUB_TEMPLATES[suffix].format(upgrade_docs_baseline=new_baseline, target=target), encoding="utf-8"
+            )
             print(f"  {new_name}: created (was missing)")
             continue
 
@@ -307,8 +340,9 @@ def main():
 
     images_path = images_manifest_path(target)
     if not images_path.is_file():
-        images_path.write_text(IMAGES_STUB_TEMPLATE.format(upgrade_docs_baseline=new_baseline, target=target),
-                                encoding="utf-8")
+        images_path.write_text(
+            IMAGES_STUB_TEMPLATE.format(upgrade_docs_baseline=new_baseline, target=target), encoding="utf-8"
+        )
         print(f"  {images_path.name}: created (was missing)")
     else:
         text = images_path.read_text(encoding="utf-8")
@@ -333,15 +367,21 @@ def main():
     baseline_deps, baseline_values = load_baseline_state(new_baseline)
     actual_changed_keys = (
         compute_changed_components(target_deps, baseline_deps, target_values, baseline_values)
-        if baseline_deps is not None else set()
+        if baseline_deps is not None
+        else set()
     )
 
     upgrade_path = DOC_DIR / f"{new_baseline}-to-{target}-upgrade.md"
     if upgrade_path.is_file():
         text = upgrade_path.read_text(encoding="utf-8")
         text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(
-            text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values,
-            upgrade_docs_baseline=new_baseline
+            text,
+            CHART_YAML.parent,
+            target_deps,
+            target_values,
+            baseline_deps,
+            baseline_values,
+            upgrade_docs_baseline=new_baseline,
         )
         if changed_rows:
             print()
@@ -350,22 +390,33 @@ def main():
                 print(f"  {name}: app {app_cell}  |  chart {chart_cell}")
         if unresolved_names:
             print()
-            print(f"Could not verify source version for {len(unresolved_names)} component(s) in "
-                  f"{upgrade_path.name} — baseline {new_baseline} doesn't resolve to a git ref, "
-                  f"or the component didn't exist there yet. Table left as-is for these; review "
-                  f"by hand.")
+            print(
+                f"Could not verify source version for {len(unresolved_names)} component(s) in "
+                f"{upgrade_path.name} — baseline {new_baseline} doesn't resolve to a git ref, "
+                f"or the component didn't exist there yet. Table left as-is for these; review "
+                f"by hand."
+            )
             for name in unresolved_names:
                 print(f"  {name}")
         if unmatched_names:
             print()
-            print(f"Could not match {len(unmatched_names)} component(s) in {upgrade_path.name} "
-                  f"to a Chart.yaml dependency, left as-is:")
+            print(
+                f"Could not match {len(unmatched_names)} component(s) in {upgrade_path.name} "
+                f"to a Chart.yaml dependency, left as-is:"
+            )
             for name in unmatched_names:
                 print(f"  {name}")
 
         text, added_names = add_missing_component_rows(
-            text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values,
-            actual_changed_keys, target, upgrade_docs_baseline=new_baseline
+            text,
+            CHART_YAML.parent,
+            target_deps,
+            target_values,
+            baseline_deps,
+            baseline_values,
+            actual_changed_keys,
+            target,
+            upgrade_docs_baseline=new_baseline,
         )
         if added_names:
             print()
@@ -375,13 +426,17 @@ def main():
 
         if baseline_deps is not None:
             text, added_sidecar_names = add_missing_sidecar_rows(
-                text, CHART_YAML.parent, target_deps, target_values, baseline_values, target,
-                upgrade_docs_baseline=new_baseline
+                text,
+                CHART_YAML.parent,
+                target_deps,
+                target_values,
+                baseline_values,
+                target,
+                upgrade_docs_baseline=new_baseline,
             )
             if added_sidecar_names:
                 print()
-                print(f"=== Adding missing sidecar/shared-image row(s) + Changes section(s) "
-                      f"to {upgrade_path.name} ===")
+                print(f"=== Adding missing sidecar/shared-image row(s) + Changes section(s) to {upgrade_path.name} ===")
                 for name in added_sidecar_names:
                     print(f"  {name}")
         else:
@@ -389,8 +444,9 @@ def main():
 
         current_paths = dict(find_image_tag_paths(target_values))
         current_paths.update(global_image_paths(target_values))
-        canonical_names = canonical_sidecar_row_names(CHART_YAML.parent, target_deps, target_values,
-                                                        current_paths.keys())
+        canonical_names = canonical_sidecar_row_names(
+            CHART_YAML.parent, target_deps, target_values, current_paths.keys()
+        )
 
         text, added_section_names = add_missing_changes_sections(
             text, target_deps, target_values, target, canonical_names
@@ -406,19 +462,25 @@ def main():
         )
         if updated_stale_headings:
             print()
-            print(f"=== Updating '### ...' Changes section(s) missing their app version in "
-                  f"{upgrade_path.name} ===")
+            print(f"=== Updating '### ...' Changes section(s) missing their app version in {upgrade_path.name} ===")
             for heading in updated_stale_headings:
                 print(f"  {heading}")
 
         text, updated_wrong_headings = fix_changes_heading_app_versions(
-            text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values,
-            upgrade_docs_baseline=new_baseline
+            text,
+            CHART_YAML.parent,
+            target_deps,
+            target_values,
+            baseline_deps,
+            baseline_values,
+            upgrade_docs_baseline=new_baseline,
         )
         if updated_wrong_headings:
             print()
-            print(f"=== Correcting '### ...' Changes section heading(s) with the wrong name/app-version "
-                  f"transition in {upgrade_path.name} ===")
+            print(
+                f"=== Correcting '### ...' Changes section heading(s) with the wrong name/app-version "
+                f"transition in {upgrade_path.name} ==="
+            )
             for heading in updated_wrong_headings:
                 print(f"  {heading}")
 
@@ -443,21 +505,37 @@ def main():
             print()
             print(f"=== Collapsing multiple consecutive blank line(s) in {upgrade_path.name} ===")
 
-        if (changed_rows or added_names or added_sidecar_names or added_section_names or updated_stale_headings
-                or updated_wrong_headings or moved_rows or moved_blocks or blank_lines_fixed):
+        if (
+            changed_rows
+            or added_names
+            or added_sidecar_names
+            or added_section_names
+            or updated_stale_headings
+            or updated_wrong_headings
+            or moved_rows
+            or moved_blocks
+            or blank_lines_fixed
+        ):
             upgrade_path.write_text(collapsed_text, encoding="utf-8")
 
     if images_path.is_file():
         text = images_path.read_text(encoding="utf-8")
-        target_paths = ([p for p, _tag in find_all_image_and_version_paths(target_values, target_deps)]
-                         + [p for p, _tag in global_image_paths(target_values)])
+        target_paths = [p for p, _tag in find_all_image_and_version_paths(target_values, target_deps)] + [
+            p for p, _tag in global_image_paths(target_values)
+        ]
         repo_groups = paths_by_repository(CHART_YAML.parent, target_deps, target_values, target_paths)
-        repo_map = {repo: repo_group_representative(group_paths, target_deps)
-                    for repo, group_paths in repo_groups.items()}
+        repo_map = {
+            repo: repo_group_representative(group_paths, target_deps) for repo, group_paths in repo_groups.items()
+        }
         canonical_names = canonical_sidecar_row_names(CHART_YAML.parent, target_deps, target_values, target_paths)
         new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
-            text, CHART_YAML.parent, target_deps, target_values, baseline_values, repo_map,
-            upgrade_docs_baseline=new_baseline
+            text,
+            CHART_YAML.parent,
+            target_deps,
+            target_values,
+            baseline_values,
+            repo_map,
+            upgrade_docs_baseline=new_baseline,
         )
         if changed_entries:
             images_path.write_text(new_text, encoding="utf-8")
@@ -467,10 +545,12 @@ def main():
                 print(f"  {name}: {source} -> {target_ver}")
         if unresolved_entry_names:
             print()
-            print(f"Could not verify source/target version for {len(unresolved_entry_names)} "
-                  f"entry(s) in {images_path.name} — no preceding comment, unresolvable "
-                  f"values-tree path, or baseline {new_baseline} doesn't resolve to a git ref. "
-                  f"Left as-is; review by hand.")
+            print(
+                f"Could not verify source/target version for {len(unresolved_entry_names)} "
+                f"entry(s) in {images_path.name} — no preceding comment, unresolvable "
+                f"values-tree path, or baseline {new_baseline} doesn't resolve to a git ref. "
+                f"Left as-is; review by hand."
+            )
             for name in unresolved_entry_names:
                 print(f"  {name}")
 
@@ -486,19 +566,27 @@ def main():
                 print(f"  {name}: {old_url} -> {new_url}")
         if unresolved_url_names:
             print()
-            print(f"Could not verify the fully host-qualified url for {len(unresolved_url_names)} "
-                  f"entry(s) in {images_path.name} — unresolvable values-tree path or repository. "
-                  f"Left as-is; review by hand.")
+            print(
+                f"Could not verify the fully host-qualified url for {len(unresolved_url_names)} "
+                f"entry(s) in {images_path.name} — unresolvable values-tree path or repository. "
+                f"Left as-is; review by hand."
+            )
             for name in unresolved_url_names:
                 print(f"  {name}")
 
         if baseline_values:
             text = images_path.read_text(encoding="utf-8")
-            new_text, added_entry_names, skipped_entry_names, backfilled_header_names = \
+            new_text, added_entry_names, skipped_entry_names, backfilled_header_names = (
                 add_missing_images_manifest_entries(
-                    text, CHART_YAML.parent, target_deps, target_values, baseline_values, allow_pull=True,
-                    upgrade_docs_baseline=new_baseline
+                    text,
+                    CHART_YAML.parent,
+                    target_deps,
+                    target_values,
+                    baseline_values,
+                    allow_pull=True,
+                    upgrade_docs_baseline=new_baseline,
                 )
+            )
             if added_entry_names:
                 images_path.write_text(new_text, encoding="utf-8")
                 print()
@@ -507,9 +595,11 @@ def main():
                     print(f"  {name} (review 'name:' for the correct ACR mirror slug)")
             if skipped_entry_names:
                 print()
-                print(f"Could not add an entry for {len(skipped_entry_names)} changed image(s) in "
-                      f"{images_path.name} — no resolvable repository, or its values.yaml tag has no "
-                      f"digest pinned yet. Add by hand.")
+                print(
+                    f"Could not add an entry for {len(skipped_entry_names)} changed image(s) in "
+                    f"{images_path.name} — no resolvable repository, or its values.yaml tag has no "
+                    f"digest pinned yet. Add by hand."
+                )
                 for name in skipped_entry_names:
                     print(f"  {name}")
             if backfilled_header_names:
@@ -533,16 +623,18 @@ def main():
             entries_for_header_sort = yaml.safe_load(before_sort) or []
         except yaml.YAMLError:
             entries_for_header_sort = []
-        entry_positions = images_manifest_entry_positions(before_sort, target_deps, target_values, repo_map,
-                                                            canonical_names)
-        display_name_positions = images_manifest_display_name_positions(before_sort, target_deps, target_values,
-                                                                          repo_map, canonical_names)
+        entry_positions = images_manifest_entry_positions(
+            before_sort, target_deps, target_values, repo_map, canonical_names
+        )
+        display_name_positions = images_manifest_display_name_positions(
+            before_sort, target_deps, target_values, repo_map, canonical_names
+        )
         lines = before_sort.splitlines(keepends=True)
-        moved_header_items = sort_images_manifest_changes_items(lines, entries_for_header_sort, entry_positions,
-                                                                  display_name_positions)
+        moved_header_items = sort_images_manifest_changes_items(
+            lines, entries_for_header_sort, entry_positions, display_name_positions
+        )
         text = "".join(lines)
-        text, moved_entries = sort_images_manifest_entries(text, target_deps, target_values, repo_map,
-                                                             canonical_names)
+        text, moved_entries = sort_images_manifest_entries(text, target_deps, target_values, repo_map, canonical_names)
         if text != before_sort:
             images_path.write_text(text, encoding="utf-8")
             print()
@@ -571,21 +663,31 @@ def main():
     if values_deltas_path.is_file():
         if baseline_deps is None or baseline_values is None:
             print()
-            print(f"Could not resolve baseline {new_baseline} to a git ref — skipping "
-                  f"added/removed/renamed key detection for {values_deltas_path.name}.")
+            print(
+                f"Could not resolve baseline {new_baseline} to a git ref — skipping "
+                f"added/removed/renamed key detection for {values_deltas_path.name}."
+            )
         else:
             changed_keys = compute_changed_components(target_deps, baseline_deps, target_values, baseline_values)
             text = values_deltas_path.read_text(encoding="utf-8")
             write_needed = False
 
-            values_delta_target_paths = ([p for p, _tag in find_all_image_and_version_paths(target_values, target_deps)]
-                                          + [p for p, _tag in global_image_paths(target_values)])
+            values_delta_target_paths = [
+                p for p, _tag in find_all_image_and_version_paths(target_values, target_deps)
+            ] + [p for p, _tag in global_image_paths(target_values)]
             values_delta_canonical_names = canonical_sidecar_row_names(
-                CHART_YAML.parent, target_deps, target_values, values_delta_target_paths)
+                CHART_YAML.parent, target_deps, target_values, values_delta_target_paths
+            )
 
             text, created_names, updated_names = sync_values_delta_sections(
-                text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values, changed_keys,
-                values_delta_canonical_names
+                text,
+                CHART_YAML.parent,
+                target_deps,
+                target_values,
+                baseline_deps,
+                baseline_values,
+                changed_keys,
+                values_delta_canonical_names,
             )
             if created_names or updated_names:
                 write_needed = True
@@ -610,14 +712,22 @@ def main():
             # source, not this doc, which has no table of its own).
             upgrade_doc_text = upgrade_path.read_text(encoding="utf-8") if upgrade_path.is_file() else ""
             text, updated_delta_headings = fix_values_delta_heading_app_versions(
-                upgrade_doc_text, text, CHART_YAML.parent, target_deps, target_values, baseline_deps,
-                baseline_values, upgrade_docs_baseline=new_baseline
+                upgrade_doc_text,
+                text,
+                CHART_YAML.parent,
+                target_deps,
+                target_values,
+                baseline_deps,
+                baseline_values,
+                upgrade_docs_baseline=new_baseline,
             )
             if updated_delta_headings:
                 write_needed = True
                 print()
-                print(f"=== Correcting '## ...' section heading(s) with the wrong name/app-version "
-                      f"transition in {values_deltas_path.name} ===")
+                print(
+                    f"=== Correcting '## ...' section heading(s) with the wrong name/app-version "
+                    f"transition in {values_deltas_path.name} ==="
+                )
                 for heading in updated_delta_headings:
                     print(f"  {heading}")
 
@@ -630,7 +740,8 @@ def main():
                     print(f"  '## {heading}'")
 
             text, moved_sections = sort_values_delta_sections(
-                text, target_deps, target_values, values_delta_canonical_names)
+                text, target_deps, target_values, values_delta_canonical_names
+            )
             if moved_sections:
                 write_needed = True
                 print()
@@ -652,8 +763,7 @@ def main():
 
     if todo_stub_docs:
         print()
-        print(f"removed stale TODO placeholder from {len(todo_stub_docs)} doc(s): "
-              f"{', '.join(todo_stub_docs)}")
+        print(f"removed stale TODO placeholder from {len(todo_stub_docs)} doc(s): {', '.join(todo_stub_docs)}")
 
     if review_notes:
         print()
@@ -671,22 +781,27 @@ def main():
     # via its own environment-specific values anyway.
     render_result = render_chart(CHART_YAML.parent, lint_args_for(CHART_YAML.parent))
     if render_result.returncode != 0:
-        print("  error: helm template failed to render — can't check for images defined only "
-              "in a vendored sub-chart's own default values.yaml (see check_subchart_image_"
-              "visibility); fix the render first")
+        print(
+            "  error: helm template failed to render — can't check for images defined only "
+            "in a vendored sub-chart's own default values.yaml (see check_subchart_image_"
+            "visibility); fix the render first"
+        )
         print(render_result.stderr)
         sys.exit(1)
     rendered_paths = rendered_chart_paths(render_result.stdout)
 
     written, skipped, changed = regenerate_images_baseline_manifest(
-        CHART_YAML.parent, target_deps, target_values, IMAGES_DIR / "images-baseline.yaml", rendered_paths)
+        CHART_YAML.parent, target_deps, target_values, IMAGES_DIR / "images-baseline.yaml", rendered_paths
+    )
     if changed:
         print(f"  wrote {written} entr{'y' if written == 1 else 'ies'}")
     else:
         print(f"  unchanged ({written} entr{'y' if written == 1 else 'ies'})")
     if skipped:
-        print(f"  could not resolve a full url/digest for {len(skipped)} repositor{'y' if len(skipped) == 1 else 'ies'} "
-              f"— review by hand:")
+        print(
+            f"  could not resolve a full url/digest for {len(skipped)} repositor{'y' if len(skipped) == 1 else 'ies'} "
+            f"— review by hand:"
+        )
         for repo in skipped:
             print(f"    {repo}")
 

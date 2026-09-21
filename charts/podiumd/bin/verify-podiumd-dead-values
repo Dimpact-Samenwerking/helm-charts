@@ -27,8 +27,10 @@ verify-podiumd step (see lib.checks.dead_values.check_dead_values's own
 docstring for why: a candidate's own removal is always a human call,
 not something this scan decides on its own).
 """
+
 import shutil
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -52,14 +54,16 @@ def main():
         print("error: helm is not installed", file=sys.stderr)
         sys.exit(1)
 
-    print("WARNING: this can take a VERY long time to finish — 10 to 40+ "
-          "minutes on the real podiumd chart (measured: ~40 minutes) — since "
-          "every candidate a fast scoped render finds still has to be "
-          "re-verified against a slow full-chart render before being "
-          "reported. Not something to run routinely; consider backgrounding "
-          "this (e.g. `nohup verify-podiumd-dead-values > dead-values.log "
-          "2>&1 &`) if you don't want to keep this terminal occupied.\n",
-          flush=True)
+    print(
+        "WARNING: this can take a VERY long time to finish — 10 to 40+ "
+        "minutes on the real podiumd chart (measured: ~40 minutes) — since "
+        "every candidate a fast scoped render finds still has to be "
+        "re-verified against a slow full-chart render before being "
+        "reported. Not something to run routinely; consider backgrounding "
+        "this (e.g. `nohup verify-podiumd-dead-values > dead-values.log "
+        "2>&1 &`) if you don't want to keep this terminal occupied.\n",
+        flush=True,
+    )
 
     extra_args = lint_args_for(CHART_DIR)
     ok, detail = check_dead_values(CHART_DIR, extra_args)

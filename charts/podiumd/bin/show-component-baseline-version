@@ -29,7 +29,9 @@ error); this only fails outright if NEITHER baseline could be shown at
 all. Reads charts/podiumd/Chart.yaml + values.yaml as they were at each
 ref via `git show` — no checkout needed.
 """
+
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -50,9 +52,11 @@ def show_at_baseline(chart_dir, label, baseline, component):
     error / blank line" wrapper this only needs to supply its own
     resolve-and-print body for. Returns True if the component's state
     was actually shown."""
+
     def resolve(baseline_value):
         ref, dep, values_key, image_paths, app_versions, error = component_state_at_baseline(
-            chart_dir, "charts/podiumd", baseline_value, component)
+            chart_dir, "charts/podiumd", baseline_value, component
+        )
         if error:
             return f"error: {error}"
 
@@ -65,8 +69,10 @@ def show_at_baseline(chart_dir, label, baseline, component):
                 version = tag.split("@", 1)[0]
                 print(f"    {name}: {version}  ({tag})")
         else:
-            print(f"  App version: no tag override found at {', '.join(image_paths)} "
-                  f"under '{values_key}:' — chart default applies")
+            print(
+                f"  App version: no tag override found at {', '.join(image_paths)} "
+                f"under '{values_key}:' — chart default applies"
+            )
         return None
 
     return show_baseline_section(label, baseline, resolve)
