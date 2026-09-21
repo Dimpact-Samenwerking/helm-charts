@@ -11,6 +11,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import lib.baseline_report as baseline_report
 import lib.chart as chart
+import lib.chart_nested_subchart_identity as chart_nested_subchart_identity
 import lib.chart_registered_paths as chart_registered_paths
 import lib.chart_values_tree_primitives as chart_values_tree_primitives
 import lib.component_docs as component_docs
@@ -59,6 +60,11 @@ def libchartvaluestreeprimitives():
 @pytest.fixture(scope="session")
 def libchartregisteredpaths():
     return chart_registered_paths
+
+
+@pytest.fixture(scope="session")
+def libchartnestedsubchartidentity():
+    return chart_nested_subchart_identity
 
 
 @pytest.fixture(scope="session")

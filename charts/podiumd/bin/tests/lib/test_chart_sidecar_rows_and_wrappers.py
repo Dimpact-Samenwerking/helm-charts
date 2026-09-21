@@ -341,34 +341,41 @@ def test_chart_version_lockstep_components_explicit_override(libchart, libchartr
 # --- version_repository_path_for / nested_subchart_name_for / nested_subchart_registered_paths ---
 
 
-def test_version_repository_path_for_default(libchart, tmp_path):
-    assert libchart.version_repository_path_for("redis-operator", tmp_path) == "redisOperator.imageName"
-    assert libchart.version_repository_path_for("unregistered", tmp_path) is None
+def test_version_repository_path_for_default(libchartnestedsubchartidentity, tmp_path):
+    assert libchartnestedsubchartidentity.version_repository_path_for("redis-operator", tmp_path) == (
+        "redisOperator.imageName"
+    )
+    assert libchartnestedsubchartidentity.version_repository_path_for("unregistered", tmp_path) is None
 
 
-def test_version_repository_path_for_explicit_override(libchart, tmp_path):
+def test_version_repository_path_for_explicit_override(libchartnestedsubchartidentity, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         'component_resolution:\n  version_repository_paths:\n    foo-op: "fooOperator.imageName"\n',
         encoding="utf-8",
     )
-    assert libchart.version_repository_path_for("foo-op", tmp_path) == "fooOperator.imageName"
-    assert libchart.version_repository_path_for("redis-operator", tmp_path) is None
+    assert libchartnestedsubchartidentity.version_repository_path_for("foo-op", tmp_path) == "fooOperator.imageName"
+    assert libchartnestedsubchartidentity.version_repository_path_for("redis-operator", tmp_path) is None
 
 
-def test_version_repository_path_for_none_chart_dir_returns_none(libchart):
+def test_version_repository_path_for_none_chart_dir_returns_none(libchartnestedsubchartidentity):
     """Some of its own call sites (e.g. full_repository_for_path) are
     themselves reachable with chart_dir=None -- must degrade gracefully,
     never crash a report-only check."""
-    assert libchart.version_repository_path_for("redis-operator", None) is None
+    assert libchartnestedsubchartidentity.version_repository_path_for("redis-operator", None) is None
 
 
-def test_nested_subchart_name_for_default(libchart, tmp_path):
-    assert libchart.nested_subchart_name_for("eck-stack", "eck-elasticsearch.version", tmp_path) == "eck-elasticsearch"
-    assert libchart.nested_subchart_name_for("eck-stack", "unregistered.version", tmp_path) is None
+def test_nested_subchart_name_for_default(libchartnestedsubchartidentity, tmp_path):
+    assert (
+        libchartnestedsubchartidentity.nested_subchart_name_for("eck-stack", "eck-elasticsearch.version", tmp_path)
+        == "eck-elasticsearch"
+    )
+    assert (
+        libchartnestedsubchartidentity.nested_subchart_name_for("eck-stack", "unregistered.version", tmp_path) is None
+    )
 
 
-def test_nested_subchart_name_for_explicit_override(libchart, tmp_path):
+def test_nested_subchart_name_for_explicit_override(libchartnestedsubchartidentity, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         "component_resolution:\n"
@@ -377,26 +384,31 @@ def test_nested_subchart_name_for_explicit_override(libchart, tmp_path):
         "      eck-elasticsearch.version: only-this-one\n",
         encoding="utf-8",
     )
-    assert libchart.nested_subchart_name_for("eck-stack", "eck-elasticsearch.version", tmp_path) == "only-this-one"
-    assert libchart.nested_subchart_name_for("eck-stack", "eck-kibana.version", tmp_path) is None
+    assert (
+        libchartnestedsubchartidentity.nested_subchart_name_for("eck-stack", "eck-elasticsearch.version", tmp_path)
+        == "only-this-one"
+    )
+    assert libchartnestedsubchartidentity.nested_subchart_name_for("eck-stack", "eck-kibana.version", tmp_path) is None
 
 
-def test_nested_subchart_name_for_none_chart_dir_returns_none(libchart):
-    assert libchart.nested_subchart_name_for("eck-stack", "eck-elasticsearch.version", None) is None
+def test_nested_subchart_name_for_none_chart_dir_returns_none(libchartnestedsubchartidentity):
+    assert (
+        libchartnestedsubchartidentity.nested_subchart_name_for("eck-stack", "eck-elasticsearch.version", None) is None
+    )
 
 
-def test_nested_subchart_registered_paths_self_resolves_against_real_chart_dir(libchart):
+def test_nested_subchart_registered_paths_self_resolves_against_real_chart_dir(libchartnestedsubchartidentity):
     """Called with no override, resolves chart_dir the same self-resolving
     way chart_version_lockstep_components does -- proves the default
     works end to end against the REAL etc/settings.yaml, not just a
     synthetic chart_dir handed in by a test."""
-    assert sorted(libchart.nested_subchart_registered_paths("eck-stack")) == sorted(
+    assert sorted(libchartnestedsubchartidentity.nested_subchart_registered_paths("eck-stack")) == sorted(
         ["eck-elasticsearch.version", "eck-kibana.version", "eck-enterprise-search.version"]
     )
-    assert libchart.nested_subchart_registered_paths("unregistered") == []
+    assert libchartnestedsubchartidentity.nested_subchart_registered_paths("unregistered") == []
 
 
-def test_nested_subchart_registered_paths_explicit_override(libchart, tmp_path):
+def test_nested_subchart_registered_paths_explicit_override(libchartnestedsubchartidentity, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         "component_resolution:\n"
@@ -405,7 +417,9 @@ def test_nested_subchart_registered_paths_explicit_override(libchart, tmp_path):
         "      eck-elasticsearch.version: eck-elasticsearch\n",
         encoding="utf-8",
     )
-    assert libchart.nested_subchart_registered_paths("eck-stack", tmp_path) == ["eck-elasticsearch.version"]
+    assert libchartnestedsubchartidentity.nested_subchart_registered_paths("eck-stack", tmp_path) == [
+        "eck-elasticsearch.version"
+    ]
 
 
 # --- component_image_paths / image_paths_for (self-resolving wrappers) ---

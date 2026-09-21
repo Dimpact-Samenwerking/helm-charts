@@ -423,7 +423,7 @@ def test_subchart_app_version_no_app_version_field_returns_none(libchart, tmp_pa
 # --- nested_subchart_raw_text / nested_subchart_documented_image_repository ---
 
 
-def test_nested_subchart_raw_text_reads_nested_file(libchart, tmp_path):
+def test_nested_subchart_raw_text_reads_nested_file(libchartnestedsubchartidentity, tmp_path):
     dep = {"name": "eck-stack", "version": "0.20.0"}
     make_tgz(
         tmp_path / "charts",
@@ -434,15 +434,21 @@ def test_nested_subchart_raw_text_reads_nested_file(libchart, tmp_path):
             "eck-stack/charts/eck-elasticsearch/values.yaml": "# hello\n",
         },
     )
-    assert libchart.nested_subchart_raw_text(tmp_path, dep, "eck-elasticsearch", "values.yaml") == "# hello\n"
+    assert (
+        libchartnestedsubchartidentity.nested_subchart_raw_text(tmp_path, dep, "eck-elasticsearch", "values.yaml")
+        == "# hello\n"
+    )
 
 
-def test_nested_subchart_raw_text_missing_tgz_returns_none(libchart, tmp_path):
+def test_nested_subchart_raw_text_missing_tgz_returns_none(libchartnestedsubchartidentity, tmp_path):
     dep = {"name": "eck-stack", "version": "0.20.0"}
-    assert libchart.nested_subchart_raw_text(tmp_path, dep, "eck-elasticsearch", "values.yaml") is None
+    assert (
+        libchartnestedsubchartidentity.nested_subchart_raw_text(tmp_path, dep, "eck-elasticsearch", "values.yaml")
+        is None
+    )
 
 
-def test_nested_subchart_raw_text_missing_nested_chart_returns_none(libchart, tmp_path):
+def test_nested_subchart_raw_text_missing_nested_chart_returns_none(libchartnestedsubchartidentity, tmp_path):
     """The outer .tgz IS vendored, but has no charts/eck-kibana/ inside
     it at all (e.g. a stale/mismatched registry entry) — no crash."""
     dep = {"name": "eck-stack", "version": "0.20.0"}
@@ -455,10 +461,10 @@ def test_nested_subchart_raw_text_missing_nested_chart_returns_none(libchart, tm
             "eck-stack/charts/eck-elasticsearch/values.yaml": "# hello\n",
         },
     )
-    assert libchart.nested_subchart_raw_text(tmp_path, dep, "eck-kibana", "values.yaml") is None
+    assert libchartnestedsubchartidentity.nested_subchart_raw_text(tmp_path, dep, "eck-kibana", "values.yaml") is None
 
 
-def test_nested_subchart_documented_image_repository_extracts_first_example(libchart, tmp_path):
+def test_nested_subchart_documented_image_repository_extracts_first_example(libchartnestedsubchartidentity, tmp_path):
     """The FIRST "# image: <repo>[:<tag>]" comment wins — every ECK-
     family sub-subchart lists the plain "<repo>:<version>" form first,
     then a digest-suffixed variant, then a bare "@sha256:..." form; only
@@ -479,12 +485,12 @@ def test_nested_subchart_documented_image_repository_extracts_first_example(libc
         },
     )
     assert (
-        libchart.nested_subchart_documented_image_repository(tmp_path, dep, "eck-kibana")
+        libchartnestedsubchartidentity.nested_subchart_documented_image_repository(tmp_path, dep, "eck-kibana")
         == "docker.elastic.co/kibana/kibana"
     )
 
 
-def test_nested_subchart_documented_image_repository_no_comment_returns_none(libchart, tmp_path):
+def test_nested_subchart_documented_image_repository_no_comment_returns_none(libchartnestedsubchartidentity, tmp_path):
     dep = {"name": "eck-stack", "version": "0.20.0"}
     make_tgz(
         tmp_path / "charts",
@@ -495,7 +501,9 @@ def test_nested_subchart_documented_image_repository_no_comment_returns_none(lib
             "eck-stack/charts/eck-kibana/values.yaml": "enabled: true\n",
         },
     )
-    assert libchart.nested_subchart_documented_image_repository(tmp_path, dep, "eck-kibana") is None
+    assert (
+        libchartnestedsubchartidentity.nested_subchart_documented_image_repository(tmp_path, dep, "eck-kibana") is None
+    )
 
 
 # --- subchart_dependencies ---
