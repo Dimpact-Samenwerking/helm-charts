@@ -11,7 +11,7 @@ from lib.chart.registered_paths import (
     version_paths_for,
 )
 from lib.chart.values_tree_primitives import get_path
-from lib.upgradedoc_string_and_parsing_basics import (
+from lib.upgradedoc.string_and_parsing_basics import (
     normalize_version,
     words_of,
 )

@@ -8,20 +8,20 @@ import yaml
 
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import is_primary_image_path
-from lib.upgradedoc_app_version_and_image_paths import (
+from lib.upgradedoc.app_version_and_image_paths import (
     find_all_image_and_version_paths,
     resolve_entry_image_path,
 )
-from lib.upgradedoc_grouped_comments_and_changes_block import (
+from lib.upgradedoc.grouped_comments_and_changes_block import (
     find_grouped_preceding_comment_line,
     path_display_name,
 )
-from lib.upgradedoc_sorting_and_ordering import (
+from lib.upgradedoc.sorting_and_ordering import (
     values_key_order,
     values_tree_position,
 )
-from lib.upgradedoc_string_and_parsing_basics import normalize_name
-from lib.upgradedoc_version_cells_and_key_changes import VERSION_PAIR_RE
+from lib.upgradedoc.string_and_parsing_basics import normalize_name
+from lib.upgradedoc.version_cells_and_key_changes import VERSION_PAIR_RE
 
 SIDECAR_HEADER_RE = re.compile(r"^#\s{2,}sidecar:\s*(?P<text>.*)$", re.IGNORECASE)
 

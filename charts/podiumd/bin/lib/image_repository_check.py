@@ -33,7 +33,7 @@ from lib.chart.nested_subchart_identity import (
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import get_path
-from lib.upgradedoc_app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 
 
 def find_images_without_repository(chart_dir, allow_pull=False):

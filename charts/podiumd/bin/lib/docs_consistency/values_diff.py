@@ -5,9 +5,9 @@ lib.docs_consistency.check_docs_consistency."""
 import re
 
 from lib.component_docs.values_delta_sections import find_values_delta_section
-from lib.upgradedoc_grouped_comments_and_changes_block import diff_keys, pair_renames
-from lib.upgradedoc_sorting_and_ordering import parse_values_delta_sections
-from lib.upgradedoc_version_cells_and_key_changes import strip_fenced_code_blocks
+from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys, pair_renames
+from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
+from lib.upgradedoc.version_cells_and_key_changes import strip_fenced_code_blocks
 
 
 def check_values_deltas_content(doc_path, actual_changed_keys, baseline_values, values, deps, canonical_names=None):

@@ -17,11 +17,11 @@ from lib.component_docs.images_manifest_changes_header import (
     images_manifest_order_key,
     insert_images_manifest_header_item,
 )
-from lib.upgradedoc_app_version_and_image_paths import resolve_entry_path
-from lib.upgradedoc_grouped_comments_and_changes_block import find_grouped_preceding_comment_line
-from lib.upgradedoc_sorting_and_ordering import values_key_order
-from lib.upgradedoc_string_and_parsing_basics import extract_source_version, normalize_name, normalize_version
-from lib.upgradedoc_version_cells_and_key_changes import image_manifest_version_text, replace_version_pair
+from lib.upgradedoc.app_version_and_image_paths import resolve_entry_path
+from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
+from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import extract_source_version, normalize_name, normalize_version
+from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text, replace_version_pair
 
 
 def values_tree_path_for(values_key, image_path):

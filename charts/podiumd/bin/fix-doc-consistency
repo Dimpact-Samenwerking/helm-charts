@@ -118,26 +118,26 @@ from lib.image_repository_check import find_images_without_repository
 from lib.registry import parse_repo, registry_tag_exists
 from lib.render_scope import lint_args_for, render_chart, rendered_chart_paths
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc_app_version_and_image_paths import (
+from lib.upgradedoc.app_version_and_image_paths import (
     find_all_image_and_version_paths, find_image_tag_paths, resolve_entry_image_path,
 )
-from lib.upgradedoc_grouped_comments_and_changes_block import find_grouped_preceding_comment_line, path_display_name
-from lib.upgradedoc_images_manifest_list_diff import compute_changed_components, find_images_manifest_list_diff
-from lib.upgradedoc_images_manifest_ordering import (
+from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line, path_display_name
+from lib.upgradedoc.images_manifest_list_diff import compute_changed_components, find_images_manifest_list_diff
+from lib.upgradedoc.images_manifest_ordering import (
     header_name_segment, images_manifest_block_start, images_manifest_display_name_positions,
     images_manifest_entries_share_group, images_manifest_entry_positions, match_changes_item_display_name,
     sort_images_manifest_entries,
 )
-from lib.upgradedoc_resolve_component_row import changes_heading_has_app_version, resolve_component_row
-from lib.upgradedoc_sorting_and_ordering import (
+from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version, resolve_component_row
+from lib.upgradedoc.sorting_and_ordering import (
     insertion_index, parse_upgrade_doc_changes_blocks, parse_values_delta_sections, sort_changes_blocks,
     sort_upgrade_doc_rows, sort_values_delta_sections, values_key_order,
 )
-from lib.upgradedoc_string_and_parsing_basics import (
+from lib.upgradedoc.string_and_parsing_basics import (
     changes_heading_identities, extract_source_version, extract_target_version, normalize_version,
     parse_upgrade_doc_rows,
 )
-from lib.upgradedoc_version_cells_and_key_changes import (
+from lib.upgradedoc.version_cells_and_key_changes import (
     append_to_doc, canonical_version_cell, component_version_cell, image_manifest_version_text,
     replace_version_spec,
 )

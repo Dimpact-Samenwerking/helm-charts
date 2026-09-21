@@ -4,7 +4,7 @@ lib.docs_consistency.check_docs_consistency."""
 
 import re
 
-from lib.upgradedoc_string_and_parsing_basics import normalize_version
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
 
 SIBLING_DOC_RE = re.compile(r"(\d+\.\d+\.\d+)-to-(\d+\.\d+\.\d+)-(upgrade|gemeente-specific|values-deltas)\.md")
 IMAGES_REF_RE = re.compile(r"images-(\d+\.\d+\.\d+)\.yaml")

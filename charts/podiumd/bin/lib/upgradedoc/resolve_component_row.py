@@ -16,11 +16,11 @@ from lib.chart.registered_paths import (
 )
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.values_tree_primitives import get_path
-from lib.upgradedoc_app_version_and_image_paths import (
+from lib.upgradedoc.app_version_and_image_paths import (
     actual_app_version,
     find_image_tag_paths,
 )
-from lib.upgradedoc_string_and_parsing_basics import (
+from lib.upgradedoc.string_and_parsing_basics import (
     match_dependency_excluding_sidecar_names,
     match_native_component,
 )
