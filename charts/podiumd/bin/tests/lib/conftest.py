@@ -10,7 +10,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import lib.baseline_report as baseline_report
-import lib.chart as chart
+import lib.chart_historical_baselines as chart_historical_baselines
 import lib.chart_nested_subchart_identity as chart_nested_subchart_identity
 import lib.chart_pull_and_subchart_resolution as chart_pull_and_subchart_resolution
 import lib.chart_registered_paths as chart_registered_paths
@@ -51,11 +51,6 @@ def libregistry():
 
 
 @pytest.fixture(scope="session")
-def libchart():
-    return chart
-
-
-@pytest.fixture(scope="session")
 def libchartvaluestreeprimitives():
     return chart_values_tree_primitives
 
@@ -83,6 +78,11 @@ def libchartpullandsubchartresolution():
 @pytest.fixture(scope="session")
 def libchartrepoandpathresolution():
     return chart_repo_and_path_resolution
+
+
+@pytest.fixture(scope="session")
+def libcharthistoricalbaselines():
+    return chart_historical_baselines
 
 
 @pytest.fixture(scope="session")
