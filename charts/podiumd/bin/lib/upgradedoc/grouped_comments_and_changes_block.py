@@ -6,10 +6,8 @@ pair_renames) they're built from, and path_display_name."""
 import re
 
 from lib.chart.registered_paths import is_primary_image_path
-from lib.upgradedoc.string_and_parsing_basics import (
-    extract_source_version,
-    extract_target_version,
-)
+from lib.upgradedoc.string_and_parsing_basics import extract_source_version
+from lib.upgradedoc.string_and_parsing_basics import extract_target_version
 
 BARE_CHART_CLAUSE_RE = re.compile(
     r"\bchart\s+`?[A-Za-z0-9][\w.\-]*`?\s*(?:→|->)\s*`?[A-Za-z0-9][\w.\-]*`?", re.IGNORECASE
@@ -111,11 +109,11 @@ def diff_keys(baseline_node, current_node, path=()):
     baseline_keys = set(baseline_node.keys())
     current_keys = set(current_node.keys())
     for key in current_keys - baseline_keys:
-        yield "added", path + (key,)
+        yield "added", (*path, key)
     for key in baseline_keys - current_keys:
-        yield "removed", path + (key,)
+        yield "removed", (*path, key)
     for key in baseline_keys & current_keys:
-        yield from diff_keys(baseline_node[key], current_node[key], path + (key,))
+        yield from diff_keys(baseline_node[key], current_node[key], (*path, key))
 
 
 def flatten_leaf_keys(node):

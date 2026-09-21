@@ -98,35 +98,35 @@ But the two sides, and the two candidate KINDS, get there differently:
   place already has for its own failed lookups."""
 
 import urllib.error
+
 from collections import Counter
 
-from lib.checks.cve import (
-    SEVERITY_ORDER,
-    bucket_of,
-    classify_by_key,
-    dependency_names,
-    high_findings_by_package,
-    open_cache_session,
-    print_bucket_header,
-    print_package_line,
-    render_image_labels,
-    save_cache,
-    scan_cached,
-    severity_label,
-    top_level_key_for_line,
-)
-from lib.image.digests import find_sliding_pins, unique_digest_pin_targets
+from lib.checks.cve import SEVERITY_ORDER
+from lib.checks.cve import bucket_of
+from lib.checks.cve import classify_by_key
+from lib.checks.cve import dependency_names
+from lib.checks.cve import high_findings_by_package
+from lib.checks.cve import open_cache_session
+from lib.checks.cve import print_bucket_header
+from lib.checks.cve import print_package_line
+from lib.checks.cve import render_image_labels
+from lib.checks.cve import save_cache
+from lib.checks.cve import scan_cached
+from lib.checks.cve import severity_label
+from lib.checks.cve import top_level_key_for_line
+from lib.image.digests import find_sliding_pins
+from lib.image.digests import unique_digest_pin_targets
 from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
 from lib.image.upgrade_cache import cache_key as upgrade_cache_key
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
-from lib.registry import parse_repo, registry_tag_exists
-from lib.render_scope import friendly_vendor_charts, render_chart
-from lib.settings import (
-    cve_high_severity_levels,
-    cve_max_cves_per_package_before_summarizing,
-    cve_scan_cache_ttl_days,
-    image_upgrade_tag_check_cache_ttl_days,
-)
+from lib.registry import parse_repo
+from lib.registry import registry_tag_exists
+from lib.render_scope import friendly_vendor_charts
+from lib.render_scope import render_chart
+from lib.settings import cve_high_severity_levels
+from lib.settings import cve_max_cves_per_package_before_summarizing
+from lib.settings import cve_scan_cache_ttl_days
+from lib.settings import image_upgrade_tag_check_cache_ttl_days
 
 
 def _vuln_key(v):

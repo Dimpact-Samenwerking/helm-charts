@@ -3,6 +3,7 @@ importable normally) as a module named `vrt` so tests can call its
 functions directly."""
 
 import importlib.util
+
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 

@@ -18,25 +18,25 @@ the lib.component_docs package."""
 import re
 
 from lib.chart.historical_baselines import historical_app_version_for_path
-from lib.chart.registered_paths import image_paths_for, native_components, version_paths_for
-from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE, UPGRADE_INTRO_STUB_TODO_LINE
+from lib.chart.registered_paths import image_paths_for
+from lib.chart.registered_paths import native_components
+from lib.chart.registered_paths import version_paths_for
+from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
+from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
-from lib.upgradedoc.sorting_and_ordering import (
-    component_order_key,
-    insertion_index,
-    parse_upgrade_doc_changes_blocks,
-    values_key_order,
-)
-from lib.upgradedoc.string_and_parsing_basics import (
-    COMPONENT_VERSIONS_HEADING_RE,
-    _word_aligned_spans,
-    match_dependency_excluding_sidecar_names,
-    match_native_component,
-    normalize_name,
-    normalize_version,
-    parse_upgrade_doc_rows,
-)
-from lib.upgradedoc.version_cells_and_key_changes import component_version_cell, version_change_suffix
+from lib.upgradedoc.sorting_and_ordering import component_order_key
+from lib.upgradedoc.sorting_and_ordering import insertion_index
+from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import COMPONENT_VERSIONS_HEADING_RE
+from lib.upgradedoc.string_and_parsing_basics import _word_aligned_spans
+from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
+from lib.upgradedoc.string_and_parsing_basics import match_native_component
+from lib.upgradedoc.string_and_parsing_basics import normalize_name
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
+from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
+from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
 
 
 def find_component_row(rows, friendly):
@@ -522,7 +522,7 @@ def resolve_component_own_version_change(
         # THIS component's own Chart.yaml/values.yaml presence is new.
         for path in image_paths_for(chart_name, chart_dir):
             old_app = historical_app_version_for_path(
-                chart_dir, target_deps, target_values, (key,) + tuple(path.split(".")), upgrade_docs_baseline
+                chart_dir, target_deps, target_values, (key, *tuple(path.split("."))), upgrade_docs_baseline
             )
             if old_app is not None:
                 break

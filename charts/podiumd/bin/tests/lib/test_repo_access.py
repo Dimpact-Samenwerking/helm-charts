@@ -7,7 +7,9 @@ wherever a live fetch would otherwise happen."""
 
 import json
 import urllib.error
-from datetime import datetime, timezone
+
+from datetime import datetime
+from datetime import timezone
 
 import yaml
 

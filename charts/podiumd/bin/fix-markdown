@@ -29,15 +29,19 @@ Usage:
     fix-markdown             # fix every *.md file under charts/podiumd/
     fix-markdown --dry-run   # report which files would change, no write
 """
+
 import shutil
 import sys
 import tempfile
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.checks.markdown import MARKDOWN_PLUGIN_SETTINGS, find_markdown_files, find_pymarkdown
+from lib.checks.markdown import MARKDOWN_PLUGIN_SETTINGS
+from lib.checks.markdown import find_markdown_files
+from lib.checks.markdown import find_pymarkdown
 from lib.procutil import run
 from lib.settings import quality_gates_markdown_disabled_rules
 
@@ -52,12 +56,13 @@ def run_fix(pymarkdown, files, disabled_rules):
     detection) has a confirmed crash bug on at least one real doc here —
     see module docstring. Detection stays on (verify-podiumd's own check
     still reports it); only the fix pass skips it."""
-    result = run([pymarkdown, "-d", disabled_rules, *MARKDOWN_PLUGIN_SETTINGS,
-                  "fix", *[str(f) for f in files]],
-                 capture_output=True, text=True)
+    result = run(
+        [pymarkdown, "-d", disabled_rules, *MARKDOWN_PLUGIN_SETTINGS, "fix", *[str(f) for f in files]],
+        capture_output=True,
+        text=True,
+    )
     output = result.stdout + result.stderr
-    fixed = [Path(line[len("Fixed: "):].strip()) for line in output.splitlines()
-             if line.startswith("Fixed: ")]
+    fixed = [Path(line[len("Fixed: ") :].strip()) for line in output.splitlines() if line.startswith("Fixed: ")]
     return fixed
 
 
@@ -103,7 +108,7 @@ def main():
 
     # md031's FIX action (not its detection) has a confirmed crash bug on at
     # least one real doc here — see module docstring.
-    disabled_rules = ",".join(quality_gates_markdown_disabled_rules(CHART_DIR) + ["md031"])
+    disabled_rules = ",".join([*quality_gates_markdown_disabled_rules(CHART_DIR), "md031"])
 
     if dry_run:
         changed = dry_run_fix(pymarkdown, files, CHART_DIR, disabled_rules)
@@ -127,9 +132,11 @@ def main():
         except ValueError:
             rel = path
         print(f"  {rel}")
-    print("\nSome findings (MD024, MD031, MD032, MD033, MD036, MD040, MD041, MD025, "
-          "...) need human judgment and are left for verify-podiumd's markdown check "
-          "to keep reporting.")
+    print(
+        "\nSome findings (MD024, MD031, MD032, MD033, MD036, MD040, MD041, MD025, "
+        "...) need human judgment and are left for verify-podiumd's markdown check "
+        "to keep reporting."
+    )
     sys.exit(0)
 
 

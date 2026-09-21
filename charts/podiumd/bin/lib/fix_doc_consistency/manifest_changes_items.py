@@ -2,12 +2,10 @@
 maintenance (dedupe + reorder), split out of that script for pylint's
 too-many-lines check."""
 
-from lib.component_docs.images_manifest_changes_header import (
-    CHANGES_HEADER_RE,
-    CHANGES_ITEM_RE,
-    NUMBER_WORDS,
-    find_images_manifest_changes_header,
-)
+from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
+from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
+from lib.component_docs.images_manifest_changes_header import NUMBER_WORDS
+from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.docs_consistency.images_manifest_format import match_changes_item_to_entry
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 
@@ -48,7 +46,7 @@ def dedupe_images_manifest_changes_items(lines):
     if not item_starts:
         return []
 
-    item_ends = item_starts[1:] + [block_end]
+    item_ends = [*item_starts[1:], block_end]
     seen = set()
     keep_chunks = []
     removed = []
@@ -136,7 +134,7 @@ def sort_images_manifest_changes_items(lines, entries, entry_positions, display_
     if len(item_starts) < 2:
         return []
 
-    item_ends = item_starts[1:] + [block_end]
+    item_ends = [*item_starts[1:], block_end]
     items = []
     for start, end in zip(item_starts, item_ends, strict=False):
         rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")

@@ -5,16 +5,12 @@ dependency or native component actually pins."""
 
 from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
 from lib.chart.pull_and_subchart_resolution import subchart_app_version
-from lib.chart.registered_paths import (
-    component_image_paths,
-    image_paths_for,
-    version_paths_for,
-)
+from lib.chart.registered_paths import component_image_paths
+from lib.chart.registered_paths import image_paths_for
+from lib.chart.registered_paths import version_paths_for
 from lib.chart.values_tree_primitives import get_path
-from lib.upgradedoc.string_and_parsing_basics import (
-    normalize_version,
-    words_of,
-)
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.upgradedoc.string_and_parsing_basics import words_of
 
 
 def actual_app_version(values, values_key, component=None, chart_dir=None, dep=None):
@@ -200,16 +196,16 @@ def find_image_tag_paths(node, path=(), include_null_tags=False):
             if (key == "image" or key.endswith("Image")) and isinstance(value, dict):
                 tag = value.get("tag")
                 if tag:
-                    yield path + (key,), tag
+                    yield (*path, key), tag
                 elif include_null_tags and tag is None and value.get("repository"):
-                    yield path + (key,), None
+                    yield (*path, key), None
         for key, value in node.items():
             if key == "image" or key.endswith("Image"):
                 continue
-            yield from find_image_tag_paths(value, path + (str(key),), include_null_tags)
+            yield from find_image_tag_paths(value, (*path, str(key)), include_null_tags)
     elif isinstance(node, list):
         for i, item in enumerate(node):
-            yield from find_image_tag_paths(item, path + (str(i),), include_null_tags)
+            yield from find_image_tag_paths(item, (*path, str(i)), include_null_tags)
 
 
 def find_component_version_tags(values, deps):

@@ -24,6 +24,7 @@ is mocked too, since these tests use tmp_path (no real Chart.yaml) — no
 real kube-score or helm invocation happens in these tests."""
 
 import json
+
 from types import SimpleNamespace
 
 import pytest

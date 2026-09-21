@@ -26,6 +26,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+
 from html.parser import HTMLParser
 
 PAGE_ID_RE = re.compile(r"/pages/(\d+)")

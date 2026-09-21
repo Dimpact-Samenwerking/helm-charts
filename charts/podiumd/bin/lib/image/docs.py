@@ -19,69 +19,49 @@ since a bare basename never matches a Chart.yaml dependency by name."""
 
 import re
 
-from lib.chart.historical_baselines import (
-    baseline_tag_for_sidecar_path,
-    historical_app_version_for_path,
-)
-from lib.chart.pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
-from lib.chart.registered_paths import (
-    image_paths_for,
-    version_paths_for,
-)
-from lib.chart.repo_and_path_resolution import (
-    canonical_sidecar_row_names,
-    full_repository_for_path,
-    paths_by_repository,
-    repo_group_representative,
-)
-from lib.chart.values_tree_primitives import (
-    get_path,
-    replace_scalar_value,
-    version_of,
-)
+from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
+from lib.chart.historical_baselines import historical_app_version_for_path
+from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
+from lib.chart.registered_paths import image_paths_for
+from lib.chart.registered_paths import version_paths_for
+from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
+from lib.chart.repo_and_path_resolution import full_repository_for_path
+from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.chart.values_tree_primitives import version_of
 from lib.checks.digest_pinning import find_unresolved_subchart_images
-from lib.component_docs.changes_section import (
-    dep_for_values_key,
-    insert_changes_section,
-    make_changes_section,
-    remove_changes_section,
-    update_component_table,
-)
-from lib.component_docs.images_manifest_changes_header import (
-    CHANGES_ITEM_RE,
-    find_images_manifest_changes_header,
-    insert_images_manifest_header_item,
-)
-from lib.registry import parse_repo, registry_tag_exists
+from lib.component_docs.changes_section import dep_for_values_key
+from lib.component_docs.changes_section import insert_changes_section
+from lib.component_docs.changes_section import make_changes_section
+from lib.component_docs.changes_section import remove_changes_section
+from lib.component_docs.changes_section import update_component_table
+from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
+from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
+from lib.registry import parse_repo
+from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import (
-    actual_app_version,
-    find_all_image_and_version_paths,
-    find_image_tag_paths,
-)
-from lib.upgradedoc.consistency_checks import (
-    find_changes_row_correspondence_gaps,
-    resolve_component_identity,
-)
+from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
+from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
+from lib.upgradedoc.consistency_checks import resolve_component_identity
 from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_order_key
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
-from lib.upgradedoc.sorting_and_ordering import (
-    component_order_key,
-    parse_upgrade_doc_changes_blocks,
-    values_key_order,
-)
-from lib.upgradedoc.string_and_parsing_basics import (
-    changes_heading_identities,
-    extract_source_version,
-    normalize_name,
-    parse_upgrade_doc_rows,
-)
-from lib.upgradedoc.version_cells_and_key_changes import (
-    image_manifest_version_text,
-    replace_version_pair,
-    version_change_suffix,
-)
+from lib.upgradedoc.sorting_and_ordering import component_order_key
+from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
+from lib.upgradedoc.string_and_parsing_basics import extract_source_version
+from lib.upgradedoc.string_and_parsing_basics import normalize_name
+from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
+from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
+from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
+from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
 
 
 def make_image_changes_section(basename, target, old_version, new_version, pinned):

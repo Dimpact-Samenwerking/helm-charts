@@ -6,12 +6,10 @@ order machinery all three sorts are built on."""
 import re
 
 from lib.chart.registered_paths import native_components
-from lib.upgradedoc.string_and_parsing_basics import (
-    match_canonical_sidecar_name,
-    match_dependency,
-    match_native_component,
-    parse_upgrade_doc_rows,
-)
+from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
+from lib.upgradedoc.string_and_parsing_basics import match_dependency
+from lib.upgradedoc.string_and_parsing_basics import match_native_component
+from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 
 CHANGES_BLOCK_HEADING_RE = re.compile(r"^###\s+(.+)$")
 
@@ -164,7 +162,7 @@ def component_order_key(name, deps, key_order, canonical_names=None, values=None
     except ValueError:
         return (len(key_order), is_sidecar)
     if sidecar_path is not None and values is not None:
-        return (idx,) + values_tree_position(values, sidecar_path)[1:]
+        return (idx, *values_tree_position(values, sidecar_path)[1:])
     return (idx, is_sidecar)
 
 

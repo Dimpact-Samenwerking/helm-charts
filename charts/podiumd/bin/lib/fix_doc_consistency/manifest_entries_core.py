@@ -6,15 +6,19 @@ import re
 
 import yaml
 
-from lib.chart.historical_baselines import baseline_tag_for_sidecar_path, historical_app_version_for_path
-from lib.chart.pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
+from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
+from lib.chart.historical_baselines import historical_app_version_for_path
+from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths, resolve_entry_image_path
+from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_share_group
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
-from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text, replace_version_spec
+from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
+from lib.upgradedoc.version_cells_and_key_changes import replace_version_spec
 
 
 def resolve_entry_version(entry, paths, repo_map=None):

@@ -57,8 +57,10 @@ Examples:
 After writing, re-render the chart (verify-podiumd or /helm-render-all)
 to confirm before committing.
 """
+
 import re
 import sys
+
 from pathlib import Path
 
 import yaml
@@ -66,38 +68,39 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart.pull_and_subchart_resolution import check_image_versions, resolve_chart_values
-from lib.chart.registered_paths import image_paths_for, native_components
+from lib.chart.pull_and_subchart_resolution import check_image_versions
+from lib.chart.pull_and_subchart_resolution import resolve_chart_values
+from lib.chart.registered_paths import image_paths_for
+from lib.chart.registered_paths import native_components
 from lib.chart.release_baseline_basics import chart_version as _chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as _read_upgrade_docs_baseline
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.values_tree_primitives import find_dependency as _find_dependency
-from lib.chart.values_tree_primitives import get_path, replace_scalar_value
+from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
-from lib.component_docs.baseline_doc_stubs import (
-    baseline_doc_paths as _baseline_doc_paths,
-    images_manifest_path as _images_manifest_path,
-    load_baseline_state as _load_baseline_state,
-    load_baseline_values as _load_baseline_values,
-)
-from lib.component_docs.changes_section import (
-    insert_changes_section, make_changes_section, remove_changes_section,
-    remove_component_row, update_component_table,
-)
-from lib.component_docs.images_manifest_entries import (
-    remove_component_from_images_manifest,
-    update_images_manifest,
-)
-from lib.component_docs.values_delta_sections import (
-    insert_values_delta_section, remove_values_delta_section, values_delta_section_heading,
-)
-from lib.image.version import image_basename, update_image_version
+from lib.component_docs.baseline_doc_stubs import baseline_doc_paths as _baseline_doc_paths
+from lib.component_docs.baseline_doc_stubs import images_manifest_path as _images_manifest_path
+from lib.component_docs.baseline_doc_stubs import load_baseline_state as _load_baseline_state
+from lib.component_docs.baseline_doc_stubs import load_baseline_values as _load_baseline_values
+from lib.component_docs.changes_section import insert_changes_section
+from lib.component_docs.changes_section import make_changes_section
+from lib.component_docs.changes_section import remove_changes_section
+from lib.component_docs.changes_section import remove_component_row
+from lib.component_docs.changes_section import update_component_table
+from lib.component_docs.images_manifest_entries import remove_component_from_images_manifest
+from lib.component_docs.images_manifest_entries import update_images_manifest
+from lib.component_docs.values_delta_sections import insert_values_delta_section
+from lib.component_docs.values_delta_sections import remove_values_delta_section
+from lib.component_docs.values_delta_sections import values_delta_section_heading
+from lib.image.version import image_basename
+from lib.image.version import update_image_version
 from lib.procutil import run_script
-from lib.registry import parse_repo, registry_tag_exists
+from lib.registry import parse_repo
+from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import resolve_baseline_component_versions
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
-from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
@@ -106,6 +109,7 @@ CHART_YAML = CHART_DIR / "Chart.yaml"
 VALUES_YAML = CHART_DIR / "values.yaml"
 DOC_DIR = CHART_DIR / "docs" / "_UPGRADE_PATHS"
 IMAGES_DIR = CHART_DIR / "docs" / "images"
+
 
 def find_dependency(name_or_alias):
     deps = yaml.safe_load(CHART_YAML.read_text())["dependencies"]
@@ -163,8 +167,10 @@ def verify_component_version(dep, image_paths, app_version, chart_version, compo
     component's own already-loaded values.yaml subtree (i.e.
     values[values_key]) — is checked directly instead."""
     if dep is None:
-        print("No Chart.yaml dependency for this component — resolving image repositories "
-              "directly from values.yaml (see lib.chart.native_components)")
+        print(
+            "No Chart.yaml dependency for this component — resolving image repositories "
+            "directly from values.yaml (see lib.chart.native_components)"
+        )
         print(f"\nChecking app version {app_version!r}:")
         return _check_and_print_image_versions(component_values or {}, image_paths, app_version)
 
@@ -200,7 +206,7 @@ def find_child_key_line(lines, key, parent_indent, block_start, block_end):
     """The immediate child "<key>:" line inside [block_start, block_end) —
     smallest indent strictly greater than parent_indent, so a same-named key
     nested deeper inside a grandchild block is never mistaken for it."""
-    key_re = re.compile(rf'^(\s*){re.escape(key)}:\s*(.*)$')
+    key_re = re.compile(rf"^(\s*){re.escape(key)}:\s*(.*)$")
     candidates = []
     for i in range(block_start, block_end):
         line = lines[i]
@@ -291,7 +297,7 @@ def locate_parent_block(lines, dotted_path):
 # the anchor's own site still gets written for real in the same run
 # (it's a separate, non-aliased split_tag_sha_paths entry of its own),
 # so the alias correctly inherits the new value on next parse.
-ALIAS_REFERENCE_RE = re.compile(r'^\s*\S+:\s*\*\w+\s*(#.*)?\s*$')
+ALIAS_REFERENCE_RE = re.compile(r"^\s*\S+:\s*\*\w+\s*(#.*)?\s*$")
 
 
 def is_alias_reference_line(line):
@@ -323,8 +329,9 @@ def locate_tag_and_sha(lines, values_key, path, sibling_field):
     return tag_idx, tag_indent, sibling_idx
 
 
-def write_tag_and_sha(lines, tag_line_index, tag_indent, sibling_line_index, new_version, new_digest_hex,
-                       sibling_field, label):
+def write_tag_and_sha(
+    lines, tag_line_index, tag_indent, sibling_line_index, new_version, new_digest_hex, sibling_field, label
+):
     """Write new_version into the "tag:" line at tag_line_index — bare,
     never embedding @sha256 (see split_tag_sha_paths in main()) — and
     new_digest_hex (the bare hex digest, no "sha256:" prefix of its own)
@@ -357,8 +364,7 @@ def write_tag_and_sha(lines, tag_line_index, tag_indent, sibling_line_index, new
         lines[tag_line_index] = replace_scalar_value(lines[tag_line_index], new_version)
     if sibling_line_index is not None:
         if is_alias_reference_line(lines[sibling_line_index]):
-            print(f"  {label}.{sibling_field}: *alias reference — inherits from its own anchor, "
-                  f"not written directly")
+            print(f"  {label}.{sibling_field}: *alias reference — inherits from its own anchor, not written directly")
         else:
             lines[sibling_line_index] = replace_scalar_value(lines[sibling_line_index], sibling_value)
     else:
@@ -368,7 +374,7 @@ def write_tag_and_sha(lines, tag_line_index, tag_indent, sibling_line_index, new
 
 def update_chart_yaml(chart_name, new_chart_version):
     lines = CHART_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
-    entry_re = re.compile(r'^(\s*)-\s*name:\s*(\S+)\s*$')
+    entry_re = re.compile(r"^(\s*)-\s*name:\s*(\S+)\s*$")
     block = None
     for i, line in enumerate(lines):
         m = entry_re.match(line)
@@ -459,16 +465,19 @@ def main():
     # tag_and_sha for why the per-path sibling field name travels with it.
     split_tag_sha_paths = {
         (tuple_path[0], ".".join(tuple_path[1:])): entry["sibling_field"]
-        for tuple_path, entry in digest_pinning_exceptions(CHART_DIR).items() if entry["writable"]
+        for tuple_path, entry in digest_pinning_exceptions(CHART_DIR).items()
+        if entry["writable"]
     }
 
     if no_chart:
         natives = native_components(CHART_DIR)
         if component not in natives:
-            raise SystemExit(f"error: chart-version 'native' is only valid for a component in "
-                              f"settings.yaml's component_resolution.native_components "
-                              f"({', '.join(sorted(natives))}); "
-                              f"'{component}' isn't one — did you mean to pass its real chart version?")
+            raise SystemExit(
+                f"error: chart-version 'native' is only valid for a component in "
+                f"settings.yaml's component_resolution.native_components "
+                f"({', '.join(sorted(natives))}); "
+                f"'{component}' isn't one — did you mean to pass its real chart version?"
+            )
         dep = None
         chart_name = component
         values_key = component
@@ -489,7 +498,8 @@ def main():
 
     if no_chart:
         upstream_images = verify_component_version(
-            None, image_paths, app_version, None, component_values=values.get(values_key, {}))
+            None, image_paths, app_version, None, component_values=values.get(values_key, {})
+        )
     else:
         upstream_images = verify_component_version(dep, image_paths, app_version, chart_version)
 
@@ -559,11 +569,21 @@ def main():
                 if located is None:
                     raise SystemExit(f"error: could not find '{values_key}.{path}.tag' in {VALUES_YAML}")
                 tag_idx, tag_indent, sibling_idx = located
-                write_tag_and_sha(values_lines, tag_idx, tag_indent, sibling_idx, app_version, digest_hex,
-                                  sibling_field, f"{values_key}.{path}")
+                write_tag_and_sha(
+                    values_lines,
+                    tag_idx,
+                    tag_indent,
+                    sibling_idx,
+                    app_version,
+                    digest_hex,
+                    sibling_field,
+                    f"{values_key}.{path}",
+                )
                 new_tags_by_path[path] = f"{app_version}@sha256:{digest_hex}"
-                print(f"  {values_key}.{path}: {host}/{repo_path}:{app_version} -> sha256:{digest_hex}"
-                      f"{f'  (adding {sibling_field}: — no override yet)' if sibling_idx is None else ''}")
+                print(
+                    f"  {values_key}.{path}: {host}/{repo_path}:{app_version} -> sha256:{digest_hex}"
+                    f"{f'  (adding {sibling_field}: — no override yet)' if sibling_idx is None else ''}"
+                )
             VALUES_YAML.write_text("".join(values_lines), encoding="utf-8")
 
         if delegated_paths:
@@ -652,7 +672,8 @@ def main():
         # scripts can never drift on this again).
         baseline_dep = None if no_chart else _find_dependency(baseline_deps, chart_name)
         old_app, old_chart = resolve_baseline_component_versions(
-            baseline_values, baseline_dep, values_key, image_paths[0], chart_name, new_chart, chart_dir=CHART_DIR)
+            baseline_values, baseline_dep, values_key, image_paths[0], chart_name, new_chart, chart_dir=CHART_DIR
+        )
         if no_chart:
             old_chart = None  # native_components: never a chart version to show at all
         # baseline_dep is None (this Chart.yaml dependency is brand new at
@@ -669,11 +690,15 @@ def main():
     if upgrade_path is None:
         print()
         if upgrade_docs_baseline is None:
-            print("No release-baseline.yaml upgrade_docs key found — run create-podiumd-version/"
-                  "change-podiumd-baseline first; skipping doc updates.")
+            print(
+                "No release-baseline.yaml upgrade_docs key found — run create-podiumd-version/"
+                "change-podiumd-baseline first; skipping doc updates."
+            )
         else:
-            print(f"No upgrade doc found for target {target} — run create-doc-version first "
-                  f"to scaffold it; skipping doc updates.")
+            print(
+                f"No upgrade doc found for target {target} — run create-doc-version first "
+                f"to scaffold it; skipping doc updates."
+            )
     elif reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, row_removed = remove_component_row(text, friendly)
@@ -682,15 +707,18 @@ def main():
             upgrade_path.write_text(new_text, encoding="utf-8")
         print()
         print(f"=== Updating {upgrade_path.name} ===")
-        print(f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — nothing left to document")
+        print(
+            f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — nothing left to document"
+        )
         if row_removed:
             print("  removed table row")
         if section_removed:
             print(f"  removed '### {friendly} ...' Changes section")
     else:
         text = upgrade_path.read_text(encoding="utf-8")
-        new_text, table_action = update_component_table(text, friendly, old_app, app_version,
-                                                          old_chart, new_chart, deps, values)
+        new_text, table_action = update_component_table(
+            text, friendly, old_app, app_version, old_chart, new_chart, deps, values
+        )
         if table_action is not None:
             # Always rewritten from scratch against the current upgrade_docs_baseline ->
             # final transition, rather than only ever created once on the
@@ -699,8 +727,9 @@ def main():
             # section stale even though the table row itself now correctly
             # says "1 -> 2".
             new_text, _ = remove_changes_section(new_text, friendly)
-            section = make_changes_section(friendly, target, chart_name, values_key, old_app, app_version,
-                                            old_chart, new_chart, paths_to_update)
+            section = make_changes_section(
+                friendly, target, chart_name, values_key, old_app, app_version, old_chart, new_chart, paths_to_update
+            )
             new_text = insert_changes_section(new_text, section, friendly, deps, values)
             upgrade_path.write_text(new_text, encoding="utf-8")
             print()
@@ -715,18 +744,24 @@ def main():
             values_deltas_path.write_text(text, encoding="utf-8")
             print()
             print(f"=== Updating {values_deltas_path.name} ===")
-            print(f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — "
-                  f"{'removed its section' if section_removed else 'nothing to remove'}")
+            print(
+                f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — "
+                f"{'removed its section' if section_removed else 'nothing to remove'}"
+            )
         else:
             current_values_after = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
             current_subtree = current_values_after.get(values_key, {})
-            baseline_values_at_release = (baseline_values if baseline_deps is not None
-                                           else load_baseline_values(upgrade_docs_baseline))
+            baseline_values_at_release = (
+                baseline_values if baseline_deps is not None else load_baseline_values(upgrade_docs_baseline)
+            )
             key_lines = []
             no_baseline_ref = baseline_values_at_release is None
             if not no_baseline_ref:
-                baseline_subtree = (baseline_values_at_release.get(values_key, {})
-                                     if isinstance(baseline_values_at_release, dict) else {})
+                baseline_subtree = (
+                    baseline_values_at_release.get(values_key, {})
+                    if isinstance(baseline_values_at_release, dict)
+                    else {}
+                )
                 key_lines = describe_key_changes(values_key, baseline_subtree, current_subtree)
 
             # A pure app/chart version bump with no values-schema change
@@ -746,19 +781,22 @@ def main():
                 for line in key_lines:
                     print(f"  {line.rstrip()}")
                 if no_changes_claimed:
-                    print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
-                          "gemeente ACTION, not about whether anything changed, so it may still hold; "
-                          "double-check it's still true now that this bullet's been added")
+                    print(
+                        "  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
+                        "gemeente ACTION, not about whether anything changed, so it may still hold; "
+                        "double-check it's still true now that this bullet's been added"
+                    )
             elif section_removed:
                 values_deltas_path.write_text(text, encoding="utf-8")
                 print()
                 print(f"=== Updating {values_deltas_path.name} ===")
-                print(f"  removed stale section for {friendly} — no values-schema change to document for "
-                      f"this bump")
+                print(f"  removed stale section for {friendly} — no values-schema change to document for this bump")
             if no_baseline_ref:
                 print()
-                print(f"  note: could not resolve upgrade_docs_baseline {upgrade_docs_baseline} to a git ref — skipping "
-                      f"added/removed/renamed key detection for values-deltas.md")
+                print(
+                    f"  note: could not resolve upgrade_docs_baseline {upgrade_docs_baseline} to a git ref — skipping "
+                    f"added/removed/renamed key detection for values-deltas.md"
+                )
     elif upgrade_path is not None:
         print()
         print(f"No values-deltas.md found for upgrade_docs_baseline {upgrade_docs_baseline} — skipping that update.")
@@ -768,18 +806,33 @@ def main():
         if images_path.is_file():
             if reset_to_baseline:
                 changes_action, entry_updates = remove_component_from_images_manifest(
-                    images_path, friendly, values_key, paths_to_update, repos, new_tags_by_path)
+                    images_path, friendly, values_key, paths_to_update, repos, new_tags_by_path
+                )
                 print()
                 print(f"=== Updating {images_path.name} ===")
                 if changes_action:
-                    print(f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — "
-                          f"removed 'changes:' list entry")
+                    print(
+                        f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — "
+                        f"removed 'changes:' list entry"
+                    )
                 for name in entry_updates:
-                    print(f"  updated entry '{name}' (now matches upgrade_docs_baseline — no longer a documented change)")
+                    print(
+                        f"  updated entry '{name}' (now matches upgrade_docs_baseline — no longer a documented change)"
+                    )
             else:
                 changes_action, entry_updates, missing_entries = update_images_manifest(
-                    images_path, friendly, values_key, old_app, app_version, old_chart, new_chart,
-                    paths_to_update, repos, new_tags_by_path, deps=deps, values=values,
+                    images_path,
+                    friendly,
+                    values_key,
+                    old_app,
+                    app_version,
+                    old_chart,
+                    new_chart,
+                    paths_to_update,
+                    repos,
+                    new_tags_by_path,
+                    deps=deps,
+                    values=values,
                 )
                 print()
                 print(f"=== Updating {images_path.name} ===")
@@ -788,8 +841,10 @@ def main():
                 for name in entry_updates:
                     print(f"  updated entry '{name}'")
                 if missing_entries:
-                    print("  No existing entry for the following — add manually (see "
-                          "docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):")
+                    print(
+                        "  No existing entry for the following — add manually (see "
+                        "docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):"
+                    )
                     for path, repo, new_tag in missing_entries:
                         new_app_version, digest = new_tag.split("@", 1)
                         # repo (the raw values.yaml/subchart-default
@@ -799,8 +854,10 @@ def main():
                         # which needs the real, fully host-qualified
                         # value (see lib.chart.full_repository_for_
                         # path's own docstring).
-                        full_repo = full_repository_for_path(
-                            CHART_DIR, deps, values, (values_key,) + tuple(path.split("."))) or repo
+                        full_repo = (
+                            full_repository_for_path(CHART_DIR, deps, values, (values_key, *tuple(path.split("."))))
+                            or repo
+                        )
                         print(f"    # {friendly} — {old_app_by_path.get(path) or '(none)'} -> {new_app_version}")
                         print("    - name: <ACR-mirror-name>")
                         print(f"      url: {full_repo}")

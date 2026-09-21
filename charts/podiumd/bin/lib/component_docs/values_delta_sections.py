@@ -19,22 +19,20 @@ package."""
 import re
 
 from lib.chart.registered_paths import native_components
-from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE, VALUES_DELTAS_STUB_TODO_LINE
+from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
+from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
 from lib.component_docs.changes_section import dep_for_values_key
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
-from lib.upgradedoc.sorting_and_ordering import (
-    component_order_key,
-    insertion_index,
-    parse_values_delta_sections,
-    values_key_order,
-)
-from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities, normalize_version
-from lib.upgradedoc.version_cells_and_key_changes import (
-    append_to_doc,
-    component_version_cell,
-    missing_key_change_lines_by_key,
-    strip_html_comments,
-)
+from lib.upgradedoc.sorting_and_ordering import component_order_key
+from lib.upgradedoc.sorting_and_ordering import insertion_index
+from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
+from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.upgradedoc.version_cells_and_key_changes import append_to_doc
+from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
+from lib.upgradedoc.version_cells_and_key_changes import missing_key_change_lines_by_key
+from lib.upgradedoc.version_cells_and_key_changes import strip_html_comments
 
 
 def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_chart):

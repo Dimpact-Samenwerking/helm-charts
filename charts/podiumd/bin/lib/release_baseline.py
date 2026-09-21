@@ -28,7 +28,9 @@ failure semantics differ."""
 
 import yaml
 
-from lib.gitutil import find_repo_root, git_show_text, resolve_baseline_ref
+from lib.gitutil import find_repo_root
+from lib.gitutil import git_show_text
+from lib.gitutil import resolve_baseline_ref
 
 
 def resolve_baseline_chart_state(chart_dir, baseline):

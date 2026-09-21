@@ -10,10 +10,14 @@ from lib.chart.registered_paths import image_paths_for
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_ordering import header_name_segment
-from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version, resolve_component_row
-from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks, parse_values_delta_sections
-from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities, parse_upgrade_doc_rows
-from lib.upgradedoc.version_cells_and_key_changes import canonical_version_cell, component_version_cell
+from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
+from lib.upgradedoc.resolve_component_row import resolve_component_row
+from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
+from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
+from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
+from lib.upgradedoc.version_cells_and_key_changes import canonical_version_cell
+from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 
 
 def _dep_old_app_for_new_dependency(chart_dir, target_deps, target_values, resolved, upgrade_docs_baseline):
@@ -36,7 +40,7 @@ def _dep_old_app_for_new_dependency(chart_dir, target_deps, target_values, resol
             chart_dir,
             target_deps,
             target_values,
-            (resolved["values_key"],) + tuple(path.split(".")),
+            (resolved["values_key"], *tuple(path.split("."))),
             upgrade_docs_baseline,
         )
         if old_app is not None:

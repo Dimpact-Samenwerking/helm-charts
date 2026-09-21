@@ -46,7 +46,7 @@ def test_component_order_key_global_shared_image_uses_its_own_values_position(li
     fall to the "unmatched sorts last" sentinel — even though "global:"
     is values.yaml's own FIRST top-level key. Given canonical_names, it
     now resolves via its own real position instead."""
-    key_order = ["global"] + KEY_ORDER
+    key_order = ["global", *KEY_ORDER]
     canonical_names = {"nginx-unprivileged": ("global", "images", "nginx")}
 
     assert libupgradedocsorting.component_order_key("nginx-unprivileged", DEPS, key_order, canonical_names) == (0, 0)
@@ -71,7 +71,7 @@ def test_component_order_key_native_component_uses_its_own_values_position(libup
     dependency to match_dependency resolve at all — falls back to
     match_native_component, so its own row/section still sorts at its
     real values.yaml position instead of always last."""
-    key_order = KEY_ORDER + ["frankgateway"]
+    key_order = [*KEY_ORDER, "frankgateway"]
     assert libupgradedocsorting.component_order_key("frankgateway", DEPS, key_order) == (len(KEY_ORDER), 0)
 
     # A "### ..." Changes heading has version/arrow text after the name —
@@ -96,12 +96,12 @@ def test_component_order_key_sidecar_sorts_after_its_own_parent_row(libupgradedo
     tie-break, merely wherever it already happened to be — Python's sort
     is stable) its own parent."""
     assert libupgradedocsorting.component_order_key(
-        "redis-operator", DEPS + [{"name": "redis-operator", "version": "0.26.0"}], KEY_ORDER + ["redis-operator"]
+        "redis-operator", [*DEPS, {"name": "redis-operator", "version": "0.26.0"}], [*KEY_ORDER, "redis-operator"]
     ) == (3, 0)
     assert libupgradedocsorting.component_order_key(
         "redis-operator - redis",
-        DEPS + [{"name": "redis-operator", "version": "0.26.0"}],
-        KEY_ORDER + ["redis-operator"],
+        [*DEPS, {"name": "redis-operator", "version": "0.26.0"}],
+        [*KEY_ORDER, "redis-operator"],
     ) == (3, 1)
 
 

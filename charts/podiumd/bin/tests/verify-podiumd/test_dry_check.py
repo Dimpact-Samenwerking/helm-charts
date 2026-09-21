@@ -97,7 +97,7 @@ def test_tiny_identical_files_not_reported(vp, tmp_path):
 def test_blank_lines_and_comments_ignored_in_comparison(vp, tmp_path, capsys):
     """Two structurally-identical templates that differ only in blank-line
     placement and comment wording must still be flagged."""
-    commented = ["# a comment nobody will read", ""] + BASE_LINES[:4] + ["", "# another comment"] + BASE_LINES[4:]
+    commented = ["# a comment nobody will read", "", *BASE_LINES[:4], "", "# another comment", *BASE_LINES[4:]]
     write_template(tmp_path, "a.yaml", BASE_LINES)
     write_template(tmp_path, "b.yaml", commented)
 

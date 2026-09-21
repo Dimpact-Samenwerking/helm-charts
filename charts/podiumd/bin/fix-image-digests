@@ -41,20 +41,26 @@ fix-doc-consistency, scoped to the current baseline from release-
 baseline.yaml's own upgrade_docs key, never a rebase) — an entry there
 pins its own "digest:" copy of the same value, which goes just as stale.
 """
+
 import sys
 import urllib.error
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart.release_baseline_basics import load_yaml
-from lib.chart.repo_and_path_resolution import subchart_default_repository, subchart_needs_vendoring
-from lib.dependencies import check_dependencies as vendor_dependencies, ensure_repos_configured
+from lib.chart.repo_and_path_resolution import subchart_default_repository
+from lib.chart.repo_and_path_resolution import subchart_needs_vendoring
+from lib.dependencies import check_dependencies as vendor_dependencies
+from lib.dependencies import ensure_repos_configured
 from lib.image.digests import scan_digest_pins
 from lib.image.version import resolve_scoped_matches
 from lib.procutil import run_script
-from lib.registry import is_sliding_tag, parse_repo, registry_tag_exists
+from lib.registry import is_sliding_tag
+from lib.registry import parse_repo
+from lib.registry import registry_tag_exists
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 VALUES_PATH = CHART_DIR / "values.yaml"
@@ -89,8 +95,10 @@ def find_stale_digests(lines, values_path):
 
     still_unresolved = [p for p in pins if not p["repository"]]
     if any(subchart_needs_vendoring(chart_dir, lines, p["line"], deps) for p in still_unresolved):
-        print("Some pin(s) rely on their subchart's own default repository, but it isn't "
-              "vendored yet — running `helm dependency update` once to resolve them too.")
+        print(
+            "Some pin(s) rely on their subchart's own default repository, but it isn't "
+            "vendored yet — running `helm dependency update` once to resolve them too."
+        )
         ok, msg = ensure_repos_configured(chart_dir)
         if not ok:
             print(f"WARNING: {msg} — those pin(s) will stay unresolved", file=sys.stderr)

@@ -34,18 +34,24 @@ Examples:
 Requires the Helm repositories to already be added (see /helm-repos or
 charts/podiumd/scripts/add-helm-repos.sh) and the `helm` CLI on PATH.
 """
+
+import shutil
 import sys
 import tempfile
-import shutil
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart.pull_and_subchart_resolution import chart_ref, local_chart_dir, pull_chart, pulled_chart_dir
+from lib.chart.pull_and_subchart_resolution import chart_ref
+from lib.chart.pull_and_subchart_resolution import local_chart_dir
+from lib.chart.pull_and_subchart_resolution import pull_chart
+from lib.chart.pull_and_subchart_resolution import pulled_chart_dir
 from lib.chart.release_baseline_basics import load_yaml
-from lib.chart.values_tree_primitives import find_images, version_of
 from lib.chart.values_tree_primitives import find_dependency as _find_dependency
+from lib.chart.values_tree_primitives import find_images
+from lib.chart.values_tree_primitives import version_of
 from lib.image.version import image_basename
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -66,11 +72,12 @@ def report_chart(chart_dir, requested_version, key):
 
     actual_version = str(chart_yaml["version"])
     if actual_version != requested_version:
-        print(f"note: {chart_dir} is actually version {actual_version!r}, "
-              f"not the requested {requested_version!r}", file=sys.stderr)
+        print(
+            f"note: {chart_dir} is actually version {actual_version!r}, not the requested {requested_version!r}",
+            file=sys.stderr,
+        )
 
-    print(f"\nChart: {chart_yaml['name']} {actual_version} "
-          f"(appVersion: {chart_yaml.get('appVersion', 'n/a')})")
+    print(f"\nChart: {chart_yaml['name']} {actual_version} (appVersion: {chart_yaml.get('appVersion', 'n/a')})")
 
     sub_deps = chart_yaml.get("dependencies", [])
     if sub_deps:
@@ -107,8 +114,10 @@ def main():
     local_dir = local_chart_dir(CHART_DIR, dep)
     if local_dir is not None:
         if not local_dir.is_dir():
-            raise SystemExit(f"error: dependency '{dep['name']}' declares local path repository "
-                              f"({dep['repository']}), but {local_dir} does not exist")
+            raise SystemExit(
+                f"error: dependency '{dep['name']}' declares local path repository "
+                f"({dep['repository']}), but {local_dir} does not exist"
+            )
         print(f"Reading local chart source: {local_dir}")
         report_chart(local_dir, version, key)
         return

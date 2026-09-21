@@ -6,7 +6,10 @@ registry_tag_exists is monkeypatched wherever a live fetch would
 otherwise happen."""
 
 import urllib.error
-from datetime import datetime, timedelta, timezone
+
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 
 import pytest
 

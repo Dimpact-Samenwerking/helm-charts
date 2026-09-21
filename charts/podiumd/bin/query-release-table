@@ -21,8 +21,10 @@ Examples:
     query-release-table vendor maykin
     query-release-table section technische
 """
+
 import csv
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -108,13 +110,16 @@ def display_value(row, column):
 
 
 def print_table(rows):
-    headers = ["name", "component", "alias", "image_basename"] + list(VERSION_COLUMNS)
-    table = [[row["name"], row["component"], row["alias"], row["image_basename"]] +
-             [display_value(row, col) for col in VERSION_COLUMNS] for row in rows]
+    headers = ["name", "component", "alias", "image_basename", *list(VERSION_COLUMNS)]
+    table = [
+        [row["name"], row["component"], row["alias"], row["image_basename"]]
+        + [display_value(row, col) for col in VERSION_COLUMNS]
+        for row in rows
+    ]
     widths = [max(len(headers[i]), *(len(r[i]) for r in table)) for i in range(len(headers))]
-    print("  ".join(h.ljust(w) for h, w in zip(headers, widths)))
+    print("  ".join(h.ljust(w) for h, w in zip(headers, widths, strict=False)))
     for r in table:
-        print("  ".join(v.ljust(w) for v, w in zip(r, widths)))
+        print("  ".join(v.ljust(w) for v, w in zip(r, widths, strict=False)))
 
 
 def main():

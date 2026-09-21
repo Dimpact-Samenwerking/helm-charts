@@ -87,8 +87,11 @@ module's."""
 import json
 import re
 import shutil
+
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 
 from lib.chart.release_baseline_basics import load_yaml
 from lib.gitutil import find_repo_root
@@ -98,19 +101,15 @@ from lib.image.upgrade_cache import cache_key as upgrade_cache_key
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
 from lib.procutil import run
 from lib.registry import parse_repo
-from lib.render_scope import (
-    OWN_TEMPLATES_PREFIX,
-    chart_name_from_source,
-    friendly_vendor_charts,
-    render_chart,
-    split_rendered_by_source,
-)
-from lib.settings import (
-    cve_high_severity_levels,
-    cve_max_cves_per_package_before_summarizing,
-    cve_scan_cache_ttl_days,
-    image_upgrade_tag_check_cache_ttl_days,
-)
+from lib.render_scope import OWN_TEMPLATES_PREFIX
+from lib.render_scope import chart_name_from_source
+from lib.render_scope import friendly_vendor_charts
+from lib.render_scope import render_chart
+from lib.render_scope import split_rendered_by_source
+from lib.settings import cve_high_severity_levels
+from lib.settings import cve_max_cves_per_package_before_summarizing
+from lib.settings import cve_scan_cache_ttl_days
+from lib.settings import image_upgrade_tag_check_cache_ttl_days
 
 TRIVY_IMAGE = "aquasec/trivy:latest"
 # Trivy's own severities, worst first — anything else (a future severity
@@ -220,8 +219,7 @@ def run_trivy(image_ref):
 
     vulns = []
     for res in data.get("Results") or []:
-        for v in res.get("Vulnerabilities") or []:
-            vulns.append({field: v.get(field, "?") for field in VULN_FIELDS})
+        vulns.extend({field: v.get(field, "?") for field in VULN_FIELDS} for v in res.get("Vulnerabilities") or [])
     return vulns
 
 

@@ -31,7 +31,10 @@ on tests/verify-podiumd/test_cve_check.py's own CHART_YAML/VALUES_YAML/
 RENDERED/make_chart_dir/fake_render_chart pattern)."""
 
 import urllib.error
-from datetime import datetime, timedelta, timezone
+
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 from types import SimpleNamespace
 
 import pytest

@@ -10,7 +10,10 @@ since image_upgrade_check already imports classification helpers from
 cve_check."""
 
 import json
-from datetime import datetime, timedelta, timezone
+
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 
 from lib.gitutil import find_repo_root
 

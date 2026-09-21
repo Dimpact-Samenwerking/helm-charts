@@ -14,7 +14,10 @@ sections, and images-manifest entries)."""
 
 import re
 
-from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
+from lib.gitutil import baseline_ref_candidates
+from lib.gitutil import find_repo_root
+from lib.gitutil import git_show_yaml
+from lib.gitutil import resolve_git_ref
 from lib.release_baseline import resolve_baseline_chart_state
 
 

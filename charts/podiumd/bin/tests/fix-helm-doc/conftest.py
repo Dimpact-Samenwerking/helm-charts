@@ -3,6 +3,7 @@ normally) as a module named `upr` so tests can call its functions directly."""
 
 import importlib.util
 import sys
+
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 

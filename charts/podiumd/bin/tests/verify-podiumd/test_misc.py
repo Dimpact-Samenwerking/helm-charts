@@ -83,10 +83,13 @@ def test_skippable_steps_names_match_main_run_steps(vp):
     main() actually runs — a typo here would silently make a --skip= entry
     do nothing."""
     import inspect
+    import re
 
     source = inspect.getsource(vp.main)
     for _, step_name in vp.SKIPPABLE_STEPS:
-        assert f'run_step("{step_name}"' in source, f'no run_step("{step_name}", ...) call found in main()'
+        assert re.search(rf'run_step\(\s*"{re.escape(step_name)}"', source), (
+            f'no run_step("{step_name}", ...) call found in main()'
+        )
 
 
 def test_skippable_steps_order_matches_main_run_order(vp):
@@ -97,9 +100,12 @@ def test_skippable_steps_order_matches_main_run_order(vp):
     list while actually running much later, right before "Image
     digests")."""
     import inspect
+    import re
 
     source = inspect.getsource(vp.main)
-    positions = [source.index(f'run_step("{step_name}"') for _, step_name in vp.SKIPPABLE_STEPS]
+    positions = [
+        re.search(rf'run_step\(\s*"{re.escape(step_name)}"', source).start() for _, step_name in vp.SKIPPABLE_STEPS
+    ]
     assert positions == sorted(positions)
 
 

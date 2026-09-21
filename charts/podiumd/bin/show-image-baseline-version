@@ -40,7 +40,9 @@ only fails outright if NEITHER baseline could show anything at all.
 Reads charts/podiumd/values.yaml as it was at each ref via `git show` —
 no checkout needed.
 """
+
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -67,9 +69,9 @@ def show_at_baseline(chart_dir, label, baseline, key, basename):
     state_at_baseline builds on — this script never needs Chart.yaml at
     all) — never a separate git_show_text call of its own. Returns True
     if the image's state was actually shown."""
+
     def resolve(baseline_value):
-        ref, _baseline_values, baseline_lines, error = resolve_baseline_values(
-            chart_dir, baseline_value)
+        ref, _baseline_values, baseline_lines, error = resolve_baseline_values(chart_dir, baseline_value)
         if error:
             return f"error: {error}"
 

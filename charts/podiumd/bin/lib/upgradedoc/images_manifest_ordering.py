@@ -8,18 +8,12 @@ import yaml
 
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import is_primary_image_path
-from lib.upgradedoc.app_version_and_image_paths import (
-    find_all_image_and_version_paths,
-    resolve_entry_image_path,
-)
-from lib.upgradedoc.grouped_comments_and_changes_block import (
-    find_grouped_preceding_comment_line,
-    path_display_name,
-)
-from lib.upgradedoc.sorting_and_ordering import (
-    values_key_order,
-    values_tree_position,
-)
+from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
+from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
+from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
+from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.sorting_and_ordering import values_tree_position
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.version_cells_and_key_changes import VERSION_PAIR_RE
 
@@ -272,7 +266,7 @@ def images_manifest_entry_order_key(path, deps, key_order, values=None):
         idx = len(key_order)
     is_sidecar = 0 if is_primary_image_path(path, deps) else 1
     if values is not None:
-        return (idx, is_sidecar) + values_tree_position(values, path)[1:]
+        return (idx, is_sidecar, *values_tree_position(values, path)[1:])
     return (idx, is_sidecar)
 
 
@@ -592,7 +586,7 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     moved = [(groups[i][2], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
 
     starts = [images_manifest_block_start(lines, entry_line_indices[indices[0]]) for indices, _, _ in groups]
-    ends = starts[1:] + [len(lines)]
+    ends = [*starts[1:], len(lines)]
     original_texts = ["".join(lines[s:e]) for s, e in zip(starts, ends, strict=True)]
     # A single GROUP already spanning more than one entry (a literal
     # shared header, e.g. zgw-office-addin's own frontend+backend) needs

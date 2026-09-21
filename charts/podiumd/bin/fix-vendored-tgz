@@ -14,8 +14,10 @@ Usage:
     fix-vendored-tgz             # delete every shadowing extracted directory
     fix-vendored-tgz --dry-run   # report only, no delete
 """
+
 import shutil
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -40,8 +42,10 @@ def main():
     charts_subdir = CHART_DIR / "charts"
 
     if dry_run:
-        print(f"Found {len(extracted)} extracted director{'y' if len(extracted) == 1 else 'ies'} "
-              f"shadowing a pinned .tgz (dry-run, not deleting):")
+        print(
+            f"Found {len(extracted)} extracted director{'y' if len(extracted) == 1 else 'ies'} "
+            f"shadowing a pinned .tgz (dry-run, not deleting):"
+        )
         for name in extracted:
             print(f"  charts/{name}/")
         sys.exit(1)
@@ -50,8 +54,10 @@ def main():
         shutil.rmtree(charts_subdir / name)
         print(f"Deleted charts/{name}/ (was shadowing a pinned {name}-<version>.tgz)")
 
-    print(f"Removed {len(extracted)} extracted director{'y' if len(extracted) == 1 else 'ies'} "
-          f"— re-run verify-podiumd to confirm")
+    print(
+        f"Removed {len(extracted)} extracted director{'y' if len(extracted) == 1 else 'ies'} "
+        f"— re-run verify-podiumd to confirm"
+    )
     sys.exit(0)
 
 

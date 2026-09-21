@@ -4,17 +4,16 @@ on its own)."""
 
 import re
 import shutil
+
 from collections import Counter
 
 from lib.procutil import run
-from lib.render_scope import (
-    OWN_TEMPLATES_PREFIX,
-    build_line_sources,
-    chart_name_from_source,
-    friendly_vendor_charts,
-    print_grouped_findings,
-    render_chart,
-)
+from lib.render_scope import OWN_TEMPLATES_PREFIX
+from lib.render_scope import build_line_sources
+from lib.render_scope import chart_name_from_source
+from lib.render_scope import friendly_vendor_charts
+from lib.render_scope import print_grouped_findings
+from lib.render_scope import render_chart
 from lib.settings import quality_gates_yamllint_failing_rules
 
 # yamllint config, tuned against this repo's own real findings (not

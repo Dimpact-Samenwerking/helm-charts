@@ -33,14 +33,17 @@ Exit code is non-zero if <key> <basename> doesn't resolve uniquely, or if
 <image-version> does not exist yet upstream — safe to use as a gate
 before bumping values.yaml.
 """
+
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart.release_baseline_basics import load_yaml
-from lib.image.version import check_basename_version, resolve_key_scope
+from lib.image.version import check_basename_version
+from lib.image.version import resolve_key_scope
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"

@@ -37,24 +37,35 @@ charts/podiumd/scripts/add-helm-repos.sh) and the `helm` CLI on PATH, unless
 every dependency is already vendored locally (e.g. after `helm dependency
 update`), in which case no network access is needed at all.
 """
-import sys
-import tempfile
+
 import shutil
+import sys
 import tarfile
+import tempfile
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
-from lib.chart.pull_and_subchart_resolution import local_chart_dir, pulled_chart_dir, subchart_dependencies
+from lib.chart.pull_and_subchart_resolution import local_chart_dir
 from lib.chart.pull_and_subchart_resolution import pull_chart as _pull_chart
+from lib.chart.pull_and_subchart_resolution import pulled_chart_dir
+from lib.chart.pull_and_subchart_resolution import subchart_dependencies
 from lib.chart.registered_paths import version_paths_for
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import full_repository_for_path
-from lib.chart.values_tree_primitives import find_images, get_path, version_of
-from lib.image.version import MULTIPLE_KEY, image_basename, resolve_scoped_matches
-from lib.render_scope import CHART_NAME, lint_args_for, render_chart, rendered_chart_paths
+from lib.chart.values_tree_primitives import find_images
+from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import version_of
+from lib.image.version import MULTIPLE_KEY
+from lib.image.version import image_basename
+from lib.image.version import resolve_scoped_matches
+from lib.render_scope import CHART_NAME
+from lib.render_scope import lint_args_for
+from lib.render_scope import render_chart
+from lib.render_scope import rendered_chart_paths
 
 PODIUMD_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = PODIUMD_DIR / "Chart.yaml"
@@ -68,6 +79,26 @@ def pull_chart(dep, dest):
         raise SystemExit(f"error: helm pull failed for {dep['name']}@{dep['version']}\n{stderr}")
 
 
+def safe_extract_tgz(tgz_path, dest):
+    """Extract a vendored .tgz, rejecting any member that would land outside dest.
+
+    tarfile.extractall() has no member-path-containment check on this Python
+    version (the `filter` kwarg only exists from 3.11.4+/3.12+) -- so a
+    crafted archive with "../"-escaping member names could write outside
+    `dest`. The .tgz here comes from this repo's own vendored charts/
+    directory, not attacker-controlled input, but the check is cheap and
+    makes that assumption explicit rather than implicit.
+    """
+    dest_resolved = dest.resolve()
+    with tarfile.open(tgz_path) as tf:
+        for member in tf.getmembers():
+            member_path = (dest / member.name).resolve()
+            if member_path != dest_resolved and dest_resolved not in member_path.parents:
+                raise SystemExit(f"error: {tgz_path} member '{member.name}' would extract outside {dest}")
+        # Member paths validated above.
+        tf.extractall(dest)  # nosec B202
+
+
 def load_chart(dep, tmproot, refresh):
     local_dir = local_chart_dir(PODIUMD_DIR, dep)
     if local_dir is not None:
@@ -76,16 +107,17 @@ def load_chart(dep, tmproot, refresh):
         # way, since reading its own source directory is already always
         # current, never stale.
         if not local_dir.is_dir():
-            raise SystemExit(f"error: dependency '{dep['name']}' declares local path repository "
-                              f"({dep['repository']}), but {local_dir} does not exist")
+            raise SystemExit(
+                f"error: dependency '{dep['name']}' declares local path repository "
+                f"({dep['repository']}), but {local_dir} does not exist"
+            )
         chart_dir = local_dir
     else:
         vendored = VENDORED_DIR / f"{dep['name']}-{dep['version']}.tgz"
         dest = tmproot / dep["name"]
         dest.mkdir()
         if not refresh and vendored.exists():
-            with tarfile.open(vendored) as tf:
-                tf.extractall(dest)
+            safe_extract_tgz(vendored, dest)
         else:
             pull_chart(dep, dest)
         chart_dir = pulled_chart_dir(dest)
@@ -157,8 +189,7 @@ def print_image_lines(rows, values_lines):
     vwidth = max(len(e[2]) for e in entries)
     for key, basename, version, repo, tag, path, disabled in entries:
         note = resolution_note(values_lines, key, basename)
-        line = (f"  {key.ljust(kwidth)}  {basename.ljust(bwidth)}  {version.ljust(vwidth)}  "
-                f"(path: {path})")
+        line = f"  {key.ljust(kwidth)}  {basename.ljust(bwidth)}  {version.ljust(vwidth)}  (path: {path})"
         hints = (["disabled"] if disabled else []) + ([note] if note else [])
         if hints:
             line += "  — " + "; ".join(hints)
@@ -185,8 +216,9 @@ def row_chart_tree_path(chart_dir, dep, first_segment):
     confirmed live against the real chart (eck-stack, aliased
     "kiss-eck", renders under "podiumd/charts/kiss-eck/...", never
     ".../eck-stack/...")."""
-    nested = next((d for d in subchart_dependencies(chart_dir, dep)
-                    if first_segment in (d.get("alias"), d["name"])), None)
+    nested = next(
+        (d for d in subchart_dependencies(chart_dir, dep) if first_segment in (d.get("alias"), d["name"])), None
+    )
     base = f"{CHART_NAME}/charts/{dep.get('alias') or dep['name']}"
     if nested is None:
         return base
@@ -248,13 +280,15 @@ def component_version_rows(dep, key, merged, deps, root_values, rendered_paths):
     # never repoint PODIUMD_DIR (only VENDORED_DIR), so this is the real
     # production chart_dir either way, same result as the old
     # self-resolving default, just explicit.
-    rels = sorted(set(version_paths_for(dep["name"], PODIUMD_DIR))
-                  | set(nested_subchart_registered_paths(dep["name"], PODIUMD_DIR)))
+    rels = sorted(
+        set(version_paths_for(dep["name"], PODIUMD_DIR))
+        | set(nested_subchart_registered_paths(dep["name"], PODIUMD_DIR))
+    )
     for rel in rels:
         tag = get_path(merged, rel)
         if not (isinstance(tag, str) and tag):
             continue
-        path = (key,) + tuple(rel.split("."))
+        path = (key, *tuple(rel.split(".")))
         repo = full_repository_for_path(VENDORED_DIR.parent, deps, root_values, path, allow_pull=False)
         if not repo:
             continue

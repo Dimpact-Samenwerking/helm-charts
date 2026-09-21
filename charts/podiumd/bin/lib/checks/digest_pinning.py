@@ -54,21 +54,22 @@ subchart_image_visibility for a third."""
 
 import re
 
-from lib.chart.pull_and_subchart_resolution import global_image_paths, resolve_subchart_default, subchart_values
+from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.pull_and_subchart_resolution import resolve_subchart_default
+from lib.chart.pull_and_subchart_resolution import subchart_values
 from lib.chart.release_baseline_basics import load_yaml
-from lib.chart.repo_and_path_resolution import paths_by_repository, subchart_template_text
-from lib.chart.values_tree_primitives import (
-    find_dependency,
-    get_path,
-    resolve_values_path_source,
-    strip_registry_host,
-)
-from lib.render_scope import CHART_NAME, render_chart, rendered_chart_paths
+from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.repo_and_path_resolution import subchart_template_text
+from lib.chart.values_tree_primitives import find_dependency
+from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import resolve_values_path_source
+from lib.chart.values_tree_primitives import strip_registry_host
+from lib.render_scope import CHART_NAME
+from lib.render_scope import render_chart
+from lib.render_scope import rendered_chart_paths
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import (
-    find_all_image_and_version_paths,
-    find_image_tag_paths,
-)
+from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 
 # "@sha256:<64 hex chars>" at the end of a tag value — the same shape
 # lib.image.digests.DIGEST_PIN_RE requires, checked here as a suffix

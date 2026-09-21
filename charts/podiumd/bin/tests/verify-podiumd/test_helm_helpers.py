@@ -5,6 +5,7 @@ check_dependencies now lives in lib.dependencies (also used by
 fix-image-digests) — see tests/lib/test_dependencies.py."""
 
 import json
+
 from types import SimpleNamespace
 
 import pytest

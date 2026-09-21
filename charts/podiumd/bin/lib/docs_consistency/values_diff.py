@@ -5,7 +5,8 @@ lib.docs_consistency.check_docs_consistency."""
 import re
 
 from lib.component_docs.values_delta_sections import find_values_delta_section
-from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys, pair_renames
+from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys
+from lib.upgradedoc.grouped_comments_and_changes_block import pair_renames
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.version_cells_and_key_changes import strip_fenced_code_blocks
 
@@ -93,9 +94,11 @@ def check_values_deltas_content(doc_path, actual_changed_keys, baseline_values, 
                 )
 
     lines = text.splitlines(keepends=True)
-    for section in parse_values_delta_sections(text):
-        if not "".join(lines[section["start"] + 1 : section["end"]]).strip():
-            issues.append(f'{doc_path.name}: "## {section["heading"]}" section has nothing under its own heading')
+    issues.extend(
+        f'{doc_path.name}: "## {section["heading"]}" section has nothing under its own heading'
+        for section in parse_values_delta_sections(text)
+        if not "".join(lines[section["start"] + 1 : section["end"]]).strip()
+    )
 
     if issues and no_changes_claimed:
         issues.insert(

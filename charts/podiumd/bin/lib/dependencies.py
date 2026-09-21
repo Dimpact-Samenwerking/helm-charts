@@ -22,11 +22,9 @@ import time
 import yaml
 
 from lib.procutil import run
-from lib.settings import (
-    dependency_fetch_retry_attempts,
-    dependency_fetch_retry_backoff_seconds,
-    helm_repos_urls_by_alias,
-)
+from lib.settings import dependency_fetch_retry_attempts
+from lib.settings import dependency_fetch_retry_backoff_seconds
+from lib.settings import helm_repos_urls_by_alias
 
 
 def _dependency_key(dep, required_repos):

@@ -17,7 +17,10 @@ DOES read that check's cache (lib.image.upgrade_cache), read-only, to
 annotate a finding as "upgradable"."""
 
 import json
-from datetime import datetime, timedelta, timezone
+
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 from types import SimpleNamespace
 
 import pytest

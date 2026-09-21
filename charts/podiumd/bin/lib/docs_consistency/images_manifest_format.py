@@ -11,47 +11,35 @@ import re
 import yaml
 
 from lib.chart.pull_and_subchart_resolution import global_image_paths
-from lib.chart.repo_and_path_resolution import (
-    canonical_sidecar_row_names,
-    paths_by_repository,
-    repo_group_representative,
-)
-from lib.component_docs.images_manifest_changes_header import (
-    CHANGES_HEADER_RE,
-    CHANGES_ITEM_RE,
-    find_images_manifest_changes_header,
-    find_images_manifest_changes_items,
-    images_manifest_changes_count_word,
-)
+from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
+from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
+from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
+from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_items
+from lib.component_docs.images_manifest_changes_header import images_manifest_changes_count_word
 from lib.image.repository_check import find_images_without_repository
-from lib.upgradedoc.app_version_and_image_paths import (
-    actual_app_version,
-    find_all_image_and_version_paths,
-    resolve_entry_image_path,
-)
+from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
-from lib.upgradedoc.grouped_comments_and_changes_block import (
-    find_grouped_preceding_comment,
-    parse_changes_block,
-    path_display_name,
-)
+from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment
+from lib.upgradedoc.grouped_comments_and_changes_block import parse_changes_block
+from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
-from lib.upgradedoc.images_manifest_ordering import (
-    find_images_manifest_faulty_headers,
-    find_images_manifest_out_of_order_names,
-    images_manifest_display_name_positions,
-    images_manifest_entries_share_group,
-    images_manifest_entry_positions,
-    match_changes_item_display_name,
-)
+from lib.upgradedoc.images_manifest_ordering import find_images_manifest_faulty_headers
+from lib.upgradedoc.images_manifest_ordering import find_images_manifest_out_of_order_names
+from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
+from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_share_group
+from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_positions
+from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 from lib.upgradedoc.sorting_and_ordering import values_key_order
-from lib.upgradedoc.string_and_parsing_basics import (
-    extract_source_version,
-    extract_target_version,
-    match_dependency,
-    match_dependency_excluding_sidecar_names,
-    normalize_version,
-)
+from lib.upgradedoc.string_and_parsing_basics import extract_source_version
+from lib.upgradedoc.string_and_parsing_basics import extract_target_version
+from lib.upgradedoc.string_and_parsing_basics import match_dependency
+from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
 
 
 def match_changes_item_to_entry(item_name, entries):
@@ -118,7 +106,7 @@ def _images_manifest_changes_items(lines):
             item_starts.append(i)
     if not item_starts:
         return []
-    item_ends = item_starts[1:] + [block_end]
+    item_ends = [*item_starts[1:], block_end]
     return [
         (CHANGES_ITEM_RE.match(lines[start]).group("rest"), start, end)
         for start, end in zip(item_starts, item_ends, strict=True)
@@ -558,10 +546,12 @@ def check_images_manifest_format(
                 f"same order as the entries below them"
             )
 
-        for name in find_images_manifest_entries_missing_changes_mention(
-            text, entries, deps, values, repo_map, canonical_names
-        ):
-            issues.append(f'{images_path.name}: image "{name}" has an entry but no mention in the "# Changes:" list')
+        issues.extend(
+            f'{images_path.name}: image "{name}" has an entry but no mention in the "# Changes:" list'
+            for name in find_images_manifest_entries_missing_changes_mention(
+                text, entries, deps, values, repo_map, canonical_names
+            )
+        )
 
     # Only checked once there's something real to diff against — without
     # a resolvable upgrade_docs_baseline, "changed" can't be computed at
@@ -584,13 +574,13 @@ def check_images_manifest_format(
         for path in missing_paths:
             name = path_display_name(path, deps, canonical_names)
             issues.append(f'{images_path.name}: image "{name}" changed vs {upgrade_docs_baseline} but has no entry')
-        for name in stale_entry_names:
-            issues.append(
-                f'{images_path.name}: entry "{name}" is listed but its image did not change vs {upgrade_docs_baseline}'
-            )
-        for name in unmatched_entry_names:
-            issues.append(
-                f'{images_path.name}: entry "{name}" is wrong or stale — not found in Chart.yaml or values.yaml'
-            )
+        issues.extend(
+            f'{images_path.name}: entry "{name}" is listed but its image did not change vs {upgrade_docs_baseline}'
+            for name in stale_entry_names
+        )
+        issues.extend(
+            f'{images_path.name}: entry "{name}" is wrong or stale — not found in Chart.yaml or values.yaml'
+            for name in unmatched_entry_names
+        )
 
     return issues

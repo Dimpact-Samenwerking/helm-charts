@@ -1,13 +1,19 @@
 """Tiny subprocess wrappers shared across scripts."""
 
-import subprocess
+# The one intentional subprocess entry point for the whole codebase (helm/git
+# CLI calls); every caller passes its own fixed argv list, never a shell
+# string or externally-controlled command name.
+import subprocess  # nosec B404
 import sys
 
 
 def run(cmd, **kwargs):
     """For `helm`/`git`/etc. calls that capture output — never raises on a
     non-zero exit, so callers decide what a failure means for them."""
-    return subprocess.run(cmd, check=False, **kwargs)
+    # cmd is always a fixed argv list built by the caller (e.g. ["git", "mv", ...]),
+    # never a shell string or user input; shell=True would be the actually unsafe
+    # choice here.
+    return subprocess.run(cmd, check=False, **kwargs)  # nosec B603
 
 
 def run_script(cmd, **kwargs):
@@ -19,4 +25,5 @@ def run_script(cmd, **kwargs):
     and can appear AFTER the child's output once that buffer finally
     flushes at process exit."""
     sys.stdout.flush()
-    return subprocess.run(cmd, **kwargs)
+    # Same fixed-argv-list guarantee as run() above.
+    return subprocess.run(cmd, **kwargs)  # nosec B603

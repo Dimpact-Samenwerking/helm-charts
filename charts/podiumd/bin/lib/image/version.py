@@ -10,13 +10,13 @@ version bump resolves to one or more of these basename updates — the
 component name and the image name are not always the same (e.g.
 zgw-office-addin bumps two distinctly-named images, frontend + backend)."""
 
-from lib.chart.values_tree_primitives import (
-    dotted_key_path,
-    find_dependency,
-    replace_scalar_value,
-)
-from lib.image.digests import scan_digest_pins, scan_version_pins
-from lib.registry import parse_repo, registry_tag_exists
+from lib.chart.values_tree_primitives import dotted_key_path
+from lib.chart.values_tree_primitives import find_dependency
+from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.image.digests import scan_digest_pins
+from lib.image.digests import scan_version_pins
+from lib.registry import parse_repo
+from lib.registry import registry_tag_exists
 
 
 def image_basename(repository):

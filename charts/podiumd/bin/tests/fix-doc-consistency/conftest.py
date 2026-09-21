@@ -3,6 +3,7 @@ normally) as a module named `cdb` so tests can call its functions directly."""
 
 import importlib.util
 import subprocess
+
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import SimpleNamespace

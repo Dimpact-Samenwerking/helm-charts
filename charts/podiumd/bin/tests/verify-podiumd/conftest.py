@@ -15,6 +15,7 @@ binding. Use e.g. `libyamllintcheck` for those cases."""
 import importlib.util
 import subprocess
 import sys
+
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 

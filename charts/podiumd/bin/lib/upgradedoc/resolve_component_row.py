@@ -5,25 +5,17 @@ app version from values.yaml/Chart.yaml/vendored subcharts."""
 
 import re
 
-from lib.chart.historical_baselines import (
-    baseline_tag_for_sidecar_path,
-    historical_app_version_for_path,
-)
+from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
+from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
-from lib.chart.registered_paths import (
-    image_paths_for,
-    native_components,
-)
+from lib.chart.registered_paths import image_paths_for
+from lib.chart.registered_paths import native_components
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.values_tree_primitives import get_path
-from lib.upgradedoc.app_version_and_image_paths import (
-    actual_app_version,
-    find_image_tag_paths,
-)
-from lib.upgradedoc.string_and_parsing_basics import (
-    match_dependency_excluding_sidecar_names,
-    match_native_component,
-)
+from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
+from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
+from lib.upgradedoc.string_and_parsing_basics import match_native_component
 
 
 def changes_heading_has_app_version(heading):
@@ -251,7 +243,7 @@ def resolve_component_row(
                             chart_dir,
                             deps,
                             values,
-                            (result["values_key"],) + tuple(path.split(".")),
+                            (result["values_key"], *tuple(path.split("."))),
                             upgrade_docs_baseline,
                         )
                         if baseline_app is not None:
@@ -266,7 +258,7 @@ def resolve_component_row(
             if baseline_app is None and baseline_values:
                 for path in image_paths_for(native_key, chart_dir):
                     baseline_app = historical_app_version_for_path(
-                        chart_dir, deps, values, (native_key,) + tuple(path.split(".")), upgrade_docs_baseline
+                        chart_dir, deps, values, (native_key, *tuple(path.split("."))), upgrade_docs_baseline
                     )
                     if baseline_app is not None:
                         break

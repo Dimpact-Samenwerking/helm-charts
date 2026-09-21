@@ -178,6 +178,7 @@ import os
 import re
 import shutil
 import tempfile
+
 from pathlib import Path
 
 import yaml
@@ -203,7 +204,7 @@ def flatten_leaves(node, path=()):
     else (scalar, including None) is a leaf."""
     if isinstance(node, dict) and node:
         for key, value in node.items():
-            yield from flatten_leaves(value, path + (key,))
+            yield from flatten_leaves(value, (*path, key))
     else:
         yield path, node
 
@@ -704,7 +705,7 @@ def _run_dead_value_search(executor, roots, total=None, exempt_full_paths=frozen
                 found.extend((scope, p) for p in leaf_paths)
                 resolved += len(leaf_paths)
             elif len(leaf_paths) > 1:
-                next_frontier.extend((scope, path + (key,), child) for key, child in node.items())
+                next_frontier.extend((scope, (*path, key), child) for key, child in node.items())
             else:
                 resolved += 1  # single leaf that differed (or errored): not dead, done with it
         if total is not None:

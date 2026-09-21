@@ -10,7 +10,9 @@ import re
 
 import yaml
 
-from lib.chart.repo_and_path_resolution import full_repository_for_path, paths_by_repository, repo_group_representative
+from lib.chart.repo_and_path_resolution import full_repository_for_path
+from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.repo_and_path_resolution import repo_group_representative
 
 # A bare MAJOR.MINOR.PATCH version, exactly — e.g. podiumd's own Chart.yaml
 # "version:", or a --baseline/target argument. Anything else (a suffix, a

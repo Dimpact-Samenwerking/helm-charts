@@ -4,7 +4,8 @@ text/subprocess helpers, no dependency on the script's own SCRIPT_DIR-
 derived paths."""
 
 import re
-import subprocess
+
+from lib.procutil import run
 
 TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"
 COMPONENT_VERSIONS_RE_TMPL = r"Component versions \({target}\s+vs\s+(?P<baseline>{baseline})\)"
@@ -20,7 +21,7 @@ def find_collisions(by_suffix):
 
 
 def git_mv(src, dst):
-    result = subprocess.run(["git", "mv", str(src), str(dst)], cwd=src.parent, capture_output=True, text=True)
+    result = run(["git", "mv", str(src), str(dst)], cwd=src.parent, capture_output=True, text=True)
     if result.returncode != 0:
         raise SystemExit(f"error: git mv {src} -> {dst} failed: {result.stderr.strip()}")
 

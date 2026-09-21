@@ -20,19 +20,23 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+
+from datetime import datetime
+from datetime import timezone
 
 from lib.chart.release_baseline_basics import load_yaml
-from lib.image.digests import cached_tag_exists, scan_digest_pins
+from lib.image.digests import cached_tag_exists
+from lib.image.digests import scan_digest_pins
 from lib.registry import parse_repo
 from lib.render_scope import resolve_dependency_repo
-from lib.repo_access_cache import cache_entry_is_fresh, cache_key, load_cache, save_cache
-from lib.settings import (
-    helm_repos_urls_by_alias,
-    repo_access_cache_ttl_minutes,
-    repo_access_never_probe_host_suffixes,
-    repo_access_request_timeout_seconds,
-)
+from lib.repo_access_cache import cache_entry_is_fresh
+from lib.repo_access_cache import cache_key
+from lib.repo_access_cache import load_cache
+from lib.repo_access_cache import save_cache
+from lib.settings import helm_repos_urls_by_alias
+from lib.settings import repo_access_cache_ttl_minutes
+from lib.settings import repo_access_never_probe_host_suffixes
+from lib.settings import repo_access_request_timeout_seconds
 
 
 def is_denylisted_host(host, denylisted_host_suffixes):
@@ -126,7 +130,10 @@ def _check_http_repo(url, timeout_seconds):
     chart package."""
     index_url = urllib.parse.urljoin(url if url.endswith("/") else url + "/", "index.yaml")
     try:
-        urllib.request.urlopen(index_url, timeout=timeout_seconds)
+        # index_url is built from a known, config-derived trusted Helm repo host, never
+        # an attacker-controllable scheme; same trust boundary ruff's own per-file S310
+        # exemption for this file documents.
+        urllib.request.urlopen(index_url, timeout=timeout_seconds)  # nosec B310
         return True, None
     except urllib.error.HTTPError as e:
         return False, f"HTTP {e.code} fetching {index_url}"

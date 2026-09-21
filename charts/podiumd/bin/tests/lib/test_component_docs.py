@@ -915,7 +915,7 @@ def test_remove_values_delta_section_never_removes_multi_identity_heading(libcom
     """A hand-written section covering several components at once must
     never be deleted just because one of them reset to baseline."""
     text = "# Values deltas\n\n## ZAC and ZGW Office Add-in — no changes\n\nProse.\n"
-    deps = DEPS + [{"name": "zgw-office-addin", "version": "0.0.89"}]
+    deps = [*DEPS, {"name": "zgw-office-addin", "version": "0.0.89"}]
     new_text, removed = libcomponentdocsdeltas.remove_values_delta_section(text, "zac", deps)
     assert removed is False
     assert new_text == text

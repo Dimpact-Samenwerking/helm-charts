@@ -33,16 +33,19 @@ Examples:
     render-podiumd /tmp/frankgateway.yaml -s templates/frankgateway.yaml --set kiss.enabled=false
     render-podiumd --stdout | grep -A5 'kind: Deployment'
 """
+
 import contextlib
 import sys
+
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.render_scope import (
-    lint_args_for, render_chart, report_errors_by_subchart, report_largest_templates,
-)
+from lib.render_scope import lint_args_for
+from lib.render_scope import render_chart
+from lib.render_scope import report_errors_by_subchart
+from lib.render_scope import report_largest_templates
 from lib.settings import render_report_top_n_largest_templates_shown
 
 CHART_DIR = SCRIPT_DIR.parent
@@ -71,8 +74,7 @@ def main():
 
     if args:
         extra_args = args
-        status(f"Rendering with custom args (default -f ci/lint-values.yaml NOT applied): "
-               f"{' '.join(extra_args)}")
+        status(f"Rendering with custom args (default -f ci/lint-values.yaml NOT applied): {' '.join(extra_args)}")
     else:
         extra_args = lint_args_for(CHART_DIR)
         status(f"Rendering with default CI values: {' '.join(extra_args) or '(none found)'}")

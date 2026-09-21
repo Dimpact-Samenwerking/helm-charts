@@ -233,7 +233,7 @@ def test_vendored_state_matches_chart_yaml_false_when_dependency_count_differs(l
     then removed as a Chart.yaml dependency."""
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_matching_lock_state(tmp_path, deps)
-    deps_plus_one = deps + [{"name": "frankgateway", "version": "1.1.0", "repository": "@wearefrank"}]
+    deps_plus_one = [*deps, {"name": "frankgateway", "version": "1.1.0", "repository": "@wearefrank"}]
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps_plus_one}), encoding="utf-8")
     assert libdependencies._vendored_state_matches_chart_yaml(tmp_path) is False
 

@@ -11,20 +11,19 @@ the same set of Kubernetes API kinds/versions."""
 
 import json
 import shutil
+
 from collections import Counter
 from pathlib import Path
 
 from lib.procutil import run
-from lib.render_scope import (
-    OWN_TEMPLATES_PREFIX,
-    build_resource_locations,
-    chart_name_from_source,
-    friendly_vendor_charts,
-    print_grouped_findings,
-    render_chart,
-    resource_line,
-    split_rendered_by_source,
-)
+from lib.render_scope import OWN_TEMPLATES_PREFIX
+from lib.render_scope import build_resource_locations
+from lib.render_scope import chart_name_from_source
+from lib.render_scope import friendly_vendor_charts
+from lib.render_scope import print_grouped_findings
+from lib.render_scope import render_chart
+from lib.render_scope import resource_line
+from lib.render_scope import split_rendered_by_source
 from lib.settings import quality_gates_kubeconform_failing_statuses
 
 KUBECONFORM_BASE_ARGS = [
@@ -169,7 +168,7 @@ def check_kubeconform(chart_dir, extra_args):
         )
         print_grouped_findings(
             vendored_friendly,
-            key_fn=lambda entry: (entry[0],) + _kubeconform_group_key(entry),
+            key_fn=lambda entry: (entry[0], *_kubeconform_group_key(entry)),
             item_fn=lambda entry: _kubeconform_item(entry, locations),
             label_fn=lambda k: f"{_kubeconform_group_label(k[1:])} — {k[0]} ({vendor_map[k[0]]})",
             items_label="resource(s)",
