@@ -25,7 +25,7 @@ import lib.component_docs.images_manifest_entries as component_docs_images_manif
 import lib.component_docs.values_delta_sections as component_docs_values_delta_sections
 import lib.confluence_tables as confluence_tables
 import lib.dependencies as dependencies
-import lib.docs_consistency as docs_consistency
+import lib.docs_consistency.images_manifest_format as docs_consistency_images_manifest_format
 import lib.gitutil as gitutil
 import lib.image_docs as image_docs
 import lib.image_version as image_version
@@ -211,5 +211,5 @@ def libcomponentdocsentries():
 
 
 @pytest.fixture(scope="session")
-def libdocsconsistency():
-    return docs_consistency
+def libimagesmanifest():
+    return docs_consistency_images_manifest_format

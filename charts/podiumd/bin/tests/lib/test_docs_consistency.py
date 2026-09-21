@@ -7,7 +7,7 @@ ruled out a real Chart.yaml dependency."""
 # --- match_changes_item_to_entry ---
 
 
-def test_match_changes_item_to_entry_canonical_sidecar_name_matches_own_basename(libdocsconsistency):
+def test_match_changes_item_to_entry_canonical_sidecar_name_matches_own_basename(libimagesmanifest):
     """A canonical "<key> - <basename>" sidecar name (see
     lib.chart.canonical_sidecar_row_names) is matched on its OWN
     basename only, not the whole string — real collision: "keycloak-
@@ -18,26 +18,26 @@ def test_match_changes_item_to_entry_canonical_sidecar_name_matches_own_basename
     keycloak_entry = {"name": "keycloak/keycloak", "version": "26.7.2"}
     postgres_entry = {"name": "postgres", "version": "16.15"}
 
-    match = libdocsconsistency.match_changes_item_to_entry(
+    match = libimagesmanifest.match_changes_item_to_entry(
         "keycloak-operator - postgres", [keycloak_entry, postgres_entry]
     )
 
     assert match is postgres_entry
 
 
-def test_match_changes_item_to_entry_plain_name_matches_by_basename(libdocsconsistency):
+def test_match_changes_item_to_entry_plain_name_matches_by_basename(libimagesmanifest):
     """No " - " delimiter: falls back to matching the whole item name
     against entry basenames, unchanged from before the fix above."""
     entry = {"name": "library/python", "version": "3.14.7-slim"}
 
-    match = libdocsconsistency.match_changes_item_to_entry("python", [entry])
+    match = libimagesmanifest.match_changes_item_to_entry("python", [entry])
 
     assert match is entry
 
 
-def test_match_changes_item_to_entry_no_match_returns_none(libdocsconsistency):
+def test_match_changes_item_to_entry_no_match_returns_none(libimagesmanifest):
     entries = [{"name": "postgres", "version": "16.15"}]
 
-    match = libdocsconsistency.match_changes_item_to_entry("gotenberg", entries)
+    match = libimagesmanifest.match_changes_item_to_entry("gotenberg", entries)
 
     assert match is None
