@@ -110,71 +110,71 @@ DEPS = [
 ]
 
 
-def test_values_deltas_content_no_changes_is_clean(libdocsconsistency, tmp_path):
+def test_values_deltas_content_no_changes_is_clean(libdocsconsistencyvaluesdiff, tmp_path):
     doc = tmp_path / "values-deltas.md"
     doc.write_text(
         "# Values deltas\n\n## mi 1.0.0, unchanged\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
     )
     values = {"mi": {"sftp": {"host": "x"}}}
-    assert libdocsconsistency.check_values_deltas_content(doc, {"mi"}, values, values, DEPS) == []
+    assert libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"mi"}, values, values, DEPS) == []
 
 
-def test_values_deltas_content_rename_mentioned_both_sides_passes(libdocsconsistency, tmp_path):
+def test_values_deltas_content_rename_mentioned_both_sides_passes(libdocsconsistencyvaluesdiff, tmp_path):
     doc = tmp_path / "values-deltas.md"
     doc.write_text("## mi 1.0.0, unchanged\n\nRename `mi.sftp` to `mi.transfer`, add `mi.transfer.mode`.\n")
     baseline = {"mi": {"sftp": {"host": "x", "user": "y", "password": "z"}}}
     current = {"mi": {"transfer": {"mode": "sftp-password", "host": "x", "user": "y", "password": "z"}}}
-    assert libdocsconsistency.check_values_deltas_content(doc, {"mi"}, baseline, current, DEPS) == []
+    assert libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"mi"}, baseline, current, DEPS) == []
 
 
-def test_values_deltas_content_flags_unmentioned_rename(libdocsconsistency, tmp_path):
+def test_values_deltas_content_flags_unmentioned_rename(libdocsconsistencyvaluesdiff, tmp_path):
     doc = tmp_path / "values-deltas.md"
     doc.write_text(
         "# Values deltas\n\n## mi 1.0.0, unchanged\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
     )
     baseline = {"mi": {"sftp": {"host": "x", "user": "y", "password": "z"}}}
     current = {"mi": {"transfer": {"mode": "sftp-password", "host": "x", "user": "y", "password": "z"}}}
-    issues = libdocsconsistency.check_values_deltas_content(doc, {"mi"}, baseline, current, DEPS)
+    issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"mi"}, baseline, current, DEPS)
     assert any("appears renamed" in i for i in issues)
     assert any("claims" in i and "No gemeente" in i for i in issues)
 
 
-def test_values_deltas_content_flags_no_section_at_all(libdocsconsistency, tmp_path):
+def test_values_deltas_content_flags_no_section_at_all(libdocsconsistencyvaluesdiff, tmp_path):
     doc = tmp_path / "values-deltas.md"
     doc.write_text("# Values deltas\n\nNothing relevant mentioned, no section for zac either.\n")
     baseline = {"zac": {"brpApi": {}}}
     current = {"zac": {"brpApi": {"logLevel": "OFF"}}}
-    issues = libdocsconsistency.check_values_deltas_content(doc, {"zac"}, baseline, current, DEPS)
+    issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, baseline, current, DEPS)
     assert any('component "zac" has a values.yaml schema change' in i and 'no "## ..." section' in i for i in issues)
 
 
-def test_values_deltas_content_flags_unmentioned_addition(libdocsconsistency, tmp_path):
+def test_values_deltas_content_flags_unmentioned_addition(libdocsconsistencyvaluesdiff, tmp_path):
     doc = tmp_path / "values-deltas.md"
     doc.write_text("## zac 1.0.297, unchanged\n\nNothing relevant mentioned.\n")
     baseline = {"zac": {"brpApi": {}}}
     current = {"zac": {"brpApi": {"logLevel": "OFF"}}}
-    issues = libdocsconsistency.check_values_deltas_content(doc, {"zac"}, baseline, current, DEPS)
+    issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, baseline, current, DEPS)
     assert any('key "zac.brpApi.logLevel" was added' in i for i in issues)
 
 
-def test_values_deltas_content_flags_unmentioned_removal(libdocsconsistency, tmp_path):
+def test_values_deltas_content_flags_unmentioned_removal(libdocsconsistencyvaluesdiff, tmp_path):
     doc = tmp_path / "values-deltas.md"
     doc.write_text("## zac 1.0.297, unchanged\n\nNothing relevant mentioned.\n")
     baseline = {"zac": {"brpApi": {"protocollering": {"verwerking": {"extendWithZaaktype": False}}}}}
     current = {"zac": {"brpApi": {"protocollering": {"verwerking": {}}}}}
-    issues = libdocsconsistency.check_values_deltas_content(doc, {"zac"}, baseline, current, DEPS)
+    issues = libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, baseline, current, DEPS)
     assert any('key "zac.brpApi.protocollering.verwerking.extendWithZaaktype" was removed' in i for i in issues)
 
 
-def test_values_deltas_content_mentioned_addition_passes(libdocsconsistency, tmp_path):
+def test_values_deltas_content_mentioned_addition_passes(libdocsconsistencyvaluesdiff, tmp_path):
     doc = tmp_path / "values-deltas.md"
     doc.write_text("## zac 1.0.297, unchanged\n\nNew field `zac.brpApi.logLevel`, defaults to `OFF`.\n")
     baseline = {"zac": {"brpApi": {}}}
     current = {"zac": {"brpApi": {"logLevel": "OFF"}}}
-    assert libdocsconsistency.check_values_deltas_content(doc, {"zac"}, baseline, current, DEPS) == []
+    assert libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, baseline, current, DEPS) == []
 
 
-def test_values_deltas_content_ignores_untracked_components(libdocsconsistency, tmp_path):
+def test_values_deltas_content_ignores_untracked_components(libdocsconsistencyvaluesdiff, tmp_path):
     doc = tmp_path / "values-deltas.md"
     doc.write_text(
         "# Values deltas\n\n## zac 1.0.297, unchanged\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
@@ -182,4 +182,4 @@ def test_values_deltas_content_ignores_untracked_components(libdocsconsistency, 
     baseline = {"unrelated": {"a": 1}}
     current = {"unrelated": {"b": 2}}
     # "unrelated" isn't in changed_component_keys, so its diff must be ignored
-    assert libdocsconsistency.check_values_deltas_content(doc, {"zac"}, baseline, current, DEPS) == []
+    assert libdocsconsistencyvaluesdiff.check_values_deltas_content(doc, {"zac"}, baseline, current, DEPS) == []
