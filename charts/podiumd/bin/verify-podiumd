@@ -342,10 +342,10 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import RELEASE_BASELINES_FILE_NAME
 from lib.chart_values_tree_primitives import UTF8_BOM
-from lib.chart import release_table_baseline as read_release_table_baseline
-from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart_release_baseline_basics import RELEASE_BASELINES_FILE_NAME
+from lib.chart_release_baseline_basics import release_table_baseline as read_release_table_baseline
+from lib.chart_release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.gitutil import find_repo_root, resolve_baseline_ref
 from lib.procutil import run
 

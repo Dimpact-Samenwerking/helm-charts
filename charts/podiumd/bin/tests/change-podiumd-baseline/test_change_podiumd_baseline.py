@@ -79,7 +79,7 @@ def test_main_never_touches_release_table(cpb, repo, monkeypatch):
         cpb.main()
 
     assert exc_info.value.code == 0
-    from lib.chart import release_table_baseline
+    from lib.chart_release_baseline_basics import release_table_baseline
 
     assert release_table_baseline(repo) == "4.8.0"  # untouched
 

@@ -208,34 +208,38 @@ def test_historical_app_version_for_path_none_when_path_unresolvable(libchart, t
 # --- write_release_baselines ---
 
 
-def test_write_release_baselines_creates_file_with_both_keys(libchart, tmp_path):
-    libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
-    assert libchart.upgrade_docs_baseline(tmp_path) == "4.9.0"
-    assert libchart.release_table_baseline(tmp_path) == "4.8.5"
+def test_write_release_baselines_creates_file_with_both_keys(libchartreleasebaselinebasics, tmp_path):
+    libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
+    assert libchartreleasebaselinebasics.upgrade_docs_baseline(tmp_path) == "4.9.0"
+    assert libchartreleasebaselinebasics.release_table_baseline(tmp_path) == "4.8.5"
 
 
-def test_write_release_baselines_updates_only_upgrade_docs_leaves_release_table(libchart, tmp_path):
-    libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
-    libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.1")
-    assert libchart.upgrade_docs_baseline(tmp_path) == "4.9.1"
-    assert libchart.release_table_baseline(tmp_path) == "4.8.5"
+def test_write_release_baselines_updates_only_upgrade_docs_leaves_release_table(
+    libchartreleasebaselinebasics, tmp_path
+):
+    libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
+    libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs="4.9.1")
+    assert libchartreleasebaselinebasics.upgrade_docs_baseline(tmp_path) == "4.9.1"
+    assert libchartreleasebaselinebasics.release_table_baseline(tmp_path) == "4.8.5"
 
 
-def test_write_release_baselines_updates_only_release_table_leaves_upgrade_docs(libchart, tmp_path):
-    libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
-    libchart.write_release_baselines(tmp_path, release_table="4.9.0")
-    assert libchart.upgrade_docs_baseline(tmp_path) == "4.9.0"
-    assert libchart.release_table_baseline(tmp_path) == "4.9.0"
+def test_write_release_baselines_updates_only_release_table_leaves_upgrade_docs(
+    libchartreleasebaselinebasics, tmp_path
+):
+    libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
+    libchartreleasebaselinebasics.write_release_baselines(tmp_path, release_table="4.9.0")
+    assert libchartreleasebaselinebasics.upgrade_docs_baseline(tmp_path) == "4.9.0"
+    assert libchartreleasebaselinebasics.release_table_baseline(tmp_path) == "4.9.0"
 
 
-def test_write_release_baselines_no_args_leaves_both_unchanged(libchart, tmp_path):
-    libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
-    libchart.write_release_baselines(tmp_path)
-    assert libchart.upgrade_docs_baseline(tmp_path) == "4.9.0"
-    assert libchart.release_table_baseline(tmp_path) == "4.8.5"
+def test_write_release_baselines_no_args_leaves_both_unchanged(libchartreleasebaselinebasics, tmp_path):
+    libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
+    libchartreleasebaselinebasics.write_release_baselines(tmp_path)
+    assert libchartreleasebaselinebasics.upgrade_docs_baseline(tmp_path) == "4.9.0"
+    assert libchartreleasebaselinebasics.release_table_baseline(tmp_path) == "4.8.5"
 
 
-def test_write_release_baselines_values_are_double_quoted(libchart, tmp_path):
+def test_write_release_baselines_values_are_double_quoted(libchartreleasebaselinebasics, tmp_path):
     """Real bug, confirmed live: plain yaml.safe_dump only quotes a
     scalar when it's ambiguous with another YAML type (int/float/bool/
     null) — a version string like "4.9.1" (two dots, never a valid
@@ -244,12 +248,12 @@ def test_write_release_baselines_values_are_double_quoted(libchart, tmp_path):
     established YAML-writing convention (e.g. images-<version>.yaml's
     own `version: "3.1.1"`). Keys stay bare — only the values are
     quoted."""
-    libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.1", release_table="4.8.5")
+    libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs="4.9.1", release_table="4.8.5")
     text = (tmp_path / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
     assert text == 'upgrade_docs: "4.9.1"\nrelease_table: "4.8.5"\n'
 
 
-def test_write_release_baselines_escapes_backslash_and_double_quote_correctly(libchart, tmp_path):
+def test_write_release_baselines_escapes_backslash_and_double_quote_correctly(libchartreleasebaselinebasics, tmp_path):
     """The quoting must come from PyYAML's own scalar emitter, never
     hand-rolled string interpolation (f'{key}: "{value}"\\n') — a value
     containing a literal backslash or an embedded double-quote
@@ -259,8 +263,8 @@ def test_write_release_baselines_escapes_backslash_and_double_quote_correctly(li
     baseline, which calls yaml.safe_load) to prove it, not just
     eyeballing the written text."""
     pathological = 'has "quotes" and a \\ backslash'
-    libchart.write_release_baselines(tmp_path, upgrade_docs=pathological)
-    assert libchart.upgrade_docs_baseline(tmp_path) == pathological
+    libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs=pathological)
+    assert libchartreleasebaselinebasics.upgrade_docs_baseline(tmp_path) == pathological
 
     text = (tmp_path / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
     assert text == 'upgrade_docs: "has \\"quotes\\" and a \\\\ backslash"\n'
