@@ -21,6 +21,7 @@ import lib.component_docs as component_docs
 import lib.component_docs.baseline_doc_stubs as component_docs_baseline_doc_stubs
 import lib.component_docs.changes_section as component_docs_changes_section
 import lib.component_docs.images_manifest_changes_header as component_docs_images_manifest_changes_header
+import lib.component_docs.values_delta_sections as component_docs_values_delta_sections
 import lib.confluence_tables as confluence_tables
 import lib.dependencies as dependencies
 import lib.docs_consistency as docs_consistency
@@ -196,6 +197,11 @@ def libcomponentdocsheader():
 @pytest.fixture(scope="session")
 def libcomponentdocschanges():
     return component_docs_changes_section
+
+
+@pytest.fixture(scope="session")
+def libcomponentdocsdeltas():
+    return component_docs_values_delta_sections
 
 
 @pytest.fixture(scope="session")

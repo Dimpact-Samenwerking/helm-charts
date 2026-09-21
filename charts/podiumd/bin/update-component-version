@@ -75,10 +75,8 @@ from lib.chart_values_tree_primitives import find_dependency as _find_dependency
 from lib.chart_values_tree_primitives import get_path, replace_scalar_value
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs import (
-    insert_values_delta_section,
     remove_component_from_images_manifest,
-    remove_values_delta_section,
-    update_images_manifest, values_delta_section_heading,
+    update_images_manifest,
 )
 from lib.component_docs.baseline_doc_stubs import (
     baseline_doc_paths as _baseline_doc_paths,
@@ -89,6 +87,9 @@ from lib.component_docs.baseline_doc_stubs import (
 from lib.component_docs.changes_section import (
     insert_changes_section, make_changes_section, remove_changes_section,
     remove_component_row, update_component_table,
+)
+from lib.component_docs.values_delta_sections import (
+    insert_values_delta_section, remove_values_delta_section, values_delta_section_heading,
 )
 from lib.image_version import image_basename, update_image_version
 from lib.procutil import run_script
