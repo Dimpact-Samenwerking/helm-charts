@@ -377,7 +377,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 # unprivileged (version unchanged, only its digest moved)
                 # was flagged forever — the exact same class of bug already
                 # fixed in lib.upgradedoc.compute_changed_components and
-                # lib.image_docs.add_missing_sidecar_rows, just never
+                # lib.image.docs.add_missing_sidecar_rows, just never
                 # ported to this one, independent copy of the same check.
                 if (version_of(baseline_tag) if baseline_tag is not None else None) != (
                     version_of(current_tag) if current_tag is not None else None

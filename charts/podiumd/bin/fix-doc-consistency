@@ -21,7 +21,7 @@ row at all yet (see add_missing_component_rows — the same "component ...
 changed vs ... but has no row" gap verify-podiumd's own doc-consistency
 check reports), and likewise for a sidecar/shared image whose OWN row is
 missing even though its owning dependency's row already exists (see
-lib.image_docs.add_missing_sidecar_rows — the "sidecar/shared image ...
+lib.image.docs.add_missing_sidecar_rows — the "sidecar/shared image ...
 changed vs ... but has no row" gap, e.g. a nested init-container image
 bumped alongside its parent component but never given its own
 "<component> - <basename>" row), reordering the table's rows and the
@@ -110,11 +110,11 @@ from lib.component_docs.values_delta_sections import (
 )
 from lib.docs_consistency.images_manifest_format import match_changes_item_to_entry
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
-from lib.image_docs import (
+from lib.image.docs import (
     add_missing_changes_sections, add_missing_sidecar_rows, regenerate_images_baseline_manifest,
     update_stale_app_version_headings,
 )
-from lib.image_repository_check import find_images_without_repository
+from lib.image.repository_check import find_images_without_repository
 from lib.registry import parse_repo, registry_tag_exists
 from lib.render_scope import lint_args_for, render_chart, rendered_chart_paths
 from lib.settings import digest_pinning_exceptions
@@ -1292,7 +1292,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     or written incomplete; same treatment for a path find_images_
     manifest_list_diff reports as missing but that has no resolvable
     repository here either (shouldn't normally happen — missing_paths
-    already excludes lib.image_repository_check.find_images_without_
+    already excludes lib.image.repository_check.find_images_without_
     repository's own result — kept as a defensive fallback, never a
     crash or bad data).
 
@@ -1350,7 +1350,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     # Grouped once, up front, against baseline_values (NOT target_values
     # — "where did this repository already live in the baseline tree")
     # and reused across every missing path below rather than recomputed
-    # per path — the same up-front convention lib.image_docs.
+    # per path — the same up-front convention lib.image.docs.
     # add_missing_sidecar_rows already uses for its own baseline_repo_
     # groups, both now feeding the same lib.chart.baseline_tag_for_
     # sidecar_path.
@@ -1450,7 +1450,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
             #    global.images.postgres anchor — that exact path never
             #    existed in the baseline, but the same "postgres"
             #    repository already did, at openbao.database.schemaJob.
-            #    image. The SAME function lib.image_docs.add_missing_
+            #    image. The SAME function lib.image.docs.add_missing_
             #    sidecar_rows' own "Component versions" table row and
             #    lib.upgradedoc.resolve_component_row's own Changes
             #    heading already use, so this entry's own comment can

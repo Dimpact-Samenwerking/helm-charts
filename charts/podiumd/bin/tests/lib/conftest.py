@@ -27,8 +27,8 @@ import lib.confluence_tables as confluence_tables
 import lib.dependencies as dependencies
 import lib.docs_consistency.images_manifest_format as docs_consistency_images_manifest_format
 import lib.gitutil as gitutil
-import lib.image_docs as image_docs
-import lib.image_version as image_version
+import lib.image.docs as image_docs
+import lib.image.version as image_version
 import lib.procutil as procutil
 import lib.registry as registry
 import lib.release_baseline as release_baseline

@@ -5,8 +5,8 @@ with the dependency's own primary-image row (or another sidecar's own
 row) -- see update-image-version's own update_docs_single_component
 docstring. No network needed: lib.registry.registry_tag_exists is
 monkeypatched via the uiv module's own imported binding (update_image_
-version lives in lib.image_version, which resolves `registry_tag_exists`
-via ITS OWN globals — see lib.image_version's import — so tests patch
+version lives in lib.image.version, which resolves `registry_tag_exists`
+via ITS OWN globals — see lib.image.version's import — so tests patch
 that module directly, same as tests/lib/test_image_version.py does)."""
 
 import subprocess
@@ -80,7 +80,7 @@ def test_main_sidecar_bump_gets_disambiguated_row_name(uiv, tmp_path, monkeypatc
     write_doc(
         uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n"
     )
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "redis-operator", "redis", "8.6.6"])
@@ -125,7 +125,7 @@ def test_main_sidecar_bump_does_not_corrupt_dependencys_own_row(uiv, tmp_path, m
     write_doc(
         uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n"
     )
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "redis-operator", "redis", "8.6.6"])
@@ -168,7 +168,7 @@ def test_main_sidecar_reset_to_baseline_uses_raw_values_key(uiv, tmp_path, monke
         "## redis-operator - redis 8.6.2 → 8.6.6 (chart 1.0.0, unchanged) — image tag only\n",
     )
 
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "a" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "redis-operator", "redis", "8.6.2"])

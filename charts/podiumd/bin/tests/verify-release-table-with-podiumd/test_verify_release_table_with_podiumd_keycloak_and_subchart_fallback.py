@@ -47,7 +47,7 @@ CLAMAV_BASELINE_VALUES = {"clamav": {"image": {"tag": "1.5.2"}}}
 
 
 # --- compare(): keycloak-operator's own anchor-decorated split tag/sha image ---
-# (used to need a dedicated special-case workaround here -- see lib.image_
+# (used to need a dedicated special-case workaround here -- see lib.image.
 # digests' own anchor-tolerant VERSION_PIN_RE/ACTIVE_REPO_RE fix, which lets
 # the normal basenames_under_scope_any_tag scan resolve this image directly)
 
@@ -101,7 +101,7 @@ def test_compare_finds_basename_pinned_under_a_sibling_scope(vrt):
     basename is a real repository identity, not a values.yaml path, so it
     can be pinned somewhere other than its own component's scope. Found
     via the same whole-file find_matches fallback update-image-version's
-    own <target> resolution uses (lib.image_version.resolve_basename)."""
+    own <target> resolution uses (lib.image.version.resolve_basename)."""
     keycloak_config_cli_block = (
         "keycloak:\n"
         "  keycloakConfigCli:\n"

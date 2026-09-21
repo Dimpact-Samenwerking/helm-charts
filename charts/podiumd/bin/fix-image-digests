@@ -17,8 +17,8 @@ An optional <key> <basename> pair — the same scoping update-image-version/
 verify-image-version/show-image-baseline-version use (<key> is a
 Chart.yaml dependency's own top-level values.yaml key, or the literal
 "MULTIPLE" for a base image shared via values.yaml's global.images
-anchor block — see lib.image_version.MULTIPLE_KEY) — resolves to exactly
-one image (lib.image_version.resolve_scoped_matches) and scopes the run
+anchor block — see lib.image.version.MULTIPLE_KEY) — resolves to exactly
+one image (lib.image.version.resolve_scoped_matches) and scopes the run
 to just that one. Every other stale pin is left untouched and unreported
 for that run.
 
@@ -51,8 +51,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import subchart_default_repository, subchart_needs_vendoring
 from lib.dependencies import check_dependencies as vendor_dependencies, ensure_repos_configured
-from lib.image_digests import scan_digest_pins
-from lib.image_version import resolve_scoped_matches
+from lib.image.digests import scan_digest_pins
+from lib.image.version import resolve_scoped_matches
 from lib.procutil import run_script
 from lib.registry import is_sliding_tag, parse_repo, registry_tag_exists
 

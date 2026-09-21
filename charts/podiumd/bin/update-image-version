@@ -6,7 +6,7 @@ to a new version, re-resolving each pin's digest against the registry.
 
 <key> is either a Chart.yaml dependency (its own "name" OR "alias",
 whichever you'd naturally reach for — e.g. "kiss-chart" or "kiss" both
-work, see lib.image_version.resolve_key_scope) or the literal "MULTIPLE"
+work, see lib.image.version.resolve_key_scope) or the literal "MULTIPLE"
 — the same convention release-table.csv itself uses (see export-
 confluence-release-table's component_and_alias) for a base image shared
 across several unrelated components via values.yaml's global.images
@@ -16,7 +16,7 @@ since they're all the same YAML node). <key> <basename> together must
 resolve to exactly one real image pin under that scope — this fails
 loudly rather than guessing if the basename isn't pinned there at all,
 or (rare) resolves to more than one distinct repository (see
-lib.image_version.resolve_scoped_matches). No release-table.csv involved
+lib.image.version.resolve_scoped_matches). No release-table.csv involved
 either way — this reads straight from Chart.yaml/values.yaml.
 
 Also updates the docs for the current podiumd target version, if they
@@ -30,7 +30,7 @@ section, values-deltas, images-<target>.yaml):
     detection, per-path images-manifest entries.
   - <key> is "MULTIPLE" (no Chart.yaml dependency named "global"):
     treated as its own pseudo-component keyed by the basename itself
-    (lib.image_docs) — a "Component versions" table row with Helm chart
+    (lib.image.docs) — a "Component versions" table row with Helm chart
     column "-", a "### <basename> ..." Changes block listing every place
     it's pinned, a values-deltas bullet, and one images-manifest entry
     per distinct repository. Convention confirmed against docs/
@@ -58,7 +58,7 @@ A component's app version is not always its image's basename (e.g.
 zgw-office-addin bumps two distinctly-named images, frontend + backend) —
 see update-component-version, which resolves each of a component's
 image path(s) to its own actual basename and calls this same logic
-(lib.image_version.update_image_version) per path, scoped to that
+(lib.image.version.update_image_version) per path, scoped to that
 component.
 
 After writing, re-render the chart (verify-podiumd or /helm-render-all)
@@ -90,11 +90,11 @@ from lib.component_docs.images_manifest_entries import (
 from lib.component_docs.values_delta_sections import (
     insert_values_delta_section, remove_values_delta_section, values_delta_section_heading,
 )
-from lib.image_docs import (
+from lib.image.docs import (
     make_image_changes_section, remove_image_manifest_entry,
     resolve_basename_baseline_version, update_image_manifest,
 )
-from lib.image_version import resolve_key_scope, update_image_version
+from lib.image.version import resolve_key_scope, update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo
 from lib.upgradedoc.app_version_and_image_paths import (
@@ -504,7 +504,7 @@ def update_docs(basename, new_version, changes, values_lines_before_write):
     values = load_yaml(VALUES_YAML) or {}
 
     # <key> <basename> already resolved to a single scope (see
-    # lib.image_version.resolve_scoped_matches) before any pin was
+    # lib.image.version.resolve_scoped_matches) before any pin was
     # touched, so `changes` can only ever belong to ONE top-level
     # values.yaml key here — either a real Chart.yaml dependency (the
     # common case) or "global" (the MULTIPLE_KEY case, which never has

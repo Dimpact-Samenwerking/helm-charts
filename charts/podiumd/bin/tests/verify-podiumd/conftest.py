@@ -37,10 +37,10 @@ import lib.docs_consistency.values_diff as docs_consistency_values_diff
 import lib.dry_check as dry_check
 import lib.gitutil as gitutil
 import lib.helm_docs_check as helm_docs_check
-import lib.image_digests as image_digests
-import lib.image_references_check as image_references_check
-import lib.image_upgrade_cache as image_upgrade_cache
-import lib.image_upgrade_check as image_upgrade_check
+import lib.image.digests as image_digests
+import lib.image.references_check as image_references_check
+import lib.image.upgrade_cache as image_upgrade_cache
+import lib.image.upgrade_check as image_upgrade_check
 import lib.kube_score_check as kube_score_check
 import lib.kubeconform_check as kubeconform_check
 import lib.lockstep_check as lockstep_check

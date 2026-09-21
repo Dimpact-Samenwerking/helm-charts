@@ -15,7 +15,7 @@ from lib.chart.values_tree_primitives import (
     find_dependency,
     replace_scalar_value,
 )
-from lib.image_digests import scan_digest_pins, scan_version_pins
+from lib.image.digests import scan_digest_pins, scan_version_pins
 from lib.registry import parse_repo, registry_tag_exists
 
 

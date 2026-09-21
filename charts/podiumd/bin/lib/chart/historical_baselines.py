@@ -2,7 +2,7 @@
 values-tree path was pinned to in a past release (historical_images_
 manifest_paths, historical_app_version_for_repository, historical_
 app_version_for_path), and the two-tier baseline-tag resolution
-(baseline_tag_for_sidecar_path) shared by lib.image_docs, lib.upgradedoc.
+(baseline_tag_for_sidecar_path) shared by lib.image.docs, lib.upgradedoc.
 resolve_component_row, and fix-doc-consistency's own images-manifest
 entry generation."""
 
@@ -140,7 +140,7 @@ def baseline_tag_for_sidecar_path(
 ):
     """The baseline (pre-upgrade) tag for a sidecar/shared-image (or
     registered bare-version, see below) values-tree `path`, tried in two
-    tiers — the one place lib.image_docs.add_missing_sidecar_rows' own
+    tiers — the one place lib.image.docs.add_missing_sidecar_rows' own
     "Component versions" table row, lib.upgradedoc.resolve_component_
     row's own "### ..." Changes heading, and fix-doc-consistency's own
     add_missing_images_manifest_entries (the images-<target>.yaml entry

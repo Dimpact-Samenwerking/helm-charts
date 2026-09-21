@@ -17,7 +17,7 @@ def show_baseline_section(label, baseline, resolve):
         indented the same way the "no key" note above is — `resolve`'s
         own return value already carries any "error: " prefix it wants
         (never added a second time here), since a script's own inner
-        resolution step (e.g. lib.image_version.resolve_scoped_matches
+        resolution step (e.g. lib.image.version.resolve_scoped_matches
         raising SystemExit) may already produce one, and a caller
         formatting its own message must too, to keep this ONE shared
         print format either way.

@@ -28,7 +28,7 @@ on its own.
 One registry tag-list call per unique (repository, version) pin — cheap,
 no image pull — but still worth caching: results are cached by
 (repository, version) in <repo-root>/.cache/image-upgrade-cache.json
-(see lib.image_upgrade_cache — split into its own module so lib.cve_check
+(see lib.image.upgrade_cache — split into its own module so lib.cve_check
 can read this cache too, read-only, to annotate a CVE finding as
 "upgradable" without triggering a registry call of its own), a personal,
 gitignored, per-checkout cache (same as <repo-root>/.cache/
@@ -50,8 +50,8 @@ import urllib.error
 from datetime import datetime, timezone
 
 from lib.cve_check import bucket_of, classify_by_key, dependency_names, render_image_labels, top_level_key_for_line
-from lib.image_digests import unique_digest_pin_targets
-from lib.image_upgrade_cache import cache_entry_is_fresh, cache_key, load_cache, save_cache
+from lib.image.digests import unique_digest_pin_targets
+from lib.image.upgrade_cache import cache_entry_is_fresh, cache_key, load_cache, save_cache
 from lib.registry import find_newest_same_variant_tag, parse_repo
 from lib.render_scope import friendly_vendor_charts, render_chart
 from lib.settings import image_upgrade_tag_check_cache_ttl_days

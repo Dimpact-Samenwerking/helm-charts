@@ -46,7 +46,7 @@ from lib.chart.pull_and_subchart_resolution import chart_ref, local_chart_dir, p
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import find_images, version_of
 from lib.chart.values_tree_primitives import find_dependency as _find_dependency
-from lib.image_version import image_basename
+from lib.image.version import image_basename
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"

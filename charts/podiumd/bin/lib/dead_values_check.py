@@ -103,7 +103,7 @@ Cost control has two independent halves:
    least one top-level key in practice is a real, documented exception:
    e.g. "keycloak" — per this chart's own Bitnami-to-Hostzero-Operator
    migration notes — has values read directly by some of podiumd's OWN
-   top-level templates/*.yaml (see lib.image_repository_check's
+   top-level templates/*.yaml (see lib.image.repository_check's
    docstring on "adapter"'s siblings) as well as (historically) a
    vendored dependency's own templates — a leaf like that could look
    "dead" to either scoped render while still being genuinely live in

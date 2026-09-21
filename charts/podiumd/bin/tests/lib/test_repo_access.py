@@ -1,8 +1,8 @@
 """lib.repo_access — dependency_repos, image_repos, _check_http_repo,
 _check_registry_repo, check_repo_access. No network needed:
-urllib.request.urlopen and lib.image_digests.cached_tag_exists (the
+urllib.request.urlopen and lib.image.digests.cached_tag_exists (the
 shared, disk-cache-backed primitive _check_registry_repo now routes
-through — see lib.image_digests' own docstring) are monkeypatched
+through — see lib.image.digests' own docstring) are monkeypatched
 wherever a live fetch would otherwise happen."""
 
 import json
@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 import yaml
 
-import lib.image_digests as image_digests
+import lib.image.digests as image_digests
 
 TIMEOUT_SECONDS = 10
 DENYLISTED_HOST_SUFFIXES = ("azurecr.io",)
@@ -537,8 +537,8 @@ def test_check_repo_access_cache_is_per_entry_not_all_or_nothing(librepoaccess, 
 
 
 def test_check_repo_access_and_check_image_digests_share_one_cache_entry(librepoaccess, tmp_path, monkeypatch):
-    """check_repo_access and lib.image_digests.check_image_digests both now
-    route their own tag-existence lookup through the SAME lib.image_
+    """check_repo_access and lib.image.digests.check_image_digests both now
+    route their own tag-existence lookup through the SAME lib.image.
     digests.cached_tag_exists primitive, backed by the SAME disk-persisted
     repo-access-cache.json (lib.repo_access_cache) — not just format-
     compatible, actually deduped end to end. A pin check_repo_access

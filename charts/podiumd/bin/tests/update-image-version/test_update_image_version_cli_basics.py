@@ -1,10 +1,10 @@
 """update-image-version's main() — argument parsing, help/usage output,
-and basename/key resolution into lib.image_version.update_image_version.
+and basename/key resolution into lib.image.version.update_image_version.
 No doc-update path exercised here. No network needed:
 lib.registry.registry_tag_exists is monkeypatched via the uiv module's own
-imported binding (update_image_version lives in lib.image_version, which
+imported binding (update_image_version lives in lib.image.version, which
 resolves `registry_tag_exists` via ITS OWN globals — see
-lib.image_version's import — so tests patch that module directly, same as
+lib.image.version's import — so tests patch that module directly, same as
 tests/lib/test_image_version.py does)."""
 
 import pytest
@@ -54,7 +54,7 @@ def test_main_updates_matching_pin(uiv, tmp_path, monkeypatch, capsys):
         ),
     )
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
@@ -94,7 +94,7 @@ def test_main_resolves_given_component_key_and_basename(uiv, tmp_path, monkeypat
     )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "open-klant", "2.15.1"])
@@ -111,7 +111,7 @@ def test_main_accepts_dependency_name_not_just_alias(uiv, tmp_path, monkeypatch)
     — rejecting the dependency's own real Chart.yaml "name" outright
     ("no image pin with basename ... found under"), even though update-
     component-version's own <component> argument already accepts either
-    form via find_dependency. lib.image_version.resolve_key_scope now
+    form via find_dependency. lib.image.version.resolve_key_scope now
     resolves either form to the real values.yaml key first."""
     write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
     values_path = write_values(
@@ -120,7 +120,7 @@ def test_main_accepts_dependency_name_not_just_alias(uiv, tmp_path, monkeypatch)
     )
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "zaakafhandelcomponent", "zaakafhandelcomponent", "5.4.4"])
@@ -132,7 +132,7 @@ def test_main_accepts_dependency_name_not_just_alias(uiv, tmp_path, monkeypatch)
 
 def test_main_raises_when_basename_not_unique_under_key(uiv, tmp_path, monkeypatch, capsys):
     """Two DISTINCT repositories sharing a basename under the same <key>
-    can't be identified uniquely (see lib.image_version.
+    can't be identified uniquely (see lib.image.version.
     resolve_scoped_matches) -- an error, never a guess."""
     write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
     values_path = write_values(

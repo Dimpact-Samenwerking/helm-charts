@@ -80,7 +80,7 @@ def cve_scan_cache_ttl_days(chart_dir):
 
 def image_upgrade_tag_check_cache_ttl_days(chart_dir):
     """image_upgrade_check.tag_check_cache_ttl_days — replaces
-    lib.image_upgrade_cache.IMAGE_UPGRADE_CACHE_TTL_DAYS, default 1."""
+    lib.image.upgrade_cache.IMAGE_UPGRADE_CACHE_TTL_DAYS, default 1."""
     return _get(chart_dir, "image_upgrade_check", "tag_check_cache_ttl_days", 1)
 
 

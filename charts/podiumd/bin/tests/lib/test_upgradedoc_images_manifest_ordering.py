@@ -320,7 +320,7 @@ def test_find_images_manifest_faulty_headers_unresolvable_entry_skipped(libupgra
 def test_find_images_manifest_faulty_headers_orphan_top_level_block_is_exempt(libupgradedocmanifestordering):
     """A path rooted at podiumd's own directly-templated top-level block
     with no Chart.yaml dependency of its own at all (real cases:
-    "keycloak", "apiproxy", "frankgateway" — see lib.image_repository_
+    "keycloak", "apiproxy", "frankgateway" — see lib.image.repository_
     check's own docstring) has no PARENT to be a "sidecar OF", so it's
     never subject to the "#   sidecar: <parent> - ..." shape — its own
     free-form header (explaining why it's listed) is correct as-is."""

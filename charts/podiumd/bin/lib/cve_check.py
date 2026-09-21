@@ -36,8 +36,8 @@ with --detail — nothing in this repo can act on those package-by-package
 either, so itemizing them would just be noise.
 
 Each image's line also carries an inline "upgradable to X" marker when
-lib.image_upgrade_check's own cache (charts/podiumd/image-upgrade-
-cache.json, via lib.image_upgrade_cache) has a fresh entry showing a
+lib.image.upgrade_check's own cache (charts/podiumd/image-upgrade-
+cache.json, via lib.image.upgrade_cache) has a fresh entry showing a
 newer same-variant tag is published — read-only here, purely best-effort:
 if there's no fresh cache entry (that check hasn't run recently, or this
 image wasn't in its scope), the marker is just omitted rather than
@@ -58,7 +58,7 @@ means vendored, anything else means a podiumd-owned template configures
 it.
 
 Whether a newer tag is published at all (regardless of whether it fixes
-anything) is a separate, standalone check — see lib.image_upgrade_check —
+anything) is a separate, standalone check — see lib.image.upgrade_check —
 split out from here since the two questions are independent: a newer tag
 existing doesn't mean it fixes a given CVE, and that check's answer is
 useful even for an image with zero findings here.
@@ -81,7 +81,7 @@ for no reporting benefit. FixedVersion in particular is never shown: this
 repo only ever pins a base image tag/digest, never an individual
 OS/language package version inside that image, so "upgrade to version X"
 for one bundled package isn't an actionable step here — whether a newer
-image tag exists at all is lib.image_upgrade_check's job, not this
+image tag exists at all is lib.image.upgrade_check's job, not this
 module's."""
 
 import json
@@ -92,10 +92,10 @@ from datetime import datetime, timedelta, timezone
 
 from lib.chart.release_baseline_basics import load_yaml
 from lib.gitutil import find_repo_root
-from lib.image_digests import unique_digest_pin_targets
-from lib.image_upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
-from lib.image_upgrade_cache import cache_key as upgrade_cache_key
-from lib.image_upgrade_cache import load_cache as load_upgrade_cache
+from lib.image.digests import unique_digest_pin_targets
+from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
+from lib.image.upgrade_cache import cache_key as upgrade_cache_key
+from lib.image.upgrade_cache import load_cache as load_upgrade_cache
 from lib.procutil import run
 from lib.registry import parse_repo
 from lib.render_scope import (

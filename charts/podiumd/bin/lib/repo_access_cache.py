@@ -1,8 +1,8 @@
 """JSON cache for check_repo_access's own existence/reachability checks
 (<repo-root>/.cache/repo-access-cache.json — same gitignored, personal,
-per-checkout convention as lib.image_upgrade_cache).
+per-checkout convention as lib.image.upgrade_cache).
 
-Also shared, as of the same fix that added lib.image_digests._cached_
+Also shared, as of the same fix that added lib.image.digests._cached_
 tag_exists' own disk tier: an entry here can ALSO carry a "digest" field
 alongside "checked_at" — check_repo_access itself never sets or reads
 that field (it only ever needed a bare reachability bool), but check_
@@ -18,7 +18,7 @@ means whichever caller reads it is up to repo_access.cache_ttl_minutes
 (uncached, and the authoritative check for its own concern) still
 catches that fresh regardless, and check_image_digests' own [DIGEST-
 GONE] follow-up check is deliberately never routed through this cache
-at all (see lib.image_digests' own docstring there).
+at all (see lib.image.digests' own docstring there).
 
 Also only ever caches a SUCCESS. A failure is never written to the
 cache and always re-checked next run — caching a failure risks
@@ -43,7 +43,7 @@ CACHE_FILENAME = "repo-access-cache.json"
 
 def cache_path(chart_dir):
     """<repo-root>/.cache/repo-access-cache.json — a personal, gitignored,
-    per-checkout cache (same as lib.image_upgrade_cache's own). Rooted at
+    per-checkout cache (same as lib.image.upgrade_cache's own). Rooted at
     the repo root (not chart_dir) so root .gitignore's plain /.cache/
     entry covers it without a chart-specific rule. Falls back to
     chart_dir itself if it isn't inside a git checkout."""

@@ -1,10 +1,10 @@
 """verify-image-version's main() — argument parsing and end-to-end wiring
-into lib.image_version.check_basename_version (and, transitively,
+into lib.image.version.check_basename_version (and, transitively,
 resolve_scoped_matches). No network needed: lib.registry.
 registry_tag_exists is monkeypatched via the image_version module's own
-imported binding (check_basename_version lives in lib.image_version,
+imported binding (check_basename_version lives in lib.image.version,
 which resolves registry_tag_exists via ITS OWN globals — see
-lib.image_version's import — so tests patch that module directly, same
+lib.image.version's import — so tests patch that module directly, same
 as tests/update-image-version/test_update_image_version.py does)."""
 
 import pytest
@@ -54,7 +54,7 @@ def test_main_found_reports_ok(viv, tmp_path, monkeypatch, capsys):
         ),
     )
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc", "pabc-api", "1.1.2"])
@@ -79,7 +79,7 @@ def test_main_missing_reports_fail(viv, tmp_path, monkeypatch, capsys):
         ),
     )
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (False, None))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc", "pabc-api", "9.9.9"])
@@ -103,7 +103,7 @@ def test_main_resolves_given_component_key_and_basename(viv, tmp_path, monkeypat
     )
     monkeypatch.setattr(viv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "openklant", "open-klant", "2.15.1"])
@@ -122,7 +122,7 @@ def test_main_accepts_dependency_name_not_just_alias(viv, tmp_path, monkeypatch,
     <key> used to only accept whichever string happens to literally BE
     the values.yaml top-level key — the alias, when a dependency has one
     — rejecting the dependency's own real Chart.yaml "name" outright
-    ("no image pin ... found under"). lib.image_version.resolve_key_
+    ("no image pin ... found under"). lib.image.version.resolve_key_
     scope now resolves either form to the real values.yaml key first —
     same convention update-component-version's own <component> argument
     already uses via find_dependency."""
@@ -134,7 +134,7 @@ def test_main_accepts_dependency_name_not_just_alias(viv, tmp_path, monkeypatch,
     monkeypatch.setattr(viv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["verify-image-version", "zaakafhandelcomponent", "zaakafhandelcomponent", "5.4.4"])
@@ -147,7 +147,7 @@ def test_main_accepts_dependency_name_not_just_alias(viv, tmp_path, monkeypatch,
 
 
 def test_main_unresolvable_target_propagates(viv, tmp_path, monkeypatch):
-    """resolve_scoped_matches (lib.image_version) already raises
+    """resolve_scoped_matches (lib.image.version) already raises
     SystemExit with a clear message when <key> <basename> doesn't
     resolve to any pinned image — main() has nothing to add here."""
     values_path = write_values(tmp_path, "foo: bar\n")

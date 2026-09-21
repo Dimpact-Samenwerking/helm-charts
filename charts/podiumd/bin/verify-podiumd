@@ -12,7 +12,7 @@ trip:
      "Image References" convention (never a hand-interpolated
      `.repository`:`.tag` or a bare literal) — scanned on the raw template
      source, since a rendered image string can't be told apart from one
-     that used the helper (see lib.image_references_check)
+     that used the helper (see lib.image.references_check)
   5. every Deployment/StatefulSet/DaemonSet/Job/CronJob in this chart's OWN
      templates/*.yaml has a nodeSelector field somewhere in its pod spec,
      per .github/copilot-instructions.md's AKS-Blue convention ("all
@@ -141,7 +141,7 @@ trip:
       openzaak, openformulieren) falls back to the same component's
       vendored subchart default, read straight out of its .tgz under
       charts/podiumd/charts/ — which step 13 is what actually populates
-      (see lib.chart.subchart_default_repository, lib.image_digests)
+      (see lib.chart.subchart_default_repository, lib.image.digests)
   17. the chart lints cleanly with the CI placeholder values
   18. the chart renders cleanly with `helm template` using the CI placeholder values
   19. yamllint against that render finds no structurally-real problem (duplicate
@@ -194,10 +194,10 @@ trip:
 
   24. every unique digest-pinned image has its own newest same-variant tag
       looked up on its upstream registry (a tag-list call, no image pull —
-      cached by (repository, version), see lib.image_upgrade_check) —
+      cached by (repository, version), see lib.image.upgrade_check) —
       "upgradable" if a numerically-newer tag is currently published,
       regardless of whether it fixes anything (that's step 25's job).
-      Report-only, never fails (see lib.image_upgrade_check)
+      Report-only, never fails (see lib.image.upgrade_check)
 
   25. every unique digest-pinned image is scanned for known CVEs with a fix
       available, via a per-image `docker run aquasec/trivy:latest` (same
@@ -357,14 +357,14 @@ from lib.procutil import run
 # fixtures — rather than through this file, so this import list stays
 # exactly what main() calls, no re-exports to keep in sync by hand.
 from lib.dry_check import check_dry
-from lib.image_digests import check_image_digests
+from lib.image.digests import check_image_digests
 from lib.cve_check import check_cves
 from lib.dependencies import check_dependencies, ensure_repos_configured
 from lib.repo_access import check_repo_access
-from lib.image_upgrade_check import check_image_upgrades
+from lib.image.upgrade_check import check_image_upgrades
 from lib.cve_diff_check import check_cve_diff
-from lib.image_references_check import check_image_references
-from lib.image_repository_check import check_image_repository
+from lib.image.references_check import check_image_references
+from lib.image.repository_check import check_image_repository
 from lib.digest_pinning_check import check_digest_pinning, check_shared_image_usage, check_subchart_image_visibility
 from lib.node_selector_check import check_node_selector
 from lib.docs_consistency import check_docs_consistency
@@ -639,7 +639,7 @@ SKIPPABLE_STEPS = [
 # flagged "has_newer" at all — its own list of "upgrade" candidates to
 # diff. It ALSO needs "Image digests" (rather than merely reading ITS
 # cache, since that check deliberately has none of its own — see lib.
-# image_digests) because it calls lib.image_digests.find_sliding_pins,
+# image_digests) because it calls lib.image.digests.find_sliding_pins,
 # which needs charts/*.tgz vendored (the same subchart-default-
 # repository fallback "Image digests" itself needs "Dependencies" for)
 # to resolve a pin with no "repository:" of its own in values.yaml — so

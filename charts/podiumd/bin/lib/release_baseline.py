@@ -71,7 +71,7 @@ def resolve_baseline_chart_state(chart_dir, baseline):
     baseline_lines is values.yaml's own raw text split into lines (no
     keepends — matching verify-release-table-with-podiumd's own
     `VALUES_YAML.read_text().splitlines()` convention for the CURRENT
-    side), so a caller needing lib.image_version's own raw-line
+    side), so a caller needing lib.image.version's own raw-line
     scanners (basenames_under_scope/find_matches) resolves the
     baseline side exactly the same way it already resolves the current
     one, rather than re-deriving equivalent dict-walking logic a

@@ -128,7 +128,7 @@ def find_app_versions(values, values_key, image_paths):
     values[values_key] — empty if the component relies entirely on its
     chart's own image defaults. Used by show-component-baseline-version,
     via component_state_at_baseline below — show-image-baseline-version
-    resolves a single image pin directly instead (lib.image_version.
+    resolves a single image pin directly instead (lib.image.version.
     resolve_scoped_matches), never a whole component's app-version list,
     so it has no need for this."""
     base = values.get(values_key, {}) if isinstance(values, dict) else {}
@@ -152,7 +152,7 @@ def dotted_key_path(lines, line_index):
     reconstructed purely from indentation — e.g. "openzaak.image.tag" for
     a "tag:" line nested under "openzaak: > image:". A plain-text
     stand-in for a full YAML-document walk, used by digest-pin scanning
-    (lib.image_digests/fix-image-digests), which already has the exact
+    (lib.image.digests/fix-image-digests), which already has the exact
     source line (and its digest/comment) from a regex match on raw
     `lines` — a full re-parse would lose that line-number association."""
     stack = []

@@ -46,7 +46,7 @@ def test_parse_repo_explicit_host(sid):
 
 # --- scan_digest_pins ---
 # (resolve_pin_repo, the function scan_digest_pins itself calls to resolve
-# each pin's repository, now lives in lib.image_digests -- deduped there
+# each pin's repository, now lives in lib.image.digests -- deduped there
 # since it already handled split "registry:"/"repository:" style pins
 # (see find_sibling_registry) that this script's own former copy didn't.
 # Its own dedicated tests are tests/verify-podiumd/test_image_digests.py's;

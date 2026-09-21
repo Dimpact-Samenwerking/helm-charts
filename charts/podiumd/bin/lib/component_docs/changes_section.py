@@ -475,7 +475,7 @@ def resolve_component_own_version_change(
     between baseline and target, meaning whatever else made `key`
     register as changed (almost always a
     brand-new/changed sidecar nested under it — that gets its own
-    separate row via lib.image_docs.add_missing_sidecar_rows) has
+    separate row via lib.image.docs.add_missing_sidecar_rows) has
     NOTHING to do with this component's own version; -upgrade.md's own
     "Component versions" table is about version changes specifically,
     so a redundant "(unchanged)"-only row for the OWNING component

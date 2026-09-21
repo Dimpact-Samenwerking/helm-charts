@@ -54,7 +54,7 @@ def test_resolve_baseline_chart_state_resolves_real_baseline(librelease_baseline
 def test_resolve_baseline_chart_state_lines_match_current_values_yaml_convention(librelease_baseline, repo):
     """No keepends, no trailing empty entry — the exact same
     VALUES_YAML.read_text().splitlines() shape verify-release-table-
-    with-podiumd already uses for the CURRENT side, so lib.image_version's
+    with-podiumd already uses for the CURRENT side, so lib.image.version's
     raw-line scanners resolve both sides identically."""
     _ref, _deps, _values, lines, _error = librelease_baseline.resolve_baseline_chart_state(repo, "4.8.5")
     text = (repo / "values.yaml").read_text(encoding="utf-8")

@@ -737,7 +737,7 @@ def test_fix_changes_heading_app_versions_corrects_moved_repository_sidecar_head
     add_missing_sidecar_rows divergence (podiumd 4.9.1's postgres
     consolidation, see lib.chart.baseline_tag_for_sidecar_path): the
     "Component versions" table row was already correct ("16-alpine →
-    16.15-alpine" — lib.image_docs.add_missing_sidecar_rows' own
+    16.15-alpine" — lib.image.docs.add_missing_sidecar_rows' own
     repository-moved fallback resolved it right), but this heading, an
     INDEPENDENT resolution via resolve_component_row, still rendered
     "(new)" for the exact same shared image — global.images.postgres

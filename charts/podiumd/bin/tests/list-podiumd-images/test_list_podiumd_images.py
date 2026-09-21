@@ -116,7 +116,7 @@ def test_resolution_note_shared_global_image_points_to_multiple(lpi):
     """A basename only literally pinned under values.yaml's global.images
     scope, not under the component asking about it, isn't a dead end --
     it's pointed at the key that DOES resolve (MULTIPLE, see
-    lib.image_version.MULTIPLE_KEY)."""
+    lib.image.version.MULTIPLE_KEY)."""
     lines = [
         "global:",
         "  images:",

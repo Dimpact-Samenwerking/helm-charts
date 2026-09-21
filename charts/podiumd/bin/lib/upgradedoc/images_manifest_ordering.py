@@ -198,7 +198,7 @@ def find_images_manifest_faulty_headers(
     a real image. Likewise skipped: a path rooted at anything with no
     Chart.yaml dependency of its own at all (podiumd's own directly-
     templated top-level blocks — "keycloak", "apiproxy", "frankgateway",
-    the shared "global" anchor — see lib.image_repository_check's own
+    the shared "global" anchor — see lib.image.repository_check's own
     docstring for the real cases) — there's no PARENT for such an entry
     to be a "sidecar OF", so the "#   sidecar: <parent> - ..." shape
     doesn't apply to it; its own free-form header (explaining WHY it's

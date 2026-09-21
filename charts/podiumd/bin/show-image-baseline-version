@@ -14,7 +14,7 @@ several unrelated components via values.yaml's global.images anchor
 block. <key> <basename> together must resolve to exactly one real image
 pin under that scope, at whichever baseline is being shown — the same
 resolution update-image-version/verify-image-version's own <key>
-<basename> use (lib.image_version.resolve_scoped_matches), just applied
+<basename> use (lib.image.version.resolve_scoped_matches), just applied
 to values.yaml text as it was at each baseline's ref (via `git show`)
 instead of the current file. Same narrower scope (one image, not a whole
 component) as update-image-version/verify-image-version have relative to
@@ -49,7 +49,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.baseline_report import show_baseline_section
 from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.image_version import resolve_scoped_matches
+from lib.image.version import resolve_scoped_matches
 from lib.release_baseline import resolve_baseline_values
 
 CHART_DIR = SCRIPT_DIR.parents[0]

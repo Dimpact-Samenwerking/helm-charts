@@ -298,7 +298,7 @@ def test_resolve_component_row_sidecar_same_repository_at_different_baseline_pat
     path (global.images.postgres) never existed in baseline_values, so
     an exact-path lookup alone finds nothing — this used to make
     resolve_component_row's own sidecar branch resolve baseline_app to
-    None (a real "(new)" heading) even though lib.image_docs.
+    None (a real "(new)" heading) even though lib.image.docs.
     add_missing_sidecar_rows' own table row, using the SAME repository-
     moved fallback, already correctly resolved a real prior version
     ("16-alpine"). Both must now agree: baseline_app == "16-alpine"."""

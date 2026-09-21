@@ -8,12 +8,12 @@ that bump's pre-flight check, run by hand before committing to it.
 
 <key> is either a Chart.yaml dependency (its own "name" OR "alias",
 whichever you'd naturally reach for — e.g. "kiss-chart" or "kiss" both
-work, see lib.image_version.resolve_key_scope) or the literal "MULTIPLE"
+work, see lib.image.version.resolve_key_scope) or the literal "MULTIPLE"
 — the same convention release-table.csv itself uses (see export-
 confluence-release-table's component_and_alias) for a base image shared
 across several unrelated components via values.yaml's global.images
 anchor block. <key> <basename> together must resolve to exactly one
-real image pin under that scope — see lib.image_version.resolve_scoped_
+real image pin under that scope — see lib.image.version.resolve_scoped_
 matches, the same resolution update-image-version's own <key> <basename>
 uses. Reads
 straight from the CURRENT values.yaml/Chart.yaml, never pulls a chart:
@@ -40,7 +40,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart.release_baseline_basics import load_yaml
-from lib.image_version import check_basename_version, resolve_key_scope
+from lib.image.version import check_basename_version, resolve_key_scope
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"

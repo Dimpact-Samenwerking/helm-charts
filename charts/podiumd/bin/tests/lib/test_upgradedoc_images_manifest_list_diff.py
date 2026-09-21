@@ -405,7 +405,7 @@ def test_find_images_manifest_list_diff_representative_change_still_caught_despi
 
 def test_find_images_manifest_list_diff_excludes_unresolvable_path_from_missing(libupgradedocmanifestdiff):
     """A path with no resolvable repository at all (real case:
-    kiss.adapter.image — see lib.image_repository_check.
+    kiss.adapter.image — see lib.image.repository_check.
     find_images_without_repository's own docstring) isn't a real,
     referenceable image the manifest could ever meaningfully document —
     never reported as missing just because its tag happens to differ

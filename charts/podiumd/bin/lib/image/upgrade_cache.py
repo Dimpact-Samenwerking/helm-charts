@@ -1,6 +1,6 @@
 """JSON cache for image-upgrade-tag lookups
 (<repo-root>/.cache/image-upgrade-cache.json — a personal, gitignored,
-per-checkout cache, see cache_path), shared by lib.image_upgrade_check
+per-checkout cache, see cache_path), shared by lib.image.upgrade_check
 (which populates it via a live registry check) and lib.cve_check (which
 reads it read-only, to annotate a CVE finding as "upgradable" without
 triggering a registry round trip of its own — see that module's
@@ -52,7 +52,7 @@ def cache_entry_is_fresh(entry, ttl_days):
     """True when `entry` was checked within the last `ttl_days` days (see
     image_upgrade_check.tag_check_cache_ttl_days in lib.settings — a new
     tag can be published at any moment, so this is deliberately much
-    shorter than cve_scan.scan_cache_ttl_days; see lib.image_upgrade_
+    shorter than cve_scan.scan_cache_ttl_days; see lib.image.upgrade_
     check's docstring for the full rationale)."""
     try:
         checked_at = datetime.fromisoformat(entry["checked_at"])
