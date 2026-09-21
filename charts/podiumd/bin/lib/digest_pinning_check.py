@@ -54,12 +54,9 @@ subchart_image_visibility for a third."""
 
 import re
 
-from lib.chart import (
-    paths_by_repository,
-    subchart_template_text,
-)
 from lib.chart_pull_and_subchart_resolution import global_image_paths, resolve_subchart_default, subchart_values
 from lib.chart_release_baseline_basics import load_yaml
+from lib.chart_repo_and_path_resolution import paths_by_repository, subchart_template_text
 from lib.chart_values_tree_primitives import (
     find_dependency,
     get_path,

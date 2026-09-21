@@ -73,14 +73,14 @@ def test_find_app_versions_empty_tag_is_skipped(libchart, libchartvaluestreeprim
 # whatever resolve_baseline_chart_state returns.
 
 
-def test_component_state_at_baseline_success(libchart, monkeypatch, tmp_path):
+def test_component_state_at_baseline_success(libchart, monkeypatch, tmp_path, libchartrepoandpathresolution):
     """chart_dir is a real Path (not the opaque "chart_dir" placeholder the
     two error-path tests below use) since this one actually reaches
     image_paths_for(component, chart_dir) -- which now reads chart_dir/
     etc/settings.yaml (missing here, so it falls back to the ["image"]
     default) -- the other two tests return before ever calling it."""
     monkeypatch.setattr(
-        libchart,
+        libchartrepoandpathresolution,
         "resolve_baseline_chart_state",
         lambda chart_dir, baseline: (
             "podiumd-4.8.5",
@@ -91,7 +91,7 @@ def test_component_state_at_baseline_success(libchart, monkeypatch, tmp_path):
         ),
     )
 
-    ref, dep, values_key, image_paths, app_versions, error = libchart.component_state_at_baseline(
+    ref, dep, values_key, image_paths, app_versions, error = libchartrepoandpathresolution.component_state_at_baseline(
         tmp_path, "charts/podiumd", "4.8.5", "zac"
     )
 
@@ -103,14 +103,16 @@ def test_component_state_at_baseline_success(libchart, monkeypatch, tmp_path):
     assert app_versions == [("image", "5.0.2@sha256:abc")]
 
 
-def test_component_state_at_baseline_propagates_resolve_baseline_chart_state_error(libchart, monkeypatch):
+def test_component_state_at_baseline_propagates_resolve_baseline_chart_state_error(
+    libchart, monkeypatch, libchartrepoandpathresolution
+):
     monkeypatch.setattr(
-        libchart,
+        libchartrepoandpathresolution,
         "resolve_baseline_chart_state",
         lambda chart_dir, baseline: (None, [], {}, [], "could not resolve baseline '9.9.9' to a git ref (tried ...)"),
     )
 
-    ref, dep, values_key, image_paths, app_versions, error = libchart.component_state_at_baseline(
+    ref, dep, values_key, image_paths, app_versions, error = libchartrepoandpathresolution.component_state_at_baseline(
         "chart_dir", "charts/podiumd", "9.9.9", "zac"
     )
 
@@ -118,12 +120,14 @@ def test_component_state_at_baseline_propagates_resolve_baseline_chart_state_err
     assert error == "could not resolve baseline '9.9.9' to a git ref (tried ...)"
 
 
-def test_component_state_at_baseline_dependency_not_found(libchart, monkeypatch):
+def test_component_state_at_baseline_dependency_not_found(libchart, monkeypatch, libchartrepoandpathresolution):
     monkeypatch.setattr(
-        libchart, "resolve_baseline_chart_state", lambda chart_dir, baseline: ("podiumd-4.8.5", [], {}, [], None)
+        libchartrepoandpathresolution,
+        "resolve_baseline_chart_state",
+        lambda chart_dir, baseline: ("podiumd-4.8.5", [], {}, [], None),
     )
 
-    ref, dep, values_key, image_paths, app_versions, error = libchart.component_state_at_baseline(
+    ref, dep, values_key, image_paths, app_versions, error = libchartrepoandpathresolution.component_state_at_baseline(
         "chart_dir", "charts/podiumd", "4.8.5", "totally-unknown"
     )
 

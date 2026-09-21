@@ -66,11 +66,11 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import full_repository_for_path
 from lib.chart_pull_and_subchart_resolution import check_image_versions, resolve_chart_values
 from lib.chart_registered_paths import image_paths_for, native_components
 from lib.chart_release_baseline_basics import chart_version as _chart_version
 from lib.chart_release_baseline_basics import upgrade_docs_baseline as _read_upgrade_docs_baseline
+from lib.chart_repo_and_path_resolution import full_repository_for_path
 from lib.chart_values_tree_primitives import find_dependency as _find_dependency
 from lib.chart_values_tree_primitives import get_path, replace_scalar_value
 from lib.component_docs import NO_CHANGES_CLAIMED_RE

@@ -53,17 +53,17 @@ def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None,
 # --- canonical_sidecar_row_names ---
 
 
-def test_canonical_sidecar_row_names_dependency_sidecar(libchart, tmp_path):
+def test_canonical_sidecar_row_names_dependency_sidecar(libchart, tmp_path, libchartrepoandpathresolution):
     dep = {"name": "redis-operator", "alias": "", "version": "0.26.0"}
     values = {"redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis"}}}}
     paths = [("redis-operator", "redis-ha", "image")]
 
-    names = libchart.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
 
     assert names == {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
 
-def test_canonical_sidecar_row_names_native_component_sidecar(libchart, tmp_path):
+def test_canonical_sidecar_row_names_native_component_sidecar(libchart, tmp_path, libchartrepoandpathresolution):
     """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
     dependency at all — deps is empty on purpose — but it's still the
     real owner of its own nested sidecar images, the same as a real
@@ -71,23 +71,27 @@ def test_canonical_sidecar_row_names_native_component_sidecar(libchart, tmp_path
     values = {"frankgateway": {"etcd": {"image": {"repository": "quay.io/coreos/etcd"}}}}
     paths = [("frankgateway", "etcd", "image")]
 
-    names = libchart.canonical_sidecar_row_names(tmp_path, [], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [], values, paths, allow_pull=False)
 
     assert names == {"frankgateway - etcd": ("frankgateway", "etcd", "image")}
 
 
-def test_canonical_sidecar_row_names_excludes_native_components_own_primary_image(libchart, tmp_path):
+def test_canonical_sidecar_row_names_excludes_native_components_own_primary_image(
+    libchart, tmp_path, libchartrepoandpathresolution
+):
     """Same exclusion as a real dependency's own primary image — frankgateway's
     OWN top-level image is not a sidecar of itself."""
     values = {"frankgateway": {"image": {"repository": "ghcr.io/wearefrank/frank-gateway"}}}
     paths = [("frankgateway", "image")]
 
-    names = libchart.canonical_sidecar_row_names(tmp_path, [], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [], values, paths, allow_pull=False)
 
     assert names == {}
 
 
-def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(libchart, tmp_path):
+def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(
+    libchart, tmp_path, libchartrepoandpathresolution
+):
     """The dependency's own registered primary image (image_paths_for) is
     NOT a sidecar — match_dependency already covers it by the
     dependency's plain name/alias, so it must not show up here too."""
@@ -95,12 +99,14 @@ def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(libc
     values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
     paths = [("zac", "image")]
 
-    names = libchart.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
 
     assert names == {}
 
 
-def test_canonical_sidecar_row_names_self_referential_basename_falls_back_to_path_segment(libchart, tmp_path):
+def test_canonical_sidecar_row_names_self_referential_basename_falls_back_to_path_segment(
+    libchart, tmp_path, libchartrepoandpathresolution
+):
     """A nested image whose OWN repository basename happens to equal the
     parent dependency's own values key (real case: keycloak-operator.
     operator.image, the operator's own container — NOT registered in
@@ -116,12 +122,14 @@ def test_canonical_sidecar_row_names_self_referential_basename_falls_back_to_pat
     values = {"keycloak-operator": {"operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator"}}}}
     paths = [("keycloak-operator", "operator", "image")]
 
-    names = libchart.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
 
     assert names == {"keycloak-operator - operator": ("keycloak-operator", "operator", "image")}
 
 
-def test_canonical_sidecar_row_names_self_referential_basename_no_fallback_segment_is_excluded(libchart, tmp_path):
+def test_canonical_sidecar_row_names_self_referential_basename_no_fallback_segment_is_excluded(
+    libchart, tmp_path, libchartrepoandpathresolution
+):
     """When the self-referential path has nothing but the top-level key
     and the final image key itself (no distinct segment in between to
     fall back to), there's no useful alternative name at all — still
@@ -130,24 +138,26 @@ def test_canonical_sidecar_row_names_self_referential_basename_no_fallback_segme
     values = {"keycloak-operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator"}}}
     paths = [("keycloak-operator", "image")]
 
-    names = libchart.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
 
     assert names == {}
 
 
-def test_canonical_sidecar_row_names_global_shared_image(libchart, tmp_path):
+def test_canonical_sidecar_row_names_global_shared_image(libchart, tmp_path, libchartrepoandpathresolution):
     """A "global"-rooted image has no single owning dependency at all —
     the canonical name is bare "<basename>" (update-image-version's
     MULTIPLE_KEY convention), never "<values_key> - <basename>"."""
     values = {"global": {"images": {"nginx": {"image": {"repository": "docker.io/nginxinc/nginx-unprivileged"}}}}}
     paths = [("global", "images", "nginx", "image")]
 
-    names = libchart.canonical_sidecar_row_names(tmp_path, [], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [], values, paths, allow_pull=False)
 
     assert names == {"nginx-unprivileged": ("global", "images", "nginx", "image")}
 
 
-def test_canonical_sidecar_row_names_excludes_sidecar_sharing_a_global_repository(libchart, tmp_path):
+def test_canonical_sidecar_row_names_excludes_sidecar_sharing_a_global_repository(
+    libchart, tmp_path, libchartrepoandpathresolution
+):
     """Real bug: zac's own nginx sidecar and frankgateway's own nginx
     sidecar both alias the exact same global.images.nginx anchor — each
     independently registering its own "<dep> - nginx-unprivileged" name
@@ -172,12 +182,12 @@ def test_canonical_sidecar_row_names_excludes_sidecar_sharing_a_global_repositor
         ("frankgateway", "dashboard", "auth", "shim", "image"),
     ]
 
-    names = libchart.canonical_sidecar_row_names(tmp_path, deps, values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, deps, values, paths, allow_pull=False)
 
     assert names == {"nginx-unprivileged": ("global", "images", "nginx")}
 
 
-def test_canonical_sidecar_row_names_multiple_sidecars_stay_distinct(libchart, tmp_path):
+def test_canonical_sidecar_row_names_multiple_sidecars_stay_distinct(libchart, tmp_path, libchartrepoandpathresolution):
     values = {
         "redis-operator": {
             "redis-ha": {"image": {"repository": "quay.io/opstree/redis"}},
@@ -187,7 +197,7 @@ def test_canonical_sidecar_row_names_multiple_sidecars_stay_distinct(libchart, t
     dep = {"name": "redis-operator", "alias": "", "version": "0.26.0"}
     paths = [("redis-operator", "redis-ha", "image"), ("redis-operator", "redis-exporter", "image")]
 
-    names = libchart.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
 
     assert names == {
         "redis-operator - redis": ("redis-operator", "redis-ha", "image"),
@@ -198,7 +208,7 @@ def test_canonical_sidecar_row_names_multiple_sidecars_stay_distinct(libchart, t
 # --- subchart_template_text ---
 
 
-def test_subchart_template_text_concatenates_all_template_files(libchart, tmp_path):
+def test_subchart_template_text_concatenates_all_template_files(libchart, tmp_path, libchartrepoandpathresolution):
     make_tgz(
         tmp_path / "charts",
         "pabc",
@@ -210,30 +220,30 @@ def test_subchart_template_text_concatenates_all_template_files(libchart, tmp_pa
         },
     )
     dep = {"name": "pabc", "version": "1.1.1"}
-    text = libchart.subchart_template_text(tmp_path, dep)
+    text = libchartrepoandpathresolution.subchart_template_text(tmp_path, dep)
     assert "{{ .Values.image.repository }}" in text
     assert "kind: Service" in text
 
 
-def test_subchart_template_text_missing_tgz_returns_none(libchart, tmp_path):
+def test_subchart_template_text_missing_tgz_returns_none(libchart, tmp_path, libchartrepoandpathresolution):
     dep = {"name": "pabc", "version": "1.1.1"}
-    assert libchart.subchart_template_text(tmp_path, dep) is None
+    assert libchartrepoandpathresolution.subchart_template_text(tmp_path, dep) is None
 
 
-def test_subchart_template_text_no_templates_dir_returns_none(libchart, tmp_path):
+def test_subchart_template_text_no_templates_dir_returns_none(libchart, tmp_path, libchartrepoandpathresolution):
     """A .tgz with only values.yaml (no templates/ at all — the shape
     make_tgz produces when `templates` is omitted) is "can't tell", not
     an empty-but-valid haystack — callers must be able to distinguish the
     two, so this returns None rather than ""."""
     make_tgz(tmp_path / "charts", "pabc", "1.1.1", {"image": {"repository": "pabc/pabc-api"}})
     dep = {"name": "pabc", "version": "1.1.1"}
-    assert libchart.subchart_template_text(tmp_path, dep) is None
+    assert libchartrepoandpathresolution.subchart_template_text(tmp_path, dep) is None
 
 
 # --- subchart_default_repository ---
 
 
-def test_subchart_default_repository_resolves_via_alias(libchart, tmp_path):
+def test_subchart_default_repository_resolves_via_alias(libchart, tmp_path, libchartrepoandpathresolution):
     """openformulieren is a values.yaml/Chart.yaml alias for the openforms
     subchart — the .tgz and its internal values.yaml are keyed by the
     real chart name, not the alias."""
@@ -244,10 +254,13 @@ def test_subchart_default_repository_resolves_via_alias(libchart, tmp_path):
         "  image:",
         '    tag: "3.4.10@sha256:aaaa"',
     ]
-    assert libchart.subchart_default_repository(tmp_path, lines, 3, deps) == "openformulieren/open-forms"
+    assert (
+        libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 3, deps)
+        == "openformulieren/open-forms"
+    )
 
 
-def test_subchart_default_repository_nested_subpath(libchart, tmp_path):
+def test_subchart_default_repository_nested_subpath(libchart, tmp_path, libchartrepoandpathresolution):
     make_tgz(
         tmp_path / "charts",
         "zgw-office-addin",
@@ -263,28 +276,30 @@ def test_subchart_default_repository_nested_subpath(libchart, tmp_path):
         "    image:",
         '      tag: "v0.9.352@sha256:aaaa"',
     ]
-    assert libchart.subchart_default_repository(tmp_path, lines, 4, deps) == "example/frontend"
+    assert libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 4, deps) == "example/frontend"
 
 
-def test_subchart_default_repository_unknown_component_returns_none(libchart, tmp_path):
+def test_subchart_default_repository_unknown_component_returns_none(libchart, tmp_path, libchartrepoandpathresolution):
     lines = ["a:", "  image:", '    tag: "1.0.0@sha256:aaaa"']
-    assert libchart.subchart_default_repository(tmp_path, lines, 3, []) is None
+    assert libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 3, []) is None
 
 
-def test_subchart_default_repository_too_shallow_path_returns_none(libchart, tmp_path):
+def test_subchart_default_repository_too_shallow_path_returns_none(libchart, tmp_path, libchartrepoandpathresolution):
     lines = ['tag: "1.0.0@sha256:aaaa"']
-    assert libchart.subchart_default_repository(tmp_path, lines, 1, [{"name": "a"}]) is None
+    assert libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 1, [{"name": "a"}]) is None
 
 
-def test_subchart_default_repository_subchart_has_no_repository_at_path(libchart, tmp_path):
+def test_subchart_default_repository_subchart_has_no_repository_at_path(
+    libchart, tmp_path, libchartrepoandpathresolution
+):
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {}})
     deps = [{"name": "openzaak", "version": "1.14.2"}]
     lines = ["openzaak:", "  image:", '    tag: "1.27.4@sha256:aaaa"']
-    assert libchart.subchart_default_repository(tmp_path, lines, 3, deps) is None
+    assert libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 3, deps) is None
 
 
 def test_subchart_default_repository_caches_across_calls(
-    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
+    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution, libchartrepoandpathresolution
 ):
     make_tgz(
         tmp_path / "charts",
@@ -311,10 +326,16 @@ def test_subchart_default_repository_caches_across_calls(
         calls.append(dep["name"])
         return real_subchart_values(chart_dir, dep)
 
-    monkeypatch.setattr(libchart, "subchart_values", spy)
+    monkeypatch.setattr(libchartrepoandpathresolution, "subchart_values", spy)
     cache = {}
-    assert libchart.subchart_default_repository(tmp_path, lines, 3, deps, cache) == "openzaak/open-zaak"
-    assert libchart.subchart_default_repository(tmp_path, lines, 6, deps, cache) == "openzaak/open-zaak-worker"
+    assert (
+        libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 3, deps, cache)
+        == "openzaak/open-zaak"
+    )
+    assert (
+        libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 6, deps, cache)
+        == "openzaak/open-zaak-worker"
+    )
     assert calls == ["openzaak"]  # second lookup served from cache, .tgz read only once
 
 

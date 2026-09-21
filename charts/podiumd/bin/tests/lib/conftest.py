@@ -15,6 +15,7 @@ import lib.chart_nested_subchart_identity as chart_nested_subchart_identity
 import lib.chart_pull_and_subchart_resolution as chart_pull_and_subchart_resolution
 import lib.chart_registered_paths as chart_registered_paths
 import lib.chart_release_baseline_basics as chart_release_baseline_basics
+import lib.chart_repo_and_path_resolution as chart_repo_and_path_resolution
 import lib.chart_values_tree_primitives as chart_values_tree_primitives
 import lib.component_docs as component_docs
 import lib.confluence_tables as confluence_tables
@@ -77,6 +78,11 @@ def libchartreleasebaselinebasics():
 @pytest.fixture(scope="session")
 def libchartpullandsubchartresolution():
     return chart_pull_and_subchart_resolution
+
+
+@pytest.fixture(scope="session")
+def libchartrepoandpathresolution():
+    return chart_repo_and_path_resolution
 
 
 @pytest.fixture(scope="session")

@@ -85,13 +85,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
-from lib.chart import (
-    baseline_tag_for_sidecar_path, canonical_sidecar_row_names,
-    full_repository_for_path, historical_app_version_for_path,
-    paths_by_repository, repo_group_representative,
-)
+from lib.chart import baseline_tag_for_sidecar_path, historical_app_version_for_path
 from lib.chart_nested_subchart_identity import documented_repository_for_path
 from lib.chart_pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
+from lib.chart_repo_and_path_resolution import (
+    canonical_sidecar_row_names, full_repository_for_path,
+    paths_by_repository, repo_group_representative,
+)
 from lib.chart_registered_paths import image_paths_for, is_primary_image_path
 from lib.chart_release_baseline_basics import chart_version
 from lib.chart_release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
