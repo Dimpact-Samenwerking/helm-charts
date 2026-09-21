@@ -14,19 +14,19 @@ import yaml
 # --- find_dependency ---
 
 
-def test_find_dependency_by_name(libchart):
+def test_find_dependency_by_name(libchart, libchartvaluestreeprimitives):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
-    assert libchart.find_dependency(deps, "zaakafhandelcomponent")["alias"] == "zac"
+    assert libchartvaluestreeprimitives.find_dependency(deps, "zaakafhandelcomponent")["alias"] == "zac"
 
 
-def test_find_dependency_by_alias(libchart):
+def test_find_dependency_by_alias(libchart, libchartvaluestreeprimitives):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
-    assert libchart.find_dependency(deps, "zac")["name"] == "zaakafhandelcomponent"
+    assert libchartvaluestreeprimitives.find_dependency(deps, "zac")["name"] == "zaakafhandelcomponent"
 
 
-def test_find_dependency_not_found_returns_none(libchart):
+def test_find_dependency_not_found_returns_none(libchart, libchartvaluestreeprimitives):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
-    assert libchart.find_dependency(deps, "totally-unknown") is None
+    assert libchartvaluestreeprimitives.find_dependency(deps, "totally-unknown") is None
 
 
 # --- find_app_versions ---
@@ -34,29 +34,31 @@ def test_find_dependency_not_found_returns_none(libchart):
 # below.
 
 
-def test_find_app_versions_single_image(libchart):
+def test_find_app_versions_single_image(libchart, libchartvaluestreeprimitives):
     values = {"zac": {"image": {"tag": "5.0.2@sha256:abc"}}}
-    assert libchart.find_app_versions(values, "zac", ["image"]) == [("image", "5.0.2@sha256:abc")]
+    assert libchartvaluestreeprimitives.find_app_versions(values, "zac", ["image"]) == [("image", "5.0.2@sha256:abc")]
 
 
-def test_find_app_versions_multi_image(libchart):
+def test_find_app_versions_multi_image(libchart, libchartvaluestreeprimitives):
     values = {
         "zgw-office-addin": {
             "frontend": {"image": {"tag": "v0.9.313@sha256:a"}},
             "backend": {"image": {"tag": "v0.9.313@sha256:b"}},
         }
     }
-    result = libchart.find_app_versions(values, "zgw-office-addin", ["frontend.image", "backend.image"])
+    result = libchartvaluestreeprimitives.find_app_versions(
+        values, "zgw-office-addin", ["frontend.image", "backend.image"]
+    )
     assert result == [("frontend.image", "v0.9.313@sha256:a"), ("backend.image", "v0.9.313@sha256:b")]
 
 
-def test_find_app_versions_missing_key_returns_empty(libchart):
-    assert libchart.find_app_versions({}, "zac", ["image"]) == []
+def test_find_app_versions_missing_key_returns_empty(libchart, libchartvaluestreeprimitives):
+    assert libchartvaluestreeprimitives.find_app_versions({}, "zac", ["image"]) == []
 
 
-def test_find_app_versions_empty_tag_is_skipped(libchart):
+def test_find_app_versions_empty_tag_is_skipped(libchart, libchartvaluestreeprimitives):
     values = {"zac": {"image": {"tag": ""}}}
-    assert libchart.find_app_versions(values, "zac", ["image"]) == []
+    assert libchartvaluestreeprimitives.find_app_versions(values, "zac", ["image"]) == []
 
 
 # --- component_state_at_baseline ---

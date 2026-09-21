@@ -170,9 +170,9 @@ def test_check_image_versions_raises_when_no_path_has_a_repository(libchart, mon
 # --- version_of ---
 
 
-def test_version_of_strips_digest(libchart):
-    assert libchart.version_of("5.4.3@sha256:abc") == "5.4.3"
-    assert libchart.version_of("1.19.0-static") == "1.19.0-static"
+def test_version_of_strips_digest(libchart, libchartvaluestreeprimitives):
+    assert libchartvaluestreeprimitives.version_of("5.4.3@sha256:abc") == "5.4.3"
+    assert libchartvaluestreeprimitives.version_of("1.19.0-static") == "1.19.0-static"
 
 
 # --- resolved_digest_pin ---
@@ -279,22 +279,22 @@ def test_resolved_digest_pin_eck_operator_no_digest_override_returns_none(libcha
 # --- find_images ---
 
 
-def test_find_images_nested_dict_and_list(libchart):
+def test_find_images_nested_dict_and_list(libchart, libchartvaluestreeprimitives):
     values = {
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:abc"}},
         "items": [{"image": {"repository": "curlimages/curl", "tag": "8.21.0"}}],
     }
-    images = libchart.find_images(values)
+    images = libchartvaluestreeprimitives.find_images(values)
     assert ("zac.image", "ghcr.io/infonl/zaakafhandelcomponent", "5.4.3@sha256:abc") in images
     assert ("items[0].image", "curlimages/curl", "8.21.0") in images
 
 
-def test_find_images_skips_empty_tag(libchart):
-    assert libchart.find_images({"image": {"repository": "x", "tag": ""}}) == []
+def test_find_images_skips_empty_tag(libchart, libchartvaluestreeprimitives):
+    assert libchartvaluestreeprimitives.find_images({"image": {"repository": "x", "tag": ""}}) == []
 
 
-def test_find_images_root_path_label(libchart):
-    assert libchart.find_images({"repository": "x", "tag": "1.0"}) == [("(root)", "x", "1.0")]
+def test_find_images_root_path_label(libchart, libchartvaluestreeprimitives):
+    assert libchartvaluestreeprimitives.find_images({"repository": "x", "tag": "1.0"}) == [("(root)", "x", "1.0")]
 
 
 # --- image_paths_for ---
@@ -328,16 +328,16 @@ def test_image_paths_for_unlisted_component_defaults_to_single_image_block(libch
 # --- dotted_key_path ---
 
 
-def test_dotted_key_path_nested_component(libchart):
+def test_dotted_key_path_nested_component(libchart, libchartvaluestreeprimitives):
     lines = [
         "openzaak:",
         "  image:",
         '    tag: "1.27.4@sha256:aaaa"',
     ]
-    assert libchart.dotted_key_path(lines, 2) == "openzaak.image.tag"
+    assert libchartvaluestreeprimitives.dotted_key_path(lines, 2) == "openzaak.image.tag"
 
 
-def test_dotted_key_path_ignores_comments_and_blank_lines(libchart):
+def test_dotted_key_path_ignores_comments_and_blank_lines(libchart, libchartvaluestreeprimitives):
     lines = [
         "a:",
         "  # a comment",
@@ -345,10 +345,10 @@ def test_dotted_key_path_ignores_comments_and_blank_lines(libchart):
         "  image:",
         '    tag: "1.0.0@sha256:aaaa"',
     ]
-    assert libchart.dotted_key_path(lines, 4) == "a.image.tag"
+    assert libchartvaluestreeprimitives.dotted_key_path(lines, 4) == "a.image.tag"
 
 
-def test_dotted_key_path_pops_stack_on_dedent(libchart):
+def test_dotted_key_path_pops_stack_on_dedent(libchart, libchartvaluestreeprimitives):
     lines = [
         "a:",
         "  b:",
@@ -356,7 +356,7 @@ def test_dotted_key_path_pops_stack_on_dedent(libchart):
         "d:",
         "  e: 2",
     ]
-    assert libchart.dotted_key_path(lines, 4) == "d.e"
+    assert libchartvaluestreeprimitives.dotted_key_path(lines, 4) == "d.e"
 
 
 # --- subchart_values ---
@@ -643,7 +643,9 @@ def test_resolve_subchart_default_version_none_when_not_vendored(libchart, tmp_p
 # --- own_template_files_referencing / resolve_values_path_source ---
 
 
-def test_own_template_files_referencing_finds_a_literal_values_reference(libchart, tmp_path):
+def test_own_template_files_referencing_finds_a_literal_values_reference(
+    libchart, libchartvaluestreeprimitives, tmp_path
+):
     (tmp_path / "templates").mkdir()
     (tmp_path / "templates" / "frankgateway-nginx.yaml").write_text(
         "image: {{ .Values.frankgateway.nginx.image.repository }}\n", encoding="utf-8"
@@ -651,37 +653,41 @@ def test_own_template_files_referencing_finds_a_literal_values_reference(libchar
     (tmp_path / "templates" / "unrelated.yaml").write_text(
         "image: {{ .Values.apiproxy.image.repository }}\n", encoding="utf-8"
     )
-    files = libchart.own_template_files_referencing(tmp_path, "frankgateway")
+    files = libchartvaluestreeprimitives.own_template_files_referencing(tmp_path, "frankgateway")
     assert files == ["templates/frankgateway-nginx.yaml"]
 
 
-def test_own_template_files_referencing_no_templates_dir_returns_empty(libchart, tmp_path):
-    assert libchart.own_template_files_referencing(tmp_path, "frankgateway") == []
+def test_own_template_files_referencing_no_templates_dir_returns_empty(
+    libchart, libchartvaluestreeprimitives, tmp_path
+):
+    assert libchartvaluestreeprimitives.own_template_files_referencing(tmp_path, "frankgateway") == []
 
 
-def test_own_template_files_referencing_no_match_returns_empty(libchart, tmp_path):
+def test_own_template_files_referencing_no_match_returns_empty(libchart, libchartvaluestreeprimitives, tmp_path):
     (tmp_path / "templates").mkdir()
     (tmp_path / "templates" / "unrelated.yaml").write_text(
         "image: {{ .Values.apiproxy.image.repository }}\n", encoding="utf-8"
     )
-    assert libchart.own_template_files_referencing(tmp_path, "frankgateway") == []
+    assert libchartvaluestreeprimitives.own_template_files_referencing(tmp_path, "frankgateway") == []
 
 
-def test_resolve_values_path_source_real_dependency_shows_chart_and_version(libchart, tmp_path):
+def test_resolve_values_path_source_real_dependency_shows_chart_and_version(
+    libchart, libchartvaluestreeprimitives, tmp_path
+):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    source = libchart.resolve_values_path_source(tmp_path, deps, ("zac", "nginx", "image"))
+    source = libchartvaluestreeprimitives.resolve_values_path_source(tmp_path, deps, ("zac", "nginx", "image"))
     assert source == "chart zaakafhandelcomponent@1.0.297"
 
 
-def test_resolve_values_path_source_orphan_key_shows_local_template(libchart, tmp_path):
+def test_resolve_values_path_source_orphan_key_shows_local_template(libchart, libchartvaluestreeprimitives, tmp_path):
     (tmp_path / "templates").mkdir()
     (tmp_path / "templates" / "frankgateway-nginx.yaml").write_text(
         "image: {{ .Values.frankgateway.nginx.image.repository }}\n", encoding="utf-8"
     )
-    source = libchart.resolve_values_path_source(tmp_path, [], ("frankgateway", "nginx", "image"))
+    source = libchartvaluestreeprimitives.resolve_values_path_source(tmp_path, [], ("frankgateway", "nginx", "image"))
     assert source == "local: templates/frankgateway-nginx.yaml"
 
 
-def test_resolve_values_path_source_orphan_key_no_match_says_so(libchart, tmp_path):
-    source = libchart.resolve_values_path_source(tmp_path, [], ("global", "images", "nginx"))
+def test_resolve_values_path_source_orphan_key_no_match_says_so(libchart, libchartvaluestreeprimitives, tmp_path):
+    source = libchartvaluestreeprimitives.resolve_values_path_source(tmp_path, [], ("global", "images", "nginx"))
     assert source == "local: no referencing template found"

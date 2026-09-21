@@ -18,8 +18,8 @@ from lib.chart import (
     paths_by_repository,
     repo_group_representative,
     resolved_digest_pin,
-    version_of,
 )
+from lib.chart_values_tree_primitives import version_of
 from lib.component_docs import (
     CHANGES_HEADER_RE,
     CHANGES_ITEM_RE,

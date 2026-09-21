@@ -26,9 +26,9 @@ from lib.chart import (
     historical_app_version_for_path,
     image_paths_for,
     native_components,
-    replace_scalar_value,
     version_paths_for,
 )
+from lib.chart_values_tree_primitives import replace_scalar_value
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.upgradedoc_app_version_and_image_paths import (

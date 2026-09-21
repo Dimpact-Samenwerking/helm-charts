@@ -23,16 +23,18 @@ from lib.chart import (
     baseline_tag_for_sidecar_path,
     canonical_sidecar_row_names,
     full_repository_for_path,
-    get_path,
     global_image_paths,
     historical_app_version_for_path,
     image_paths_for,
     paths_by_repository,
-    replace_scalar_value,
     repo_group_representative,
     resolved_digest_pin,
-    version_of,
     version_paths_for,
+)
+from lib.chart_values_tree_primitives import (
+    get_path,
+    replace_scalar_value,
+    version_of,
 )
 from lib.component_docs import (
     CHANGES_ITEM_RE,

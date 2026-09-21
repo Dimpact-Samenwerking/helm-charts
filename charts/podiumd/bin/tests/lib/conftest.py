@@ -11,6 +11,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import lib.baseline_report as baseline_report
 import lib.chart as chart
+import lib.chart_values_tree_primitives as chart_values_tree_primitives
 import lib.component_docs as component_docs
 import lib.confluence_tables as confluence_tables
 import lib.dependencies as dependencies
@@ -47,6 +48,11 @@ def libregistry():
 @pytest.fixture(scope="session")
 def libchart():
     return chart
+
+
+@pytest.fixture(scope="session")
+def libchartvaluestreeprimitives():
+    return chart_values_tree_primitives
 
 
 @pytest.fixture(scope="session")
