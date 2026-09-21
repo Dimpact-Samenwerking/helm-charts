@@ -39,6 +39,7 @@ from lib.chart.values_tree_primitives import (
     replace_scalar_value,
     version_of,
 )
+from lib.checks.digest_pinning import find_unresolved_subchart_images
 from lib.component_docs.changes_section import (
     dep_for_values_key,
     insert_changes_section,
@@ -51,7 +52,6 @@ from lib.component_docs.images_manifest_changes_header import (
     find_images_manifest_changes_header,
     insert_images_manifest_header_item,
 )
-from lib.digest_pinning_check import find_unresolved_subchart_images
 from lib.registry import parse_repo, registry_tag_exists
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import (

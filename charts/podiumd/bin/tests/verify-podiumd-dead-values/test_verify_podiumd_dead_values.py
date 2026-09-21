@@ -1,6 +1,6 @@
 """verify-podiumd-dead-values's main() — argument parsing, the helm
 pre-flight check, the runtime warning, and end-to-end wiring into
-lib.dead_values_check.check_dead_values (mocked out here — its own
+lib.checks.dead_values.check_dead_values (mocked out here — its own
 correctness is tests/verify-podiumd/test_dead_values_check.py's job,
 not this script wrapper's)."""
 

@@ -1,7 +1,7 @@
 """check_image_upgrades — report-only check for whether a newer same-variant
 tag is published for every unique digest-pinned image, split into own/
 partner-vendor/other-vendor buckets (same classification as check_cves,
-reused directly from lib.cve_check). No real helm/registry invocation
+reused directly from lib.checks.cve). No real helm/registry invocation
 happens in these tests — `run` and `find_newest_same_variant_tag` are
 mocked throughout."""
 

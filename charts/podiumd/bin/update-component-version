@@ -243,7 +243,7 @@ def locate_dotted_key_line(lines, dotted_path):
 # config.keycloakImage) — now lives in charts/podiumd/etc/settings.yaml's
 # own "digest_pinning.exceptions" section (see lib.settings.digest_
 # pinning_exceptions), unified with lib.chart's own read-side registry
-# and lib.digest_pinning_check's own exemption list. Only entries marked
+# and lib.checks.digest_pinning's own exemption list. Only entries marked
 # "writable: true" there are eligible to be auto-written here — resolved
 # below into split_tag_sha_paths, keyed the same (values_key, path) way
 # this script's own paths_to_update loop already is, with each path's own

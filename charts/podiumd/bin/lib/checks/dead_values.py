@@ -1,6 +1,6 @@
 """Report-only check for values.yaml leaf entries that no template — own
 or vendored sub-chart — ever actually reads: "dead code" in values.yaml.
-Unlike lib.digest_pinning_check's find_unresolved_subchart_images (which
+Unlike lib.checks.digest_pinning's find_unresolved_subchart_images (which
 answers "does a sub-chart default exist that podiumd doesn't override"),
 this answers the reverse question: "does podiumd's OWN override of this
 key ever change anything at all".

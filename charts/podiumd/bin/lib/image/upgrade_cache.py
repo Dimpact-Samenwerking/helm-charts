@@ -1,7 +1,7 @@
 """JSON cache for image-upgrade-tag lookups
 (<repo-root>/.cache/image-upgrade-cache.json — a personal, gitignored,
 per-checkout cache, see cache_path), shared by lib.image.upgrade_check
-(which populates it via a live registry check) and lib.cve_check (which
+(which populates it via a live registry check) and lib.checks.cve (which
 reads it read-only, to annotate a CVE finding as "upgradable" without
 triggering a registry round trip of its own — see that module's
 docstring). Split into its own module because both need it: cve_check

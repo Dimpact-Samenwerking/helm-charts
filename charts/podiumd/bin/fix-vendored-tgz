@@ -21,7 +21,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.vendored_tgz_check import find_extracted_vendored_dirs
+from lib.checks.vendored_tgz import find_extracted_vendored_dirs
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 

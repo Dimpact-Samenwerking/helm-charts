@@ -173,7 +173,7 @@ def test_run_trivy_unparseable_output_returns_none(libcvecheck, monkeypatch):
     assert libcvecheck.run_trivy("org/repo:1.0.0") is None
 
 
-# --- scan_cached (the shared primitive check_cves and lib.cve_diff_check
+# --- scan_cached (the shared primitive check_cves and lib.checks.cve_diff
 # both route through) ---
 
 
@@ -238,7 +238,7 @@ def test_scan_cached_stale_entry_is_not_used(libcvecheck, tmp_path, monkeypatch)
 
 def test_scan_cached_none_digest_skips_the_cache_entirely(libcvecheck, tmp_path, monkeypatch):
     """A digest=None candidate (an unresolved proposed tag, see lib.
-    cve_diff_check._scan_proposed) must go straight to run_trivy — no
+    checks.cve_diff._scan_proposed) must go straight to run_trivy — no
     cache read, and no cache write either, since there's no digest to
     key it by."""
     calls = []
@@ -276,7 +276,7 @@ def test_scan_cached_default_label_is_this_image(libcvecheck, tmp_path, monkeypa
 
 
 # --- open_cache_session (the shared "load, then start a correct mutable
-# working copy" initializer check_cves and lib.cve_diff_check both call,
+# working copy" initializer check_cves and lib.checks.cve_diff both call,
 # so there's no second independently-written copy of it left to drift —
 # see the real bug that happened once, when check_cves' own copy of this
 # step quietly wrote new_cache = {} instead) ---
@@ -518,8 +518,8 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
     # a per-image progress line for each of the 3 (uncached) scans, so a
     # slow trivy pull doesn't look like the step hung -- same "this
     # image: scanning fresh (docker pull + trivy) -- <ref>..." wording
-    # lib.cve_diff_check's own current/proposed lines use, via the same
-    # shared lib.cve_check.scan_cached.
+    # lib.checks.cve_diff's own current/proposed lines use, via the same
+    # shared lib.checks.cve.scan_cached.
     scan_lines = [line for line in out.splitlines() if "scanning fresh" in line and "docker pull + trivy" in line]
     assert len(scan_lines) == 3
     assert any(line.startswith("  [1/3] this image: scanning fresh ") for line in scan_lines)
@@ -837,13 +837,13 @@ def test_check_cves_expired_cache_entry_rescans(vp, libcvecheck, tmp_path, monke
 def test_check_cves_preserves_entries_for_unpinned_images(vp, libcvecheck, tmp_path, monkeypatch):
     """Regression test (real bug): check_cves used to start new_cache as
     an EMPTY dict, so its own end-of-run save_cache wiped out every
-    cache entry this run didn't itself touch -- including a lib.
-    cve_diff_check "proposed"-side entry for an image that's never
+    cache entry this run didn't itself touch -- including a lib.checks.
+    cve_diff "proposed"-side entry for an image that's never
     actually pinned in values.yaml at all (a candidate/upgrade tag or a
     slid digest). Since check_cves runs right before check_cve_diff in
     the default pipeline, this destroyed cve-diff's own proposed-side
     cache on nearly every run. new_cache now starts as a COPY of old_
-    cache (matching lib.cve_diff_check's own already-correct pattern),
+    cache (matching lib.checks.cve_diff's own already-correct pattern),
     so an untouched entry is carried forward as-is and ages out on its
     own TTL, never actively deleted just for not being a current target."""
     chart_dir = make_chart_dir(tmp_path)

@@ -1,7 +1,7 @@
 """Report-only check: for every image check_image_upgrades flagged with a
 newer tag published, or check_image_digests flagged with a slid digest,
 scan BOTH the currently-pinned image and the proposed replacement with
-trivy (lib.cve_check.run_trivy) and report the per-severity CVE SET
+trivy (lib.checks.cve.run_trivy) and report the per-severity CVE SET
 DIFFERENCE — which CVEs the proposed image closes (present now, absent
 after) and which it newly introduces (absent now, present after). An
 upgrade/re-pin decision informed by real security data, not just "a newer
@@ -14,7 +14,7 @@ docker) and from check_cves itself (which scans every currently-pinned
 image once, not a proposed replacement) — bolting a second per-candidate
 docker+trivy cost onto a cheap step would recreate the exact cost-tier
 mismatch this repo already found and fixed once for check_digest_pinning/
-check_shared_image_usage (see lib.digest_pinning_check's own module
+check_shared_image_usage (see lib.checks.digest_pinning's own module
 docstring). Cost here is still bounded: only images with an ACTUAL
 flagged upgrade or slide get a second scan, not every pinned image, so
 this runs by default like every other step — no separate opt-in flag,
@@ -28,7 +28,7 @@ to make verify-podiumd itself red.
 Reported split into the same own/partner-vendor/other-vendor buckets as
 check_yamllint/check_kubeconform/check_shellcheck/check_kube_score/
 check_cves — every candidate is classified via the exact same lib.
-cve_check machinery those already use (render-based "# Source:"
+checks.cve machinery those already use (render-based "# Source:"
 attribution first, falling back to a values.yaml top-level-key heuristic
 for a component not present in the render at all — see
 classify_candidates), reusing whatever render check_image_upgrades'
@@ -71,7 +71,7 @@ twice, once under each heading — a rare enough overlap in practice that
 merging the two into one combined diff isn't worth the added complexity
 it would take to do correctly.
 
-Caching: BOTH sides of each candidate scan via lib.cve_check.scan_cached
+Caching: BOTH sides of each candidate scan via lib.checks.cve.scan_cached
 — the SAME shared "check the digest-keyed cve-scan-cache.json, report a
 cache hit or announce a fresh scan, run trivy if needed, cache the
 result" primitive check_cves' own per-image loop uses, rather than a
@@ -87,8 +87,8 @@ But the two sides, and the two candidate KINDS, get there differently:
   registry call check_image_digests' own work already made, not a new
   one this module triggers) — see gather_candidates' own
   "proposed_digest" field.
-- An "upgrade" candidate's PROPOSED side is a bare TAG (lib.
-  image_upgrade_check never records the digest, only the tag string) —
+- An "upgrade" candidate's PROPOSED side is a bare TAG (lib.image.
+  upgrade_check never records the digest, only the tag string) —
   its digest genuinely isn't known ahead of time, so caching it costs
   ONE extra registry_tag_exists manifest lookup (a cheap tag->digest
   resolve, NOT a docker pull) before the scan. If that resolve call
@@ -100,7 +100,7 @@ But the two sides, and the two candidate KINDS, get there differently:
 import urllib.error
 from collections import Counter
 
-from lib.cve_check import (
+from lib.checks.cve import (
     SEVERITY_ORDER,
     bucket_of,
     classify_by_key,
@@ -135,7 +135,7 @@ def _vuln_key(v):
 
 def diff_vulns(current_vulns, proposed_vulns):
     """(closed, introduced) — lists of vuln dicts (same shape lib.
-    cve_check.run_trivy returns) present in exactly one side, keyed by
+    checks.cve.run_trivy returns) present in exactly one side, keyed by
     the exact (VulnerabilityID, PkgName) pair. An EXACT set difference,
     never a naive per-severity count subtraction — that would hide e.g.
     "5 closed, 3 newly introduced" behind a misleading "net -2"."""
@@ -147,7 +147,7 @@ def diff_vulns(current_vulns, proposed_vulns):
 
 
 def _bare_digest(digest_ref):
-    """ "sha256:<hex>" -> "<hex>" — lib.cve_check.cache_key expects the
+    """ "sha256:<hex>" -> "<hex>" — lib.checks.cve.cache_key expects the
     bare hex digest (it prepends "sha256:" itself), but every digest this
     module gets handed back (find_sliding_pins, registry_tag_exists) has
     the full "sha256:" prefix already on it."""
@@ -215,7 +215,7 @@ def _scan_current(chart_dir, candidate, old_cache, new_cache, ttl_days):
     """The CURRENT side of one candidate — always cache-eligible, its
     pinned digest is already known from values.yaml, a free hit whenever
     check_cves already scanned this exact digest (both route through the
-    same lib.cve_check.scan_cached — see its own docstring). `ttl_days`
+    same lib.checks.cve.scan_cached — see its own docstring). `ttl_days`
     (see cve_scan.scan_cache_ttl_days in lib.settings) is resolved once by
     check_cve_diff and threaded straight through."""
     vulns, _ = scan_cached(
@@ -297,7 +297,7 @@ def print_candidate_result(closed, introduced, detail, high_severities, package_
 def classify_candidates(chart_dir, extra_args, candidates, values_lines):
     """Attach "bucket" ("own"|"partner"|"other") to each candidate dict in
     place, via the exact same own/partner/other classification lib.
-    cve_check/lib.image.upgrade_check already use for a currently-pinned
+    checks.cve/lib.image.upgrade_check already use for a currently-pinned
     image: render-based "# Source:" attribution first (rendered_labels),
     falling back to a values.yaml top-level-key heuristic
     (classify_by_key) for a component not present in the render at all
@@ -334,7 +334,7 @@ def _process_bucket(
 ):
     """Scan and print one bucket's candidates under its own "--- <title>
     ---" header (skipped entirely when the bucket is empty, via the same
-    lib.cve_check.print_bucket_header idiom print_bucket_report itself
+    lib.checks.cve.print_bucket_header idiom print_bucket_report itself
     uses — not a second independently-written copy of that check). Returns
     (closed, introduced) totals for this bucket. Local per-bucket
     numbering ([i/N] where N is THIS bucket's own count), same convention

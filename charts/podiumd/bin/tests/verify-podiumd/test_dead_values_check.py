@@ -3,7 +3,7 @@ template ever reads. No real helm invocation happens in these tests: a
 fake `run` simulates a tiny renderer that only cares about two modeled
 leaves (foo.used — echoed into its output; required.field — makes the
 render fail entirely if nulled), so every other leaf (foo.dead) is
-"dead" by construction. See lib.dead_values_check's own module
+"dead" by construction. See lib.checks.dead_values's own module
 docstring for the top-down/recurse-on-diff strategy, the per-subchart
 scoped rendering, and the full-chart confirmation safety net this
 exercises."""

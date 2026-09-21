@@ -74,8 +74,8 @@ def find_dependency(deps, name_or_alias):
 def own_template_files_referencing(chart_dir, key):
     """Sorted paths (relative to chart_dir) of every file under podiumd's
     OWN templates/ that contains a literal ".Values.<key>" reference —
-    deterministic text search, the same convention lib.dead_values_
-    check._own_template_subchart_refs already uses for the analogous
+    deterministic text search, the same convention lib.checks.
+    dead_values._own_template_subchart_refs already uses for the analogous
     ".Subcharts.<name>" question, just the other direction (which FILES
     reference a given top-level key, rather than which keys a file
     references) and for the far more common ".Values.<key>" access
@@ -110,7 +110,7 @@ def resolve_values_path_source(chart_dir, deps, path):
     knows exactly where to look instead of grepping by hand,
     deterministically either way, never a name-based guess. Shared by
     every caller that needs to attribute a values-tree path back to its
-    source (lib.digest_pinning_check's own shared-image-usage report and
+    source (lib.checks.digest_pinning's own shared-image-usage report and
     check_subchart_image_visibility's findings) so the two can never
     describe the same thing differently."""
     dep = find_dependency(deps, path[0])

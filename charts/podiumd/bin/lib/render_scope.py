@@ -7,9 +7,9 @@ caller that needs to know whether a given dependency (or nested
 dependency) actually renders anything at all right now, not just
 whether it's vendored on disk — rendered_chart_paths. Used by
 check_render (verify-podiumd), check_yamllint/check_kubeconform/
-check_shellcheck/check_kube_score (lib/*_check.py), and (rendered_chart_
+check_shellcheck/check_kube_score (lib/checks/*.py), and (rendered_chart_
 paths specifically) check_subchart_image_visibility (lib.
-digest_pinning_check) and list-podiumd-images."""
+checks.digest_pinning) and list-podiumd-images."""
 
 import re
 from collections import Counter
@@ -179,7 +179,7 @@ def rendered_chart_paths(rendered_text):
     same parent happens to render — only actual ancestors of an
     actually-rendered path are added.
 
-    Used by lib.digest_pinning_check.check_subchart_image_visibility and
+    Used by lib.checks.digest_pinning.check_subchart_image_visibility and
     list-podiumd-images to gate a finding/entry/row on whether its own
     owning dependency (or nested dependency — see lib.chart.
     resolve_subchart_default) genuinely renders right now, instead of

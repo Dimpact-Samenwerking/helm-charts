@@ -174,8 +174,8 @@ def find_images_manifest_faulty_headers(
       check: kiss-elastic-sync (settings.syncJobs.image) is now listed
       alongside kiss's own "image" in lib.chart.component_image_paths(),
       so is_primary_image_path exempts it here the same way it already
-      exempted zgw-office-addin's frontend/backend, and lib.lockstep_
-      check.check_lockstep_versions now guards its actual version
+      exempted zgw-office-addin's frontend/backend, and lib.checks.
+      lockstep.check_lockstep_versions now guards its actual version
       agreement directly against values.yaml instead. This "missing"
       check still protects every OTHER, not-yet-registered sidecar
       against the same same_group misfire).

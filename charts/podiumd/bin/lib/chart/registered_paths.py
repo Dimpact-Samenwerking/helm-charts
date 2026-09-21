@@ -19,7 +19,7 @@ def component_image_paths(chart_dir=None):
     """Self-resolving wrapper around lib.settings.component_resolution_
     image_paths — same "callable from anywhere with no chart_dir
     ceremony" property as chart_version_lockstep_components above (see
-    its own docstring); needed here because lib.lockstep_check.find_
+    its own docstring); needed here because lib.checks.lockstep.find_
     lockstep_mismatches iterates this WHOLE dict directly (not per-
     component), so it needs a whole-dict self-resolving wrapper too, not
     just the per-component image_paths_for below."""
@@ -35,7 +35,7 @@ def image_paths_for(component, chart_dir=None):
     thread it through explicitly (see e.g. component_state_at_baseline,
     primary_image_repositories, canonical_sidecar_row_names below), but
     a few (e.g. lib.chart._is_dependency_primary_rel_path, lib.
-    lockstep_check.find_chart_version_mismatches) don't, several levels
+    checks.lockstep.find_chart_version_mismatches) don't, several levels
     removed from any chart_dir-bearing function — same mixed shape as
     version_paths_for below."""
     paths = component_image_paths(chart_dir)
@@ -60,7 +60,7 @@ def image_paths_for(component, chart_dir=None):
 def component_version_paths(chart_dir=None):
     """Self-resolving wrapper around lib.settings.component_resolution_
     version_paths — same whole-dict shape as component_image_paths above,
-    needed for the exact same reason (lib.lockstep_check.find_lockstep_
+    needed for the exact same reason (lib.checks.lockstep.find_lockstep_
     mismatches iterates this whole dict too)."""
     chart_dir = chart_dir or Path(__file__).resolve().parents[2]
     return component_resolution_version_paths(chart_dir)
@@ -132,7 +132,7 @@ def chart_version_lockstep_components(chart_dir=None):
 # this component's own upstream chart happens to use -- now lives in
 # charts/podiumd/etc/settings.yaml's own "digest_pinning.exceptions"
 # section (see lib.settings.digest_pinning_exceptions), unified with
-# lib.digest_pinning_check's own "must every tag be digest-pinned"
+# lib.checks.digest_pinning's own "must every tag be digest-pinned"
 # exemption list and update-component-version's own write-side
 # allowlist -- three independently-hand-maintained, overlapping
 # registries this replaced. resolved_digest_pin below takes that

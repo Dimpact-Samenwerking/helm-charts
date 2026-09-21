@@ -25,32 +25,34 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 SCRIPT_PATH = SCRIPTS_DIR / "verify-podiumd"
 
-import lib.cve_check as cve_check
-import lib.cve_diff_check as cve_diff_check
-import lib.dead_values_check as dead_values_check
-import lib.digest_pinning_check as digest_pinning_check
+import lib.checks.cve as cve_check
+import lib.checks.cve_diff as cve_diff_check
+import lib.checks.dead_values as dead_values_check
+import lib.checks.digest_pinning as digest_pinning_check
+import lib.checks.dry as dry_check
+import lib.checks.helm_docs as helm_docs_check
+import lib.checks.kube_score as kube_score_check
+import lib.checks.kubeconform as kubeconform_check
+import lib.checks.lockstep as lockstep_check
+import lib.checks.markdown as markdown_check
+import lib.checks.node_selector as node_selector_check
+import lib.checks.shellcheck as shellcheck_check
+import lib.checks.vendored_tgz as vendored_tgz_check
+import lib.checks.yamllint as yamllint_check
 import lib.docs_consistency as docs_consistency
 import lib.docs_consistency.images_manifest_format as docs_consistency_images_manifest_format
 import lib.docs_consistency.markdown_format as docs_consistency_markdown_format
 import lib.docs_consistency.pointer_consistency as docs_consistency_pointer_consistency
 import lib.docs_consistency.values_diff as docs_consistency_values_diff
-import lib.dry_check as dry_check
 import lib.gitutil as gitutil
-import lib.helm_docs_check as helm_docs_check
 import lib.image.digests as image_digests
 import lib.image.references_check as image_references_check
 import lib.image.upgrade_cache as image_upgrade_cache
 import lib.image.upgrade_check as image_upgrade_check
-import lib.kube_score_check as kube_score_check
-import lib.kubeconform_check as kubeconform_check
-import lib.lockstep_check as lockstep_check
-import lib.markdown_check as markdown_check
-import lib.node_selector_check as node_selector_check
 import lib.registry as registry
 import lib.release_secret_size as release_secret_size
 import lib.render_scope as render_scope
 import lib.settings as settings
-import lib.shellcheck_check as shellcheck_check
 import lib.upgradedoc.app_version_and_image_paths as upgradedoc_app_version_and_image_paths
 import lib.upgradedoc.consistency_checks as upgradedoc_consistency_checks
 import lib.upgradedoc.grouped_comments_and_changes_block as upgradedoc_grouped_comments_and_changes_block
@@ -60,8 +62,6 @@ import lib.upgradedoc.resolve_component_row as upgradedoc_resolve_component_row
 import lib.upgradedoc.sorting_and_ordering as upgradedoc_sorting_and_ordering
 import lib.upgradedoc.string_and_parsing_basics as upgradedoc_string_and_parsing_basics
 import lib.upgradedoc.version_cells_and_key_changes as upgradedoc_version_cells_and_key_changes
-import lib.vendored_tgz_check as vendored_tgz_check
-import lib.yamllint_check as yamllint_check
 
 
 def _load_module():

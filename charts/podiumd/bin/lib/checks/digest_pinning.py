@@ -95,8 +95,8 @@ def _deps_from_chart_yaml(chart_dir):
 
 def _repository_groups(chart_dir, values, deps):
     """{stripped_repo: [path, ...]} for every image/version path in the
-    chart — built from the exact same full path enumeration lib.
-    image_docs.regenerate_images_baseline_manifest already uses for
+    chart — built from the exact same full path enumeration lib.image.
+    docs.regenerate_images_baseline_manifest already uses for
     images-baseline.yaml (find_all_image_and_version_paths(values,
     deps) + global_image_paths(values)), fed into lib.chart.paths_by_
     repository. A purely STATIC scan — every path values.yaml
@@ -295,7 +295,7 @@ def check_shared_image_usage(chart_dir, extra_args):
     repository shared across 2+ paths, with the full list of paths
     aliasing it — the real blast radius of bumping that one shared
     image — built from the exact same path enumeration + grouping lib.
-    image_docs.regenerate_images_baseline_manifest already uses
+    image.docs.regenerate_images_baseline_manifest already uses
     (find_all_image_and_version_paths + global_image_paths, fed into
     lib.chart.paths_by_repository) rather than re-deriving it. Every
     consuming path annotated with lib.chart.resolve_values_path_source
