@@ -9,7 +9,7 @@ version's own test suites instead, against realistic doc fixtures."""
 # --- ensure_images_manifest_changes_header ---
 
 
-def test_ensure_images_manifest_changes_header_creates_missing_header(libcomponentdocs, libcomponentdocsheader):
+def test_ensure_images_manifest_changes_header_creates_missing_header(libcomponentdocsheader):
     """Regression test (real bug, real doc): a file that has lost its
     "# Changes:" header (or never had one) previously stayed that way
     forever — insert_images_manifest_header_item is a documented no-op
@@ -38,7 +38,7 @@ def test_ensure_images_manifest_changes_header_creates_missing_header(libcompone
     assert "# See docs/_UPGRADE_PATHS" in text  # rest of the header preserved
 
 
-def test_ensure_images_manifest_changes_header_noop_when_bare_header_exists(libcomponentdocs, libcomponentdocsheader):
+def test_ensure_images_manifest_changes_header_noop_when_bare_header_exists(libcomponentdocsheader):
     lines = (
         "# Images new or changed in podiumd 4.9.1 vs 4.9.0.\n#\n# Changes:\n#   1. redis 8.0 -> 8.0.\n"
     ).splitlines(keepends=True)
@@ -49,9 +49,7 @@ def test_ensure_images_manifest_changes_header_noop_when_bare_header_exists(libc
     assert lines == original
 
 
-def test_ensure_images_manifest_changes_header_noop_when_counted_header_exists(
-    libcomponentdocs, libcomponentdocsheader
-):
+def test_ensure_images_manifest_changes_header_noop_when_counted_header_exists(libcomponentdocsheader):
     lines = (
         "# Images new or changed in podiumd 4.9.1 vs 4.9.0.\n#\n# One change:\n#   1. redis 8.0 -> 8.0.\n"
     ).splitlines(keepends=True)
@@ -62,9 +60,7 @@ def test_ensure_images_manifest_changes_header_noop_when_counted_header_exists(
     assert lines == original
 
 
-def test_ensure_images_manifest_changes_header_noop_when_no_intro_anchor_either(
-    libcomponentdocs, libcomponentdocsheader
-):
+def test_ensure_images_manifest_changes_header_noop_when_no_intro_anchor_either(libcomponentdocsheader):
     """Defensive fallback: a manifest with no recognizable intro line at
     all (never produced by anything in this codebase) must never crash
     — silently does nothing, same as before this fix existed."""
@@ -79,7 +75,7 @@ def test_ensure_images_manifest_changes_header_noop_when_no_intro_anchor_either(
 # --- renumber_images_manifest_changes_items ---
 
 
-def test_renumber_images_manifest_changes_items_fixes_a_gap(libcomponentdocs, libcomponentdocsheader):
+def test_renumber_images_manifest_changes_items_fixes_a_gap(libcomponentdocsheader):
     """A gap left by a human hand-removing an item's own block without
     renumbering everything after it — real case that surfaced this."""
     lines = ("# Changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   3. openformulieren 3.4.10 -> 3.5.6.\n").splitlines(
@@ -91,7 +87,7 @@ def test_renumber_images_manifest_changes_items_fixes_a_gap(libcomponentdocs, li
     assert lines[2] == "#   2. openformulieren 3.4.10 -> 3.5.6.\n"
 
 
-def test_renumber_images_manifest_changes_items_already_correct_is_a_noop(libcomponentdocs, libcomponentdocsheader):
+def test_renumber_images_manifest_changes_items_already_correct_is_a_noop(libcomponentdocsheader):
     lines = ("# Changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   2. openformulieren 3.4.10 -> 3.5.6.\n").splitlines(
         keepends=True
     )
@@ -101,7 +97,7 @@ def test_renumber_images_manifest_changes_items_already_correct_is_a_noop(libcom
     assert lines == original
 
 
-def test_renumber_images_manifest_changes_items_updates_count_word(libcomponentdocs, libcomponentdocsheader):
+def test_renumber_images_manifest_changes_items_updates_count_word(libcomponentdocsheader):
     """A gap fix that changes the item COUNT (not just individual
     numbers) must also update the header's own leading count word."""
     lines = ("# Three changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   4. openformulieren 3.4.10 -> 3.5.6.\n").splitlines(
@@ -113,7 +109,7 @@ def test_renumber_images_manifest_changes_items_updates_count_word(libcomponentd
     assert lines[2] == "#   2. openformulieren 3.4.10 -> 3.5.6.\n"
 
 
-def test_renumber_images_manifest_changes_items_no_header_is_a_noop(libcomponentdocs, libcomponentdocsheader):
+def test_renumber_images_manifest_changes_items_no_header_is_a_noop(libcomponentdocsheader):
     lines = ["some: yaml\n"]
     assert libcomponentdocsheader.renumber_images_manifest_changes_items(lines) is False
 
@@ -121,7 +117,7 @@ def test_renumber_images_manifest_changes_items_no_header_is_a_noop(libcomponent
 # --- images_manifest_order_key ---
 
 
-def test_images_manifest_order_key_bare_string_unaffected_by_values(libcomponentdocs, libcomponentdocsheader):
+def test_images_manifest_order_key_bare_string_unaffected_by_values(libcomponentdocsheader):
     """A bare STRING values_key (the historical shape — top-level key
     only) keeps the exact prior (index, is_sidecar) behavior, even when
     `values` is given — it's only ever deepened when the caller passes
@@ -135,7 +131,7 @@ def test_images_manifest_order_key_bare_string_unaffected_by_values(libcomponent
     )
 
 
-def test_images_manifest_order_key_path_tuple_resolves_full_nested_position(libcomponentdocs, libcomponentdocsheader):
+def test_images_manifest_order_key_path_tuple_resolves_full_nested_position(libcomponentdocsheader):
     """Regression test: given a full values-tree path TUPLE (not just
     its own top-level key string) and `values`, this resolves the SAME
     real redis/nginx/curl/busybox sub-order the other two sort-key
@@ -163,7 +159,7 @@ def test_images_manifest_order_key_path_tuple_resolves_full_nested_position(libc
 # --- insert_images_manifest_header_item ---
 
 
-def test_insert_images_manifest_header_item_at_correct_position(libcomponentdocs, libcomponentdocsheader):
+def test_insert_images_manifest_header_item_at_correct_position(libcomponentdocsheader):
     lines = ("# Changes:\n#   1. openformulieren 3.4.10 -> 3.5.6.\n").splitlines(keepends=True)
     deps = [
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
@@ -178,7 +174,7 @@ def test_insert_images_manifest_header_item_at_correct_position(libcomponentdocs
     ]
 
 
-def test_insert_images_manifest_header_item_fixes_a_preexisting_gap(libcomponentdocs, libcomponentdocsheader):
+def test_insert_images_manifest_header_item_fixes_a_preexisting_gap(libcomponentdocsheader):
     """Inserting a new item must not just shift each EXISTING item's own
     (possibly already-wrong) number by +1 — it must leave the WHOLE list
     gapless 1..N, fixing any pre-existing drift as a side effect (see
@@ -356,55 +352,59 @@ DEPS = [
 # --- resolve_component_own_version_change / add_missing_component_rows ---
 
 
-def test_resolve_component_own_version_change_true_when_both_unchanged(libcomponentdocs):
+def test_resolve_component_own_version_change_true_when_both_unchanged(libcomponentdocschanges):
     """Regression test: zac gaining a brand-new sidecar of its own (not
     modeled here — this only checks the OWN-version resolution) with
     its own chart+app both unchanged must resolve unchanged=True."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
-    resolved = libcomponentdocs.resolve_component_own_version_change("zac", deps, deps, values, values, None, [])
+    resolved = libcomponentdocschanges.resolve_component_own_version_change("zac", deps, deps, values, values, None, [])
     assert resolved is not None
     *_rest, unchanged = resolved
     assert unchanged is True
 
 
-def test_resolve_component_own_version_change_false_when_app_changed(libcomponentdocs):
+def test_resolve_component_own_version_change_false_when_app_changed(libcomponentdocschanges):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     current = {"zac": {"image": {"tag": "5.4.4@sha256:bbbb"}}}
     baseline = {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
-    resolved = libcomponentdocs.resolve_component_own_version_change("zac", deps, deps, current, baseline, None, [])
+    resolved = libcomponentdocschanges.resolve_component_own_version_change(
+        "zac", deps, deps, current, baseline, None, []
+    )
     _dep, _chart_name, _old_chart, _new_chart, old_app, new_app, unchanged = resolved
     assert (old_app, new_app, unchanged) == ("5.0.2", "5.4.4", False)
 
 
-def test_resolve_component_own_version_change_false_when_chart_changed(libcomponentdocs):
+def test_resolve_component_own_version_change_false_when_chart_changed(libcomponentdocschanges):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
-    resolved = libcomponentdocs.resolve_component_own_version_change(
+    resolved = libcomponentdocschanges.resolve_component_own_version_change(
         "zac", deps, baseline_deps, values, values, None, []
     )
     *_rest, unchanged = resolved
     assert unchanged is False
 
 
-def test_resolve_component_own_version_change_native_component_ignores_chart(libcomponentdocs):
+def test_resolve_component_own_version_change_native_component_ignores_chart(libcomponentdocschanges):
     """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no chart at
     all — new_chart == "-" always counts as "chart unchanged", so the
     decision hinges entirely on the app version."""
     values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
-    resolved = libcomponentdocs.resolve_component_own_version_change("frankgateway", [], [], values, values, None, [])
+    resolved = libcomponentdocschanges.resolve_component_own_version_change(
+        "frankgateway", [], [], values, values, None, []
+    )
     *_rest, unchanged = resolved
     assert unchanged is True
 
 
-def test_resolve_component_own_version_change_none_for_unmatched_key(libcomponentdocs):
-    resolved = libcomponentdocs.resolve_component_own_version_change("ghost", [], [], {}, {}, None, [])
+def test_resolve_component_own_version_change_none_for_unmatched_key(libcomponentdocschanges):
+    resolved = libcomponentdocschanges.resolve_component_own_version_change("ghost", [], [], {}, {}, None, [])
     assert resolved is None
 
 
 def test_resolve_component_own_version_change_vendored_subchart_fallback_applies_to_baseline_too(
-    libcomponentdocs, tmp_path
+    libcomponentdocschanges, tmp_path
 ):
     """Regression test (real bug, real doc): openbao's own "server.image.
     tag" is deliberately left blank in both baseline and target values.yaml
@@ -441,7 +441,7 @@ def test_resolve_component_own_version_change_vendored_subchart_fallback_applies
     dep = {"name": "openbao", "version": "0.28.4"}
     values = {"openbao": {"server": {"image": {"repository": "quay.io/openbao/openbao", "tag": ""}}}}
 
-    resolved = libcomponentdocs.resolve_component_own_version_change(
+    resolved = libcomponentdocschanges.resolve_component_own_version_change(
         "openbao", [dep], [dep], values, values, tmp_path, []
     )
     _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
@@ -449,7 +449,7 @@ def test_resolve_component_own_version_change_vendored_subchart_fallback_applies
 
 
 def test_resolve_component_own_version_change_vendored_fallback_never_used_when_chart_changed(
-    libcomponentdocs, tmp_path
+    libcomponentdocschanges, tmp_path
 ):
     """The vendored-subchart fallback above must never fire when the
     chart version itself changed — the current chart_dir's vendored .tgz
@@ -481,14 +481,14 @@ def test_resolve_component_own_version_change_vendored_fallback_never_used_when_
     baseline_dep = {"name": "openbao", "version": "0.28.4"}
     values = {"openbao": {"server": {"image": {"repository": "quay.io/openbao/openbao", "tag": ""}}}}
 
-    resolved = libcomponentdocs.resolve_component_own_version_change(
+    resolved = libcomponentdocschanges.resolve_component_own_version_change(
         "openbao", [dep], [baseline_dep], values, values, tmp_path, []
     )
     _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
     assert (old_chart, new_chart, old_app, new_app, unchanged) == ("0.28.4", "0.29.0", None, "v2.6.0", False)
 
 
-def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(libcomponentdocs, tmp_path):
+def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(libcomponentdocschanges, tmp_path):
     """Regression test (real bug, real doc, real chart): eck-operator
     existed, enabled, at the podiumd-4.9.1 baseline with NO explicit
     values.yaml "image:" override at all (same shape modeled here —
@@ -522,14 +522,14 @@ def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(l
     baseline_values = {"eck-operator": {"enabled": True}}  # no "image:" override at all, real 4.9.1 shape
     target_values = {"eck-operator": {"enabled": True, "image": {"tag": "3.5.0", "digest": "sha256:" + "b" * 64}}}
 
-    resolved = libcomponentdocs.resolve_component_own_version_change(
+    resolved = libcomponentdocschanges.resolve_component_own_version_change(
         "eck-operator", [dep], [dep], target_values, baseline_values, tmp_path, []
     )
     _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
     assert (old_chart, new_chart, old_app, new_app, unchanged) == ("3.5.0", "3.5.0", "3.5.0", "3.5.0", True)
 
 
-def test_add_missing_component_rows_skips_own_unchanged_component(libcomponentdocs, tmp_path):
+def test_add_missing_component_rows_skips_own_unchanged_component(libcomponentdocschanges, tmp_path):
     """Regression test: zac's subtree gains a brand-new sidecar of its
     own (not modeled here directly — actual_changed_keys already
     contains "zac" for whatever reason, matching what compute_changed_
@@ -548,14 +548,14 @@ def test_add_missing_component_rows_skips_own_unchanged_component(libcomponentdo
         "| --- | --- | --- | --- |\n\n"
         "## Changes\n\n"
     )
-    new_text, added_names = libcomponentdocs.add_missing_component_rows(
+    new_text, added_names = libcomponentdocschanges.add_missing_component_rows(
         text, tmp_path, deps, values, deps, values, {"zac"}, "4.9.1"
     )
     assert added_names == []
     assert "zac" not in new_text
 
 
-def test_add_missing_component_rows_still_adds_a_real_bump(libcomponentdocs, tmp_path):
+def test_add_missing_component_rows_still_adds_a_real_bump(libcomponentdocschanges, tmp_path):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     current_values = {"zac": {"image": {"tag": "5.4.4@sha256:bbbb"}}}
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
@@ -565,7 +565,7 @@ def test_add_missing_component_rows_still_adds_a_real_bump(libcomponentdocs, tmp
         "| --- | --- | --- | --- |\n\n"
         "## Changes\n\n"
     )
-    new_text, added_names = libcomponentdocs.add_missing_component_rows(
+    new_text, added_names = libcomponentdocschanges.add_missing_component_rows(
         text, tmp_path, deps, current_values, deps, baseline_values, {"zac"}, "4.9.1"
     )
     assert added_names == ["zac"]
@@ -575,7 +575,7 @@ def test_add_missing_component_rows_still_adds_a_real_bump(libcomponentdocs, tmp
 # --- insert_changes_section ---
 
 
-def test_insert_changes_section_strips_bare_todo_stub_on_first_insertion(libcomponentdocs):
+def test_insert_changes_section_strips_bare_todo_stub_on_first_insertion(libcomponentdocschanges):
     """Regression test (real bug, real doc): 4.9.1-to-4.9.2-upgrade.md's
     own "## Changes\n\nTODO\n" — the exact STUB_TEMPLATES["upgrade"] shape
     create-doc-version scaffolds before any real content exists — never
@@ -585,12 +585,12 @@ def test_insert_changes_section_strips_bare_todo_stub_on_first_insertion(libcomp
         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
         "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
     )
-    new_text = libcomponentdocs.insert_changes_section(text, section_text, "eck-operator", [], {})
+    new_text = libcomponentdocschanges.insert_changes_section(text, section_text, "eck-operator", [], {})
     assert "TODO" not in new_text
     assert new_text == "## Changes\n\n" + section_text
 
 
-def test_insert_changes_section_second_insertion_after_real_block_unaffected(libcomponentdocs):
+def test_insert_changes_section_second_insertion_after_real_block_unaffected(libcomponentdocschanges):
     """Once a real "### ..." block already exists, `blocks` is non-empty
     and the stub-stripping path (only reachable when `blocks` is empty)
     never fires — a second insertion behaves exactly as before this fix."""
@@ -599,13 +599,15 @@ def test_insert_changes_section_second_insertion_after_real_block_unaffected(lib
         "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
     )
     section_text = "### zac 5.0.2 → 5.4.4\n\nSome prose.\n\n"
-    new_text = libcomponentdocs.insert_changes_section(text, section_text, "zac", DEPS, {"zac": {}, "eck-operator": {}})
+    new_text = libcomponentdocschanges.insert_changes_section(
+        text, section_text, "zac", DEPS, {"zac": {}, "eck-operator": {}}
+    )
     assert "### eck-operator" in new_text
     assert "### zac" in new_text
     assert "TODO" not in new_text
 
 
-def test_insert_changes_section_never_strips_real_prose_mentioning_todo(libcomponentdocs):
+def test_insert_changes_section_never_strips_real_prose_mentioning_todo(libcomponentdocschanges):
     """A "## Changes" section with real, human-written prose that happens
     to start with the word "TODO" (but isn't the exact bare-stub shape)
     must never be silently deleted."""
@@ -614,11 +616,11 @@ def test_insert_changes_section_never_strips_real_prose_mentioning_todo(libcompo
         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
         "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
     )
-    new_text = libcomponentdocs.insert_changes_section(text, section_text, "eck-operator", [], {})
+    new_text = libcomponentdocschanges.insert_changes_section(text, section_text, "eck-operator", [], {})
     assert "TODO: figure out redis sidecar wording later." in new_text
 
 
-def test_insert_changes_section_also_strips_the_top_level_intro_todo_on_first_insertion(libcomponentdocs):
+def test_insert_changes_section_also_strips_the_top_level_intro_todo_on_first_insertion(libcomponentdocschanges):
     """Both of upgrade.md's own stub placeholders -- the top-level intro
     "TODO: describe this hop's changes." AND "## Changes"' own bare
     "TODO" -- must clear together the moment the FIRST real "### ..."
@@ -633,7 +635,7 @@ def test_insert_changes_section_also_strips_the_top_level_intro_todo_on_first_in
         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
         "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
     )
-    new_text = libcomponentdocs.insert_changes_section(text, section_text, "eck-operator", [], {})
+    new_text = libcomponentdocschanges.insert_changes_section(text, section_text, "eck-operator", [], {})
     assert "TODO" not in new_text
     assert new_text == (UPGRADE_DOC_INTRO + "## Component versions (4.9.2 vs 4.9.1)\n\n## Changes\n\n" + section_text)
 
@@ -647,7 +649,7 @@ UPGRADE_DOC_INTRO = (
 )
 
 
-def test_strip_stale_upgrade_placeholders_removes_both_leftovers_before_a_real_block(libcomponentdocs):
+def test_strip_stale_upgrade_placeholders_removes_both_leftovers_before_a_real_block(libcomponentdocschanges):
     """Regression test (real bug, real doc): 4.9.1-to-4.9.2-upgrade.md's
     own "### eck-operator ..." block was inserted BEFORE insert_changes_
     section's own insertion-time fix existed, leaving BOTH the top-level
@@ -664,7 +666,7 @@ def test_strip_stale_upgrade_placeholders_removes_both_leftovers_before_a_real_b
         "- Image tag pin `eck-operator.image.tag` `3.5.0` (new) in\n"
         "  `charts/podiumd/values.yaml`.\n"
     )
-    new_text, changed = libcomponentdocs.strip_stale_upgrade_placeholders(text)
+    new_text, changed = libcomponentdocschanges.strip_stale_upgrade_placeholders(text)
     assert changed is True
     assert "TODO" not in new_text
     assert new_text == (
@@ -677,7 +679,7 @@ def test_strip_stale_upgrade_placeholders_removes_both_leftovers_before_a_real_b
     )
 
 
-def test_strip_stale_upgrade_placeholders_leaves_a_still_empty_section_untouched(libcomponentdocs):
+def test_strip_stale_upgrade_placeholders_leaves_a_still_empty_section_untouched(libcomponentdocschanges):
     """A "## Changes" section that STILL only has the bare TODO (no real
     "### ..." block yet) is the correct, expected state for a genuinely
     new doc -- must never be touched, and neither must the intro TODO
@@ -688,12 +690,12 @@ def test_strip_stale_upgrade_placeholders_leaves_a_still_empty_section_untouched
         "## Changes\n\n"
         "TODO\n"
     )
-    new_text, changed = libcomponentdocs.strip_stale_upgrade_placeholders(text)
+    new_text, changed = libcomponentdocschanges.strip_stale_upgrade_placeholders(text)
     assert changed is False
     assert new_text == text
 
 
-def test_strip_stale_upgrade_placeholders_never_strips_real_prose_mentioning_todo(libcomponentdocs):
+def test_strip_stale_upgrade_placeholders_never_strips_real_prose_mentioning_todo(libcomponentdocschanges):
     text = (
         UPGRADE_DOC_INTRO + "TODO: this describes something else entirely, not the stub.\n\n"
         "## Component versions (4.9.2 vs 4.9.1)\n\n"
@@ -702,20 +704,22 @@ def test_strip_stale_upgrade_placeholders_never_strips_real_prose_mentioning_tod
         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
         "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
     )
-    new_text, changed = libcomponentdocs.strip_stale_upgrade_placeholders(text)
+    new_text, changed = libcomponentdocschanges.strip_stale_upgrade_placeholders(text)
     assert changed is False
     assert "TODO: this describes something else entirely, not the stub." in new_text
     assert "TODO: figure out redis sidecar wording later." in new_text
 
 
-def test_strip_stale_upgrade_placeholders_noop_without_a_changes_heading(libcomponentdocs):
+def test_strip_stale_upgrade_placeholders_noop_without_a_changes_heading(libcomponentdocschanges):
     text = "### some other heading\n\nprose\n"
-    new_text, changed = libcomponentdocs.strip_stale_upgrade_placeholders(text)
+    new_text, changed = libcomponentdocschanges.strip_stale_upgrade_placeholders(text)
     assert changed is False
     assert new_text == text
 
 
-def test_strip_stale_upgrade_placeholders_strips_only_the_changes_todo_when_intro_already_clean(libcomponentdocs):
+def test_strip_stale_upgrade_placeholders_strips_only_the_changes_todo_when_intro_already_clean(
+    libcomponentdocschanges,
+):
     """A doc that's already had its own intro TODO cleared by hand (or a
     previous partial fix) but still has "## Changes"' own bare TODO must
     still get that one cleared -- the two placeholders are one event
@@ -728,7 +732,7 @@ def test_strip_stale_upgrade_placeholders_strips_only_the_changes_todo_when_intr
         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
         "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
     )
-    new_text, changed = libcomponentdocs.strip_stale_upgrade_placeholders(text)
+    new_text, changed = libcomponentdocschanges.strip_stale_upgrade_placeholders(text)
     assert changed is True
     assert "TODO" not in new_text
     assert "### eck-operator" in new_text
@@ -978,9 +982,7 @@ def test_prune_empty_values_delta_sections_no_sections_is_unchanged(libcomponent
     assert new_text == text
 
 
-def test_images_stub_template_has_a_changes_header(
-    libcomponentdocs, libcomponentdocsheader, libcomponentdocsbaselinedocstubs
-):
+def test_images_stub_template_has_a_changes_header(libcomponentdocsheader, libcomponentdocsbaselinedocstubs):
     """A fresh images-manifest stub must include a "# Changes:" anchor
     line, not just the bare "[]" YAML placeholder — without it, find_
     images_manifest_changes_header finds nothing, so add_missing_images_

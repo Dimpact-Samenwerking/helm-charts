@@ -9,17 +9,17 @@ constants."""
 # --- find_component_row / update_component_table ---
 
 
-def test_find_component_row_matches_by_substring(libcomponentdocs):
+def test_find_component_row_matches_by_substring(libcomponentdocschanges):
     rows = [{"name": "ZAC (Zaakafhandelcomponent)", "line_index": 0}]
-    assert libcomponentdocs.find_component_row(rows, "zac")["line_index"] == 0
+    assert libcomponentdocschanges.find_component_row(rows, "zac")["line_index"] == 0
 
 
-def test_find_component_row_no_match_returns_none(libcomponentdocs):
+def test_find_component_row_no_match_returns_none(libcomponentdocschanges):
     rows = [{"name": "ZAC (Zaakafhandelcomponent)", "line_index": 0}]
-    assert libcomponentdocs.find_component_row(rows, "openformulieren") is None
+    assert libcomponentdocschanges.find_component_row(rows, "openformulieren") is None
 
 
-def test_find_component_row_plain_name_does_not_match_its_own_sidecar_rows(libcomponentdocs):
+def test_find_component_row_plain_name_does_not_match_its_own_sidecar_rows(libcomponentdocschanges):
     """Regression test: a canonical "<key> - <basename>" sidecar row
     (e.g. "openbao - openbao-csi-provider") legitimately starts with its
     owning dependency's own name as a leading word-aligned span — that
@@ -34,14 +34,14 @@ def test_find_component_row_plain_name_does_not_match_its_own_sidecar_rows(libco
         {"name": "openbao - openbao-csi-provider", "line_index": 0},
         {"name": "openbao - openbao-snapshot-agent", "line_index": 1},
     ]
-    assert libcomponentdocs.find_component_row(rows, "openbao") is None
+    assert libcomponentdocschanges.find_component_row(rows, "openbao") is None
 
 
-def test_find_component_row_sidecar_name_still_matches_its_own_row(libcomponentdocs):
+def test_find_component_row_sidecar_name_still_matches_its_own_row(libcomponentdocschanges):
     """The exact-whole-name exception in the fix above: a lookup for the
     sidecar's own full canonical name must still find its own row."""
     rows = [{"name": "openbao - openbao-csi-provider", "line_index": 0}]
-    assert libcomponentdocs.find_component_row(rows, "openbao - openbao-csi-provider")["line_index"] == 0
+    assert libcomponentdocschanges.find_component_row(rows, "openbao - openbao-csi-provider")["line_index"] == 0
 
 
 DEPS = [

@@ -39,7 +39,7 @@ from lib.chart_values_tree_primitives import (
     replace_scalar_value,
     version_of,
 )
-from lib.component_docs import (
+from lib.component_docs.changes_section import (
     dep_for_values_key,
     insert_changes_section,
     make_changes_section,

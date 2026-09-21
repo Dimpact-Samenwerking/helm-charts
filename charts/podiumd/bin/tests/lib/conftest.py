@@ -19,6 +19,7 @@ import lib.chart_repo_and_path_resolution as chart_repo_and_path_resolution
 import lib.chart_values_tree_primitives as chart_values_tree_primitives
 import lib.component_docs as component_docs
 import lib.component_docs.baseline_doc_stubs as component_docs_baseline_doc_stubs
+import lib.component_docs.changes_section as component_docs_changes_section
 import lib.component_docs.images_manifest_changes_header as component_docs_images_manifest_changes_header
 import lib.confluence_tables as confluence_tables
 import lib.dependencies as dependencies
@@ -190,6 +191,11 @@ def libcomponentdocsbaselinedocstubs():
 @pytest.fixture(scope="session")
 def libcomponentdocsheader():
     return component_docs_images_manifest_changes_header
+
+
+@pytest.fixture(scope="session")
+def libcomponentdocschanges():
+    return component_docs_changes_section
 
 
 @pytest.fixture(scope="session")
