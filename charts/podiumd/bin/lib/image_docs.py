@@ -19,22 +19,22 @@ since a bare basename never matches a Chart.yaml dependency by name."""
 
 import re
 
-from lib.chart_historical_baselines import (
+from lib.chart.historical_baselines import (
     baseline_tag_for_sidecar_path,
     historical_app_version_for_path,
 )
-from lib.chart_pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
-from lib.chart_registered_paths import (
+from lib.chart.pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
+from lib.chart.registered_paths import (
     image_paths_for,
     version_paths_for,
 )
-from lib.chart_repo_and_path_resolution import (
+from lib.chart.repo_and_path_resolution import (
     canonical_sidecar_row_names,
     full_repository_for_path,
     paths_by_repository,
     repo_group_representative,
 )
-from lib.chart_values_tree_primitives import (
+from lib.chart.values_tree_primitives import (
     get_path,
     replace_scalar_value,
     version_of,

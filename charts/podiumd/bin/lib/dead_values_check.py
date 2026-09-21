@@ -182,8 +182,8 @@ from pathlib import Path
 
 import yaml
 
-from lib.chart_pull_and_subchart_resolution import subchart_values
-from lib.chart_release_baseline_basics import load_yaml
+from lib.chart.pull_and_subchart_resolution import subchart_values
+from lib.chart.release_baseline_basics import load_yaml
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
 

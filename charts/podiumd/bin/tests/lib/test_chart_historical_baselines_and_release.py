@@ -1,7 +1,7 @@
-"""lib.chart_historical_baselines — historical images-manifest lookups
+"""lib.chart.historical_baselines — historical images-manifest lookups
 (historical_images_manifest_paths, historical_app_version_for_
-repository, historical_app_version_for_path) — and lib.chart_release_
-baseline_basics.write_release_baselines. Split out of the former
+repository, historical_app_version_for_path) — and lib.chart.
+release_baseline_basics.write_release_baselines. Split out of the former
 test_chart.py (see test_chart_path_and_version_helpers.py for
 upgrade_docs_baseline/release_table_baseline reads, and the other
 test_chart_*.py files for the rest)."""

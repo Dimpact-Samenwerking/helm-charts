@@ -1,7 +1,7 @@
 """Release-baseline basics: chart_dir/etc/release-baseline.yaml
 read/write (upgrade_docs_baseline, release_table_baseline,
 write_release_baselines) and the two plain YAML readers
-(load_yaml/chart_version) every other lib.chart_* module shares."""
+(load_yaml/chart_version) every other lib.chart.* module shares."""
 
 import yaml
 

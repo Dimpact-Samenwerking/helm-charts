@@ -9,14 +9,14 @@ function's own docstring for why podiumd needs two baselines now."""
 
 import re
 
-from lib.chart_pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
-from lib.chart_release_baseline_basics import load_yaml
-from lib.chart_repo_and_path_resolution import (
+from lib.chart.pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
+from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.repo_and_path_resolution import (
     canonical_sidecar_row_names,
     paths_by_repository,
     repo_group_representative,
 )
-from lib.chart_values_tree_primitives import version_of
+from lib.chart.values_tree_primitives import version_of
 from lib.component_docs.changes_section import (
     resolve_component_own_version_change,
     strip_stale_upgrade_placeholders,

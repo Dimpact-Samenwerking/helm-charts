@@ -22,7 +22,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-from lib.chart_release_baseline_basics import load_yaml
+from lib.chart.release_baseline_basics import load_yaml
 from lib.image_digests import cached_tag_exists, scan_digest_pins
 from lib.registry import parse_repo
 from lib.render_scope import resolve_dependency_repo

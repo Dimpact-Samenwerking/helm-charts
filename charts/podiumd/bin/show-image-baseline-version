@@ -47,8 +47,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.baseline_report import show_baseline_section
-from lib.chart_release_baseline_basics import release_table_baseline as read_release_table_baseline
-from lib.chart_release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
+from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.image_version import resolve_scoped_matches
 from lib.release_baseline import resolve_baseline_values
 

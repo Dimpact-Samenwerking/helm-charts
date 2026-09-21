@@ -90,7 +90,7 @@ import shutil
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
-from lib.chart_release_baseline_basics import load_yaml
+from lib.chart.release_baseline_basics import load_yaml
 from lib.gitutil import find_repo_root
 from lib.image_digests import unique_digest_pin_targets
 from lib.image_upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh

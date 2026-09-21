@@ -82,7 +82,7 @@ from pathlib import Path, PurePosixPath
 
 import yaml
 
-from lib.chart_release_baseline_basics import load_yaml
+from lib.chart.release_baseline_basics import load_yaml
 from lib.procutil import run
 from lib.render_scope import CHART_NAME, render_chart
 from lib.settings import release_secret_kubernetes_limit_bytes, release_secret_warn_at_fraction_of_limit

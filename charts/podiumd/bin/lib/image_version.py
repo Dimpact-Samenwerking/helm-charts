@@ -10,7 +10,7 @@ version bump resolves to one or more of these basename updates — the
 component name and the image name are not always the same (e.g.
 zgw-office-addin bumps two distinctly-named images, frontend + backend)."""
 
-from lib.chart_values_tree_primitives import (
+from lib.chart.values_tree_primitives import (
     dotted_key_path,
     find_dependency,
     replace_scalar_value,

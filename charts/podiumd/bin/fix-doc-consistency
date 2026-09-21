@@ -84,18 +84,18 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart_historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
-from lib.chart_historical_baselines import baseline_tag_for_sidecar_path, historical_app_version_for_path
-from lib.chart_nested_subchart_identity import documented_repository_for_path
-from lib.chart_pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
-from lib.chart_repo_and_path_resolution import (
+from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
+from lib.chart.historical_baselines import baseline_tag_for_sidecar_path, historical_app_version_for_path
+from lib.chart.nested_subchart_identity import documented_repository_for_path
+from lib.chart.pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
+from lib.chart.repo_and_path_resolution import (
     canonical_sidecar_row_names, full_repository_for_path,
     paths_by_repository, repo_group_representative,
 )
-from lib.chart_registered_paths import image_paths_for, is_primary_image_path
-from lib.chart_release_baseline_basics import chart_version
-from lib.chart_release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.chart_values_tree_primitives import replace_scalar_value, version_of
+from lib.chart.registered_paths import image_paths_for, is_primary_image_path
+from lib.chart.release_baseline_basics import chart_version
+from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.values_tree_primitives import replace_scalar_value, version_of
 from lib.component_docs.baseline_doc_stubs import (
     IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, existing_doc_baselines,
 )
@@ -157,7 +157,7 @@ def current_chart_version():
 # like "--help", a git ref, a version with a suffix) is rejected up front
 # by main(), rather than silently being treated as a literal baseline and
 # renaming docs to nonsense like "--help-to-4.9.0-upgrade.md".
-# (BASELINE_VERSION_RE is lib.chart_historical_baselines.SEMVER_RE, imported under this
+# (BASELINE_VERSION_RE is lib.chart.historical_baselines.SEMVER_RE, imported under this
 # script's own established name.)
 
 TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"

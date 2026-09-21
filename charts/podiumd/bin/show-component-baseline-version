@@ -36,9 +36,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.baseline_report import show_baseline_section
-from lib.chart_release_baseline_basics import release_table_baseline as read_release_table_baseline
-from lib.chart_release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.chart_repo_and_path_resolution import component_state_at_baseline
+from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
+from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.repo_and_path_resolution import component_state_at_baseline
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 

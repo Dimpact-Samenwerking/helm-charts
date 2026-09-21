@@ -7,7 +7,7 @@ import re
 
 import yaml
 
-from lib.chart_values_tree_primitives import replace_scalar_value
+from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.component_docs.images_manifest_changes_header import (
     CHANGES_HEADER_RE,
     CHANGES_ITEM_RE,
