@@ -67,12 +67,12 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import chart_version as _chart_version
-from lib.chart import find_dependency as _find_dependency
 from lib.chart import upgrade_docs_baseline as _read_upgrade_docs_baseline
 from lib.chart import (
-    check_image_versions, full_repository_for_path, get_path, image_paths_for, native_components,
-    replace_scalar_value, resolve_chart_values,
+    check_image_versions, full_repository_for_path, image_paths_for, native_components, resolve_chart_values,
 )
+from lib.chart_values_tree_primitives import find_dependency as _find_dependency
+from lib.chart_values_tree_primitives import get_path, replace_scalar_value
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs import (
     baseline_doc_paths as _baseline_doc_paths,

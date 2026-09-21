@@ -9,8 +9,8 @@ from lib.chart import (
     historical_app_version_for_repository,
     native_components,
     resolved_digest_pin,
-    version_of,
 )
+from lib.chart_values_tree_primitives import version_of
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc_app_version_and_image_paths import (
     find_all_image_and_version_paths,

@@ -37,12 +37,14 @@ from lib.chart import (
     chart_version_lockstep_components,
     component_image_paths,
     component_version_paths,
-    find_dependency,
-    get_path,
     image_paths_for,
     load_yaml,
-    version_of,
     version_paths_for,
+)
+from lib.chart_values_tree_primitives import (
+    find_dependency,
+    get_path,
+    version_of,
 )
 
 

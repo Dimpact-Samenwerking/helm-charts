@@ -26,13 +26,13 @@ confirmed both by rendering the podiumd.image helper directly and
 against a real `helm template` output already checked into this repo."""
 
 from lib.chart import (
-    get_path,
     load_yaml,
     nested_subchart_documented_image_repository,
     nested_subchart_name_for,
     resolve_chart_values,
     version_repository_path_for,
 )
+from lib.chart_values_tree_primitives import get_path
 from lib.upgradedoc_app_version_and_image_paths import find_all_image_and_version_paths
 
 

@@ -226,8 +226,8 @@ def test_primary_image_repositories_chart_dir_none_and_needed_returns_error(libc
         ("ghcr.io/infonl/zaakafhandelcomponent@sha256:aaaa", "infonl/zaakafhandelcomponent"),
     ],
 )
-def test_strip_registry_host(libchart, url, expected):
-    assert libchart.strip_registry_host(url) == expected
+def test_strip_registry_host(libchart, libchartvaluestreeprimitives, url, expected):
+    assert libchartvaluestreeprimitives.strip_registry_host(url) == expected
 
 
 # --- repository_path_map ---

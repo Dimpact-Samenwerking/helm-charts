@@ -47,10 +47,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import (
-    find_images, full_repository_for_path, get_path, load_yaml, local_chart_dir,
-    nested_subchart_registered_paths, pulled_chart_dir, subchart_dependencies, version_of, version_paths_for,
+    full_repository_for_path, load_yaml, local_chart_dir,
+    nested_subchart_registered_paths, pulled_chart_dir, subchart_dependencies, version_paths_for,
 )
 from lib.chart import pull_chart as _pull_chart
+from lib.chart_values_tree_primitives import find_images, get_path, version_of
 from lib.image_version import MULTIPLE_KEY, image_basename, resolve_scoped_matches
 from lib.render_scope import CHART_NAME, lint_args_for, render_chart, rendered_chart_paths
 

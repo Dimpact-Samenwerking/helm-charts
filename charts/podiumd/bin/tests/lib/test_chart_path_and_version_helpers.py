@@ -11,16 +11,16 @@ import pytest
 # --- get_path ---
 
 
-def test_get_path_nested(libchart):
-    assert libchart.get_path({"a": {"b": {"c": 1}}}, "a.b.c") == 1
+def test_get_path_nested(libchart, libchartvaluestreeprimitives):
+    assert libchartvaluestreeprimitives.get_path({"a": {"b": {"c": 1}}}, "a.b.c") == 1
 
 
-def test_get_path_missing_returns_none(libchart):
-    assert libchart.get_path({"a": {}}, "a.b.c") is None
+def test_get_path_missing_returns_none(libchart, libchartvaluestreeprimitives):
+    assert libchartvaluestreeprimitives.get_path({"a": {}}, "a.b.c") is None
 
 
-def test_get_path_non_dict_intermediate_returns_none(libchart):
-    assert libchart.get_path({"a": "scalar"}, "a.b") is None
+def test_get_path_non_dict_intermediate_returns_none(libchart, libchartvaluestreeprimitives):
+    assert libchartvaluestreeprimitives.get_path({"a": "scalar"}, "a.b") is None
 
 
 # --- replace_scalar_value ---
@@ -29,28 +29,31 @@ def test_get_path_non_dict_intermediate_returns_none(libchart):
 # ucv.replace_scalar_value re-export, still exercised via that import).
 
 
-def test_replace_scalar_value_preserves_quotes(libchart):
+def test_replace_scalar_value_preserves_quotes(libchart, libchartvaluestreeprimitives):
     assert (
-        libchart.replace_scalar_value('      tag: "1.0.0@sha256:aaaa"\n', "2.0.0@sha256:bbbb")
+        libchartvaluestreeprimitives.replace_scalar_value('      tag: "1.0.0@sha256:aaaa"\n', "2.0.0@sha256:bbbb")
         == '      tag: "2.0.0@sha256:bbbb"\n'
     )
 
 
-def test_replace_scalar_value_preserves_bare_style(libchart):
-    assert libchart.replace_scalar_value("    version: 1.0.297\n", "1.0.298") == "    version: 1.0.298\n"
+def test_replace_scalar_value_preserves_bare_style(libchart, libchartvaluestreeprimitives):
+    assert (
+        libchartvaluestreeprimitives.replace_scalar_value("    version: 1.0.297\n", "1.0.298")
+        == "    version: 1.0.298\n"
+    )
 
 
-def test_replace_scalar_value_preserves_trailing_comment(libchart):
-    result = libchart.replace_scalar_value("    version: 1.0.297  # pinned\n", "1.0.298")
+def test_replace_scalar_value_preserves_trailing_comment(libchart, libchartvaluestreeprimitives):
+    result = libchartvaluestreeprimitives.replace_scalar_value("    version: 1.0.297  # pinned\n", "1.0.298")
     assert result == "    version: 1.0.298  # pinned\n"
 
 
-def test_replace_scalar_value_unparseable_line_raises(libchart):
+def test_replace_scalar_value_unparseable_line_raises(libchart, libchartvaluestreeprimitives):
     with pytest.raises(SystemExit):
-        libchart.replace_scalar_value("not a key-value line at all\n", "x")
+        libchartvaluestreeprimitives.replace_scalar_value("not a key-value line at all\n", "x")
 
 
-def test_replace_scalar_value_preserves_anchor_tag(libchart):
+def test_replace_scalar_value_preserves_anchor_tag(libchart, libchartvaluestreeprimitives):
     """Regression test: a line DEFINING a YAML anchor (e.g. keycloak-
     operator.operator.config.keycloakImage's own "tag:"/"sha:" fields,
     aliased elsewhere by keycloak.image via "*anchor") must keep its own
@@ -61,11 +64,11 @@ def test_replace_scalar_value_preserves_anchor_tag(libchart):
     the anchor tag was dropped entirely, producing a bare "tag: 26.7.3"
     line."""
     assert (
-        libchart.replace_scalar_value('        tag: &keycloakImageVersion "26.7.2"\n', "26.7.3")
+        libchartvaluestreeprimitives.replace_scalar_value('        tag: &keycloakImageVersion "26.7.2"\n', "26.7.3")
         == '        tag: &keycloakImageVersion "26.7.3"\n'
     )
     assert (
-        libchart.replace_scalar_value('        sha: &keycloakImageDigest "aaaa"\n', "dddd")
+        libchartvaluestreeprimitives.replace_scalar_value('        sha: &keycloakImageDigest "aaaa"\n', "dddd")
         == '        sha: &keycloakImageDigest "dddd"\n'
     )
 
