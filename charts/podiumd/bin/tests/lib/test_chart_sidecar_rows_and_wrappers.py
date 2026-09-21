@@ -319,21 +319,23 @@ def test_subchart_default_repository_caches_across_calls(libchart, tmp_path, mon
 # --- chart_version_lockstep_components (self-resolving wrapper) ---
 
 
-def test_chart_version_lockstep_components_self_resolves_against_real_chart_dir(libchart):
+def test_chart_version_lockstep_components_self_resolves_against_real_chart_dir(libchart, libchartregisteredpaths):
     """Called with no override, resolves chart_dir from lib/chart.py's own
     on-disk location (parents[2]) and reads the REAL etc/settings.yaml --
     proves the self-resolving default actually works end to end, not just
     against a synthetic chart_dir handed in by a test."""
-    assert libchart.chart_version_lockstep_components() == frozenset({"kiss-chart", "pabc", "eck-operator"})
+    assert libchartregisteredpaths.chart_version_lockstep_components() == frozenset(
+        {"kiss-chart", "pabc", "eck-operator"}
+    )
 
 
-def test_chart_version_lockstep_components_explicit_override(libchart, tmp_path):
+def test_chart_version_lockstep_components_explicit_override(libchart, libchartregisteredpaths, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         'component_resolution:\n  chart_version_lockstep_components: ["only-this-one"]\n',
         encoding="utf-8",
     )
-    assert libchart.chart_version_lockstep_components(tmp_path) == frozenset({"only-this-one"})
+    assert libchartregisteredpaths.chart_version_lockstep_components(tmp_path) == frozenset({"only-this-one"})
 
 
 # --- version_repository_path_for / nested_subchart_name_for / nested_subchart_registered_paths ---
@@ -409,12 +411,12 @@ def test_nested_subchart_registered_paths_explicit_override(libchart, tmp_path):
 # --- component_image_paths / image_paths_for (self-resolving wrappers) ---
 
 
-def test_component_image_paths_self_resolves_against_real_chart_dir(libchart):
+def test_component_image_paths_self_resolves_against_real_chart_dir(libchart, libchartregisteredpaths):
     """Called with no override, resolves chart_dir from lib/chart.py's own
     on-disk location (parents[2]) and reads the REAL etc/settings.yaml --
     proves the self-resolving default actually works end to end, not just
     against a synthetic chart_dir handed in by a test."""
-    assert libchart.component_image_paths() == {
+    assert libchartregisteredpaths.component_image_paths() == {
         "zgw-office-addin": ["frontend.image", "backend.image"],
         "keycloak-operator": ["operator.config.keycloakImage"],
         "openbao": ["server.image"],
@@ -424,24 +426,24 @@ def test_component_image_paths_self_resolves_against_real_chart_dir(libchart):
     }
 
 
-def test_component_image_paths_explicit_override(libchart, tmp_path):
+def test_component_image_paths_explicit_override(libchart, libchartregisteredpaths, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         'component_resolution:\n  image_paths:\n    only-this-one: ["image"]\n',
         encoding="utf-8",
     )
-    assert libchart.component_image_paths(tmp_path) == {"only-this-one": ["image"]}
+    assert libchartregisteredpaths.component_image_paths(tmp_path) == {"only-this-one": ["image"]}
 
 
-def test_image_paths_for_self_resolves_against_real_chart_dir(libchart):
+def test_image_paths_for_self_resolves_against_real_chart_dir(libchart, libchartregisteredpaths):
     """Same self-resolving proof as component_image_paths above, but
     through the per-component accessor -- both a registered component and
     the unregistered-default fallback."""
-    assert libchart.image_paths_for("zgw-office-addin") == ["frontend.image", "backend.image"]
-    assert libchart.image_paths_for("zac") == ["image"]
+    assert libchartregisteredpaths.image_paths_for("zgw-office-addin") == ["frontend.image", "backend.image"]
+    assert libchartregisteredpaths.image_paths_for("zac") == ["image"]
 
 
-def test_image_paths_for_explicit_override(libchart, tmp_path):
+def test_image_paths_for_explicit_override(libchart, libchartregisteredpaths, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         "component_resolution:\n"
@@ -450,41 +452,41 @@ def test_image_paths_for_explicit_override(libchart, tmp_path):
         '  default_image_paths: ["custom-default-image"]\n',
         encoding="utf-8",
     )
-    assert libchart.image_paths_for("only-this-one", tmp_path) == ["frontend.image", "backend.image"]
-    assert libchart.image_paths_for("unregistered", tmp_path) == ["custom-default-image"]
+    assert libchartregisteredpaths.image_paths_for("only-this-one", tmp_path) == ["frontend.image", "backend.image"]
+    assert libchartregisteredpaths.image_paths_for("unregistered", tmp_path) == ["custom-default-image"]
 
 
 # --- component_version_paths / version_paths_for (self-resolving wrappers) ---
 
 
-def test_component_version_paths_self_resolves_against_real_chart_dir(libchart):
+def test_component_version_paths_self_resolves_against_real_chart_dir(libchart, libchartregisteredpaths):
     """Same self-resolving proof as component_image_paths, for the bare-
     version-field registry."""
-    assert libchart.component_version_paths() == {
+    assert libchartregisteredpaths.component_version_paths() == {
         "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
         "redis-operator": ["redisOperator.imageTag"],
     }
 
 
-def test_component_version_paths_explicit_override(libchart, tmp_path):
+def test_component_version_paths_explicit_override(libchart, libchartregisteredpaths, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         'component_resolution:\n  version_paths:\n    only-this-one: ["some.version"]\n',
         encoding="utf-8",
     )
-    assert libchart.component_version_paths(tmp_path) == {"only-this-one": ["some.version"]}
+    assert libchartregisteredpaths.component_version_paths(tmp_path) == {"only-this-one": ["some.version"]}
 
 
-def test_version_paths_for_self_resolves_against_real_chart_dir(libchart):
-    assert libchart.version_paths_for("eck-stack") == ["eck-elasticsearch.version", "eck-kibana.version"]
-    assert libchart.version_paths_for("unregistered") == []
+def test_version_paths_for_self_resolves_against_real_chart_dir(libchart, libchartregisteredpaths):
+    assert libchartregisteredpaths.version_paths_for("eck-stack") == ["eck-elasticsearch.version", "eck-kibana.version"]
+    assert libchartregisteredpaths.version_paths_for("unregistered") == []
 
 
-def test_version_paths_for_explicit_override(libchart, tmp_path):
+def test_version_paths_for_explicit_override(libchart, libchartregisteredpaths, tmp_path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         'component_resolution:\n  version_paths:\n    only-this-one: ["some.version"]\n',
         encoding="utf-8",
     )
-    assert libchart.version_paths_for("only-this-one", tmp_path) == ["some.version"]
-    assert libchart.version_paths_for("redis-operator", tmp_path) == []
+    assert libchartregisteredpaths.version_paths_for("only-this-one", tmp_path) == ["some.version"]
+    assert libchartregisteredpaths.version_paths_for("redis-operator", tmp_path) == []

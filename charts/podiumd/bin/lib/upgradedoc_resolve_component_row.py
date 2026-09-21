@@ -9,9 +9,11 @@ from lib.chart import (
     baseline_tag_for_sidecar_path,
     global_image_paths,
     historical_app_version_for_path,
+    paths_by_repository,
+)
+from lib.chart_registered_paths import (
     image_paths_for,
     native_components,
-    paths_by_repository,
 )
 from lib.chart_values_tree_primitives import get_path
 from lib.upgradedoc_app_version_and_image_paths import (

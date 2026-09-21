@@ -11,6 +11,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import lib.baseline_report as baseline_report
 import lib.chart as chart
+import lib.chart_registered_paths as chart_registered_paths
 import lib.chart_values_tree_primitives as chart_values_tree_primitives
 import lib.component_docs as component_docs
 import lib.confluence_tables as confluence_tables
@@ -53,6 +54,11 @@ def libchart():
 @pytest.fixture(scope="session")
 def libchartvaluestreeprimitives():
     return chart_values_tree_primitives
+
+
+@pytest.fixture(scope="session")
+def libchartregisteredpaths():
+    return chart_registered_paths
 
 
 @pytest.fixture(scope="session")

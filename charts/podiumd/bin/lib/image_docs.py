@@ -25,10 +25,12 @@ from lib.chart import (
     full_repository_for_path,
     global_image_paths,
     historical_app_version_for_path,
-    image_paths_for,
     paths_by_repository,
     repo_group_representative,
     resolved_digest_pin,
+)
+from lib.chart_registered_paths import (
+    image_paths_for,
     version_paths_for,
 )
 from lib.chart_values_tree_primitives import (
