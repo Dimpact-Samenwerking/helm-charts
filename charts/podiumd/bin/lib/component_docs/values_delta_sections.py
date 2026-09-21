@@ -21,15 +21,15 @@ import re
 from lib.chart.registered_paths import native_components
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE, VALUES_DELTAS_STUB_TODO_LINE
 from lib.component_docs.changes_section import dep_for_values_key
-from lib.upgradedoc_app_version_and_image_paths import actual_app_version
-from lib.upgradedoc_sorting_and_ordering import (
+from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.sorting_and_ordering import (
     component_order_key,
     insertion_index,
     parse_values_delta_sections,
     values_key_order,
 )
-from lib.upgradedoc_string_and_parsing_basics import changes_heading_identities, normalize_version
-from lib.upgradedoc_version_cells_and_key_changes import (
+from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities, normalize_version
+from lib.upgradedoc.version_cells_and_key_changes import (
     append_to_doc,
     component_version_cell,
     missing_key_change_lines_by_key,

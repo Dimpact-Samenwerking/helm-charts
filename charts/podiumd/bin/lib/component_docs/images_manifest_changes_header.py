@@ -15,8 +15,8 @@ lib.component_docs package."""
 
 import re
 
-from lib.upgradedoc_sorting_and_ordering import insertion_index, values_tree_position
-from lib.upgradedoc_string_and_parsing_basics import match_dependency_excluding_sidecar_names
+from lib.upgradedoc.sorting_and_ordering import insertion_index, values_tree_position
+from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 
 NUMBER_WORDS = [
     "Zero",

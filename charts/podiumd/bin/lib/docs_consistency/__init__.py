@@ -32,27 +32,27 @@ from lib.docs_consistency.pointer_consistency import check_pointer_consistency
 from lib.docs_consistency.values_diff import check_values_deltas_content
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc_app_version_and_image_paths import find_image_tag_paths, resolve_entry_image_path
-from lib.upgradedoc_consistency_checks import (
+from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths, resolve_entry_image_path
+from lib.upgradedoc.consistency_checks import (
     find_changes_row_correspondence_gaps,
     find_wrong_or_duplicate_dependency_claims,
 )
-from lib.upgradedoc_images_manifest_list_diff import compute_changed_components
-from lib.upgradedoc_resolve_component_row import (
+from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
+from lib.upgradedoc.resolve_component_row import (
     changes_heading_has_app_version,
     resolve_component_row,
 )
-from lib.upgradedoc_sorting_and_ordering import (
+from lib.upgradedoc.sorting_and_ordering import (
     find_out_of_order_names,
     parse_upgrade_doc_changes_blocks,
     parse_values_delta_sections,
     values_key_order,
 )
-from lib.upgradedoc_string_and_parsing_basics import changes_heading_identities, normalize_version
-from lib.upgradedoc_string_and_parsing_basics import (
+from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities, normalize_version
+from lib.upgradedoc.string_and_parsing_basics import (
     parse_upgrade_doc_rows as _parse_upgrade_doc_rows,
 )
-from lib.upgradedoc_version_cells_and_key_changes import component_version_cell
+from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 
 
 def parse_upgrade_doc_rows(doc_path):

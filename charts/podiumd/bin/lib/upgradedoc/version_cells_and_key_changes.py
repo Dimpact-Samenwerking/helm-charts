@@ -5,12 +5,12 @@ change_lines_by_key's values.yaml-schema-diff prose."""
 
 import re
 
-from lib.upgradedoc_grouped_comments_and_changes_block import (
+from lib.upgradedoc.grouped_comments_and_changes_block import (
     VERSION_SPEC_RE,
     diff_keys,
     pair_renames,
 )
-from lib.upgradedoc_string_and_parsing_basics import normalize_version
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
 
 VERSION_PAIR_RE = re.compile(r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)")
 

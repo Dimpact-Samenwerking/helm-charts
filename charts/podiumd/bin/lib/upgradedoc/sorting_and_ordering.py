@@ -6,7 +6,7 @@ order machinery all three sorts are built on."""
 import re
 
 from lib.chart.registered_paths import native_components
-from lib.upgradedoc_string_and_parsing_basics import (
+from lib.upgradedoc.string_and_parsing_basics import (
     match_canonical_sidecar_name,
     match_dependency,
     match_native_component,

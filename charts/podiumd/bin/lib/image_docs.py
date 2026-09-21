@@ -54,30 +54,30 @@ from lib.component_docs.images_manifest_changes_header import (
 from lib.digest_pinning_check import find_unresolved_subchart_images
 from lib.registry import parse_repo, registry_tag_exists
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc_app_version_and_image_paths import (
+from lib.upgradedoc.app_version_and_image_paths import (
     actual_app_version,
     find_all_image_and_version_paths,
     find_image_tag_paths,
 )
-from lib.upgradedoc_consistency_checks import (
+from lib.upgradedoc.consistency_checks import (
     find_changes_row_correspondence_gaps,
     resolve_component_identity,
 )
-from lib.upgradedoc_grouped_comments_and_changes_block import find_preceding_comment_line
-from lib.upgradedoc_images_manifest_ordering import images_manifest_entry_order_key
-from lib.upgradedoc_resolve_component_row import changes_heading_has_app_version
-from lib.upgradedoc_sorting_and_ordering import (
+from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
+from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_order_key
+from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
+from lib.upgradedoc.sorting_and_ordering import (
     component_order_key,
     parse_upgrade_doc_changes_blocks,
     values_key_order,
 )
-from lib.upgradedoc_string_and_parsing_basics import (
+from lib.upgradedoc.string_and_parsing_basics import (
     changes_heading_identities,
     extract_source_version,
     normalize_name,
     parse_upgrade_doc_rows,
 )
-from lib.upgradedoc_version_cells_and_key_changes import (
+from lib.upgradedoc.version_cells_and_key_changes import (
     image_manifest_version_text,
     replace_version_pair,
     version_change_suffix,

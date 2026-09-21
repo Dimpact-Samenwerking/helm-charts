@@ -5,7 +5,7 @@ corresponds to no real row, or text claiming a dependency that
 doesn't exist, rather than ever guessing a match."""
 
 from lib.chart.registered_paths import native_components
-from lib.upgradedoc_string_and_parsing_basics import (
+from lib.upgradedoc.string_and_parsing_basics import (
     changes_heading_identities,
     match_canonical_sidecar_name,
     match_dependency_excluding_sidecar_names,

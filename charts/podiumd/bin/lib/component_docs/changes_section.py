@@ -20,14 +20,14 @@ import re
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.registered_paths import image_paths_for, native_components, version_paths_for
 from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE, UPGRADE_INTRO_STUB_TODO_LINE
-from lib.upgradedoc_app_version_and_image_paths import actual_app_version
-from lib.upgradedoc_sorting_and_ordering import (
+from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.sorting_and_ordering import (
     component_order_key,
     insertion_index,
     parse_upgrade_doc_changes_blocks,
     values_key_order,
 )
-from lib.upgradedoc_string_and_parsing_basics import (
+from lib.upgradedoc.string_and_parsing_basics import (
     COMPONENT_VERSIONS_HEADING_RE,
     _word_aligned_spans,
     match_dependency_excluding_sidecar_names,
@@ -36,7 +36,7 @@ from lib.upgradedoc_string_and_parsing_basics import (
     normalize_version,
     parse_upgrade_doc_rows,
 )
-from lib.upgradedoc_version_cells_and_key_changes import component_version_cell, version_change_suffix
+from lib.upgradedoc.version_cells_and_key_changes import component_version_cell, version_change_suffix
 
 
 def find_component_row(rows, friendly):

@@ -65,7 +65,7 @@ from lib.chart.values_tree_primitives import (
 )
 from lib.render_scope import CHART_NAME, render_chart, rendered_chart_paths
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc_app_version_and_image_paths import (
+from lib.upgradedoc.app_version_and_image_paths import (
     find_all_image_and_version_paths,
     find_image_tag_paths,
 )

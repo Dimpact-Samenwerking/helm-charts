@@ -2,7 +2,7 @@
 values-tree path was pinned to in a past release (historical_images_
 manifest_paths, historical_app_version_for_repository, historical_
 app_version_for_path), and the two-tier baseline-tag resolution
-(baseline_tag_for_sidecar_path) shared by lib.image_docs, lib.upgradedoc_
+(baseline_tag_for_sidecar_path) shared by lib.image_docs, lib.upgradedoc.
 resolve_component_row, and fix-doc-consistency's own images-manifest
 entry generation."""
 

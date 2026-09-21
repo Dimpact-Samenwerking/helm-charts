@@ -24,19 +24,19 @@ from lib.component_docs.images_manifest_changes_header import (
     images_manifest_changes_count_word,
 )
 from lib.image_repository_check import find_images_without_repository
-from lib.upgradedoc_app_version_and_image_paths import (
+from lib.upgradedoc.app_version_and_image_paths import (
     actual_app_version,
     find_all_image_and_version_paths,
     resolve_entry_image_path,
 )
-from lib.upgradedoc_consistency_checks import find_wrong_or_duplicate_dependency_claims
-from lib.upgradedoc_grouped_comments_and_changes_block import (
+from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
+from lib.upgradedoc.grouped_comments_and_changes_block import (
     find_grouped_preceding_comment,
     parse_changes_block,
     path_display_name,
 )
-from lib.upgradedoc_images_manifest_list_diff import find_images_manifest_list_diff
-from lib.upgradedoc_images_manifest_ordering import (
+from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
+from lib.upgradedoc.images_manifest_ordering import (
     find_images_manifest_faulty_headers,
     find_images_manifest_out_of_order_names,
     images_manifest_display_name_positions,
@@ -44,8 +44,8 @@ from lib.upgradedoc_images_manifest_ordering import (
     images_manifest_entry_positions,
     match_changes_item_display_name,
 )
-from lib.upgradedoc_sorting_and_ordering import values_key_order
-from lib.upgradedoc_string_and_parsing_basics import (
+from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import (
     extract_source_version,
     extract_target_version,
     match_dependency,
