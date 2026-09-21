@@ -3,8 +3,8 @@
 baseline removal, and collapsing more than one in-cycle bump into a
 single baseline-to-final entry. No network needed: lib.registry.
 registry_tag_exists is monkeypatched via the uiv module's own imported
-binding (update_image_version lives in lib.image_version, which resolves
-`registry_tag_exists` via ITS OWN globals — see lib.image_version's
+binding (update_image_version lives in lib.image.version, which resolves
+`registry_tag_exists` via ITS OWN globals — see lib.image.version's
 import — so tests patch that module directly, same as
 tests/lib/test_image_version.py does)."""
 
@@ -105,7 +105,7 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(uiv, tmp_pat
         f'  digest: "sha256:{"a" * 64}"\n',
     )
 
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     # Same digest baseline already recorded -- re-resolving 8.20.0 (a real,
     # immutable released version) from the registry always returns this
@@ -164,7 +164,7 @@ def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(ui
         f'  digest: "sha256:{"a" * 64}"\n',
     )
 
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.21.0"])
@@ -253,7 +253,7 @@ def test_main_renders_new_when_shared_image_never_existed_at_baseline(uiv, tmp_p
     )
     write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n")
 
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "c" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.22.0"])

@@ -1,4 +1,4 @@
-"""lib.image_version — image_basename, find_matches, find_matches_in_scope,
+"""lib.image.version — image_basename, find_matches, find_matches_in_scope,
 resolve_scoped_matches, check_basename_version, update_image_version,
 basenames_under_scope. No network needed: lib.registry.
 registry_tag_exists is monkeypatched wherever a live fetch would otherwise
@@ -458,7 +458,7 @@ openzaak:
 
 
 # --- basenames_under_scope_any_tag / find_matches_any_tag ---
-# EXCLUSIVELY for verify-release-table-with-podiumd — see lib.image_digests.
+# EXCLUSIVELY for verify-release-table-with-podiumd — see lib.image.digests.
 # VERSION_PIN_RE/scan_version_pins' own docstring for why a bare (non-
 # digest-pinned) tag must be found here, unlike the plain basenames_under_
 # scope/find_matches every OTHER caller (update-image-version/verify-

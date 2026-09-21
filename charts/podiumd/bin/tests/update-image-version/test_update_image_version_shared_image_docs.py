@@ -1,12 +1,12 @@
 """update-image-version's main() doc-update path for a shared image
 (bumped via key=MULTIPLE, release-table.csv's own convention -- see
-lib.image_version.MULTIPLE_KEY), shared via values.yaml's global.images
+lib.image.version.MULTIPLE_KEY), shared via values.yaml's global.images
 anchor block and aliased into multiple unrelated components -- gets its
 own pseudo-component row/Changes block, not one for any aliasing
 component. No network needed: lib.registry.registry_tag_exists is
 monkeypatched via the uiv module's own imported binding (update_image_
-version lives in lib.image_version, which resolves `registry_tag_exists`
-via ITS OWN globals — see lib.image_version's import — so tests patch
+version lives in lib.image.version, which resolves `registry_tag_exists`
+via ITS OWN globals — see lib.image.version's import — so tests patch
 that module directly, same as tests/lib/test_image_version.py does)."""
 
 
@@ -36,7 +36,7 @@ def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, t
     aliased into two unrelated components -- gets its own table row
     (Helm chart column "-") and a "### curl ..." Changes block, matching
     the 4.8.1-to-4.8.2-upgrade.md convention -- NOT a row/section for
-    either aliasing component. key=MULTIPLE (see lib.image_version.
+    either aliasing component. key=MULTIPLE (see lib.image.version.
     MULTIPLE_KEY) is release-table.csv's own convention for this case."""
     write_chart_yaml(tmp_path, [("keycloak-operator", None), ("zac", None)])
     values_path = write_values(
@@ -82,7 +82,7 @@ def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, t
         '  version: "8.20.0"\n'
         f'  digest: "sha256:{"a" * 64}"\n',
     )
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.21.0"])
@@ -158,7 +158,7 @@ def test_main_shared_image_sorts_at_its_real_values_yaml_position_not_last(uiv, 
     write_doc(
         uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n"
     )
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.21.0"])
@@ -216,7 +216,7 @@ def test_main_shared_image_insertion_gets_blank_line_when_preceding_content_has_
     write_doc(
         uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n"
     )
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "c" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "zzz-dep", "zzz-dep", "1.0.1"])

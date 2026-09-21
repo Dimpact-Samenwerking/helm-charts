@@ -4,7 +4,7 @@ pylint's too-many-lines check."""
 
 import subprocess
 
-import lib.image_version as image_version
+import lib.image.version as image_version
 
 OLD_DIGEST = "a" * 64
 
@@ -57,7 +57,7 @@ def setup_repo(tmp_path, monkeypatch, ucv):
 def mock_registry_passes(monkeypatch, ucv, digest_char="b"):
     """A component whose values.yaml image path has an explicit
     "repository:" (e.g. zac) delegates its tag update to
-    lib.image_version.update_image_version, which resolves
+    lib.image.version.update_image_version, which resolves
     `registry_tag_exists` via ITS OWN globals — not ucv's — so a main()
     test mocking this avoids a real network call for the delegated-path
     write itself. The upfront verification gate (fallback-path digests

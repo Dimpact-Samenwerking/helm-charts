@@ -119,7 +119,7 @@ def resolve_component_row(
     because sidecar_path has no EXACT match in baseline_values, though —
     see the sidecar branch below for the two fallback tiers tried first:
     lib.chart.baseline_tag_for_sidecar_path (this same repository
-    elsewhere in baseline_values — the SAME function lib.image_docs.
+    elsewhere in baseline_values — the SAME function lib.image.docs.
     add_missing_sidecar_rows' own "Component versions" table row uses,
     so the two can never resolve a different baseline version for the
     same path again — they already had: this heading kept rendering
@@ -203,7 +203,7 @@ def resolve_component_row(
             # sidecar_tag(baseline_values, sidecar_path) would — called
             # through the shared function here, tier 2 included, rather
             # than a bare sidecar_tag call, so this heading's own "old
-            # app version" and lib.image_docs.add_missing_sidecar_rows'
+            # app version" and lib.image.docs.add_missing_sidecar_rows'
             # own "Component versions" table row can never diverge on
             # the same path again.
             baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}

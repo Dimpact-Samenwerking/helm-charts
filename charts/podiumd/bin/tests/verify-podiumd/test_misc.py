@@ -666,7 +666,7 @@ def test_skip_cve_diff_skips_it(vp, monkeypatch, capsys):
 
 def test_include_cve_diff_runs_it_plus_its_prerequisites(vp, monkeypatch):
     """ "CVE diff" needs "Image upgrades" (reads that cache to find its own
-    "has_newer" candidates) AND "Image digests" (calls lib.image_digests.
+    "has_newer" candidates) AND "Image digests" (calls lib.image.digests.
     find_sliding_pins, which needs Dependencies-populated charts/*.tgz for
     the same subchart-default-repository fallback "Image digests" itself
     needs it for) — a bare --include=cve-diff must pull in all three, run

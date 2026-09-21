@@ -37,7 +37,7 @@ DIGEST_PIN_RE = re.compile(
 # must stay exactly as strict as it already is for every caller that needs
 # it (update-image-version/verify-image-version/show-image-baseline-
 # version, and every upgrade_docs_baseline-driven doc-consistency check).
-# Only verify-release-table-with-podiumd (via lib.image_version's own
+# Only verify-release-table-with-podiumd (via lib.image.version's own
 # *_any_tag siblings) uses this one — release-table.csv itself has no
 # concept of digests at all, so digest-pinning status was never something
 # ITS OWN comparisons should have cared about; that script only ever
@@ -122,7 +122,7 @@ def find_inconsistent_version_pins(pins):
     too rather than let genuine drift slide through unnoticed.
 
     Grouped by the exact "repository:" string, not by basename (see
-    lib.image_version.image_basename) — a shared basename across
+    lib.image.version.image_basename) — a shared basename across
     different orgs/paths (docker.io/x/tool vs ghcr.io/y/tool) isn't the
     same image at all, so basename grouping would false-positive there.
 
@@ -206,7 +206,7 @@ def scan_version_pins(lines):
     """The SAME shape scan_digest_pins returns, but for EVERY "tag:" pin
     (see VERSION_PIN_RE) whether or not it's digest-pinned — "digest" is
     None for a bare tag, never a reason to skip it. Exists solely for
-    verify-release-table-with-podiumd (via lib.image_version's own
+    verify-release-table-with-podiumd (via lib.image.version's own
     *_any_tag functions): release-table.csv only ever records version
     strings, never digests, so a real, comparable version pin that simply
     isn't digest-pinned (yet, or by convention at an old release_table

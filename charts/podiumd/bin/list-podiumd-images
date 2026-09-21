@@ -17,7 +17,7 @@ or manual lookup.
 
 <key> <basename> is only real, resolvable input for those other scripts
 when it's a literal digest pin in THIS chart's own values.yaml — the
-same lib.image_version.resolve_scoped_matches check they use. A row
+same lib.image.version.resolve_scoped_matches check they use. A row
 whose image instead comes from the sub-chart's own default (no podiumd
 override at all), from a shared values.yaml global.images.* image
 aliased into more than one component, or from a split tag/sha or
@@ -53,7 +53,7 @@ from lib.chart.registered_paths import version_paths_for
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.values_tree_primitives import find_images, get_path, version_of
-from lib.image_version import MULTIPLE_KEY, image_basename, resolve_scoped_matches
+from lib.image.version import MULTIPLE_KEY, image_basename, resolve_scoped_matches
 from lib.render_scope import CHART_NAME, lint_args_for, render_chart, rendered_chart_paths
 
 PODIUMD_DIR = SCRIPT_DIR.parents[0]
@@ -108,7 +108,7 @@ def deep_merge(base, override):
 def resolution_note(values_lines, key, basename):
     """None if <key> <basename> is real, resolvable input for update-
     image-version/verify-image-version/show-image-baseline-version (see
-    lib.image_version.resolve_scoped_matches) — otherwise a short hint
+    lib.image.version.resolve_scoped_matches) — otherwise a short hint
     so a reader doesn't copy/paste a pair that will just fail elsewhere.
     Falls back to checking MULTIPLE_KEY (values.yaml's global.images.*
     scope) before giving up, since that's the single most common reason

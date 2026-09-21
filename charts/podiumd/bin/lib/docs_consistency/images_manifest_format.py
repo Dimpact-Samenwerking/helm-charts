@@ -23,7 +23,7 @@ from lib.component_docs.images_manifest_changes_header import (
     find_images_manifest_changes_items,
     images_manifest_changes_count_word,
 )
-from lib.image_repository_check import find_images_without_repository
+from lib.image.repository_check import find_images_without_repository
 from lib.upgradedoc.app_version_and_image_paths import (
     actual_app_version,
     find_all_image_and_version_paths,

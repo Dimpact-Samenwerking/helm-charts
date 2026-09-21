@@ -37,10 +37,10 @@ def version_change_suffix(old, new, digest_only_change=False):
     -upgrade.md's own table cell (canonical_version_cell/new_component_
     version_cell below), its own "### ..." Changes heading (lib.
     component_docs.make_changes_section's own app_heading/pin_suffix),
-    a shared-image basename's own Changes heading (lib.image_docs.
+    a shared-image basename's own Changes heading (lib.image.docs.
     make_image_changes_section's own heading_suffix/per-path bullets),
     and the images-manifest's own per-entry comment/header-list item
-    (image_manifest_version_text below, lib.image_docs.
+    (image_manifest_version_text below, lib.image.docs.
     update_image_manifest's own item_text, lib.component_docs.
     update_images_manifest's own item_text, fix-doc-consistency's own
     add_missing_images_manifest_entries) — with two of those (update_

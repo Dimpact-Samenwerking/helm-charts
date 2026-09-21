@@ -151,7 +151,7 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
     at that exact nested location wins if present (get_path(values,
     ".".join(path) + ".repository")) — checked FIRST and regardless of
     whether path[0] is even a known Chart.yaml dependency, same
-    resolution order lib.image_repository_check.find_images_without_
+    resolution order lib.image.repository_check.find_images_without_
     repository already uses, and for the same reason: podiumd's own
     values.yaml answers this directly, no dependency needed to ask it.
     Next, for a path from lib.upgradedoc.find_component_version_tags (a
@@ -191,7 +191,7 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
     expected shape for a base image shared across several unrelated
     components via values.yaml's global.images anchor block (nginx,
     curl, busybox, redis — pinned once, aliased everywhere else via a
-    YAML anchor/alias — see lib.image_version's own MULTIPLE_KEY
+    YAML anchor/alias — see lib.image.version's own MULTIPLE_KEY
     convention for the same "one shared image, many usage sites" idea)
     — e.g. every "<component>.nginx.image" sidecar aliasing the same
     global.images.nginx anchor lands together here, all under
@@ -534,7 +534,7 @@ def subchart_default_repository(chart_dir, lines, pin_line, deps, cache=None):
     """The `repository:` a digest pin's own component defaults to via its
     subchart's baked-in values.yaml, for a pin whose "tag:" line has no
     resolvable "repository:" of its own in podiumd's values.yaml (see
-    resolve_pin_repo in lib.image_digests/fix-image-digests) — the same
+    resolve_pin_repo in lib.image.digests/fix-image-digests) — the same
     value Helm merges in at render time (see subchart_values). `pin_line`
     is the pin's 1-based "tag:" line number in `lines`; `deps` is
     Chart.yaml's "dependencies" list. `cache`, if passed, is a dict shared

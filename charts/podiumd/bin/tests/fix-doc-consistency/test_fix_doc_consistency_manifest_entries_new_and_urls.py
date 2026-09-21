@@ -138,7 +138,7 @@ def test_fix_images_manifest_entry_urls_reports_unresolvable_entry(cdb, tmp_path
 @pytest.fixture
 def images_manifest_chart_dir(tmp_path):
     """A real Chart.yaml + values.yaml on disk (needed by
-    lib.image_repository_check.find_images_without_repository, which
+    lib.image.repository_check.find_images_without_repository, which
     reads them itself rather than taking already-loaded dicts) — zac's
     own "repository:" is set explicitly so its primary image resolves,
     matching lib.chart.paths_by_repository's own "no owning dependency
@@ -754,7 +754,7 @@ def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per
 def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repository(cdb, images_manifest_chart_dir):
     """kiss.adapter.image's own real-world case: no own override AND no
     vendored subchart default — not a real, referenceable image, so
-    never auto-added (matches lib.image_repository_check.
+    never auto-added (matches lib.image.repository_check.
     find_images_without_repository's own definition of "unresolvable",
     reused via find_images_manifest_list_diff)."""
     write(

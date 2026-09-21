@@ -3,8 +3,8 @@ resolves to exactly one component — the full lib.component_docs
 treatment (upgrade.md table row + Changes section, images-manifest
 entry). No network needed: lib.registry.registry_tag_exists is
 monkeypatched via the uiv module's own imported binding
-(update_image_version lives in lib.image_version, which resolves
-`registry_tag_exists` via ITS OWN globals — see lib.image_version's
+(update_image_version lives in lib.image.version, which resolves
+`registry_tag_exists` via ITS OWN globals — see lib.image.version's
 import — so tests patch that module directly, same as
 tests/lib/test_image_version.py does)."""
 
@@ -77,7 +77,7 @@ def test_main_single_component_updates_upgrade_doc_table_and_changes(uiv, tmp_pa
     write_doc(
         uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md", "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\nNo changes.\n"
     )
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "open-klant", "2.15.1"])
@@ -127,7 +127,7 @@ def test_main_missing_manifest_entry_instructions_show_fully_qualified_url(uiv, 
         "## Changes\n",
     )
     write_doc(uiv.IMAGES_DIR, "images-1.0.0.yaml", "# Baseline: podiumd 0.9.0.\n#\n# Zero changes:\n#\n\n[]\n")
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "open-klant", "2.15.1"])
@@ -156,7 +156,7 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
     COMPONENT_IMAGE_PATHS["openbao"]'s own comment) — its real baseline
     app version only resolves via the vendored-.tgz subchart_app_version
     fallback, which the raw baseline_values.yaml tag read used to never
-    attempt. lib.image_version.update_image_version can only ever bump
+    attempt. lib.image.version.update_image_version can only ever bump
     an ALREADY digest-pinned tag (scan_digest_pins never matches a blank
     one), so the real sequence is: baseline ships blank (subchart-only
     v2.5.0), values.yaml gets hand-pinned to v2.5.5 by some OTHER means
@@ -228,7 +228,7 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
         f'  digest: "sha256:{"a" * 64}"\n',
     )
 
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "openbao", "openbao", "v2.6.0"])
@@ -308,7 +308,7 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(ui
         uiv.DOC_DIR, "4.9.0-to-4.9.1-values-deltas.md", "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\nNo changes.\n"
     )
 
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "mi", "mi-data", "2.90.0"])
@@ -379,7 +379,7 @@ def test_main_shows_real_baseline_chart_transition_when_genuinely_tracked(uiv, t
         uiv.DOC_DIR, "4.9.0-to-4.9.1-values-deltas.md", "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\nNo changes.\n"
     )
 
-    import lib.image_version as image_version
+    import lib.image.version as image_version
 
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-image-version", "zac", "zaakafhandelcomponent", "5.4.3"])

@@ -22,7 +22,7 @@ The component name and the image it bumps are not the same thing (zac's
 image is basename "zaakafhandelcomponent"; zgw-office-addin bumps two
 distinctly-named images, frontend + backend) — an image path with an
 explicit "repository:" of its own in values.yaml delegates its actual tag
-update to lib.image_version.update_image_version (see
+update to lib.image.version.update_image_version (see
 update-image-version), scoped to this component and keyed by that path's
 own real basename — so a basename this component happens to share with
 some unrelated component (rare, and only ever true today for a base
@@ -91,7 +91,7 @@ from lib.component_docs.images_manifest_entries import (
 from lib.component_docs.values_delta_sections import (
     insert_values_delta_section, remove_values_delta_section, values_delta_section_heading,
 )
-from lib.image_version import image_basename, update_image_version
+from lib.image.version import image_basename, update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo, registry_tag_exists
 from lib.settings import digest_pinning_exceptions
@@ -254,7 +254,7 @@ def locate_dotted_key_line(lines, dotted_path):
 # Checked BEFORE the normal explicit-repository/subchart-default split
 # below: these paths DO have an explicit "repository:", so without this
 # they would wrongly take the "delegated" branch, whose write logic
-# (lib.image_version.update_image_version) only ever finds/writes a
+# (lib.image.version.update_image_version) only ever finds/writes a
 # combined pin and would silently find nothing to change here.
 
 
@@ -522,7 +522,7 @@ def main():
     # A component's image basename is not always its own name (e.g.
     # zgw-office-addin bumps two distinctly-named images, frontend +
     # backend) — a path with an explicit "repository:" of its own in
-    # values.yaml delegates to lib.image_version's basename-based update,
+    # values.yaml delegates to lib.image.version's basename-based update,
     # so an image shared with some unrelated component (e.g.
     # curlimages/curl, used by several unrelated init containers) gets
     # updated everywhere it's pinned, not just at this one dotted path. A
@@ -572,7 +572,7 @@ def main():
                 located = locate_dotted_key_line(values_lines, f"{values_key}.{path}.tag")
                 if located is None:
                     raise SystemExit(f"error: could not find '{values_key}.{path}.tag' in {VALUES_YAML}")
-                own_line = located[0] + 1  # 1-indexed, matches lib.image_version's line numbering
+                own_line = located[0] + 1  # 1-indexed, matches lib.image.version's line numbering
                 repos[path] = get_path(values, f"{values_key}.{path}.repository")
                 basename = image_basename(repos[path])
                 print()

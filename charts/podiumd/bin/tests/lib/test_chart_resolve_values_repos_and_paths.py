@@ -368,7 +368,7 @@ def test_repository_path_map_includes_own_repository_with_no_known_dependency(tm
     — one of podiumd's own directly-templated top-level blocks, like the
     real "apiproxy"/"frankgateway"/"keycloak" — is still resolved when
     podiumd's own values.yaml sets its "repository:" directly (same
-    resolution order lib.image_repository_check.find_images_without_
+    resolution order lib.image.repository_check.find_images_without_
     repository already uses: own override first, dependency status
     irrelevant to that lookup). Real case this exists for: "apiproxy"
     aliases the very same shared global.images.nginx anchor a real

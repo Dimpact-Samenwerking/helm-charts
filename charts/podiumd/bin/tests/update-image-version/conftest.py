@@ -5,7 +5,7 @@ directly.
 An autouse fixture points every module-level path constant (CHART_DIR,
 CHART_YAML, VALUES_YAML, DOC_DIR, IMAGES_DIR) at a hermetic tmp_path by
 default — main() now always runs the doc-update step after a successful
-bump (lib.component_docs/lib.image_docs), which reads/writes real files
+bump (lib.component_docs/lib.image.docs), which reads/writes real files
 at those paths; without this, a test that only cares about the
 values.yaml bump itself (the pre-existing convention here — only
 VALUES_YAML used to matter) would silently read/write the REAL

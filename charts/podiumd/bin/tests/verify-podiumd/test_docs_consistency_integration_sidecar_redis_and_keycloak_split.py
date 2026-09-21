@@ -170,7 +170,7 @@ def test_sidecar_digest_only_repin_is_not_flagged_as_changed(vp, tmp_path, capsy
     must never be reported as "changed vs baseline but has no row" in
     -upgrade.md — that doc documents VERSION changes, never a digest-
     only re-pin alone (see lib.upgradedoc.compute_changed_components/
-    lib.image_docs.add_missing_sidecar_rows, and this same check's own
+    lib.image.docs.add_missing_sidecar_rows, and this same check's own
     canonical_names loop just below — all three deliberately stay
     version-only; see each one's own docstring for why. This is the
     negative case for the images-manifest's own, WIDER comparison

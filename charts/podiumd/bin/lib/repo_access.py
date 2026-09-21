@@ -23,7 +23,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 from lib.chart.release_baseline_basics import load_yaml
-from lib.image_digests import cached_tag_exists, scan_digest_pins
+from lib.image.digests import cached_tag_exists, scan_digest_pins
 from lib.registry import parse_repo
 from lib.render_scope import resolve_dependency_repo
 from lib.repo_access_cache import cache_entry_is_fresh, cache_key, load_cache, save_cache
@@ -53,7 +53,7 @@ def is_denylisted_host(host, denylisted_host_suffixes):
 # re-derive a dependency's own source line, since PyYAML's safe_load (what
 # lib.chart.load_yaml uses) doesn't track source lines at all. Same
 # raw-text-regex approach every other line-anchored scan in this codebase
-# uses (see lib.image_digests.DIGEST_PIN_RE and friends), rather than a
+# uses (see lib.image.digests.DIGEST_PIN_RE and friends), rather than a
 # real YAML AST with position info.
 DEP_NAME_RE = re.compile(r'^\s*-\s*name:\s*"?([\w.\-]+)"?\s*(?:#.*)?$')
 
@@ -139,7 +139,7 @@ def _check_registry_repo(chart_dir, host, repo_path, version, timeout_seconds):
     image — an OCI-based Helm chart is just another tagged artifact on the
     same registry API a container image is, so a missing/unauthorized/
     unreachable chart or image fails exactly the same way. Routed through
-    lib.image_digests.cached_tag_exists, the SAME shared primitive check_
+    lib.image.digests.cached_tag_exists, the SAME shared primitive check_
     image_digests/find_sliding_pins use — a pin already resolved (fresh, on
     disk — see lib.repo_access_cache) by one of those in this same run (or
     a recent prior one) is served from there instead of a second real
@@ -188,7 +188,7 @@ def check_repo_access(chart_dir):
     A successful entry is cached for a short window and printed as
     "(cached)" on a hit — see lib.repo_access_cache for the TTL and why a
     failure is deliberately never cached. A "chart"/registry or "image"
-    entry's cache write happens inside lib.image_digests.cached_tag_exists
+    entry's cache write happens inside lib.image.digests.cached_tag_exists
     itself (same disk-persisted store, same key format) rather than here —
     only a "chart"/http entry (a classic Helm repo's index.yaml) still
     writes its own cache entry directly in this function, since cached_

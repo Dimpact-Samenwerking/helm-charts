@@ -1,11 +1,11 @@
 """Verifies every "image: {tag: ...}" block in this chart's own
 values.yaml (see lib.upgradedoc.find_image_tag_paths — structural, finds
 a tag regardless of whether it already carries a digest, unlike
-lib.image_digests.scan_digest_pins which only ever sees ones that
+lib.image.digests.scan_digest_pins which only ever sees ones that
 already do) has its tag digest-pinned ("<version>@sha256:<64-hex>") —
 the convention this chart uses everywhere else specifically so a tag can
 never silently drift to a different image underneath a floating version
-string, and so lib.image_digests' own duplicate/drift check and
+string, and so lib.image.digests' own duplicate/drift check and
 release-table.csv's image_basename resolution (both regex/text-based)
 can actually see the pin at all.
 
@@ -71,7 +71,7 @@ from lib.upgradedoc.app_version_and_image_paths import (
 )
 
 # "@sha256:<64 hex chars>" at the end of a tag value — the same shape
-# lib.image_digests.DIGEST_PIN_RE requires, checked here as a suffix
+# lib.image.digests.DIGEST_PIN_RE requires, checked here as a suffix
 # match since we already have the tag value in hand rather than a raw
 # line to regex.
 DIGEST_SUFFIX_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
@@ -360,7 +360,7 @@ def find_unresolved_subchart_images(chart_dir, deps, own_values, rendered_paths)
     path — i.e. an image the check above can never see, since it only
     ever walks podiumd's own values.yaml, not a sub-chart's. `deps` is
     the chart's own Chart.yaml "dependencies" list (a caller that already
-    has both `deps`/`own_values` in hand — e.g. lib.image_docs.
+    has both `deps`/`own_values` in hand — e.g. lib.image.docs.
     regenerate_images_baseline_manifest — passes them straight through
     rather than this function re-reading Chart.yaml/values.yaml itself;
     check_subchart_image_visibility below reads them fresh from

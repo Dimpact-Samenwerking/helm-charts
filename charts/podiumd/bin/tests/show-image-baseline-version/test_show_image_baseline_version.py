@@ -1,5 +1,5 @@
 """main() integration against a real, hermetic temp git repo — <key>
-<basename> resolved via lib.image_version.resolve_scoped_matches against
+<basename> resolved via lib.image.version.resolve_scoped_matches against
 values.yaml TEXT as it was at each release-baseline.yaml baseline (via
 `git show`), same resolution update-image-version/verify-image-version's
 own <key> <basename> use, just applied to a past ref instead of the

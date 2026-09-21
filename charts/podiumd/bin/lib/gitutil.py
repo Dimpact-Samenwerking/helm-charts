@@ -62,7 +62,7 @@ def resolve_baseline_ref(repo_root, baseline):
 def git_show_text(repo_root, ref, relpath):
     """The raw text of relpath as it was at ref, or None if it doesn't
     exist there — for a caller that needs values.yaml's own literal
-    lines (e.g. lib.image_version's scan_digest_pins/dotted_key_path
+    lines (e.g. lib.image.version's scan_digest_pins/dotted_key_path
     text scanners), not its parsed structure."""
     result = run(["git", "-C", str(repo_root), "show", f"{ref}:{relpath}"], capture_output=True, text=True)
     if result.returncode != 0:

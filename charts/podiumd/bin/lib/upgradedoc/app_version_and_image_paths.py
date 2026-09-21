@@ -185,7 +185,7 @@ def find_image_tag_paths(node, path=(), include_null_tags=False):
     a SEPARATE step a caller does itself (see lib.chart.
     resolve_subchart_default, the one place both real consumers —
     lib.digest_pinning_check.find_unresolved_subchart_images and
-    lib.image_docs.regenerate_images_baseline_manifest — do that
+    lib.image.docs.regenerate_images_baseline_manifest — do that
     resolution, so it's never re-derived twice).
 
     Deliberately does NOT relax an explicit blank-string "tag: ''" the

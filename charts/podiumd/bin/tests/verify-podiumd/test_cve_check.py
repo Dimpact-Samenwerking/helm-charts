@@ -11,9 +11,9 @@ digest) in <repo-root>/.cache/cve-scan-cache.json — a personal,
 gitignored, per-checkout cache, not shared across contributors/CI. No
 real docker/trivy/registry invocation happens in
 these tests — `run` is mocked throughout. Whether a newer tag is
-published at all is lib.image_upgrade_check's job, not this module's —
+published at all is lib.image.upgrade_check's job, not this module's —
 see tests/verify-podiumd/test_image_upgrade_check.py — but this module
-DOES read that check's cache (lib.image_upgrade_cache), read-only, to
+DOES read that check's cache (lib.image.upgrade_cache), read-only, to
 annotate a finding as "upgradable"."""
 
 import json
@@ -432,7 +432,7 @@ def test_print_package_line_summarizes_above_threshold(libcvecheck, capsys):
 def test_print_package_line_never_shows_fix_version(libcvecheck, capsys):
     """FixedVersion is an internal detail of the base image (an OS/language
     package version), not something this repo pins or can bump directly —
-    whether a newer image tag exists at all is lib.image_upgrade_check's
+    whether a newer image tag exists at all is lib.image.upgrade_check's
     job, not this one's. A distro package patched across many piecemeal
     security advisories (e.g. Debian's bind9-dnsutils) can carry a wildly
     different FixedVersion per CVE, which is exactly why showing any of
@@ -534,7 +534,7 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
     monkeypatch,
     capsys,
 ):
-    """check_cves reads lib.image_upgrade_check's own cache (read-only, no
+    """check_cves reads lib.image.upgrade_check's own cache (read-only, no
     registry call of its own) to append " upgradable to X" after an
     image's name when that cache has a fresh entry showing a newer tag —
     here only frankgateway (own) does; openzaak (partner) has no cache

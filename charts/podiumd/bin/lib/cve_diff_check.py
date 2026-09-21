@@ -5,7 +5,7 @@ trivy (lib.cve_check.run_trivy) and report the per-severity CVE SET
 DIFFERENCE — which CVEs the proposed image closes (present now, absent
 after) and which it newly introduces (absent now, present after). An
 upgrade/re-pin decision informed by real security data, not just "a newer
-tag/digest exists" (which lib.image_upgrade_check/lib.image_digests
+tag/digest exists" (which lib.image.upgrade_check/lib.image.digests
 already report on their own, with no opinion on whether it actually fixes
 anything).
 
@@ -44,17 +44,17 @@ though, a candidate's printed line never grows a vendor-label suffix here
 candidate line format is otherwise unchanged.
 
 Candidates, gathered from two independent sources:
-- "upgrade" — every unique digest pin (lib.image_digests.
+- "upgrade" — every unique digest pin (lib.image.digests.
   unique_digest_pin_targets, the same simple "no subchart-default
   fallback" resolution check_image_upgrades/check_cves already use) with
-  a fresh lib.image_upgrade_cache entry showing a newer tag than the one
+  a fresh lib.image.upgrade_cache entry showing a newer tag than the one
   currently pinned. current_ref is the plain pinned tag
   ("host/repo:version"); proposed_ref is that same repo at the newer tag.
   Reading image_upgrade_cache read-only here (same as check_cves' own
   "upgradable to X" annotation) is why "CVE diff" lists "Image upgrades"
   as a STEP_PREREQUISITES entry — a bare --include=cve-diff still needs
   that cache freshly populated first.
-- "sliding digest" — every pin lib.image_digests.find_sliding_pins
+- "sliding digest" — every pin lib.image.digests.find_sliding_pins
   reports (the exact same registry lookup check_image_digests' own loop
   uses, factored out there so it isn't re-derived here — see that
   function's own docstring). current_ref MUST be digest-pinned
@@ -115,10 +115,10 @@ from lib.cve_check import (
     severity_label,
     top_level_key_for_line,
 )
-from lib.image_digests import find_sliding_pins, unique_digest_pin_targets
-from lib.image_upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
-from lib.image_upgrade_cache import cache_key as upgrade_cache_key
-from lib.image_upgrade_cache import load_cache as load_upgrade_cache
+from lib.image.digests import find_sliding_pins, unique_digest_pin_targets
+from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
+from lib.image.upgrade_cache import cache_key as upgrade_cache_key
+from lib.image.upgrade_cache import load_cache as load_upgrade_cache
 from lib.registry import parse_repo, registry_tag_exists
 from lib.render_scope import friendly_vendor_charts, render_chart
 from lib.settings import (
@@ -165,7 +165,7 @@ def gather_candidates(chart_dir):
     a "sliding digest" candidate's new upstream digest is already known
     (find_sliding_pins' own registry lookup resolved it), set here
     directly, no extra call. An "upgrade" candidate's proposed side is
-    only ever a bare TAG (lib.image_upgrade_check never records a
+    only ever a bare TAG (lib.image.upgrade_check never records a
     digest) — left None here, resolved lazily by _scan_proposed only if
     the candidate actually needs scanning."""
     values_path = chart_dir / "values.yaml"
@@ -297,7 +297,7 @@ def print_candidate_result(closed, introduced, detail, high_severities, package_
 def classify_candidates(chart_dir, extra_args, candidates, values_lines):
     """Attach "bucket" ("own"|"partner"|"other") to each candidate dict in
     place, via the exact same own/partner/other classification lib.
-    cve_check/lib.image_upgrade_check already use for a currently-pinned
+    cve_check/lib.image.upgrade_check already use for a currently-pinned
     image: render-based "# Source:" attribution first (rendered_labels),
     falling back to a values.yaml top-level-key heuristic
     (classify_by_key) for a component not present in the render at all

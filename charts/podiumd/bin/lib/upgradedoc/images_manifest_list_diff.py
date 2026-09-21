@@ -43,7 +43,7 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
     subtree comparison: a shared "global.images.<name>" YAML anchor
     (e.g. nginx-unprivileged, redis) aliased into a component's own
     sidecar block is that ONE shared image's own concern (already
-    reported as its own bare-basename row/section — see lib.image_docs.
+    reported as its own bare-basename row/section — see lib.image.docs.
     add_missing_sidecar_rows), never a real change specific to THIS
     component; without this exclusion, a single global image added (or
     bumped) once ripples into every consuming component's own subtree
@@ -174,7 +174,7 @@ def find_images_manifest_list_diff(
     manifest lists images whose version or digest actually changed,
     never "is newly used somewhere" on its own.
 
-    unresolvable_paths: lib.image_repository_check.find_images_without_
+    unresolvable_paths: lib.image.repository_check.find_images_without_
     repository's own result — a path with no resolvable repository at
     all (real case: kiss.adapter.image, whose "repository:" is
     commented out in podiumd's own values.yaml AND the vendored kiss-

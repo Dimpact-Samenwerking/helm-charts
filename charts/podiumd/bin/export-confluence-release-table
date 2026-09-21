@@ -34,7 +34,7 @@ from lib.confluence_tables import (
     find_versie_groups, header_paths, is_semver_compatible, major_minor,
     missing_required_release_columns, select_release_columns, tables_under_headings,
 )
-from lib.image_version import basenames_under_scope, basenames_under_scope_any_tag, image_basename
+from lib.image.version import basenames_under_scope, basenames_under_scope_any_tag, image_basename
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_OUTPUT = CHART_DIR / "etc" / "release-table.csv"
@@ -602,7 +602,7 @@ def resolve_image_basenames(rows, chart_dir):
             for basename, pins in basenames_under_scope(lines, scope_key).items():
                 available.setdefault(basename, []).extend(pins)
         # Before concluding a basename genuinely isn't resolvable, fall
-        # back to the digest-OPTIONAL sibling scan (lib.image_version.
+        # back to the digest-OPTIONAL sibling scan (lib.image.version.
         # basenames_under_scope_any_tag) for any basename the digest-
         # required scan alone didn't find under ANY of this component's
         # own scope_keys — two independent real cases need this: omc's

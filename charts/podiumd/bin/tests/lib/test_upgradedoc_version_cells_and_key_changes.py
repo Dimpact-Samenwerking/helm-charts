@@ -243,7 +243,7 @@ def test_compute_changed_components_new_shared_global_sidecar_does_not_flag_ever
     aliased into many unrelated components' own sidecar blocks in the
     same release (real case) must not make EVERY one of those
     components register as "changed" — the shared image is its own
-    concern (see lib.image_docs.add_missing_sidecar_rows' own bare-
+    concern (see lib.image.docs.add_missing_sidecar_rows' own bare-
     basename row), never something specific to a component whose own
     app/chart is otherwise untouched. Before this fix, gaining that one
     shared path alone flagged openzaak/opennotificaties/objecten/... —

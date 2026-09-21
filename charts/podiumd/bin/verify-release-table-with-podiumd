@@ -33,7 +33,7 @@ literal Chart.yaml dependency name, or a values.yaml top-level key for a
 no-separate-chart component). The image lookup tries two lib.
 image_version calls in the same ORDER update-image-version/verify-
 image-version/show-image-baseline-version's own <key> <basename>
-resolution does (lib.image_version.resolve_scoped_matches): first
+resolution does (lib.image.version.resolve_scoped_matches): first
 basenames_under_scope_any_tag, scoped to the component's own values.yaml
 subtree (fast, and the common case); if that misses, a plain find_
 matches_any_tag search across the WHOLE file, since a basename is a real
@@ -135,7 +135,7 @@ from lib.chart.release_baseline_basics import load_yaml, release_table_baseline
 from lib.chart.values_tree_primitives import (
     dotted_key_path, find_dependency, get_path, strip_registry_host, version_of,
 )
-from lib.image_version import (
+from lib.image.version import (
     GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, basenames_under_scope_any_tag, find_matches_any_tag, image_basename,
     repository_for_basename_in_scope,
 )
@@ -622,7 +622,7 @@ def check_images_source(scope_key, component, rows, lines, baseline_lines, basel
     absent from values.yaml at podiumd-4.8.5, used to wrongly resolve to
     redis-operator's own, completely unrelated quay.io/opstree/redis
     pin at that same baseline, purely because both reduce to bare
-    basename "redis" — see lib.image_version.repository_for_basename_
+    basename "redis" — see lib.image.version.repository_for_basename_
     in_scope's own docstring). Before accepting an unscoped baseline
     match, this resolves <scope_key, basename>'s own real repository in
     the CURRENT chart (repository_for_basename_in_scope, the same

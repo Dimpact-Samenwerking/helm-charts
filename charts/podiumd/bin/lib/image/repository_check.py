@@ -13,7 +13,7 @@ own actual purpose — images-manifest entry -> values-tree path, a
 repository is exactly its own lookup key there — but it's wrong for
 this check, which needs a real answer for every single path). Without a
 resolvable repository, the shared `podiumd.image` template helper
-every image: field must call (see lib.image_references_check) renders
+every image: field must call (see lib.image.references_check) renders
 "<empty>:<tag>" — a malformed image reference Kubernetes rejects
 outright (InvalidImageName / ImagePullBackOff) — caught here BEFORE
 that ever reaches a cluster.

@@ -8,7 +8,7 @@ word), creating the header from scratch when a manifest has lost it
 values.yaml's own component order (images_manifest_order_key), and
 inserting one at its correct position (insert_images_manifest_header_
 item). Shared by lib.component_docs's own update_images_manifest/
-remove_component_from_images_manifest, lib.image_docs, lib.docs_
+remove_component_from_images_manifest, lib.image.docs, lib.docs_
 consistency, and fix-doc-consistency's own add_missing_images_manifest_
 entries. Split out of the former flat lib/component_docs.py, now the
 lib.component_docs package."""
@@ -202,7 +202,7 @@ def images_manifest_order_key(key_order, values_key, is_sidecar, values=None):
     values_key (not in key_order at all) sorts LAST, never crashes.
     Shared by every caller that inserts/positions a header item relative
     to values.yaml's own top-level component order (update_images_
-    manifest below, lib.image_docs.update_image_manifest, fix-doc-
+    manifest below, lib.image.docs.update_image_manifest, fix-doc-
     consistency's own add_missing_images_manifest_entries) so they can
     never independently drift on what "in order" means.
 
