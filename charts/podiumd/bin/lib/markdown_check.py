@@ -41,8 +41,8 @@ import re
 import shutil
 from pathlib import Path
 
-from lib.chart import chart_version
-from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart_release_baseline_basics import chart_version
+from lib.chart_release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.gitutil import find_repo_root
 from lib.procutil import run
 from lib.render_scope import print_grouped_findings

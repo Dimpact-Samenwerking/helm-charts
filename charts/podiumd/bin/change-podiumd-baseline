@@ -32,8 +32,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
-from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.chart import write_release_baselines
+from lib.chart_release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart_release_baseline_basics import write_release_baselines
 from lib.gitutil import find_repo_root, resolve_baseline_ref
 from lib.procutil import run_script
 

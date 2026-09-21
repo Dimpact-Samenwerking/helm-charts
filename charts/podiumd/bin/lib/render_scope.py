@@ -16,7 +16,7 @@ from collections import Counter
 
 import yaml
 
-from lib.chart import load_yaml
+from lib.chart_release_baseline_basics import load_yaml
 from lib.procutil import run
 from lib.settings import (
     helm_repos_urls_by_alias,

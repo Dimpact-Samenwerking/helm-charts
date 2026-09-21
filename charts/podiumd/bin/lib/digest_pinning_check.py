@@ -56,12 +56,12 @@ import re
 
 from lib.chart import (
     global_image_paths,
-    load_yaml,
     paths_by_repository,
     resolve_subchart_default,
     subchart_template_text,
     subchart_values,
 )
+from lib.chart_release_baseline_basics import load_yaml
 from lib.chart_values_tree_primitives import (
     find_dependency,
     get_path,
