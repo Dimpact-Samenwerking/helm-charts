@@ -22,9 +22,11 @@ from lib.chart_values_tree_primitives import version_of
 from lib.component_docs import (
     find_values_delta_section,
     has_stale_gemeente_specific_placeholder,
+    strip_stale_values_deltas_todo_stub,
+)
+from lib.component_docs.changes_section import (
     resolve_component_own_version_change,
     strip_stale_upgrade_placeholders,
-    strip_stale_values_deltas_todo_stub,
 )
 from lib.component_docs.images_manifest_changes_header import (
     CHANGES_HEADER_RE,

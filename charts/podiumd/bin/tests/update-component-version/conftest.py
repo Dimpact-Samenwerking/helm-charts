@@ -1,14 +1,15 @@
 """Loads update-component-version (a hyphenated filename, not importable
 normally) as a module named `ucv` so tests can call its functions directly.
 
-Also provides `libcomponentdocs` for the doc-mutation helpers that now
-live in lib.component_docs (shared with update-image-version) —
-ucv itself only re-exports the ones it actually calls from its own
-main(); a helper ucv's own code never calls (e.g. find_component_row,
-used only internally by lib.component_docs.update_component_table) isn't
-re-exported there at all, so its own tests go through libcomponentdocs
-instead (same convention as tests/verify-podiumd/conftest.py's lib*
-fixtures)."""
+Also provides `libcomponentdocs`/`libcomponentdocschanges` for the doc-
+mutation helpers that live in lib.component_docs/lib.component_docs.
+changes_section (shared with update-image-version) — ucv itself only
+re-exports the ones it actually calls from its own main(); a helper
+ucv's own code never calls (e.g. find_component_row, used only
+internally by lib.component_docs.changes_section.update_component_table)
+isn't re-exported there at all, so its own tests go through these
+fixtures instead (same convention as tests/verify-podiumd/conftest.py's
+lib* fixtures)."""
 
 import importlib.util
 import subprocess
@@ -24,6 +25,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 SCRIPT_PATH = SCRIPTS_DIR / "update-component-version"
 
 import lib.component_docs as component_docs
+import lib.component_docs.changes_section as component_docs_changes_section
 
 
 @pytest.fixture(scope="session")
@@ -38,6 +40,11 @@ def ucv():
 @pytest.fixture(scope="session")
 def libcomponentdocs():
     return component_docs
+
+
+@pytest.fixture(scope="session")
+def libcomponentdocschanges():
+    return component_docs_changes_section
 
 
 @pytest.fixture(autouse=True)

@@ -463,11 +463,12 @@ def test_stale_placeholder_functions_are_reused_not_reimplemented(cdb):
     alongside real content" -- not three independently hand-rolled
     copies of that same check."""
     import lib.component_docs as component_docs
+    import lib.component_docs.changes_section as changes_section
     import lib.docs_consistency as docs_consistency
 
-    assert cdb.strip_stale_upgrade_placeholders is component_docs.strip_stale_upgrade_placeholders
+    assert cdb.strip_stale_upgrade_placeholders is changes_section.strip_stale_upgrade_placeholders
     assert cdb.strip_stale_values_deltas_todo_stub is component_docs.strip_stale_values_deltas_todo_stub
-    assert docs_consistency.strip_stale_upgrade_placeholders is component_docs.strip_stale_upgrade_placeholders
+    assert docs_consistency.strip_stale_upgrade_placeholders is changes_section.strip_stale_upgrade_placeholders
     assert docs_consistency.strip_stale_values_deltas_todo_stub is component_docs.strip_stale_values_deltas_todo_stub
     assert (
         docs_consistency.has_stale_gemeente_specific_placeholder
