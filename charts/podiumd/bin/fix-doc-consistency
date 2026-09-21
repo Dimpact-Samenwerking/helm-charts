@@ -108,7 +108,7 @@ from lib.component_docs.images_manifest_changes_header import (
 from lib.component_docs.values_delta_sections import (
     prune_empty_values_delta_sections, strip_stale_values_deltas_todo_stub, sync_values_delta_sections,
 )
-from lib.docs_consistency import match_changes_item_to_entry
+from lib.docs_consistency.images_manifest_format import match_changes_item_to_entry
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_docs import (
     add_missing_changes_sections, add_missing_sidecar_rows, regenerate_images_baseline_manifest,

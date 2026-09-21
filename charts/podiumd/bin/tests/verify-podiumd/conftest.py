@@ -30,6 +30,7 @@ import lib.cve_diff_check as cve_diff_check
 import lib.dead_values_check as dead_values_check
 import lib.digest_pinning_check as digest_pinning_check
 import lib.docs_consistency as docs_consistency
+import lib.docs_consistency.images_manifest_format as docs_consistency_images_manifest_format
 import lib.docs_consistency.markdown_format as docs_consistency_markdown_format
 import lib.docs_consistency.pointer_consistency as docs_consistency_pointer_consistency
 import lib.docs_consistency.values_diff as docs_consistency_values_diff
@@ -94,6 +95,11 @@ def libimagedigests():
 @pytest.fixture(scope="session")
 def libdocsconsistency():
     return docs_consistency
+
+
+@pytest.fixture(scope="session")
+def libimagesmanifest():
+    return docs_consistency_images_manifest_format
 
 
 @pytest.fixture(scope="session")
