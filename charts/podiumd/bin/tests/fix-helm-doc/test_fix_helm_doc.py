@@ -1,4 +1,4 @@
-"""main() — the fixer companion to lib.helm_docs_check.check_helm_docs.
+"""main() — the fixer companion to lib.checks.helm_docs.check_helm_docs.
 No real helm-docs/git invocation happens in these tests — `run` is
 monkeypatched, and CHART_DIR points at a disposable tmp_path chart dir."""
 

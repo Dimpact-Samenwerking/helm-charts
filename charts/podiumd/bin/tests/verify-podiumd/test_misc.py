@@ -640,7 +640,7 @@ def test_skip_cve_scan_skips_it(vp, monkeypatch, capsys):
 
 
 def test_include_cve_scan_runs_it_plus_dependencies_and_image_upgrades(vp, monkeypatch):
-    """CVE scan reads Image upgrades' own cache (see lib.cve_check), so a
+    """CVE scan reads Image upgrades' own cache (see lib.checks.cve), so a
     bare --include=cve-scan must also run "Image upgrades" first —
     not just "Dependencies" — or that cache would never get populated."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=cve-scan"])

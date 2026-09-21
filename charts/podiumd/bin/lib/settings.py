@@ -27,7 +27,7 @@ the YAML overrides the default; there is no other way to change one of
 these constants.
 
 This module is infrastructure only (step 1 of 2). It is not yet wired
-into any of the ~12 consuming files (lib/cve_check.py, lib/repo_access.
+into any of the ~12 consuming files (lib/checks/cve.py, lib/repo_access.
 py, etc.) — those still define and use their own local constants
 unchanged. Step 2 (a separate, later task) migrates each consumer to
 call the matching accessor here instead of its own local constant, and
@@ -60,7 +60,7 @@ def _get(chart_dir, section, key, default):
 
 
 def cve_high_severity_levels(chart_dir):
-    """cve_scan.high_severity_levels — replaces lib.cve_check.
+    """cve_scan.high_severity_levels — replaces lib.checks.cve.
     HIGH_SEVERITIES, a set (tested with `in`, never iterated in order),
     default {"CRITICAL", "HIGH"}."""
     return set(_get(chart_dir, "cve_scan", "high_severity_levels", ["CRITICAL", "HIGH"]))
@@ -68,12 +68,12 @@ def cve_high_severity_levels(chart_dir):
 
 def cve_max_cves_per_package_before_summarizing(chart_dir):
     """cve_scan.max_cves_per_package_before_summarizing — replaces
-    lib.cve_check.PACKAGE_CVE_LIST_THRESHOLD, default 5."""
+    lib.checks.cve.PACKAGE_CVE_LIST_THRESHOLD, default 5."""
     return _get(chart_dir, "cve_scan", "max_cves_per_package_before_summarizing", 5)
 
 
 def cve_scan_cache_ttl_days(chart_dir):
-    """cve_scan.scan_cache_ttl_days — replaces lib.cve_check.
+    """cve_scan.scan_cache_ttl_days — replaces lib.checks.cve.
     CVE_CACHE_TTL_DAYS, default 7."""
     return _get(chart_dir, "cve_scan", "scan_cache_ttl_days", 7)
 
@@ -112,19 +112,19 @@ def render_report_top_n_largest_templates_shown(chart_dir):
 
 
 def dry_check_similarity_threshold(chart_dir):
-    """dry_check.similarity_threshold — replaces lib.dry_check.
+    """dry_check.similarity_threshold — replaces lib.checks.dry.
     DRY_SIMILARITY_THRESHOLD, default 0.6."""
     return _get(chart_dir, "dry_check", "similarity_threshold", 0.6)
 
 
 def dry_check_high_similarity_threshold(chart_dir):
-    """dry_check.high_similarity_threshold — replaces lib.dry_check.
+    """dry_check.high_similarity_threshold — replaces lib.checks.dry.
     DRY_HIGH_SIMILARITY_THRESHOLD, default 0.75."""
     return _get(chart_dir, "dry_check", "high_similarity_threshold", 0.75)
 
 
 def dry_check_min_significant_lines(chart_dir):
-    """dry_check.min_significant_lines — replaces lib.dry_check.
+    """dry_check.min_significant_lines — replaces lib.checks.dry.
     DRY_MIN_SIGNIFICANT_LINES, default 8."""
     return _get(chart_dir, "dry_check", "min_significant_lines", 8)
 
@@ -157,35 +157,35 @@ def dependency_fetch_retry_backoff_seconds(chart_dir):
 
 def quality_gates_kubeconform_failing_statuses(chart_dir):
     """quality_gates.kubeconform_failing_statuses — replaces
-    lib.kubeconform_check.KUBECONFORM_FAILING_STATUSES, a set (membership
+    lib.checks.kubeconform.KUBECONFORM_FAILING_STATUSES, a set (membership
     test only), default {"statusError", "statusInvalid"}."""
     return set(_get(chart_dir, "quality_gates", "kubeconform_failing_statuses", ["statusError", "statusInvalid"]))
 
 
 def quality_gates_shellcheck_failing_levels(chart_dir):
     """quality_gates.shellcheck_failing_levels — replaces
-    lib.shellcheck_check.SHELLCHECK_FAILING_LEVELS, a set (membership
+    lib.checks.shellcheck.SHELLCHECK_FAILING_LEVELS, a set (membership
     test only), default {"error", "warning"}."""
     return set(_get(chart_dir, "quality_gates", "shellcheck_failing_levels", ["error", "warning"]))
 
 
 def quality_gates_shellcheck_shell_names(chart_dir):
     """quality_gates.shellcheck_shell_names — replaces
-    lib.shellcheck_check.SHELLCHECK_SHELL_NAMES, a set (membership test
+    lib.checks.shellcheck.SHELLCHECK_SHELL_NAMES, a set (membership test
     only), default {"sh", "bash", "dash", "ksh"}."""
     return set(_get(chart_dir, "quality_gates", "shellcheck_shell_names", ["sh", "bash", "dash", "ksh"]))
 
 
 def quality_gates_yamllint_failing_rules(chart_dir):
     """quality_gates.yamllint_failing_rules — replaces
-    lib.yamllint_check.YAMLLINT_FAILING_RULES, a set (membership test
+    lib.checks.yamllint.YAMLLINT_FAILING_RULES, a set (membership test
     only), default {"key-duplicates", "syntax"}."""
     return set(_get(chart_dir, "quality_gates", "yamllint_failing_rules", ["key-duplicates", "syntax"]))
 
 
 def quality_gates_markdown_disabled_rules(chart_dir):
     """quality_gates.markdown_disabled_rules — replaces
-    lib.markdown_check.MARKDOWN_DISABLED_RULES. A list of rule IDs, same
+    lib.checks.markdown.MARKDOWN_DISABLED_RULES. A list of rule IDs, same
     shape as every other quality_gates.* rule set here — the caller joins
     it with "," when building `pymarkdown -d <joined>`, since that's the
     one place this needs to be a single string, not the settings file's
@@ -195,13 +195,13 @@ def quality_gates_markdown_disabled_rules(chart_dir):
 
 def quality_gates_kube_score_check_id(chart_dir):
     """quality_gates.kube_score_check_id — replaces
-    lib.kube_score_check.KUBE_SCORE_CHECK_ID, a plain string, default
+    lib.checks.kube_score.KUBE_SCORE_CHECK_ID, a plain string, default
     "container-resources"."""
     return _get(chart_dir, "quality_gates", "kube_score_check_id", "container-resources")
 
 
 def helm_doc_max_diff_lines_shown(chart_dir):
-    """helm_doc.max_diff_lines_shown — replaces lib.helm_docs_check.
+    """helm_doc.max_diff_lines_shown — replaces lib.checks.helm_docs.
     MAX_DIFF_LINES, default 40."""
     return _get(chart_dir, "helm_doc", "max_diff_lines_shown", 40)
 
@@ -249,7 +249,7 @@ _DEFAULT_DIGEST_PINNING_EXCEPTIONS = {
 
 def digest_pinning_exceptions(chart_dir):
     """digest_pinning.exceptions — replaces BOTH lib.chart.
-    SPLIT_TAG_SHA_PATHS and lib.digest_pinning_check.EXEMPT_PATHS (the
+    SPLIT_TAG_SHA_PATHS and lib.checks.digest_pinning.EXEMPT_PATHS (the
     latter was always exactly "every key here"; the former was always
     exactly "entries that also carry a sibling_field") — see this
     iteration's plan for how these were two independently-hand-maintained,

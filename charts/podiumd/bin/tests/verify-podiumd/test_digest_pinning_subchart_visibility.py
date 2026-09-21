@@ -72,7 +72,7 @@ def render_stdout(chart_tree_paths):
 
 def stub_render(monkeypatch, libdigestpinningcheck, chart_tree_paths, returncode=0):
     """Replaces check_subchart_image_visibility's own render_chart call
-    (see lib.digest_pinning_check's "from lib.render_scope import ...
+    (see lib.checks.digest_pinning's "from lib.render_scope import ...
     render_chart" binding — must be patched on THAT module, not vp/
     render_scope, per this test suite's own module-that-owns-the-binding
     convention) with one that reports exactly `chart_tree_paths` as

@@ -228,7 +228,7 @@ def test_compare_reports_image_version_source_mismatch_bare_baseline_tag(vrt):
     (non-digest-pinned) tag — invisible to the plain digest-required
     scanner, silently skipping every such image instead of comparing it.
     check_images_source must still find and compare it (via lib.
-    image_version's own *_any_tag siblings)."""
+    image.version's own *_any_tag siblings)."""
     deps = [{"name": "zaakbrug", "version": "1.1.0"}]
     baseline_deps = [{"name": "zaakbrug", "version": "1.0.0"}]
     rows = [csv_row("Zaak Brug", "zaakbrug", image_basename="zaakbrug", source_app="1.26.13")]

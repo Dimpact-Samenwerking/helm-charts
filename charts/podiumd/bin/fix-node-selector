@@ -12,7 +12,7 @@ a particular kind nests it — e.g. CronJob's spec.jobTemplate.spec.
 template.spec.containers vs. Deployment's spec.template.spec.containers)
 rather than modeling each kind's full spec path, and matches its exact
 indentation — the same best-effort textual approach
-lib.node_selector_check's own detection already uses (Go template syntax
+lib.checks.node_selector's own detection already uses (Go template syntax
 breaks a real YAML parser, so this can't be a structural rewrite either).
 
 A document with no `containers:` key at all (so no reliable anchor to
@@ -30,7 +30,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.node_selector_check import DOC_SPLIT_RE, NAME_RE, NODE_SELECTOR_RE, WORKLOAD_KIND_RE
+from lib.checks.node_selector import DOC_SPLIT_RE, NAME_RE, NODE_SELECTOR_RE, WORKLOAD_KIND_RE
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 
@@ -43,7 +43,7 @@ NODE_SELECTOR_BLOCK = "{indent}nodeSelector:\n{indent}  kubernetes.azure.com/mod
 
 
 def split_docs_with_offsets(text):
-    """Same split lib.node_selector_check.scan_missing_node_selector uses
+    """Same split lib.checks.node_selector.scan_missing_node_selector uses
     (DOC_SPLIT_RE), but keeping each doc's own (start, end) char offset
     into `text` so a fix can be spliced back at the right place."""
     seps = list(DOC_SPLIT_RE.finditer(text))

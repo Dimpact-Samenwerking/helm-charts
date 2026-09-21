@@ -774,7 +774,7 @@ def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_e
 # vendored default (null tag -> Chart.yaml appVersion) — podiumd has NO
 # override for it at all, so find_all_image_and_version_paths(values,
 # deps) alone can never see it (it only ever walks podiumd's OWN
-# values.yaml). These tests exercise the added lib.digest_pinning_check.
+# values.yaml). These tests exercise the added lib.checks.digest_pinning.
 # find_unresolved_subchart_images augmentation, gated on rendered_paths
 # (see lib.render_scope.rendered_chart_paths) exactly the same way
 # check_subchart_image_visibility's own findings are gated.

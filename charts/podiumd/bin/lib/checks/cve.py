@@ -159,7 +159,7 @@ def open_cache_session(chart_dir):
     """(old_cache, new_cache) — old_cache is this run's read-only snapshot
     (what a cache-hit check compares against); new_cache is a SEPARATE,
     mutable copy scan_cached actually writes into and saves as the run
-    progresses. Both check_cves and lib.cve_diff_check.check_cve_diff
+    progresses. Both check_cves and lib.checks.cve_diff.check_cve_diff
     need exactly this same two-line "load, then start a correct working
     copy" step — factored out here, the one place both now call, so
     there's no second independently-written copy of it left to silently
@@ -232,7 +232,7 @@ def scan_cached(chart_dir, repository, digest, ref, old_cache, new_cache, ttl_da
     cache; if fresh, report a cache hit and return the cached
     vulnerabilities; otherwise announce a fresh scan, run_trivy, cache
     the result, and return it" primitive both check_cves' own per-image
-    loop (below) and lib.cve_diff_check's own current/proposed scans
+    loop (below) and lib.checks.cve_diff's own current/proposed scans
     route through — the two used to each hand-roll this same logic
     separately. `digest=None` skips the cache tier entirely, straight to
     run_trivy — used by cve_diff_check for a proposed tag whose digest
@@ -398,7 +398,7 @@ def check_cves(chart_dir, extra_args, detail=False):
             label = classify_by_key(top_key, dep_names, vendor_map)
 
         # Per-image cache-hit/fresh-scan reporting and the actual cache
-        # read/write/scan is the exact same logic lib.cve_diff_check's
+        # read/write/scan is the exact same logic lib.checks.cve_diff's
         # own current/proposed scans need — see scan_cached's own
         # docstring for why this is shared rather than reimplemented here.
         vulns, was_cached = scan_cached(
@@ -436,7 +436,7 @@ def check_cves(chart_dir, extra_args, detail=False):
 
     # Not a prune pass: new_cache started as a COPY of old_cache (see
     # above), so any entry this run didn't touch — a pin no longer
-    # present, or (critically) a lib.cve_diff_check "proposed"-side entry
+    # present, or (critically) a lib.checks.cve_diff "proposed"-side entry
     # for an image that's never actually pinned in values.yaml at all —
     # is carried forward untouched here, not deleted. It ages out on its
     # own via cache_entry_is_fresh's own TTL, same as everything else.
@@ -552,7 +552,7 @@ def print_bucket_header(title, empty):
     """Print "--- {title} ---" unless `empty` — the shared "skip a bucket
     with nothing flagged in it entirely, otherwise print its own header"
     idiom every bucketed report in this codebase uses (this module's own
-    print_bucket_report below, and lib.cve_diff_check's own per-bucket
+    print_bucket_report below, and lib.checks.cve_diff's own per-bucket
     scan+diff+print loop) — factored out here so there's one place this
     trivial-looking convention lives, not two independently-written
     copies that could silently drift (e.g. one gaining a blank line the

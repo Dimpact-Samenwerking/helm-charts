@@ -2,10 +2,10 @@
 """
 Auto-fixes whatever pymarkdown's own `fix` mode can safely resolve across
 every *.md file under charts/podiumd/ (same file selection as
-lib.markdown_check.find_markdown_files — a vendored sub-chart's docs and
+lib.checks.markdown.find_markdown_files — a vendored sub-chart's docs and
 the helm-docs-generated README.md excluded) — the fixer for
 verify-podiumd's "Markdown lint" step, which only ever reports findings
-(report-only by design, see lib.markdown_check).
+(report-only by design, see lib.checks.markdown).
 
 MD031 (blanks-around-fences) is disabled here specifically because its
 FIX action (not its detection — a plain `pymarkdown scan`, and
@@ -37,7 +37,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.markdown_check import MARKDOWN_PLUGIN_SETTINGS, find_markdown_files, find_pymarkdown
+from lib.checks.markdown import MARKDOWN_PLUGIN_SETTINGS, find_markdown_files, find_pymarkdown
 from lib.procutil import run
 from lib.settings import quality_gates_markdown_disabled_rules
 

@@ -6,7 +6,7 @@ trip:
   1. values.yaml is valid UTF-8 with no BOM (a BOM breaks YAML tooling if present)
   2. values.yaml has no duplicate keys silently overwriting earlier values
   3. templates/*.yaml has no pair of files that are structurally near-
-     duplicates of each other (report-only, never fails — see lib.dry_check)
+     duplicates of each other (report-only, never fails — see lib.checks.dry)
   4. every `image:` field in this chart's OWN templates/*.yaml calls the
      shared podiumd.image helper, per .github/copilot-instructions.md's
      "Image References" convention (never a hand-interpolated
@@ -17,7 +17,7 @@ trip:
      templates/*.yaml has a nodeSelector field somewhere in its pod spec,
      per .github/copilot-instructions.md's AKS-Blue convention ("all
      workloads" require one) — a template with none can never be made
-     compliant by an env-values override (see lib.node_selector_check)
+     compliant by an env-values override (see lib.checks.node_selector)
   6. every `image: {tag: ...}` block anywhere in values.yaml has its tag
      digest-pinned ("<version>@sha256:<64 hex chars>"), the convention
      this chart uses everywhere else specifically so a tag can never
@@ -26,8 +26,8 @@ trip:
      release-table.csv's own export script rely on can actually see the
      pin at all. One known, deliberate exception: keycloak-operator's own
      "operator.image" field, which uses the adfinis chart's own separate
-     "tag" + sibling "sha:" convention instead (see lib.digest_pinning_
-     check). Deliberately a fast, filesystem-only, no-"Dependencies"-
+     "tag" + sibling "sha:" convention instead (see lib.checks.
+     digest_pinning). Deliberately a fast, filesystem-only, no-"Dependencies"-
      needed scan — never renders, never looks past podiumd's own
      values.yaml (see step 15, below, for a separate, render-based
      check this same module also hosts)
@@ -39,7 +39,7 @@ trip:
      runs up front with the other trivial scans — and it must run before
      step 12 regardless: that step's own dependency rebuild (rm -rf charts/
      + helm dependency update) would otherwise wipe the evidence before
-     this check ever saw it (see lib.vendored_tgz_check)
+     this check ever saw it (see lib.checks.vendored_tgz)
   8. release-baseline.yaml's two baselines (upgrade_docs and
      release_table — see lib.chart for what each means) each resolve to
      an actual podiumd-<baseline> tag or feature/podiumd-<baseline>
@@ -64,7 +64,7 @@ trip:
      values.yaml (a renamed/added/removed key, or a changed default/
      comment) — regenerated via a real `helm-docs --dry-run` and diffed
      against the actual file, never written in place (see
-     lib.helm_docs_check). Unrelated to step 9: that's upgrade-doc drift
+     lib.checks.helm_docs). Unrelated to step 9: that's upgrade-doc drift
      triggered by a version bump; this is values-reference drift
      triggered by any values.yaml edit at all, version bump or not
   11. every *.md file under charts/podiumd/ (this chart's own docs, not a
@@ -73,12 +73,12 @@ trip:
       own line-length: disable, tables/links/prose routinely exceed
       MD013, pure noise, and it alone accounts for the vast majority of
       this repo's current findings; MD014 is disabled per the user's own
-      request (see lib.markdown_check's module docstring). Report-only,
+      request (see lib.checks.markdown's module docstring). Report-only,
       never fails on a finding: this repo's docs predate any markdown-
       style convention, so failing the build the moment this check starts
       existing would just make it permanently red instead of catching
       anything new — only a missing pymarkdown install fails it, same as
-      every other external-tool step here (see lib.markdown_check)
+      every other external-tool step here (see lib.checks.markdown)
   12. every repo a Chart.yaml dependency actually needs (a classic Helm
      repo's index.yaml, or an OCI chart's manifest), AND every registry a
      values.yaml digest pin resolves to without needing Dependencies to
@@ -107,7 +107,7 @@ trip:
       non-reproducible); one already digest-pinned there is merely
       reported, never a failure — already reproducible as-is, and
       whether it still warrants an explicit podiumd override is a
-      per-case judgment call (see lib.digest_pinning_check.
+      per-case judgment call (see lib.checks.digest_pinning.
       check_subchart_image_visibility)
 
   15. every values.yaml repository shared across 2+ consuming paths (e.g.
@@ -129,7 +129,7 @@ trip:
       anchor is pointless there, inline it instead; 2+ stays report only.
       Any OTHER repository incidentally shared (e.g. keycloak/keycloak,
       alpine/k8s — nobody declared these "meant to be shared") never
-      fails, regardless of consumer count (see lib.digest_pinning_check.
+      fails, regardless of consumer count (see lib.checks.digest_pinning.
       check_shared_image_usage)
   16. every digest-pinned image in values.yaml still matches its live
       upstream registry digest — except a tag known to slide (this repo's
@@ -149,19 +149,19 @@ trip:
       (trailing whitespace, comment style, ...) aren't reported at all, and
       a vendored sub-chart finding is printed per-item if it's from a
       partner vendor, else only gets a one-line count — neither
-      scope ever fails except OWN (see lib.yamllint_check)
+      scope ever fails except OWN (see lib.checks.yamllint)
   20. kubeconform against that same render finds no real API-schema
       violation in this chart's OWN templates (wrong types, unknown fields,
       a resource that doesn't even parse) — a CRD with no known schema
       (Keycloak, ECK, Redis, ...) is skipped, not an error, and vendored
       findings follow the same partner-vendor-gets-detail rule, never a
-      failure (see lib.kubeconform_check)
+      failure (see lib.checks.kubeconform)
   21. shellcheck against every shell script embedded in a container's
       command/args in this chart's OWN templates finds no real bug
       (error/warning-level — bad quoting, undefined variables, portability
       issues) — info/style-level suggestions aren't reported at all, and
       vendored findings follow the same partner-vendor-gets-detail rule,
-      never a failure (see lib.shellcheck_check)
+      never a failure (see lib.checks.shellcheck)
   22. kube-score's container-resources check finds every container in this
       chart's OWN templates declaring CPU/memory requests AND limits, per
       .github/copilot-instructions.md's own documented "Resource Requests
@@ -176,7 +176,7 @@ trip:
       sub-chart's values.yaml key, same doc), so an other-vendor finding
       here is genuinely actionable, just deprioritized in the output.
       Neither ever fails the check yet, though: the backlog is untriaged
-      and partly upstream-blocked (see lib.kube_score_check)
+      and partly upstream-blocked (see lib.checks.kube_score)
 
   23. estimates the size of the Kubernetes Secret Helm would persist for
       this release (base64(gzip(json.Marshal(release))), the same payload
@@ -207,7 +207,7 @@ trip:
       operation in this whole script, so every cheaper step gets a chance
       to fail fast first. Report-only, never fails regardless of severity —
       a HIGH/CRITICAL finding is a triage decision for a human, not a
-      chart-correctness fact (see lib.cve_check)
+      chart-correctness fact (see lib.checks.cve)
 
   26. every image step 24 (above) flagged with a newer tag published, or
       step 16 (above) flagged with a slid digest, is scanned TWICE with
@@ -221,7 +221,7 @@ trip:
       scans the (typically much smaller) set actually flagged by step 24
       or 16, so its own cost stays bounded regardless of how many images
       this chart pins in total. Report-only, same "a triage decision for
-      a human" precedent as step 25 (see lib.cve_diff_check)
+      a human" precedent as step 25 (see lib.checks.cve_diff)
 
   27. every component registered as "lockstep" in lib.chart — either a
       COMPONENT_IMAGE_PATHS/COMPONENT_VERSION_PATHS entry with 2+ paths
@@ -235,7 +235,7 @@ trip:
       this is the one place that does. A cheap filesystem check (no
       helm dependency update needed), so despite the number it runs up
       front with the other trivial scans, right after step 8 (see
-      lib.lockstep_check)
+      lib.checks.lockstep)
 
   Steps 19-22's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
   Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, and any local
@@ -324,11 +324,11 @@ Usage:
     verify-podiumd --detail-cve-check
         # CVE scan: itemize CRITICAL/HIGH findings per affected package for
         # EVERY image bucket (own, partner-vendor, AND other-vendor) instead
-        # of the default terse per-image severity totals — see lib.cve_check.
+        # of the default terse per-image severity totals — see lib.checks.cve.
     verify-podiumd --detail-cve-diff
         # CVE diff: itemize the actual CRITICAL/HIGH VulnerabilityID+PkgName
         # pairs closed/introduced by each upgrade/slide candidate, instead of
-        # the default terse per-severity counts — see lib.cve_diff_check.
+        # the default terse per-severity counts — see lib.checks.cve_diff.
 
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
@@ -356,29 +356,29 @@ from lib.procutil import run
 # see charts/podiumd/bin/tests/verify-podiumd/conftest.py's lib*
 # fixtures — rather than through this file, so this import list stays
 # exactly what main() calls, no re-exports to keep in sync by hand.
-from lib.dry_check import check_dry
+from lib.checks.dry import check_dry
 from lib.image.digests import check_image_digests
-from lib.cve_check import check_cves
+from lib.checks.cve import check_cves
 from lib.dependencies import check_dependencies, ensure_repos_configured
 from lib.repo_access import check_repo_access
 from lib.image.upgrade_check import check_image_upgrades
-from lib.cve_diff_check import check_cve_diff
+from lib.checks.cve_diff import check_cve_diff
 from lib.image.references_check import check_image_references
 from lib.image.repository_check import check_image_repository
-from lib.digest_pinning_check import check_digest_pinning, check_shared_image_usage, check_subchart_image_visibility
-from lib.node_selector_check import check_node_selector
+from lib.checks.digest_pinning import check_digest_pinning, check_shared_image_usage, check_subchart_image_visibility
+from lib.checks.node_selector import check_node_selector
 from lib.docs_consistency import check_docs_consistency
-from lib.lockstep_check import check_lockstep_versions
-from lib.helm_docs_check import check_helm_docs
-from lib.markdown_check import check_markdown
-from lib.vendored_tgz_check import check_vendored_tgz_extraction
+from lib.checks.lockstep import check_lockstep_versions
+from lib.checks.helm_docs import check_helm_docs
+from lib.checks.markdown import check_markdown
+from lib.checks.vendored_tgz import check_vendored_tgz_extraction
 from lib.render_scope import (
     CHART_NAME, lint_args_for, render_chart, report_errors_by_subchart, report_largest_templates,
 )
-from lib.yamllint_check import check_yamllint
-from lib.kubeconform_check import check_kubeconform
-from lib.shellcheck_check import check_shellcheck
-from lib.kube_score_check import check_kube_score
+from lib.checks.yamllint import check_yamllint
+from lib.checks.kubeconform import check_kubeconform
+from lib.checks.shellcheck import check_shellcheck
+from lib.checks.kube_score import check_kube_score
 from lib.release_secret_size import check_release_secret_size
 from lib.settings import render_report_top_n_largest_templates_shown
 
@@ -631,7 +631,7 @@ SKIPPABLE_STEPS = [
 # or values.yaml" instead of the real "Dependencies" failure underneath it.
 # "CVE scan" additionally needs "Image upgrades" to
 # have actually run: it reads that step's cache (read-only, see
-# lib.cve_check) to annotate a finding "upgradable to X", and a
+# lib.checks.cve) to annotate a finding "upgradable to X", and a
 # --include=cve-scan run with no fresh cache already on disk would
 # otherwise never see one populated. "CVE diff" needs "Image upgrades"
 # for the same reason, but as a genuine data dependency rather than a

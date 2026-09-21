@@ -2,7 +2,7 @@
 currently published for every unique digest-pinned image in values.yaml,
 split into the same own/partner-vendor/other-vendor buckets as
 check_yamllint/check_kubeconform/check_shellcheck/check_kube_score/
-check_cves. Classification itself is reused directly from lib.cve_check
+check_cves. Classification itself is reused directly from lib.checks.cve
 (own always wins from the `helm template` render's "# Source:"
 attribution, falling back to a values.yaml top-level-key heuristic for a
 component not present in the render at all — see that module's docstring
@@ -28,11 +28,11 @@ on its own.
 One registry tag-list call per unique (repository, version) pin — cheap,
 no image pull — but still worth caching: results are cached by
 (repository, version) in <repo-root>/.cache/image-upgrade-cache.json
-(see lib.image.upgrade_cache — split into its own module so lib.cve_check
+(see lib.image.upgrade_cache — split into its own module so lib.checks.cve
 can read this cache too, read-only, to annotate a CVE finding as
 "upgradable" without triggering a registry call of its own), a personal,
 gitignored, per-checkout cache (same as <repo-root>/.cache/
-cve-scan-cache.json — see lib.cve_check's docstring), not shared between
+cve-scan-cache.json — see lib.checks.cve's docstring), not shared between
 contributors or CI. image_upgrade_check.tag_check_cache_ttl_days (lib.
 settings) is deliberately much shorter than the CVE cache's TTL: a new
 tag can be published at any
@@ -49,7 +49,7 @@ this repo's own content violates."""
 import urllib.error
 from datetime import datetime, timezone
 
-from lib.cve_check import bucket_of, classify_by_key, dependency_names, render_image_labels, top_level_key_for_line
+from lib.checks.cve import bucket_of, classify_by_key, dependency_names, render_image_labels, top_level_key_for_line
 from lib.image.digests import unique_digest_pin_targets
 from lib.image.upgrade_cache import cache_entry_is_fresh, cache_key, load_cache, save_cache
 from lib.registry import find_newest_same_variant_tag, parse_repo

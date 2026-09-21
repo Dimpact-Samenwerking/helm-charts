@@ -280,7 +280,7 @@ DEFAULT_DIGEST_PINNING_EXCEPTIONS = {
 def test_digest_pinning_exceptions_missing_file_matches_todays_five_entry_table(libsettings, tmp_path):
     """No etc/settings.yaml at all -- falls back to exactly today's real
     5-entry table (the one this iteration unified out of lib.chart.
-    SPLIT_TAG_SHA_PATHS, lib.digest_pinning_check.EXEMPT_PATHS, and
+    SPLIT_TAG_SHA_PATHS, lib.checks.digest_pinning.EXEMPT_PATHS, and
     update-component-version's own separate write-side allowlist)."""
     assert libsettings.digest_pinning_exceptions(tmp_path) == DEFAULT_DIGEST_PINNING_EXCEPTIONS
 

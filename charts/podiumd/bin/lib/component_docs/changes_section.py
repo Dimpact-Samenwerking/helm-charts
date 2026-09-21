@@ -360,7 +360,7 @@ def insert_changes_section(text, section_text, friendly, deps, values, canonical
     # changes_section both start straight with "### "), and the PRECEDING
     # content's own trailing blank can legitimately be gone by the time
     # this runs (e.g. fix-doc-consistency's own EOF-blank-line collapsing
-    # already stripped it — see lib.markdown_check). Real bug this fixes:
+    # already stripped it — see lib.checks.markdown). Real bug this fixes:
     # re-inserting whatever block currently sorts LAST in the file used to
     # silently depend on that trailing blank still being there, producing
     # a "### ..." heading with zero blank lines above it (MD022/MD032)

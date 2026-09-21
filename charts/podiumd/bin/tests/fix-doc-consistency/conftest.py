@@ -57,7 +57,7 @@ def stub_registry_tag_exists(cdb, monkeypatch):
 def stub_render_chart(cdb, monkeypatch):
     """cdb.main()'s own new render_chart() call (feeding regenerate_
     images_baseline_manifest's own render-gate for subchart-default-only
-    images — see lib.digest_pinning_check.find_unresolved_subchart_
+    images — see lib.checks.digest_pinning.find_unresolved_subchart_
     images) would otherwise invoke a REAL `helm template` against
     whatever CHART_YAML/VALUES_YAML a given test has monkeypatched —
     usually a synthetic tmp_path fixture with no real vendored chart

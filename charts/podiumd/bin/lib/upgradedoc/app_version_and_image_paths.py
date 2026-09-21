@@ -184,7 +184,7 @@ def find_image_tag_paths(node, path=(), include_null_tags=False):
     I/O) either way — resolving None into a real, effective version is
     a SEPARATE step a caller does itself (see lib.chart.
     resolve_subchart_default, the one place both real consumers —
-    lib.digest_pinning_check.find_unresolved_subchart_images and
+    lib.checks.digest_pinning.find_unresolved_subchart_images and
     lib.image.docs.regenerate_images_baseline_manifest — do that
     resolution, so it's never re-derived twice).
 

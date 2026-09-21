@@ -33,7 +33,7 @@ DIGEST_PIN_RE = re.compile(
 # non-digest-pinned tag. Deliberately a SEPARATE regex/scanner (see
 # scan_version_pins below), not a change to DIGEST_PIN_RE/scan_digest_pins
 # themselves: this chart's own real digest-pinning convention (enforced
-# for anything that actually gets deployed — see lib.digest_pinning_check)
+# for anything that actually gets deployed — see lib.checks.digest_pinning)
 # must stay exactly as strict as it already is for every caller that needs
 # it (update-image-version/verify-image-version/show-image-baseline-
 # version, and every upgrade_docs_baseline-driven doc-consistency check).
@@ -380,7 +380,7 @@ def find_sliding_pins(chart_dir):
     distinction) — the exact same per-pin registry lookup (registry_
     tag_exists + is_sliding_tag) check_image_digests' own loop already
     performs, built on the same resolve_pin_targets(...) grouping,
-    factored out here so lib.cve_diff_check.check_cve_diff can gather
+    factored out here so lib.checks.cve_diff.check_cve_diff can gather
     its own "digest has slid" scan candidates without re-deriving that
     lookup. A genuine (non-sliding) MISMATCH, a fetch error, or an
     unverifiable pin is NOT returned here — check_image_digests remains

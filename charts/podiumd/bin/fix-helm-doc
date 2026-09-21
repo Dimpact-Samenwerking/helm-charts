@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Regenerate charts/podiumd/README.md via the real `helm-docs` command — the
-fixer for verify-podiumd's "Helm doc" step (lib.helm_docs_check),
+fixer for verify-podiumd's "Helm doc" step (lib.checks.helm_docs),
 which only ever reports drift via `helm-docs --dry-run` and never writes
 to the real file itself. Same convention as fix-utf8-bom/
 fix-image-digests: a report-only check pairs with a separate, explicit
@@ -11,7 +11,7 @@ Usage:
     fix-helm-doc             # regenerate README.md in place
     fix-helm-doc --dry-run   # report only, no write — delegates to the
                               # exact same check verify-podiumd runs
-                              # (lib.helm_docs_check.check_helm_docs)
+                              # (lib.checks.helm_docs.check_helm_docs)
 
 Probes with `helm-docs --dry-run` first and only runs the real (writing)
 command when the output actually differs from the current README.md — so a
@@ -28,7 +28,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.helm_docs_check import README_FILENAME, TEMPLATE_FILENAME, check_helm_docs
+from lib.checks.helm_docs import README_FILENAME, TEMPLATE_FILENAME, check_helm_docs
 from lib.procutil import run
 
 CHART_DIR = SCRIPT_DIR.parent

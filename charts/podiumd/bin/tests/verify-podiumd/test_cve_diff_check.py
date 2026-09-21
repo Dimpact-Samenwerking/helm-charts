@@ -2,17 +2,17 @@
 newer tag, or check_image_digests flagged with a slid digest, scan BOTH
 the current and proposed image with trivy and report the per-severity CVE
 set difference, now split into the same own/partner-vendor/other-vendor
-buckets as lib.cve_check.check_cves (ALL get identical treatment — no
+buckets as lib.checks.cve.check_cves (ALL get identical treatment — no
 aggregate-only rollup for other-vendor). No real docker/trivy/registry
 invocation happens in these tests — load_upgrade_cache/find_sliding_pins/
-registry_tag_exists are mocked directly on lib.cve_diff_check's own module
+registry_tag_exists are mocked directly on lib.checks.cve_diff's own module
 bindings (the module that actually owns them, per this test suite's own
-convention). run_trivy and cache_key, though, are mocked on lib.cve_check
+convention). run_trivy and cache_key, though, are mocked on lib.checks.cve
 (the `libcvecheck` fixture) instead: both current/proposed scans now
-route through lib.cve_check.scan_cached (imported into lib.cve_diff_check
+route through lib.checks.cve.scan_cached (imported into lib.checks.cve_diff
 only as `scan_cached` itself), so run_trivy's own binding — and
 cache_key's, which is only ever called from inside scan_cached, never
-re-imported into lib.cve_diff_check — live in lib.cve_check now, not
+re-imported into lib.checks.cve_diff — live in lib.checks.cve now, not
 here.
 
 classify_candidates (the new bucketing step) needs a Chart.yaml to exist
@@ -583,7 +583,7 @@ zac:
     assert "CVE-9" not in out
 
 
-# --- open_cache_session (shared with check_cves, see lib.cve_check) ---
+# --- open_cache_session (shared with check_cves, see lib.checks.cve) ---
 
 
 def test_check_cve_diff_routes_through_open_cache_session(libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
