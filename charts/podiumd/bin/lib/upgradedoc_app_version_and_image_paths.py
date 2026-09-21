@@ -4,10 +4,12 @@ walking a values tree for every image-tag/version path a
 dependency or native component actually pins."""
 
 from lib.chart import (
-    component_image_paths,
-    image_paths_for,
     nested_subchart_registered_paths,
     subchart_app_version,
+)
+from lib.chart_registered_paths import (
+    component_image_paths,
+    image_paths_for,
     version_paths_for,
 )
 from lib.chart_values_tree_primitives import get_path

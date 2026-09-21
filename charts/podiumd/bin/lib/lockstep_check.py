@@ -33,12 +33,12 @@ sharing a version number is normal and not a mismatch — the exact
 opposite mistake same_group's own docstring already warns against (the
 kiss/kiss-elastic-sync precedent)."""
 
-from lib.chart import (
+from lib.chart import load_yaml
+from lib.chart_registered_paths import (
     chart_version_lockstep_components,
     component_image_paths,
     component_version_paths,
     image_paths_for,
-    load_yaml,
     version_paths_for,
 )
 from lib.chart_values_tree_primitives import (

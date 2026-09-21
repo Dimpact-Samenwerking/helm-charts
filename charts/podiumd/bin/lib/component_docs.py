@@ -22,8 +22,8 @@ import re
 
 import yaml
 
-from lib.chart import (
-    historical_app_version_for_path,
+from lib.chart import historical_app_version_for_path
+from lib.chart_registered_paths import (
     image_paths_for,
     native_components,
     version_paths_for,

@@ -7,9 +7,9 @@ from lib.chart import (
     full_repository_for_path,
     global_image_paths,
     historical_app_version_for_repository,
-    native_components,
     resolved_digest_pin,
 )
+from lib.chart_registered_paths import native_components
 from lib.chart_values_tree_primitives import version_of
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc_app_version_and_image_paths import (

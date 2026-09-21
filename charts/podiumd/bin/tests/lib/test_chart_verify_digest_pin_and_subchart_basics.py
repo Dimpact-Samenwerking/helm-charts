@@ -300,29 +300,29 @@ def test_find_images_root_path_label(libchart, libchartvaluestreeprimitives):
 # --- image_paths_for ---
 
 
-def test_image_paths_for_multi_image_component(libchart):
-    assert libchart.image_paths_for("zgw-office-addin") == ["frontend.image", "backend.image"]
+def test_image_paths_for_multi_image_component(libchart, libchartregisteredpaths):
+    assert libchartregisteredpaths.image_paths_for("zgw-office-addin") == ["frontend.image", "backend.image"]
 
 
-def test_image_paths_for_ita_web_and_poller(libchart):
+def test_image_paths_for_ita_web_and_poller(libchart, libchartregisteredpaths):
     """ITA has no single "app" image at all — web and poller are two
     co-equal images, same lockstep shape as zgw-office-addin's own
     frontend+backend split."""
-    assert libchart.image_paths_for("internetaakafhandeling") == ["web.image", "poller.image"]
+    assert libchartregisteredpaths.image_paths_for("internetaakafhandeling") == ["web.image", "poller.image"]
 
 
-def test_image_paths_for_kiss_chart_frontend_and_sync_jobs(libchart):
+def test_image_paths_for_kiss_chart_frontend_and_sync_jobs(libchart, libchartregisteredpaths):
     """kiss-chart's own frontend image ("image") and its
     settings.syncJobs.image (the elastic-sync CronJob) are released from
     the same kiss-chart version and always move together — same
     co-equal lockstep shape as internetaakafhandeling's web+poller split.
     NOT syncJobs.crawlerImage/indexTemplateImage (the Elastic Open
     Crawler images) — those have independent upstream version lines."""
-    assert libchart.image_paths_for("kiss-chart") == ["image", "settings.syncJobs.image"]
+    assert libchartregisteredpaths.image_paths_for("kiss-chart") == ["image", "settings.syncJobs.image"]
 
 
-def test_image_paths_for_unlisted_component_defaults_to_single_image_block(libchart):
-    assert libchart.image_paths_for("zac") == ["image"]
+def test_image_paths_for_unlisted_component_defaults_to_single_image_block(libchart, libchartregisteredpaths):
+    assert libchartregisteredpaths.image_paths_for("zac") == ["image"]
 
 
 # --- dotted_key_path ---
