@@ -46,7 +46,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart_historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart_release_baseline_basics import chart_version
 from lib.chart_release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.component_docs import create_missing_docs, existing_doc_baselines
+from lib.component_docs.baseline_doc_stubs import create_missing_docs, existing_doc_baselines
 from lib.procutil import run_script
 
 CHART_DIR = SCRIPT_DIR.parents[0]

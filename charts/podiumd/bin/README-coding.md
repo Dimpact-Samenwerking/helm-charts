@@ -89,28 +89,33 @@ a general second linter running in parallel with ruff.
 
 ```bash
 cd charts/podiumd/bin
-pylint lib/*.py $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) $(find tests -name '*.py')
+pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) $(find tests -name '*.py')
 ```
 
 The explicit file list matters: pylint has no config option to auto-discover
 this directory's own extensionless top-level scripts (`fix-doc-consistency`,
 `verify-podiumd`, etc. — they have no `.py` suffix for it to glob on), so a
 bare `pylint .` silently misses all of them. The command above explicitly
-includes `lib/*.py`, every executable top-level script (filtered to those
-with a `python` shebang, so a non-Python executable like `run_python_checks`
-itself doesn't get handed to a Python linter), and every test file under
-`tests/` (several test modules are themselves well over 1000 lines).
+includes `lib` (a directory argument, not a `lib/*.py` glob, so pylint
+recurses into subpackages like `lib/component_docs/` too), every executable
+top-level script (filtered to those with a `python` shebang, so a
+non-Python executable like `run_python_checks` itself doesn't get handed to
+a Python linter), and every test file under `tests/` (several test modules
+are themselves well over 1000 lines).
 
 ### vulture (dead code)
 
 ```bash
 cd charts/podiumd/bin
-vulture lib/*.py $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+vulture lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 ```
 
 Same file-discovery gap as pylint above (vulture only walks `*.py` files
 under a directory, so the extensionless top-level scripts need to be passed
-explicitly) — same fix, same command shape.
+explicitly) — same fix, same command shape. `lib` is passed as a directory
+(not a `lib/*.py` glob) so vulture recurses into subpackages like
+`lib/component_docs/` too, same reason as pylint above — and, unlike a bare
+`vulture .`, still leaves `tests/` out (see below).
 
 **Deliberately excludes `tests/` entirely.** Vulture flags anything it can't
 see a direct call to, and pytest fixtures / mock-function signature params
@@ -144,8 +149,8 @@ running each command from the sections above by hand, in this order:
 cd charts/podiumd/bin
 ruff check .
 ruff format --check .
-vulture lib/*.py $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
-pylint lib/*.py $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) $(find tests -name '*.py')
+vulture lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) $(find tests -name '*.py')
 python3 -m pytest -q
 ```
 
