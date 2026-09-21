@@ -5,7 +5,7 @@ pair_renames) they're built from, and path_display_name."""
 
 import re
 
-from lib.chart_registered_paths import is_primary_image_path
+from lib.chart.registered_paths import is_primary_image_path
 from lib.upgradedoc_string_and_parsing_basics import (
     extract_source_version,
     extract_target_version,

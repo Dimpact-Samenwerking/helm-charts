@@ -48,8 +48,8 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart_release_baseline_basics import load_yaml
-from lib.chart_repo_and_path_resolution import subchart_default_repository, subchart_needs_vendoring
+from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.repo_and_path_resolution import subchart_default_repository, subchart_needs_vendoring
 from lib.dependencies import check_dependencies as vendor_dependencies, ensure_repos_configured
 from lib.image_digests import scan_digest_pins
 from lib.image_version import resolve_scoped_matches

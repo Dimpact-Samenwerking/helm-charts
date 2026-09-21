@@ -9,14 +9,14 @@ default_repository, subchart_needs_vendoring)."""
 
 import tarfile
 
-from lib.chart_nested_subchart_identity import (
+from lib.chart.nested_subchart_identity import (
     nested_subchart_documented_image_repository,
     nested_subchart_name_for,
     version_repository_path_for,
 )
-from lib.chart_pull_and_subchart_resolution import resolve_chart_values, subchart_values
-from lib.chart_registered_paths import image_paths_for, is_primary_image_path, native_components
-from lib.chart_values_tree_primitives import (
+from lib.chart.pull_and_subchart_resolution import resolve_chart_values, subchart_values
+from lib.chart.registered_paths import image_paths_for, is_primary_image_path, native_components
+from lib.chart.values_tree_primitives import (
     dotted_key_path,
     find_app_versions,
     find_dependency,

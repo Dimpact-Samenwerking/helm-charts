@@ -10,8 +10,8 @@ import re
 
 import yaml
 
-from lib.chart_pull_and_subchart_resolution import global_image_paths
-from lib.chart_repo_and_path_resolution import (
+from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.repo_and_path_resolution import (
     canonical_sidecar_row_names,
     paths_by_repository,
     repo_group_representative,

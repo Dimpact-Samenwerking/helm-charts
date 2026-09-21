@@ -10,13 +10,13 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import lib.baseline_report as baseline_report
-import lib.chart_historical_baselines as chart_historical_baselines
-import lib.chart_nested_subchart_identity as chart_nested_subchart_identity
-import lib.chart_pull_and_subchart_resolution as chart_pull_and_subchart_resolution
-import lib.chart_registered_paths as chart_registered_paths
-import lib.chart_release_baseline_basics as chart_release_baseline_basics
-import lib.chart_repo_and_path_resolution as chart_repo_and_path_resolution
-import lib.chart_values_tree_primitives as chart_values_tree_primitives
+import lib.chart.historical_baselines as chart_historical_baselines
+import lib.chart.nested_subchart_identity as chart_nested_subchart_identity
+import lib.chart.pull_and_subchart_resolution as chart_pull_and_subchart_resolution
+import lib.chart.registered_paths as chart_registered_paths
+import lib.chart.release_baseline_basics as chart_release_baseline_basics
+import lib.chart.repo_and_path_resolution as chart_repo_and_path_resolution
+import lib.chart.values_tree_primitives as chart_values_tree_primitives
 import lib.component_docs as component_docs
 import lib.component_docs.baseline_doc_stubs as component_docs_baseline_doc_stubs
 import lib.component_docs.changes_section as component_docs_changes_section

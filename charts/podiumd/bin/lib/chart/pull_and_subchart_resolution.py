@@ -16,9 +16,9 @@ from pathlib import Path
 
 import yaml
 
-from lib.chart_nested_subchart_identity import nested_subchart_raw_text
-from lib.chart_registered_paths import image_paths_for
-from lib.chart_values_tree_primitives import get_path
+from lib.chart.nested_subchart_identity import nested_subchart_raw_text
+from lib.chart.registered_paths import image_paths_for
+from lib.chart.values_tree_primitives import get_path
 from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 

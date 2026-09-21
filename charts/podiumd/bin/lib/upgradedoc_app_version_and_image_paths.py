@@ -3,14 +3,14 @@ Chart.yaml dependency version, or vendored-subchart fallback) and
 walking a values tree for every image-tag/version path a
 dependency or native component actually pins."""
 
-from lib.chart_nested_subchart_identity import nested_subchart_registered_paths
-from lib.chart_pull_and_subchart_resolution import subchart_app_version
-from lib.chart_registered_paths import (
+from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
+from lib.chart.pull_and_subchart_resolution import subchart_app_version
+from lib.chart.registered_paths import (
     component_image_paths,
     image_paths_for,
     version_paths_for,
 )
-from lib.chart_values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import get_path
 from lib.upgradedoc_string_and_parsing_basics import (
     normalize_version,
     words_of,

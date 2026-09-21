@@ -17,8 +17,8 @@ the lib.component_docs package."""
 
 import re
 
-from lib.chart_historical_baselines import historical_app_version_for_path
-from lib.chart_registered_paths import image_paths_for, native_components, version_paths_for
+from lib.chart.historical_baselines import historical_app_version_for_path
+from lib.chart.registered_paths import image_paths_for, native_components, version_paths_for
 from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE, UPGRADE_INTRO_STUB_TODO_LINE
 from lib.upgradedoc_app_version_and_image_paths import actual_app_version
 from lib.upgradedoc_sorting_and_ordering import (

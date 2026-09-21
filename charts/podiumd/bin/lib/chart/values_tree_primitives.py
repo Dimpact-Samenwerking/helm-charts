@@ -1,5 +1,5 @@
 """Generic values-tree/dependency-list primitives with no dependency on
-any other lib.chart_* module: dotted-path lookup, in-place scalar-line
+any other lib.chart.* module: dotted-path lookup, in-place scalar-line
 replacement, Chart.yaml dependency lookup, and version/repository-string
 helpers. Pure, no filesystem access except own_template_files_
 referencing/resolve_values_path_source (which just walk a chart's own

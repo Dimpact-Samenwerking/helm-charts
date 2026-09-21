@@ -129,10 +129,10 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart_pull_and_subchart_resolution import primary_image_repositories
-from lib.chart_registered_paths import image_paths_for
-from lib.chart_release_baseline_basics import load_yaml, release_table_baseline
-from lib.chart_values_tree_primitives import (
+from lib.chart.pull_and_subchart_resolution import primary_image_repositories
+from lib.chart.registered_paths import image_paths_for
+from lib.chart.release_baseline_basics import load_yaml, release_table_baseline
+from lib.chart.values_tree_primitives import (
     dotted_key_path, find_dependency, get_path, strip_registry_host, version_of,
 )
 from lib.image_version import (

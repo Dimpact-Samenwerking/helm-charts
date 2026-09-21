@@ -44,9 +44,9 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart_pull_and_subchart_resolution import check_image_versions, verify_chart_version
-from lib.chart_registered_paths import image_paths_for
-from lib.chart_values_tree_primitives import find_dependency as _find_dependency
+from lib.chart.pull_and_subchart_resolution import check_image_versions, verify_chart_version
+from lib.chart.registered_paths import image_paths_for
+from lib.chart.values_tree_primitives import find_dependency as _find_dependency
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"

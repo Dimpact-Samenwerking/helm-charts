@@ -5,7 +5,7 @@ string/regex logic, no filesystem or values.yaml access."""
 
 import re
 
-from lib.chart_registered_paths import native_components
+from lib.chart.registered_paths import native_components
 
 COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
 

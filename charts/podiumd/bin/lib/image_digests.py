@@ -6,8 +6,8 @@ import re
 import urllib.error
 from datetime import datetime, timezone
 
-from lib.chart_release_baseline_basics import load_yaml
-from lib.chart_repo_and_path_resolution import subchart_default_repository
+from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.repo_and_path_resolution import subchart_default_repository
 from lib.registry import UNVERIFIABLE_HOSTS, is_sliding_tag, parse_repo, registry_tag_exists
 from lib.repo_access_cache import cache_entry_is_fresh as repo_access_entry_is_fresh
 from lib.repo_access_cache import cache_key as repo_access_cache_key

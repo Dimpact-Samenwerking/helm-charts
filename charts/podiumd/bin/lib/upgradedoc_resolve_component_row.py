@@ -5,17 +5,17 @@ app version from values.yaml/Chart.yaml/vendored subcharts."""
 
 import re
 
-from lib.chart_historical_baselines import (
+from lib.chart.historical_baselines import (
     baseline_tag_for_sidecar_path,
     historical_app_version_for_path,
 )
-from lib.chart_pull_and_subchart_resolution import global_image_paths
-from lib.chart_registered_paths import (
+from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.registered_paths import (
     image_paths_for,
     native_components,
 )
-from lib.chart_repo_and_path_resolution import paths_by_repository
-from lib.chart_values_tree_primitives import get_path
+from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.values_tree_primitives import get_path
 from lib.upgradedoc_app_version_and_image_paths import (
     actual_app_version,
     find_image_tag_paths,

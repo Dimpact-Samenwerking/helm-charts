@@ -70,12 +70,12 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart_pull_and_subchart_resolution import global_image_paths
-from lib.chart_registered_paths import image_paths_for
-from lib.chart_release_baseline_basics import load_yaml
-from lib.chart_release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.chart_repo_and_path_resolution import canonical_sidecar_row_names, full_repository_for_path
-from lib.chart_values_tree_primitives import dotted_key_path, find_dependency
+from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.registered_paths import image_paths_for
+from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names, full_repository_for_path
+from lib.chart.values_tree_primitives import dotted_key_path, find_dependency
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs.baseline_doc_stubs import (
     baseline_doc_paths, images_manifest_path, load_baseline_state, load_baseline_values,

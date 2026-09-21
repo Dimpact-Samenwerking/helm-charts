@@ -28,7 +28,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart_release_baseline_basics import load_yaml
+from lib.chart.release_baseline_basics import load_yaml
 from lib.confluence_tables import (
     effective_header_row_count, expand_grid, extract_tables, fetch_page_html,
     find_versie_groups, header_paths, is_semver_compatible, major_minor,

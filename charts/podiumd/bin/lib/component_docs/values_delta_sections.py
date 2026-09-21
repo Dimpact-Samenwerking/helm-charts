@@ -18,7 +18,7 @@ package."""
 
 import re
 
-from lib.chart_registered_paths import native_components
+from lib.chart.registered_paths import native_components
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE, VALUES_DELTAS_STUB_TODO_LINE
 from lib.component_docs.changes_section import dep_for_values_key
 from lib.upgradedoc_app_version_and_image_paths import actual_app_version
