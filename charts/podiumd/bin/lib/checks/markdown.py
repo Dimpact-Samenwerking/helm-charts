@@ -137,7 +137,9 @@ def check_markdown(chart_dir):
     (line-length) and MD014 (commands-show-output) disabled (see module
     docstring). Fails whenever any finding is reported, same as a missing
     pymarkdown install (see module docstring for why this no longer
-    tolerates findings the way it used to)."""
+    tolerates findings the way it used to). Invoked with
+    --return-code-scheme explicit: 0 = clean, 4 = findings reported,
+    anything else is a real pymarkdown failure, not a finding."""
     pymarkdown = find_pymarkdown(chart_dir)
     if pymarkdown is None:
         return False, (
@@ -164,7 +166,6 @@ def check_markdown(chart_dir):
         capture_output=True,
         text=True,
     )
-    # --return-code-scheme explicit: 0 = clean, 4 = findings reported, anything else is a real failure.
     if result.returncode not in (0, 4):
         return False, f"pymarkdown failed (exit {result.returncode}): {result.stderr.strip() or result.stdout.strip()}"
     output = result.stdout + result.stderr

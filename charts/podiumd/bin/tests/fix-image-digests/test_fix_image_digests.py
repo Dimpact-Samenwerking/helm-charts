@@ -324,6 +324,7 @@ def test_main_dry_run_does_not_write(sid, tmp_path, monkeypatch):
 
 
 def test_main_writes_new_digest_preserving_everything_else(sid, tmp_path, monkeypatch):
+    """Only the digest changes -- everything else in the file, byte for byte."""
     values_path = tmp_path / "values.yaml"
     old_digest = "a" * 64
     new_digest = "b" * 64
@@ -337,7 +338,6 @@ def test_main_writes_new_digest_preserving_everything_else(sid, tmp_path, monkey
         sid.main()
     assert exc_info.value.code == 0
     updated = values_path.read_text(encoding="utf-8")
-    # Only the digest changes -- everything else in the file, byte for byte.
     assert updated == f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{new_digest}"\n'
 
 

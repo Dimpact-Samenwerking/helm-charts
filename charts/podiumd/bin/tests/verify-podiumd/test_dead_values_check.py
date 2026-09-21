@@ -355,7 +355,11 @@ def test_check_dead_values_never_nulls_a_dependencys_own_condition_leaf(libdeadv
     renders regardless). Excluded from candidacy entirely (see
     _condition_leaf_paths) rather than tested and then rejected —
     verified here by making the whole test fail if "enabled" ever shows
-    up nulled in ANY overlay this check writes, scoped or full."""
+    up nulled in ANY overlay this check writes, scoped or full. Every
+    overlay is a full deep copy of the base values with only candidate
+    leaves nulled (see _render_with_null_overrides), so "enabled" must
+    keep its real original value — not just non-None, which an omitted
+    key would also satisfy via dict.get's default."""
     write_chart_yaml_with_dep(tmp_path, make_dep("zac", "1.0.0", condition="zac.enabled"))
     make_tgz(tmp_path / "charts", "zac", "1.0.0")
     (tmp_path / "values.yaml").write_text('zac:\n  enabled: true\n  used: "abc"\n', encoding="utf-8")
@@ -375,10 +379,6 @@ def test_check_dead_values_never_nulls_a_dependencys_own_condition_leaf(libdeadv
     assert detail == "0/1 dead"  # "enabled" excluded entirely; only "used" is a real candidate
     for overlay in seen_overlays:
         zac_view = overlay.get("zac", overlay)
-        # Every overlay is a full deep copy of the base values with only
-        # candidate leaves nulled (see _render_with_null_overrides), so
-        # "enabled" must keep its real original value -- not just non-None,
-        # which an omitted key would also satisfy via dict.get's default.
         assert zac_view.get("enabled") is True, f"zac.enabled was nulled or dropped in {overlay}"
 
 

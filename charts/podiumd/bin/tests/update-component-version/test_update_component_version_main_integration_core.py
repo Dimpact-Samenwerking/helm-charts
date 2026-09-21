@@ -520,8 +520,10 @@ def test_main_keycloak_operator_operator_image_gets_independent_digest_regressio
     the SAME run, each resolving its digest against its OWN, independent
     repository (quay.io/keycloak/keycloak-operator vs. quay.io/keycloak/
     keycloak) — mocking two DIFFERENT registry responses and asserting
-    each path gets its own correct digest, never one bleeding into the
-    other. A real settings.yaml file is used (not a monkeypatch of a raw
+    each path gets its own correct digest under its own repository line,
+    never one bleeding into the other (checked positionally, since both
+    mocked digests being merely "present somewhere" in the file wouldn't
+    catch a swap). A real settings.yaml file is used (not a monkeypatch of a raw
     dict — that constant no longer exists); CHART_DIR is already
     monkeypatched to this tmp_path by the setup helper above, so
     image_paths_for(chart_name, CHART_DIR) picks it up."""
@@ -554,8 +556,6 @@ def test_main_keycloak_operator_operator_image_gets_independent_digest_regressio
 
     updated = values_yaml.read_text(encoding="utf-8")
     assert updated.count('tag: "26.7.3"') == 2
-    # Each path's own digest under its own repository -- never swapped, even
-    # though both mocked digests would otherwise just be "present somewhere".
     assert (
         "      repository: quay.io/keycloak/keycloak-operator\n"
         '      tag: "26.7.3"\n'

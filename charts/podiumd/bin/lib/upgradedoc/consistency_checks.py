@@ -136,20 +136,22 @@ def find_wrong_or_duplicate_dependency_claims(names, deps):
     Callers should skip their own normal per-name resolution entirely for
     any name in either returned set, reporting it as wrong/stale instead —
     see lib.docs_consistency's own row loop and Changes-block loop for the
-    exact pattern."""
+    exact pattern.
+
+    Exact claims are tracked as two SETS (claiming names, claimed keys),
+    never a {key: name} dict — a dict can only remember one claiming name
+    per key, so two different names both exactly claiming the same key
+    (e.g. "KISS" and "Kiss", both matching via normalize_name) would
+    silently overwrite one another, wrongly leaving the first one looking
+    unclaimed. Computed over ALL names, duplicates included — a name
+    appearing twice still really does exactly claim its dependency (it's
+    also separately reported via duplicate_names, but that doesn't make
+    the claim itself not count)."""
     name_counts = {}
     for name in names:
         name_counts[name] = name_counts.get(name, 0) + 1
     duplicate_names = {name for name, count in name_counts.items() if count > 1}
 
-    # Two sets rather than a {key: name} dict: a {key: name} mapping can only
-    # remember ONE claiming name per key, so two different names both
-    # exactly claiming the same key (e.g. "KISS" and "Kiss", both matching
-    # via normalize_name) silently overwrite one another, wrongly leaving
-    # the first one looking unclaimed. Computed over ALL names, duplicates
-    # included -- a name appearing twice still really does exactly claim
-    # its dependency (it's also separately reported via duplicate_names,
-    # but that doesn't make the claim itself not count).
     exactly_claiming_names = set()
     exactly_claimed_keys = set()
     for name in names:

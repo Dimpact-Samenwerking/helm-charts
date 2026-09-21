@@ -119,6 +119,9 @@ def test_check_image_digests_retries_once_on_network_error_then_succeeds(vp, lib
 
 
 def test_check_image_digests_gives_up_after_one_retry(vp, libimagedigests, tmp_path, monkeypatch):
+    """2 separate checks run against a permanently-failing registry (tag
+    existence, then the currently-pinned digest's own liveness, since the
+    first failed) — each retried once before giving up, 4 calls total."""
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     calls = {"n": 0}
 
@@ -128,8 +131,6 @@ def test_check_image_digests_gives_up_after_one_retry(vp, libimagedigests, tmp_p
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", always_down)
     ok, detail = vp.check_image_digests(tmp_path)
-    # 2 separate checks (tag existence, then the currently-pinned digest's own
-    # liveness, since the first failed) -- each retried once before giving up.
     assert calls["n"] == 4
     assert ok is False
     assert "1 fetch error" in detail

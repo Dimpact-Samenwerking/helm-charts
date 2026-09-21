@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 
 def pymarkdown_result(stdout, returncode=4, stderr=""):
-    # Default 4: --return-code-scheme explicit's "findings reported" code.
+    """Default returncode 4: --return-code-scheme explicit's own "findings reported" code."""
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 

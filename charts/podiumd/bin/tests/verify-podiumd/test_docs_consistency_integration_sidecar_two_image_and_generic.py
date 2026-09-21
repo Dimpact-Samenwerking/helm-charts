@@ -325,7 +325,10 @@ def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, c
     lib.chart.COMPONENT_IMAGE_PATHS, and no plain "image" key either)
     must never trigger a target-app mismatch — actual_app_version can't
     resolve anything to compare against, so silence is correct, not a
-    gap."""
+    gap. The row is inserted via a str.replace() (which silently no-ops
+    if its anchor text isn't found), so the insertion itself is asserted
+    below — otherwise a fixture change could quietly turn this into a
+    vacuous pass with the row never actually existing."""
     (chart_repo / "Chart.yaml").write_text(
         CHART_YAML + '  - name: redis-operator\n    version: "0.26.1"\n    repository: "@opstree"\n'
     )
@@ -333,9 +336,6 @@ def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, c
     new_text = doc.read_text().replace(
         "See [`", "| redis-operator | - | 0.26.1 (unchanged) | chart-only, no app image |\n\nSee [`"
     )
-    # str.replace() silently no-ops if the anchor text isn't found -- assert
-    # the row was actually inserted, so a fixture change can't quietly turn
-    # this into a vacuous pass (nothing to flag because the row never existed).
     assert "| redis-operator |" in new_text
     doc.write_text(new_text)
 

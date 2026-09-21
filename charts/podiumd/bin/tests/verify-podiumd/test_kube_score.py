@@ -210,6 +210,9 @@ def test_check_kube_score_no_findings_passes(vp, libkubescorecheck, tmp_path, mo
 
 
 def test_check_kube_score_own_finding_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
+    """RENDERED's own zac sub-chart resource still triggers a second,
+    per-vendored-chart run (see sequenced_run's own docstring) — given
+    empty here since this test doesn't care about zac's own findings."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
     no_friendly_vendors(libkubescorecheck, monkeypatch)
     monkeypatch.setattr(
@@ -231,9 +234,6 @@ def test_check_kube_score_own_finding_fails(vp, libkubescorecheck, tmp_path, mon
                     ],
                 ),
             ],
-            # RENDERED's own zac sub-chart resource still triggers a second,
-            # per-vendored-chart run (see sequenced_run's own docstring) —
-            # empty here since this test doesn't care about zac's findings.
             vendored_objects_by_chart={"zac": []},
         ),
     )
