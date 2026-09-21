@@ -42,7 +42,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import chart_ref, local_chart_dir, pull_chart, pulled_chart_dir
+from lib.chart_pull_and_subchart_resolution import chart_ref, local_chart_dir, pull_chart, pulled_chart_dir
 from lib.chart_release_baseline_basics import load_yaml
 from lib.chart_values_tree_primitives import find_images, version_of
 from lib.chart_values_tree_primitives import find_dependency as _find_dependency

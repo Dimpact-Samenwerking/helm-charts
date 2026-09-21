@@ -23,12 +23,11 @@ from lib.chart import (
     baseline_tag_for_sidecar_path,
     canonical_sidecar_row_names,
     full_repository_for_path,
-    global_image_paths,
     historical_app_version_for_path,
     paths_by_repository,
     repo_group_representative,
-    resolved_digest_pin,
 )
+from lib.chart_pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
 from lib.chart_registered_paths import (
     image_paths_for,
     version_paths_for,

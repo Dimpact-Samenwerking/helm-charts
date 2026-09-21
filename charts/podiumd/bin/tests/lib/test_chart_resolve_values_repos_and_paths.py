@@ -53,22 +53,26 @@ def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None,
 # --- resolve_chart_values ---
 
 
-def test_resolve_chart_values_prefers_vendored_over_pulling(libchart, tmp_path, monkeypatch):
+def test_resolve_chart_values_prefers_vendored_over_pulling(
+    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
+):
     def raise_if_pulled(dep, version, dest):
         raise AssertionError("should not pull — already vendored at this exact version")
 
-    monkeypatch.setattr(libchart, "pull_chart", raise_if_pulled)
+    monkeypatch.setattr(libchartpullandsubchartresolution, "pull_chart", raise_if_pulled)
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
     dep = {"name": "openzaak", "version": "1.14.2"}
 
-    values, source, error = libchart.resolve_chart_values(tmp_path, dep, "1.14.2")
+    values, source, error = libchartpullandsubchartresolution.resolve_chart_values(tmp_path, dep, "1.14.2")
 
     assert values == {"image": {"repository": "openzaak/open-zaak"}}
     assert source == "vendored"
     assert error is None
 
 
-def test_resolve_chart_values_falls_back_to_pull_when_not_vendored(libchart, tmp_path, monkeypatch):
+def test_resolve_chart_values_falls_back_to_pull_when_not_vendored(
+    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
+):
     def fake_pull_chart(dep, version, dest):
         chart_dir = dest / dep["name"]
         chart_dir.mkdir(parents=True)
@@ -77,35 +81,43 @@ def test_resolve_chart_values_falls_back_to_pull_when_not_vendored(libchart, tmp
         )
         return True, ""
 
-    monkeypatch.setattr(libchart, "pull_chart", fake_pull_chart)
+    monkeypatch.setattr(libchartpullandsubchartresolution, "pull_chart", fake_pull_chart)
     dep = {"name": "openzaak", "version": "1.15.0"}  # not the vendored 1.14.2 from the test above
 
-    values, source, error = libchart.resolve_chart_values(tmp_path, dep, "1.15.0")
+    values, source, error = libchartpullandsubchartresolution.resolve_chart_values(tmp_path, dep, "1.15.0")
 
     assert values == {"image": {"repository": "openzaak/open-zaak"}}
     assert source == "pulled"
     assert error is None
 
 
-def test_resolve_chart_values_pull_failure_returns_error(libchart, tmp_path, monkeypatch):
-    monkeypatch.setattr(libchart, "pull_chart", lambda dep, version, dest: (False, "version not found"))
+def test_resolve_chart_values_pull_failure_returns_error(
+    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
+):
+    monkeypatch.setattr(
+        libchartpullandsubchartresolution, "pull_chart", lambda dep, version, dest: (False, "version not found")
+    )
     dep = {"name": "openzaak", "version": "9.9.9"}
 
-    values, source, error = libchart.resolve_chart_values(tmp_path, dep, "9.9.9")
+    values, source, error = libchartpullandsubchartresolution.resolve_chart_values(tmp_path, dep, "9.9.9")
 
     assert values is None
     assert source is None
     assert error == "version not found"
 
 
-def test_resolve_chart_values_no_pull_allowed_and_not_vendored_returns_error(libchart, tmp_path, monkeypatch):
+def test_resolve_chart_values_no_pull_allowed_and_not_vendored_returns_error(
+    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
+):
     def raise_if_pulled(dep, version, dest):
         raise AssertionError("should not pull — allow_pull is False")
 
-    monkeypatch.setattr(libchart, "pull_chart", raise_if_pulled)
+    monkeypatch.setattr(libchartpullandsubchartresolution, "pull_chart", raise_if_pulled)
     dep = {"name": "openzaak", "version": "1.15.0"}
 
-    values, source, error = libchart.resolve_chart_values(tmp_path, dep, "1.15.0", allow_pull=False)
+    values, source, error = libchartpullandsubchartresolution.resolve_chart_values(
+        tmp_path, dep, "1.15.0", allow_pull=False
+    )
 
     assert values is None
     assert source is None
@@ -115,21 +127,27 @@ def test_resolve_chart_values_no_pull_allowed_and_not_vendored_returns_error(lib
 # --- primary_image_repositories ---
 
 
-def test_primary_image_repositories_own_override_wins(libchart, tmp_path, monkeypatch):
+def test_primary_image_repositories_own_override_wins(
+    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
+):
     def raise_if_pulled(dep, version, dest):
         raise AssertionError("own override present — should never consult the subchart")
 
-    monkeypatch.setattr(libchart, "pull_chart", raise_if_pulled)
+    monkeypatch.setattr(libchartpullandsubchartresolution, "pull_chart", raise_if_pulled)
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
     own_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
 
-    repos, error = libchart.primary_image_repositories(tmp_path, dep, own_values, allow_pull=False)
+    repos, error = libchartpullandsubchartresolution.primary_image_repositories(
+        tmp_path, dep, own_values, allow_pull=False
+    )
 
     assert repos == {"image": "ghcr.io/infonl/zaakafhandelcomponent"}
     assert error is None
 
 
-def test_primary_image_repositories_falls_back_to_subchart_default(libchart, tmp_path):
+def test_primary_image_repositories_falls_back_to_subchart_default(
+    libchart, tmp_path, libchartpullandsubchartresolution
+):
     """openzaak-style: no "repository:" override of its own at all — only
     a "tag:" — resolved from the vendored subchart's own default instead,
     with no network access (allow_pull=False)."""
@@ -137,13 +155,17 @@ def test_primary_image_repositories_falls_back_to_subchart_default(libchart, tmp
     dep = {"name": "openzaak", "alias": "", "version": "4.9.1"}
     own_values = {"openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}}}
 
-    repos, error = libchart.primary_image_repositories(tmp_path, dep, own_values, allow_pull=False)
+    repos, error = libchartpullandsubchartresolution.primary_image_repositories(
+        tmp_path, dep, own_values, allow_pull=False
+    )
 
     assert repos == {"image": "openzaak/open-zaak"}
     assert error is None
 
 
-def test_primary_image_repositories_multi_path_component_reads_subchart_once(libchart, tmp_path, monkeypatch):
+def test_primary_image_repositories_multi_path_component_reads_subchart_once(
+    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
+):
     """zgw-office-addin-style: two distinct primary paths, neither with
     its own override — both resolved from the SAME vendored subchart
     values.yaml, read only once and reused across both paths."""
@@ -158,15 +180,15 @@ def test_primary_image_repositories_multi_path_component_reads_subchart_once(lib
     )
     dep = {"name": "zgw-office-addin", "alias": "", "version": "0.0.92"}
     calls = []
-    real_subchart_values = libchart.subchart_values
+    real_subchart_values = libchartpullandsubchartresolution.subchart_values
 
     def spy(chart_dir, dep_arg, version=None):
         calls.append(dep_arg["name"])
         return real_subchart_values(chart_dir, dep_arg, version)
 
-    monkeypatch.setattr(libchart, "subchart_values", spy)
+    monkeypatch.setattr(libchartpullandsubchartresolution, "subchart_values", spy)
 
-    repos, error = libchart.primary_image_repositories(tmp_path, dep, {}, allow_pull=False)
+    repos, error = libchartpullandsubchartresolution.primary_image_repositories(tmp_path, dep, {}, allow_pull=False)
 
     assert repos == {
         "frontend.image": "ghcr.io/infonl/zgw-office-addin-frontend",
@@ -176,17 +198,21 @@ def test_primary_image_repositories_multi_path_component_reads_subchart_once(lib
     assert calls == ["zgw-office-addin"]  # fetched once, reused for the second path
 
 
-def test_primary_image_repositories_unresolvable_without_vendored_chart(libchart, tmp_path):
+def test_primary_image_repositories_unresolvable_without_vendored_chart(
+    libchart, tmp_path, libchartpullandsubchartresolution
+):
     dep = {"name": "openzaak", "alias": "", "version": "4.9.1"}
     own_values = {"openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}}}
 
-    repos, error = libchart.primary_image_repositories(tmp_path, dep, own_values, allow_pull=False)
+    repos, error = libchartpullandsubchartresolution.primary_image_repositories(
+        tmp_path, dep, own_values, allow_pull=False
+    )
 
     assert repos == {"image": None}
     assert error is not None
 
 
-def test_primary_image_repositories_chart_dir_none_is_safe_when_unneeded(libchart):
+def test_primary_image_repositories_chart_dir_none_is_safe_when_unneeded(libchart, libchartpullandsubchartresolution):
     """A caller with no vendored-charts location at all (e.g. a pure
     in-memory test) never crashes, as long as no path actually needs the
     subchart fallback — see verify-release-table-with-podiumd's own
@@ -194,17 +220,19 @@ def test_primary_image_repositories_chart_dir_none_is_safe_when_unneeded(libchar
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
     own_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
 
-    repos, error = libchart.primary_image_repositories(None, dep, own_values, allow_pull=False)
+    repos, error = libchartpullandsubchartresolution.primary_image_repositories(None, dep, own_values, allow_pull=False)
 
     assert repos == {"image": "ghcr.io/infonl/zaakafhandelcomponent"}
     assert error is None
 
 
-def test_primary_image_repositories_chart_dir_none_and_needed_returns_error(libchart):
+def test_primary_image_repositories_chart_dir_none_and_needed_returns_error(
+    libchart, libchartpullandsubchartresolution
+):
     dep = {"name": "openzaak", "alias": "", "version": "4.9.1"}
     own_values = {"openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}}}
 
-    repos, error = libchart.primary_image_repositories(None, dep, own_values, allow_pull=False)
+    repos, error = libchartpullandsubchartresolution.primary_image_repositories(None, dep, own_values, allow_pull=False)
 
     assert repos == {"image": None}
     assert error is not None
@@ -287,7 +315,9 @@ def test_repository_path_map_nested_sidecar_via_subchart_default(libchart, tmp_p
     }
 
 
-def test_repository_path_map_subchart_values_reused_across_paths(libchart, tmp_path, monkeypatch):
+def test_repository_path_map_subchart_values_reused_across_paths(
+    libchart, tmp_path, monkeypatch, libchartpullandsubchartresolution
+):
     """The vendored subchart's own values.yaml is read at most once for
     a given dependency, however many of its own paths need it —
     same caching guarantee as primary_image_repositories."""
@@ -309,13 +339,13 @@ def test_repository_path_map_subchart_values_reused_across_paths(libchart, tmp_p
     }
     paths = [("zac", "image"), ("zac", "opa", "image")]
     calls = []
-    real_subchart_values = libchart.subchart_values
+    real_subchart_values = libchartpullandsubchartresolution.subchart_values
 
     def spy(chart_dir, dep_arg, version=None):
         calls.append(dep_arg["name"])
         return real_subchart_values(chart_dir, dep_arg, version)
 
-    monkeypatch.setattr(libchart, "subchart_values", spy)
+    monkeypatch.setattr(libchartpullandsubchartresolution, "subchart_values", spy)
 
     libchart.repository_path_map(tmp_path, [dep], own_values, paths, allow_pull=False)
 
@@ -381,7 +411,7 @@ def test_repository_path_map_skips_unresolvable_and_multiple_deps(libchart, tmp_
 # --- global_image_paths ---
 
 
-def test_global_image_paths_reads_every_shared_anchor(libchart):
+def test_global_image_paths_reads_every_shared_anchor(libchart, libchartpullandsubchartresolution):
     values = {
         "global": {
             "images": {
@@ -391,7 +421,7 @@ def test_global_image_paths_reads_every_shared_anchor(libchart):
         }
     }
 
-    paths = dict(libchart.global_image_paths(values))
+    paths = dict(libchartpullandsubchartresolution.global_image_paths(values))
 
     assert paths == {
         ("global", "images", "nginx"): "1.31.4@sha256:aaaa",
@@ -399,7 +429,7 @@ def test_global_image_paths_reads_every_shared_anchor(libchart):
     }
 
 
-def test_global_image_paths_skips_entries_without_a_tag(libchart):
+def test_global_image_paths_skips_entries_without_a_tag(libchart, libchartpullandsubchartresolution):
     values = {
         "global": {
             "images": {
@@ -408,12 +438,12 @@ def test_global_image_paths_skips_entries_without_a_tag(libchart):
         }
     }
 
-    assert libchart.global_image_paths(values) == []
+    assert libchartpullandsubchartresolution.global_image_paths(values) == []
 
 
-def test_global_image_paths_no_global_images_block_returns_empty(libchart):
-    assert libchart.global_image_paths({}) == []
-    assert libchart.global_image_paths({"global": {"configuration": {}}}) == []
+def test_global_image_paths_no_global_images_block_returns_empty(libchart, libchartpullandsubchartresolution):
+    assert libchartpullandsubchartresolution.global_image_paths({}) == []
+    assert libchartpullandsubchartresolution.global_image_paths({"global": {"configuration": {}}}) == []
 
 
 # --- repo_group_representative ---

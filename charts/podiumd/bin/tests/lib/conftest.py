@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 import lib.baseline_report as baseline_report
 import lib.chart as chart
 import lib.chart_nested_subchart_identity as chart_nested_subchart_identity
+import lib.chart_pull_and_subchart_resolution as chart_pull_and_subchart_resolution
 import lib.chart_registered_paths as chart_registered_paths
 import lib.chart_release_baseline_basics as chart_release_baseline_basics
 import lib.chart_values_tree_primitives as chart_values_tree_primitives
@@ -71,6 +72,11 @@ def libchartnestedsubchartidentity():
 @pytest.fixture(scope="session")
 def libchartreleasebaselinebasics():
     return chart_release_baseline_basics
+
+
+@pytest.fixture(scope="session")
+def libchartpullandsubchartresolution():
+    return chart_pull_and_subchart_resolution
 
 
 @pytest.fixture(scope="session")

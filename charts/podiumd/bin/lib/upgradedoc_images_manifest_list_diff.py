@@ -5,10 +5,9 @@ diff implies), both diffing against the true git baseline."""
 
 from lib.chart import (
     full_repository_for_path,
-    global_image_paths,
     historical_app_version_for_repository,
-    resolved_digest_pin,
 )
+from lib.chart_pull_and_subchart_resolution import global_image_paths, resolved_digest_pin
 from lib.chart_registered_paths import native_components
 from lib.chart_values_tree_primitives import version_of
 from lib.settings import digest_pinning_exceptions
