@@ -120,12 +120,17 @@ def test_check_image_digests_retries_once_on_network_error_then_succeeds(vp, lib
 
 def test_check_image_digests_gives_up_after_one_retry(vp, libimagedigests, tmp_path, monkeypatch):
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
-    monkeypatch.setattr(
-        libimagedigests,
-        "registry_tag_exists",
-        lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.URLError("down")),
-    )
+    calls = {"n": 0}
+
+    def always_down(host, repo, tag):
+        calls["n"] += 1
+        raise urllib.error.URLError("down")
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", always_down)
     ok, detail = vp.check_image_digests(tmp_path)
+    # 2 separate checks (tag existence, then the currently-pinned digest's own
+    # liveness, since the first failed) -- each retried once before giving up.
+    assert calls["n"] == 4
     assert ok is False
     assert "1 fetch error" in detail
 
@@ -211,9 +216,17 @@ def test_check_image_digests_falls_back_via_alias(vp, libimagedigests, tmp_path,
     write_values(tmp_path, (f'openformulieren:\n  image:\n    tag: "3.4.10@sha256:{"a" * 64}"\n'))
     write_chart_yaml(tmp_path, [make_dep("openforms", "1.12.0", alias="openformulieren")])
     make_tgz(tmp_path / "charts", "openforms", "1.12.0", {"image": {"repository": "openformulieren/open-forms"}})
-    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
+
+    called = []
+
+    def spy(host, repo, tag):
+        called.append((host, repo, tag))
+        return True, f"sha256:{'a' * 64}"
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True
+    assert called == [("docker.io", "openformulieren/open-forms", "3.4.10")]
     assert "1/1 matched" in detail
 
 

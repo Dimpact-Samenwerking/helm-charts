@@ -249,7 +249,15 @@ def test_diff_keys_recurses_into_shared_keys(libupgradedoccomments):
 
 def test_flatten_leaf_keys_collects_all_nested_names(libupgradedoccomments):
     node = {"host": "h", "auth": {"user": "u", "password": "p"}}
-    assert libupgradedoccomments.flatten_leaf_keys(node) == {"host", "auth", "user", "password"}
+    assert libupgradedoccomments.flatten_leaf_keys(node) == {"host", "user", "password"}
+
+
+def test_flatten_leaf_keys_excludes_intermediate_keys(libupgradedoccomments):
+    """Regression: an intermediate key whose value is itself a dict/list must
+    never count as a "leaf" -- it inflates the Jaccard similarity ratio
+    pair_renames uses to decide a rename pairing."""
+    node = {"a": {"x": 1, "y": 2}}
+    assert libupgradedoccomments.flatten_leaf_keys(node) == {"x", "y"}
 
 
 def test_flatten_leaf_keys_walks_lists(libupgradedoccomments):

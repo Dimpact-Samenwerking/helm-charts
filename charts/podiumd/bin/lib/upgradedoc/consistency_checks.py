@@ -142,23 +142,31 @@ def find_wrong_or_duplicate_dependency_claims(names, deps):
         name_counts[name] = name_counts.get(name, 0) + 1
     duplicate_names = {name for name, count in name_counts.items() if count > 1}
 
-    exact_claims = {}  # values_key -> the name that exactly claims it
+    # Two sets rather than a {key: name} dict: a {key: name} mapping can only
+    # remember ONE claiming name per key, so two different names both
+    # exactly claiming the same key (e.g. "KISS" and "Kiss", both matching
+    # via normalize_name) silently overwrite one another, wrongly leaving
+    # the first one looking unclaimed. Computed over ALL names, duplicates
+    # included -- a name appearing twice still really does exactly claim
+    # its dependency (it's also separately reported via duplicate_names,
+    # but that doesn't make the claim itself not count).
+    exactly_claiming_names = set()
+    exactly_claimed_keys = set()
     for name in names:
-        if name in duplicate_names:
-            continue
         dep = match_dependency_excluding_sidecar_names(name, deps)
         if dep is not None and is_exact_dependency_match(name, dep):
-            exact_claims[dep.get("alias", dep["name"])] = name
+            exactly_claiming_names.add(name)
+            exactly_claimed_keys.add(dep.get("alias", dep["name"]))
 
     wrong_fuzzy_names = set()
     for name in names:
-        if name in duplicate_names or name in exact_claims.values():
+        if name in duplicate_names or name in exactly_claiming_names:
             continue
         dep = match_dependency_excluding_sidecar_names(name, deps)
         if dep is None:
             continue
         key = dep.get("alias", dep["name"])
-        if key in exact_claims:
+        if key in exactly_claimed_keys:
             wrong_fuzzy_names.add(name)
 
     return duplicate_names, wrong_fuzzy_names
