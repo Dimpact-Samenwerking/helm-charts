@@ -98,7 +98,16 @@ VALUES = {"zac": {"image": {"tag": "5.4.3@sha256:aaa"}, "opa": {"image": {"tag":
 def test_images_manifest_format_passes_for_consistent_manifest(libimagesmanifest, tmp_path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert issues == []
 
 
@@ -109,13 +118,29 @@ def test_images_manifest_format_flags_a_numbering_gap(libimagesmanifest, tmp_pat
     text = REAL_MANIFEST.replace("#   2. ZGW Office Add-in", "#   3. ZGW Office Add-in")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert any("item numbered 3 should be 2" in i for i in issues)
 
 
 def test_images_manifest_format_missing_file(libimagesmanifest, tmp_path):
     issues = libimagesmanifest.check_images_manifest_format(
-        tmp_path / "missing.yaml", "4.8.5", "4.9.0", DEPS, VALUES, {}
+        tmp_path / "missing.yaml",
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
     )
     assert "does not exist" in issues[0]
 
@@ -123,14 +148,32 @@ def test_images_manifest_format_missing_file(libimagesmanifest, tmp_path):
 def test_images_manifest_format_invalid_yaml(libimagesmanifest, tmp_path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text("- name: zac\n  bad: [\n")
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert any("not valid YAML" in i for i in issues)
 
 
 def test_images_manifest_format_missing_required_keys(libimagesmanifest, tmp_path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text('- name: zac\n  version: "5.4.3"\n')
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert any("missing key" in i for i in issues)
 
 
@@ -138,7 +181,16 @@ def test_images_manifest_format_stale_baseline_header(libimagesmanifest, tmp_pat
     text = REAL_MANIFEST.replace("podiumd 4.8.5", "podiumd 4.8.2").replace("4.9.0 vs 4.8.5", "4.9.0 vs 4.8.2")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert any('baseline line says "4.8.2"' in i for i in issues)
     assert any('"... vs ..." line says upgrade_docs_baseline "4.8.2"' in i for i in issues)
 
@@ -149,7 +201,16 @@ def test_images_manifest_format_trailing_period_not_captured(libimagesmanifest, 
     version string."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert not any("4.8.5." in i for i in issues)
 
 
@@ -165,7 +226,16 @@ def test_images_manifest_format_baseline_line_trailing_period_not_captured(libim
     )
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert not any("4.8.5." in i for i in issues)
     assert not any("baseline line says" in i for i in issues)
 
@@ -174,7 +244,16 @@ def test_images_manifest_format_changes_block_target_mismatch(libimagesmanifest,
     text = REAL_MANIFEST.replace("5.0.2 -> 5.4.3 (chart 1.0.297", "5.0.2 -> 5.9.9 (chart 1.0.297")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert any("target app" in i and "5.9.9" in i for i in issues)
 
 
@@ -185,7 +264,16 @@ def test_images_manifest_format_entry_comment_target_mismatch(libimagesmanifest,
     )
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert any('comment says target "9.9.9-static"' in i for i in issues)
 
 
@@ -193,7 +281,16 @@ def test_images_manifest_format_missing_entry_comment(libimagesmanifest, tmp_pat
     text = REAL_MANIFEST.replace("# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static\n", "")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert any('entry "opa" has no preceding comment' in i for i in issues)
 
 
@@ -232,7 +329,16 @@ def test_images_manifest_format_multi_image_component_shares_one_comment(libimag
     missing a comment of its own."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(ZGW_MANIFEST)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", ZGW_DEPS, ZGW_VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            ZGW_DEPS,
+            ZGW_VALUES,
+            {},
+        ),
+    )
     assert issues == []
 
 
@@ -241,7 +347,14 @@ def test_images_manifest_format_source_vs_baseline(libimagesmanifest, tmp_path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            baseline_values,
+        ),
     )
     assert issues == []
 
@@ -252,7 +365,14 @@ def test_images_manifest_format_source_vs_baseline_mismatch(libimagesmanifest, t
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            baseline_values,
+        ),
     )
     assert any('comment says source "1.17.1-static"' in i for i in issues)
 
@@ -311,12 +431,14 @@ def test_images_manifest_format_component_version_path_change_is_recognized(libi
 
     issues = libimagesmanifest.check_images_manifest_format(
         images_path,
-        "4.8.5",
-        "4.9.0",
-        REDIS_OPERATOR_DEPS,
-        redis_operator_values("v0.26.0"),
-        redis_operator_values("v0.25.0"),
-        chart_dir=tmp_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            REDIS_OPERATOR_DEPS,
+            redis_operator_values("v0.26.0"),
+            redis_operator_values("v0.25.0"),
+            chart_dir=tmp_path,
+        ),
     )
 
     assert not any("did not change" in i for i in issues)
@@ -411,12 +533,14 @@ def test_images_manifest_format_sidecars_recognized_within_group_by_basename(lib
 
     issues = libimagesmanifest.check_images_manifest_format(
         images_path,
-        "4.8.5",
-        "4.9.0",
-        ECK_STACK_DEPS,
-        eck_stack_values("8.19.19"),
-        eck_stack_values("8.19.3"),
-        chart_dir=tmp_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            ECK_STACK_DEPS,
+            eck_stack_values("8.19.19"),
+            eck_stack_values("8.19.3"),
+            chart_dir=tmp_path,
+        ),
     )
 
     assert not any("has no preceding comment" in i for i in issues)
@@ -455,7 +579,15 @@ def test_images_manifest_format_out_of_order_entries_are_flagged(libimagesmanife
     )
 
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            deps,
+            values,
+            {},
+            chart_dir=tmp_path,
+        ),
     )
 
     assert any(
@@ -491,7 +623,15 @@ def test_images_manifest_format_correctly_ordered_entries_are_not_flagged(libima
     )
 
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            deps,
+            values,
+            {},
+            chart_dir=tmp_path,
+        ),
     )
 
     assert not any("is listed right after" in i for i in issues)
@@ -531,7 +671,15 @@ def test_images_manifest_format_changes_list_out_of_order_is_flagged(libimagesma
     )
 
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            deps,
+            values,
+            {},
+            chart_dir=tmp_path,
+        ),
     )
 
     assert any(
@@ -570,7 +718,15 @@ def test_images_manifest_format_changes_list_correct_order_is_not_flagged(libima
     )
 
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            deps,
+            values,
+            {},
+            chart_dir=tmp_path,
+        ),
     )
 
     assert not any('"# Changes:" list has' in i for i in issues)
@@ -610,7 +766,15 @@ def test_images_manifest_format_entry_with_no_changes_mention_is_flagged(libimag
     )
 
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            deps,
+            values,
+            {},
+            chart_dir=tmp_path,
+        ),
     )
 
     assert any('image "zac" has an entry but no mention in the "# Changes:" list' in i for i in issues)
@@ -644,7 +808,15 @@ def test_images_manifest_format_free_form_mention_still_counts_as_covered(libima
     )
 
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            deps,
+            values,
+            {},
+            chart_dir=tmp_path,
+        ),
     )
 
     assert not any("no mention in the" in i for i in issues)
@@ -684,7 +856,15 @@ def test_images_manifest_format_one_item_covers_every_entry_in_a_lockstep_group(
     )
 
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            deps,
+            values,
+            {},
+            chart_dir=tmp_path,
+        ),
     )
 
     assert not any("no mention in the" in i for i in issues)
@@ -720,7 +900,16 @@ def test_images_manifest_format_plain_image_changes_item_matches_entry(libimages
     instead and pass, since the target versions agree."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(PYTHON_MANIFEST)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert issues == []
 
 
@@ -729,7 +918,16 @@ def test_images_manifest_format_plain_image_changes_item_target_mismatch(libimag
     text = PYTHON_MANIFEST.replace("3.14-slim -> 3.14.7-slim —", "3.14-slim -> 9.9.9 —")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert any("target app" in i and "9.9.9" in i for i in issues)
 
 
@@ -737,7 +935,16 @@ def test_images_manifest_format_changes_item_matching_neither_dep_nor_entry_stil
     text = PYTHON_MANIFEST.replace("Python (ensurePodiumdAdminUser init image)", "Totally Unknown Thing")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            DEPS,
+            VALUES,
+            {},
+        ),
+    )
     assert any(
         'Totally Unknown Thing" — no matching Chart.yaml dependency or images-manifest entry' in i for i in issues
     )
@@ -777,7 +984,15 @@ def test_images_manifest_format_changes_item_resolves_via_canonical_path_segment
     )
 
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            deps,
+            values,
+            {},
+            chart_dir=tmp_path,
+        ),
     )
 
     assert not any("no matching" in i for i in issues), issues
@@ -809,7 +1024,15 @@ def test_images_manifest_format_changes_item_canonical_path_segment_target_misma
     )
 
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            deps,
+            values,
+            {},
+            chart_dir=tmp_path,
+        ),
     )
 
     assert any("target app" in i and "9.9.9" in i for i in issues), issues
@@ -847,7 +1070,16 @@ def test_images_manifest_format_exact_item_wins_over_fuzzy_changes_item(libimage
     reported as wrong/stale instead, and the exact item passes cleanly."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(KISS_MANIFEST)
-    issues = libimagesmanifest.check_images_manifest_format(images_path, "4.8.5", "4.9.0", KISS_DEPS, KISS_VALUES, {})
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            KISS_DEPS,
+            KISS_VALUES,
+            {},
+        ),
+    )
     assert any(
         'Changes item "Kiss\'s ECK-managed Elasticsearch/Kibana/Enterprise Search" is wrong or stale '
         "— not found in Chart.yaml or values.yaml" in i
@@ -888,7 +1120,15 @@ def test_images_manifest_format_new_component_image_already_in_historical_manife
     images_path = tmp_path / "docs" / "images" / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", NEW_DEP_DEPS, NEW_DEP_VALUES, VALUES, chart_dir=tmp_path
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            NEW_DEP_DEPS,
+            NEW_DEP_VALUES,
+            VALUES,
+            chart_dir=tmp_path,
+        ),
     )
     assert not any("brp-api/personen-mock" in i or "brppersonenmock" in i for i in issues)
 
@@ -907,6 +1147,14 @@ def test_images_manifest_format_new_component_image_not_in_historical_manifest(l
     images_path = tmp_path / "docs" / "images" / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
     issues = libimagesmanifest.check_images_manifest_format(
-        images_path, "4.8.5", "4.9.0", NEW_DEP_DEPS, NEW_DEP_VALUES, VALUES, chart_dir=tmp_path
+        images_path,
+        libimagesmanifest.ManifestCheckContext(
+            "4.8.5",
+            "4.9.0",
+            NEW_DEP_DEPS,
+            NEW_DEP_VALUES,
+            VALUES,
+            chart_dir=tmp_path,
+        ),
     )
     assert any('image "brppersonenmock" changed vs 4.8.5 but has no entry' in i for i in issues)
