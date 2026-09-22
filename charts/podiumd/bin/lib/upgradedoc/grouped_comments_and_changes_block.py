@@ -132,34 +132,43 @@ def flatten_leaf_keys(node):
     return keys
 
 
+def _get_at_path(node, path):
+    for key in path:
+        if not isinstance(node, dict):
+            return None
+        node = node.get(key)
+    return node
+
+
+def _find_rename_match(add_path, removed_left, baseline_node, current_node):
+    """First rem_path in removed_left that pairs with add_path as a rename
+    candidate — same parent path, and either similar leaf keys or an
+    unchanged scalar value (see pair_renames) — or None."""
+    add_val = _get_at_path(current_node, add_path)
+    for rem_path in removed_left:
+        if add_path[:-1] != rem_path[:-1]:
+            continue
+        rem_val = _get_at_path(baseline_node, rem_path)
+        add_keys, rem_keys = flatten_leaf_keys(add_val), flatten_leaf_keys(rem_val)
+        similar = bool(add_keys and rem_keys and len(add_keys & rem_keys) / len(add_keys | rem_keys) >= 0.3)
+        same_scalar = not isinstance(add_val, (dict, list)) and add_val == rem_val
+        if similar or same_scalar:
+            return rem_path
+    return None
+
+
 def pair_renames(added, removed, baseline_node, current_node):
     """Pair an added and a removed key at the same parent path into a rename
     candidate when their subtrees share enough leaf key names (e.g.
     mi.sftp -> mi.transfer, both containing host/user/password) — otherwise
     they're reported as an unrelated add and remove."""
     renamed, added_left, removed_left = [], list(added), list(removed)
-
-    def get(node, path):
-        for key in path:
-            if not isinstance(node, dict):
-                return None
-            node = node.get(key)
-        return node
-
     for add_path in list(added_left):
-        for rem_path in list(removed_left):
-            if add_path[:-1] != rem_path[:-1]:
-                continue
-            add_val = get(current_node, add_path)
-            rem_val = get(baseline_node, rem_path)
-            add_keys, rem_keys = flatten_leaf_keys(add_val), flatten_leaf_keys(rem_val)
-            similar = bool(add_keys and rem_keys and len(add_keys & rem_keys) / len(add_keys | rem_keys) >= 0.3)
-            same_scalar = not isinstance(add_val, (dict, list)) and add_val == rem_val
-            if similar or same_scalar:
-                renamed.append((rem_path, add_path))
-                added_left.remove(add_path)
-                removed_left.remove(rem_path)
-                break
+        rem_path = _find_rename_match(add_path, removed_left, baseline_node, current_node)
+        if rem_path is not None:
+            renamed.append((rem_path, add_path))
+            added_left.remove(add_path)
+            removed_left.remove(rem_path)
     return renamed, added_left, removed_left
 
 
