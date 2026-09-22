@@ -195,7 +195,7 @@ def test_check_registry_repo_ok(librepoaccess, tmp_path, monkeypatch):
     monkeypatch.setattr(
         librepoaccess,
         "cached_tag_exists",
-        lambda chart_dir, repository, host, repo, tag, timeout=None: (True, "sha256:" + "a" * 64),
+        lambda chart_dir, repository, version, timeout=None: (True, "sha256:" + "a" * 64),
     )
     ok, error = librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0", TIMEOUT_SECONDS)
     assert ok is True
@@ -204,7 +204,7 @@ def test_check_registry_repo_ok(librepoaccess, tmp_path, monkeypatch):
 
 def test_check_registry_repo_not_found(librepoaccess, tmp_path, monkeypatch):
     monkeypatch.setattr(
-        librepoaccess, "cached_tag_exists", lambda chart_dir, repository, host, repo, tag, timeout=None: (False, None)
+        librepoaccess, "cached_tag_exists", lambda chart_dir, repository, version, timeout=None: (False, None)
     )
     ok, error = librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "9.9.9", TIMEOUT_SECONDS)
     assert ok is False
@@ -212,7 +212,7 @@ def test_check_registry_repo_not_found(librepoaccess, tmp_path, monkeypatch):
 
 
 def test_check_registry_repo_network_error(librepoaccess, tmp_path, monkeypatch):
-    def raise_error(chart_dir, repository, host, repo, tag, timeout=None):
+    def raise_error(chart_dir, repository, version, timeout=None):
         raise urllib.error.URLError("timed out")
 
     monkeypatch.setattr(librepoaccess, "cached_tag_exists", raise_error)
@@ -224,7 +224,7 @@ def test_check_registry_repo_network_error(librepoaccess, tmp_path, monkeypatch)
 def test_check_registry_repo_passes_timeout(librepoaccess, tmp_path, monkeypatch):
     seen = {}
 
-    def fake_cached_tag_exists(chart_dir, repository, host, repo, tag, timeout=None):
+    def fake_cached_tag_exists(chart_dir, repository, version, timeout=None):
         seen["timeout"] = timeout
         return True, "sha256:" + "a" * 64
 
@@ -241,7 +241,7 @@ def test_check_registry_repo_passes_chart_dir_and_canonical_repository_key(libre
     Chart.yaml string happened to spell the same repository."""
     seen = {}
 
-    def fake_cached_tag_exists(chart_dir, repository, host, repo, tag, timeout=None):
+    def fake_cached_tag_exists(chart_dir, repository, version, timeout=None):
         seen["chart_dir"] = chart_dir
         seen["repository"] = repository
         return True, "sha256:" + "a" * 64

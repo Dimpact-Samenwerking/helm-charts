@@ -155,9 +155,7 @@ def _check_registry_repo(chart_dir, host, repo_path, version, timeout_seconds):
     through to the real call on a miss, preserving this check's own reason
     for existing: a fast, bounded preflight, not a call that could hang."""
     try:
-        exists, _ = cached_tag_exists(
-            chart_dir, f"{host}/{repo_path}", host, repo_path, version, timeout=timeout_seconds
-        )
+        exists, _ = cached_tag_exists(chart_dir, f"{host}/{repo_path}", version, timeout=timeout_seconds)
     except (urllib.error.URLError, OSError) as e:
         return False, f"{getattr(e, 'reason', e)}"
     if not exists:

@@ -45,8 +45,8 @@ def testcached_tag_exists_only_calls_registry_once_for_same_pin(libimagedigests,
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", fake_registry_tag_exists)
 
-    first = libimagedigests.cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
-    second = libimagedigests.cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
+    first = libimagedigests.cached_tag_exists(tmp_path, "org/repo", "1.0.0")
+    second = libimagedigests.cached_tag_exists(tmp_path, "org/repo", "1.0.0")
 
     assert first == second == (True, f"sha256:{'a' * 64}")
     assert len(calls) == 1
@@ -61,8 +61,8 @@ def testcached_tag_exists_different_repository_or_version_is_a_distinct_call(lib
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", fake_registry_tag_exists)
 
-    libimagedigests.cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
-    libimagedigests.cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "2.0.0")
+    libimagedigests.cached_tag_exists(tmp_path, "org/repo", "1.0.0")
+    libimagedigests.cached_tag_exists(tmp_path, "org/repo", "2.0.0")
 
     assert len(calls) == 2
 
@@ -82,8 +82,8 @@ def testcached_tag_exists_does_not_cache_a_raised_exception(libimagedigests, tmp
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", flaky)
 
     with pytest.raises(urllib.error.URLError):
-        libimagedigests.cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
-    result = libimagedigests.cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
+        libimagedigests.cached_tag_exists(tmp_path, "org/repo", "1.0.0")
+    result = libimagedigests.cached_tag_exists(tmp_path, "org/repo", "1.0.0")
 
     assert calls["n"] == 2
     assert result == (True, f"sha256:{'a' * 64}")
@@ -112,7 +112,7 @@ def testcached_tag_exists_reads_a_fresh_disk_entry_without_a_network_call(libima
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", fail_if_called)
 
-    result = libimagedigests.cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
+    result = libimagedigests.cached_tag_exists(tmp_path, "org/repo", "1.0.0")
 
     assert result == (True, f"sha256:{digest_a}")
 
@@ -121,7 +121,7 @@ def testcached_tag_exists_writes_a_disk_entry_readable_by_repo_access_cache(libi
     digest_a = "a" * 64
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{digest_a}"))
 
-    libimagedigests.cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
+    libimagedigests.cached_tag_exists(tmp_path, "org/repo", "1.0.0")
 
     key = repo_access_cache.cache_key("registry", ("docker.io", "org/repo", "1.0.0"))
     disk = repo_access_cache.load_cache(tmp_path)
@@ -148,7 +148,7 @@ def testcached_tag_exists_ignores_a_stale_disk_entry(libimagedigests, tmp_path, 
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
 
-    result = libimagedigests.cached_tag_exists(tmp_path, "org/repo", "docker.io", "org/repo", "1.0.0")
+    result = libimagedigests.cached_tag_exists(tmp_path, "org/repo", "1.0.0")
 
     assert len(calls) == 1
     assert result == (True, f"sha256:{'b' * 64}")
