@@ -8,6 +8,7 @@ import json
 import shutil
 
 from collections import Counter
+from dataclasses import dataclass
 
 from lib.procutil import run
 from lib.render_scope import OWN_TEMPLATES_PREFIX
@@ -81,6 +82,115 @@ def _kube_score_line_suffix(object_name, locations):
     return f" — rendered line {line}" if line else ""
 
 
+@dataclass
+class KubeScoreResult:
+    """Everything check_kube_score's own print/detail logic needs from a
+    completed render+score pass: the rendered-line lookup (locations) and
+    the three own/partner-vendor/other-vendor finding buckets. See
+    _score_rendered_chart, which builds this."""
+
+    locations: object
+    own_real: list
+    vendored_partner: list
+    vendored_other: list
+
+
+def _score_vendored_charts(docs, check_id, vendor_map):
+    """Runs kube-score separately per vendored sub-chart (kube-score's own
+    JSON carries no per-resource source info, so each sub-chart's docs are
+    scored on their own — see check_kube_score's docstring), splitting
+    findings into (vendored_partner, vendored_other) by vendor_map
+    membership. Returns (None, None, error) if any sub-chart's kube-score
+    output couldn't be parsed."""
+    vendored_by_chart_docs = {}
+    for source, text in docs:
+        if not source.startswith(OWN_TEMPLATES_PREFIX):
+            vendored_by_chart_docs.setdefault(chart_name_from_source(source), []).append(text)
+
+    vendored_partner, vendored_other = [], []
+    for chart, texts in vendored_by_chart_docs.items():
+        objects = run_kube_score("".join(texts))
+        if objects is None:
+            return None, None, "kube-score produced unparseable output"
+        bucket = vendored_partner if chart in vendor_map else vendored_other
+        for object_name, container, summary in extract_resource_findings(objects, check_id):
+            bucket.append((chart, object_name, container, summary))
+    return vendored_partner, vendored_other, None
+
+
+def _score_rendered_chart(chart_dir, extra_args, check_id):
+    """Renders the chart, scores its own templates and every vendored
+    sub-chart's templates (see _score_vendored_charts) with kube-score, and
+    bundles the result into a KubeScoreResult. Returns (None, error) on any
+    render/kube-score failure, else (KubeScoreResult, None)."""
+    result = render_chart(chart_dir, extra_args)
+    if result.returncode != 0:
+        return None, "helm template failed to render"
+
+    locations = build_resource_locations(result.stdout)
+    docs = split_rendered_by_source(result.stdout)
+    own_text = "".join(text for source, text in docs if source.startswith(OWN_TEMPLATES_PREFIX))
+    own_objects = run_kube_score(own_text)
+    if own_objects is None:
+        return None, "kube-score produced unparseable output"
+    own_real = extract_resource_findings(own_objects, check_id)
+
+    vendor_map = friendly_vendor_charts(chart_dir)
+    vendored_partner, vendored_other, error = _score_vendored_charts(docs, check_id, vendor_map)
+    if error:
+        return None, error
+
+    return KubeScoreResult(locations, own_real, vendored_partner, vendored_other), None
+
+
+def _print_kube_score_findings(scored):
+    """Prints check_kube_score's three report sections (own/partner-vendor/
+    other-vendor) for a completed KubeScoreResult -- see check_kube_score's
+    own docstring for what each section means and why they're reported
+    differently."""
+    if scored.own_real:
+        print(
+            f"Found {len(scored.own_real)} real kube-score issue(s) in this chart's own templates "
+            f"(missing resources.requests/.limits — required by "
+            f".github/copilot-instructions.md — these fail the check):"
+        )
+        print_grouped_findings(
+            scored.own_real,
+            key_fn=lambda f: (f[0], f[1]),
+            item_fn=lambda f: f[2],
+            label_fn=lambda k: f"{k[0]} ({k[1]}){_kube_score_line_suffix(k[0], scored.locations)}",
+            items_label="issue(s)",
+        )
+        print()
+
+    if scored.vendored_partner:
+        print(
+            f"Found {len(scored.vendored_partner)} kube-score issue(s) in partner-maintained vendored "
+            f"sub-chart(s) (missing resources.requests/.limits — wireable via this repo's "
+            f"values.yaml per the same convention, but not yet triaged — reported, does not "
+            f"fail the check):"
+        )
+        print_grouped_findings(
+            scored.vendored_partner,
+            key_fn=lambda f: (f[0], f[1], f[2]),
+            item_fn=lambda f: f[3],
+            label_fn=lambda k: f"[{k[0]}] {k[1]} ({k[2]}){_kube_score_line_suffix(k[1], scored.locations)}",
+            items_label="issue(s)",
+        )
+        print()
+
+    if scored.vendored_other:
+        by_chart = Counter(chart for chart, _, _, _ in scored.vendored_other)
+        print(
+            f"{len(scored.vendored_other)} kube-score issue(s) across {len(by_chart)} other vendored "
+            f"sub-chart(s) (missing resources.requests/.limits — still wireable via values.yaml, "
+            f"but not yet triaged; not shown individually, does not fail the check)"
+        )
+
+    if not (scored.own_real or scored.vendored_partner or scored.vendored_other):
+        print("OK: no kube-score container-resources findings in the rendered chart")
+
+
 def check_kube_score(chart_dir, extra_args):
     """Checks that every container in the rendered chart declares CPU/
     memory requests AND limits — this repo's own documented convention
@@ -118,77 +228,16 @@ def check_kube_score(chart_dir, extra_args):
 
     check_id = quality_gates_kube_score_check_id(chart_dir)
 
-    result = render_chart(chart_dir, extra_args)
-    if result.returncode != 0:
-        return False, "helm template failed to render"
+    scored, error = _score_rendered_chart(chart_dir, extra_args, check_id)
+    if error:
+        return False, error
 
-    locations = build_resource_locations(result.stdout)
-    docs = split_rendered_by_source(result.stdout)
-    own_text = "".join(text for source, text in docs if source.startswith(OWN_TEMPLATES_PREFIX))
-    own_objects = run_kube_score(own_text)
-    if own_objects is None:
-        return False, "kube-score produced unparseable output"
-    own_real = extract_resource_findings(own_objects, check_id)
+    _print_kube_score_findings(scored)
 
-    vendor_map = friendly_vendor_charts(chart_dir)
-
-    vendored_by_chart_docs = {}
-    for source, text in docs:
-        if not source.startswith(OWN_TEMPLATES_PREFIX):
-            vendored_by_chart_docs.setdefault(chart_name_from_source(source), []).append(text)
-
-    vendored_partner, vendored_other = [], []
-    for chart, texts in vendored_by_chart_docs.items():
-        objects = run_kube_score("".join(texts))
-        if objects is None:
-            return False, "kube-score produced unparseable output"
-        bucket = vendored_partner if chart in vendor_map else vendored_other
-        for object_name, container, summary in extract_resource_findings(objects, check_id):
-            bucket.append((chart, object_name, container, summary))
-
-    if own_real:
-        print(
-            f"Found {len(own_real)} real kube-score issue(s) in this chart's own templates "
-            f"(missing resources.requests/.limits — required by "
-            f".github/copilot-instructions.md — these fail the check):"
-        )
-        print_grouped_findings(
-            own_real,
-            key_fn=lambda f: (f[0], f[1]),
-            item_fn=lambda f: f[2],
-            label_fn=lambda k: f"{k[0]} ({k[1]}){_kube_score_line_suffix(k[0], locations)}",
-            items_label="issue(s)",
-        )
-        print()
-
-    if vendored_partner:
-        print(
-            f"Found {len(vendored_partner)} kube-score issue(s) in partner-maintained vendored "
-            f"sub-chart(s) (missing resources.requests/.limits — wireable via this repo's "
-            f"values.yaml per the same convention, but not yet triaged — reported, does not "
-            f"fail the check):"
-        )
-        print_grouped_findings(
-            vendored_partner,
-            key_fn=lambda f: (f[0], f[1], f[2]),
-            item_fn=lambda f: f[3],
-            label_fn=lambda k: f"[{k[0]}] {k[1]} ({k[2]}){_kube_score_line_suffix(k[1], locations)}",
-            items_label="issue(s)",
-        )
-        print()
-
-    if vendored_other:
-        by_chart = Counter(chart for chart, _, _, _ in vendored_other)
-        print(
-            f"{len(vendored_other)} kube-score issue(s) across {len(by_chart)} other vendored "
-            f"sub-chart(s) (missing resources.requests/.limits — still wireable via values.yaml, "
-            f"but not yet triaged; not shown individually, does not fail the check)"
-        )
-
-    if not (own_real or vendored_partner or vendored_other):
-        print("OK: no kube-score container-resources findings in the rendered chart")
-
-    detail = f"{len(own_real)} real (own), {len(vendored_partner)} partner-vendor, {len(vendored_other)} other-vendor"
-    if own_real:
+    detail = (
+        f"{len(scored.own_real)} real (own), {len(scored.vendored_partner)} partner-vendor, "
+        f"{len(scored.vendored_other)} other-vendor"
+    )
+    if scored.own_real:
         return False, detail
     return True, detail
