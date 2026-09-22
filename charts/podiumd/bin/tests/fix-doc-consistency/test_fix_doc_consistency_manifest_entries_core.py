@@ -42,7 +42,9 @@ def test_fix_images_manifest_entries_corrects_stale_source(cdb):
     target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, baseline_values)
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+        text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values)
+    )
     assert unresolved == []
     assert changed == [("zac", "5.0.2", "5.1.0")]
     assert "# ZAC — 5.0.2 -> 5.1.0" in new_text
@@ -54,7 +56,9 @@ def test_fix_images_manifest_entries_leaves_correct_entry_untouched(cdb):
     target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, baseline_values)
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+        text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values)
+    )
     assert changed == []
     assert new_text == text
 
@@ -62,7 +66,9 @@ def test_fix_images_manifest_entries_leaves_correct_entry_untouched(cdb):
 def test_fix_images_manifest_entries_reports_missing_comment(cdb):
     text = '- name: zgw-office-addin-backend\n  version: "v0.9.352"\n'
     target_values = {"zgw-office-addin": {"backend": {"image": {"tag": "v0.9.352@sha256:aaaa"}}}}
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, {})
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+        text, cdb.ManifestEntriesContext(None, [], target_values, {})
+    )
     assert changed == []
     assert unresolved == ["zgw-office-addin-backend"]
     assert new_text == text
@@ -71,7 +77,9 @@ def test_fix_images_manifest_entries_reports_missing_comment(cdb):
 def test_fix_images_manifest_entries_reports_unresolvable_baseline(cdb):
     text = '# ZAC — 5.0.1 -> 5.1.0\n- name: zac\n  version: "5.1.0"\n'
     target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, {})
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+        text, cdb.ManifestEntriesContext(None, [], target_values, {})
+    )
     assert changed == []
     assert unresolved == ["zac"]
     assert new_text == text
@@ -93,7 +101,7 @@ def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(c
     repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image")}
 
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, None, [], target_values, baseline_values, repo_map
+        text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values, repo_map)
     )
     assert unresolved == []
     assert changed == [("infonl/zaakafhandelcomponent", "5.0.2", "5.1.0")]
@@ -101,7 +109,9 @@ def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(c
 
     # without repo_map, the same entry is unresolved -- proves repo_map is
     # what makes the difference, not some other fixture quirk
-    new_text2, changed2, unresolved2 = cdb.fix_images_manifest_entries(text, None, [], target_values, baseline_values)
+    new_text2, changed2, unresolved2 = cdb.fix_images_manifest_entries(
+        text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values)
+    )
     assert changed2 == []
     assert unresolved2 == ["infonl/zaakafhandelcomponent"]
 
@@ -132,7 +142,9 @@ def test_fix_images_manifest_entries_fixes_shared_group_comment_via_either_entry
         }
     }
 
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(text, None, [], target_values, baseline_values)
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+        text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values)
+    )
     assert unresolved == []
     assert changed == [("zgw-office-addin-frontend", "v0.9.313", "v0.9.352")]
     assert "# ZGW Office Add-in — v0.9.313 -> v0.9.352" in new_text
@@ -175,7 +187,7 @@ def test_fix_images_manifest_entries_corrects_stale_arrow_to_new(cdb):
 
     repo_map = {"otel/opentelemetry-collector-contrib": ("zac", "opentelemetry-collector", "image")}
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, None, deps, target_values, baseline_values, repo_map
+        text, cdb.ManifestEntriesContext(None, deps, target_values, baseline_values, repo_map)
     )
     assert unresolved == []
     assert changed == [("otel/opentelemetry-collector-contrib", None, "0.158.0")]
@@ -213,7 +225,10 @@ def test_fix_images_manifest_entries_finds_historical_baseline_for_new_path(cdb,
 
     repo_map = {"brp-api/personen-mock": ("brppersonenmock", "image")}
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5"
+        text,
+        cdb.ManifestEntriesContext(
+            tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5"
+        ),
     )
     assert unresolved == []
     assert changed == []  # already correctly reads "2.6.0 -> 2.7.0"
@@ -249,7 +264,10 @@ def test_fix_images_manifest_entries_corrects_moved_repository_comment(cdb, tmp_
     repo_map = {"postgres": ("global", "images", "postgres")}
 
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5"
+        text,
+        cdb.ManifestEntriesContext(
+            tmp_path, deps, target_values, baseline_values, repo_map, upgrade_docs_baseline="4.8.5"
+        ),
     )
 
     assert unresolved == []
@@ -294,7 +312,7 @@ def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched
 
     repo_map = {"python": ("keycloak-operator", "jobs", "ensurePodiumdAdminUser", "initImage")}
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
-        text, None, deps, target_values, baseline_values, repo_map
+        text, cdb.ManifestEntriesContext(None, deps, target_values, baseline_values, repo_map)
     )
     assert unresolved == []
     assert changed == []
