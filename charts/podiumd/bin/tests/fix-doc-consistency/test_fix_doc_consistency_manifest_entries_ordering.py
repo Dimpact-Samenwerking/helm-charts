@@ -94,7 +94,13 @@ def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+        text,
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
 
     assert skipped == []
@@ -153,7 +159,13 @@ def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_lik
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+        text,
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
 
     assert added == []
@@ -187,7 +199,13 @@ def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(c
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+        text,
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
 
     assert skipped == []
@@ -215,7 +233,13 @@ def test_add_missing_images_manifest_entries_no_header_still_orders_body(cdb, or
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+        text,
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
 
     assert skipped == []
@@ -254,7 +278,13 @@ def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+        text,
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
 
     assert skipped == []
@@ -293,7 +323,13 @@ def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(c
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+        text,
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
 
     assert skipped == []
@@ -317,7 +353,13 @@ def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside
     text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n\n[]\n"
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+        text,
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
 
     assert skipped == []
@@ -338,16 +380,24 @@ def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicat
     text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n\n[]\n"
 
     first_text, first_added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+        text,
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
     assert first_added != []
 
     second_text, second_added, second_skipped, second_backfilled = cdb.add_missing_images_manifest_entries(
         first_text,
-        ordered_images_manifest_chart_dir,
-        _ordered_deps(),
-        _ordered_target_values(),
-        _ordered_baseline_values(),
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
 
     assert second_added == []
@@ -392,7 +442,13 @@ def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+        text,
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
 
     assert added == []
@@ -467,7 +523,13 @@ def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_
     }
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, zgw_office_addin_chart_dir, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            zgw_office_addin_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
 
     assert skipped == []
@@ -510,7 +572,13 @@ def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_e
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+        text,
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
 
     assert added == []
@@ -556,7 +624,13 @@ def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_cover
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+        text,
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
 
     assert added == []
@@ -600,7 +674,13 @@ def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_ins
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(), _ordered_baseline_values()
+        text,
+        cdb.MissingEntriesContext(
+            ordered_images_manifest_chart_dir,
+            _ordered_deps(),
+            _ordered_target_values(),
+            _ordered_baseline_values(),
+        ),
     )
 
     # "zac" is already covered (case-insensitively) by item 2 — only
@@ -668,7 +748,13 @@ def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely
     )
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, tmp_path, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            tmp_path,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
 
     assert added == []
