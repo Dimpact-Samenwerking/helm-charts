@@ -80,15 +80,15 @@ def test_print_summary_reports_skip(vp, capsys):
 
 def test_skippable_steps_names_match_main_run_steps(vp):
     """Every (flag, step name) pair in SKIPPABLE_STEPS must name a step that
-    main() actually runs — a typo here would silently make a --skip= entry
-    do nothing."""
+    _run_all_steps (main()'s own step pipeline, see its docstring) actually
+    runs — a typo here would silently make a --skip= entry do nothing."""
     import inspect
     import re
 
-    source = inspect.getsource(vp.main)
+    source = inspect.getsource(vp._run_all_steps)
     for _, step_name in vp.SKIPPABLE_STEPS:
-        assert re.search(rf'run_step\(\s*"{re.escape(step_name)}"', source), (
-            f'no run_step("{step_name}", ...) call found in main()'
+        assert re.search(rf'runner\.run\(\s*"{re.escape(step_name)}"', source), (
+            f'no runner.run("{step_name}", ...) call found in _run_all_steps()'
         )
 
 
@@ -102,9 +102,9 @@ def test_skippable_steps_order_matches_main_run_order(vp):
     import inspect
     import re
 
-    source = inspect.getsource(vp.main)
+    source = inspect.getsource(vp._run_all_steps)
     positions = [
-        re.search(rf'run_step\(\s*"{re.escape(step_name)}"', source).start() for _, step_name in vp.SKIPPABLE_STEPS
+        re.search(rf'runner\.run\(\s*"{re.escape(step_name)}"', source).start() for _, step_name in vp.SKIPPABLE_STEPS
     ]
     assert positions == sorted(positions)
 

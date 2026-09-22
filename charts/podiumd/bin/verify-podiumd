@@ -338,6 +338,8 @@ import re
 import shutil
 import sys
 
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -356,6 +358,7 @@ from lib.checks.digest_pinning import check_digest_pinning
 from lib.checks.digest_pinning import check_shared_image_usage
 from lib.checks.digest_pinning import check_subchart_image_visibility
 from lib.checks.dry import check_dry
+from lib.checks.duplicate_keys import check_duplicate_keys
 from lib.checks.helm_docs import check_helm_docs
 from lib.checks.kube_score import check_kube_score
 from lib.checks.kubeconform import check_kubeconform
@@ -474,74 +477,6 @@ def check_release_baseline(chart_dir):
             print(f"FAIL: {failure}")
         return False, "; ".join(failures)
     return True, ", ".join(resolved)
-
-
-def check_duplicate_keys(chart_dir):
-    """Scan values.yaml for duplicate keys that would silently overwrite an
-    earlier value. Each YAML sequence item gets its own scope (tagged by the
-    line its "-" appears on) so that unrelated list items sharing a key name
-    (e.g. every item in a list having its own "value:" or "mountPath:") are
-    never treated as duplicates of each other."""
-    values_path = chart_dir / "values.yaml"
-    lines = values_path.read_text(encoding="utf-8").splitlines(keepends=True)
-
-    stack = []
-    scope_keys = {}
-    duplicates = []
-    key_re = re.compile(r"^(\s*)([a-zA-Z0-9_\-][^:#\n]*?)\s*:")
-    dash_re = re.compile(r"^(\s*)-\s*(.*)$")
-
-    def register(scope_id, key, line_no):
-        scope_keys.setdefault(scope_id, {})
-        if key in scope_keys[scope_id]:
-            parent = " > ".join(scope_id) if scope_id else "(root)"
-            duplicates.append(
-                f'{values_path.name}:{line_no}: duplicate "{key}" under [{parent}] '
-                f"(first line {scope_keys[scope_id][key]})"
-            )
-        else:
-            scope_keys[scope_id][key] = line_no
-
-    for i, line in enumerate(lines, 1):
-        stripped = line.lstrip()
-        if stripped.startswith("#"):
-            continue
-
-        if stripped.startswith("-"):
-            dash_m = dash_re.match(line)
-            list_indent = len(dash_m.group(1))
-            rest = dash_m.group(2)
-            while stack and stack[-1][0] >= list_indent:
-                stack.pop()
-            # unique per occurrence, so sibling list items never share a scope
-            stack.append((list_indent, f"<item:{i}>"))
-
-            km = key_re.match(rest)
-            if km:
-                key = km.group(2).strip()
-                scope_id = tuple(k for _, k in stack)
-                register(scope_id, key, i)
-                stack.append((list_indent + 2, key))
-            continue
-
-        m = key_re.match(line)
-        if not m:
-            continue
-        indent = len(m.group(1))
-        key = m.group(2).strip()
-        while stack and stack[-1][0] >= indent:
-            stack.pop()
-        scope_id = tuple(k for _, k in stack)
-        register(scope_id, key, i)
-        stack.append((indent, key))
-
-    if duplicates:
-        print(f"FOUND {len(duplicates)} duplicate(s):")
-        for d in duplicates:
-            print(" ", d)
-        return False, f"{len(duplicates)} duplicate(s) found"
-    print(f"OK: no duplicate keys in {values_path.name}")
-    return True, "0 duplicates"
 
 
 def check_lint(chart_dir, extra_args):
@@ -746,13 +681,50 @@ skipped, never blocks a run.
 """
 
 
-def main():
-    """CLI entry point: parses --skip=/--include=/--detail-* flags and runs
-    every step in SKIPPABLE_STEPS' order via run_step, printing a
-    PASS/FAIL/SKIP summary at the end (see print_summary) and exiting
-    nonzero if any step failed. See --help's own epilog (STEPS_HELP +
-    REQUIRED_TOOLS_HELP) for the full step list and required external
-    tools."""
+@dataclass
+class StepRunner:
+    """Shared state for main()'s run of every SKIPPABLE_STEPS entry: the
+    (name, ok, detail) results collected so far, the set of steps that
+    failed or were blocked by a failed prerequisite, and the skip/include
+    configuration run() needs to decide, print, and record each step's
+    outcome. See run() for what a "step" actually does."""
+
+    skipped_steps: set = field(default_factory=set)
+    skip_flags: list = field(default_factory=list)
+    include_flags: list = field(default_factory=list)
+    results: list = field(default_factory=list)
+    failed_or_blocked: set = field(default_factory=set)
+
+    def run(self, name, title, func, *fargs):
+        """Runs one step: prints title, honors skipped_steps/a blocked
+        prerequisite (see failed_or_blocked), else calls func(*fargs) and
+        records (name, ok, detail) into results."""
+        log(title)
+        if name in self.skipped_steps:
+            if self.include_flags:
+                print(f"SKIPPED (not included via --include={','.join(self.include_flags)})")
+            else:
+                print(f"SKIPPED (--skip={','.join(self.skip_flags)})")
+            self.results.append((name, None, "skipped"))
+            return
+
+        blocking = sorted(prerequisites_for(name) & self.failed_or_blocked)
+        if blocking:
+            reason = f'prerequisite "{blocking[0]}" failed'
+            print(f"SKIPPED ({reason} — nothing real to check here either)")
+            self.results.append((name, None, reason))
+            self.failed_or_blocked.add(name)
+            return
+
+        ok, detail = func(*fargs)
+        self.results.append((name, ok, detail))
+        if not ok:
+            self.failed_or_blocked.add(name)
+
+
+def _parse_cli_args():
+    """Parses argv into (args, skipped_steps, skip_flags, include_flags) --
+    see main()'s own docstring for the overall flow this feeds into."""
     parser = argparse.ArgumentParser(
         description="Verify the podiumd chart.",
         epilog=STEPS_HELP + REQUIRED_TOOLS_HELP,
@@ -821,73 +793,43 @@ def main():
     else:
         skipped_steps = {dict(SKIPPABLE_STEPS)[flag] for flag in skip_flags}
 
-    require_helm()
+    return args, skipped_steps, skip_flags, include_flags
 
-    log("Resolving chart source")
-    chart_dir = resolve_chart_dir()
-    print(f"Using local chart source: {chart_dir}")
 
-    results = []
-    # Every step that either actually failed its own check, or was itself
-    # skipped below because ONE of ITS prerequisites is already in this
-    # set — the transitive-failure case, e.g. "Dependencies" fails ->
-    # "Image digests" (needs "Dependencies", see STEP_PREREQUISITES) is
-    # never even attempted, since it would have nothing real to check
-    # (charts/*.tgz never got populated) and would just add a second,
-    # less informative failure about the exact same root cause. Deliberately
-    # NOT populated by an explicit --skip=/a step left out of --include= —
-    # that's the user's own choice, tracked separately in skipped_steps,
-    # and never blocks a step that explicitly asked to be included anyway.
-    failed_or_blocked = set()
-
-    def run_step(name, title, func, *fargs):
-        log(title)
-        if name in skipped_steps:
-            if include_flags:
-                print(f"SKIPPED (not included via --include={','.join(include_flags)})")
-            else:
-                print(f"SKIPPED (--skip={','.join(skip_flags)})")
-            results.append((name, None, "skipped"))
-            return
-
-        blocking = sorted(prerequisites_for(name) & failed_or_blocked)
-        if blocking:
-            reason = f'prerequisite "{blocking[0]}" failed'
-            print(f"SKIPPED ({reason} — nothing real to check here either)")
-            results.append((name, None, reason))
-            failed_or_blocked.add(name)
-            return
-
-        ok, detail = func(*fargs)
-        results.append((name, ok, detail))
-        if not ok:
-            failed_or_blocked.add(name)
-
-    run_step("UTF-8 format", "UTF-8 format check", check_utf8_format, chart_dir)
-    run_step("Dupe check", "Duplicate key scan", check_duplicate_keys, chart_dir)
-    run_step("DRY check", "Template duplication scan", check_dry, chart_dir)
-    run_step(
+def _run_all_steps(runner, chart_dir, args):
+    """Runs every step in SKIPPABLE_STEPS' fixed order via runner.run (see
+    StepRunner), same order --help's step list documents. Split out of
+    main() purely to keep main() itself short; this is still one linear,
+    unbranching pipeline, not independent logic of its own. failed_or_
+    blocked (see StepRunner's own docstring) is deliberately never
+    populated by an explicit --skip=/a step left out of --include= —
+    that's the user's own choice, tracked separately in skipped_steps,
+    and never blocks a step that explicitly asked to be included anyway."""
+    runner.run("UTF-8 format", "UTF-8 format check", check_utf8_format, chart_dir)
+    runner.run("Dupe check", "Duplicate key scan", check_duplicate_keys, chart_dir)
+    runner.run("DRY check", "Template duplication scan", check_dry, chart_dir)
+    runner.run(
         "Image references", "Checking image: fields use the podiumd.image helper", check_image_references, chart_dir
     )
-    run_step("Node selector", "Checking workloads expose a nodeSelector field", check_node_selector, chart_dir)
-    run_step("Digest pinning", "Checking every image tag is digest-pinned", check_digest_pinning, chart_dir)
-    run_step(
+    runner.run("Node selector", "Checking workloads expose a nodeSelector field", check_node_selector, chart_dir)
+    runner.run("Digest pinning", "Checking every image tag is digest-pinned", check_digest_pinning, chart_dir)
+    runner.run(
         "Vendored tgz", "Checking for extracted dirs shadowing a pinned .tgz", check_vendored_tgz_extraction, chart_dir
     )
-    run_step(
+    runner.run(
         "Release baseline", "Checking release-baseline resolves to a real release", check_release_baseline, chart_dir
     )
-    run_step(
+    runner.run(
         "Lockstep versions",
         "Checking registered lockstep image/version groups agree",
         check_lockstep_versions,
         chart_dir,
     )
 
-    run_step("Helm doc", "Checking README.md against values.yaml (helm-docs)", check_helm_docs, chart_dir)
-    run_step("Markdown lint", "Checking markdown docs with pymarkdown", check_markdown, chart_dir)
+    runner.run("Helm doc", "Checking README.md against values.yaml (helm-docs)", check_helm_docs, chart_dir)
+    runner.run("Markdown lint", "Checking markdown docs with pymarkdown", check_markdown, chart_dir)
 
-    run_step(
+    runner.run(
         "Repo access",
         "Checking access to Chart.yaml's dependency repos and values.yaml's image registries",
         check_repo_access,
@@ -899,10 +841,10 @@ def main():
     if not ok:
         die(msg)
 
-    run_step("Dependencies", "Resolving dependencies (helm dependency update)", check_dependencies, chart_dir)
+    runner.run("Dependencies", "Resolving dependencies (helm dependency update)", check_dependencies, chart_dir)
 
     upgrade_docs_baseline = read_upgrade_docs_baseline(chart_dir)
-    run_step(
+    runner.run(
         "Doc consistency",
         "Checking versions against upgrade docs",
         check_docs_consistency,
@@ -911,7 +853,7 @@ def main():
     )
 
     extra_args = lint_args_for(chart_dir)
-    run_step(
+    runner.run(
         "Subchart image visibility",
         "Checking for images defined only in a vendored sub-chart's own default values.yaml",
         check_subchart_image_visibility,
@@ -919,7 +861,7 @@ def main():
         extra_args,
     )
 
-    run_step(
+    runner.run(
         "Shared image usage",
         "Checking global.images.* shared-anchor usage against the real render",
         check_shared_image_usage,
@@ -927,27 +869,27 @@ def main():
         extra_args,
     )
 
-    run_step(
+    runner.run(
         "Image repository", "Checking every image tag block resolves to a repository", check_image_repository, chart_dir
     )
 
-    run_step("Image digests", "Checking image digests against upstream registries", check_image_digests, chart_dir)
+    runner.run("Image digests", "Checking image digests against upstream registries", check_image_digests, chart_dir)
 
-    run_step("Helm lint", "helm lint", check_lint, chart_dir, extra_args)
-    run_step("Full render", "Full render", check_render, chart_dir, extra_args)
-    run_step("yamllint", "yamllint (rendered output)", check_yamllint, chart_dir, extra_args)
-    run_step("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
-    run_step("shellcheck", "shellcheck (embedded shell scripts)", check_shellcheck, chart_dir, extra_args)
-    run_step("kube-score", "kube-score (resource requests/limits)", check_kube_score, chart_dir, extra_args)
-    run_step(
+    runner.run("Helm lint", "helm lint", check_lint, chart_dir, extra_args)
+    runner.run("Full render", "Full render", check_render, chart_dir, extra_args)
+    runner.run("yamllint", "yamllint (rendered output)", check_yamllint, chart_dir, extra_args)
+    runner.run("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
+    runner.run("shellcheck", "shellcheck (embedded shell scripts)", check_shellcheck, chart_dir, extra_args)
+    runner.run("kube-score", "kube-score (resource requests/limits)", check_kube_score, chart_dir, extra_args)
+    runner.run(
         "Release secret size",
         "Estimating the Helm release Secret size",
         check_release_secret_size,
         chart_dir,
         extra_args,
     )
-    run_step("Image upgrades", "Checking for newer published tags", check_image_upgrades, chart_dir, extra_args)
-    run_step(
+    runner.run("Image upgrades", "Checking for newer published tags", check_image_upgrades, chart_dir, extra_args)
+    runner.run(
         "CVE scan",
         "Scanning pinned images for known CVEs (trivy)",
         check_cves,
@@ -955,7 +897,7 @@ def main():
         extra_args,
         args.detail_cve_check,
     )
-    run_step(
+    runner.run(
         "CVE diff",
         "Diffing CVEs for upgrade/slide candidates (current vs proposed, trivy)",
         check_cve_diff,
@@ -964,8 +906,27 @@ def main():
         args.detail_cve_diff,
     )
 
-    overall_ok = not failed_or_blocked
-    print_summary(results, overall_ok=overall_ok)
+
+def main():
+    """CLI entry point: parses --skip=/--include=/--detail-* flags (see
+    _parse_cli_args) and runs every step in SKIPPABLE_STEPS' order (see
+    _run_all_steps/StepRunner), printing a PASS/FAIL/SKIP summary at the
+    end (see print_summary) and exiting nonzero if any step failed. See
+    --help's own epilog (STEPS_HELP + REQUIRED_TOOLS_HELP) for the full
+    step list and required external tools."""
+    args, skipped_steps, skip_flags, include_flags = _parse_cli_args()
+
+    require_helm()
+
+    log("Resolving chart source")
+    chart_dir = resolve_chart_dir()
+    print(f"Using local chart source: {chart_dir}")
+
+    runner = StepRunner(skipped_steps=skipped_steps, skip_flags=skip_flags, include_flags=include_flags)
+    _run_all_steps(runner, chart_dir, args)
+
+    overall_ok = not runner.failed_or_blocked
+    print_summary(runner.results, overall_ok=overall_ok)
     if not overall_ok:
         sys.exit(1)
 
