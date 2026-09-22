@@ -8,6 +8,7 @@ helpers (subchart_template_text, _dependency_for_pin, subchart_
 default_repository, subchart_needs_vendoring)."""
 
 import tarfile
+from dataclasses import dataclass
 
 from lib.chart.nested_subchart_identity import nested_subchart_documented_image_repository
 from lib.chart.nested_subchart_identity import nested_subchart_name_for
@@ -201,57 +202,106 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
     business making a network pull; whatever's already vendored is what
     it works with."""
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
-    subchart_cache = {}  # dep name -> (values_or_None, error_or_None)
-    nested_subchart_cache = {}  # (dep name, nested chart name) -> repository_or_None
+    state = _RepoResolutionState(chart_dir, allow_pull, {}, {})
     groups = {}
     for path in paths:
-        own_repo = get_path(values, ".".join(path) + ".repository")
-        if isinstance(own_repo, str) and own_repo:
-            groups.setdefault(strip_registry_host(own_repo), []).append(path)
-            continue
-
         dep = by_values_key.get(path[0]) if path else None
-        if dep is None:
-            continue
-
-        sibling_rel = version_repository_path_for(dep["name"], chart_dir)
-        if sibling_rel:
-            sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
-            if isinstance(sibling_repo, str) and sibling_repo:
-                groups.setdefault(strip_registry_host(sibling_repo), []).append(path)
-                continue
-
-        nested_rel = ".".join(path[1:])
-        nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel, chart_dir)
-        if nested_chart_name:
-            cache_key = (dep["name"], nested_chart_name)
-            if cache_key not in nested_subchart_cache:
-                nested_subchart_cache[cache_key] = (
-                    nested_subchart_documented_image_repository(chart_dir, dep, nested_chart_name)
-                    if chart_dir is not None
-                    else None
-                )
-            nested_repo = nested_subchart_cache[cache_key]
-            if nested_repo:
-                groups.setdefault(strip_registry_host(nested_repo), []).append(path)
-                continue
-
-        if dep["name"] not in subchart_cache:
-            if chart_dir is None:
-                subchart_cache[dep["name"]] = (
-                    None,
-                    f"no chart_dir given — can't resolve {dep['name']}'s subchart default",
-                )
-            else:
-                sub_values, _source, err = resolve_chart_values(chart_dir, dep, dep["version"], allow_pull=allow_pull)
-                subchart_cache[dep["name"]] = (sub_values, err)
-        sub_values, _error = subchart_cache[dep["name"]]
-        if sub_values is None:
-            continue
-        repo = get_path(sub_values, ".".join(path[1:]) + ".repository")
-        if isinstance(repo, str) and repo:
-            groups.setdefault(strip_registry_host(repo), []).append(path)
+        repo = _grouped_repository_for_path(values, path, dep, state)
+        if repo:
+            groups.setdefault(repo, []).append(path)
     return groups
+
+
+@dataclass
+class _RepoResolutionState:
+    """Per-paths_by_repository-call state: chart_dir/allow_pull (used by
+    every tier's own subchart/nested-subchart lookup) plus the two
+    mutable caches (dep name -> (values_or_None, error_or_None); (dep
+    name, nested chart name) -> repository_or_None) every path in the
+    same call shares, so a component's own .tgz/nested-subchart lookup
+    happens at most once regardless of how many of its paths need
+    resolving."""
+
+    chart_dir: object
+    allow_pull: bool
+    subchart_cache: dict
+    nested_subchart_cache: dict
+
+
+def _grouped_repository_for_path(values, path, dep, state):
+    """paths_by_repository's own resolution chain for a single path,
+    stripped to its group key (see that function's own docstring for
+    the tier order) — podiumd's own explicit override checked first,
+    regardless of whether `dep` is even known; every other tier needs a
+    real `dep` to resolve anything at all."""
+    own_repo = get_path(values, ".".join(path) + ".repository")
+    if isinstance(own_repo, str) and own_repo:
+        return strip_registry_host(own_repo)
+    if dep is None:
+        return None
+    return _grouped_repository_from_dependency(dep, path, values, state)
+
+
+def _grouped_repository_from_dependency(dep, path, values, state):
+    """The sibling-tag-field / nested-subchart / vendored-subchart-
+    default tiers of _grouped_repository_for_path — only ever reached
+    once `dep` is known and podiumd's own values.yaml has no explicit
+    override at `path` itself."""
+    sibling_rel = version_repository_path_for(dep["name"], state.chart_dir)
+    if sibling_rel:
+        sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
+        if isinstance(sibling_repo, str) and sibling_repo:
+            return strip_registry_host(sibling_repo)
+
+    nested_repo = _cached_nested_subchart_repository(dep, path, state)
+    if nested_repo:
+        return strip_registry_host(nested_repo)
+
+    sub_values = _cached_subchart_values(dep, state)
+    if sub_values is None:
+        return None
+    repo = get_path(sub_values, ".".join(path[1:]) + ".repository")
+    return strip_registry_host(repo) if isinstance(repo, str) and repo else None
+
+
+def _cached_nested_subchart_repository(dep, path, state):
+    """state.nested_subchart_cache-backed lookup of dep's own registered
+    nested sub-subchart's documented default repository at `path` (e.g.
+    eck-stack's own three — see nested_subchart_documented_image_
+    repository), resolved at most once per (dep, nested chart name)
+    pair across the whole paths_by_repository call."""
+    nested_rel = ".".join(path[1:])
+    nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel, state.chart_dir)
+    if not nested_chart_name:
+        return None
+    cache_key = (dep["name"], nested_chart_name)
+    if cache_key not in state.nested_subchart_cache:
+        state.nested_subchart_cache[cache_key] = (
+            nested_subchart_documented_image_repository(state.chart_dir, dep, nested_chart_name)
+            if state.chart_dir is not None
+            else None
+        )
+    return state.nested_subchart_cache[cache_key]
+
+
+def _cached_subchart_values(dep, state):
+    """state.subchart_cache-backed resolve_chart_values(dep) lookup,
+    resolved at most once per dependency across the whole paths_by_
+    repository call — the same caching primary_image_repositories does
+    for its own narrower curated-path case."""
+    if dep["name"] not in state.subchart_cache:
+        if state.chart_dir is None:
+            state.subchart_cache[dep["name"]] = (
+                None,
+                f"no chart_dir given — can't resolve {dep['name']}'s subchart default",
+            )
+        else:
+            sub_values, _source, err = resolve_chart_values(
+                state.chart_dir, dep, dep["version"], allow_pull=state.allow_pull
+            )
+            state.subchart_cache[dep["name"]] = (sub_values, err)
+    sub_values, _error = state.subchart_cache[dep["name"]]
+    return sub_values
 
 
 def full_repository_for_path(chart_dir, deps, values, path, allow_pull=False):
@@ -310,37 +360,59 @@ def full_repository_for_path(chart_dir, deps, values, path, allow_pull=False):
     None when `path` doesn't resolve to a repository at all — same
     "nothing to fall back to" cases as paths_by_repository's own
     docstring."""
-    own_repo = get_path(values, ".".join(path) + ".repository")
-    if isinstance(own_repo, str) and own_repo:
-        registry = get_path(values, ".".join(path) + ".registry")
-        if isinstance(registry, str) and registry:
-            registry_head = registry.partition("/")[0]
-            if "." in registry_head or ":" in registry_head or registry_head == "localhost":
-                return f"{registry}/{own_repo}"
-            host, repo_path = parse_repo(f"{registry}/{own_repo}")
-            return f"{host}/{repo_path}"
-        host, repo_path = parse_repo(own_repo)
-        return f"{host}/{repo_path}"
+    own_repo = _full_repo_from_own_override(values, path)
+    if own_repo is not None:
+        return own_repo
 
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
     dep = by_values_key.get(path[0]) if path else None
     if dep is None:
         return None
+    return _full_repo_from_dependency(chart_dir, dep, path, values, allow_pull)
 
+
+def _formatted_repo(repo):
+    """A "repository:" string as-read, resolved to its full host-
+    qualified form via parse_repo (Docker Hub inferred when no host is
+    embedded, a no-op when one already is)."""
+    host, repo_path = parse_repo(repo)
+    return f"{host}/{repo_path}"
+
+
+def _full_repo_from_own_override(values, path):
+    """full_repository_for_path's own "podiumd values.yaml override"
+    tier (see that function's own docstring for the registry-sibling /
+    Docker-Hub-inference rules), or None when there's no own override
+    at `path` at all."""
+    own_repo = get_path(values, ".".join(path) + ".repository")
+    if not (isinstance(own_repo, str) and own_repo):
+        return None
+    registry = get_path(values, ".".join(path) + ".registry")
+    if isinstance(registry, str) and registry:
+        registry_head = registry.partition("/")[0]
+        if "." in registry_head or ":" in registry_head or registry_head == "localhost":
+            return f"{registry}/{own_repo}"
+        return _formatted_repo(f"{registry}/{own_repo}")
+    return _formatted_repo(own_repo)
+
+
+def _full_repo_from_dependency(chart_dir, dep, path, values, allow_pull):
+    """full_repository_for_path's own sibling-tag-field / nested-
+    subchart / vendored-subchart-default tiers — only ever reached once
+    `dep` is known and podiumd's own values.yaml has no explicit
+    override at `path` itself."""
     sibling_rel = version_repository_path_for(dep["name"], chart_dir)
     if sibling_rel:
         sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
         if isinstance(sibling_repo, str) and sibling_repo:
-            host, repo_path = parse_repo(sibling_repo)
-            return f"{host}/{repo_path}"
+            return _formatted_repo(sibling_repo)
 
     nested_rel = ".".join(path[1:])
     nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel, chart_dir)
     if nested_chart_name and chart_dir is not None:
         nested_repo = nested_subchart_documented_image_repository(chart_dir, dep, nested_chart_name)
         if nested_repo:
-            host, repo_path = parse_repo(nested_repo)
-            return f"{host}/{repo_path}"
+            return _formatted_repo(nested_repo)
 
     if chart_dir is None:
         return None
@@ -348,10 +420,7 @@ def full_repository_for_path(chart_dir, deps, values, path, allow_pull=False):
     if sub_values is None:
         return None
     repo = get_path(sub_values, ".".join(path[1:]) + ".repository")
-    if isinstance(repo, str) and repo:
-        host, repo_path = parse_repo(repo)
-        return f"{host}/{repo_path}"
-    return None
+    return _formatted_repo(repo) if isinstance(repo, str) and repo else None
 
 
 def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
@@ -422,6 +491,28 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
     way — it has no Chart.yaml dependency at all, but it's still the
     real owner of its own subordinate images, the same as any dependency
     is of its own."""
+    sidecar_paths, global_paths = _classify_sidecar_and_global_paths(chart_dir, deps, paths)
+    global_repos = _global_repository_set(values, global_paths)
+
+    names = {}
+    for repo, path in repository_path_map(chart_dir, deps, values, sidecar_paths, allow_pull=allow_pull).items():
+        if repo in global_repos:
+            continue
+        row_name = _sidecar_row_name(repo, path)
+        if row_name is not None:
+            names[row_name] = path
+    for path in global_paths:
+        repo = get_path(values, ".".join(path) + ".repository")
+        if isinstance(repo, str) and repo:
+            names[strip_registry_host(repo).rsplit("/", 1)[-1]] = path
+    return names
+
+
+def _classify_sidecar_and_global_paths(chart_dir, deps, paths):
+    """(sidecar_paths, global_paths) split of `paths` for canonical_
+    sidecar_row_names — a path pinned under the shared "global" top-
+    level key is handled entirely separately from one nested under a
+    real dependency or native_components component's own subtree."""
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
     natives = native_components(chart_dir)
     sidecar_paths, global_paths = [], []
@@ -441,46 +532,35 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
         owner_name = dep["name"] if dep is not None else (path[0] if path[0] in natives else None)
         if owner_name is not None and ".".join(path[1:]) not in set(image_paths_for(owner_name, chart_dir)):
             sidecar_paths.append(path)
+    return sidecar_paths, global_paths
 
+
+def _global_repository_set(values, global_paths):
+    """Every global_paths entry's own resolved, stripped repository —
+    canonical_sidecar_row_names' own exclusion set for a sidecar whose
+    repository is ALSO reachable via the shared "global" key (see that
+    function's own docstring for why registering both would give the
+    same version bump two separate canonical names)."""
     global_repos = set()
     for path in global_paths:
         repo = get_path(values, ".".join(path) + ".repository")
         if isinstance(repo, str) and repo:
             global_repos.add(strip_registry_host(repo))
+    return global_repos
 
-    names = {}
-    for repo, path in repository_path_map(chart_dir, deps, values, sidecar_paths, allow_pull=allow_pull).items():
-        if repo in global_repos:
-            continue
-        basename = repo.rsplit("/", 1)[-1]
-        if basename.lower() == path[0].lower():
-            # A self-referential name ("keycloak-operator - keycloak-
-            # operator" — real case: keycloak-operator.operator.image,
-            # the operator's own container, whose repo basename happens
-            # to equal the dependency's own values key) reads as a
-            # confusing repeat, not a real distinct-image name. Fall
-            # back to the values-tree path's own second-to-last segment
-            # instead (e.g. "operator" for keycloak-operator.operator.
-            # image — "keycloak-operator - operator"), when that's
-            # actually distinct from the top-level key too. A path with
-            # nothing but the top-level key and the final image key
-            # itself (no segment in between — e.g. a hypothetical bare
-            # "keycloak-operator.image" case) has no useful fallback at
-            # all, so it's skipped entirely, same as before: never
-            # auto-documented under the wrong template; register it in
-            # settings.yaml's own component_resolution.image_paths (or
-            # document it by hand) instead if
-            # it ever needs its own row.
-            if len(path) >= 3 and path[-2].lower() != path[0].lower():
-                basename = path[-2]
-            else:
-                continue
-        names[f"{path[0]} - {basename}"] = path
-    for path in global_paths:
-        repo = get_path(values, ".".join(path) + ".repository")
-        if isinstance(repo, str) and repo:
-            names[strip_registry_host(repo).rsplit("/", 1)[-1]] = path
-    return names
+
+def _sidecar_row_name(repo, path):
+    """The "<values_key> - <basename>" canonical row name for one
+    sidecar path, or None when there's genuinely no useful distinct name
+    to register at all (see canonical_sidecar_row_names' own docstring
+    for the self-referential-name fallback and its own "nothing to fall
+    back to" case)."""
+    basename = repo.rsplit("/", 1)[-1]
+    if basename.lower() != path[0].lower():
+        return f"{path[0]} - {basename}"
+    if len(path) >= 3 and path[-2].lower() != path[0].lower():
+        return f"{path[0]} - {path[-2]}"
+    return None
 
 
 def subchart_template_text(chart_dir, dep):
