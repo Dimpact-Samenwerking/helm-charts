@@ -16,7 +16,7 @@ def run(cmd, **kwargs):
     return subprocess.run(cmd, check=False, **kwargs)  # nosec B603
 
 
-def run_script(cmd, **kwargs):
+def run_script(cmd, *, check=False, **kwargs):
     """For delegating to a sibling script (`[sys.executable, "other.py",
     ...]`) that inherits stdout/stderr, so its output interleaves with the
     caller's own prints in real time. Flushes the caller's stdout first —
@@ -26,4 +26,4 @@ def run_script(cmd, **kwargs):
     flushes at process exit."""
     sys.stdout.flush()
     # Same fixed-argv-list guarantee as run() above.
-    return subprocess.run(cmd, **kwargs)  # nosec B603
+    return subprocess.run(cmd, check=check, **kwargs)  # nosec B603

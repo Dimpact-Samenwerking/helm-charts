@@ -102,7 +102,7 @@ def main():
             report_largest_templates(result.stdout, top_n)
         sys.stdout.write(result.stdout)
     else:
-        output_path.write_text(result.stdout)
+        output_path.write_text(result.stdout, encoding="utf-8")
         status(f"OK: rendered {doc_count} manifest(s) to {output_path}")
         report_largest_templates(result.stdout, top_n)
 

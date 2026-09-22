@@ -122,17 +122,22 @@ from lib.fix_doc_consistency.manifest_changes_items import (
     dedupe_images_manifest_changes_items,
     sort_images_manifest_changes_items,
 )
-from lib.fix_doc_consistency.manifest_entries_core import (
+# resolve_entry_version below is test-only, see cdb.resolve_entry_version
+# in tests/fix-doc-consistency -- pylint attributes unused-import to the
+# "from" line of a multi-import statement, not the unused name's own line.
+from lib.fix_doc_consistency.manifest_entries_core import (  # pylint: disable=unused-import
     fix_images_manifest_entries,
-    resolve_entry_version,  # noqa: F401 -- test-only, see cdb.resolve_entry_version in tests/fix-doc-consistency
+    resolve_entry_version,  # noqa: F401
 )
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import (
     add_missing_images_manifest_entries,
     fix_images_manifest_entry_urls,
 )
-from lib.fix_doc_consistency.text_helpers_and_repo_rename import (
+# ensure_blank_lines_around_headings below is test-only, see
+# cdb.ensure_blank_lines_around_headings in tests/fix-doc-consistency.
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import (  # pylint: disable=unused-import
     collapse_multiple_blank_lines,
-    ensure_blank_lines_around_headings,  # noqa: F401 -- test-only, see cdb.ensure_blank_lines_around_headings in tests/fix-doc-consistency
+    ensure_blank_lines_around_headings,  # noqa: F401
     find_collisions,
     git_mv,
     join_and,
@@ -156,8 +161,10 @@ from lib.upgradedoc.images_manifest_ordering import (
     sort_images_manifest_entries,
 )
 from lib.upgradedoc.sorting_and_ordering import sort_changes_blocks, sort_upgrade_doc_rows, sort_values_delta_sections
-from lib.upgradedoc.version_cells_and_key_changes import (
-    canonical_version_cell,  # noqa: F401 -- test-only, see cdb.canonical_version_cell in tests/fix-doc-consistency
+# canonical_version_cell below is test-only, see cdb.canonical_version_cell
+# in tests/fix-doc-consistency.
+from lib.upgradedoc.version_cells_and_key_changes import (  # pylint: disable=unused-import
+    canonical_version_cell,  # noqa: F401
 )
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"

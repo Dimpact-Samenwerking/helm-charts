@@ -264,7 +264,7 @@ def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_tex
     the very end, out of values.yaml's own order, only ever fixed by a
     LATER fix-doc-consistency run), which could silently drift from this
     one on what "correct" position even means."""
-    header_idx, header_has_count, item_indices = find_images_manifest_changes_items(lines)
+    header_idx, _header_has_count, item_indices = find_images_manifest_changes_items(lines)
     if header_idx is None:
         return
 

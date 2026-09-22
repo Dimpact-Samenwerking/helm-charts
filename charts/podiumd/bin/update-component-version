@@ -711,7 +711,8 @@ def main():
         print()
         print(f"=== Updating {upgrade_path.name} ===")
         print(
-            f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — nothing left to document"
+            f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version"
+            " — nothing left to document"
         )
         if row_removed:
             print("  removed table row")

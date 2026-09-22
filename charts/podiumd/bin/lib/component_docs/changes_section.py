@@ -278,7 +278,7 @@ def _strip_standalone_placeholder_line(lines, end, placeholder_text):
     if idx is None:
         return False
     del lines[idx]
-    if idx < len(lines) and not lines[idx].strip() and idx > 0 and not lines[idx - 1].strip():
+    if 0 < idx < len(lines) and not lines[idx].strip() and not lines[idx - 1].strip():
         del lines[idx]
     return True
 

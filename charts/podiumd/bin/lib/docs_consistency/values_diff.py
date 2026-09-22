@@ -68,7 +68,7 @@ def check_values_deltas_content(doc_path, actual_changed_keys, baseline_values, 
         # mentioned() is called only below, within this same iteration,
         # before backtick_spans is rebound on the next values_key.
         def mentioned(span):
-            return span in backtick_spans  # noqa: B023
+            return span in backtick_spans  # noqa: B023 pylint: disable=cell-var-from-loop
 
         for path in added:
             dotted = ".".join(path)

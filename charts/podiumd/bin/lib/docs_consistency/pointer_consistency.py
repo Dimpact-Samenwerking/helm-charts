@@ -28,7 +28,7 @@ def check_pointer_consistency(doc_path, upgrade_docs_baseline, podiumd_version, 
     issues = []
 
     for m in SIBLING_DOC_RE.finditer(text):
-        from_v, to_v, suffix = m.groups()
+        from_v, to_v, _suffix = m.groups()
         if normalize_version(to_v) != normalize_version(podiumd_version):
             continue
         if normalize_version(from_v) != normalize_version(upgrade_docs_baseline):

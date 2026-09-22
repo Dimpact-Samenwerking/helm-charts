@@ -290,7 +290,8 @@ def helm_repos_urls_by_alias(chart_dir):
                 "wiremind": "https://wiremind.github.io/wiremind-helm-charts",
                 "dimpact": "https://Dimpact-Samenwerking.github.io/helm-charts/",
                 "maykinmedia": "https://maykinmedia.github.io/charts/",
-                "kiss-elastic": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic",
+                "kiss-elastic": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem"
+                "/.github/main/docs/scripts/elastic",
                 "zac": "https://infonl.github.io/dimpact-zaakafhandelcomponent/",
                 "zgw-office-addin": "https://infonl.github.io/zgw-office-addin",
                 "worth-nl": "https://worth-nl.github.io/helm-charts",

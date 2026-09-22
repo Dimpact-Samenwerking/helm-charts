@@ -589,9 +589,8 @@ def check_images(scope_key, component, rows, lines, findings, values, dep=None, 
                 f"(row '{row['name']}') is not pinned anywhere under '{scope_key}' in values.yaml"
             )
 
-    for basename in actual_basenames:
+    for basename, pins in actual_basenames.items():
         if basename not in csv_basenames:
-            pins = actual_basenames[basename]
             versions = {p["version"] for p in pins}
             primary = component != MULTIPLE_KEY and basename == primary_basename
             hint = missing_image_hint(rows, scope_key, component, basename, versions, primary)

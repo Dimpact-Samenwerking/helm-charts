@@ -178,7 +178,7 @@ def update_images_manifest(
     entry_updates, missing_entries = [], []
     for path in paths_to_update:
         target_path = values_tree_path_for(values_key, path)
-        entry, entry_idx, index = find_matching_images_entry(entries, entry_line_indices, target_path)
+        entry, _entry_idx, index = find_matching_images_entry(entries, entry_line_indices, target_path)
         if entry is None:
             missing_entries.append((path, repos[path], new_tags_by_path[path]))
             continue
@@ -191,7 +191,15 @@ def update_images_manifest(
     return changes_action, entry_updates, missing_entries
 
 
-def remove_component_from_images_manifest(images_path, friendly, values_key, paths_to_update, repos, new_tags_by_path):
+def remove_component_from_images_manifest(
+    images_path,
+    friendly,
+    values_key,
+    paths_to_update,
+    # kept for signature symmetry with update_images_manifest
+    repos,  # pylint: disable=unused-argument
+    new_tags_by_path,
+):
     """Counterpart to update_images_manifest for a bump that nets out to no
     change from upgrade_docs_baseline at all (see lib.upgradedoc.compute_changed_
     components): still writes each touched entry's final version/digest —

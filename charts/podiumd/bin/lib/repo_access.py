@@ -133,7 +133,8 @@ def _check_http_repo(url, timeout_seconds):
         # index_url is built from a known, config-derived trusted Helm repo host, never
         # an attacker-controllable scheme; same trust boundary ruff's own per-file S310
         # exemption for this file documents.
-        urllib.request.urlopen(index_url, timeout=timeout_seconds)  # nosec B310
+        with urllib.request.urlopen(index_url, timeout=timeout_seconds):  # nosec B310
+            pass
         return True, None
     except urllib.error.HTTPError as e:
         return False, f"HTTP {e.code} fetching {index_url}"
