@@ -231,6 +231,18 @@ def images_manifest_order_key(key_order, values_key, is_sidecar, values=None):
     return (idx, 1 if is_sidecar else 0)
 
 
+def _images_manifest_changes_block_end(lines, header_idx):
+    """First index right after the "# Changes:" block's own last comment
+    line, scanning from header_idx (same block-scan condition find_
+    images_manifest_changes_items uses for its own item_indices scan)."""
+    block_end = header_idx + 1
+    for i in range(header_idx + 1, len(lines)):
+        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+            break
+        block_end = i + 1
+    return block_end
+
+
 def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_text):
     """Insert "#   N. <item_text>" into the images-manifest's own "#
     Changes:" header list (see find_images_manifest_changes_header) at
@@ -268,11 +280,7 @@ def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_tex
     if header_idx is None:
         return
 
-    block_end = header_idx + 1
-    for i in range(header_idx + 1, len(lines)):
-        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-            break
-        block_end = i + 1
+    block_end = _images_manifest_changes_block_end(lines, header_idx)
 
     item_keys = []
     for idx in item_indices:
