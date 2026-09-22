@@ -50,7 +50,10 @@ def test_add_missing_sidecar_rows_global_image_gets_one_row_not_per_alias(libima
     )
 
     new_text, added = libimagedocs.add_missing_sidecar_rows(
-        text, tmp_path, deps, target_values, baseline_values, "4.9.0"
+        text,
+        libimagedocs.DocContext(tmp_path, "4.9.0"),
+        libimagedocs.ComponentState(deps, target_values),
+        baseline_values,
     )
 
     assert added == ["nginx-unprivileged"]
@@ -84,7 +87,10 @@ def test_add_missing_sidecar_rows_digest_only_repin_is_not_a_row(libimagedocs, t
     )
 
     new_text, added = libimagedocs.add_missing_sidecar_rows(
-        text, tmp_path, deps, target_values, baseline_values, "4.9.0"
+        text,
+        libimagedocs.DocContext(tmp_path, "4.9.0"),
+        libimagedocs.ComponentState(deps, target_values),
+        baseline_values,
     )
 
     assert added == []
@@ -114,7 +120,10 @@ def test_add_missing_sidecar_rows_global_row_inserted_at_its_own_position_not_la
     )
 
     new_text, added = libimagedocs.add_missing_sidecar_rows(
-        text, tmp_path, deps, target_values, baseline_values, "4.9.0"
+        text,
+        libimagedocs.DocContext(tmp_path, "4.9.0"),
+        libimagedocs.ComponentState(deps, target_values),
+        baseline_values,
     )
 
     assert added == ["nginx-unprivileged"]
@@ -152,7 +161,10 @@ def test_add_missing_sidecar_rows_same_repository_at_different_baseline_path_is_
     )
 
     new_text, added = libimagedocs.add_missing_sidecar_rows(
-        text, tmp_path, deps, target_values, baseline_values, "4.9.1"
+        text,
+        libimagedocs.DocContext(tmp_path, "4.9.1"),
+        libimagedocs.ComponentState(deps, target_values),
+        baseline_values,
     )
 
     assert added == ["postgres"]
@@ -181,7 +193,10 @@ def test_add_missing_sidecar_rows_genuinely_new_repository_still_renders_new(lib
     )
 
     new_text, added = libimagedocs.add_missing_sidecar_rows(
-        text, tmp_path, deps, target_values, baseline_values, "4.9.1"
+        text,
+        libimagedocs.DocContext(tmp_path, "4.9.1"),
+        libimagedocs.ComponentState(deps, target_values),
+        baseline_values,
     )
 
     assert added == ["redis"]
@@ -263,7 +278,7 @@ def test_update_image_manifest_updates_existing_entry_and_comment(libimagedocs, 
         ),
     )
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb"
+        path, libimagedocs.ImageBump("curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
     )
     assert changes_action == "updated"
     assert entry_updated is True
@@ -291,7 +306,7 @@ def test_update_image_manifest_adds_new_changes_item_when_absent(libimagedocs, t
         ),
     )
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb"
+        path, libimagedocs.ImageBump("curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
     )
     assert changes_action == "added"
     assert entry_updated is False
@@ -325,7 +340,7 @@ def test_update_image_manifest_new_item_no_baseline_renders_new(libimagedocs, tm
         ),
     )
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "redis", "redis", None, "8.10.1", "sha256:cccc"
+        path, libimagedocs.ImageBump("redis", "redis", None, "8.10.1", "sha256:cccc")
     )
     assert changes_action == "added"
     assert entry_updated is False
@@ -376,14 +391,8 @@ def test_update_image_manifest_new_item_uses_values_yaml_order_not_append(libima
 
     changes_action, entry_updated = libimagedocs.update_image_manifest(
         path,
-        "redis",
-        "bitnami/redis",
-        "7.4",
-        "8.0",
-        "sha256:bbbb",
-        deps=deps,
-        values=values,
-        canonical_names=canonical_names,
+        libimagedocs.ImageBump("redis", "bitnami/redis", "7.4", "8.0", "sha256:bbbb"),
+        libimagedocs.OrderingContext(deps, values, canonical_names),
     )
 
     assert changes_action == "added"
@@ -423,7 +432,8 @@ def test_update_image_manifest_recognizes_bare_changes_header(libimagedocs, tmp_
         ),
     )
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "nginx-unprivileged", "nginxinc/nginx-unprivileged", "1.31.3", "1.31.4", "sha256:bbbb"
+        path,
+        libimagedocs.ImageBump("nginx-unprivileged", "nginxinc/nginx-unprivileged", "1.31.3", "1.31.4", "sha256:bbbb"),
     )
     assert changes_action == "added"
     assert entry_updated is False
@@ -477,7 +487,7 @@ def test_update_image_manifest_no_matching_entry_reports_not_updated(libimagedoc
         ),
     )
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb"
+        path, libimagedocs.ImageBump("curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
     )
     assert entry_updated is False
 
@@ -500,7 +510,7 @@ def test_update_image_manifest_matches_entry_by_url_repository(libimagedocs, tmp
         ),
     )
     changes_action, entry_updated = libimagedocs.update_image_manifest(
-        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb"
+        path, libimagedocs.ImageBump("curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
     )
     assert entry_updated is True
     assert '"8.21.0"' in path.read_text(encoding="utf-8")
