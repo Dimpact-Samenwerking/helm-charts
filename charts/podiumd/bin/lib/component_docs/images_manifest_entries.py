@@ -4,10 +4,12 @@ to lib.component_docs.changes_section's table row / "## Changes" section.
 Shared by update-component-version and update-image-version."""
 
 import re
+from dataclasses import dataclass
 
 import yaml
 
 from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import NUMBER_WORDS
@@ -23,6 +25,43 @@ from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
+
+
+@dataclass
+class ManifestUpdateTarget:
+    """images_path/friendly/values_key -- which manifest file, and which
+    component's own entries within it, update_images_manifest/remove_
+    component_from_images_manifest operate on."""
+
+    images_path: object
+    friendly: str
+    values_key: str
+
+
+@dataclass
+class ImagePathUpdate:
+    """paths/repos/new_tags, keyed together by image path -- update_images_
+    manifest/remove_component_from_images_manifest both walk `paths` and
+    look up each one's own repo/new-tag in lockstep (a missing manifest
+    entry is reported as (path, repos[path], new_tags[path]), see update_
+    images_manifest's own docstring)."""
+
+    paths: list
+    repos: dict
+    new_tags: dict
+
+
+@dataclass
+class ParsedManifest:
+    """lines/entries/entry_line_indices, kept in lockstep -- `entries`
+    (yaml.safe_load'd) and `entry_line_indices` (parallel, one YAML-doc
+    line index per entry) are both derived from `lines` and only ever
+    meaningful read together; update_images_manifest_entry/find_matching_
+    images_entry both need all three."""
+
+    lines: list
+    entries: list
+    entry_line_indices: list
 
 
 def values_tree_path_for(values_key, image_path):
@@ -46,22 +85,45 @@ def find_matching_images_entry(entries, entry_line_indices, target_path):
     return None, None, None
 
 
-def update_images_manifest_entry(lines, entries, entry_line_indices, index, new_tag, values_key):
-    """Update an existing entry's version/digest fields and its preceding
-    comment's version pair in place. The comment may be shared across
-    several of this component's entries (e.g. zgw-office-addin's frontend +
-    backend, listed as one block under one comment) — found via the same
-    top-level-component grouping as find_grouped_preceding_comment_line,
-    not just the line directly above this entry. Returns True if anything
-    changed."""
-    entry_line_idx = entry_line_indices[index]
-    new_app_version, digest = new_tag.split("@", 1)
+def _parsed_manifest(lines):
+    """entries/entry_line_indices parsed fresh from `lines` (already
+    possibly mutated by a changes-header edit) — bundled as a
+    ParsedManifest since update_images_manifest_entry/find_matching_
+    images_entry both need all three (lines/entries/entry_line_indices)
+    kept in lockstep."""
+    entries = yaml.safe_load("".join(lines)) or []
+    if not isinstance(entries, list):
+        entries = []
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    return ParsedManifest(lines, entries, entry_line_indices)
+
+
+def _component_of(values_key, entry):
+    return values_key if normalize_name(values_key) in normalize_name(entry["name"]) else None
+
+
+def _same_group(values_key, entry_a, entry_b):
+    """Whether `entry_a`/`entry_b` share the same top-level component AND
+    version — find_grouped_preceding_comment_line's own "same group"
+    predicate, so a shared comment block (e.g. zgw-office-addin's frontend
+    + backend, listed under one comment) is found for either entry, not
+    just the line directly above it."""
+    return (
+        _component_of(values_key, entry_a) is not None
+        and _component_of(values_key, entry_a) == _component_of(values_key, entry_b)
+        and entry_a.get("version") == entry_b.get("version")
+    )
+
+
+def _rewrite_entry_scalars(lines, entry_line_idx, new_app_version, digest):
+    """Overwrite the version:/digest: scalar lines within this entry's own
+    block (up to the next "- name:" line or a blank line) in place.
+    Returns True if anything actually changed."""
     block_end = len(lines)
     for i in range(entry_line_idx + 1, len(lines)):
         if re.match(r"^-\s*name:", lines[i]) or not lines[i].strip():
             block_end = i
             break
-
     changed = False
     for i in range(entry_line_idx, block_end):
         m = re.match(r"^\s*(version|digest):", lines[i])
@@ -70,50 +132,134 @@ def update_images_manifest_entry(lines, entries, entry_line_indices, index, new_
         new_value = new_app_version if m.group(1) == "version" else digest
         lines[i] = replace_scalar_value(lines[i], new_value)
         changed = True
+    return changed
 
-    def component_of(entry):
-        return values_key if normalize_name(values_key) in normalize_name(entry["name"]) else None
 
-    def same_group(entry_a, entry_b):
-        return (
-            component_of(entry_a) is not None
-            and component_of(entry_a) == component_of(entry_b)
-            and entry_a.get("version") == entry_b.get("version")
-        )
+def update_images_manifest_entry(manifest, index, new_tag, values_key):
+    """Update an existing entry's version/digest fields and its preceding
+    comment's version pair in place. The comment may be shared across
+    several of this component's entries (e.g. zgw-office-addin's frontend +
+    backend, listed as one block under one comment) — found via the same
+    top-level-component grouping as find_grouped_preceding_comment_line,
+    not just the line directly above this entry. `manifest` is a
+    ParsedManifest. Returns True if anything changed."""
+    entry_line_idx = manifest.entry_line_indices[index]
+    new_app_version, digest = new_tag.split("@", 1)
+    changed = _rewrite_entry_scalars(manifest.lines, entry_line_idx, new_app_version, digest)
 
-    comment_idx = find_grouped_preceding_comment_line(lines, entries, entry_line_indices, index, same_group)
+    comment_idx = find_grouped_preceding_comment_line(
+        manifest.lines,
+        manifest.entries,
+        manifest.entry_line_indices,
+        index,
+        lambda entry_a, entry_b: _same_group(values_key, entry_a, entry_b),
+    )
     if comment_idx is not None:
-        current_source = extract_source_version(lines[comment_idx])
+        current_source = extract_source_version(manifest.lines[comment_idx])
         if current_source:
-            lines[comment_idx] = replace_version_pair(lines[comment_idx], current_source, new_app_version)
+            manifest.lines[comment_idx] = replace_version_pair(
+                manifest.lines[comment_idx], current_source, new_app_version
+            )
             changed = True
     return changed
 
 
-def update_images_manifest(
-    images_path,
-    friendly,
-    values_key,
-    old_app,
-    new_app,
-    old_chart,
-    new_chart,
-    paths_to_update,
-    repos,
-    new_tags_by_path,
-    deps,
-    values,
-):
+def _changes_header_items(lines, header_idx):
+    """Every "#   <N>. ..." list-item line index under this manifest's own
+    "# Changes:" header, in document order — shared by update_images_
+    manifest/remove_component_from_images_manifest, whose own list-item
+    match/renumber logic both need the same set."""
+    item_indices = []
+    for i in range(header_idx + 1, len(lines)):
+        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+            break
+        if re.match(r"^#\s*\d+\.", lines[i]):
+            item_indices.append(i)
+    return item_indices
+
+
+def _matching_changes_header_item(lines, item_indices, friendly):
+    """The item_indices entry (or None) whose own rendered text already
+    names `friendly` (normalize_name-insensitive substring match) — same
+    "does this component already have a changes-header list item" check
+    both update_images_manifest and remove_component_from_images_manifest
+    need before deciding to update/renumber vs insert/remove."""
+    norm_friendly = normalize_name(friendly)
+    for idx in item_indices:
+        m = CHANGES_ITEM_RE.match(lines[idx])
+        if m and norm_friendly in normalize_name(m.group("rest")):
+            return idx
+    return None
+
+
+def _changes_header_item_text(friendly, change):
+    """The rendered "<friendly> <app transition> (chart <chart bit>)."
+    changes-header list-item text for `change` (a VersionChange) — a
+    native_components component (see lib.chart.native_components,
+    `change.new_chart == "-"`) has no chart to verify against at all, so
+    it gets no "(chart ...)" clause rather than a misleading one."""
+    if change.new_chart == "-":
+        return f"{friendly} {image_manifest_version_text(change.old_app, change.new_app)}."
+    chart_changed = normalize_version(change.old_chart) != normalize_version(change.new_chart)
+    chart_bit = f"{change.old_chart} -> {change.new_chart}" if chart_changed else f"{change.new_chart}, unchanged"
+    return f"{friendly} {image_manifest_version_text(change.old_app, change.new_app)} (chart {chart_bit})."
+
+
+def _update_changes_header_item(lines, header_idx, target, change, state):
+    """Update this component's own existing changes-header list item in
+    place, or insert a brand-new one at its own values.yaml-order slot
+    (see update_images_manifest's own docstring for why the position
+    matters) when it doesn't have one yet. `target` is a
+    ManifestUpdateTarget (only its own `friendly`/`values_key` are used
+    here), `state` a ComponentState (deps/values). Returns "updated" or
+    "added"."""
+    item_indices = _changes_header_items(lines, header_idx)
+    match_idx = _matching_changes_header_item(lines, item_indices, target.friendly)
+    item_text = _changes_header_item_text(target.friendly, change)
+
+    if match_idx is not None:
+        m = CHANGES_ITEM_RE.match(lines[match_idx])
+        lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
+        return "updated"
+
+    key_order = values_key_order(state.values)
+    new_key = images_manifest_order_key(key_order, target.values_key, " - " in target.friendly)
+    insert_images_manifest_header_item(lines, state.deps, key_order, new_key, item_text)
+    return "added"
+
+
+def _apply_entry_updates(manifest, path_update, values_key):
+    """Update every existing manifest entry for `path_update.paths`,
+    returning (entry_names_updated, missing_entries) — missing_entries is
+    [(image_path, repo, new_tag), ...] for a component_image_paths() path
+    with no matching manifest entry yet (see update_images_manifest's own
+    docstring for why nothing here invents one)."""
+    entry_updates, missing_entries = [], []
+    for path in path_update.paths:
+        target_path = values_tree_path_for(values_key, path)
+        entry, _entry_idx, index = find_matching_images_entry(
+            manifest.entries, manifest.entry_line_indices, target_path
+        )
+        if entry is None:
+            missing_entries.append((path, path_update.repos[path], path_update.new_tags[path]))
+            continue
+        if update_images_manifest_entry(manifest, index, path_update.new_tags[path], values_key):
+            entry_updates.append(entry["name"])
+    return entry_updates, missing_entries
+
+
+def update_images_manifest(target, change, path_update, deps, values):
     """Update the "# <N> changes:" header list and any existing entries'
-    version/digest/comment for this component. Returns (changes_action,
-    entry_names_updated, missing_entries) where missing_entries is
-    [(image_path, repo, new_tag), ...] for components with no existing
-    entry — never invented here. "name:" is mechanically derivable now
-    (strip_registry(repo), see docs/images/acr-mirror-naming.md) but this
-    function doesn't compute it — a full manifest entry still needs a
-    human-authored comment/heading, so callers print a placeholder and
-    leave the whole entry for manual review rather than a script writing
-    part of it and a human the rest.
+    version/digest/comment for this component. `target` is a
+    ManifestUpdateTarget, `change` a VersionChange, `path_update` an
+    ImagePathUpdate. Returns (changes_action, entry_names_updated,
+    missing_entries) where missing_entries is [(image_path, repo,
+    new_tag), ...] for components with no existing entry — never invented
+    here. "name:" is mechanically derivable now (strip_registry(repo), see
+    docs/images/acr-mirror-naming.md) but this function doesn't compute it
+    — a full manifest entry still needs a human-authored comment/heading,
+    so callers print a placeholder and leave the whole entry for manual
+    review rather than a script writing part of it and a human the rest.
 
     deps/values position a brand-new header item at its own values.yaml-
     order slot (via insert_images_manifest_header_item/images_manifest_
@@ -126,7 +272,7 @@ def update_images_manifest(
     Updating an EXISTING item never needs them for anything — the far
     more common path here — so they're only ever read on a genuinely new
     item."""
-    original_text = images_path.read_text(encoding="utf-8")
+    original_text = target.images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
     # A file that has lost its "# Changes:" header (or never had one) —
@@ -143,160 +289,103 @@ def update_images_manifest(
 
     changes_action = None
     if header_idx is not None:
-        item_indices = []
-        for i in range(header_idx + 1, len(lines)):
-            if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-                break
-            if re.match(r"^#\s*\d+\.", lines[i]):
-                item_indices.append(i)
+        changes_action = _update_changes_header_item(lines, header_idx, target, change, ComponentState(deps, values))
 
-        norm_friendly = normalize_name(friendly)
-        match_idx = None
-        for idx in item_indices:
-            m = CHANGES_ITEM_RE.match(lines[idx])
-            if m and norm_friendly in normalize_name(m.group("rest")):
-                match_idx = idx
-                break
-
-        if new_chart == "-":
-            # native_components component (see lib.chart.native_components)
-            # — no chart at all, so no "(chart ...)" clause to render.
-            item_text = f"{friendly} {image_manifest_version_text(old_app, new_app)}."
-        else:
-            chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
-            chart_bit = f"{old_chart} -> {new_chart}" if chart_changed else f"{new_chart}, unchanged"
-            item_text = f"{friendly} {image_manifest_version_text(old_app, new_app)} (chart {chart_bit})."
-
-        if match_idx is not None:
-            m = CHANGES_ITEM_RE.match(lines[match_idx])
-            lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
-            changes_action = "updated"
-        else:
-            key_order = values_key_order(values)
-            new_key = images_manifest_order_key(key_order, values_key, " - " in friendly)
-            insert_images_manifest_header_item(lines, deps, key_order, new_key, item_text)
-            changes_action = "added"
-
-    entries = yaml.safe_load("".join(lines)) or []
-    if not isinstance(entries, list):
-        entries = []
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-
-    entry_updates, missing_entries = [], []
-    for path in paths_to_update:
-        target_path = values_tree_path_for(values_key, path)
-        entry, _entry_idx, index = find_matching_images_entry(entries, entry_line_indices, target_path)
-        if entry is None:
-            missing_entries.append((path, repos[path], new_tags_by_path[path]))
-            continue
-        if update_images_manifest_entry(lines, entries, entry_line_indices, index, new_tags_by_path[path], values_key):
-            entry_updates.append(entry["name"])
+    manifest = _parsed_manifest(lines)
+    entry_updates, missing_entries = _apply_entry_updates(manifest, path_update, target.values_key)
 
     new_text = "".join(lines)
     if new_text != original_text:
-        images_path.write_text(new_text, encoding="utf-8")
+        target.images_path.write_text(new_text, encoding="utf-8")
     return changes_action, entry_updates, missing_entries
 
 
-def remove_component_from_images_manifest(
-    images_path,
-    friendly,
-    values_key,
-    paths_to_update,
-    # kept for signature symmetry with update_images_manifest
-    repos,  # pylint: disable=unused-argument
-    new_tags_by_path,
-):
+def _remove_changes_header_item(lines, header_idx, header_has_count, friendly):
+    """Delete this component's own "#   <N>. ..." changes-header list
+    item (renumbering the rest) and update the header's own count word,
+    when it has one — mirrors _update_changes_header_item's own item-match
+    logic (shared via _changes_header_items/_matching_changes_header_item)
+    but for removal instead of update/insert. Returns "removed" or None
+    (no matching item found)."""
+    item_indices = _changes_header_items(lines, header_idx)
+    match_idx = _matching_changes_header_item(lines, item_indices, friendly)
+    if match_idx is None:
+        return None
+
+    del lines[match_idx]
+    remaining_indices = [i - 1 if i > match_idx else i for i in item_indices if i != match_idx]
+    for new_num, idx in enumerate(remaining_indices, start=1):
+        m = CHANGES_ITEM_RE.match(lines[idx])
+        lines[idx] = f"#   {new_num}. {m.group('rest')}\n"
+
+    remaining = len(remaining_indices)
+    if header_has_count:
+        count_word = NUMBER_WORDS[remaining] if remaining < len(NUMBER_WORDS) else str(remaining)
+        noun = "change" if remaining == 1 else "changes"
+        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+        lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+    # else: bare "# Changes:" header — left as-is, same convention
+    # update_images_manifest's own insertion path follows.
+    return "removed"
+
+
+def _remove_entry_updates(manifest, path_update, values_key):
+    """Rewrite every touched entry's final version/digest (still correct
+    even with no change left to document, see remove_component_from_
+    images_manifest's own docstring) and delete its own preceding source
+    comment line, when it has one. Returns entry_names_updated."""
+    entry_updates, comment_lines_to_remove = [], []
+    for path in path_update.paths:
+        target_path = values_tree_path_for(values_key, path)
+        entry, entry_idx, index = find_matching_images_entry(manifest.entries, manifest.entry_line_indices, target_path)
+        if entry is None:
+            continue
+        new_app_version, digest = path_update.new_tags[path].split("@", 1)
+        _rewrite_entry_scalars(manifest.lines, entry_idx, new_app_version, digest)
+
+        comment_idx = find_grouped_preceding_comment_line(
+            manifest.lines,
+            manifest.entries,
+            manifest.entry_line_indices,
+            index,
+            lambda entry_a, entry_b: _same_group(values_key, entry_a, entry_b),
+        )
+        if comment_idx is not None and extract_source_version(manifest.lines[comment_idx]):
+            comment_lines_to_remove.append(comment_idx)
+        entry_updates.append(entry["name"])
+
+    for idx in sorted(set(comment_lines_to_remove), reverse=True):
+        del manifest.lines[idx]
+    return entry_updates
+
+
+def remove_component_from_images_manifest(target, path_update):
     """Counterpart to update_images_manifest for a bump that nets out to no
     change from upgrade_docs_baseline at all (see lib.upgradedoc.compute_changed_
     components): still writes each touched entry's final version/digest —
     the manifest's job is to list the correct final state for every image
     regardless of change-tracking — but removes the "changes:" list item
     and each entry's own preceding source comment instead of updating
-    them, since there is no longer anything to document. Returns
-    (changes_action, entry_names_updated) — changes_action is "removed" or
-    None (no matching list item found)."""
-    original_text = images_path.read_text(encoding="utf-8")
+    them, since there is no longer anything to document. `target` is a
+    ManifestUpdateTarget, `path_update` an ImagePathUpdate (its own
+    `repos` field is unused here — kept only for symmetry with
+    update_images_manifest's own ImagePathUpdate). Returns (changes_action,
+    entry_names_updated) — changes_action is "removed" or None (no
+    matching list item found)."""
+    original_text = target.images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
     header_idx, header_has_count = find_images_manifest_changes_header(lines)
+    changes_action = (
+        _remove_changes_header_item(lines, header_idx, header_has_count, target.friendly)
+        if header_idx is not None
+        else None
+    )
 
-    changes_action = None
-    if header_idx is not None:
-        item_indices = []
-        for i in range(header_idx + 1, len(lines)):
-            if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-                break
-            if re.match(r"^#\s*\d+\.", lines[i]):
-                item_indices.append(i)
-
-        norm_friendly = normalize_name(friendly)
-        match_idx = None
-        for idx in item_indices:
-            m = CHANGES_ITEM_RE.match(lines[idx])
-            if m and norm_friendly in normalize_name(m.group("rest")):
-                match_idx = idx
-                break
-
-        if match_idx is not None:
-            del lines[match_idx]
-            remaining_indices = [i - 1 if i > match_idx else i for i in item_indices if i != match_idx]
-            for new_num, idx in enumerate(remaining_indices, start=1):
-                m = CHANGES_ITEM_RE.match(lines[idx])
-                lines[idx] = f"#   {new_num}. {m.group('rest')}\n"
-            remaining = len(remaining_indices)
-            if header_has_count:
-                count_word = NUMBER_WORDS[remaining] if remaining < len(NUMBER_WORDS) else str(remaining)
-                noun = "change" if remaining == 1 else "changes"
-                header_m = CHANGES_HEADER_RE.match(lines[header_idx])
-                lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
-            # else: bare "# Changes:" header — left as-is, same convention
-            # update_images_manifest's own insertion path follows.
-            changes_action = "removed"
-
-    entries = yaml.safe_load("".join(lines)) or []
-    if not isinstance(entries, list):
-        entries = []
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-
-    def component_of(entry):
-        return values_key if normalize_name(values_key) in normalize_name(entry["name"]) else None
-
-    def same_group(entry_a, entry_b):
-        return (
-            component_of(entry_a) is not None
-            and component_of(entry_a) == component_of(entry_b)
-            and entry_a.get("version") == entry_b.get("version")
-        )
-
-    entry_updates, comment_lines_to_remove = [], []
-    for path in paths_to_update:
-        target_path = values_tree_path_for(values_key, path)
-        entry, entry_idx, index = find_matching_images_entry(entries, entry_line_indices, target_path)
-        if entry is None:
-            continue
-        new_app_version, digest = new_tags_by_path[path].split("@", 1)
-        block_end2 = len(lines)
-        for i in range(entry_idx + 1, len(lines)):
-            if re.match(r"^-\s*name:", lines[i]) or not lines[i].strip():
-                block_end2 = i
-                break
-        for i in range(entry_idx, block_end2):
-            m = re.match(r"^\s*(version|digest):", lines[i])
-            if not m:
-                continue
-            new_value = new_app_version if m.group(1) == "version" else digest
-            lines[i] = replace_scalar_value(lines[i], new_value)
-
-        comment_idx = find_grouped_preceding_comment_line(lines, entries, entry_line_indices, index, same_group)
-        if comment_idx is not None and extract_source_version(lines[comment_idx]):
-            comment_lines_to_remove.append(comment_idx)
-        entry_updates.append(entry["name"])
-
-    for idx in sorted(set(comment_lines_to_remove), reverse=True):
-        del lines[idx]
+    manifest = _parsed_manifest(lines)
+    entry_updates = _remove_entry_updates(manifest, path_update, target.values_key)
 
     new_text = "".join(lines)
     if new_text != original_text:
-        images_path.write_text(new_text, encoding="utf-8")
+        target.images_path.write_text(new_text, encoding="utf-8")
     return changes_action, entry_updates

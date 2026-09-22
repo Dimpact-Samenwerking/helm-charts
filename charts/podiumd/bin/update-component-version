@@ -94,6 +94,8 @@ from lib.component_docs.changes_section import make_changes_section
 from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.changes_section import remove_component_row
 from lib.component_docs.changes_section import update_component_table
+from lib.component_docs.images_manifest_entries import ImagePathUpdate
+from lib.component_docs.images_manifest_entries import ManifestUpdateTarget
 from lib.component_docs.images_manifest_entries import remove_component_from_images_manifest
 from lib.component_docs.images_manifest_entries import update_images_manifest
 from lib.component_docs.values_delta_sections import insert_values_delta_section
@@ -853,9 +855,10 @@ def main():
     if paths_to_update:
         images_path = images_manifest_path(target)
         if images_path.is_file():
+            target = ManifestUpdateTarget(images_path, friendly, values_key)
             if reset_to_baseline:
                 changes_action, entry_updates = remove_component_from_images_manifest(
-                    images_path, friendly, values_key, paths_to_update, repos, new_tags_by_path
+                    target, ImagePathUpdate(paths_to_update, repos, new_tags_by_path)
                 )
                 print()
                 print(f"=== Updating {images_path.name} ===")
@@ -870,18 +873,11 @@ def main():
                     )
             else:
                 changes_action, entry_updates, missing_entries = update_images_manifest(
-                    images_path,
-                    friendly,
-                    values_key,
-                    old_app,
-                    app_version,
-                    old_chart,
-                    new_chart,
-                    paths_to_update,
-                    repos,
-                    new_tags_by_path,
-                    deps=deps,
-                    values=values,
+                    target,
+                    VersionChange(old_app, app_version, old_chart, new_chart),
+                    ImagePathUpdate(paths_to_update, repos, new_tags_by_path),
+                    deps,
+                    values,
                 )
                 print()
                 print(f"=== Updating {images_path.name} ===")
