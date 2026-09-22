@@ -71,26 +71,15 @@ FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
 
 
-def find_stale_digests(lines, values_path):
-    """Return (stale, unresolved, fetch_errors). stale is a list of
-    (repository, version, old_digest, new_digest, [line, ...], sliding) —
-    `sliding` (see lib.registry.is_sliding_tag) is purely informational
-    here, used only for the printed "(sliding)" label; every stale pin is
-    treated the same way by main() regardless.
-
-    A pin whose "tag:" has no resolvable "repository:" of its own falls
-    back to the same component's vendored subchart default — see
-    lib.chart.subchart_default_repository. If that's still unresolved
-    specifically because the vendored .tgz isn't there yet (see
-    lib.chart.subchart_needs_vendoring), vendors dependencies once (a real
-    `helm dependency update`) and retries — never for a pin that has no
-    matching Chart.yaml dependency at all, since vendoring can't help
+def _resolve_pin_repositories(pins, chart_dir, lines, deps):
+    """Resolves each pin's "repository:" in place via its vendored
+    subchart default (see lib.chart.subchart_default_repository) and
+    returns the pins still left unresolved after that. If any of those
+    are unresolved specifically because the vendored .tgz isn't there yet
+    (see lib.chart.subchart_needs_vendoring), vendors dependencies once (a
+    real `helm dependency update`) and retries — never for a pin that has
+    no matching Chart.yaml dependency at all, since vendoring can't help
     that one regardless."""
-    pins = scan_digest_pins(lines)
-
-    chart_dir = values_path.parent
-    chart_yaml_path = chart_dir / "Chart.yaml"
-    deps = load_yaml(chart_yaml_path).get("dependencies", []) if chart_yaml_path.is_file() else []
     subchart_cache = {}
     for p in pins:
         if not p["repository"]:
@@ -113,56 +102,161 @@ def find_stale_digests(lines, values_path):
         for p in still_unresolved:
             p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
 
-    unresolved = [p for p in pins if not p["repository"]]
+    return [p for p in pins if not p["repository"]]
 
+
+def _fetch_live_digest(host, repo_path, version):
+    """Live registry digest for one host/repo_path/version. Retries once
+    on a transient fetch error (URLError/OSError) before giving up.
+    Returns (digest, error) — error is either the retried fetch
+    exception's message or "tag not found upstream", or None on
+    success."""
+    digest, error = None, None
+    for _attempt in range(2):
+        try:
+            exists, digest = registry_tag_exists(host, repo_path, version)
+            error = None if exists else "tag not found upstream"
+            break
+        except (urllib.error.URLError, OSError) as e:
+            error = str(e)
+    return digest, error
+
+
+def _check_target(repository, version, group, values_path):
+    """Live-digest check for one (repository, version) target (`group` is
+    its list of matching pins). Returns (stale_entry, fetch_error_entry),
+    each None unless applicable — stale_entry is (repository, version,
+    old_digest, new_digest, [line, ...], sliding), where `sliding` (see
+    lib.registry.is_sliding_tag) is purely informational, used only for
+    the printed "(sliding)" label; every stale pin is treated the same
+    way by main() regardless."""
+    host, repo_path = parse_repo(repository)
+    pinned_digest = group[0]["digest"]
+    lines_for_pin = [p["line"] for p in group]
+
+    digest, error = _fetch_live_digest(host, repo_path, version)
+
+    if error:
+        return None, (repository, version, error, lines_for_pin)
+    if digest and digest != f"sha256:{pinned_digest}":
+        sliding = is_sliding_tag(values_path, host, repo_path, version, digest)
+        return (repository, version, pinned_digest, digest, lines_for_pin, sliding), None
+    return None, None
+
+
+def _group_pins_by_target(pins):
+    """(repository, version) -> [pin, ...] grouping for every pin with a
+    resolved repository, so a repository:tag shared by several values.yaml
+    pins is only checked against the registry once (see _check_target)."""
     targets = {}
     for p in pins:
         if p["repository"]:
             targets.setdefault((p["repository"], p["version"]), []).append(p)
+    return targets
+
+
+def find_stale_digests(lines, values_path):
+    """Return (stale, unresolved, fetch_errors). stale is a list of
+    (repository, version, old_digest, new_digest, [line, ...], sliding) —
+    see _check_target. unresolved pins are handled by _resolve_pin_
+    repositories: a pin whose "tag:" has no resolvable "repository:" of
+    its own falls back to the same component's vendored subchart
+    default."""
+    pins = scan_digest_pins(lines)
+
+    chart_dir = values_path.parent
+    chart_yaml_path = chart_dir / "Chart.yaml"
+    deps = load_yaml(chart_yaml_path).get("dependencies", []) if chart_yaml_path.is_file() else []
+
+    unresolved = _resolve_pin_repositories(pins, chart_dir, lines, deps)
+    targets = _group_pins_by_target(pins)
 
     stale = []
     fetch_errors = []
     for (repository, version), group in sorted(targets.items()):
-        host, repo_path = parse_repo(repository)
-        pinned_digest = group[0]["digest"]
-        lines_for_pin = [p["line"] for p in group]
-
-        digest, error = None, None
-        for _attempt in range(2):
-            try:
-                exists, digest = registry_tag_exists(host, repo_path, version)
-                error = None if exists else "tag not found upstream"
-                break
-            except (urllib.error.URLError, OSError) as e:
-                error = str(e)
-
-        if error:
-            fetch_errors.append((repository, version, error, lines_for_pin))
-        elif digest and digest != f"sha256:{pinned_digest}":
-            sliding = is_sliding_tag(values_path, host, repo_path, version, digest)
-            stale.append((repository, version, pinned_digest, digest, lines_for_pin, sliding))
+        stale_entry, fetch_error_entry = _check_target(repository, version, group, values_path)
+        if stale_entry:
+            stale.append(stale_entry)
+        if fetch_error_entry:
+            fetch_errors.append(fetch_error_entry)
 
     return stale, unresolved, fetch_errors
+
+
+def _parse_args(argv):
+    """Parses fix-image-digests' own CLI args: -h/--help, --dry-run, and
+    an optional <key> <basename> scoping pair. Exits 0 after printing
+    help, or 1 on a malformed positional-arg count. Returns (dry_run,
+    key, basename) — key/basename are both None when unscoped."""
+    if "-h" in argv or "--help" in argv:
+        print(__doc__)
+        sys.exit(0)
+    dry_run = "--dry-run" in argv
+    positional = [a for a in argv if not a.startswith("-")]
+    if len(positional) not in (0, 2):
+        print(f"error: expected either no target, or <key> <basename> — got: {', '.join(positional)}")
+        sys.exit(1)
+    key, basename = positional if positional else (None, None)
+    return dry_run, key, basename
+
+
+def _report_unresolved_and_errors(unresolved, fetch_errors):
+    """Prints fix-image-digests' own unresolved-pin and fetch-error report
+    sections, when present."""
+    if unresolved:
+        print(f"\n{len(unresolved)} pin(s) could not be resolved to a repository (skipped):")
+        for p in unresolved:
+            print(f"  values.yaml:{p['line']}: {p['version']}")
+
+    if fetch_errors:
+        print(f"\n{len(fetch_errors)} fetch error(s):")
+        for repository, version, error, pin_lines in fetch_errors:
+            print(f"  {repository}:{version}  {error}  (values.yaml:{', '.join(map(str, pin_lines))})")
+
+
+def _apply_stale_digests(text, to_update, dry_run):
+    """Prints fix-image-digests' own stale-digest report and, unless
+    dry_run, returns `text` with every old digest replaced by its new one
+    (byte-identical otherwise) — returns `text` unchanged when dry_run,
+    since main() only writes it back out for a real run."""
+    print(f"\n{len(to_update)} stale digest(s){' (dry-run, not writing)' if dry_run else ''}:")
+    for repository, version, old_digest, new_digest, pin_lines, sliding in to_update:
+        print(f"  {repository}:{version}{'  (sliding)' if sliding else ''}")
+        print(f"    old: sha256:{old_digest}")
+        print(f"    new: {new_digest}")
+        print(f"    lines: values.yaml:{', '.join(map(str, pin_lines))}")
+        if not dry_run:
+            new_hex = new_digest.split("sha256:", 1)[1]
+            text = text.replace(old_digest, new_hex)
+    return text
+
+
+def _regenerate_docs():
+    """Runs fix-helm-doc then fix-doc-consistency after a real digest
+    rewrite — both regenerate content that embeds the digests main() just
+    changed. Exits with that script's own return code if either fails."""
+    print()
+    print("=== Regenerating README.md (fix-helm-doc) ===")
+    result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
+    if result.returncode != 0:
+        sys.exit(result.returncode)
+
+    print()
+    print("=== Repairing images-manifest (fix-doc-consistency) ===")
+    result = run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT)])
+    if result.returncode != 0:
+        sys.exit(result.returncode)
 
 
 def main():
     """CLI entry point: scans values.yaml for digest-pinned images, fetches
     each pin's live registry digest, and (unless --dry-run) rewrites every
     stale one in place — optionally scoped to a single <key> <basename>
-    pair. After a real, non-empty write also regenerates README.md (fix-
-    helm-doc) and repairs the current target's images manifest (fix-doc-
-    consistency). Exits 1 if any pin had a fetch error, even when the
-    write itself succeeded."""
-    args = sys.argv[1:]
-    if "-h" in args or "--help" in args:
-        print(__doc__)
-        sys.exit(0)
-    dry_run = "--dry-run" in args
-    positional = [a for a in args if not a.startswith("-")]
-    if len(positional) not in (0, 2):
-        print(f"error: expected either no target, or <key> <basename> — got: {', '.join(positional)}")
-        sys.exit(1)
-    key, basename = positional if positional else (None, None)
+    pair. After a real, non-empty write also regenerates README.md and
+    repairs the current target's images manifest (see _regenerate_docs).
+    Exits 1 if any pin had a fetch error, even when the write itself
+    succeeded."""
+    dry_run, key, basename = _parse_args(sys.argv[1:])
 
     text = VALUES_PATH.read_text(encoding="utf-8")
     lines = text.splitlines()
@@ -179,18 +273,9 @@ def main():
         unresolved = []  # scoped to one target -- unrelated unresolved pins aren't this run's concern
         fetch_errors = [f for f in fetch_errors if f[0] == target_repository]
 
-    if unresolved:
-        print(f"\n{len(unresolved)} pin(s) could not be resolved to a repository (skipped):")
-        for p in unresolved:
-            print(f"  values.yaml:{p['line']}: {p['version']}")
-
-    if fetch_errors:
-        print(f"\n{len(fetch_errors)} fetch error(s):")
-        for repository, version, error, pin_lines in fetch_errors:
-            print(f"  {repository}:{version}  {error}  (values.yaml:{', '.join(map(str, pin_lines))})")
+    _report_unresolved_and_errors(unresolved, fetch_errors)
 
     to_update = stale
-
     if not to_update:
         if target_repository:
             print(f"\n'{key}' '{basename}' has no stale digest to update — nothing to do.")
@@ -198,32 +283,13 @@ def main():
             print("\nNo stale digests found — nothing to do.")
         sys.exit(1 if fetch_errors else 0)
 
-    print(f"\n{len(to_update)} stale digest(s){' (dry-run, not writing)' if dry_run else ''}:")
-    for repository, version, old_digest, new_digest, pin_lines, sliding in to_update:
-        print(f"  {repository}:{version}{'  (sliding)' if sliding else ''}")
-        print(f"    old: sha256:{old_digest}")
-        print(f"    new: {new_digest}")
-        print(f"    lines: values.yaml:{', '.join(map(str, pin_lines))}")
-        if not dry_run:
-            new_hex = new_digest.split("sha256:", 1)[1]
-            text = text.replace(old_digest, new_hex)
+    text = _apply_stale_digests(text, to_update, dry_run)
 
     if not dry_run:
         VALUES_PATH.write_text(text, encoding="utf-8")
         print(f"\nWrote {len(to_update)} updated digest(s) to {VALUES_PATH}.")
         print("Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
-
-        print()
-        print("=== Regenerating README.md (fix-helm-doc) ===")
-        result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
-        if result.returncode != 0:
-            sys.exit(result.returncode)
-
-        print()
-        print("=== Repairing images-manifest (fix-doc-consistency) ===")
-        result = run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT)])
-        if result.returncode != 0:
-            sys.exit(result.returncode)
+        _regenerate_docs()
 
     sys.exit(1 if fetch_errors else 0)
 
