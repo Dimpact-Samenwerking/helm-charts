@@ -89,6 +89,7 @@ import re
 import shutil
 
 from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
@@ -126,6 +127,27 @@ SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
 VULN_FIELDS = ("VulnerabilityID", "PkgName", "Severity")
 
 CACHE_FILENAME = "cve-scan-cache.json"
+
+
+@dataclass
+class ScanTarget:
+    """repository/digest/ref — the image scan_cached is being asked to
+    scan, bundled since every call site already has all three together.
+    cache_key only ever needs repository+digest, never the full ref."""
+
+    repository: str
+    digest: str
+    ref: str
+
+
+@dataclass
+class CacheSession:
+    """old_cache/new_cache — open_cache_session's own return pair,
+    bundled since scan_cached needs both together on every call (read
+    from old_cache, write into new_cache)."""
+
+    old_cache: dict
+    new_cache: dict
 
 
 def cache_path(chart_dir):
@@ -232,21 +254,23 @@ def run_trivy(image_ref):
     return vulns
 
 
-def scan_cached(chart_dir, repository, digest, ref, old_cache, new_cache, ttl_days, label="this image"):
-    """Scan `ref` via trivy, reusing THIS module's own digest-keyed
-    cve-scan-cache.json whenever `digest` (bare hex, no "sha256:" prefix)
-    is known — the one shared "look up this (repository, digest) in the
-    cache; if fresh, report a cache hit and return the cached
+def scan_cached(chart_dir, target, session, ttl_days, label="this image"):
+    """Scan `target.ref` via trivy, reusing THIS module's own digest-keyed
+    cve-scan-cache.json whenever `target.digest` (bare hex, no "sha256:"
+    prefix) is known — the one shared "look up this (repository, digest)
+    in the cache; if fresh, report a cache hit and return the cached
     vulnerabilities; otherwise announce a fresh scan, run_trivy, cache
     the result, and return it" primitive both check_cves' own per-image
     loop (below) and lib.checks.cve_diff's own current/proposed scans
     route through — the two used to each hand-roll this same logic
-    separately. `digest=None` skips the cache tier entirely, straight to
-    run_trivy — used by cve_diff_check for a proposed tag whose digest
-    couldn't be resolved; never persisted either, since there's no digest
-    to key it by. `ttl_days` (see cve_scan.scan_cache_ttl_days in lib.
-    settings) is resolved once by the caller and passed straight through
-    to cache_entry_is_fresh, rather than re-read here on every call.
+    separately. `target.digest=None` skips the cache tier entirely,
+    straight to run_trivy — used by cve_diff_check for a proposed tag
+    whose digest couldn't be resolved; never persisted either, since
+    there's no digest to key it by. `ttl_days` (see cve_scan.scan_cache_
+    ttl_days in lib.settings) is resolved once by the caller and passed
+    straight through to cache_entry_is_fresh, rather than re-read here on
+    every call. `session` is a CacheSession (old_cache/new_cache, see
+    open_cache_session).
 
     `label` prefixes the printed cache-hit/fresh-scan line, so each
     caller can tell its own calls apart in the output: cve_diff_check
@@ -263,22 +287,22 @@ def scan_cached(chart_dir, repository, digest, ref, old_cache, new_cache, ttl_da
     output; a failure is never cached (either tier), so a caller can
     freely retry it on the next run rather than a failure being wrongly
     remembered as a real (empty) result."""
-    key = cache_key(repository, digest) if digest is not None else None
+    key = cache_key(target.repository, target.digest) if target.digest is not None else None
     if key is not None:
-        cached = old_cache.get(key)
+        cached = session.old_cache.get(key)
         if cached and cache_entry_is_fresh(cached, ttl_days):
-            new_cache[key] = cached
-            print(f"  {label}: served from cache — {ref}")
+            session.new_cache[key] = cached
+            print(f"  {label}: served from cache — {target.ref}")
             return cached["vulnerabilities"], True
 
-    print(f"  {label}: scanning fresh (docker pull + trivy) — {ref}...", flush=True)
-    vulns = run_trivy(ref)
+    print(f"  {label}: scanning fresh (docker pull + trivy) — {target.ref}...", flush=True)
+    vulns = run_trivy(target.ref)
     if vulns is None:
         return None, False
 
     if key is not None:
-        new_cache[key] = {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": vulns}
-        save_cache(chart_dir, new_cache)  # persist incrementally — a scan sweep can be slow
+        session.new_cache[key] = {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": vulns}
+        save_cache(chart_dir, session.new_cache)  # persist incrementally — a scan sweep can be slow
     return vulns, False
 
 
@@ -375,6 +399,221 @@ def render_image_labels(rendered_text, vendor_map):
     return labels
 
 
+@dataclass
+class ImageClassification:
+    """rendered_labels/dep_names/vendor_map — render_image_labels/
+    classify_by_key's own combined output, from _classify_pinned_
+    images, threaded through the per-target scan loop as one unit."""
+
+    rendered_labels: dict
+    dep_names: set
+    vendor_map: dict
+
+
+@dataclass
+class CveScanSettings:
+    """high_severities/package_cve_list_threshold/cve_cache_ttl_days/
+    upgrade_cache_ttl_days — check_cves' own 4 lib.settings-derived
+    values, resolved once up front and threaded through every helper
+    below that needs any subset of them."""
+
+    high_severities: list
+    package_cve_list_threshold: int
+    cve_cache_ttl_days: int
+    upgrade_cache_ttl_days: int
+
+
+@dataclass
+class ScanContext:
+    """chart_dir/values_lines/classification/upgrade_cache/session/
+    settings — check_cves' own per-run scan inputs, bundled once so the
+    per-target loop body (_scan_one_target) doesn't need a dozen
+    separate parameters."""
+
+    chart_dir: object
+    values_lines: list
+    classification: ImageClassification
+    upgrade_cache: dict
+    session: CacheSession
+    settings: CveScanSettings
+
+
+@dataclass
+class ReportSettings:
+    """detail_level/high_severities/package_cve_list_threshold —
+    print_bucket_report's own per-run settings, identical across all
+    three bucket calls in check_cves, bundled since threading 3 more
+    positional-only params through every call site is pure repetition."""
+
+    detail_level: str
+    high_severities: list
+    package_cve_list_threshold: int
+
+
+@dataclass
+class BucketRefs:
+    """own/partner/other — check_cves' own three report-bucket ref
+    lists (see _bucket_refs), bundled since every consumer below (the
+    print calls, the summary/detail lines) needs all three together."""
+
+    own: list
+    partner: list
+    other: list
+
+
+@dataclass
+class ScanStats:
+    """scan_errors/cache_hits/target_count — _scan_all_targets' own
+    run-level counters, bundled since the summary-printing/detail-string
+    helpers below both need all three together."""
+
+    scan_errors: list
+    cache_hits: int
+    target_count: int
+
+
+def _classify_pinned_images(chart_dir, extra_args):
+    """An ImageClassification if the chart renders successfully, else
+    None (the caller reports "helm template failed to render" and stops)."""
+    result = render_chart(chart_dir, extra_args)
+    if result.returncode != 0:
+        return None
+    vendor_map = friendly_vendor_charts(chart_dir)
+    dep_names = dependency_names(chart_dir)
+    rendered_labels = render_image_labels(result.stdout, vendor_map)
+    return ImageClassification(rendered_labels, dep_names, vendor_map)
+
+
+def _image_ref(repository, version):
+    """ "<host>/<repo_path>:<version>" for `repository` — the actual
+    pullable ref (never repository's own possibly-stripped/ACR-mirror-
+    slug form) trivy/docker needs."""
+    host, repo_path = parse_repo(repository)
+    return f"{host}/{repo_path}:{version}"
+
+
+def _target_label(repository, version, digest, line, context):
+    """ "own" | a vendor label | "other" for one scan target — the
+    render-based classification (see render_image_labels) when the
+    image was actually seen in the render, else classify_by_key's own
+    values.yaml top-level-key fallback."""
+    label = context.classification.rendered_labels.get((repository, version, digest))
+    if label is not None:
+        return label
+    top_key = top_level_key_for_line(context.values_lines, line)
+    return classify_by_key(top_key, context.classification.dep_names, context.classification.vendor_map)
+
+
+def _upgradable_to(repository, version, context):
+    """The newer tag lib.image.upgrade_check's own cache reports for
+    this (repository, version), or None if there's no fresh entry, or
+    the freshest known tag IS the one already pinned."""
+    upgrade_entry = context.upgrade_cache.get(upgrade_cache_key(repository, version))
+    if (
+        upgrade_entry
+        and upgrade_entry_is_fresh(upgrade_entry, context.settings.upgrade_cache_ttl_days)
+        and upgrade_entry["newest"] != version
+    ):
+        return upgrade_entry["newest"]
+    return None
+
+
+def _scan_one_target(repo_version, digest_line, index, total, context):
+    """(image_ref, entry, was_cached) for one (repository, version)
+    target — entry is None when trivy's own scan failed (the caller
+    reports image_ref as a scan error and skips it), otherwise the dict
+    check_cves' own `images` map stores under image_ref."""
+    repository, version = repo_version
+    digest, line = digest_line
+    image_ref = _image_ref(repository, version)
+    label = _target_label(repository, version, digest, line, context)
+
+    # Per-image cache-hit/fresh-scan reporting and the actual cache
+    # read/write/scan is the exact same logic lib.checks.cve_diff's
+    # own current/proposed scans need — see scan_cached's own
+    # docstring for why this is shared rather than reimplemented here.
+    vulns, was_cached = scan_cached(
+        context.chart_dir,
+        ScanTarget(repository, digest, image_ref),
+        context.session,
+        context.settings.cve_cache_ttl_days,
+        label=f"[{index}/{total}] this image",
+    )
+    if vulns is None:
+        return image_ref, None, False
+
+    entry = {
+        "bucket": bucket_of(label),
+        "vendor_label": label if bucket_of(label) == "partner" else None,
+        "vulns": vulns,
+        "upgradable_to": _upgradable_to(repository, version, context),
+    }
+    return image_ref, entry, was_cached
+
+
+def _scan_all_targets(targets, context):
+    """(images, ScanStats) — scan every target in `targets` (see
+    _scan_one_target), printing progress/scan-error lines as it goes."""
+    print(
+        f"Scanning {len(targets)} unique pinned image(s) for known CVEs with trivy "
+        f"(pulls every image not already cached — this can take a while)..."
+    )
+    images, scan_errors, cache_hits = {}, [], 0
+    for i, (repo_version, digest_line) in enumerate(targets, 1):
+        image_ref, entry, was_cached = _scan_one_target(repo_version, digest_line, i, len(targets), context)
+        if entry is None:
+            scan_errors.append(image_ref)
+            print(f"  [SCAN-ERR] {image_ref}  trivy scan failed or produced unparseable output")
+            continue
+        if was_cached:
+            cache_hits += 1
+        images[image_ref] = entry
+    return images, ScanStats(scan_errors, cache_hits, len(targets))
+
+
+def _bucket_refs(images):
+    """(own_refs, partner_refs, other_refs) — refs (in images' own
+    insertion order) whose bucket matches and that have at least one
+    vulnerability finding, one list per report bucket."""
+
+    def refs_in(bucket):
+        return [ref for ref, info in images.items() if info["bucket"] == bucket and info["vulns"]]
+
+    return refs_in("own"), refs_in("partner"), refs_in("other")
+
+
+def _print_bucket_reports(images, buckets, report_settings):
+    print_bucket_report("Own images", buckets.own, images, report_settings)
+    print_bucket_report("Partner-vendor images", buckets.partner, images, report_settings)
+    print_bucket_report("Other-vendor images", buckets.other, images, report_settings)
+
+
+def _print_cve_summary_lines(buckets, stats, cve_cache_ttl_days):
+    if not (buckets.own or buckets.partner or buckets.other):
+        print("OK: no known CVEs found across pinned images")
+    if stats.scan_errors:
+        print(f"{len(stats.scan_errors)} image(s) could not be scanned:")
+        for ref in stats.scan_errors:
+            print(f"  {ref}")
+    print(
+        f"{stats.cache_hits}/{stats.target_count} image(s) served from cache (unchanged digest, "
+        f"scanned within the last {cve_cache_ttl_days} days)"
+    )
+
+
+def _cve_summary_detail(buckets, images, stats):
+    """The final "CVEs: ... own (... img), ... partner-vendor (... img),
+    ... other-vendor (... img); ... scan error(s)" detail string
+    check_cves returns for verify-podiumd's own summary line."""
+    own_n, own_cve = bucket_totals(buckets.own, images)
+    partner_n, partner_cve = bucket_totals(buckets.partner, images)
+    other_n, other_cve = bucket_totals(buckets.other, images)
+    return (
+        f"CVEs: {own_cve} own ({own_n} img), {partner_cve} partner-vendor ({partner_n} img), "
+        f"{other_cve} other-vendor ({other_n} img); {len(stats.scan_errors)} scan error(s)"
+    )
+
+
 def check_cves(chart_dir, extra_args, detail=False):
     """Entry point for the "CVE scan" step (see module docstring for the
     full design). Renders the chart to classify every unique digest-pinned
@@ -389,144 +628,47 @@ def check_cves(chart_dir, extra_args, detail=False):
     if shutil.which("docker") is None:
         return True, "docker is not installed — skipped (see --help)"
 
-    high_severities = cve_high_severity_levels(chart_dir)
-    package_cve_list_threshold = cve_max_cves_per_package_before_summarizing(chart_dir)
-    cve_cache_ttl_days = cve_scan_cache_ttl_days(chart_dir)
-    upgrade_cache_ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
+    settings = CveScanSettings(
+        cve_high_severity_levels(chart_dir),
+        cve_max_cves_per_package_before_summarizing(chart_dir),
+        cve_scan_cache_ttl_days(chart_dir),
+        image_upgrade_tag_check_cache_ttl_days(chart_dir),
+    )
 
-    result = render_chart(chart_dir, extra_args)
-    if result.returncode != 0:
+    classification = _classify_pinned_images(chart_dir, extra_args)
+    if classification is None:
         return False, "helm template failed to render"
 
-    vendor_map = friendly_vendor_charts(chart_dir)
-    dep_names = dependency_names(chart_dir)
-    rendered_labels = render_image_labels(result.stdout, vendor_map)
-
-    values_path = chart_dir / "values.yaml"
-    values_lines = values_path.read_text(encoding="utf-8").splitlines()
+    values_lines = (chart_dir / "values.yaml").read_text(encoding="utf-8").splitlines()
     targets = sorted(unique_digest_pin_targets(values_lines).items())
-
-    old_cache, new_cache = open_cache_session(chart_dir)
-    cache_hits = 0
-    upgrade_cache = load_upgrade_cache(chart_dir)
-
-    print(
-        f"Scanning {len(targets)} unique pinned image(s) for known CVEs with trivy "
-        f"(pulls every image not already cached — this can take a while)..."
+    session = CacheSession(*open_cache_session(chart_dir))
+    scan_context = ScanContext(
+        chart_dir, values_lines, classification, load_upgrade_cache(chart_dir), session, settings
     )
 
-    images = {}
-    scan_errors = []
-    for i, ((repository, version), (digest, line)) in enumerate(targets, 1):
-        host, repo_path = parse_repo(repository)
-        image_ref = f"{host}/{repo_path}:{version}"
-
-        label = rendered_labels.get((repository, version, digest))
-        if label is None:
-            top_key = top_level_key_for_line(values_lines, line)
-            label = classify_by_key(top_key, dep_names, vendor_map)
-
-        # Per-image cache-hit/fresh-scan reporting and the actual cache
-        # read/write/scan is the exact same logic lib.checks.cve_diff's
-        # own current/proposed scans need — see scan_cached's own
-        # docstring for why this is shared rather than reimplemented here.
-        vulns, was_cached = scan_cached(
-            chart_dir,
-            repository,
-            digest,
-            image_ref,
-            old_cache,
-            new_cache,
-            cve_cache_ttl_days,
-            label=f"[{i}/{len(targets)}] this image",
-        )
-        if vulns is None:
-            scan_errors.append(image_ref)
-            print(f"  [SCAN-ERR] {image_ref}  trivy scan failed or produced unparseable output")
-            continue
-        if was_cached:
-            cache_hits += 1
-
-        upgrade_entry = upgrade_cache.get(upgrade_cache_key(repository, version))
-        upgradable_to = None
-        if (
-            upgrade_entry
-            and upgrade_entry_is_fresh(upgrade_entry, upgrade_cache_ttl_days)
-            and upgrade_entry["newest"] != version
-        ):
-            upgradable_to = upgrade_entry["newest"]
-
-        images[image_ref] = {
-            "bucket": bucket_of(label),
-            "vendor_label": label if bucket_of(label) == "partner" else None,
-            "vulns": vulns,
-            "upgradable_to": upgradable_to,
-        }
+    images, stats = _scan_all_targets(targets, scan_context)
 
     # Not a prune pass: new_cache started as a COPY of old_cache (see
-    # above), so any entry this run didn't touch — a pin no longer
-    # present, or (critically) a lib.checks.cve_diff "proposed"-side entry
-    # for an image that's never actually pinned in values.yaml at all —
-    # is carried forward untouched here, not deleted. It ages out on its
-    # own via cache_entry_is_fresh's own TTL, same as everything else.
-    # Real bug this fixes: new_cache used to start EMPTY, so this save
-    # wiped out every such entry on nearly every run (check_cves runs
-    # right before check_cve_diff in the default pipeline) — cve_diff_
-    # check's own already-correct new_cache = dict(old_cache) pattern
-    # never had this problem, only this loop did.
-    save_cache(chart_dir, new_cache)
+    # open_cache_session), so any entry this run didn't touch — a pin no
+    # longer present, or (critically) a lib.checks.cve_diff "proposed"-
+    # side entry for an image that's never actually pinned in values.yaml
+    # at all — is carried forward untouched here, not deleted. It ages
+    # out on its own via cache_entry_is_fresh's own TTL, same as
+    # everything else. Real bug this fixes: new_cache used to start
+    # EMPTY, so this save wiped out every such entry on nearly every run
+    # (check_cves runs right before check_cve_diff in the default
+    # pipeline) — cve_diff_check's own already-correct new_cache =
+    # dict(old_cache) pattern never had this problem, only this loop did.
+    save_cache(chart_dir, session.new_cache)
 
-    def refs_in(bucket):
-        return [ref for ref, info in images.items() if info["bucket"] == bucket and info["vulns"]]
-
-    own_refs, partner_refs, other_refs = refs_in("own"), refs_in("partner"), refs_in("other")
-
-    level = "full" if detail else "totals"
-    print_bucket_report(
-        "Own images",
-        own_refs,
-        images,
-        detail_level=level,
-        high_severities=high_severities,
-        package_cve_list_threshold=package_cve_list_threshold,
+    buckets = BucketRefs(*_bucket_refs(images))
+    report_settings = ReportSettings(
+        "full" if detail else "totals", settings.high_severities, settings.package_cve_list_threshold
     )
-    print_bucket_report(
-        "Partner-vendor images",
-        partner_refs,
-        images,
-        detail_level=level,
-        high_severities=high_severities,
-        package_cve_list_threshold=package_cve_list_threshold,
-    )
-    print_bucket_report(
-        "Other-vendor images",
-        other_refs,
-        images,
-        detail_level=level,
-        high_severities=high_severities,
-        package_cve_list_threshold=package_cve_list_threshold,
-    )
+    _print_bucket_reports(images, buckets, report_settings)
+    _print_cve_summary_lines(buckets, stats, settings.cve_cache_ttl_days)
 
-    if not (own_refs or partner_refs or other_refs):
-        print("OK: no known CVEs found across pinned images")
-
-    if scan_errors:
-        print(f"{len(scan_errors)} image(s) could not be scanned:")
-        for ref in scan_errors:
-            print(f"  {ref}")
-    print(
-        f"{cache_hits}/{len(targets)} image(s) served from cache (unchanged digest, "
-        f"scanned within the last {cve_cache_ttl_days} days)"
-    )
-
-    own_n, own_cve = bucket_totals(own_refs, images)
-    partner_n, partner_cve = bucket_totals(partner_refs, images)
-    other_n, other_cve = bucket_totals(other_refs, images)
-    detail = (
-        f"CVEs: {own_cve} own ({own_n} img), {partner_cve} partner-vendor ({partner_n} img), "
-        f"{other_cve} other-vendor ({other_n} img); {len(scan_errors)} scan error(s)"
-    )
-    return True, detail
+    return True, _cve_summary_detail(buckets, images, stats)
 
 
 def bucket_totals(refs, images):
@@ -608,11 +750,12 @@ def print_bucket_header(title, empty):
     return True
 
 
-def print_bucket_report(title, refs, images, detail_level, high_severities, package_cve_list_threshold):
-    """detail_level, applied identically regardless of which bucket this is
-    (own/partner-vendor/other-vendor all get the same treatment — no
-    aggregate-only rollup for other-vendor, unlike every other check that
-    uses this own/partner/other scope split):
+def print_bucket_report(title, refs, images, settings):
+    """`settings` is a ReportSettings; settings.detail_level, applied
+    identically regardless of which bucket this is (own/partner-vendor/
+    other-vendor all get the same treatment — no aggregate-only rollup
+    for other-vendor, unlike every other check that uses this own/
+    partner/other scope split):
       "full"   — CRIT/HIGH itemized per affected package (see
                  print_package_line), MEDIUM/LOW/UNKNOWN just totaled per
                  image.
@@ -627,15 +770,15 @@ def print_bucket_report(title, refs, images, detail_level, high_severities, pack
         upgradable = f" upgradable to {info['upgradable_to']}" if info["upgradable_to"] else ""
         print(f"{ref}{vendor}{upgradable}")
 
-        if detail_level == "totals":
+        if settings.detail_level == "totals":
             print_severity_totals_line(info["vulns"])
         else:
-            rest_counts = Counter(v["Severity"] for v in info["vulns"] if v["Severity"] not in high_severities)
+            rest_counts = Counter(v["Severity"] for v in info["vulns"] if v["Severity"] not in settings.high_severities)
             if rest_counts:
                 parts = ", ".join(f"{rest_counts[s]} {s}" for s in ("MEDIUM", "LOW", "UNKNOWN") if rest_counts.get(s))
                 print(f"  {parts} CVE(s)")
 
-            for pkg, vulns_for_pkg in sorted(high_findings_by_package(info["vulns"], high_severities).items()):
-                print_package_line(pkg, vulns_for_pkg, package_cve_list_threshold)
+            for pkg, vulns_for_pkg in sorted(high_findings_by_package(info["vulns"], settings.high_severities).items()):
+                print_package_line(pkg, vulns_for_pkg, settings.package_cve_list_threshold)
 
         print()
