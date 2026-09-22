@@ -81,7 +81,7 @@ def test_compare_checks_keycloak_anchor_decorated_image(vrt):
     registration, not a synthetic override)."""
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
     rows = [csv_row("Keycloak", "keycloak-operator", image_basename="keycloak", target_app="26.7.3")]
-    findings, _ = vrt.compare(rows, deps, keycloak_values(), keycloak_lines())
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, keycloak_values(), keycloak_lines()))
     assert any("target 26.7.3 != values.yaml 26.7.2" in m for m in findings["mismatches"])
     assert "missing_from_chart" not in findings
 
@@ -91,7 +91,7 @@ def test_compare_keycloak_anchor_decorated_image_matching_passes(vrt):
     rows = [
         csv_row("Keycloak", "keycloak-operator", image_basename="keycloak", source_helm="1.12.1", target_app="26.7.2")
     ]
-    findings, _ = vrt.compare(rows, deps, keycloak_values(), keycloak_lines())
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, keycloak_values(), keycloak_lines()))
     assert findings == {}
 
 
@@ -113,7 +113,7 @@ def test_compare_finds_basename_pinned_under_a_sibling_scope(vrt):
     rows = [
         csv_row("Keycloak Config CLI", "keycloak-operator", image_basename="keycloak-config-cli", target_app="6.5.2-27")
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(keycloak_config_cli_block))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(keycloak_config_cli_block)))
     assert any("target 6.5.2-27 != values.yaml 6.5.1-26" in m for m in findings["mismatches"])
     assert "missing_from_chart" not in findings
 
@@ -136,7 +136,7 @@ def test_compare_sibling_scope_basename_matching_passes(vrt):
             target_app="6.5.1-26",
         )
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(keycloak_config_cli_block))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(keycloak_config_cli_block)))
     assert findings == {}
 
 
@@ -178,12 +178,8 @@ def test_compare_image_source_sibling_scope_basename_still_matches(vrt):
     ]
     findings, _ = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(current_block),
-        baseline_deps=baseline_deps,
-        baseline_values={},
-        baseline_lines=values_lines(baseline_block),
+        vrt.ChartState(None, deps, {}, values_lines(current_block)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, values_lines(baseline_block)),
     )
     assert findings == {}
 
@@ -211,12 +207,8 @@ def test_compare_image_source_rejects_stripped_name_collision(vrt):
     rows = [csv_row("Redis", "MULTIPLE", alias="MULTIPLE", image_basename="redis", source_app="8.0")]
     findings, _ = vrt.compare(
         rows,
-        [],
-        {},
-        values_lines(current_block),
-        baseline_deps=[],
-        baseline_values={},
-        baseline_lines=values_lines(baseline_block),
+        vrt.ChartState(None, [], {}, values_lines(current_block)),
+        baseline=vrt.ChartState(None, [], {}, values_lines(baseline_block)),
     )
     assert any(
         "[IMAGE-SOURCE]" in m and "wasn't pinned anywhere" in m and "release_table baseline yet" in m
@@ -231,10 +223,12 @@ def test_compare_image_source_rejects_stripped_name_collision(vrt):
 # their own primary image, no "repository:" override at all — relying
 # entirely on their vendored subchart's own default repository, exactly like
 # primary_image_basename's own CURRENT-side fallback already handles (see
-# lib.chart.primary_image_repositories). primary_image_repositories itself
-# is monkeypatched here (rather than vendoring a real .tgz or hitting the
-# network) — its own pull/vendored-tgz resolution already has its own test
-# coverage elsewhere; these tests are purely about check_images_source's own
+# lib.chart.pull_and_subchart_resolution.primary_image_repositories).
+# primary_image_repositories itself is monkeypatched here, on the
+# lib.release_table_verification module that actually calls it (rather
+# than vendoring a real .tgz or hitting the network) — its own
+# pull/vendored-tgz resolution already has its own test coverage
+# elsewhere; these tests are purely about check_images_source's own
 # NEW consumption of it (matching a resolved repository to `basename`,
 # reading the ACTUAL pinned tag from baseline_values, and degrading
 # gracefully on failure).
@@ -245,8 +239,7 @@ def test_compare_image_source_falls_back_to_vendored_subchart_default(vrt, monke
     real, comparable baseline version instead of reporting "wasn't pinned
     anywhere" — the matching source_app must be accepted as OK."""
     monkeypatch.setattr(
-        vrt,
-        "primary_image_repositories",
+        "lib.release_table_verification.primary_image_repositories",
         lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"}, None),
     )
     dep = {"name": "clamav", "version": "3.9.0"}
@@ -264,13 +257,10 @@ def test_compare_image_source_falls_back_to_vendored_subchart_default(vrt, monke
     ]
     findings, _ = vrt.compare(
         rows,
-        [dep],
-        {},
-        values_lines(CLAMAV_CURRENT_BLOCK),
-        chart_dir=Path("/fake/chart/dir"),
-        baseline_deps=[baseline_dep],
-        baseline_values=CLAMAV_BASELINE_VALUES,
-        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK),
+        vrt.ChartState(Path("/fake/chart/dir"), [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK)),
+        baseline=vrt.ChartState(
+            Path("/fake/chart/dir"), [baseline_dep], CLAMAV_BASELINE_VALUES, values_lines(CLAMAV_BASELINE_BLOCK)
+        ),
     )
     assert findings == {}
 
@@ -282,8 +272,7 @@ def test_compare_image_source_vendored_subchart_default_still_catches_mismatch(v
     distinctly-worded finding (never silently accepted just because it
     took a different resolution path than the plain text scan)."""
     monkeypatch.setattr(
-        vrt,
-        "primary_image_repositories",
+        "lib.release_table_verification.primary_image_repositories",
         lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"}, None),
     )
     dep = {"name": "clamav", "version": "3.9.0"}
@@ -301,13 +290,10 @@ def test_compare_image_source_vendored_subchart_default_still_catches_mismatch(v
     ]
     findings, _ = vrt.compare(
         rows,
-        [dep],
-        {},
-        values_lines(CLAMAV_CURRENT_BLOCK),
-        chart_dir=Path("/fake/chart/dir"),
-        baseline_deps=[baseline_dep],
-        baseline_values=CLAMAV_BASELINE_VALUES,
-        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK),
+        vrt.ChartState(Path("/fake/chart/dir"), [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK)),
+        baseline=vrt.ChartState(
+            Path("/fake/chart/dir"), [baseline_dep], CLAMAV_BASELINE_VALUES, values_lines(CLAMAV_BASELINE_BLOCK)
+        ),
     )
     assert any(
         "[IMAGE-SOURCE]" in m and "source 1.5.9" in m and "baseline subchart-default values.yaml 1.5.2" in m
@@ -323,8 +309,7 @@ def test_compare_image_source_vendored_subchart_default_resolution_failure_is_re
     just couldn't confirm what) or crash — it's a distinct, honest
     "can't verify" finding instead."""
     monkeypatch.setattr(
-        vrt,
-        "primary_image_repositories",
+        "lib.release_table_verification.primary_image_repositories",
         lambda chart_dir, dep, values, allow_pull=True: ({"image": None}, "helm pull failed: no such chart version"),
     )
     dep = {"name": "clamav", "version": "3.9.0"}
@@ -342,13 +327,10 @@ def test_compare_image_source_vendored_subchart_default_resolution_failure_is_re
     ]
     findings, _ = vrt.compare(
         rows,
-        [dep],
-        {},
-        values_lines(CLAMAV_CURRENT_BLOCK),
-        chart_dir=Path("/fake/chart/dir"),
-        baseline_deps=[baseline_dep],
-        baseline_values=CLAMAV_BASELINE_VALUES,
-        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK),
+        vrt.ChartState(Path("/fake/chart/dir"), [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK)),
+        baseline=vrt.ChartState(
+            Path("/fake/chart/dir"), [baseline_dep], CLAMAV_BASELINE_VALUES, values_lines(CLAMAV_BASELINE_BLOCK)
+        ),
     )
     assert any(
         "[IMAGE-SOURCE]" in m
@@ -389,7 +371,7 @@ def test_compare_omc_image_matches_via_ordinary_basename_path(vrt):
             target_helm="0.14.1",
         )
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(OMC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(OMC_BLOCK)))
     assert findings == {}
 
 
@@ -408,7 +390,7 @@ def test_compare_omc_image_mismatch_via_ordinary_basename_path(vrt):
             target_helm="0.14.1",
         )
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(OMC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(OMC_BLOCK)))
     assert any("[IMAGE]" in m and "target 1.17.20 != values.yaml 1.17.19" in m for m in findings["mismatches"])
 
 
@@ -429,12 +411,8 @@ def test_compare_omc_image_source_matches_via_ordinary_basename_path(vrt):
     ]
     findings, _ = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(OMC_BLOCK),
-        baseline_deps=baseline_deps,
-        baseline_values={},
-        baseline_lines=values_lines(OMC_BLOCK),
+        vrt.ChartState(None, deps, {}, values_lines(OMC_BLOCK)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, values_lines(OMC_BLOCK)),
     )
     assert findings == {}
 
@@ -448,12 +426,8 @@ def test_compare_omc_image_source_mismatch_via_ordinary_basename_path(vrt):
     omc_baseline_block = 'omc:\n  image:\n    # repository: docker.io/worthnl/notifynl-omc\n    tag: "1.17.19"\n'
     findings, _ = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(OMC_BLOCK),
-        baseline_deps=baseline_deps,
-        baseline_values={},
-        baseline_lines=values_lines(omc_baseline_block),
+        vrt.ChartState(None, deps, {}, values_lines(OMC_BLOCK)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, values_lines(omc_baseline_block)),
     )
     assert any(
         "[IMAGE-SOURCE]" in m and "source 1.17.18 != baseline values.yaml 1.17.19" in m for m in findings["mismatches"]
@@ -480,7 +454,7 @@ def test_compare_omc_still_catches_genuinely_untracked_sibling_basename(vrt):
         f'  sidecar:\n    image:\n      repository: example/some-other-image\n      tag: "2.0.0@sha256:{"a" * 64}"\n'
     )
 
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(omc_block_with_sidecar))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(omc_block_with_sidecar)))
     assert any(
         "'some-other-image' is pinned in values.yaml but not tracked" in m
         for m in findings["missing_from_release_table"]

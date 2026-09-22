@@ -96,7 +96,7 @@ def test_is_primary_image_multi_image_component_override(vrt):
 
 def test_compare_reports_dependency_with_no_release_table_row(vrt):
     deps = [{"name": "openklant", "alias": "", "version": "1.11.0"}]
-    findings, _ = vrt.compare([], deps, {}, [])
+    findings, _ = vrt.compare([], vrt.ChartState(None, deps, {}, []))
     assert any("Chart.yaml dependency 'openklant'" in m for m in findings["missing_from_release_table"])
 
 
@@ -107,7 +107,7 @@ def test_compare_dependency_missing_hint_names_resolvable_identifier(vrt):
     the dependency's own alias when it has one (a real Chart.yaml
     dependency's alias always wins an exact-match tier on its own)."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
-    findings, _ = vrt.compare([], deps, {}, [])
+    findings, _ = vrt.compare([], vrt.ChartState(None, deps, {}, []))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
     assert "\n      Confluence: add row to whichever table fits" in hint
     assert 'Name or "Used by": "zac"' in hint
@@ -118,7 +118,7 @@ def test_compare_reports_image_pinned_but_not_tracked(vrt):
     release-table.csv row mentions at all."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="", target_helm="1.0.297")]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     assert any(
         "'zaakafhandelcomponent' is pinned in values.yaml but not tracked" in m
         for m in findings["missing_from_release_table"]
@@ -139,7 +139,7 @@ def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt):
     fill in."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="", target_helm="1.0.297")]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
     assert '\n      Confluence: add row to "Product component versies"' in hint
     assert 'Name containing "zaakafhandelcomponent"' in hint
@@ -162,7 +162,7 @@ def test_compare_missing_primary_image_uses_own_table_without_used_by(vrt):
             "section": "Technische",
         }
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
     assert '\n      Confluence: add row to "Technische component versies"' in hint
     assert 'Name containing "zaakafhandelcomponent"' in hint
@@ -185,7 +185,7 @@ def test_compare_missing_sidecar_image_always_goes_to_technische_with_used_by(vr
             target_helm="1.0.297",
         )
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_WITH_SIDECAR_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_WITH_SIDECAR_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "opentelemetry-collector-contrib" in m)
     assert '\n      Confluence: add row to "Technische component versies"' in hint
     assert '"Used by": "zac", Name containing "opentelemetry-collector-contrib"' in hint
@@ -196,7 +196,7 @@ def test_compare_missing_sidecar_image_always_goes_to_technische_with_used_by(vr
 
 def test_compare_reports_row_component_no_longer_a_dependency(vrt):
     rows = [csv_row("Long Gone", "longgone")]
-    findings, _ = vrt.compare(rows, [], {}, [])
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, [], {}, []))
     assert any(
         "resolves to component 'longgone', which is not a Chart.yaml dependency" in m
         for m in findings["missing_from_chart"]
@@ -222,7 +222,7 @@ def test_compare_reports_tracked_image_no_longer_pinned(vrt):
             target_helm="1.0.297",
         ),
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     assert any(
         "release-table image 'opa' for component 'zaakafhandelcomponent'" in m for m in findings["missing_from_chart"]
     )
@@ -239,7 +239,7 @@ def test_compare_checks_images_for_orphan_values_yaml_component(vrt):
         f'frankgateway:\n  image:\n    repository: ghcr.io/wearefrank/frank-gateway\n    tag: "1.1.0@sha256:{DIGEST}"\n'
     )
     rows = [csv_row("Frank Gateway", "frankgateway", image_basename="frank-gateway", target_app="1.1.1")]
-    findings, unresolved = vrt.compare(rows, [], {"frankgateway": {}}, values_lines(frank_block))
+    findings, unresolved = vrt.compare(rows, vrt.ChartState(None, [], {"frankgateway": {}}, values_lines(frank_block)))
     assert any("target 1.1.1 != values.yaml 1.1.0" in m for m in findings["mismatches"])
     assert "missing_from_chart" not in findings
     assert unresolved == []
@@ -247,7 +247,7 @@ def test_compare_checks_images_for_orphan_values_yaml_component(vrt):
 
 def test_compare_orphan_component_absent_from_values_yaml_is_missing_from_chart(vrt):
     rows = [csv_row("Frank Gateway", "frankgateway")]
-    findings, _ = vrt.compare(rows, [], {}, [])
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, [], {}, []))
     assert any("component 'frankgateway'" in m for m in findings["missing_from_chart"])
 
 
@@ -268,7 +268,7 @@ def test_compare_reports_ambiguous_when_basename_pinned_at_multiple_versions(vrt
     )
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="curl", target_app="8.22.0")]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(block))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(block)))
     assert any("pinned at 2 different versions" in m for m in findings["ambiguous"])
     assert "mismatches" not in findings
 
@@ -279,7 +279,7 @@ def test_compare_reports_ambiguous_when_basename_pinned_at_multiple_versions(vrt
 @pytest.mark.parametrize("component", ["", "UNKNOWN"])
 def test_compare_lists_unresolved_rows_separately(vrt, component):
     rows = [csv_row("Solr", component)]
-    findings, unresolved = vrt.compare(rows, [], {}, [])
+    findings, unresolved = vrt.compare(rows, vrt.ChartState(None, [], {}, []))
     assert findings == {}
     assert unresolved == rows
 
@@ -296,14 +296,14 @@ def test_compare_checks_multiple_row_against_global_images(vrt):
     values.yaml's global.images map) is checked against the "global"
     scope, not skipped as unresolved."""
     rows = [csv_row("Curl", "MULTIPLE", alias="MULTIPLE", image_basename="curl", target_app="8.23.0")]
-    findings, unresolved = vrt.compare(rows, [], {}, values_lines(GLOBAL_CURL_BLOCK))
+    findings, unresolved = vrt.compare(rows, vrt.ChartState(None, [], {}, values_lines(GLOBAL_CURL_BLOCK)))
     assert any("target 8.23.0 != values.yaml 8.22.0" in m for m in findings["mismatches"])
     assert unresolved == []
 
 
 def test_compare_multiple_row_matching_global_image_passes(vrt):
     rows = [csv_row("Curl", "MULTIPLE", alias="MULTIPLE", image_basename="curl", target_app="8.22.0")]
-    findings, unresolved = vrt.compare(rows, [], {}, values_lines(GLOBAL_CURL_BLOCK))
+    findings, unresolved = vrt.compare(rows, vrt.ChartState(None, [], {}, values_lines(GLOBAL_CURL_BLOCK)))
     assert findings == {}
     assert unresolved == []
 
@@ -313,13 +313,13 @@ def test_compare_multiple_row_with_no_image_basename_is_silently_skipped(vrt):
     resolve an image_basename for (an ambiguous plain dependency-name
     collision, not a global image) has nothing to check — not an error."""
     rows = [csv_row("Something Ambiguous", "MULTIPLE", alias="MULTIPLE", image_basename="")]
-    findings, unresolved = vrt.compare(rows, [], {}, [])
+    findings, unresolved = vrt.compare(rows, vrt.ChartState(None, [], {}, []))
     assert findings == {}
     assert unresolved == []
 
 
 def test_compare_reports_global_image_with_no_release_table_row(vrt):
-    findings, _ = vrt.compare([], [], {}, values_lines(GLOBAL_CURL_BLOCK))
+    findings, _ = vrt.compare([], vrt.ChartState(None, [], {}, values_lines(GLOBAL_CURL_BLOCK)))
     assert any(
         "'global' image 'curl' is pinned in values.yaml but not tracked" in m
         for m in findings["missing_from_release_table"]
@@ -332,7 +332,7 @@ def test_compare_missing_multiple_image_hint_has_no_used_by_and_guesses_technisc
     resolve_image_basenames). With zero existing "MULTIPLE" rows to read
     a section from at all, "Technische" is still a safe guess (every
     global.images entry is, by convention, exported there)."""
-    findings, _ = vrt.compare([], [], {}, values_lines(GLOBAL_CURL_BLOCK))
+    findings, _ = vrt.compare([], vrt.ChartState(None, [], {}, values_lines(GLOBAL_CURL_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "'global' image 'curl'" in m)
     assert '\n      Confluence: add row to "Technische component versies"' in hint
     assert 'Name containing "curl"' in hint
@@ -365,7 +365,7 @@ def test_compare_multi_image_component_checks_every_basename(vrt):
             target_helm="0.0.92",
         )
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(block))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(block)))
     assert len(findings["mismatches"]) == 2
     assert any("zgw-office-addin-frontend" in m for m in findings["mismatches"])
     assert any("zgw-office-addin-backend" in m for m in findings["mismatches"])
