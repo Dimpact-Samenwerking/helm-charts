@@ -120,7 +120,6 @@ from lib.fix_doc_consistency.baseline_and_images_manifest_handling import (
     update_sibling_doc_refs,
 )
 from lib.fix_doc_consistency.component_version_table import (
-    ResolutionContext,
     fix_changes_heading_app_versions,
     fix_component_version_table,
     fix_values_delta_heading_app_versions,
@@ -172,6 +171,7 @@ from lib.upgradedoc.images_manifest_ordering import (
     images_manifest_entry_positions,
     sort_images_manifest_entries,
 )
+from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.sorting_and_ordering import sort_changes_blocks, sort_upgrade_doc_rows, sort_values_delta_sections
 
 # canonical_version_cell below is test-only, see cdb.canonical_version_cell

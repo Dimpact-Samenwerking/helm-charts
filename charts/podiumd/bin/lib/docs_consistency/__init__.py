@@ -36,6 +36,7 @@ from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
+from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.sorting_and_ordering import find_out_of_order_names
@@ -249,6 +250,12 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
 
         canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
         matched_sidecar_paths = set()
+        resolution = ResolutionContext(
+            chart_dir,
+            ComponentState(deps, values),
+            ComponentState(baseline_deps if baseline_ref else None, baseline_values),
+            upgrade_docs_baseline if baseline_ref else None,
+        )
 
         rows = list(parse_upgrade_doc_rows(doc_path))
 
@@ -274,16 +281,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             # row-rewriter (fix_component_version_table) — see its docstring
             # for why (a checker/fixer that resolve a row two different ways
             # can silently drift apart on what "correct" even means).
-            resolved = resolve_component_row(
-                row["name"],
-                chart_dir,
-                canonical_names,
-                deps,
-                values,
-                baseline_deps=baseline_deps if baseline_ref else None,
-                baseline_values=baseline_values,
-                upgrade_docs_baseline=upgrade_docs_baseline if baseline_ref else None,
-            )
+            resolved = resolve_component_row(row["name"], canonical_names, resolution)
             if resolved["kind"] == "unmatched":
                 mismatches.append(
                     f'{doc_path.name}: doc row "{row["name"]}" does not match a Chart.yaml '
