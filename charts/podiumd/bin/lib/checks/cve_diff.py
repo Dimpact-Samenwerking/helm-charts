@@ -101,7 +101,9 @@ import urllib.error
 
 from collections import Counter
 
+from lib.checks.cve import CacheSession
 from lib.checks.cve import SEVERITY_ORDER
+from lib.checks.cve import ScanTarget
 from lib.checks.cve import bucket_of
 from lib.checks.cve import classify_by_key
 from lib.checks.cve import dependency_names
@@ -220,11 +222,8 @@ def _scan_current(chart_dir, candidate, old_cache, new_cache, ttl_days):
     check_cve_diff and threaded straight through."""
     vulns, _ = scan_cached(
         chart_dir,
-        candidate["repository"],
-        candidate["current_digest"],
-        candidate["current_ref"],
-        old_cache,
-        new_cache,
+        ScanTarget(candidate["repository"], candidate["current_digest"], candidate["current_ref"]),
+        CacheSession(old_cache, new_cache),
         ttl_days,
         label="current",
     )
@@ -254,11 +253,8 @@ def _scan_proposed(chart_dir, candidate, old_cache, new_cache, ttl_days):
 
     vulns, _ = scan_cached(
         chart_dir,
-        candidate["repository"],
-        digest,
-        candidate["proposed_ref"],
-        old_cache,
-        new_cache,
+        ScanTarget(candidate["repository"], digest, candidate["proposed_ref"]),
+        CacheSession(old_cache, new_cache),
         ttl_days,
         label="proposed",
     )

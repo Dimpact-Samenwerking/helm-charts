@@ -195,7 +195,11 @@ def test_scan_cached_reports_a_hit_and_never_calls_run_trivy(libcvecheck, tmp_pa
     monkeypatch.setattr(libcvecheck, "run_trivy", fail_if_called)
 
     vulns, was_cached = libcvecheck.scan_cached(
-        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, new_cache, CVE_CACHE_TTL_DAYS, label="current"
+        tmp_path,
+        libcvecheck.ScanTarget("org/repo", DIGEST_A, "org/repo:1.0.0"),
+        libcvecheck.CacheSession(old_cache, new_cache),
+        CVE_CACHE_TTL_DAYS,
+        label="current",
     )
 
     assert was_cached is True
@@ -212,7 +216,11 @@ def test_scan_cached_reports_a_fresh_scan_and_writes_the_cache(libcvecheck, tmp_
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: fresh_vulns)
 
     vulns, was_cached = libcvecheck.scan_cached(
-        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, new_cache, CVE_CACHE_TTL_DAYS, label="proposed"
+        tmp_path,
+        libcvecheck.ScanTarget("org/repo", DIGEST_A, "org/repo:1.0.0"),
+        libcvecheck.CacheSession(old_cache, new_cache),
+        CVE_CACHE_TTL_DAYS,
+        label="proposed",
     )
 
     assert was_cached is False
@@ -232,7 +240,10 @@ def test_scan_cached_stale_entry_is_not_used(libcvecheck, tmp_path, monkeypatch)
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: fresh_vulns)
 
     vulns, was_cached = libcvecheck.scan_cached(
-        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", old_cache, {}, CVE_CACHE_TTL_DAYS
+        tmp_path,
+        libcvecheck.ScanTarget("org/repo", DIGEST_A, "org/repo:1.0.0"),
+        libcvecheck.CacheSession(old_cache, {}),
+        CVE_CACHE_TTL_DAYS,
     )
 
     assert was_cached is False
@@ -249,7 +260,10 @@ def test_scan_cached_none_digest_skips_the_cache_entirely(libcvecheck, tmp_path,
     new_cache = {}
 
     vulns, was_cached = libcvecheck.scan_cached(
-        tmp_path, "org/repo", None, "org/repo:1.0.0", {}, new_cache, CVE_CACHE_TTL_DAYS
+        tmp_path,
+        libcvecheck.ScanTarget("org/repo", None, "org/repo:1.0.0"),
+        libcvecheck.CacheSession({}, new_cache),
+        CVE_CACHE_TTL_DAYS,
     )
 
     assert was_cached is False
@@ -263,7 +277,10 @@ def test_scan_cached_failed_scan_returns_none_and_is_never_cached(libcvecheck, t
     new_cache = {}
 
     vulns, was_cached = libcvecheck.scan_cached(
-        tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", {}, new_cache, CVE_CACHE_TTL_DAYS
+        tmp_path,
+        libcvecheck.ScanTarget("org/repo", DIGEST_A, "org/repo:1.0.0"),
+        libcvecheck.CacheSession({}, new_cache),
+        CVE_CACHE_TTL_DAYS,
     )
 
     assert vulns is None
@@ -273,7 +290,12 @@ def test_scan_cached_failed_scan_returns_none_and_is_never_cached(libcvecheck, t
 
 def test_scan_cached_default_label_is_this_image(libcvecheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(libcvecheck, "run_trivy", lambda ref: [])
-    libcvecheck.scan_cached(tmp_path, "org/repo", DIGEST_A, "org/repo:1.0.0", {}, {}, CVE_CACHE_TTL_DAYS)
+    libcvecheck.scan_cached(
+        tmp_path,
+        libcvecheck.ScanTarget("org/repo", DIGEST_A, "org/repo:1.0.0"),
+        libcvecheck.CacheSession({}, {}),
+        CVE_CACHE_TTL_DAYS,
+    )
     out = capsys.readouterr().out
     assert "this image: scanning fresh" in out
 
@@ -675,9 +697,7 @@ def test_print_bucket_report_image_line_then_totals_then_packages(libcvecheck, m
         "Own images",
         ["docker.io/pravega/zookeeper:0.2.15"],
         images,
-        detail_level="full",
-        high_severities=HIGH_SEVERITIES,
-        package_cve_list_threshold=PACKAGE_CVE_LIST_THRESHOLD,
+        libcvecheck.ReportSettings("full", HIGH_SEVERITIES, PACKAGE_CVE_LIST_THRESHOLD),
     )
 
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
@@ -708,9 +728,7 @@ def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(libcv
         "Partner-vendor images",
         ["docker.io/maykinmedia/objects-api:1.0.0"],
         images,
-        detail_level="totals",
-        high_severities=HIGH_SEVERITIES,
-        package_cve_list_threshold=PACKAGE_CVE_LIST_THRESHOLD,
+        libcvecheck.ReportSettings("totals", HIGH_SEVERITIES, PACKAGE_CVE_LIST_THRESHOLD),
     )
 
     out = capsys.readouterr().out
