@@ -127,7 +127,7 @@ def test_compare_reports_chart_version_mismatch(vrt):
             target_helm="1.0.298",
         )
     ]
-    findings, unresolved = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, unresolved = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     assert any("target 1.0.298 != Chart.yaml 1.0.297" in m for m in findings["mismatches"])
     assert unresolved == []
 
@@ -144,7 +144,7 @@ def test_compare_reports_image_version_mismatch(vrt):
             target_helm="1.0.297",
         )
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     assert any("target 5.4.4 != values.yaml 5.4.3" in m for m in findings["mismatches"])
 
 
@@ -160,7 +160,7 @@ def test_compare_no_findings_when_everything_matches(vrt):
             target_helm="1.0.297",
         )
     ]
-    findings, unresolved = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, unresolved = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     assert findings == {}
     assert unresolved == []
 
@@ -183,12 +183,8 @@ def test_compare_reports_chart_version_source_mismatch(vrt):
     ]
     findings, unresolved = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(ZAC_BLOCK),
-        baseline_deps=baseline_deps,
-        baseline_values={},
-        baseline_lines=values_lines(ZAC_BASELINE_BLOCK),
+        vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, values_lines(ZAC_BASELINE_BLOCK)),
     )
     assert any(
         "[CHART-SOURCE]" in m and "source 1.0.250 != baseline Chart.yaml 1.0.251" in m for m in findings["mismatches"]
@@ -210,12 +206,8 @@ def test_compare_reports_image_version_source_mismatch(vrt):
     ]
     findings, _ = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(ZAC_BLOCK),
-        baseline_deps=baseline_deps,
-        baseline_values={},
-        baseline_lines=values_lines(ZAC_BASELINE_BLOCK),
+        vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, values_lines(ZAC_BASELINE_BLOCK)),
     )
     assert any(
         "[IMAGE-SOURCE]" in m and "source 5.0.1 != baseline values.yaml 5.0.2" in m for m in findings["mismatches"]
@@ -241,12 +233,8 @@ def test_compare_reports_image_version_source_mismatch_bare_baseline_tag(vrt):
     )
     findings, _ = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(zaakbrug_current),
-        baseline_deps=baseline_deps,
-        baseline_values={},
-        baseline_lines=values_lines(zaakbrug_baseline_bare_tag),
+        vrt.ChartState(None, deps, {}, values_lines(zaakbrug_current)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, values_lines(zaakbrug_baseline_bare_tag)),
     )
     assert any(
         "[IMAGE-SOURCE]" in m and "source 1.26.13 != baseline values.yaml 1.26.15" in m for m in findings["mismatches"]
@@ -271,7 +259,7 @@ def test_compare_source_checks_skipped_when_baseline_not_given(vrt):
             target_helm="1.0.297",
         )
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     assert not any("SOURCE" in m for m in findings.get("mismatches", []))
 
 
@@ -295,7 +283,9 @@ def test_compare_new_dependency_at_baseline_with_blank_source_not_flagged(vrt):
     ]
     mi_block = f'mi:\n  image:\n    repository: mcr.microsoft.com/azure-cli\n    tag: "2.90.0@sha256:{DIGEST}"\n'
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(mi_block), baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[]
+        rows,
+        vrt.ChartState(None, deps, {}, values_lines(mi_block)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, []),
     )
     assert not any("SOURCE" in m for m in findings.get("mismatches", []))
 
@@ -322,7 +312,9 @@ def test_compare_new_dependency_at_baseline_with_real_source_is_flagged(vrt):
     ]
     mi_block = f'mi:\n  image:\n    repository: mcr.microsoft.com/azure-cli\n    tag: "2.90.0@sha256:{DIGEST}"\n'
     findings, _ = vrt.compare(
-        rows, deps, {}, values_lines(mi_block), baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[]
+        rows,
+        vrt.ChartState(None, deps, {}, values_lines(mi_block)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, []),
     )
     assert any(
         "[CHART-SOURCE]" in m and "didn't exist at the release_table baseline yet" in m for m in findings["mismatches"]
@@ -402,7 +394,7 @@ def test_compare_reports_chart_version_never_tracked(vrt):
             "section": "Technische",
         },
     ]
-    findings, _ = vrt.compare(rows, deps, openbao_values(), values_lines(OPENBAO_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, openbao_values(), values_lines(OPENBAO_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "'openbao' has release-table" in m)
     assert (
         "[CHART] Chart.yaml dependency 'openbao' has release-table.csv row(s), but none records "
@@ -422,7 +414,7 @@ def test_compare_chart_version_never_tracked_omits_app_version_when_unknown(vrt)
     that part out rather than printing a blank or misleading value."""
     deps = [{"name": "openbao", "alias": "", "version": "0.28.4"}]
     rows = [{**csv_row("OpenBao", "openbao", image_basename="openbao"), "section": "Technische"}]
-    findings, _ = vrt.compare(rows, deps, openbao_values(), values_lines(OPENBAO_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, openbao_values(), values_lines(OPENBAO_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "'openbao' has release-table" in m)
     assert 'Name "OpenBao", Helm version 0.28.4' in hint
     assert "App version" not in hint
@@ -444,7 +436,7 @@ def test_compare_chart_version_never_tracked_names_primary_row_on_other_table(vr
             target_app="5.4.3",
         )
     ]  # target_helm/source_helm both left blank
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
     assert (
         'Confluence: fill in the Helm version cell on "Zaak - ZAC" ("Product component versies") with 1.0.297'
@@ -462,7 +454,7 @@ def test_compare_chart_version_never_tracked_no_primary_row_yet(vrt):
             "section": "Technische",
         }
     ]
-    findings, _ = vrt.compare(rows, deps, openbao_values(), values_lines(OPENBAO_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, openbao_values(), values_lines(OPENBAO_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "'openbao' has release-table" in m)
     assert "none of the existing row(s) is this chart's own primary-image row yet" in hint
 
@@ -482,7 +474,7 @@ def test_compare_chart_version_never_tracked_resolves_primary_via_vendored_subch
     openzaak_block = f'openzaak:\n  image:\n    tag: "3.28.0@sha256:{DIGEST}"\n'
     deps = [{"name": "openzaak", "alias": "", "version": "4.9.1"}]
     rows = [csv_row("Open Zaak", "openzaak", image_basename="open-zaak", target_app="3.28.0")]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(openzaak_block), tmp_path)
+    findings, _ = vrt.compare(rows, vrt.ChartState(tmp_path, deps, {}, values_lines(openzaak_block)))
     hint = next(m for m in findings["missing_from_release_table"] if "'openzaak' has release-table" in m)
     assert 'Confluence: fill in the Helm version cell on "Open Zaak" ("Product component versies")' in hint
 
@@ -509,7 +501,7 @@ def test_compare_skips_blank_or_unknown_targets(vrt, target_app, target_helm):
             target_helm=target_helm,
         )
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     assert findings == {}
 
 
@@ -533,7 +525,7 @@ def test_compare_blank_source_and_target_app_version_never_recorded_is_reported(
             source_helm="1.0.297",
         )
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     assert any("has never recorded an app version" in m for m in findings["missing_from_release_table"])
     assert "mismatches" not in findings
 
@@ -556,7 +548,7 @@ def test_compare_blank_target_but_source_now_stale_is_reported(vrt):
             source_helm="1.0.297",
         )
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     assert any(
         "target_version_app was never filled in" in m and "5.4.2" in m and "5.4.3" in m for m in findings["mismatches"]
     )
@@ -579,7 +571,7 @@ def test_compare_blank_target_helm_but_source_now_stale_is_reported(vrt):
             source_helm="1.0.296",
         )
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     assert any(
         "target_version_helm was never filled in" in m and "1.0.296" in m and "1.0.297" in m
         for m in findings["mismatches"]

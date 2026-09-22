@@ -221,24 +221,16 @@ def test_compare_baseline_only_skips_target_side_checks(vrt):
 
     findings, _ = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(ZAC_BLOCK),
-        baseline_deps=baseline_deps,
-        baseline_values={},
-        baseline_lines=values_lines(ZAC_BASELINE_BLOCK),
+        vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, values_lines(ZAC_BASELINE_BLOCK)),
         baseline_only=True,
     )
     assert findings == {}
 
     findings_normal, _ = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(ZAC_BLOCK),
-        baseline_deps=baseline_deps,
-        baseline_values={},
-        baseline_lines=values_lines(ZAC_BASELINE_BLOCK),
+        vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, values_lines(ZAC_BASELINE_BLOCK)),
     )
     assert any("[IMAGE]" in m and "target 9.9.9" in m for m in findings_normal["mismatches"])
     assert any("[CHART]" in m and "target 1.0.297 != Chart.yaml 1.0.298" in m for m in findings_normal["mismatches"])
@@ -251,7 +243,7 @@ def test_compare_chart_version_source_blank_but_justified_no_finding(vrt):
     deps = [{"name": "newthing", "alias": "", "version": "1.0.0"}]
     rows = [csv_row("New Thing", "newthing", target_helm="1.0.0")]  # source_helm blank
     findings, _ = vrt.compare(
-        rows, deps, {}, [], baseline_deps=[], baseline_values={}, baseline_lines=[], baseline_only=True
+        rows, vrt.ChartState(None, deps, {}, []), baseline=vrt.ChartState(None, [], {}, []), baseline_only=True
     )
     assert findings == {}
 
@@ -264,7 +256,10 @@ def test_compare_chart_version_source_blank_but_unjustified_reports_presence_fin
     baseline_deps = [{"name": "existingthing", "alias": "", "version": "1.0.0"}]
     rows = [csv_row("Existing Thing", "existingthing", target_helm="1.1.0")]  # source_helm blank
     findings, _ = vrt.compare(
-        rows, deps, {}, [], baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[], baseline_only=True
+        rows,
+        vrt.ChartState(None, deps, {}, []),
+        baseline=vrt.ChartState(None, baseline_deps, {}, []),
+        baseline_only=True,
     )
     assert any(
         "[CHART-SOURCE-PRESENCE]" in m and "already existed at the release_table baseline (version 1.0.0)" in m
@@ -298,12 +293,8 @@ def test_compare_chart_version_source_presence_finding_fires_once_per_dependency
     ]
     findings, _ = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(ZAC_BLOCK),
-        baseline_deps=baseline_deps,
-        baseline_values={},
-        baseline_lines=[],
+        vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, []),
         baseline_only=True,
     )
     presence_findings = [m for m in findings["mismatches"] if "[CHART-SOURCE-PRESENCE]" in m]
@@ -319,7 +310,9 @@ def test_compare_chart_version_source_blank_unjustified_case_silent_by_default(v
     deps = [{"name": "existingthing", "alias": "", "version": "1.1.0"}]
     baseline_deps = [{"name": "existingthing", "alias": "", "version": "1.0.0"}]
     rows = [csv_row("Existing Thing", "existingthing", target_helm="1.1.0")]  # source_helm blank
-    findings, _ = vrt.compare(rows, deps, {}, [], baseline_deps=baseline_deps, baseline_values={}, baseline_lines=[])
+    findings, _ = vrt.compare(
+        rows, vrt.ChartState(None, deps, {}, []), baseline=vrt.ChartState(None, baseline_deps, {}, [])
+    )
     assert findings == {}
 
 
@@ -341,12 +334,8 @@ def test_compare_image_source_blank_but_justified_no_finding(vrt):
     ]  # source_app AND source_helm both blank
     findings, _ = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(ZAC_BLOCK),
-        baseline_deps=[],
-        baseline_values={},
-        baseline_lines=[],
+        vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)),
+        baseline=vrt.ChartState(None, [], {}, []),
         baseline_only=True,
     )
     assert findings == {}
@@ -370,12 +359,8 @@ def test_compare_image_source_blank_but_unjustified_reports_presence_finding_sco
     ]  # source_app blank
     findings, _ = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(ZAC_BLOCK),
-        baseline_deps=baseline_deps,
-        baseline_values={},
-        baseline_lines=values_lines(ZAC_BASELINE_BLOCK),
+        vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, values_lines(ZAC_BASELINE_BLOCK)),
         baseline_only=True,
     )
     assert any(
@@ -405,12 +390,8 @@ def test_compare_image_source_blank_unjustified_case_silent_by_default(vrt):
     ]  # source_app blank
     findings, _ = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(ZAC_BLOCK),
-        baseline_deps=baseline_deps,
-        baseline_values={},
-        baseline_lines=values_lines(ZAC_BASELINE_BLOCK),
+        vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, values_lines(ZAC_BASELINE_BLOCK)),
     )
     assert findings == {}
 
@@ -422,8 +403,7 @@ def test_compare_image_source_blank_but_unjustified_reports_presence_finding_sub
     fallback tier -- must still be caught, not just the plain scoped
     tier."""
     monkeypatch.setattr(
-        vrt,
-        "primary_image_repositories",
+        "lib.release_table_verification.primary_image_repositories",
         lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"}, None),
     )
     dep = {"name": "clamav", "version": "3.9.0"}
@@ -435,13 +415,10 @@ def test_compare_image_source_blank_but_unjustified_reports_presence_finding_sub
     ]  # source_app blank
     findings, _ = vrt.compare(
         rows,
-        [dep],
-        {},
-        values_lines(CLAMAV_CURRENT_BLOCK),
-        chart_dir=Path("/fake/chart/dir"),
-        baseline_deps=[baseline_dep],
-        baseline_values=CLAMAV_BASELINE_VALUES,
-        baseline_lines=values_lines(CLAMAV_BASELINE_BLOCK),
+        vrt.ChartState(Path("/fake/chart/dir"), [dep], {}, values_lines(CLAMAV_CURRENT_BLOCK)),
+        baseline=vrt.ChartState(
+            Path("/fake/chart/dir"), [baseline_dep], CLAMAV_BASELINE_VALUES, values_lines(CLAMAV_BASELINE_BLOCK)
+        ),
         baseline_only=True,
     )
     assert any(
@@ -478,12 +455,8 @@ def test_compare_baseline_only_image_source_ambiguous_stays_ambiguous_not_a_pres
     ]  # source_app blank
     findings, _ = vrt.compare(
         rows,
-        deps,
-        {},
-        values_lines(ZAC_BLOCK),
-        baseline_deps=baseline_deps,
-        baseline_values={},
-        baseline_lines=values_lines(two_versions_block),
+        vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)),
+        baseline=vrt.ChartState(None, baseline_deps, {}, values_lines(two_versions_block)),
         baseline_only=True,
     )
     assert findings.get("mismatches", []) == []
