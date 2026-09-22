@@ -780,7 +780,11 @@ def test_find_values_delta_section_no_match_returns_none(libcomponentdocsdeltas)
 def test_insert_values_delta_section_positions_by_values_yaml_order(libcomponentdocsdeltas):
     text = "# Values deltas\n\n## openformulieren 3.4.10 → 3.5.6\n\n- Key `a` was added.\n"
     new_text = libcomponentdocsdeltas.insert_values_delta_section(
-        text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS, {"zac": {}, "openformulieren": {}}
+        text,
+        "zac",
+        "## zac 5.0.2 → 5.4.3\n",
+        ["- Key `zac.a` was added.\n"],
+        libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}, "openformulieren": {}}),
     )
     assert new_text.index("## zac") < new_text.index("## openformulieren")
 
@@ -796,7 +800,11 @@ def test_insert_values_delta_section_strips_bare_todo_stub_on_first_insertion(li
         "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
     )
     new_text = libcomponentdocsdeltas.insert_values_delta_section(
-        text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS, {"zac": {}}
+        text,
+        "zac",
+        "## zac 5.0.2 → 5.4.3\n",
+        ["- Key `zac.a` was added.\n"],
+        libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}}),
     )
     assert "TODO" not in new_text
     assert new_text == (
@@ -810,7 +818,11 @@ def test_insert_values_delta_section_second_insertion_unaffected(libcomponentdoc
     section's own equivalent guarantee."""
     text = "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\n## openformulieren 3.4.10 → 3.5.6\n\n- Key `a` was added.\n"
     new_text = libcomponentdocsdeltas.insert_values_delta_section(
-        text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS, {"zac": {}, "openformulieren": {}}
+        text,
+        "zac",
+        "## zac 5.0.2 → 5.4.3\n",
+        ["- Key `zac.a` was added.\n"],
+        libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}, "openformulieren": {}}),
     )
     assert "## openformulieren" in new_text
     assert "## zac" in new_text
@@ -820,7 +832,11 @@ def test_insert_values_delta_section_second_insertion_unaffected(libcomponentdoc
 def test_insert_values_delta_section_never_strips_real_prose_mentioning_todo(libcomponentdocsdeltas):
     text = "# Values deltas — PodiumD 4.9.1 → 4.9.2\n\nTODO: check with gemeente X about their override Y.\n"
     new_text = libcomponentdocsdeltas.insert_values_delta_section(
-        text, "zac", "## zac 5.0.2 → 5.4.3\n", ["- Key `zac.a` was added.\n"], DEPS, {"zac": {}}
+        text,
+        "zac",
+        "## zac 5.0.2 → 5.4.3\n",
+        ["- Key `zac.a` was added.\n"],
+        libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, {"zac": {}}),
     )
     assert "TODO: check with gemeente X about their override Y." in new_text
 
@@ -959,7 +975,11 @@ def test_sync_values_delta_sections_skips_key_with_no_schema_change(libcomponent
     text = "# Values deltas\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
     values = {"zac": {"image": {}}}
     new_text, created, updated = libcomponentdocsdeltas.sync_values_delta_sections(
-        text, tmp_path, DEPS, values, DEPS, values, {"zac"}
+        text,
+        tmp_path,
+        libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, values),
+        libcomponentdocsdeltas.ValuesDeltaBaseline(DEPS, values),
+        {"zac"},
     )
     assert created == []
     assert updated == []
@@ -971,7 +991,11 @@ def test_sync_values_delta_sections_creates_section_only_when_key_lines_exist(li
     baseline_values = {"zac": {"image": {}}}
     target_values = {"zac": {"image": {}, "newFeature": True}}
     new_text, created, updated = libcomponentdocsdeltas.sync_values_delta_sections(
-        text, tmp_path, DEPS, target_values, DEPS, baseline_values, {"zac"}
+        text,
+        tmp_path,
+        libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, target_values),
+        libcomponentdocsdeltas.ValuesDeltaBaseline(DEPS, baseline_values),
+        {"zac"},
     )
     assert created == ["zac"]
     assert "## zac" in new_text

@@ -98,6 +98,7 @@ from lib.component_docs.images_manifest_entries import ImagePathUpdate
 from lib.component_docs.images_manifest_entries import ManifestUpdateTarget
 from lib.component_docs.images_manifest_entries import remove_component_from_images_manifest
 from lib.component_docs.images_manifest_entries import update_images_manifest
+from lib.component_docs.values_delta_sections import ValuesDeltaOrdering
 from lib.component_docs.values_delta_sections import insert_values_delta_section
 from lib.component_docs.values_delta_sections import remove_values_delta_section
 from lib.component_docs.values_delta_sections import values_delta_section_heading
@@ -824,7 +825,9 @@ def main():
             if key_lines:
                 no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
                 heading_line = values_delta_section_heading(friendly, old_app, app_version, old_chart, new_chart)
-                text = insert_values_delta_section(text, friendly, heading_line, key_lines, deps, values)
+                text = insert_values_delta_section(
+                    text, friendly, heading_line, key_lines, ValuesDeltaOrdering(deps, values)
+                )
                 values_deltas_path.write_text(text, encoding="utf-8")
                 print()
                 print(f"=== Updating {values_deltas_path.name} ===")

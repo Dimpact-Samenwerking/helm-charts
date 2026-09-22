@@ -17,6 +17,7 @@ the former flat lib/component_docs.py, now the lib.component_docs
 package."""
 
 import re
+from dataclasses import dataclass
 
 from lib.chart.registered_paths import native_components
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
@@ -130,7 +131,33 @@ def _is_bare_values_deltas_todo_stub(lines):
     )
 
 
-def insert_values_delta_section(text, friendly, heading_line, body_lines, deps, values, canonical_names=None):
+@dataclass
+class ValuesDeltaOrdering:
+    """deps/values/canonical_names — the component-identity and
+    values.yaml-order context insert_values_delta_section and sync_
+    values_delta_sections both need together (component_order_key/
+    insertion_index read all three at once). Bundled so sync_values_
+    delta_sections' own call into insert_values_delta_section reuses the
+    exact same instance rather than re-assembling it from separate
+    target_deps/target_values/canonical_names locals."""
+
+    deps: list
+    values: dict
+    canonical_names: dict = None
+
+
+@dataclass
+class ValuesDeltaBaseline:
+    """deps/values as they stood at upgrade_docs_baseline — bundled since
+    sync_values_delta_sections only ever reads them together, to resolve
+    a NEW section's own old_app/old_chart (a key already covered by an
+    existing section never needs the baseline at all)."""
+
+    deps: list
+    values: dict
+
+
+def insert_values_delta_section(text, friendly, heading_line, body_lines, ordering):
     """Insert a brand-new "## <heading_line>" section (heading_line
     already includes its own trailing newline) + body_lines as its
     content, in values.yaml's own top-level component order relative to
@@ -141,7 +168,10 @@ def insert_values_delta_section(text, friendly, heading_line, body_lines, deps, 
     including stripping the doc's own bare TODO placeholder (see
     _is_bare_values_deltas_todo_stub) before the very first real section
     lands, rather than leaving it stranded above it — the same class of
-    bug insert_changes_section had (see that function's own docstring)."""
+    bug insert_changes_section had (see that function's own docstring).
+    `ordering` is this component's own ValuesDeltaOrdering (deps/values/
+    canonical_names), needed only to place a section relative to ones
+    already there — never read at all when this is the doc's first."""
     body = "".join(body_lines)
     section_text = heading_line + "\n" + body + ("\n" if body else "")
     sections = parse_values_delta_sections(text)
@@ -154,9 +184,12 @@ def insert_values_delta_section(text, friendly, heading_line, body_lines, deps, 
             text = text.rstrip("\n") + "\n\n"
         return text + section_text
 
-    key_order = values_key_order(values)
-    new_key = component_order_key(friendly, deps, key_order, canonical_names, values)
-    existing_keys = [component_order_key(s["heading"], deps, key_order, canonical_names, values) for s in sections]
+    key_order = values_key_order(ordering.values)
+    new_key = component_order_key(friendly, ordering.deps, key_order, ordering.canonical_names, ordering.values)
+    existing_keys = [
+        component_order_key(s["heading"], ordering.deps, key_order, ordering.canonical_names, ordering.values)
+        for s in sections
+    ]
     idx = insertion_index(new_key, existing_keys)
     insert_at = sections[idx]["start"] if idx < len(sections) else len(lines)
     if insert_at > 0 and lines[insert_at - 1].strip():
@@ -274,16 +307,32 @@ def remove_values_delta_section(text, friendly, deps, canonical_names=None):
     return text, False
 
 
-def sync_values_delta_sections(
-    text,
-    chart_dir,
-    target_deps,
-    target_values,
-    baseline_deps,
-    baseline_values,
-    actual_changed_keys,
-    canonical_names=None,
-):
+def _values_delta_new_section_heading(chart_dir, key, ordering, baseline):
+    """The "## ..." heading line for a brand-new values-deltas.md section
+    for `key` (see sync_values_delta_sections), or None when `key` has no
+    matching Chart.yaml dependency AND no lib.chart.native_components
+    entry — nothing here can be generated confidently without a real
+    Chart.yaml version to read, or the chart-less convention to fall
+    back to (same skip add_missing_component_rows already applies)."""
+    dep = dep_for_values_key(ordering.deps, key)
+    if dep is not None:
+        chart_name = dep["name"]
+        baseline_dep = dep_for_values_key(baseline.deps, key) if baseline.deps else None
+        old_chart = str(baseline_dep["version"]) if baseline_dep else None
+        new_chart = str(dep["version"])
+    elif key in native_components(chart_dir):
+        chart_name = key
+        old_chart = None
+        new_chart = "-"
+    else:
+        return None
+
+    old_app = actual_app_version(baseline.values, key, chart_name) if baseline.values else None
+    new_app = actual_app_version(ordering.values, key, chart_name, chart_dir=chart_dir, dep=dep)
+    return values_delta_section_heading(key, old_app, new_app, old_chart, new_chart)
+
+
+def sync_values_delta_sections(text, chart_dir, ordering, baseline, actual_changed_keys):
     """Ensure every key in `actual_changed_keys` has its own values-
     deltas.md section (see find_values_delta_section/insert_values_
     delta_section) carrying every describe_key_changes line not already
@@ -296,26 +345,28 @@ def sync_values_delta_sections(
     there. Existing content is only ever ADDED to, never reordered or
     rewritten — see sort_values_delta_sections for reordering.
 
+    `ordering` is this key's own target-side ValuesDeltaOrdering (deps/
+    values/canonical_names); `baseline` is its ValuesDeltaBaseline (deps/
+    values as they stood at upgrade_docs_baseline).
+
     A key with no matching Chart.yaml dependency AND no lib.chart.
     native_components entry either is skipped when it needs a brand-new
-    section — nothing here can be generated confidently without a real
-    Chart.yaml version to read, or the chart-less convention to fall
-    back to (same skip add_missing_component_rows already applies). A
-    key with NO key_lines of its own (a pure app/chart version bump,
-    already fully covered by -upgrade.md's own table + Changes section)
-    never gets a brand-new section either — values-deltas.md exists to
-    tell gemeentes what THEIR OWN podiumd.yml needs to react to, and a
-    version-only bump needs no gemeente action at all; a heading with
-    nothing under it is worse than no heading. An EXISTING section
-    (hand-written, or a previous run's own) is still left exactly as it
-    already was in that case — this only ever decides whether a NEW one
-    gets created, never touches one that's already there.
+    section (see _values_delta_new_section_heading). A key with NO
+    key_lines of its own (a pure app/chart version bump, already fully
+    covered by -upgrade.md's own table + Changes section) never gets a
+    brand-new section either — values-deltas.md exists to tell gemeentes
+    what THEIR OWN podiumd.yml needs to react to, and a version-only
+    bump needs no gemeente action at all; a heading with nothing under
+    it is worse than no heading. An EXISTING section (hand-written, or a
+    previous run's own) is still left exactly as it already was in that
+    case — this only ever decides whether a NEW one gets created, never
+    touches one that's already there.
     Returns (new_text, created_names, updated_names)."""
-    by_key = missing_key_change_lines_by_key(text, actual_changed_keys, baseline_values, target_values)
+    by_key = missing_key_change_lines_by_key(text, actual_changed_keys, baseline.values, ordering.values)
     created_names, updated_names = [], []
     for key in sorted(actual_changed_keys):
         key_lines = by_key.get(key, [])
-        section = find_values_delta_section(text, key, target_deps, canonical_names)
+        section = find_values_delta_section(text, key, ordering.deps, ordering.canonical_names)
         if section is not None:
             if key_lines:
                 text = append_values_delta_section_body(text, section, key_lines)
@@ -324,25 +375,10 @@ def sync_values_delta_sections(
         if not key_lines:
             continue
 
-        dep = dep_for_values_key(target_deps, key)
-        if dep is not None:
-            chart_name = dep["name"]
-            baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
-            old_chart = str(baseline_dep["version"]) if baseline_dep else None
-            new_chart = str(dep["version"])
-        elif key in native_components(chart_dir):
-            chart_name = key
-            old_chart = None
-            new_chart = "-"
-        else:
+        heading_line = _values_delta_new_section_heading(chart_dir, key, ordering, baseline)
+        if heading_line is None:
             continue
-
-        old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
-        new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
-        heading_line = values_delta_section_heading(key, old_app, new_app, old_chart, new_chart)
-        text = insert_values_delta_section(
-            text, key, heading_line, key_lines, target_deps, target_values, canonical_names
-        )
+        text = insert_values_delta_section(text, key, heading_line, key_lines, ordering)
         created_names.append(key)
 
     return text, created_names, updated_names
