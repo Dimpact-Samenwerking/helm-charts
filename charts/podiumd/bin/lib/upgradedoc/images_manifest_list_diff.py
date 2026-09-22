@@ -3,6 +3,9 @@ keys that actually changed since the baseline) and find_images_
 manifest_list_diff (the images-manifest.yaml "changes:" list this
 diff implies), both diffing against the true git baseline."""
 
+from dataclasses import dataclass
+from dataclasses import field
+
 from lib.chart.historical_baselines import historical_app_version_for_repository
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
@@ -82,19 +85,127 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
     return changed
 
 
-def find_images_manifest_list_diff(
-    entries,
-    current_paths,
-    baseline_paths,
-    repo_map,
-    repo_groups,
-    unresolvable_paths,
-    chart_dir=None,
-    deps=None,
-    upgrade_docs_baseline=None,
-    values=None,
-    baseline_values=None,
-):
+@dataclass
+class ManifestDiffContext:
+    """chart_dir/deps/upgrade_docs_baseline/values/baseline_values —
+    the optional extra context _digest_changed/_pin_changed need
+    beyond ManifestDiffInputs' own required core diff inputs (see its
+    docstring for why these are split into a nested object rather than
+    eleven flat fields). All optional, same as before splitting; every
+    real caller passes all five — see find_images_manifest_list_diff's
+    own docstring for what each one means."""
+
+    chart_dir: object = None
+    deps: object = None
+    upgrade_docs_baseline: object = None
+    values: object = None
+    baseline_values: object = None
+
+
+@dataclass
+class ManifestDiffInputs:
+    """entries/current_paths/baseline_paths/repo_map/repo_groups/
+    unresolvable_paths bundled with a ManifestDiffContext (the same
+    five optional values find_images_manifest_list_diff always took as
+    keyword args — see ManifestDiffContext's own docstring) since every
+    step of find_images_manifest_list_diff (representative/path_to_repo
+    setup, _digest_changed, _pin_changed, entry matching) needs a
+    different subset of these together. See find_images_manifest_list_
+    diff's own docstring for what each field means."""
+
+    entries: list
+    current_paths: dict
+    baseline_paths: dict
+    repo_map: dict
+    repo_groups: dict
+    unresolvable_paths: object
+    context: ManifestDiffContext = field(default_factory=ManifestDiffContext)
+
+
+def _digest_changed(inputs, sibling_fields, path, tag, baseline_tag):
+    # Only fires when BOTH sides have a resolvable digest of their own
+    # to compare (see find_images_manifest_list_diff's own docstring) —
+    # a bare tag with no stored digest on either side yields None here
+    # and is deliberately left alone, not treated as "changed".
+    if inputs.context.values is None or inputs.context.baseline_values is None:
+        return False
+    current_digest = resolved_digest_pin(inputs.context.values, path, tag, sibling_fields)
+    baseline_digest = resolved_digest_pin(inputs.context.baseline_values, path, baseline_tag, sibling_fields)
+    if not current_digest or not baseline_digest:
+        return False
+    return current_digest.split("@", 1)[1] != baseline_digest.split("@", 1)[1]
+
+
+def _pin_changed(inputs, path_to_repo, sibling_fields, path, tag):
+    baseline_tag = inputs.baseline_paths.get(path)
+    if baseline_tag is not None:
+        return version_of(tag) != version_of(baseline_tag) or _digest_changed(
+            inputs, sibling_fields, path, tag, baseline_tag
+        )
+    # No prior value for this path at all (a component that didn't
+    # exist in Chart.yaml/values.yaml until this release) — the git
+    # baseline genuinely has nothing to diff against. Before
+    # concluding "changed", check whether this repository already
+    # appears in any of this chart's own PAST images-<version>.yaml
+    # manifests (see find_images_manifest_list_diff's own docstring) —
+    # never a fallback to images-baseline.yaml, an unrelated concern.
+    repo = path_to_repo.get(path)
+    if repo is None:
+        return True
+    if inputs.context.deps is not None:
+        # See find_images_manifest_list_diff's own docstring:
+        # cross-check against `path`'s CURRENT fully-qualified
+        # repository, the same collision guard lib.chart.historical_
+        # app_version_for_path already applies — never fall back to
+        # the unsafe name-only match below just because THIS path's
+        # own repository can't be resolved.
+        expected_url = full_repository_for_path(
+            inputs.context.chart_dir, inputs.context.deps, inputs.context.values, path
+        )
+        if expected_url is None:
+            return True
+        historical_version = historical_app_version_for_repository(
+            inputs.context.chart_dir, repo, inputs.context.upgrade_docs_baseline, expected_url=expected_url
+        )
+    else:
+        historical_version = historical_app_version_for_repository(
+            inputs.context.chart_dir, repo, inputs.context.upgrade_docs_baseline
+        )
+    if historical_version is None:
+        return True
+    return version_of(tag) != version_of(historical_version)
+
+
+def _match_entries(inputs, representative_of, changed_paths):
+    """(matched_paths, stale_entry_names, unmatched_entry_names) — every
+    manifest entry resolved to its values-tree path (collapsed to its
+    shared-repository group's representative, same as changed_paths
+    already is — see find_images_manifest_list_diff's own docstring)
+    and classified against changed_paths."""
+    matched_paths = set()
+    stale_entry_names, unmatched_entry_names = [], []
+    for entry in inputs.entries:
+        path = resolve_entry_image_path(entry, inputs.current_paths.keys(), inputs.repo_map)
+        # An entry can resolve to ANY path in a shared-repository group —
+        # repo_map's own exact "name: is a stripped repository" hit
+        # always lands on repo_map's chosen representative already, but
+        # resolve_entry_path's fuzzy name-word fallback (e.g. manifest
+        # name "redis-ha" fuzzy-matching the literal path segment
+        # ("redis-operator", "redis-ha", "image")) can land on any OTHER
+        # member instead — collapsed the same way changed_paths already
+        # is, so the two sides can never disagree about which path
+        # "counts" for a shared image.
+        path = representative_of.get(path, path) if path is not None else None
+        if path is None:
+            unmatched_entry_names.append(entry["name"])
+            continue
+        matched_paths.add(path)
+        if path not in changed_paths:
+            stale_entry_names.append(entry["name"])
+    return matched_paths, stale_entry_names, unmatched_entry_names
+
+
+def find_images_manifest_list_diff(inputs):
     """(missing_paths, extra_entry_names) — the images-manifest's own
     "list of changed images" checked against the FULL, actual set of
     every image tag pin whose VERSION (lib.chart.version_of — the tag
@@ -217,88 +328,35 @@ def find_images_manifest_list_diff(
     lib.chart.COMPONENT_VERSION_PATH_NESTED_SUBCHARTS for a real
     example of the second kind). All three empty means the manifest
     lists the EXACT set of changed images, nothing more and nothing
-    less."""
+    less.
+
+    `inputs` is a ManifestDiffInputs bundling entries/current_paths/
+    baseline_paths/repo_map/repo_groups/unresolvable_paths with a
+    ManifestDiffContext (chart_dir/deps/upgrade_docs_baseline/values/
+    baseline_values) — see both dataclasses' own docstrings. See
+    _digest_changed/_pin_changed for the pin-changed logic and
+    _match_entries for how entries are matched against it."""
     representative_of = {
-        path: repo_map[repo] for repo, paths in repo_groups.items() for path in paths if repo in repo_map
+        path: inputs.repo_map[repo]
+        for repo, paths in inputs.repo_groups.items()
+        for path in paths
+        if repo in inputs.repo_map
     }
-    path_to_repo = {path: repo for repo, paths in repo_groups.items() for path in paths}
+    path_to_repo = {path: repo for repo, paths in inputs.repo_groups.items() for path in paths}
     # chart_dir is optional here (its one real caller always passes it,
     # but this function's own signature allows None) -- resolved,
-    # None-safely, once rather than at each digest_changed call.
-    sibling_fields = digest_pinning_exceptions(chart_dir) if chart_dir is not None else {}
-
-    def digest_changed(path, tag, baseline_tag):
-        # Only fires when BOTH sides have a resolvable digest of their
-        # own to compare (see this function's own docstring) — a bare
-        # tag with no stored digest on either side yields None here and
-        # is deliberately left alone, not treated as "changed".
-        if values is None or baseline_values is None:
-            return False
-        current_digest = resolved_digest_pin(values, path, tag, sibling_fields)
-        baseline_digest = resolved_digest_pin(baseline_values, path, baseline_tag, sibling_fields)
-        if not current_digest or not baseline_digest:
-            return False
-        return current_digest.split("@", 1)[1] != baseline_digest.split("@", 1)[1]
-
-    def pin_changed(path, tag):
-        baseline_tag = baseline_paths.get(path)
-        if baseline_tag is not None:
-            return version_of(tag) != version_of(baseline_tag) or digest_changed(path, tag, baseline_tag)
-        # No prior value for this path at all (a component that didn't
-        # exist in Chart.yaml/values.yaml until this release) — the git
-        # baseline genuinely has nothing to diff against. Before
-        # concluding "changed", check whether this repository already
-        # appears in any of this chart's own PAST images-<version>.yaml
-        # manifests (see this function's own docstring) — never a
-        # fallback to images-baseline.yaml, an unrelated concern.
-        repo = path_to_repo.get(path)
-        if repo is None:
-            return True
-        if deps is not None:
-            # See this function's own docstring: cross-check against
-            # `path`'s CURRENT fully-qualified repository, the same
-            # collision guard lib.chart.historical_app_version_for_path
-            # already applies — never fall back to the unsafe name-only
-            # match below just because THIS path's own repository can't
-            # be resolved.
-            expected_url = full_repository_for_path(chart_dir, deps, values, path)
-            if expected_url is None:
-                return True
-            historical_version = historical_app_version_for_repository(
-                chart_dir, repo, upgrade_docs_baseline, expected_url=expected_url
-            )
-        else:
-            historical_version = historical_app_version_for_repository(chart_dir, repo, upgrade_docs_baseline)
-        if historical_version is None:
-            return True
-        return version_of(tag) != version_of(historical_version)
+    # None-safely, once rather than at each _digest_changed call.
+    sibling_fields = digest_pinning_exceptions(inputs.context.chart_dir) if inputs.context.chart_dir is not None else {}
 
     changed_paths = {
         path
-        for path, tag in current_paths.items()
-        if representative_of.get(path, path) == path and path not in unresolvable_paths and pin_changed(path, tag)
+        for path, tag in inputs.current_paths.items()
+        if representative_of.get(path, path) == path
+        and path not in inputs.unresolvable_paths
+        and _pin_changed(inputs, path_to_repo, sibling_fields, path, tag)
     }
 
-    matched_paths = set()
-    stale_entry_names, unmatched_entry_names = [], []
-    for entry in entries:
-        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
-        # An entry can resolve to ANY path in a shared-repository group —
-        # repo_map's own exact "name: is a stripped repository" hit
-        # always lands on repo_map's chosen representative already, but
-        # resolve_entry_path's fuzzy name-word fallback (e.g. manifest
-        # name "redis-ha" fuzzy-matching the literal path segment
-        # ("redis-operator", "redis-ha", "image")) can land on any OTHER
-        # member instead — collapsed the same way changed_paths already
-        # is, so the two sides can never disagree about which path
-        # "counts" for a shared image.
-        path = representative_of.get(path, path) if path is not None else None
-        if path is None:
-            unmatched_entry_names.append(entry["name"])
-            continue
-        matched_paths.add(path)
-        if path not in changed_paths:
-            stale_entry_names.append(entry["name"])
+    matched_paths, stale_entry_names, unmatched_entry_names = _match_entries(inputs, representative_of, changed_paths)
 
     missing_paths = sorted(changed_paths - matched_paths)
     return missing_paths, stale_entry_names, unmatched_entry_names

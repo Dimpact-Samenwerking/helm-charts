@@ -28,6 +28,8 @@ from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment
 from lib.upgradedoc.grouped_comments_and_changes_block import parse_changes_block
 from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
+from lib.upgradedoc.images_manifest_list_diff import ManifestDiffContext
+from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
 from lib.upgradedoc.images_manifest_ordering import EntryResolution
 from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
@@ -665,17 +667,21 @@ def _list_diff_issues(name, inputs, context):
     docs_baseline, "changed" can't be computed at all."""
     unresolvable_paths = set(find_images_without_repository(context.chart_dir))
     missing_paths, stale_entry_names, unmatched_entry_names = find_images_manifest_list_diff(
-        inputs.manifest.entries,
-        inputs.manifest.resolution.current_paths,
-        inputs.baseline_paths,
-        inputs.manifest.resolution.repo_map,
-        inputs.repo_groups,
-        unresolvable_paths,
-        chart_dir=context.chart_dir,
-        deps=context.deps,
-        upgrade_docs_baseline=context.upgrade_docs_baseline,
-        values=context.values,
-        baseline_values=context.baseline_values,
+        ManifestDiffInputs(
+            inputs.manifest.entries,
+            inputs.manifest.resolution.current_paths,
+            inputs.baseline_paths,
+            inputs.manifest.resolution.repo_map,
+            inputs.repo_groups,
+            unresolvable_paths,
+            context=ManifestDiffContext(
+                chart_dir=context.chart_dir,
+                deps=context.deps,
+                upgrade_docs_baseline=context.upgrade_docs_baseline,
+                values=context.values,
+                baseline_values=context.baseline_values,
+            ),
+        )
     )
     resolution = inputs.manifest.resolution
     issues = [
