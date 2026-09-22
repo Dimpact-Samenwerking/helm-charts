@@ -247,6 +247,24 @@ def check_basename_version(lines, key, basename, new_version):
     return results
 
 
+def _resolve_pending_digests(pending, new_version):
+    """{repository: digest} for every distinct repository among `pending`
+    (update_image_version's own not-yet-at-new_version matches),
+    re-resolved against the registry for new_version. Raises SystemExit
+    if new_version doesn't exist upstream for any of them — checked
+    BEFORE update_image_version writes anything."""
+    digests = {}
+    for m in pending:
+        if m["repository"] in digests:
+            continue
+        host, repo_path = parse_repo(m["repository"])
+        exists, digest = registry_tag_exists(host, repo_path, new_version)
+        if not exists or not digest:
+            raise SystemExit(f"error: {host}/{repo_path}:{new_version} not found upstream")
+        digests[m["repository"]] = digest
+    return digests
+
+
 def update_image_version(values_path, key, basename, new_version):
     """Update every values.yaml tag pin <key> <basename> resolves to (see
     resolve_scoped_matches) to new_version, re-resolving each one's
@@ -272,15 +290,7 @@ def update_image_version(values_path, key, basename, new_version):
     if not pending:
         return []
 
-    digests = {}
-    for m in pending:
-        if m["repository"] in digests:
-            continue
-        host, repo_path = parse_repo(m["repository"])
-        exists, digest = registry_tag_exists(host, repo_path, new_version)
-        if not exists or not digest:
-            raise SystemExit(f"error: {host}/{repo_path}:{new_version} not found upstream")
-        digests[m["repository"]] = digest
+    digests = _resolve_pending_digests(pending, new_version)
 
     write_lines = text.splitlines(keepends=True)
     changes = []
