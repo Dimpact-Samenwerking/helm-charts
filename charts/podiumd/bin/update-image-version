@@ -115,6 +115,7 @@ from lib.image.version import resolve_key_scope
 from lib.image.version import update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo
+from lib.upgradedoc.app_version_and_image_paths import BaselineComponentQuery
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_baseline_component_versions
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
@@ -234,13 +235,15 @@ def _single_component_baseline_resolution(bump, chart_name, chart_version_str):
         # helper, so the two scripts can never drift on this again.
         baseline_dep = dep_for_values_key(baseline_deps, bump.values_key)
         old_app, old_chart_str = resolve_baseline_component_versions(
-            baseline_values,
-            baseline_dep,
-            bump.values_key,
-            image_paths[0],
-            chart_name,
-            chart_version_str,
-            chart_dir=CHART_DIR,
+            BaselineComponentQuery(
+                baseline_values,
+                baseline_dep,
+                bump.values_key,
+                image_paths[0],
+                chart_name,
+                chart_version_str,
+                chart_dir=CHART_DIR,
+            )
         )
     return _BaselineResolution(
         upgrade_docs_baseline, old_app, old_chart_str, reset_to_baseline, baseline_deps, baseline_values

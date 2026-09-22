@@ -77,6 +77,7 @@ from lib.procutil import run_script
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
+from lib.upgradedoc.app_version_and_image_paths import BaselineComponentQuery
 from lib.upgradedoc.app_version_and_image_paths import resolve_baseline_component_versions
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
@@ -693,8 +694,15 @@ def _resolve_against_baseline(ctx, baseline_deps, baseline_values, friendly):
 
     baseline_dep = None if ctx.no_chart else _find_dependency(baseline_deps, ctx.chart_name)
     old_app, old_chart = resolve_baseline_component_versions(
-        baseline_values, baseline_dep, ctx.values_key, ctx.image_paths[0], ctx.chart_name, ctx.new_chart,
-        chart_dir=CHART_DIR,
+        BaselineComponentQuery(
+            baseline_values,
+            baseline_dep,
+            ctx.values_key,
+            ctx.image_paths[0],
+            ctx.chart_name,
+            ctx.new_chart,
+            chart_dir=CHART_DIR,
+        )
     )
     if ctx.no_chart:
         old_chart = None  # native_components: never a chart version to show at all
