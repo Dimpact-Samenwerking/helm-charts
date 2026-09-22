@@ -211,10 +211,9 @@ def test_component_version_rows_resolves_redis_operator_split_image_fields(lpi):
         }
     }
     root_values = {"redis-operator": {"redisOperator": {"imageName": "quay.io/opstree/redis-operator"}}}
+    ctx = lpi.ChartContext(deps=[dep], root_values=root_values, rendered_paths={"podiumd/charts/redis-operator"})
 
-    rows = lpi.component_version_rows(
-        dep, "redis-operator", merged, [dep], root_values, {"podiumd/charts/redis-operator"}
-    )
+    rows = lpi.component_version_rows(dep, "redis-operator", merged, ctx)
 
     assert rows == [
         (
@@ -242,10 +241,9 @@ def test_component_version_rows_uses_merged_tree_not_just_podiumd_overrides(lpi)
         }
     }
     root_values = {"redis-operator": {"redisOperator": {"imageName": "quay.io/opstree/redis-operator"}}}
+    ctx = lpi.ChartContext(deps=[dep], root_values=root_values, rendered_paths={"podiumd/charts/redis-operator"})
 
-    rows = lpi.component_version_rows(
-        dep, "redis-operator", merged, [dep], root_values, {"podiumd/charts/redis-operator"}
-    )
+    rows = lpi.component_version_rows(dep, "redis-operator", merged, ctx)
 
     assert rows == [
         (
@@ -288,7 +286,8 @@ def test_component_version_rows_resolves_eck_stack_nested_subchart_images(lpi, t
 
     # chart-tree path is keyed by dep's own alias ("kiss-eck"), never
     # its real chart name ("eck-stack").
-    rows = lpi.component_version_rows(dep, "kiss-eck", merged, [dep], {}, {"podiumd/charts/kiss-eck"})
+    ctx = lpi.ChartContext(deps=[dep], root_values={}, rendered_paths={"podiumd/charts/kiss-eck"})
+    rows = lpi.component_version_rows(dep, "kiss-eck", merged, ctx)
 
     assert sorted(rows) == sorted(
         [
@@ -315,10 +314,8 @@ def test_component_version_rows_blank_tag_is_skipped(lpi):
     dep = {"name": "redis-operator", "version": "0.26.1"}
     merged = {"redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": ""}}
     root_values = {"redis-operator": {"redisOperator": {"imageName": "quay.io/opstree/redis-operator"}}}
-    assert (
-        lpi.component_version_rows(dep, "redis-operator", merged, [dep], root_values, {"podiumd/charts/redis-operator"})
-        == []
-    )
+    ctx = lpi.ChartContext(deps=[dep], root_values=root_values, rendered_paths={"podiumd/charts/redis-operator"})
+    assert lpi.component_version_rows(dep, "redis-operator", merged, ctx) == []
 
 
 def test_component_version_rows_unresolvable_repository_is_skipped(lpi):
@@ -328,17 +325,14 @@ def test_component_version_rows_unresolvable_repository_is_skipped(lpi):
     missing repository."""
     dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
     merged = {"eck-elasticsearch": {"version": "8.19.19"}}
-    assert lpi.component_version_rows(dep, "kiss-eck", merged, [dep], {}, {"podiumd/charts/kiss-eck"}) == []
+    ctx = lpi.ChartContext(deps=[dep], root_values={}, rendered_paths={"podiumd/charts/kiss-eck"})
+    assert lpi.component_version_rows(dep, "kiss-eck", merged, ctx) == []
 
 
 def test_component_version_rows_irrelevant_for_unregistered_component(lpi):
     dep = {"name": "zaakafhandelcomponent", "version": "1.0.297"}
-    assert (
-        lpi.component_version_rows(
-            dep, "zac", {"image": {"tag": "5.4.3"}}, [dep], {}, {"podiumd/charts/zaakafhandelcomponent"}
-        )
-        == []
-    )
+    ctx = lpi.ChartContext(deps=[dep], root_values={}, rendered_paths={"podiumd/charts/zaakafhandelcomponent"})
+    assert lpi.component_version_rows(dep, "zac", {"image": {"tag": "5.4.3"}}, ctx) == []
 
 
 def test_component_version_rows_marks_row_disabled_when_its_own_path_never_rendered(lpi):
@@ -357,8 +351,9 @@ def test_component_version_rows_marks_row_disabled_when_its_own_path_never_rende
         }
     }
     root_values = {"redis-operator": {"redisOperator": {"imageName": "quay.io/opstree/redis-operator"}}}
+    ctx = lpi.ChartContext(deps=[dep], root_values=root_values, rendered_paths=set())
 
-    rows = lpi.component_version_rows(dep, "redis-operator", merged, [dep], root_values, set())
+    rows = lpi.component_version_rows(dep, "redis-operator", merged, ctx)
 
     assert rows == [
         ("redis-operator", "redisOperator.imageTag", "quay.io/opstree/redis-operator", f"v0.26.0@sha256:{digest}", True)
