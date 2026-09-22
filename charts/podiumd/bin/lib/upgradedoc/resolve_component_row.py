@@ -6,6 +6,7 @@ app version from values.yaml/Chart.yaml/vendored subcharts."""
 import re
 from dataclasses import dataclass
 
+from lib.chart.historical_baselines import BaselineLookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
@@ -159,7 +160,7 @@ def _sidecar_baseline_app(resolution, sidecar_path):
         paths_by_repository(chart_dir, deps, baseline_values, baseline_paths.keys()) if baseline_values else {}
     )
     baseline_app = baseline_tag_for_sidecar_path(
-        chart_dir, deps, values, baseline_values, baseline_paths, baseline_repo_groups, sidecar_path
+        BaselineLookup(chart_dir, deps, values, baseline_values, baseline_paths, baseline_repo_groups), sidecar_path
     )
     if baseline_app is None and baseline_values:
         # Neither an exact match nor this same repository elsewhere in

@@ -21,6 +21,7 @@ import re
 
 from dataclasses import dataclass
 
+from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
@@ -195,12 +196,9 @@ def _resolve_sidecar_old_app(path, ctx):
        to the removed images-baseline.yaml side-file (ACR-mirror digest
        provenance, a genuinely different, unrelated question)."""
     old_app = baseline_tag_for_sidecar_path(
-        ctx.doc_context.chart_dir,
-        ctx.target_state.deps,
-        ctx.target_state.values,
-        ctx.baseline_values,
-        ctx.state.baseline_paths,
-        ctx.state.baseline_repo_groups,
+        baseline_lookup(
+            ctx.doc_context.chart_dir, ctx.target_state.deps, ctx.target_state.values, ctx.baseline_values, ctx.state
+        ),
         path,
     )
     if old_app is None and ctx.baseline_values:

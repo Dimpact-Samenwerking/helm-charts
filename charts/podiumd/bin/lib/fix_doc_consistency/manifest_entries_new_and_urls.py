@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import yaml
 
+from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.nested_subchart_identity import documented_repository_for_path
@@ -400,12 +401,9 @@ def _entry_old_version_and_digest_change(path, new_version, pinned_tag, context,
         return old_version, digest_only_change
 
     old_version = baseline_tag_for_sidecar_path(
-        context.chart_dir,
-        context.deps,
-        context.target_values,
-        context.baseline_values,
-        resolution.baseline.baseline_paths,
-        resolution.baseline.baseline_repo_groups,
+        baseline_lookup(
+            context.chart_dir, context.deps, context.target_values, context.baseline_values, resolution.baseline
+        ),
         path,
     )
     if old_version is None:
