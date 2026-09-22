@@ -16,6 +16,7 @@ from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.values_tree_primitives import version_of
+from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import resolve_component_own_version_change
 from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
@@ -366,7 +367,11 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 # (almost always a brand-new/changed sidecar nested
                 # under it) already gets its own separate row.
                 resolved = resolve_component_own_version_change(
-                    key, deps, baseline_deps, values, baseline_values, chart_dir, upgrade_docs_baseline
+                    key,
+                    ComponentState(deps, values),
+                    ComponentState(baseline_deps, baseline_values),
+                    chart_dir,
+                    upgrade_docs_baseline,
                 )
                 if resolved is not None and resolved[-1]:
                     continue

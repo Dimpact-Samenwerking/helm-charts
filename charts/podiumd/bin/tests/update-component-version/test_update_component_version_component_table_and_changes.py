@@ -61,7 +61,10 @@ def test_update_component_table_adds_new_row(ucv):
         "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
     )
     new_text, action = ucv.update_component_table(
-        text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", DEPS, VALUES
+        text,
+        "openformulieren",
+        ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
+        ucv.OrderingContext(DEPS, VALUES),
     )
     assert action == "added"
     assert "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | - |" in new_text
@@ -82,7 +85,9 @@ def test_update_component_table_new_row_not_absorbed_by_own_sidecar_rows(ucv):
         "| openbao - openbao-csi-provider | 2.0.2 (new) | - | - |\n"
         "| openbao - openbao-snapshot-agent | 0.3.0 (new) | - | - |\n"
     )
-    new_text, action = ucv.update_component_table(text, "openbao", None, "v2.5.5", "0.28.4", "0.28.4", DEPS, VALUES)
+    new_text, action = ucv.update_component_table(
+        text, "openbao", ucv.VersionChange(None, "v2.5.5", "0.28.4", "0.28.4"), ucv.OrderingContext(DEPS, VALUES)
+    )
     assert action == "added"
     assert "| openbao | v2.5.5 (new) | 0.28.4 (unchanged) | - |" in new_text
     assert "| openbao - openbao-csi-provider | 2.0.2 (new) | - | - |" in new_text  # untouched
@@ -99,7 +104,10 @@ def test_update_component_table_new_row_inserted_in_values_yaml_order(ucv):
         "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
     )
     new_text, action = ucv.update_component_table(
-        text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", DEPS, VALUES
+        text,
+        "openformulieren",
+        ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
+        ucv.OrderingContext(DEPS, VALUES),
     )
     assert action == "added"
     lines = [line for line in new_text.splitlines() if line.startswith("| zac") or line.startswith("| openformulieren")]
@@ -116,7 +124,10 @@ def test_update_component_table_updates_existing_row(ucv):
         "| openformulieren | 3.4.9 → 3.4.10 | 1.12.0 (unchanged) | - |\n"
     )
     new_text, action = ucv.update_component_table(
-        text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", [], {}
+        text,
+        "openformulieren",
+        ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
+        ucv.OrderingContext([], {}),
     )
     assert action == "updated"
     assert "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | - |" in new_text
@@ -126,7 +137,10 @@ def test_update_component_table_updates_existing_row(ucv):
 def test_update_component_table_no_table_returns_none_action(ucv):
     text = "# Upgrade guide\n\nJust prose, no table.\n"
     new_text, action = ucv.update_component_table(
-        text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", [], {}
+        text,
+        "openformulieren",
+        ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
+        ucv.OrderingContext([], {}),
     )
     assert action is None
 
@@ -137,7 +151,9 @@ def test_update_component_table_new_component_no_baseline_is_annotated_new(ucv):
     version indistinguishable from a row whose baseline just wasn't
     passed in."""
     text = COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n| --- | --- | --- | --- |\n"
-    new_text, action = ucv.update_component_table(text, "openklant", None, "2.15.0", None, "1.11.0", [], {})
+    new_text, action = ucv.update_component_table(
+        text, "openklant", ucv.VersionChange(None, "2.15.0", None, "1.11.0"), ucv.OrderingContext([], {})
+    )
     assert action == "added"
     assert "| openklant | 2.15.0 (new) | 1.11.0 (new) | - |" in new_text
 
@@ -159,7 +175,10 @@ def test_update_component_table_empty_table_ignores_unrelated_lower_pipe_table(u
         "| FOO | BAR |\n"
     )
     new_text, action = ucv.update_component_table(
-        text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0", DEPS, VALUES
+        text,
+        "openformulieren",
+        ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
+        ucv.OrderingContext(DEPS, VALUES),
     )
     assert action == "added"
     lines = new_text.splitlines()
@@ -174,7 +193,9 @@ def test_update_component_table_new_sidecar_chart_placeholder_stays_bare(ucv):
     never get annotated "(new)" just because old_chart is None too, the
     same way it's never rewritten with a real chart version either."""
     text = COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n| --- | --- | --- | --- |\n"
-    new_text, action = ucv.update_component_table(text, "kiss - crawler", None, "1.0.0", None, "-", [], {})
+    new_text, action = ucv.update_component_table(
+        text, "kiss - crawler", ucv.VersionChange(None, "1.0.0", None, "-"), ucv.OrderingContext([], {})
+    )
     assert action == "added"
     assert "| kiss - crawler | 1.0.0 (new) | - | - |" in new_text
 
@@ -184,14 +205,9 @@ def test_update_component_table_new_sidecar_chart_placeholder_stays_bare(ucv):
 
 def test_make_changes_section_includes_bullets(ucv):
     section = ucv.make_changes_section(
-        "openformulieren",
+        ucv.ComponentIdentity("openformulieren", "openforms", "openformulieren"),
         "4.9.0",
-        "openforms",
-        "openformulieren",
-        "3.4.10",
-        "3.5.6",
-        "1.12.0",
-        "1.12.0",
+        ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
         ["image"],
     )
     assert section.startswith("### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)")
@@ -208,14 +224,9 @@ def test_make_changes_section_unchanged_app_version_renders_no_transition(ucv):
     chart_suffix's own existing "(chart ..., unchanged)" convention,
     instead of a meaningless "<app> → <app>" self-transition."""
     section = ucv.make_changes_section(
-        "zac",
+        ucv.ComponentIdentity("zac", "zaakafhandelcomponent", "zac"),
         "4.9.0",
-        "zaakafhandelcomponent",
-        "zac",
-        "5.4.4",
-        "5.4.4",
-        "1.0.297",
-        "1.0.297",
+        ucv.VersionChange("5.4.4", "5.4.4", "1.0.297", "1.0.297"),
         ["image"],
     )
     assert section.startswith("### zac 5.4.4 (unchanged) (chart 1.0.297, unchanged)")
@@ -232,14 +243,9 @@ def test_make_changes_section_old_app_none_renders_new_not_none_arrow(ucv):
     <app>", and the chart side (unchanged here) keeps its ordinary
     "(chart ..., unchanged)" clause."""
     section = ucv.make_changes_section(
-        "openbao",
+        ucv.ComponentIdentity("openbao", "openbao", "openbao"),
         "4.9.1",
-        "openbao",
-        "openbao",
-        None,
-        "v2.5.5",
-        "0.28.4",
-        "0.28.4",
+        ucv.VersionChange(None, "v2.5.5", "0.28.4", "0.28.4"),
         ["server.image"],
     )
     assert section.startswith("### openbao v2.5.5 (new) (chart 0.28.4, unchanged)")
@@ -256,14 +262,9 @@ def test_make_changes_section_old_chart_none_renders_new_not_none_arrow(ucv):
     and the "Helm chart `...` bump" bullet (which needs a real old_chart
     to describe a transition) is suppressed."""
     section = ucv.make_changes_section(
-        "openbao",
+        ucv.ComponentIdentity("openbao", "openbao", "openbao"),
         "4.9.1",
-        "openbao",
-        "openbao",
-        "v2.5.5",
-        "v2.5.5",
-        None,
-        "0.28.4",
+        ucv.VersionChange("v2.5.5", "v2.5.5", None, "0.28.4"),
         ["server.image"],
     )
     assert section.startswith("### openbao v2.5.5 (unchanged) (chart 0.28.4, new)")
@@ -273,14 +274,9 @@ def test_make_changes_section_old_chart_none_renders_new_not_none_arrow(ucv):
 
 def test_make_changes_section_includes_chart_bullet_when_changed(ucv):
     section = ucv.make_changes_section(
-        "zac",
+        ucv.ComponentIdentity("zac", "zaakafhandelcomponent", "zac"),
         "4.9.0",
-        "zaakafhandelcomponent",
-        "zac",
-        "5.0.2",
-        "5.1.0",
-        "1.0.297",
-        "1.0.257",
+        ucv.VersionChange("5.0.2", "5.1.0", "1.0.297", "1.0.257"),
         ["image"],
     )
     assert "Helm chart `zaakafhandelcomponent` `1.0.297` → `1.0.257`" in section
@@ -292,14 +288,9 @@ def test_make_changes_section_native_component_omits_chart_clause(ucv):
     the "Helm chart" bump bullet entirely, rather than rendering the
     misleading "(chart None, unchanged)"."""
     section = ucv.make_changes_section(
-        "frankgateway",
+        ucv.ComponentIdentity("frankgateway", "frankgateway", "frankgateway"),
         "4.9.0",
-        "frankgateway",
-        "frankgateway",
-        "100",
-        "104",
-        None,
-        "-",
+        ucv.VersionChange("100", "104", None, "-"),
         ["image"],
     )
     assert section.startswith("### frankgateway 100 → 104\n\n")
@@ -314,7 +305,9 @@ def test_insert_changes_section_appends_before_next_heading(ucv):
     supplied) -- falls back to appending at the section end, right before
     the next "## " heading."""
     text = "## Changes\n\n### zac ...\n\nblah\n\n## Per-environment checklist\n\nsteps\n"
-    new_text = ucv.insert_changes_section(text, "### openformulieren ...\n\n", "openformulieren", [], {})
+    new_text = ucv.insert_changes_section(
+        text, "### openformulieren ...\n\n", "openformulieren", ucv.OrderingContext([], {})
+    )
     assert new_text.index("### openformulieren") < new_text.index("## Per-environment checklist")
     assert "### zac ..." in new_text
 
@@ -325,12 +318,15 @@ def test_insert_changes_section_inserted_in_values_yaml_order(ucv):
     always appended at the end."""
     text = "## Changes\n\n### zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\nblah\n"
     new_text = ucv.insert_changes_section(
-        text, "### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n", "openformulieren", DEPS, VALUES
+        text,
+        "### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n",
+        "openformulieren",
+        ucv.OrderingContext(DEPS, VALUES),
     )
     assert new_text.index("### openformulieren") < new_text.index("### zac")
 
 
 def test_insert_changes_section_no_changes_heading_appends_at_end(ucv):
     text = "# Doc\n\nno changes section here\n"
-    new_text = ucv.insert_changes_section(text, "### new section\n", "openformulieren", [], {})
+    new_text = ucv.insert_changes_section(text, "### new section\n", "openformulieren", ucv.OrderingContext([], {}))
     assert new_text.endswith("### new section\n")
