@@ -33,6 +33,13 @@ def values_tree_path_for(values_key, image_path):
 
 
 def find_matching_images_entry(entries, entry_line_indices, target_path):
+    """(entry, line_idx, index) for the parsed manifest entry whose own
+    resolve_entry_path(entry["name"], ...) equals `target_path` (see
+    values_tree_path_for), or (None, None, None) if this component has no
+    existing entry for that image path yet — used by both update_images_
+    manifest and remove_component_from_images_manifest to locate an
+    entry's own YAML lines (entry_line_indices, parallel to `entries`) for
+    in-place editing."""
     for index, (entry, line_idx) in enumerate(zip(entries, entry_line_indices, strict=True)):
         if resolve_entry_path(entry["name"], [target_path]) == target_path:
             return entry, line_idx, index

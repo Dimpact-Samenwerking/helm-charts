@@ -59,6 +59,9 @@ CHART_YAML = CHART_DIR / "Chart.yaml"
 
 
 def find_dependency(name_or_alias):
+    """Looks up `name_or_alias` among podiumd's own Chart.yaml dependencies
+    (matching either the dependency's name or its alias) and raises
+    SystemExit with a clear error if there's no match."""
     deps = yaml.safe_load(CHART_YAML.read_text())["dependencies"]
     dep = _find_dependency(deps, name_or_alias)
     if dep is None:
@@ -67,6 +70,12 @@ def find_dependency(name_or_alias):
 
 
 def main():
+    """CLI entry point: pulls <component>'s target <chart-version> to get
+    its real values.yaml (a chart-version bump can move a repository path
+    or add a sidecar), then checks <app-version> exists upstream for every
+    one of that component's registered app image path(s). Exits non-zero
+    if the chart version can't be pulled, or any app image version is
+    missing."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)

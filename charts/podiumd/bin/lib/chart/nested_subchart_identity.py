@@ -13,6 +13,11 @@ from lib.settings import component_resolution_version_repository_paths
 
 
 def version_repository_path_for(component, chart_dir):
+    """The registered version_paths_for-shaped field settings.yaml's own
+    component_resolution.version_repository_paths maps `component` to (see
+    lib.settings.component_resolution_version_repository_paths), or None
+    if `component` has no such registration, or if chart_dir itself is
+    None (some callers tolerate not having one in scope)."""
     if chart_dir is None:
         return None
     return component_resolution_version_repository_paths(chart_dir).get(component)
@@ -28,6 +33,11 @@ def version_repository_path_for(component, chart_dir):
 # tolerance — see that function's own docstring), so it's an ordinary
 # required parameter too.
 def nested_subchart_name_for(component, rel_path, chart_dir):
+    """The nested sub-subchart name registered for `component`'s
+    `rel_path` (a relative version_paths_for-shaped field) in settings.
+    yaml's own component_resolution.version_path_nested_subcharts, or
+    None if that exact (component, rel_path) pair isn't registered, or if
+    chart_dir itself is None."""
     if chart_dir is None:
         return None
     return component_resolution_version_path_nested_subcharts(chart_dir).get(component, {}).get(rel_path)

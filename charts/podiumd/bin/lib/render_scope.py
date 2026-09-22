@@ -29,6 +29,12 @@ OWN_TEMPLATES_PREFIX = "podiumd/templates/"
 
 
 def lint_args_for(chart_dir):
+    """The extra `helm template`/`helm lint` args needed to render chart_dir
+    with its own ci/lint-values.yaml overrides, e.g. ["-f", ".../ci/
+    lint-values.yaml"] — every render/lint/check command in this toolchain
+    uses this SAME result so they all validate against the same values
+    instead of the chart's bare, aspirational defaults. Returns [] (with a
+    printed warning) if no ci/lint-values.yaml exists."""
     lint_values = chart_dir / "ci" / "lint-values.yaml"
     if lint_values.is_file():
         return ["-f", str(lint_values)]
@@ -79,6 +85,11 @@ def render_chart(chart_dir, extra_args):
 
 
 def report_largest_templates(rendered_text, top_n):
+    """Print the top_n templates in `rendered_text` (a full `helm template`
+    render) by rendered line count, attributed via each "# Source: <path>"
+    annotation — a diagnostic aid for spotting which template is bloating
+    a render. Prints nothing if rendered_text has no "# Source:" lines at
+    all (e.g. an empty or failed render)."""
     source_re = re.compile(r"^# Source: (.+)$")
     counts = Counter()
     current = None
@@ -120,6 +131,11 @@ def chart_tree_paths(text):
 
 
 def report_errors_by_subchart(error_text):
+    """Print a per-sub-chart count of `error_text`'s embedded "<tree>/
+    templates/..." paths (see chart_tree_paths), grouped by leaf chart
+    name — lets a caller facing a wall of validator errors see at a
+    glance which vendored sub-chart most of them belong to. Prints
+    nothing if no chart-tree path appears in error_text at all."""
     counts = Counter(path.rsplit("/", 1)[-1] for path in chart_tree_paths(error_text))
     if not counts:
         return
@@ -129,6 +145,12 @@ def report_errors_by_subchart(error_text):
 
 
 def chart_name_from_source(source):
+    """The leaf chart name at the end of `source`'s embedded "<tree>/
+    templates/..." path (see CHART_TREE_PATH_RE/chart_tree_paths) — e.g.
+    "eck-operator" out of ".../charts/openinwoner/charts/eck-operator/
+    templates/x.yaml". Falls back to `source` itself (or the literal
+    "(unknown source)" if source is falsy/has no such path) so a caller
+    always gets some printable label rather than a KeyError."""
     m = CHART_TREE_PATH_RE.search(source or "")
     return m.group(1).rsplit("/", 1)[-1] if m else (source or "(unknown source)")
 

@@ -47,10 +47,37 @@ from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 
 
 def parse_upgrade_doc_rows(doc_path):
+    """lib.upgradedoc.string_and_parsing_basics.parse_upgrade_doc_rows
+    (aliased here as _parse_upgrade_doc_rows), applied to `doc_path`'s own
+    file contents — this module's own callers all have a Path, not
+    already-read text, so this thin wrapper saves each of them repeating
+    the same read_text() call."""
     return _parse_upgrade_doc_rows(doc_path.read_text(encoding="utf-8"))
 
 
 def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
+    """The verify-podiumd check itself (see this module's own docstring for
+    what it checks): Chart.yaml/values.yaml's actual component versions
+    against docs/_UPGRADE_PATHS/<upgrade_docs_baseline>-to-<version>-
+    {upgrade,gemeente-specific,values-deltas}.md and docs/images/images-
+    <version>.yaml, plus (when `upgrade_docs_baseline` is given) that
+    every component genuinely changed since that baseline has a row/
+    section/entry somewhere in that doc set, even one no doc mentions at
+    all yet.
+
+    `upgrade_docs_baseline` may be None (doc content is checked against
+    current values.yaml only, no "did X actually change" comparison is
+    possible) or a non-bare-version ref (e.g. a branch name) — several
+    baseline-doc-set/companion-doc checks only run when it's a genuine
+    bare MAJOR.MINOR.PATCH (see `is_bare_version` below), since those
+    checks assume the standard "<baseline>-to-<target>-<suffix>.md"
+    filename shape.
+
+    Returns (True, "no matching docs found — skipped") if no relevant doc
+    exists to check against at all (nothing this function is able to
+    validate yet, not a pass on the merits). Otherwise (False,
+    "<n> mismatch(es)") with every finding printed, or (True, "matches
+    ...") when everything checked lines up."""
     chart_yaml = load_yaml(chart_dir / "Chart.yaml")
     podiumd_version = str(chart_yaml["version"])
     deps = chart_yaml.get("dependencies", [])

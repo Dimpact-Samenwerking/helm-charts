@@ -56,6 +56,11 @@ DEFAULT_OUTPUT = CHART_DIR / "rendered-helm.yaml"
 
 
 def main():
+    """CLI entry point: renders the podiumd chart with either the default
+    CI values or any extra `helm template` args passed on the command
+    line, writing the manifest to [output-file] (default rendered-helm.
+    yaml) or to stdout with --stdout (in which case every status message
+    is redirected to stderr so stdout stays pure YAML)."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)

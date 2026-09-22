@@ -586,6 +586,12 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
 
 
 def update_docs(basename, new_version, changes, values_lines_before_write):
+    """Updates the current target's upgrade docs for this run's `changes`
+    (all under one values.yaml key/scope — see the module docstring for
+    why). Dispatches to update_docs_single_component when the scope is a
+    real Chart.yaml dependency, or to update_docs_shared_image for the
+    MULTIPLE-key case (a base image shared via global.images with no
+    matching dependency named "global")."""
     chart_yaml = load_yaml(CHART_YAML) or {}
     deps = chart_yaml.get("dependencies", [])
     target = str(chart_yaml.get("version"))
@@ -616,6 +622,12 @@ def update_docs(basename, new_version, changes, values_lines_before_write):
 
 
 def main():
+    """CLI entry point: resolves <key> <basename> to a single image pin
+    scope, bumps every matching values.yaml tag pin to <new-version>
+    (re-resolving digests against the registry), updates the matching
+    upgrade docs for the current target if they exist, and regenerates
+    README.md (fix-helm-doc). A no-op (already at that version everywhere)
+    prints a message and returns without touching anything."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)

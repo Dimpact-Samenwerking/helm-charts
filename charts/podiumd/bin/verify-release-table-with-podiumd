@@ -160,11 +160,18 @@ UNRESOLVED_COMPONENTS = ("", "UNKNOWN")
 
 
 def load_release_table(path):
+    """The release-table.csv at `path`, parsed as a list of dict rows
+    (csv.DictReader) — one row per (component, section) pair the way
+    export-confluence-release-table writes it; see its own CSV_HEADER for
+    the column set."""
     with path.open(newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
 
 
 def split_basenames(value):
+    """A CSV "basenames" cell (comma-separated, e.g. for a MULTIPLE_KEY
+    row) split into its individual basenames, stripped of surrounding
+    whitespace with blank entries dropped."""
     return [b.strip() for b in value.split(",") if b.strip()]
 
 
@@ -178,6 +185,13 @@ def is_verifiable_target(target):
 
 
 def report_mismatch(findings, tag, row, label, target, actual, actual_source):
+    """Appends a "release-table target != actual" line to
+    findings["mismatches"] for `row`, formatted as "[tag] name (label):
+    release-table target <target> != <actual_source> <actual>" — the
+    shared message shape every mismatch check in this script (app
+    version, chart version, etc., each with its own `tag`/`actual_source`)
+    uses, so findings read consistently regardless of which check found
+    them."""
     findings["mismatches"].append(
         f"[{tag}] {row['name']} ({label}): release-table target {target} != {actual_source} {actual}"
     )
@@ -373,6 +387,18 @@ def missing_chart_version_hint(chart_dir, lines, scope_key, component, dep, valu
 
 
 def check_chart_version(dep, scope_key, rows, lines, values, chart_dir, findings):
+    """The TARGET-side counterpart to check_chart_version_source: for every
+    release-table.csv row belonging to `dep`, compares its verifiable
+    target_version_helm against dep["version"] (Chart.yaml's actual
+    current pin), recording a mismatch via report_mismatch when they
+    disagree. A blank target isn't skipped outright — its own recorded
+    source_version_helm is still checked against the current Chart.yaml
+    version, the same gap check_images' own blank-target branch guards
+    against (release-table.csv can silently drift even without ever
+    filling in a "planned" target). Also records a "missing_from_release_
+    table" finding, with a fix-it hint from missing_chart_version_hint,
+    when no row for this dependency has EVER recorded a Helm chart
+    version at all (see chart_version_ever_tracked)."""
     actual = str(dep["version"])
     for row in rows:
         target = row["target_version_helm"]
@@ -511,6 +537,27 @@ def missing_image_hint(rows, scope_key, component, basename, versions, primary):
 
 
 def check_images(scope_key, component, rows, lines, findings, values, dep=None, chart_dir=None):
+    """The TARGET-side counterpart to check_images_source: resolves every
+    basename release-table.csv's rows for this component list under
+    scope_key (via basenames_under_scope_any_tag, falling back to an
+    unscoped find_matches_any_tag search — a basename is a real
+    repository identity, not a values.yaml path, so it can legitimately
+    live under a sibling scope, e.g. keycloak-config-cli under top-level
+    "keycloak") and compares each resolved version against that row's own
+    verifiable target_version_app, recording a mismatch via
+    report_mismatch when they disagree. A pin resolving to more than one
+    distinct version is reported as "ambiguous" instead of compared. A
+    blank target isn't skipped outright — its own recorded
+    source_version_app is still checked against the actual pin, the same
+    gap check_chart_version's own blank-target branch guards against (a
+    real case: mi-data's azure-cli pin drifted in values.yaml while its
+    row never recorded any app version, source or target). After the
+    per-row pass, a second pass walks every ACTUAL basename pinned under
+    scope_key that no row claimed at all, recording a "missing_from_
+    release_table" finding (with a fix-it hint from missing_image_hint,
+    which also needs to know whether it's this component's own primary
+    image — see primary_image_basename — since only a sidecar needs "Used
+    by")."""
     actual_basenames = basenames_under_scope_any_tag(lines, scope_key)
     csv_basenames = set()
     # Resolved once per component (not per pin) — see primary_image_basename;
@@ -977,6 +1024,13 @@ SECTIONS = [
 
 
 def print_report(findings, unresolved):
+    """Prints every non-empty findings[key] section (in SECTIONS' order,
+    items sorted), plus a "Skipped" block for `unresolved` rows (see
+    compare — a release-table.csv row whose component couldn't be
+    resolved to a Chart.yaml dependency or values.yaml key at all), or a
+    single "OK" line when there's nothing to report. Returns True if
+    anything was printed, so main() can use it directly as the process's
+    exit-status signal."""
     any_findings = False
     for key, title in SECTIONS:
         items = findings.get(key)
@@ -998,6 +1052,15 @@ def print_report(findings, unresolved):
 
 
 def main():
+    """CLI entry point: loads release-table.csv plus Chart.yaml/values.yaml
+    (and, when release-baseline.yaml's release_table key resolves, the
+    same state as of that baseline — see resolve_baseline_chart_state),
+    runs compare() over every dependency/component, prints the results
+    via print_report, and exits 1 if anything was found. `--baseline-only`
+    restricts the run to the source-side presence checks (see compare's
+    own docstring) and requires the baseline to have resolved; with no
+    resolvable baseline otherwise, the source-version checks are skipped
+    with a warning rather than failing the whole run."""
     args = sys.argv[1:]
     if args in (["-h"], ["--help"]):
         print(__doc__)

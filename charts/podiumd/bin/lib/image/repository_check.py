@@ -110,6 +110,14 @@ def find_images_without_repository(chart_dir, allow_pull=False):
 
 
 def check_image_repository(chart_dir):
+    """The verify-podiumd check itself: every image-tag block in
+    chart_dir's values.yaml must resolve to a non-empty repository (see
+    find_images_without_repository for the resolution rules). Prints each
+    dotted path with no resolvable repository and fails if any are found
+    — an unresolvable repository means the podiumd.image helper would
+    render a malformed "<empty>:<tag>" image reference. Passes trivially
+    (True, "0 missing repository") if chart_dir has no values.yaml at
+    all."""
     if not (chart_dir / "values.yaml").is_file():
         print("OK: no values.yaml found — nothing to check")
         return True, "0 missing repository"

@@ -62,6 +62,10 @@ CHART_YAML = CHART_DIR / "Chart.yaml"
 
 
 def find_dependency(name_or_alias):
+    """Looks up `name_or_alias` among podiumd's own Chart.yaml dependencies
+    (matching either the dependency's name or its alias) and raises
+    SystemExit with a clear error if there's no match — this script only
+    ever operates on a dependency podiumd itself declares."""
     deps = load_yaml(CHART_YAML)["dependencies"]
     dep = _find_dependency(deps, name_or_alias)
     if dep is None:
@@ -70,6 +74,14 @@ def find_dependency(name_or_alias):
 
 
 def report_chart(chart_dir, requested_version, key):
+    """Prints `chart_dir`'s Chart.yaml/values.yaml contents: chart name,
+    version and appVersion, its own sub-chart dependencies, and every image
+    reference found in values.yaml — each as the "<key> <basename>
+    <version>  (path: ...)" line plus an indented "<repo>:<tag>" line (see
+    module docstring for why that shape matters). Warns to stderr, but
+    doesn't fail, if `chart_dir`'s actual version differs from
+    `requested_version` (e.g. a local "file://" dependency, which only
+    ever has one real version)."""
     chart_yaml = load_yaml(chart_dir / "Chart.yaml")
     values_yaml = load_yaml(chart_dir / "values.yaml") or {}
 
@@ -103,6 +115,11 @@ def report_chart(chart_dir, requested_version, key):
 
 
 def main():
+    """CLI entry point: resolves <chart-name-or-alias> to a podiumd
+    dependency, then either reads its source straight from a local
+    "file://" path or `helm pull`s <chart-version> into a scratch tempdir
+    (always cleaned up), and reports its images and sub-chart dependencies
+    via report_chart."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)

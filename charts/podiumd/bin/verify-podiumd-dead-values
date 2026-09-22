@@ -46,6 +46,10 @@ CHART_DIR = SCRIPT_DIR.parent
 
 
 def main():
+    """CLI entry point: runs the (slow, 10-40+ minute) dead-values scan
+    against the real podiumd chart and prints its findings. Always exits 0
+    — this is report-only, since deciding to actually remove a "dead"
+    value is a human call (see lib.checks.dead_values.check_dead_values)."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)

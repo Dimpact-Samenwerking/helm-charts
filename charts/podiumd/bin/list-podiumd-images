@@ -77,6 +77,10 @@ VENDORED_DIR = PODIUMD_DIR / "charts"
 
 
 def pull_chart(dep, dest):
+    """Thin wrapper around lib.chart.pull_and_subchart_resolution.pull_chart
+    that pulls `dep` at its own pinned version into `dest`, raising
+    SystemExit with a clear message on failure instead of returning an
+    (ok, stderr) tuple for the caller to check."""
     ok, stderr = _pull_chart(dep, dep["version"], dest)
     if not ok:
         raise SystemExit(f"error: helm pull failed for {dep['name']}@{dep['version']}\n{stderr}")
@@ -103,6 +107,12 @@ def safe_extract_tgz(tgz_path, dest):
 
 
 def load_chart(dep, tmproot, refresh):
+    """Returns (chart_yaml, values) for `dep`'s own sub-chart source: read
+    straight from its source directory for a local "file://" dependency
+    (--refresh is meaningless there, see comment below); otherwise
+    extracted from the vendored charts/<name>-<version>.tgz if present and
+    `refresh` is False, or freshly `helm pull`ed into `tmproot` otherwise.
+    `values` is {} if the chart has no values.yaml at all."""
     local_dir = local_chart_dir(PODIUMD_DIR, dep)
     if local_dir is not None:
         # A "file://" dependency has no remote to pull from and no vendored
@@ -132,6 +142,12 @@ def load_chart(dep, tmproot, refresh):
 
 
 def deep_merge(base, override):
+    """Recursively merges `override` onto `base` the way Helm merges a
+    parent chart's values.yaml overrides onto a sub-chart's own defaults:
+    dict values are merged key by key, and any other type (including a
+    list) in `override` replaces `base`'s value outright rather than
+    combining with it. `None` in `override` means "no override" and falls
+    back to `base`, not an explicit null."""
     if isinstance(base, dict) and isinstance(override, dict):
         merged = dict(base)
         for key, value in override.items():
@@ -301,6 +317,12 @@ def component_version_rows(dep, key, merged, deps, root_values, rendered_paths):
 
 
 def main():
+    """CLI entry point: renders the real podiumd chart once to determine
+    which dependency (sub-)trees are actually enabled, then for each
+    Chart.yaml dependency loads and merges its own values with podiumd's
+    overrides (plus any top-level images not tied to a dependency) and
+    prints every resolved image reference. --refresh forces a fresh `helm
+    pull` per dependency instead of reusing a locally vendored .tgz."""
     if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
         print(__doc__)
         sys.exit(0)

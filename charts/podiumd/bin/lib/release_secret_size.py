@@ -93,6 +93,8 @@ from lib.settings import release_secret_warn_at_fraction_of_limit
 
 
 def b64(data):
+    """`data` (raw bytes) base64-encoded to a str, the same shape Helm's
+    Go structs store file contents in (Chart.Templates[].Data etc.)."""
     return base64.b64encode(data).decode()
 
 

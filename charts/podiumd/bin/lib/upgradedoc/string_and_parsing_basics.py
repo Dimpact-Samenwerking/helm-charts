@@ -11,14 +11,26 @@ COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
 
 
 def normalize_version(v):
+    """`v` with any leading "v"/"V" stripped (e.g. "v1.2.3" -> "1.2.3"), so a
+    doc's own "v"-prefixed version and Chart.yaml/values.yaml's bare one
+    compare equal. Passes through falsy `v` (None, "") unchanged."""
     return v.lstrip("vV") if v else v
 
 
 def normalize_name(s):
+    """`s` lowercased with every non-alphanumeric character stripped — the
+    shared "same name, ignoring case/punctuation/spacing" key used
+    throughout this module's fuzzy dependency/sidecar/component-name
+    matching (match_dependency, match_canonical_sidecar_name, ...)."""
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
 def words_of(s):
+    """`s` lowercased and split into its individual alphanumeric words,
+    dropping every run of punctuation/whitespace between them (e.g. "ZGW
+    Office Add-in (frontend)" -> ["zgw", "office", "add", "in",
+    "frontend"]) — the tokenization _word_aligned_spans/changes_heading_
+    identities build their own word-boundary-safe matching on top of."""
     return [w for w in re.split(r"[^a-zA-Z0-9]+", s.lower()) if w]
 
 

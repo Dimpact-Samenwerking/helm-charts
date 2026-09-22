@@ -55,6 +55,9 @@ def cache_path(chart_dir):
 
 
 def load_cache(chart_dir):
+    """The parsed contents of cache_path(chart_dir), or {} if the file
+    doesn't exist yet or can't be parsed (corrupt/truncated) — never
+    raises, so a broken cache just behaves like a cold one."""
     path = cache_path(chart_dir)
     if not path.is_file():
         return {}
@@ -65,6 +68,8 @@ def load_cache(chart_dir):
 
 
 def save_cache(chart_dir, cache):
+    """Persist `cache` to cache_path(chart_dir) as pretty-printed,
+    key-sorted JSON, creating the .cache directory first if needed."""
     path = cache_path(chart_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")

@@ -49,6 +49,11 @@ FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
 def main():
+    """CLI entry point: validates <new-baseline> resolves to a real release
+    (tag or branch), writes it as release-baseline.yaml's upgrade_docs key,
+    then rebases the docs onto it (fix-doc-consistency) and regenerates
+    README.md (fix-helm-doc) — exits with whichever of those two sub-runs
+    fails first, if any."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)

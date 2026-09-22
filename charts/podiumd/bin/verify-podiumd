@@ -396,6 +396,8 @@ DEFAULT_CHART_DIR = SCRIPT_DIR.parent
 
 
 def log(title):
+    """Prints a "=== title ===" section header, used to separate each
+    checklist step's (and the final summary's) output in the run."""
     print(f"\n=== {title} ===")
 
 
@@ -407,11 +409,18 @@ def die(message):
 
 
 def require_helm():
+    """Dies (via die) if `helm` isn't on PATH — the one precondition nearly
+    every step here ultimately depends on, checked once up front instead
+    of failing confusingly deep inside the first step that shells out to
+    it."""
     if shutil.which("helm") is None:
         die("helm is not installed")
 
 
 def resolve_chart_dir():
+    """Resolves DEFAULT_CHART_DIR to an absolute path and dies (via die) if
+    it doesn't contain a Chart.yaml — the chart_dir every check step below
+    is actually given."""
     chart_dir = DEFAULT_CHART_DIR.resolve()
     if not (chart_dir / "Chart.yaml").is_file():
         die(f"{chart_dir} does not contain a Chart.yaml")
@@ -419,6 +428,10 @@ def resolve_chart_dir():
 
 
 def check_utf8_format(chart_dir):
+    """True (with an "OK" message) if chart_dir's values.yaml has no
+    UTF-8 BOM in its leading bytes; False with a fix-utf8-bom pointer
+    otherwise — see the UTF8_BOM constant. This step only detects the
+    BOM, it never writes to values.yaml itself."""
     values_path = chart_dir / "values.yaml"
     data = values_path.read_bytes()
     if data[: len(UTF8_BOM)] == UTF8_BOM:
@@ -532,6 +545,13 @@ def check_duplicate_keys(chart_dir):
 
 
 def check_lint(chart_dir, extra_args):
+    """Runs `helm lint` against chart_dir with extra_args (see
+    lint_args_for — the shared ci/lint-values.yaml overrides every
+    render/lint/check step here uses), printing its combined
+    stdout/stderr. Returns (ok, detail): ok is False on a nonzero exit OR
+    any [ERROR] line even when Helm itself exits 0 (lint doesn't always
+    reflect an error in its own exit code); detail reports the parsed
+    error/warning counts."""
     result = run(["helm", "lint", str(chart_dir), *extra_args], capture_output=True, text=True)
     output = result.stdout + result.stderr
     print(output, end="" if output.endswith("\n") else "\n")
@@ -546,6 +566,12 @@ def check_lint(chart_dir, extra_args):
 
 
 def check_render(chart_dir, extra_args):
+    """Renders chart_dir via render_chart (with extra_args — see
+    lint_args_for), then reports the rendered manifest count. Returns
+    (ok, detail): False if rendering fails outright (reporting
+    per-subchart errors via report_errors_by_subchart) or produces zero
+    manifests; also prints the largest rendered templates via
+    report_largest_templates for visibility even on a passing run."""
     result = render_chart(chart_dir, extra_args)
 
     if result.returncode != 0:
@@ -564,6 +590,9 @@ def check_render(chart_dir, extra_args):
 
 
 def print_summary(results, overall_ok):
+    """Prints the final PASS/FAIL/SKIP table for every step in `results`
+    (name, ok, detail triples — ok=None renders as SKIP), followed by one
+    closing line depending on overall_ok."""
     log("VERIFY SUMMARY")
     width = max(len(name) for name, _, _ in results)
     for name, ok, detail in results:
@@ -718,6 +747,12 @@ skipped, never blocks a run.
 
 
 def main():
+    """CLI entry point: parses --skip=/--include=/--detail-* flags and runs
+    every step in SKIPPABLE_STEPS' order via run_step, printing a
+    PASS/FAIL/SKIP summary at the end (see print_summary) and exiting
+    nonzero if any step failed. See --help's own epilog (STEPS_HELP +
+    REQUIRED_TOOLS_HELP) for the full step list and required external
+    tools."""
     parser = argparse.ArgumentParser(
         description="Verify the podiumd chart.",
         epilog=STEPS_HELP + REQUIRED_TOOLS_HELP,

@@ -146,6 +146,13 @@ def find_stale_digests(lines, values_path):
 
 
 def main():
+    """CLI entry point: scans values.yaml for digest-pinned images, fetches
+    each pin's live registry digest, and (unless --dry-run) rewrites every
+    stale one in place — optionally scoped to a single <key> <basename>
+    pair. After a real, non-empty write also regenerates README.md (fix-
+    helm-doc) and repairs the current target's images manifest (fix-doc-
+    consistency). Exits 1 if any pin had a fetch error, even when the
+    write itself succeeded."""
     args = sys.argv[1:]
     if "-h" in args or "--help" in args:
         print(__doc__)

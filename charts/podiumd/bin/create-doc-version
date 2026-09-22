@@ -63,10 +63,17 @@ FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
 def current_chart_version():
+    """Returns the target version to scaffold docs for: charts/podiumd/
+    Chart.yaml's own "version:" field."""
     return chart_version(CHART_YAML)
 
 
 def main():
+    """CLI entry point: scaffolds whichever of the standard upgrade-path
+    docs and images manifest don't already exist for the current chart
+    version, refusing if docs already exist for that target under a
+    different upgrade_docs_baseline (use fix-doc-consistency for that
+    case instead), then regenerates README.md via fix-helm-doc."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)
