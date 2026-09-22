@@ -381,20 +381,23 @@ def test_check_dead_values_never_nulls_a_dependencys_own_condition_leaf(libdeadv
 def test_resolve_scope_prefers_own_scope_without_matching_dependency(libdeadvaluescheck, tmp_path):
     own_scope = {"chart_name": "podiumd", "baseline_docs": []}
     full_scope = {"chart_name": "podiumd", "baseline_docs": []}
-    scope = libdeadvaluescheck._resolve_scope(tmp_path, {}, {}, "keycloak", own_scope, full_scope)
+    context = libdeadvaluescheck.ScopeResolutionContext(tmp_path, {}, {}, own_scope, full_scope)
+    scope = libdeadvaluescheck._resolve_scope(context, "keycloak")
     assert scope is own_scope
 
 
 def test_resolve_scope_falls_back_to_full_scope_without_matching_dependency_or_own_scope(libdeadvaluescheck, tmp_path):
     full_scope = {"chart_name": "podiumd", "baseline_docs": []}
-    scope = libdeadvaluescheck._resolve_scope(tmp_path, {}, {}, "keycloak", None, full_scope)
+    context = libdeadvaluescheck.ScopeResolutionContext(tmp_path, {}, {}, None, full_scope)
+    scope = libdeadvaluescheck._resolve_scope(context, "keycloak")
     assert scope is full_scope
 
 
 def test_resolve_scope_falls_back_to_full_scope_without_vendored_tgz(libdeadvaluescheck, tmp_path):
     full_scope = {"chart_name": "podiumd", "baseline_docs": []}
     dep_by_key = {"zac": make_dep("zac", "1.0.0")}
-    scope = libdeadvaluescheck._resolve_scope(tmp_path, {"zac": {"a": "b"}}, dep_by_key, "zac", None, full_scope)
+    context = libdeadvaluescheck.ScopeResolutionContext(tmp_path, {"zac": {"a": "b"}}, dep_by_key, None, full_scope)
+    scope = libdeadvaluescheck._resolve_scope(context, "zac")
     assert scope is full_scope
 
 

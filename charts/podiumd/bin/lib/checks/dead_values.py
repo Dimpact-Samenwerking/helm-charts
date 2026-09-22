@@ -179,6 +179,7 @@ import re
 import shutil
 import tempfile
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -624,31 +625,46 @@ def _make_own_scope(chart_dir, coalesced_values):
         keep |= missing
 
 
-def _resolve_scope(chart_dir, merged_values, dep_by_key, key, own_scope, full_scope):
+@dataclass
+class ScopeResolutionContext:
+    """The state every _resolve_scope call for a given check_dead_values
+    run needs, bundled since it's identical across every top-level key
+    resolved that run (only `key` itself varies per call) — see
+    check_dead_values/_build_scan_context, which builds one of these
+    once and reuses it for every key."""
+
+    chart_dir: Path
+    merged_values: dict
+    dep_by_key: dict
+    own_scope: dict | None
+    full_scope: dict
+
+
+def _resolve_scope(context, key):
     """The fast, sub-chart-scoped render for `key` if one can be built
     (see this module's docstring) and its own baseline render actually
-    succeeds; own_scope (see _make_own_scope) if `key` matches no
-    Chart.yaml dependency at all; else full_scope, the always-safe
+    succeeds; context.own_scope (see _make_own_scope) if `key` matches no
+    Chart.yaml dependency at all; else context.full_scope, the always-safe
     fallback. Never raises and never returns something unusable: any
     reconstruction gap just means this key gets tested the slow (but
     correct) way, same as before this optimization existed."""
-    dep = dep_by_key.get(key)
+    dep = context.dep_by_key.get(key)
     if dep is None:
-        return own_scope if own_scope is not None else full_scope
+        return context.own_scope if context.own_scope is not None else context.full_scope
     if dep["repository"].startswith("file://"):
-        return full_scope
+        return context.full_scope
 
-    tgz_path = chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz"
+    tgz_path = context.chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz"
     if not tgz_path.is_file():
-        return full_scope
+        return context.full_scope
 
-    subtree = merged_values.get(key)
+    subtree = context.merged_values.get(key)
     if not isinstance(subtree, dict):
-        return full_scope
+        return context.full_scope
 
     base_overlay = dict(subtree)
-    if "global" in merged_values:
-        base_overlay["global"] = merged_values["global"]
+    if "global" in context.merged_values:
+        base_overlay["global"] = context.merged_values["global"]
 
     scope = {
         "chart_name": dep["name"],
@@ -659,8 +675,52 @@ def _resolve_scope(chart_dir, merged_values, dep_by_key, key, own_scope, full_sc
     }
     scope["baseline_docs"] = _render_with_null_overrides(scope, [])
     if scope["baseline_docs"] is None:
-        return full_scope
+        return context.full_scope
     return scope
+
+
+def _pending_subtrees(frontier, exempt_full_paths):
+    """(scope, path, node, leaf_paths) for every frontier entry that still
+    has at least one leaf worth testing this level — see
+    _run_dead_value_search."""
+    pending = []
+    for scope, path, node in frontier:
+        leaf_paths = list(_candidate_leaves(node, path, exempt_full_paths))
+        if leaf_paths:
+            pending.append((scope, path, node, leaf_paths))
+    return pending
+
+
+def _submit_level(executor, pending):
+    return {
+        executor.submit(_render_with_null_overrides, scope, [p[scope["strip"] :] for p in leaf_paths]): (
+            scope,
+            path,
+            node,
+            leaf_paths,
+        )
+        for scope, path, node, leaf_paths in pending
+    }
+
+
+def _collect_level_results(futures, found):
+    """next_frontier (subtrees whose combined render differed from
+    baseline and need recursing into, one level deeper) and how many
+    leaves this level resolved (dead, found via `found.extend`, or
+    confirmed live) — see _run_dead_value_search."""
+    next_frontier = []
+    resolved = 0
+    for future in concurrent.futures.as_completed(futures):
+        scope, path, node, leaf_paths = futures[future]
+        docs = future.result()
+        if docs is not None and docs == scope["baseline_docs"]:
+            found.extend((scope, p) for p in leaf_paths)
+            resolved += len(leaf_paths)
+        elif len(leaf_paths) > 1:
+            next_frontier.extend((scope, (*path, key), child) for key, child in node.items())
+        else:
+            resolved += 1  # single leaf that differed (or errored): not dead, done with it
+    return next_frontier, resolved
 
 
 def _run_dead_value_search(executor, roots, total=None, exempt_full_paths=frozenset()):
@@ -680,34 +740,13 @@ def _run_dead_value_search(executor, roots, total=None, exempt_full_paths=frozen
     level = 0
     while frontier:
         level += 1
-        pending = []
-        for scope, path, node in frontier:
-            leaf_paths = list(_candidate_leaves(node, path, exempt_full_paths))
-            if leaf_paths:
-                pending.append((scope, path, node, leaf_paths))
+        pending = _pending_subtrees(frontier, exempt_full_paths)
         if not pending:
             break
 
-        futures = {
-            executor.submit(_render_with_null_overrides, scope, [p[scope["strip"] :] for p in leaf_paths]): (
-                scope,
-                path,
-                node,
-                leaf_paths,
-            )
-            for scope, path, node, leaf_paths in pending
-        }
-        next_frontier = []
-        for future in concurrent.futures.as_completed(futures):
-            scope, path, node, leaf_paths = futures[future]
-            docs = future.result()
-            if docs is not None and docs == scope["baseline_docs"]:
-                found.extend((scope, p) for p in leaf_paths)
-                resolved += len(leaf_paths)
-            elif len(leaf_paths) > 1:
-                next_frontier.extend((scope, (*path, key), child) for key, child in node.items())
-            else:
-                resolved += 1  # single leaf that differed (or errored): not dead, done with it
+        futures = _submit_level(executor, pending)
+        next_frontier, resolved_this_level = _collect_level_results(futures, found)
+        resolved += resolved_this_level
         if total is not None:
             print(
                 f"  level {level}: {len(pending)} render(s) — {resolved}/{total} leaf(ves) resolved so far "
@@ -747,6 +786,60 @@ def _confirm_against_full_chart(executor, full_scope, candidates):
     return [path for _scope, path in _run_dead_value_search(executor, roots, len(candidates))]
 
 
+def _build_scan_context(chart_dir, extra_args, full_scope):
+    """The ScopeResolutionContext every _resolve_scope call in this run
+    shares — split out of check_dead_values purely to keep its own local
+    count down."""
+    merged_values = _load_merged_values(chart_dir, extra_args)
+    # full_scope["base_overlay"] here, not the raw enable_overlay: it's
+    # already been pruned down to whatever could actually be forced on
+    # without breaking the full-chart render (see _make_full_scope) —
+    # reusing it keeps _make_own_scope's own baseline from hitting the
+    # exact same, already-known-bad forced-enable independently.
+    _deep_merge(merged_values, full_scope["base_overlay"])
+    dep_by_key = _dependency_by_key(chart_dir)
+
+    own_scope = _make_own_scope(chart_dir, _coalesced_values(chart_dir, merged_values, dep_by_key))
+    if own_scope is None:
+        print("Own-templates-only scope unavailable — falling back to full-chart scope for those keys", flush=True)
+
+    return ScopeResolutionContext(
+        chart_dir=chart_dir,
+        merged_values=merged_values,
+        dep_by_key=dep_by_key,
+        own_scope=own_scope,
+        full_scope=full_scope,
+    )
+
+
+def _resolve_all_scopes(executor, context, values):
+    """(scope, (key,), node) for every top-level values.yaml key,
+    resolved concurrently via _resolve_scope."""
+    scope_futures = {executor.submit(_resolve_scope, context, key): key for key in values}
+    roots = []
+    for future in concurrent.futures.as_completed(scope_futures):
+        key = scope_futures[future]
+        roots.append((future.result(), (key,), values[key]))
+    return roots
+
+
+def _print_scope_summary(roots, context):
+    scoped_n = sum(1 for scope, _, _ in roots if scope is not context.full_scope and scope is not context.own_scope)
+    own_n = sum(1 for scope, _, _ in roots if scope is context.own_scope)
+    full_n = sum(1 for scope, _, _ in roots if scope is context.full_scope)
+    print(f"  {scoped_n} sub-chart-scoped, {own_n} own-templates-scoped, {full_n} full-chart-scoped", flush=True)
+
+
+def _search_and_confirm(executor, roots, total, condition_paths, full_scope):
+    print("Searching top-down for dead leaves...", flush=True)
+    found = _run_dead_value_search(executor, roots, total, condition_paths)
+    confirmed = [path for scope, path in found if scope is full_scope]
+    to_confirm = [path for scope, path in found if scope is not full_scope]
+    if to_confirm:
+        print(f"Confirming {len(to_confirm)} candidate(s) against the real full-chart baseline...", flush=True)
+    return confirmed + _confirm_against_full_chart(executor, full_scope, to_confirm)
+
+
 def check_dead_values(chart_dir, extra_args):
     """Entry point for the dead-values sweep (see module docstring for the
     full design): null-tests every values.yaml leaf top-down, per-subchart
@@ -770,53 +863,22 @@ def check_dead_values(chart_dir, extra_args):
         flush=True,
     )
 
-    enable_overlay = _enable_overlay(chart_dir)
-    full_scope = _make_full_scope(chart_dir, extra_args, enable_overlay)
+    full_scope = _make_full_scope(chart_dir, extra_args, _enable_overlay(chart_dir))
     if full_scope["baseline_docs"] is None:
         return True, "skipped — baseline render failed"
 
-    merged_values = _load_merged_values(chart_dir, extra_args)
-    # full_scope["base_overlay"] here, not the raw enable_overlay: it's
-    # already been pruned down to whatever could actually be forced on
-    # without breaking the full-chart render (see _make_full_scope) —
-    # reusing it keeps _make_own_scope's own baseline from hitting the
-    # exact same, already-known-bad forced-enable independently.
-    _deep_merge(merged_values, full_scope["base_overlay"])
-    dep_by_key = _dependency_by_key(chart_dir)
-
-    own_scope = _make_own_scope(chart_dir, _coalesced_values(chart_dir, merged_values, dep_by_key))
-    if own_scope is None:
-        print("Own-templates-only scope unavailable — falling back to full-chart scope for those keys", flush=True)
+    context = _build_scan_context(chart_dir, extra_args, full_scope)
 
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=DEAD_VALUES_MAX_WORKERS) as executor:
             print(f"Resolving render scope for {len(values)} top-level key(s)...", flush=True)
-            scope_futures = {
-                executor.submit(_resolve_scope, chart_dir, merged_values, dep_by_key, key, own_scope, full_scope): key
-                for key in values
-            }
-            roots = []
-            for future in concurrent.futures.as_completed(scope_futures):
-                key = scope_futures[future]
-                roots.append((future.result(), (key,), values[key]))
+            roots = _resolve_all_scopes(executor, context, values)
+            _print_scope_summary(roots, context)
 
-            scoped_n = sum(1 for scope, _, _ in roots if scope is not full_scope and scope is not own_scope)
-            own_n = sum(1 for scope, _, _ in roots if scope is own_scope)
-            full_n = sum(1 for scope, _, _ in roots if scope is full_scope)
-            print(
-                f"  {scoped_n} sub-chart-scoped, {own_n} own-templates-scoped, {full_n} full-chart-scoped", flush=True
-            )
-
-            print("Searching top-down for dead leaves...", flush=True)
-            found = _run_dead_value_search(executor, roots, total, condition_paths)
-            confirmed = [path for scope, path in found if scope is full_scope]
-            to_confirm = [path for scope, path in found if scope is not full_scope]
-            if to_confirm:
-                print(f"Confirming {len(to_confirm)} candidate(s) against the real full-chart baseline...", flush=True)
-            dead = confirmed + _confirm_against_full_chart(executor, full_scope, to_confirm)
+            dead = _search_and_confirm(executor, roots, total, condition_paths, full_scope)
     finally:
-        if own_scope is not None:
-            shutil.rmtree(own_scope["temp_dir"], ignore_errors=True)
+        if context.own_scope is not None:
+            shutil.rmtree(context.own_scope["temp_dir"], ignore_errors=True)
 
     dead.sort()
 
