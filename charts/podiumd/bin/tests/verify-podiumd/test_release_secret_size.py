@@ -240,12 +240,12 @@ WARN_THRESHOLD = 0.90
 
 def test_encoded_secret_size_round_trips_gzip_base64(librelease_secret_size):
     release = {"name": "x", "manifest": "y" * 1000}
-    raw_len, gzipped_len, size, pct = librelease_secret_size.encoded_secret_size(release, SECRET_LIMIT)
-    assert raw_len == len(json.dumps(release, separators=(",", ":")).encode())
+    estimate = librelease_secret_size.encoded_secret_size(release, SECRET_LIMIT)
+    assert estimate.raw_len == len(json.dumps(release, separators=(",", ":")).encode())
     # sanity: gzip+base64 of this repetitive input is much smaller than raw
-    assert gzipped_len < raw_len
-    assert size > gzipped_len  # base64 expands
-    assert pct == pytest.approx(size / SECRET_LIMIT)
+    assert estimate.gzipped_len < estimate.raw_len
+    assert estimate.size > estimate.gzipped_len  # base64 expands
+    assert estimate.pct == pytest.approx(estimate.size / SECRET_LIMIT)
 
 
 def test_encoded_secret_size_pct_crosses_threshold_for_large_release(librelease_secret_size):
@@ -257,15 +257,16 @@ def test_encoded_secret_size_pct_crosses_threshold_for_large_release(librelease_
     import secrets
 
     release = {"name": "x", "manifest": secrets.token_hex(700_000)}
-    _raw_len, _gzipped_len, _size, pct = librelease_secret_size.encoded_secret_size(release, SECRET_LIMIT)
-    assert pct >= WARN_THRESHOLD
+    estimate = librelease_secret_size.encoded_secret_size(release, SECRET_LIMIT)
+    assert estimate.pct >= WARN_THRESHOLD
 
 
 # --- format_report / over_limit_warning ---
 
 
 def test_format_report_contains_all_fields(librelease_secret_size):
-    report = librelease_secret_size.format_report("podiumd", "4.9.1", 100, 50, 70, 0.5, SECRET_LIMIT)
+    estimate = librelease_secret_size.SecretSizeEstimate(100, 50, 70, 0.5, SECRET_LIMIT)
+    report = librelease_secret_size.format_report("podiumd", "4.9.1", estimate)
     assert "podiumd 4.9.1" in report
     assert "100 bytes" in report
     assert "50 bytes" in report
@@ -274,7 +275,8 @@ def test_format_report_contains_all_fields(librelease_secret_size):
 
 
 def test_over_limit_warning_names_chart_and_percentage(librelease_secret_size):
-    warning = librelease_secret_size.over_limit_warning("podiumd", "4.9.1", 950000, 0.95, SECRET_LIMIT)
+    estimate = librelease_secret_size.SecretSizeEstimate(0, 0, 950000, 0.95, SECRET_LIMIT)
+    warning = librelease_secret_size.over_limit_warning("podiumd", "4.9.1", estimate)
     assert "podiumd 4.9.1" in warning
     assert "95.0%" in warning
     assert "request entity too large" in warning
@@ -391,7 +393,9 @@ def test_check_release_secret_size_fails_at_warn_threshold(librelease_secret_siz
         lambda chart_dir, values_override, manifest, name, namespace: ({}, "4.9.1", []),
     )
     monkeypatch.setattr(
-        librelease_secret_size, "encoded_secret_size", lambda release, secret_limit: (1000, 500, 950000, 0.95)
+        librelease_secret_size,
+        "encoded_secret_size",
+        lambda release, secret_limit: librelease_secret_size.SecretSizeEstimate(1000, 500, 950000, 0.95, secret_limit),
     )
 
     ok, detail = librelease_secret_size.check_release_secret_size(tmp_path, [])
