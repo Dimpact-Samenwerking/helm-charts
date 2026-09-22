@@ -9,6 +9,7 @@ import json
 import shutil
 
 from collections import Counter
+from dataclasses import dataclass
 
 import yaml
 
@@ -140,6 +141,136 @@ def _shellcheck_location(finding, locations):
     return f"{base} (rendered line {rendered_line})" if rendered_line else base
 
 
+@dataclass
+class ShellcheckScan:
+    """Everything check_shellcheck's own print/detail logic needs from a
+    completed render+lint pass: the rendered-line lookup (locations), the
+    friendly-vendor map (needed by the print step for its label text), and
+    the three own/vendored-friendly/vendored-other finding buckets. See
+    _scan_rendered_chart, which builds this."""
+
+    locations: object
+    vendor_map: dict
+    own_real: list
+    vendored_friendly: list
+    vendored_other: list
+
+
+def _own_shellcheck_findings(own_docs, shell_names, failing_levels):
+    """Lints every embedded script found in this chart's own docs, keeping
+    only failing_levels-severity comments. Returns (None, error) if any
+    script's shellcheck output couldn't be parsed."""
+    own_real = []
+    for source, path, shell, script_text, kind, namespace, name in extract_shell_scripts(own_docs, shell_names):
+        comments = run_shellcheck(shell, script_text)
+        if comments is None:
+            return None, "shellcheck produced unparseable output"
+        own_real.extend((source, path, c, kind, namespace, name) for c in comments if c.get("level") in failing_levels)
+    return own_real, None
+
+
+def _vendored_script_result(entry, failing_levels):
+    """One extract_shell_scripts entry -> (chart, findings, error): lints
+    the entry's script, keeping only failing_levels-severity comments as
+    (source, path, comment, kind, namespace, name) findings. findings is
+    None (and error set) if shellcheck's own output couldn't be parsed."""
+    source, path, shell, script_text, kind, namespace, name = entry
+    comments = run_shellcheck(shell, script_text)
+    if comments is None:
+        return None, None, "shellcheck produced unparseable output"
+    findings = [(source, path, c, kind, namespace, name) for c in comments if c.get("level") in failing_levels]
+    return chart_name_from_source(source), findings, None
+
+
+def _vendored_shellcheck_findings(vendored_docs, shell_names, failing_levels, vendor_map):
+    """Lints every embedded script found in vendored docs (see
+    _vendored_script_result), splitting findings into (vendored_friendly,
+    vendored_other) by vendor_map membership. Returns (None, None, error)
+    if any script's shellcheck output couldn't be parsed."""
+    vendored_friendly, vendored_other = [], []
+    for entry in extract_shell_scripts(vendored_docs, shell_names):
+        chart, findings, error = _vendored_script_result(entry, failing_levels)
+        if error:
+            return None, None, error
+        (vendored_friendly if chart in vendor_map else vendored_other).extend(findings)
+    return vendored_friendly, vendored_other, None
+
+
+def _scan_rendered_chart(chart_dir, extra_args, shell_names, failing_levels):
+    """Renders the chart, lints its own scripts and every vendored sub-
+    chart's scripts (see _own_shellcheck_findings/
+    _vendored_shellcheck_findings) with shellcheck, and bundles the result
+    into a ShellcheckScan. Returns (None, error) on any render/shellcheck
+    failure, else (ShellcheckScan, None)."""
+    result = render_chart(chart_dir, extra_args)
+    if result.returncode != 0:
+        return None, "helm template failed to render"
+
+    locations = build_resource_locations(result.stdout)
+    docs = split_rendered_by_source(result.stdout)
+    vendor_map = friendly_vendor_charts(chart_dir)
+    own_docs = [(s, t) for s, t in docs if s.startswith(OWN_TEMPLATES_PREFIX)]
+    vendored_docs = [(s, t) for s, t in docs if not s.startswith(OWN_TEMPLATES_PREFIX)]
+
+    own_real, error = _own_shellcheck_findings(own_docs, shell_names, failing_levels)
+    if error:
+        return None, error
+
+    vendored_friendly, vendored_other, error = _vendored_shellcheck_findings(
+        vendored_docs, shell_names, failing_levels, vendor_map
+    )
+    if error:
+        return None, error
+
+    return ShellcheckScan(locations, vendor_map, own_real, vendored_friendly, vendored_other), None
+
+
+def _print_shellcheck_findings(scan):
+    """Prints check_shellcheck's three report sections (own/vendored-
+    friendly/vendored-other) for a completed ShellcheckScan -- see
+    check_shellcheck's own docstring for what each section means and why
+    they're reported differently."""
+    if scan.own_real:
+        print(
+            f"Found {len(scan.own_real)} real shellcheck issue(s) in this chart's own templates "
+            f"(not cosmetic — these fail the check):"
+        )
+        print_grouped_findings(
+            scan.own_real,
+            key_fn=_shellcheck_group_key,
+            item_fn=lambda f: _shellcheck_location(f, scan.locations),
+            label_fn=_shellcheck_group_label,
+            items_label="location(s)",
+        )
+        print()
+
+    if scan.vendored_friendly:
+        print(
+            f"Found {len(scan.vendored_friendly)} shellcheck issue(s) in partner-maintained "
+            f"vendored sub-chart(s) (reported for visibility, never a failure):"
+        )
+        print_grouped_findings(
+            scan.vendored_friendly,
+            key_fn=_shellcheck_group_key,
+            item_fn=lambda f: (
+                f"{_shellcheck_location(f, scan.locations)} [{scan.vendor_map[chart_name_from_source(f[0])]}]"
+            ),
+            label_fn=_shellcheck_group_label,
+            items_label="location(s)",
+        )
+        print()
+
+    if scan.vendored_other:
+        by_chart = Counter(chart_name_from_source(source) for source, *_rest in scan.vendored_other)
+        print(
+            f"{len(scan.vendored_other)} shellcheck finding(s) across {len(by_chart)} other "
+            f"vendored sub-chart(s) (outside this repo's scope, not shown, never a failure)"
+        )
+
+    if not (scan.own_real or scan.vendored_friendly or scan.vendored_other):
+        print("OK: no shellcheck findings in the rendered chart")
+
+
 def check_shellcheck(chart_dir, extra_args):
     """Lints every shell script embedded in a container's command/args
     (this chart's `command: [".../sh", "-c"], args: [<script>]` /
@@ -168,72 +299,16 @@ def check_shellcheck(chart_dir, extra_args):
     shell_names = quality_gates_shellcheck_shell_names(chart_dir)
     failing_levels = quality_gates_shellcheck_failing_levels(chart_dir)
 
-    result = render_chart(chart_dir, extra_args)
-    if result.returncode != 0:
-        return False, "helm template failed to render"
+    scan, error = _scan_rendered_chart(chart_dir, extra_args, shell_names, failing_levels)
+    if error:
+        return False, error
 
-    locations = build_resource_locations(result.stdout)
-    docs = split_rendered_by_source(result.stdout)
-    vendor_map = friendly_vendor_charts(chart_dir)
-    own_docs = [(s, t) for s, t in docs if s.startswith(OWN_TEMPLATES_PREFIX)]
-    vendored_docs = [(s, t) for s, t in docs if not s.startswith(OWN_TEMPLATES_PREFIX)]
+    _print_shellcheck_findings(scan)
 
-    own_real, vendored_friendly, vendored_other = [], [], []
-    for source, path, shell, script_text, kind, namespace, name in extract_shell_scripts(own_docs, shell_names):
-        comments = run_shellcheck(shell, script_text)
-        if comments is None:
-            return False, "shellcheck produced unparseable output"
-        own_real.extend((source, path, c, kind, namespace, name) for c in comments if c.get("level") in failing_levels)
-
-    for source, path, shell, script_text, kind, namespace, name in extract_shell_scripts(vendored_docs, shell_names):
-        comments = run_shellcheck(shell, script_text)
-        if comments is None:
-            return False, "shellcheck produced unparseable output"
-        chart = chart_name_from_source(source)
-        for c in comments:
-            if c.get("level") in failing_levels:
-                finding = (source, path, c, kind, namespace, name)
-                (vendored_friendly if chart in vendor_map else vendored_other).append(finding)
-
-    if own_real:
-        print(
-            f"Found {len(own_real)} real shellcheck issue(s) in this chart's own templates "
-            f"(not cosmetic — these fail the check):"
-        )
-        print_grouped_findings(
-            own_real,
-            key_fn=_shellcheck_group_key,
-            item_fn=lambda f: _shellcheck_location(f, locations),
-            label_fn=_shellcheck_group_label,
-            items_label="location(s)",
-        )
-        print()
-
-    if vendored_friendly:
-        print(
-            f"Found {len(vendored_friendly)} shellcheck issue(s) in partner-maintained "
-            f"vendored sub-chart(s) (reported for visibility, never a failure):"
-        )
-        print_grouped_findings(
-            vendored_friendly,
-            key_fn=_shellcheck_group_key,
-            item_fn=lambda f: f"{_shellcheck_location(f, locations)} [{vendor_map[chart_name_from_source(f[0])]}]",
-            label_fn=_shellcheck_group_label,
-            items_label="location(s)",
-        )
-        print()
-
-    if vendored_other:
-        by_chart = Counter(chart_name_from_source(source) for source, *_rest in vendored_other)
-        print(
-            f"{len(vendored_other)} shellcheck finding(s) across {len(by_chart)} other "
-            f"vendored sub-chart(s) (outside this repo's scope, not shown, never a failure)"
-        )
-
-    if not (own_real or vendored_friendly or vendored_other):
-        print("OK: no shellcheck findings in the rendered chart")
-
-    detail = f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, {len(vendored_other)} other-vendor"
-    if own_real:
+    detail = (
+        f"{len(scan.own_real)} real (own), {len(scan.vendored_friendly)} partner-vendor, "
+        f"{len(scan.vendored_other)} other-vendor"
+    )
+    if scan.own_real:
         return False, detail
     return True, detail
