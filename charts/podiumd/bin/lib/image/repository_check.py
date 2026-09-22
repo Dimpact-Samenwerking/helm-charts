@@ -25,6 +25,9 @@ podiumd-adapter Deployment currently renders "image: :0.6.7@sha256:...",
 confirmed both by rendering the podiumd.image helper directly and
 against a real `helm template` output already checked into this repo."""
 
+from dataclasses import dataclass
+from dataclasses import field
+
 from lib.chart.nested_subchart_identity import nested_subchart_documented_image_repository
 from lib.chart.nested_subchart_identity import nested_subchart_name_for
 from lib.chart.nested_subchart_identity import version_repository_path_for
@@ -32,6 +35,60 @@ from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import get_path
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+
+
+@dataclass
+class _RepositoryResolutionContext:
+    """find_images_without_repository's own per-call config (chart_dir,
+    allow_pull) plus the two subchart-lookup caches _path_has_repository
+    fills in across paths, bundled since every one of its 4 params is
+    threaded unchanged through every call in the same loop."""
+
+    chart_dir: object
+    allow_pull: bool
+    nested_subchart_cache: dict = field(default_factory=dict)
+    subchart_cache: dict = field(default_factory=dict)
+
+
+def _path_has_repository(path, values, dep, ctx):
+    """True if `path`'s image-tag block resolves to a non-empty
+    repository, per find_images_without_repository's own resolution
+    rules (own override, sibling repository field, documented nested
+    subchart, then vendored subchart default) — see that function's
+    docstring for why each fallback exists."""
+    own_repo = get_path(values, ".".join(path) + ".repository")
+    if isinstance(own_repo, str) and own_repo:
+        return True
+
+    if dep is None:
+        # No Chart.yaml dependency owns this key — nothing to fall
+        # back to, so podiumd's own (already-checked-above) value is
+        # the only possible answer.
+        return False
+
+    sibling_rel = version_repository_path_for(dep["name"], ctx.chart_dir)
+    if sibling_rel:
+        sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
+        if isinstance(sibling_repo, str) and sibling_repo:
+            return True
+
+    nested_rel = ".".join(path[1:])
+    nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel, ctx.chart_dir)
+    if nested_chart_name:
+        cache_key = (dep["name"], nested_chart_name)
+        if cache_key not in ctx.nested_subchart_cache:
+            ctx.nested_subchart_cache[cache_key] = nested_subchart_documented_image_repository(
+                ctx.chart_dir, dep, nested_chart_name
+            )
+        if ctx.nested_subchart_cache[cache_key]:
+            return True
+
+    if dep["name"] not in ctx.subchart_cache:
+        sub_values, _source, _err = resolve_chart_values(ctx.chart_dir, dep, dep["version"], allow_pull=ctx.allow_pull)
+        ctx.subchart_cache[dep["name"]] = sub_values
+    sub_values = ctx.subchart_cache[dep["name"]]
+    sub_repo = get_path(sub_values, ".".join(path[1:]) + ".repository") if sub_values is not None else None
+    return isinstance(sub_repo, str) and bool(sub_repo)
 
 
 def find_images_without_repository(chart_dir, allow_pull=False):
@@ -59,52 +116,15 @@ def find_images_without_repository(chart_dir, allow_pull=False):
     deps = chart_yaml.get("dependencies", [])
     values = load_yaml(chart_dir / "values.yaml") or {}
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
-    subchart_cache = {}  # dep name -> subchart values or None
-    nested_subchart_cache = {}  # (dep name, nested chart name) -> repository_or_None
+    ctx = _RepositoryResolutionContext(chart_dir, allow_pull)
 
     missing = []
     for path, _tag in find_all_image_and_version_paths(values, deps):
         if not path:
             continue
-
-        own_repo = get_path(values, ".".join(path) + ".repository")
-        if isinstance(own_repo, str) and own_repo:
-            continue
-
         dep = by_values_key.get(path[0])
-        if dep is None:
-            # No Chart.yaml dependency owns this key — nothing to fall
-            # back to, so podiumd's own (already-checked-above) value is
-            # the only possible answer.
+        if not _path_has_repository(path, values, dep, ctx):
             missing.append(path)
-            continue
-
-        sibling_rel = version_repository_path_for(dep["name"], chart_dir)
-        if sibling_rel:
-            sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
-            if isinstance(sibling_repo, str) and sibling_repo:
-                continue
-
-        nested_rel = ".".join(path[1:])
-        nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel, chart_dir)
-        if nested_chart_name:
-            cache_key = (dep["name"], nested_chart_name)
-            if cache_key not in nested_subchart_cache:
-                nested_subchart_cache[cache_key] = nested_subchart_documented_image_repository(
-                    chart_dir, dep, nested_chart_name
-                )
-            if nested_subchart_cache[cache_key]:
-                continue
-
-        if dep["name"] not in subchart_cache:
-            sub_values, _source, _err = resolve_chart_values(chart_dir, dep, dep["version"], allow_pull=allow_pull)
-            subchart_cache[dep["name"]] = sub_values
-        sub_values = subchart_cache[dep["name"]]
-        sub_repo = get_path(sub_values, ".".join(path[1:]) + ".repository") if sub_values is not None else None
-        if isinstance(sub_repo, str) and sub_repo:
-            continue
-
-        missing.append(path)
 
     return sorted(missing)
 
