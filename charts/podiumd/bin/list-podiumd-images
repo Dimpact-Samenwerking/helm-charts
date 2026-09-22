@@ -48,6 +48,9 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
 from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
 from lib.chart.pull_and_subchart_resolution import local_chart_dir
 from lib.chart.pull_and_subchart_resolution import pull_chart as _pull_chart

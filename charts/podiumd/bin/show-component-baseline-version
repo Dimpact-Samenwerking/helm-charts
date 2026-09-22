@@ -37,6 +37,9 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
 from lib.baseline_report import show_baseline_section
 from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
