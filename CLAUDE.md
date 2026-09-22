@@ -13,6 +13,11 @@ Read [`.github/copilot-instructions.md`](.github/copilot-instructions.md) before
 - Dependency management (Renovate + manual `.tgz` workflow)
 - ZAC repository conventions
 
+Files under `charts/podiumd/docs/_UPGRADE_PATHS/` additionally follow
+[`charts/podiumd/docs/_UPGRADE_PATHS/CLAUDE.md`](charts/podiumd/docs/_UPGRADE_PATHS/CLAUDE.md)
+— the format contract for upgrade guides and values-deltas files. Read it
+before writing or editing anything in that folder.
+
 ## Branching strategy
 
 See [`README.md`](README.md#branching-strategy). Summary: forward-cascade from `main` → `feature/podiumd-<X.Y.0>` → `feature/podiumd-<X.Y.0>-*` feature branches and `feature/<env>-podiumd-<X.Y.0>` environment branches.

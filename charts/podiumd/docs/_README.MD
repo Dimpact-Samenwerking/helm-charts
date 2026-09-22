@@ -23,8 +23,8 @@ the hop touches an operator or CRDs:
 
 | File | Purpose |
 |---|---|
-| `<from>-to-<to>-upgrade.md` | The operator guide for the hop: per-environment checklist up top, explanation of every change below. |
-| `<from>-to-<to>-values-deltas.md` | Key-by-key gemeente `podiumd.yml` reference (add/change/remove). A short placeholder when the release needed no values edits. |
+| `<from>-to-<to>-upgrade.md` | The operator guide for the hop: required manual steps, breaking changes, and pointers to the companions. Not a record of what changed — the `## Component versions` table is the only place versions appear. |
+| `<from>-to-<to>-values-deltas.md` | The values edits for the hop and nothing else: one table per values file, columns `Key`/`Action`/`From`/`To`/`When`. No prose. One line when the hop needs no edits. |
 | `<from>-to-<to>-gemeente-specific.md` | Findings that apply to one gemeente/environment only. Mostly empty; filled in if and when something comes up during rollouts. |
 | `<from>-to-<to>-operators-crds.md` *(only where applicable)* | Operator and CRD additions/upgrades in the hop (keycloak-operator, redis-operator, eck-operator): what changes, CRD impact, and the pre-deploy steps (CRD installs/adoption usually run **before** `helm upgrade`). Not created for hops without operator/CRD changes. |
 
@@ -32,6 +32,10 @@ Consolidated guides (e.g. `4.6.8-to-4.7.6`) fold a range of patch releases into
 one document; the granular per-patch notes are kept alongside for reference.
 Which guides form the official path — and which are reference-only — is
 defined in [`_UPGRADING.md`](_UPGRADING.md).
+
+**Format is binding** — [`_UPGRADE_PATHS/CLAUDE.md`](_UPGRADE_PATHS/CLAUDE.md)
+is the authority for every file in that folder, for humans and for Claude alike.
+Read it before adding or editing one.
 
 ## Adding a new upgrade guide
 
@@ -43,9 +47,9 @@ For a new release `<new>` with predecessor `<prev>`:
    `_UPGRADE_PATHS/<prev>-to-<new>-upgrade.md`. Checklist first, details below;
    link app-specific runbooks from `apps/<app>/` instead of inlining them.
 3. Create the companions in `_UPGRADE_PATHS/`:
-   - `<prev>-to-<new>-values-deltas.md` — full key-by-key reference, or the
-     placeholder text used by the existing placeholders when no gemeente
-     values change.
+   - `<prev>-to-<new>-values-deltas.md` — the table form specified in
+     [`_UPGRADE_PATHS/CLAUDE.md`](_UPGRADE_PATHS/CLAUDE.md), or its one-line
+     "no changes required" body when no gemeente values change.
    - `<prev>-to-<new>-gemeente-specific.md` — copy the empty template from any
      existing `*-gemeente-specific.md`.
    - `<prev>-to-<new>-operators-crds.md` — **only** when the release adds or

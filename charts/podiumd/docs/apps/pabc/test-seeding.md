@@ -15,6 +15,6 @@ long as PABC holds no application roles.
 Both default to `false`, so this hop changes nothing unless an environment
 opts in. **Seeding replaces all PABC content**, so leave it disabled on any
 environment that has been curated through the PABC UI. See
-[values-deltas](4.9.0-to-4.9.1-values-deltas.md) § "pabc 1.1.1" for the full
-story, and [`pabc-iam-migration.md`](../apps/pabc/pabc-iam-migration.md) for
-switching an environment over from the old IAM setup.
+[`enabling-pabc.md`](enabling-pabc.md) for the values snippet, and
+[`pabc-iam-migration.md`](pabc-iam-migration.md) for switching an environment
+over from the old IAM setup.

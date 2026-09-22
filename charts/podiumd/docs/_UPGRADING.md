@@ -43,7 +43,7 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 
 | Companion | What it is for |
 |---|---|
-| [`_UPGRADE_PATHS/<from>-to-<to>-values-deltas.md`](_UPGRADE_PATHS/) | Every gemeente `podiumd.yml` key to add/change/remove (one per hop, placeholder when a release needed no values edits) — keep it open next to the values file while editing |
+| [`_UPGRADE_PATHS/<from>-to-<to>-values-deltas.md`](_UPGRADE_PATHS/) | A checklist, not a reference: one table per values file, one row per edit you have to make (`Key`/`Action`/`From`/`To`/`When`). One line when a hop needs no edits. Keep it open next to the values file while editing |
 | [`_UPGRADE_PATHS/<from>-to-<to>-gemeente-specific.md`](_UPGRADE_PATHS/) | Findings that apply to one gemeente/environment only (one per hop; mostly empty until something comes up) — check it for your gemeente before deploying |
 | [`_UPGRADE_PATHS/<from>-to-<to>-operators-crds.md`](_UPGRADE_PATHS/) | Operator and CRD additions/upgrades for the hop (keycloak-operator, redis-operator, eck-operator) — **only exists when the hop touches an operator or CRDs**; read it before the deploy, CRD steps often must run first |
 | `images/images-<ver>.yaml` | The ACR-mirror image set for the hop — hand it to SSC-Hosting before the deploy |
