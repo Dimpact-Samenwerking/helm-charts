@@ -8,6 +8,8 @@ entry generation."""
 
 import re
 
+from dataclasses import dataclass
+
 import yaml
 
 from lib.chart.repo_and_path_resolution import full_repository_for_path
@@ -137,9 +139,42 @@ def historical_app_version_for_path(chart_dir, deps, values, path, at_or_before=
     return historical_app_version_for_repository(chart_dir, repo, at_or_before, expected_url=expected_url)
 
 
-def baseline_tag_for_sidecar_path(
-    chart_dir, deps, target_values, baseline_values, baseline_paths, baseline_repo_groups, path
-):
+@dataclass
+class BaselineLookup:
+    """Everything baseline_tag_for_sidecar_path needs that stays fixed
+    across every path it's called for: the chart/deps/target_values
+    context plus the caller's own pre-computed baseline_values/
+    baseline_paths/baseline_repo_groups (see that function's own
+    docstring for why these three are computed once up front rather
+    than re-derived per path/per call)."""
+
+    chart_dir: object
+    deps: object
+    target_values: dict
+    baseline_values: dict
+    baseline_paths: dict
+    baseline_repo_groups: dict
+
+
+def baseline_lookup(chart_dir, deps, target_values, baseline_values, baseline_setup):
+    """A BaselineLookup built from chart_dir/deps/target_values/
+    baseline_values plus a caller's own baseline_paths/baseline_repo_groups
+    bundle (baseline_setup — any object exposing those two attributes,
+    e.g. fix-doc-consistency's own _BaselineSetup/BaselineResolution or
+    lib.image.docs' own _SidecarScanState) — the one place every caller
+    with such a bundle already in hand builds this, so the BaselineLookup
+    construction itself isn't independently duplicated at each call site."""
+    return BaselineLookup(
+        chart_dir,
+        deps,
+        target_values,
+        baseline_values,
+        baseline_setup.baseline_paths,
+        baseline_setup.baseline_repo_groups,
+    )
+
+
+def baseline_tag_for_sidecar_path(lookup, path):
     """The baseline (pre-upgrade) tag for a sidecar/shared-image (or
     registered bare-version, see below) values-tree `path`, tried in two
     tiers — the one place lib.image.docs.add_missing_sidecar_rows' own
@@ -202,14 +237,14 @@ def baseline_tag_for_sidecar_path(
     folded in here: an unrelated question ("did this repository ever
     appear in a past RELEASED document") from "does baseline_values'
     CURRENT tree already pin it elsewhere)."""
-    if not baseline_values:
+    if not lookup.baseline_values:
         return None
-    exact_tag = baseline_paths.get(path)
+    exact_tag = lookup.baseline_paths.get(path)
     if isinstance(exact_tag, str) and exact_tag:
         return exact_tag.split("@", 1)[0]
-    repo_groups = paths_by_repository(chart_dir, deps, target_values, [path])
+    repo_groups = paths_by_repository(lookup.chart_dir, lookup.deps, lookup.target_values, [path])
     repo = next(iter(repo_groups), None)
-    candidates = baseline_repo_groups.get(repo) if repo is not None else None
+    candidates = lookup.baseline_repo_groups.get(repo) if repo is not None else None
     if not candidates:
         return None
     # Cross-checked against the CURRENT path's own fully-qualified
@@ -218,14 +253,15 @@ def baseline_tag_for_sidecar_path(
     # reasoning historical_app_version_for_repository's own expected_url
     # cross-check uses, just applied against baseline_values here
     # instead of a past images-<version>.yaml manifest.
-    expected_url = full_repository_for_path(chart_dir, deps, target_values, path)
+    expected_url = full_repository_for_path(lookup.chart_dir, lookup.deps, lookup.target_values, path)
     matching = [
         p
         for p in candidates
-        if expected_url is not None and full_repository_for_path(chart_dir, deps, baseline_values, p) == expected_url
+        if expected_url is not None
+        and full_repository_for_path(lookup.chart_dir, lookup.deps, lookup.baseline_values, p) == expected_url
     ]
     if not matching:
         return None
-    representative = repo_group_representative(matching, deps)
-    representative_tag = baseline_paths.get(representative)
+    representative = repo_group_representative(matching, lookup.deps)
+    representative_tag = lookup.baseline_paths.get(representative)
     return representative_tag.split("@", 1)[0] if representative_tag else None

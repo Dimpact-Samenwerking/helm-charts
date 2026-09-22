@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import yaml
 
+from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
@@ -143,12 +144,9 @@ def _fallback_actual_baseline(context, setup, path):
     once that finds nothing either, whether the repository appears in
     any of this chart's own PAST images-<version>.yaml manifests."""
     actual_baseline = baseline_tag_for_sidecar_path(
-        context.chart_dir,
-        context.deps,
-        context.target_values,
-        context.baseline_values,
-        setup.baseline.baseline_paths,
-        setup.baseline.baseline_repo_groups,
+        baseline_lookup(
+            context.chart_dir, context.deps, context.target_values, context.baseline_values, setup.baseline
+        ),
         path,
     )
     if actual_baseline is not None:
