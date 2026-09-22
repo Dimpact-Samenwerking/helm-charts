@@ -286,7 +286,7 @@ PodiumD Helm chart
 | ita.nameOverride | string | `""` |  |
 | ita.nieuweInternetaakNotificatie | object | `{"notification":{"pollerMessage":"Poller uitgevoerd om:"},"schedule":"*/15 * * * *"}` | CronJob die behandelaars waarschuwt bij een nieuwe internetaak. Was tot 3.2.0 de enige poller; schedule en notification stonden toen onder ita.poller. Omgevingen die die sleutels overschrijven moeten ze hierheen verplaatsen, anders vallen ze stil terug op de chart-defaults. poller.notification.hourThreshold is niet meer aanwezig in subchart, dus verwijderd. |
 | ita.nodeSelector | object | `{}` |  |
-| ita.poller | object | `{"image":{"pullPolicy":"IfNotPresent","repository":"ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller","tag":"3.3.0@sha256:7690650687047c43f08c4f8320b77d821d3551d18478de9a600a2f828600c865"},"resources":{"limits":{"cpu":"100m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}}}` | ITA 3.3.0 splitste de poller in twee CronJobs, elk met een eigen POLLER_MODE. Dit blok levert alleen nog het image en de resources die ze allebei gebruiken; schedule en notification zijn verhuisd naar nieuweInternetaakNotificatie hieronder. |
+| ita.poller | object | `{"image":{"pullPolicy":"IfNotPresent","repository":"ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller","tag":"3.3.2@sha256:29b714c5efbe5e301e76ab07983751555737226a8823df711cc8f1b501145643"},"resources":{"limits":{"cpu":"100m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}}}` | ITA 3.3.0 splitste de poller in twee CronJobs, elk met een eigen POLLER_MODE. Dit blok levert alleen nog het image en de resources die ze allebei gebruiken; schedule en notification zijn verhuisd naar nieuweInternetaakNotificatie hieronder. |
 | ita.postgresql.enabled | bool | `false` |  |
 | ita.replicaCount | int | `1` |  |
 | ita.smtp.enableSsl | string | `"true"` |  |
@@ -298,7 +298,7 @@ PodiumD Helm chart
 | ita.tolerations | list | `[]` |  |
 | ita.verlopenContactverzoekHerinneringNotificatie | object | `{"enabled":true,"schedule":"0 7 * * 1-5"}` | Nieuw in ITA 3.3.0: dagelijkse herinnering voor verlopen contactverzoeken, op werkdagen om 07:00. |
 | ita.web.image.pullPolicy | string | `"IfNotPresent"` |  |
-| ita.web.image.tag | string | `"3.3.0@sha256:cb56b4809e0c840cbc72814f8a72495fd18860cb08dfb092c12ba3c2cea785df"` |  |
+| ita.web.image.tag | string | `"3.3.2@sha256:1a720a54f7de4aaec08abf28562cf2488128916274717e1edc6965b6ef31144a"` |  |
 | ita.web.oidc.authority | string | `"REP_ITA_OIDC_AUTHORITY_REP"` |  |
 | ita.web.oidc.clientId | string | `"ita"` |  |
 | ita.web.oidc.clientSecret | string | `"REP_ITA_OIDC_CLIENT_SECRET_REP"` |  |
@@ -523,7 +523,7 @@ PodiumD Helm chart
 | kiss.extraVolumes | list | `[]` | Optionally specify extra list of additional volumes, for example to trust extra ca certificates. |
 | kiss.fullnameOverride | string | `"contact"` |  |
 | kiss.image.pullPolicy | string | `"IfNotPresent"` |  |
-| kiss.image.tag | string | `"3.1.1@sha256:1b7c6c3904f11b33d8490c3f0b7968da859b8b4bb73f8d9dc20744eea1720990"` |  |
+| kiss.image.tag | string | `"3.1.2@sha256:105547e0600b62b7ca9e443aafbf4fb9c0440279dc7539080a3e013f0dd9cce2"` |  |
 | kiss.imagePullSecrets | list | `[]` |  |
 | kiss.nameOverride | string | `"contact"` |  |
 | kiss.nodeSelector | object | `{}` |  |
@@ -575,7 +575,7 @@ PodiumD Helm chart
 | kiss.settings.registers | list | `[]` |  |
 | kiss.settings.syncJobs.crawlerImage | object | `{"pullPolicy":"IfNotPresent","repository":"docker.elastic.co/integrations/crawler","tag":"1.0.0@sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"}` | Elastic Open Crawler, vervangt de Enterprise Search web crawler. Draait als CronJob per site uit syncJobs.website en schrijft rechtstreeks naar Elasticsearch. |
 | kiss.settings.syncJobs.image.pullPolicy | string | `"IfNotPresent"` |  |
-| kiss.settings.syncJobs.image.tag | string | `"3.1.1@sha256:f29f8b5f33831580e4da0e0f4885b5ef69068c8391ec97322b749f1970df18e1"` |  |
+| kiss.settings.syncJobs.image.tag | string | `"3.1.2@sha256:42e6711818ea84e6bfb611954eb3bd6eed5f8c3e7e7c6c814a5cc119ab7275f8"` |  |
 | kiss.settings.syncJobs.indexTemplateImage | object | `{"pullPolicy":"IfNotPresent","repository":"curlimages/curl","tag":"8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"}` | pre-install/pre-upgrade hook die het search-website* index-template in Elasticsearch registreert. Heeft alleen curl nodig. |
 | kiss.settings.syncJobs.kennisbank.baseUrl | string | `""` |  |
 | kiss.settings.syncJobs.kennisbank.historyLimit | int | `1` |  |
