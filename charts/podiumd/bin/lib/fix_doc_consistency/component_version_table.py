@@ -3,11 +3,13 @@ values-deltas heading app-version repair, split out of that script for
 pylint's too-many-lines check — the last of its 6 planned groups."""
 
 import re
+from dataclasses import dataclass
 
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
+from lib.component_docs.changes_section import ComponentState
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_ordering import header_name_segment
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
@@ -20,7 +22,39 @@ from lib.upgradedoc.version_cells_and_key_changes import canonical_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 
 
-def _dep_old_app_for_new_dependency(chart_dir, target_deps, target_values, resolved, upgrade_docs_baseline):
+@dataclass
+class ResolutionContext:
+    """chart_dir/target-state/baseline-state/upgrade_docs_baseline —
+    every function in this module threads these same four values
+    through to resolve_component_row (directly or via
+    _resolved_rows_by_values_key), so bundling them keeps that plumbing
+    from dominating each function's own argument count. `target`/
+    `baseline` are ComponentState (see lib.component_docs.changes_
+    section — reused here rather than a second, equivalent local type),
+    never mixed with each other by construction."""
+
+    chart_dir: object
+    target: ComponentState
+    baseline: ComponentState
+    upgrade_docs_baseline: str = None
+
+
+@dataclass
+class HeadingFixInputs:
+    """resolved_by_values_key/canonical_names/blocks/heading_marker —
+    _fix_heading_app_versions' own four caller-varying inputs, bundled
+    since fix_changes_heading_app_versions and fix_values_delta_
+    heading_app_versions each build all four together and pass them
+    through unchanged (only their own VALUES differ — "###" vs "##"
+    blocks/marker — never their shape)."""
+
+    resolved_by_values_key: dict
+    canonical_names: dict
+    blocks: list
+    heading_marker: str
+
+
+def _dep_old_app_for_new_dependency(resolution, resolved):
     """The APP cell's own "old" version for a Chart.yaml dependency with
     NO baseline value at all (resolved["baseline_resolved"] is False,
     resolved["dep"] is not None, resolved["target_app"] is not None) —
@@ -35,22 +69,134 @@ def _dep_old_app_for_new_dependency(chart_dir, target_deps, target_values, resol
     if resolved["dep"] is None or resolved["target_app"] is None:
         return None
     old_app = None
-    for path in image_paths_for(resolved["dep"]["name"], chart_dir):
+    for path in image_paths_for(resolved["dep"]["name"], resolution.chart_dir):
         old_app = historical_app_version_for_path(
-            chart_dir,
-            target_deps,
-            target_values,
+            resolution.chart_dir,
+            resolution.target.deps,
+            resolution.target.values,
             (resolved["values_key"], *tuple(path.split("."))),
-            upgrade_docs_baseline,
+            resolution.upgrade_docs_baseline,
         )
         if old_app is not None:
             break
     return old_app
 
 
-def fix_component_version_table(
-    text, chart_dir, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline=None
-):
+def _new_dependency_row_update(lines, row, resolved, resolution):
+    """The baseline_resolved=False row-rewrite mechanics for
+    fix_component_version_table's own row loop — a genuinely brand-new
+    component (or a sidecar whose current tag can't even be resolved,
+    see the caller's own guard before this is ever invoked) gets
+    "<target> (new)" cells instead of a source/target transition.
+    Returns (row_name, app_cell, chart_cell) when the row text actually
+    changed, None otherwise — the caller decides what to do with either
+    outcome."""
+    actual_target_chart, actual_target_app = resolved["target_chart"], resolved["target_app"]
+
+    # A brand-new Chart.yaml dependency (resolved["dep"] not None) with
+    # no baseline value at all — before concluding "genuinely new" for
+    # the APP cell (the CHART cell still correctly reads "(new)"
+    # regardless — that dependency line really is new), check whether
+    # this repository already appears in any of this chart's own PAST
+    # images-<version>.yaml manifests (real, already-committed
+    # per-release documents, not the removed images-baseline.yaml
+    # side-file).
+    old_app_for_cell = _dep_old_app_for_new_dependency(resolution, resolved)
+
+    row_changed = False
+    line = lines[row["line_index"]]
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+
+    if actual_target_app is not None:
+        new_app_cell = component_version_cell(old_app_for_cell, actual_target_app)
+        if cells[1] != new_app_cell:
+            cells[1] = new_app_cell
+            row_changed = True
+    if actual_target_chart is not None:
+        new_chart_cell = component_version_cell(None, actual_target_chart)
+        if cells[2] != new_chart_cell:
+            cells[2] = new_chart_cell
+            row_changed = True
+    elif resolved["kind"] == "native" and cells[2] != "-":
+        # A native_components component (see lib.chart.native_components)
+        # never has a chart to verify against at all — unlike a
+        # sidecar's own "-" (trusted correct from the moment
+        # add_missing_sidecar_rows first writes it), this one CAN start
+        # out wrong (real case: frankgateway's own row wrongly showed a
+        # real-looking chart version after a mistaken Chart.yaml
+        # dependency was briefly added) and nothing else ever corrects
+        # it back, since the two `actual_target_chart is not None`
+        # branches here and in _existing_row_update both always skip a
+        # native row's chart cell entirely.
+        cells[2] = "-"
+        row_changed = True
+
+    if not row_changed:
+        return None
+    suffix = "\n" if line.endswith("\n") else ""
+    lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
+    return (row["name"], cells[1], cells[2])
+
+
+def _existing_row_update(lines, row, resolved):
+    """The baseline_resolved=True row-rewrite mechanics for
+    fix_component_version_table's own row loop — a component that
+    existed at both the baseline and target ref gets a real
+    source-to-target transition cell. Returns (row_name, app_cell,
+    chart_cell) when the row text actually changed, None otherwise."""
+    actual_target_chart, actual_target_app = resolved["target_chart"], resolved["target_app"]
+    actual_baseline_chart, actual_baseline_app = resolved["baseline_chart"], resolved["baseline_app"]
+
+    row_changed = False
+    line = lines[row["line_index"]]
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+
+    if actual_target_app is not None:
+        # component_version_cell, not canonical_version_cell directly:
+        # baseline_resolved=True here only means the dependency's own
+        # Chart.yaml LINE existed at the baseline ref — its own APP
+        # VERSION can still fail to resolve there (real bug, real case:
+        # mi — the Chart.yaml dependency line predates this release, but
+        # its own "image:" block was only pinned this hop, so actual_
+        # baseline_app is None even though baseline_resolved is True).
+        # component_version_cell already renders "(new)" for that case,
+        # the exact same wording fix_changes_heading_app_versions' own
+        # heading correction already uses — before this fix, the row
+        # silently kept its stale, wrong "<old> → <new>" transition
+        # forever, disagreeing with an already-correct heading right
+        # below it. Also compared as the full rendered CELL TEXT, not
+        # just the two numeric endpoints (row["app_source"]/row["app"])
+        # — a row whose numbers already match but whose "(new)"/
+        # "(unchanged)" annotation is stale must still be corrected;
+        # comparing only the numbers would silently leave a wrong
+        # annotation in place forever, since they'd already "match".
+        new_app_cell = component_version_cell(actual_baseline_app, actual_target_app)
+        if cells[1] != new_app_cell:
+            cells[1] = new_app_cell
+            row_changed = True
+
+    if actual_target_chart is not None and actual_baseline_chart is not None:
+        new_chart_cell = canonical_version_cell(actual_baseline_chart, actual_target_chart)
+        if cells[2] != new_chart_cell:
+            cells[2] = new_chart_cell
+            row_changed = True
+    elif resolved["kind"] == "native" and cells[2] != "-":
+        # See the identical branch in _new_dependency_row_update — same
+        # forced correction, needed here too since a native component's
+        # own baseline CAN independently resolve (both app versions
+        # found — frankgateway's real case) while its chart cell still
+        # wrongly shows a real-looking version.
+        cells[2] = "-"
+        row_changed = True
+
+    if not row_changed:
+        return None
+    suffix = "\n" if line.endswith("\n") else ""
+    lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
+    return (row["name"], cells[1], cells[2])
+
+
+def fix_component_version_table(text, resolution):
     """Rewrite each "Component versions" table row's App/Helm-chart cells to
     the actual baseline (source) and target versions found in git/Chart.yaml/
     values.yaml. A row is only rewritten when both its source and target are
@@ -72,15 +218,18 @@ def fix_component_version_table(
     never rewritten (stays whatever it already says — "-", same convention
     add_missing_sidecar_rows itself writes — since a sidecar has no Helm
     chart version of its own to verify against, same as
-    lib.docs_consistency's own row check). Returns (new_text, changed_rows,
-    unmatched_names, unresolved_names)."""
+    lib.docs_consistency's own row check). `resolution` is a
+    ResolutionContext. Returns (new_text, changed_rows, unmatched_names,
+    unresolved_names)."""
     lines = text.splitlines(keepends=True)
     rows = parse_upgrade_doc_rows(text)
     changed_rows, unmatched_names, unresolved_names = [], [], []
 
-    current_paths = dict(find_image_tag_paths(target_values))
-    current_paths.update(global_image_paths(target_values))
-    canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
+    current_paths = dict(find_image_tag_paths(resolution.target.values))
+    current_paths.update(global_image_paths(resolution.target.values))
+    canonical_names = canonical_sidecar_row_names(
+        resolution.chart_dir, resolution.target.deps, resolution.target.values, current_paths.keys()
+    )
 
     for row in rows:
         # resolve_component_row is shared with lib.docs_consistency's own
@@ -89,13 +238,13 @@ def fix_component_version_table(
         # silently drift apart on what "correct" even means).
         resolved = resolve_component_row(
             row["name"],
-            chart_dir,
+            resolution.chart_dir,
             canonical_names,
-            target_deps,
-            target_values,
-            baseline_deps=baseline_deps,
-            baseline_values=baseline_values,
-            upgrade_docs_baseline=upgrade_docs_baseline,
+            resolution.target.deps,
+            resolution.target.values,
+            baseline_deps=resolution.baseline.deps,
+            baseline_values=resolution.baseline.values,
+            upgrade_docs_baseline=resolution.upgrade_docs_baseline,
         )
         if resolved["kind"] == "unmatched":
             # A row shaped like the canonical sidecar form ("<key> -
@@ -115,130 +264,27 @@ def fix_component_version_table(
             unresolved_names.append(row["name"])
             continue
 
-        actual_target_chart, actual_target_app = resolved["target_chart"], resolved["target_app"]
-
         if resolved["baseline_resolved"] is False:
             # A dependency's own target chart/app resolve independently of
             # the baseline entirely, so False here unambiguously means "no
-            # such dependency at the baseline ref yet" — brand new; write
-            # "(new)" cells. A sidecar's False also covers "the CURRENT tag
-            # itself couldn't be resolved either" (a genuinely broken row,
-            # not a new one) — target_app being present is what tells the
-            # two apart.
-            if resolved["dep"] is None and actual_target_app is None:
+            # such dependency at the baseline ref yet" — brand new. A
+            # sidecar's False also covers "the CURRENT tag itself couldn't
+            # be resolved either" (a genuinely broken row, not a new one)
+            # — target_app being present is what tells the two apart.
+            if resolved["dep"] is None and resolved["target_app"] is None:
                 unresolved_names.append(row["name"])
                 continue
+            changed = _new_dependency_row_update(lines, row, resolved, resolution)
+        else:
+            changed = _existing_row_update(lines, row, resolved)
 
-            # A brand-new Chart.yaml dependency (resolved["dep"] not None)
-            # with no baseline value at all — before concluding
-            # "genuinely new" for the APP cell (the CHART cell still
-            # correctly reads "(new)" regardless — that dependency line
-            # really is new), check whether this repository already
-            # appears in any of this chart's own PAST images-
-            # <version>.yaml manifests (real, already-committed
-            # per-release documents, not the removed images-
-            # baseline.yaml side-file).
-            old_app_for_cell = _dep_old_app_for_new_dependency(
-                chart_dir, target_deps, target_values, resolved, upgrade_docs_baseline
-            )
-
-            row_changed = False
-            line = lines[row["line_index"]]
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-
-            if actual_target_app is not None:
-                new_app_cell = component_version_cell(old_app_for_cell, actual_target_app)
-                if cells[1] != new_app_cell:
-                    cells[1] = new_app_cell
-                    row_changed = True
-            if actual_target_chart is not None:
-                new_chart_cell = component_version_cell(None, actual_target_chart)
-                if cells[2] != new_chart_cell:
-                    cells[2] = new_chart_cell
-                    row_changed = True
-            elif resolved["kind"] == "native" and cells[2] != "-":
-                # A native_components component (see lib.chart.
-                # native_components) never has a chart to verify against at
-                # all — unlike a sidecar's own "-" (trusted correct from
-                # the moment add_missing_sidecar_rows first writes it),
-                # this one CAN start out wrong (real case: frankgateway's
-                # own row wrongly showed a real-looking chart version after
-                # a mistaken Chart.yaml dependency was briefly added) and
-                # nothing else ever corrects it back, since the two
-                # `actual_target_chart is not None` branches here and below
-                # both always skip a native row's chart cell entirely.
-                cells[2] = "-"
-                row_changed = True
-
-            if row_changed:
-                suffix = "\n" if line.endswith("\n") else ""
-                lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
-                changed_rows.append((row["name"], cells[1], cells[2]))
-            continue
-
-        actual_baseline_chart, actual_baseline_app = resolved["baseline_chart"], resolved["baseline_app"]
-
-        row_changed = False
-        line = lines[row["line_index"]]
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-
-        if actual_target_app is not None:
-            # component_version_cell, not canonical_version_cell directly:
-            # baseline_resolved=True here only means the dependency's own
-            # Chart.yaml LINE existed at the baseline ref — its own APP
-            # VERSION can still fail to resolve there (real bug, real
-            # case: mi — the Chart.yaml dependency line predates this
-            # release, but its own "image:" block was only pinned this
-            # hop, so actual_baseline_app is None even though baseline_
-            # resolved is True). component_version_cell already renders
-            # "(new)" for that case, the exact same wording fix_changes_
-            # heading_app_versions's own heading correction already uses
-            # — before this fix, the row silently kept its stale, wrong
-            # "<old> → <new>" transition forever, disagreeing with an
-            # already-correct heading right below it. Also compared as
-            # the full rendered CELL TEXT, not just the two numeric
-            # endpoints (row["app_source"]/row["app"]) — a row whose
-            # numbers already match but whose "(new)"/"(unchanged)"
-            # annotation is stale must still be corrected; comparing only
-            # the numbers would silently leave a wrong annotation in
-            # place forever, since they'd already "match".
-            new_app_cell = component_version_cell(actual_baseline_app, actual_target_app)
-            if cells[1] != new_app_cell:
-                cells[1] = new_app_cell
-                row_changed = True
-
-        if actual_target_chart is not None and actual_baseline_chart is not None:
-            new_chart_cell = canonical_version_cell(actual_baseline_chart, actual_target_chart)
-            if cells[2] != new_chart_cell:
-                cells[2] = new_chart_cell
-                row_changed = True
-        elif resolved["kind"] == "native" and cells[2] != "-":
-            # See the identical branch above (the baseline_resolved=False
-            # case) — same forced correction, needed here too since a
-            # native component's own baseline CAN independently resolve
-            # (both app versions found — frankgateway's real case) while
-            # its chart cell still wrongly shows a real-looking version.
-            cells[2] = "-"
-            row_changed = True
-
-        if row_changed:
-            suffix = "\n" if line.endswith("\n") else ""
-            lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
-            changed_rows.append((row["name"], cells[1], cells[2]))
+        if changed:
+            changed_rows.append(changed)
 
     return "".join(lines), changed_rows, unmatched_names, unresolved_names
 
 
-def _resolved_rows_by_values_key(
-    upgrade_doc_text,
-    chart_dir,
-    target_deps,
-    target_values,
-    baseline_deps,
-    baseline_values,
-    upgrade_docs_baseline,
-    canonical_names,
-):
+def _resolved_rows_by_values_key(upgrade_doc_text, resolution, canonical_names):
     """{values_key: (row_name, resolved)} for every resolvable row (see
     resolve_component_row - "dependency", "native", AND "sidecar" kind
     alike; only "unmatched" or a row with no resolvable target_app at
@@ -272,30 +318,109 @@ def _resolved_rows_by_values_key(
     for row in parse_upgrade_doc_rows(upgrade_doc_text):
         resolved = resolve_component_row(
             row["name"],
-            chart_dir,
+            resolution.chart_dir,
             canonical_names,
-            target_deps,
-            target_values,
-            baseline_deps=baseline_deps,
-            baseline_values=baseline_values,
-            upgrade_docs_baseline=upgrade_docs_baseline,
+            resolution.target.deps,
+            resolution.target.values,
+            baseline_deps=resolution.baseline.deps,
+            baseline_values=resolution.baseline.values,
+            upgrade_docs_baseline=resolution.upgrade_docs_baseline,
         )
         if resolved["kind"] != "unmatched" and resolved["target_app"] is not None:
             resolved_by_values_key[resolved["values_key"]] = (row["name"], resolved)
     return resolved_by_values_key
 
 
-def _fix_heading_app_versions(
-    text,
-    chart_dir,
-    target_deps,
-    target_values,
-    resolved_by_values_key,
-    canonical_names,
-    upgrade_docs_baseline,
-    blocks,
-    heading_marker,
-):
+def _chart_clause(heading):
+    """The trailing " (chart ...)" clause of a Changes/values-delta
+    heading, verbatim, or "" when the heading has none — split out only
+    to keep _heading_replacement's own local-variable count down."""
+    match = re.search(r"\s*\(chart[^)]*\)", heading)
+    return match.group(0) if match else ""
+
+
+def _heading_resolved_row(heading, resolution, inputs, canonical_path_to_name):
+    """The (row_name, resolved, old_app, expected_bare_name) tuple
+    _heading_replacement needs to decide whether/how to rewrite
+    `heading`, or None when the heading names something this whole
+    mechanism doesn't apply to (an ambiguous/orphaned identity, or one
+    with no row data to compare against) — see _fix_heading_app_
+    versions' own docstring for the full identity-resolution rationale
+    (the sidecar-vs-dep lookup_key distinction, canonical_path_to_name's
+    own reverse lookup)."""
+    idents = changes_heading_identities(heading, resolution.target.deps, inputs.canonical_names)
+    if len(idents) != 1:
+        return None
+    kind, values_key = next(iter(idents))
+    if kind == "sidecar":
+        lookup_key = ".".join(values_key)
+        expected_bare_name = canonical_path_to_name.get(values_key)
+    elif kind == "dep":
+        lookup_key = values_key
+        expected_bare_name = values_key
+    else:
+        return None
+    if lookup_key not in inputs.resolved_by_values_key:
+        return None
+    row_name, resolved = inputs.resolved_by_values_key[lookup_key]
+
+    if resolved["baseline_resolved"] is False:
+        old_app = _dep_old_app_for_new_dependency(resolution, resolved)
+    elif resolved["baseline_resolved"] is True:
+        old_app = resolved["baseline_app"]
+    else:
+        return None
+    return row_name, resolved, old_app, expected_bare_name
+
+
+def _heading_replacement(block, resolution, inputs, canonical_path_to_name):
+    """The rewritten heading LINE text (marker + name + app-version +
+    chart clause, no trailing newline) and the block's ORIGINAL heading
+    text, when `block` needs correcting, or None when it's already
+    correct or doesn't apply — see _fix_heading_app_versions' own
+    docstring for the full rationale, in particular the name-correction
+    and "already correct" comparisons below."""
+    heading = block["heading"]
+    # A heading with NO version marker at all (arrow/"(new)"/
+    # "(unchanged)"/"(digest changed)" — see changes_heading_has_
+    # app_version) was never meant to carry a machine-verifiable
+    # version in the first place — real docs: values-deltas.md's own
+    # bare "## zaakbrug" and free-form "## Breaking — Frank!Gateway
+    # (only when `frankgateway.enabled: true`)" — never touched here,
+    # same precondition update_stale_app_version_headings' own
+    # "missing entirely" case already requires.
+    if not changes_heading_has_app_version(heading):
+        return None
+    found = _heading_resolved_row(heading, resolution, inputs, canonical_path_to_name)
+    if found is None:
+        return None
+    row_name, resolved, old_app, expected_bare_name = found
+
+    expected_app_heading = component_version_cell(old_app, resolved["target_app"])
+    without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
+    current_name = header_name_segment(heading)
+    # The name is corrected ONLY when it's precisely the bare,
+    # uncustomized name add_missing_component_rows' own auto-write
+    # convention uses (see its own docstring: the same "friendly"
+    # value passed to BOTH the row and its own heading when freshly
+    # written together) — unambiguously stale once a human later
+    # hand-edits the ROW to something friendlier (real bug, real
+    # doc: mi's own row became "mi-data (MI-data exports)", but its
+    # heading was left as bare "mi"). A DIFFERENT, already-
+    # customized name (real cases, confirmed live: "Keycloak
+    # Operator (server)" vs its own row's longer "Keycloak Operator
+    # (server + operator images)"; "FrankGateway image" vs the row's
+    # plain "FrankGateway") is a deliberate editorial choice this
+    # must never overwrite just because it happens to differ from
+    # the row's own text — a first version of this fix did exactly
+    # that, silently clobbering real, hand-written doc content.
+    corrected_name = row_name if current_name == expected_bare_name else current_name
+    if expected_app_heading in without_chart_clause and corrected_name == current_name:
+        return None
+    return f"{inputs.heading_marker} {corrected_name} {expected_app_heading}{_chart_clause(heading)}", heading
+
+
+def _fix_heading_app_versions(text, resolution, inputs):
     """Shared implementation for fix_changes_heading_app_versions
     (-upgrade.md's own "### ..." Changes-section headings) and fix_
     values_delta_heading_app_versions (-values-deltas.md's own "## ..."
@@ -304,12 +429,13 @@ def _fix_heading_app_versions(
     row data ALREADY resolved (see _resolved_rows_by_values_key - the
     SAME map both callers pass in, so the two docs' own headings can
     never independently disagree on the same component's own correct
-    name/wording), parameterized only by which already-parsed section
-    list (`blocks` - parse_upgrade_doc_changes_blocks or parse_values_
-    delta_sections) and heading marker ("###" or "##") apply. Returns
-    (new_text, updated_headings) - updated_headings is the ORIGINAL
-    (pre-fix) heading text for every heading actually rewritten (a wrong
-    name, a wrong app-version transition, or both at once).
+    name/wording) and `inputs`, a HeadingFixInputs, parameterized only by
+    which already-parsed section list (`blocks` - parse_upgrade_doc_
+    changes_blocks or parse_values_delta_sections) and heading marker
+    ("###" or "##") apply. Returns (new_text, updated_headings) -
+    updated_headings is the ORIGINAL (pre-fix) heading text for every
+    heading actually rewritten (a wrong name, a wrong app-version
+    transition, or both at once).
 
     A "sidecar"-identity heading (changes_heading_identities' own
     ("sidecar", sidecar_path) - sidecar_path a values-tree path TUPLE,
@@ -337,85 +463,28 @@ def _fix_heading_app_versions(
     is against ITS OWN canonical name (canonical_names' own dict KEY
     for this exact path, e.g. "redis" or "redis-operator - redis"),
     found via a reverse lookup, never the dotted path itself."""
-    canonical_path_to_name = {path: name for name, path in canonical_names.items()}
+    canonical_path_to_name = {path: name for name, path in inputs.canonical_names.items()}
     lines = text.splitlines(keepends=True)
     updated_headings = []
-    for block in blocks:
-        heading = block["heading"]
-        # A heading with NO version marker at all (arrow/"(new)"/
-        # "(unchanged)"/"(digest changed)" — see changes_heading_has_
-        # app_version) was never meant to carry a machine-verifiable
-        # version in the first place — real docs: values-deltas.md's own
-        # bare "## zaakbrug" and free-form "## Breaking — Frank!Gateway
-        # (only when `frankgateway.enabled: true`)" — never touched here,
-        # same precondition update_stale_app_version_headings' own
-        # "missing entirely" case already requires.
-        if not changes_heading_has_app_version(heading):
+    for block in inputs.blocks:
+        replacement = _heading_replacement(block, resolution, inputs, canonical_path_to_name)
+        if replacement is None:
             continue
-        idents = changes_heading_identities(heading, target_deps, canonical_names)
-        if len(idents) != 1:
-            continue
-        kind, values_key = next(iter(idents))
-        if kind == "sidecar":
-            lookup_key = ".".join(values_key)
-            expected_bare_name = canonical_path_to_name.get(values_key)
-        elif kind == "dep":
-            lookup_key = values_key
-            expected_bare_name = values_key
-        else:
-            continue
-        if lookup_key not in resolved_by_values_key:
-            continue
-        row_name, resolved = resolved_by_values_key[lookup_key]
-
-        if resolved["baseline_resolved"] is False:
-            old_app = _dep_old_app_for_new_dependency(
-                chart_dir, target_deps, target_values, resolved, upgrade_docs_baseline
-            )
-        elif resolved["baseline_resolved"] is True:
-            old_app = resolved["baseline_app"]
-        else:
-            continue
-
-        expected_app_heading = component_version_cell(old_app, resolved["target_app"])
-        without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
-        current_name = header_name_segment(heading)
-        # The name is corrected ONLY when it's precisely the bare,
-        # uncustomized name add_missing_component_rows' own auto-write
-        # convention uses (see its own docstring: the same "friendly"
-        # value passed to BOTH the row and its own heading when freshly
-        # written together) — unambiguously stale once a human later
-        # hand-edits the ROW to something friendlier (real bug, real
-        # doc: mi's own row became "mi-data (MI-data exports)", but its
-        # heading was left as bare "mi"). A DIFFERENT, already-
-        # customized name (real cases, confirmed live: "Keycloak
-        # Operator (server)" vs its own row's longer "Keycloak Operator
-        # (server + operator images)"; "FrankGateway image" vs the row's
-        # plain "FrankGateway") is a deliberate editorial choice this
-        # must never overwrite just because it happens to differ from
-        # the row's own text — a first version of this fix did exactly
-        # that, silently clobbering real, hand-written doc content.
-        corrected_name = row_name if current_name == expected_bare_name else current_name
-        if expected_app_heading in without_chart_clause and corrected_name == current_name:
-            continue
-
-        chart_clause_match = re.search(r"\s*\(chart[^)]*\)", heading)
-        chart_clause = chart_clause_match.group(0) if chart_clause_match else ""
+        new_heading, original_heading = replacement
         suffix = "\n" if lines[block["start"]].endswith("\n") else ""
-        lines[block["start"]] = f"{heading_marker} {corrected_name} {expected_app_heading}{chart_clause}{suffix}"
-        updated_headings.append(heading)
+        lines[block["start"]] = f"{new_heading}{suffix}"
+        updated_headings.append(original_heading)
 
     return "".join(lines), updated_headings
 
 
-def fix_changes_heading_app_versions(
-    text, chart_dir, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline=None
-):
+def fix_changes_heading_app_versions(text, resolution):
     """Rewrite a "### ..." Changes section heading's own name and app-
     version portions (never the "(chart ...)" clause, or the body below
     it, both left untouched) to match what fix_component_version_table's
     own row loop ALREADY verifies and rewrites for the table row every
     single run - see _fix_heading_app_versions for the full mechanism.
+    `resolution` is a ResolutionContext.
 
     Real bug, real doc: mi's own "### mi 2.71.0 -> 2.90.0 (chart 1.1.0, unchanged)"
     heading, written by an earlier, buggy tool run before this chart's
@@ -472,43 +541,19 @@ def fix_changes_heading_app_versions(
     own docstring for the mechanism.) Returns (new_text, updated_
     headings) - updated_headings is the ORIGINAL (pre-fix) heading text
     for every heading actually rewritten."""
-    current_paths = dict(find_image_tag_paths(target_values))
-    current_paths.update(global_image_paths(target_values))
-    canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
-    resolved_by_values_key = _resolved_rows_by_values_key(
-        text,
-        chart_dir,
-        target_deps,
-        target_values,
-        baseline_deps,
-        baseline_values,
-        upgrade_docs_baseline,
-        canonical_names,
+    current_paths = dict(find_image_tag_paths(resolution.target.values))
+    current_paths.update(global_image_paths(resolution.target.values))
+    canonical_names = canonical_sidecar_row_names(
+        resolution.chart_dir, resolution.target.deps, resolution.target.values, current_paths.keys()
     )
+    resolved_by_values_key = _resolved_rows_by_values_key(text, resolution, canonical_names)
     blocks = parse_upgrade_doc_changes_blocks(text)
     return _fix_heading_app_versions(
-        text,
-        chart_dir,
-        target_deps,
-        target_values,
-        resolved_by_values_key,
-        canonical_names,
-        upgrade_docs_baseline,
-        blocks,
-        "###",
+        text, resolution, HeadingFixInputs(resolved_by_values_key, canonical_names, blocks, "###")
     )
 
 
-def fix_values_delta_heading_app_versions(
-    upgrade_doc_text,
-    values_deltas_text,
-    chart_dir,
-    target_deps,
-    target_values,
-    baseline_deps,
-    baseline_values,
-    upgrade_docs_baseline=None,
-):
+def fix_values_delta_heading_app_versions(upgrade_doc_text, values_deltas_text, resolution):
     """The SAME stale-heading gap fix_changes_heading_app_versions closes
     for -upgrade.md's own "### ..." Changes-section headings, but for
     -values-deltas.md's own "## ..." section headings instead (see
@@ -520,7 +565,8 @@ def fix_values_delta_heading_app_versions(
     own heading is never revisited there either, the identical gap).
     Real bug, real doc: mi's own "## mi 2.71.0 -> 2.90.0 (chart 1.1.0,
     unchanged)" section heading in 4.9.0-to-4.9.1-values-deltas.md, same
-    wrong wording, same root cause, confirmed live.
+    wrong wording, same root cause, confirmed live. `resolution` is a
+    ResolutionContext.
 
     `upgrade_doc_text` (the CURRENT -upgrade.md text, already corrected
     by fix_component_version_table/fix_changes_heading_app_versions by
@@ -531,28 +577,13 @@ def fix_values_delta_heading_app_versions(
     only ever come from -upgrade.md's. See _fix_heading_app_versions
     for the shared compare+rewrite mechanism both this and fix_changes_
     heading_app_versions actually use."""
-    current_paths = dict(find_image_tag_paths(target_values))
-    current_paths.update(global_image_paths(target_values))
-    canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
-    resolved_by_values_key = _resolved_rows_by_values_key(
-        upgrade_doc_text,
-        chart_dir,
-        target_deps,
-        target_values,
-        baseline_deps,
-        baseline_values,
-        upgrade_docs_baseline,
-        canonical_names,
+    current_paths = dict(find_image_tag_paths(resolution.target.values))
+    current_paths.update(global_image_paths(resolution.target.values))
+    canonical_names = canonical_sidecar_row_names(
+        resolution.chart_dir, resolution.target.deps, resolution.target.values, current_paths.keys()
     )
+    resolved_by_values_key = _resolved_rows_by_values_key(upgrade_doc_text, resolution, canonical_names)
     blocks = parse_values_delta_sections(values_deltas_text)
     return _fix_heading_app_versions(
-        values_deltas_text,
-        chart_dir,
-        target_deps,
-        target_values,
-        resolved_by_values_key,
-        canonical_names,
-        upgrade_docs_baseline,
-        blocks,
-        "##",
+        values_deltas_text, resolution, HeadingFixInputs(resolved_by_values_key, canonical_names, blocks, "##")
     )

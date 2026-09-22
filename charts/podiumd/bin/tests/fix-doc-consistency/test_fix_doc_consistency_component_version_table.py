@@ -38,7 +38,10 @@ def test_fix_component_version_table_corrects_stale_source(cdb):
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, None, target_deps, target_values, baseline_deps, baseline_values
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ),
     )
     assert unmatched == [] and unresolved == []
     assert len(changed) == 1
@@ -61,7 +64,10 @@ def test_fix_component_version_table_leaves_correct_row_untouched(cdb):
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, None, target_deps, target_values, baseline_deps, baseline_values
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ),
     )
     assert changed == []
     assert new_text == text
@@ -76,7 +82,12 @@ def test_fix_component_version_table_unmatched_component_reported(cdb):
     )
     target_deps, target_values = target_deps_and_values()
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, None, target_deps, target_values, [{"name": "zac", "version": "1.0.297"}], {}
+        text,
+        cdb.ResolutionContext(
+            None,
+            cdb.ComponentState(target_deps, target_values),
+            cdb.ComponentState([{"name": "zac", "version": "1.0.297"}], {}),
+        ),
     )
     assert changed == []
     assert unmatched == ["Totally Unknown Thing"]
@@ -92,7 +103,8 @@ def test_fix_component_version_table_no_baseline_data_reported_unresolved(cdb):
     )
     target_deps, target_values = target_deps_and_values()
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, None, target_deps, target_values, None, None
+        text,
+        cdb.ResolutionContext(None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(None, None)),
     )
     assert changed == []
     assert unresolved == ["ZAC (Zaakafhandelcomponent)"]
@@ -131,7 +143,10 @@ def test_fix_component_version_table_leaves_a_correct_sidecar_row_untouched(cdb)
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, None, target_deps, target_values, baseline_deps, baseline_values
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ),
     )
     assert changed == []
     assert new_text == text
@@ -152,7 +167,10 @@ def test_fix_component_version_table_corrects_a_stale_sidecar_row_using_its_own_
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, None, target_deps, target_values, baseline_deps, baseline_values
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ),
     )
     assert len(changed) == 1
     assert "8.6.2 → 8.6.6" in new_text
@@ -181,7 +199,10 @@ def test_fix_component_version_table_corrects_a_native_components_wrong_chart_ce
     baseline_values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, None, target_deps, target_values, baseline_deps, baseline_values
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ),
     )
     assert unmatched == [] and unresolved == []
     assert len(changed) == 1
@@ -202,7 +223,10 @@ def test_fix_component_version_table_leaves_a_correct_native_component_row_untou
     baseline_values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, None, target_deps, target_values, baseline_deps, baseline_values
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ),
     )
     assert changed == []
     assert new_text == text
@@ -224,7 +248,10 @@ def test_fix_component_version_table_unresolvable_canonical_row_reported_not_cor
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, None, target_deps, target_values, baseline_deps, baseline_values
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ),
     )
     assert changed == []
     assert unresolved == ["redis-operator - ghost"]
@@ -248,7 +275,7 @@ def test_fix_component_version_table_new_dependency_annotated_new_not_reported_u
     target_values = {"openklant": {"image": {"tag": "2.15.0@sha256:aaaa"}}}
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, None, target_deps, target_values, [], {}
+        text, cdb.ResolutionContext(None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState([], {}))
     )
     assert unmatched == [] and unresolved == []
     assert len(changed) == 1
@@ -268,7 +295,7 @@ def test_fix_component_version_table_new_dependency_already_annotated_is_untouch
     target_values = {"openklant": {"image": {"tag": "2.15.0@sha256:aaaa"}}}
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, None, target_deps, target_values, [], {}
+        text, cdb.ResolutionContext(None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState([], {}))
     )
     assert changed == []
     assert new_text == text
@@ -291,7 +318,10 @@ def test_fix_component_version_table_new_sidecar_app_annotated_new_chart_cell_un
     }
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, None, target_deps, target_values, baseline_deps, baseline_values
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
+        ),
     )
     assert unmatched == [] and unresolved == []
     assert len(changed) == 1
@@ -351,7 +381,13 @@ def test_fix_component_version_table_new_dependency_known_in_historical_manifest
     }
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, tmp_path, target_deps, target_values, [], {}, upgrade_docs_baseline="4.8.5"
+        text,
+        cdb.ResolutionContext(
+            tmp_path,
+            cdb.ComponentState(target_deps, target_values),
+            cdb.ComponentState([], {}),
+            upgrade_docs_baseline="4.8.5",
+        ),
     )
     assert unmatched == [] and unresolved == []
     assert len(changed) == 1
@@ -382,7 +418,13 @@ def test_fix_component_version_table_new_sidecar_known_in_historical_manifest_is
     }
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, tmp_path, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.8.5"
+        text,
+        cdb.ResolutionContext(
+            tmp_path,
+            cdb.ComponentState(target_deps, target_values),
+            cdb.ComponentState(baseline_deps, baseline_values),
+            upgrade_docs_baseline="4.8.5",
+        ),
     )
     assert unmatched == [] and unresolved == []
     assert len(changed) == 1
@@ -414,7 +456,13 @@ def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matchi
     }
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, tmp_path, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.8.5"
+        text,
+        cdb.ResolutionContext(
+            tmp_path,
+            cdb.ComponentState(target_deps, target_values),
+            cdb.ComponentState(baseline_deps, baseline_values),
+            upgrade_docs_baseline="4.8.5",
+        ),
     )
     assert unmatched == [] and unresolved == []
     assert len(changed) == 1
@@ -448,7 +496,10 @@ def test_fix_changes_heading_app_versions_corrects_wrong_new_dependency_heading(
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
+        ),
     )
 
     assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
@@ -481,7 +532,10 @@ def test_fix_changes_heading_app_versions_syncs_headings_name_to_rows(cdb):
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
+        ),
     )
 
     assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
@@ -511,7 +565,10 @@ def test_fix_changes_heading_app_versions_renames_even_when_app_version_already_
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
+        ),
     )
 
     assert updated_headings == ["mi 2.90.0 (new) (chart 1.1.0, unchanged)"]
@@ -560,7 +617,13 @@ def test_fix_changes_heading_app_versions_preserves_deliberately_customized_name
     }
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.9.0"
+        text,
+        cdb.ResolutionContext(
+            None,
+            cdb.ComponentState(deps, target_values),
+            cdb.ComponentState(baseline_deps, baseline_values),
+            upgrade_docs_baseline="4.9.0",
+        ),
     )
 
     assert updated_headings == []
@@ -589,7 +652,10 @@ def test_fix_changes_heading_app_versions_no_version_marker_never_touched(cdb):
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
+        ),
     )
 
     assert updated_headings == []
@@ -610,7 +676,10 @@ def test_fix_changes_heading_app_versions_already_correct_heading_untouched(cdb)
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
+        ),
     )
 
     assert updated_headings == []
@@ -640,7 +709,13 @@ def test_fix_changes_heading_app_versions_real_version_bump_still_corrected(cdb)
     }
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.9.0"
+        text,
+        cdb.ResolutionContext(
+            None,
+            cdb.ComponentState(deps, target_values),
+            cdb.ComponentState(baseline_deps, baseline_values),
+            upgrade_docs_baseline="4.9.0",
+        ),
     )
 
     assert updated_headings == ["zac 5.4.0 → 5.4.0 (chart 1.0.297, unchanged)"]
@@ -670,7 +745,10 @@ def test_fix_changes_heading_app_versions_corrects_stale_bare_sidecar_heading(cd
     target_values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
+        ),
     )
 
     assert updated_headings == ["redis 8.0 → 8.10.1"]
@@ -700,7 +778,13 @@ def test_fix_changes_heading_app_versions_corrects_stale_real_sidecar_heading(cd
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, target_deps, target_values, baseline_deps, baseline_values, upgrade_docs_baseline="4.8.5"
+        text,
+        cdb.ResolutionContext(
+            None,
+            cdb.ComponentState(target_deps, target_values),
+            cdb.ComponentState(baseline_deps, baseline_values),
+            upgrade_docs_baseline="4.8.5",
+        ),
     )
 
     assert updated_headings == ["redis-operator - redis 8.6.1 → 8.6.6 (chart 0.25.0, unchanged)"]
@@ -725,7 +809,10 @@ def test_fix_changes_heading_app_versions_already_correct_sidecar_heading_untouc
     target_values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+        text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
+        ),
     )
 
     assert updated_headings == []
@@ -765,7 +852,13 @@ def test_fix_changes_heading_app_versions_corrects_moved_repository_sidecar_head
     }
 
     new_text, updated_headings = cdb.fix_changes_heading_app_versions(
-        text, tmp_path, deps, target_values, deps, baseline_values, upgrade_docs_baseline=None
+        text,
+        cdb.ResolutionContext(
+            tmp_path,
+            cdb.ComponentState(deps, target_values),
+            cdb.ComponentState(deps, baseline_values),
+            upgrade_docs_baseline=None,
+        ),
     )
 
     assert updated_headings == ["postgres 16.15-alpine (new)"]
@@ -800,7 +893,11 @@ def test_fix_values_delta_heading_app_versions_corrects_wrong_name_and_new_depen
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
-        MI_UPGRADE_DOC_TEXT, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+        MI_UPGRADE_DOC_TEXT,
+        values_deltas_text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
+        ),
     )
 
     assert updated_headings == ["mi 2.71.0 → 2.90.0 (chart 1.1.0, unchanged)"]
@@ -818,7 +915,11 @@ def test_fix_values_delta_heading_app_versions_already_correct_heading_untouched
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
-        MI_UPGRADE_DOC_TEXT, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+        MI_UPGRADE_DOC_TEXT,
+        values_deltas_text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
+        ),
     )
 
     assert updated_headings == []
@@ -844,7 +945,11 @@ def test_fix_values_delta_heading_app_versions_corrects_stale_sidecar_heading(cd
     target_values = {"global": {"images": {"redis": {"repository": "redis", "tag": "8.10.1@sha256:" + "a" * 64}}}}
 
     new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
-        redis_upgrade_doc_text, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+        redis_upgrade_doc_text,
+        values_deltas_text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
+        ),
     )
 
     assert updated_headings == ["redis 8.0 → 8.10.1"]
@@ -868,7 +973,11 @@ def test_fix_values_delta_heading_app_versions_bare_hand_written_heading_never_t
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
-        MI_UPGRADE_DOC_TEXT, values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+        MI_UPGRADE_DOC_TEXT,
+        values_deltas_text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
+        ),
     )
 
     assert updated_headings == []
@@ -888,7 +997,11 @@ def test_fix_values_delta_heading_app_versions_no_upgrade_doc_is_a_noop(cdb):
     target_values = {"mi": {"image": {"repository": "azure-cli", "tag": "2.90.0@sha256:" + "a" * 64}}}
 
     new_text, updated_headings = cdb.fix_values_delta_heading_app_versions(
-        "", values_deltas_text, None, deps, target_values, [], {}, upgrade_docs_baseline=None
+        "",
+        values_deltas_text,
+        cdb.ResolutionContext(
+            None, cdb.ComponentState(deps, target_values), cdb.ComponentState([], {}), upgrade_docs_baseline=None
+        ),
     )
 
     assert updated_headings == []
