@@ -427,45 +427,60 @@ def find_unresolved_subchart_images(chart_dir, deps, own_values, rendered_paths)
     and never show up as unresolved in the first place."""
     findings = []
     for dep in deps:
-        scope_key = dep.get("alias") or dep["name"]
-        sub_values = subchart_values(chart_dir, dep)
-        if sub_values is None:
-            continue
-        template_text = subchart_template_text(chart_dir, dep)
-        for path, tag in find_image_tag_paths(sub_values, include_null_tags=True):
-            subpath = ".".join(path)
-            own_image_tag_path = f"{scope_key}.{subpath}.tag"
-            if get_path(own_values, own_image_tag_path) is not None:
-                continue
-            top_level_key = path[0]
-            if template_text is not None and not re.search(rf"\b{re.escape(top_level_key)}\b", template_text):
-                continue
-
-            chart_tree_path, resolved_version = resolve_subchart_default(chart_dir, dep, CHART_NAME, path)
-            if chart_tree_path not in rendered_paths:
-                continue
-
-            if tag is None:
-                if resolved_version is None:
-                    continue
-                findings.append((scope_key, subpath, resolved_version, False))
-            else:
-                findings.append((scope_key, subpath, tag, bool(DIGEST_SUFFIX_RE.search(tag))))
+        findings.extend(_findings_for_dependency(chart_dir, dep, own_values, rendered_paths))
     return findings
 
 
-def _print_subchart_image_finding(chart_dir, deps, scope_key, subpath, tag, pinned):
-    """Prints one finding, annotated with resolve_values_path_source
-    (chart_dir/deps) the same way _print_shared_image_usage annotates
-    its own consuming paths — a single shared resolver, one place
-    deciding how to describe "where a values-tree path comes from",
-    reused by both. `scope_key` here is always a real Chart.yaml
-    dependency's own alias-or-name by construction (find_unresolved_
-    subchart_images only ever iterates chart_yaml["dependencies"]), so
-    this call site can only ever hit the resolver's "chart X@Y" branch
-    in practice — routed through the shared function anyway rather
-    than hand-writing "just show scope_key" here, for one consistent
-    description regardless of call site."""
+def _findings_for_dependency(chart_dir, dep, own_values, rendered_paths):
+    """find_unresolved_subchart_images's own per-dependency body, split out
+    purely to keep that function's own local count down — one dependency's
+    worth of (scope_key, subpath, tag, already_pinned) findings, using the
+    exact same rules its own docstring describes."""
+    scope_key = dep.get("alias") or dep["name"]
+    sub_values = subchart_values(chart_dir, dep)
+    if sub_values is None:
+        return []
+    template_text = subchart_template_text(chart_dir, dep)
+
+    findings = []
+    for path, tag in find_image_tag_paths(sub_values, include_null_tags=True):
+        subpath = ".".join(path)
+        own_image_tag_path = f"{scope_key}.{subpath}.tag"
+        if get_path(own_values, own_image_tag_path) is not None:
+            continue
+        top_level_key = path[0]
+        if template_text is not None and not re.search(rf"\b{re.escape(top_level_key)}\b", template_text):
+            continue
+
+        chart_tree_path, resolved_version = resolve_subchart_default(chart_dir, dep, CHART_NAME, path)
+        if chart_tree_path not in rendered_paths:
+            continue
+
+        if tag is None:
+            if resolved_version is None:
+                continue
+            findings.append((scope_key, subpath, resolved_version, False))
+        else:
+            findings.append((scope_key, subpath, tag, bool(DIGEST_SUFFIX_RE.search(tag))))
+    return findings
+
+
+def _print_subchart_image_finding(chart_dir, deps, finding):
+    """Prints one finding (scope_key, subpath, tag, pinned) — the same
+    4-tuple shape find_unresolved_subchart_images returns, taken here as
+    one value instead of 4 separate params purely to stay under pylint's
+    own max-args. Annotated with resolve_values_path_source (chart_dir/
+    deps) the same way _print_shared_image_usage annotates its own
+    consuming paths — a single shared resolver, one place deciding how to
+    describe "where a values-tree path comes from", reused by both.
+    `scope_key` here is always a real Chart.yaml dependency's own
+    alias-or-name by construction (find_unresolved_subchart_images only
+    ever iterates chart_yaml["dependencies"]), so this call site can only
+    ever hit the resolver's "chart X@Y" branch in practice — routed
+    through the shared function anyway rather than hand-writing "just show
+    scope_key" here, for one consistent description regardless of call
+    site."""
+    scope_key, subpath, tag, pinned = finding
     own_image_tag_path = f"{scope_key}.{subpath}.tag"
     marker = "pinned" if pinned else "FLOATING"
     source = resolve_values_path_source(chart_dir, deps, (scope_key,))
@@ -516,8 +531,8 @@ def check_subchart_image_visibility(chart_dir, extra_args):
             f"override.\nInvisible to the digest-pinning check above — add a digest-pinned "
             f"override for each:"
         )
-        for scope_key, subpath, tag, is_pinned in sorted(floating):
-            _print_subchart_image_finding(chart_dir, deps, scope_key, subpath, tag, is_pinned)
+        for finding in sorted(floating):
+            _print_subchart_image_finding(chart_dir, deps, finding)
 
     if pinned:
         print(
@@ -526,8 +541,8 @@ def check_subchart_image_visibility(chart_dir, extra_args):
             f"reproducible) — decide per image whether it still warrants an explicit podiumd "
             f"override:"
         )
-        for scope_key, subpath, tag, is_pinned in sorted(pinned):
-            _print_subchart_image_finding(chart_dir, deps, scope_key, subpath, tag, is_pinned)
+        for finding in sorted(pinned):
+            _print_subchart_image_finding(chart_dir, deps, finding)
 
     if not findings:
         print("OK: no sub-chart-default images found without a podiumd override")
