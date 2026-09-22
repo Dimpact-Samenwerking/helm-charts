@@ -46,6 +46,9 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
 from lib.chart.pull_and_subchart_resolution import check_image_versions
 from lib.chart.pull_and_subchart_resolution import verify_chart_version
 from lib.chart.registered_paths import image_paths_for

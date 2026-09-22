@@ -23,6 +23,9 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
 from lib.checks.vendored_tgz import find_extracted_vendored_dirs
 
 CHART_DIR = SCRIPT_DIR.parents[0]
