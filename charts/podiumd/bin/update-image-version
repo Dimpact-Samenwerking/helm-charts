@@ -243,7 +243,8 @@ def update_docs_single_component(
         print()
         print(f"=== Updating {upgrade_path.name} ===")
         print(
-            f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — nothing left to document"
+            f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version"
+            " — nothing left to document"
         )
         if row_removed:
             print("  removed table row")
@@ -355,7 +356,8 @@ def update_docs_single_component(
         print(f"=== Updating {images_path.name} ===")
         if changes_action:
             print(
-                f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — removed 'changes:' list entry"
+                f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version"
+                " — removed 'changes:' list entry"
             )
         for name in entry_updates:
             print(f"  updated entry '{name}' (now matches upgrade_docs_baseline — no longer a documented change)")
@@ -481,7 +483,8 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
         print()
         print(f"=== Updating {upgrade_path.name} ===")
         print(
-            f"  {basename} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — nothing left to document"
+            f"  {basename} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version"
+            " — nothing left to document"
         )
         if row_removed:
             print("  removed table row")
@@ -550,7 +553,8 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
                 print("  removed 'changes:' list entry")
             if entry_updated:
                 print(
-                    f"  updated entry for {repo_path} (now matches upgrade_docs_baseline — no longer a documented change)"
+                    f"  updated entry for {repo_path} (now matches upgrade_docs_baseline"
+                    " — no longer a documented change)"
                 )
             continue
 

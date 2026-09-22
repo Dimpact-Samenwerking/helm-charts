@@ -378,13 +378,13 @@ _EXACT_TIERS = _MATCH_TIERS[:2]
 _RELATION_TIERS = _MATCH_TIERS[2:]
 
 
-def _resolve_against(candidates, dependencies, tiers=_MATCH_TIERS):
+def _resolve_against(candidates, dependencies, tiers=None):
     """(dependency_name, alias) from the first tier in `tiers` (default
     _MATCH_TIERS) with exactly one distinct match against `dependencies`,
     ("MULTIPLE", "MULTIPLE") from the first tier with more than one, or
     None if no tier matches anything at all (caller decides what None
     means)."""
-    for tier in tiers:
+    for tier in tiers if tiers is not None else _MATCH_TIERS:
         found = _tier_matches(candidates, dependencies, tier)
         if len(found) == 1:
             return next(iter(found.items()))
@@ -393,7 +393,7 @@ def _resolve_against(candidates, dependencies, tiers=_MATCH_TIERS):
     return None
 
 
-def component_and_alias(name, dependencies, orphan_keys=(), global_image_keys=()):
+def component_and_alias(name, dependencies, orphan_keys=(), global_image_key_names=()):
     """(component, alias) for `name` (the CSV "name" column value),
     resolved against `dependencies` (see chart_dependencies) by trying
     each of name_candidates(name) against every dependency's own
@@ -419,7 +419,7 @@ def component_and_alias(name, dependencies, orphan_keys=(), global_image_keys=()
 
     EXCEPTION: a tier-3/4 (loose-relation-only) single-dependency match
     is overridden to ("MULTIPLE", "MULTIPLE") if a candidate ALSO relates
-    to one of `global_image_keys` (see global_image_keys) — e.g. "Redis",
+    to one of `global_image_key_names` (see global_image_keys) — e.g. "Redis",
     the global.images.redis anchor, must resolve MULTIPLE even though
     "redis" happens to also be a loose substring of the wholly unrelated
     "redis-operator" dependency's own name (no alias, so it only ever
@@ -442,7 +442,7 @@ def component_and_alias(name, dependencies, orphan_keys=(), global_image_keys=()
     that already resolves through a real dependency.
 
     If NEITHER of those matches anything either, checks whether a
-    candidate relates to one of `global_image_keys` — same check as the
+    candidate relates to one of `global_image_key_names` — same check as the
     override above, just as its own fallback tier now that no
     dependency/orphan-key match exists at all to override.
 
@@ -458,7 +458,9 @@ def component_and_alias(name, dependencies, orphan_keys=(), global_image_keys=()
     candidates = name_candidates(name)
 
     def relates_to_global_key():
-        return any(_related(candidate, normalize_name(key)) for candidate in candidates for key in global_image_keys)
+        return any(
+            _related(candidate, normalize_name(key)) for candidate in candidates for key in global_image_key_names
+        )
 
     exact = _resolve_against(candidates, dependencies, _EXACT_TIERS)
     if exact:

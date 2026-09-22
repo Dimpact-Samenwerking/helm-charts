@@ -193,7 +193,12 @@ def load_baseline_values(values_path, upgrade_docs_baseline):
     return git_show_yaml(repo_root, ref, str(rel_values_path))
 
 
-def load_baseline_state(chart_yaml_path, values_path, upgrade_docs_baseline):
+def load_baseline_state(
+    # kept for signature compat, see docstring below
+    chart_yaml_path,  # pylint: disable=unused-argument
+    values_path,
+    upgrade_docs_baseline,
+):
     """(baseline_deps, baseline_values) as they actually were at upgrade_docs_baseline's
     resolved git ref — same ref resolution as load_baseline_values, but
     also pulls Chart.yaml so a caller can tell whether a component's own

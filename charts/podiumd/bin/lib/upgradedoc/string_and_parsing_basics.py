@@ -123,13 +123,13 @@ def match_dependency(text, deps):
     appear mid-word in unrelated text (e.g. "mi" inside "AdminUser") can
     never falsely match."""
     spans = _word_aligned_spans(text)
-    best = None
+    best_dep, best_norm = None, None
     for dep in deps:
         for candidate in filter(None, [dep.get("name"), dep.get("alias")]):
             norm_c = normalize_name(candidate)
-            if norm_c and norm_c in spans and (best is None or len(norm_c) > len(best[1])):
-                best = (dep, norm_c)
-    return best[0] if best else None
+            if norm_c and norm_c in spans and (best_norm is None or len(norm_c) > len(best_norm)):
+                best_dep, best_norm = dep, norm_c
+    return best_dep
 
 
 def match_native_component(text, native_component_names):
@@ -147,12 +147,12 @@ def match_native_component(text, native_component_names):
     chart_dir, so a caller with no chart_dir in scope can pass lib.chart.
     native_components()'s own self-resolving default."""
     spans = _word_aligned_spans(text)
-    best = None
+    best_key, best_norm = None, None
     for key in native_component_names:
         norm = normalize_name(key)
-        if norm and norm in spans and (best is None or len(norm) > len(best[1])):
-            best = (key, norm)
-    return best[0] if best else None
+        if norm and norm in spans and (best_norm is None or len(norm) > len(best_norm)):
+            best_key, best_norm = key, norm
+    return best_key
 
 
 def match_canonical_sidecar_name(text, canonical_names):
@@ -174,12 +174,12 @@ def match_canonical_sidecar_name(text, canonical_names):
     if exact is not None:
         return exact
     spans = _word_aligned_spans(text)
-    best = None
+    best_path, best_norm = None, None
     for name, path in canonical_names.items():
         norm_c = normalize_name(name)
-        if norm_c and norm_c in spans and (best is None or len(norm_c) > len(best[1])):
-            best = (path, norm_c)
-    return best[0] if best else None
+        if norm_c and norm_c in spans and (best_norm is None or len(norm_c) > len(best_norm)):
+            best_path, best_norm = path, norm_c
+    return best_path
 
 
 def match_dependency_excluding_sidecar_names(text, deps):

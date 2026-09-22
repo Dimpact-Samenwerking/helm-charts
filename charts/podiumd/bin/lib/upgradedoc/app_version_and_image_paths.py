@@ -268,7 +268,7 @@ def resolve_entry_path(entry_name, paths):
         return None
     norm_entry = "".join(entry_words)
 
-    best = None
+    best_path, best_diff = None, None
     for path in paths:
         descriptive = path[:-1] if path and (path[-1] == "image" or path[-1].endswith("Image")) else path
         path_words = [w for segment in descriptive for w in words_of(segment)]
@@ -281,9 +281,9 @@ def resolve_entry_path(entry_name, paths):
             # closest length = least unrelated extra text pulled in by the
             # containment match
             diff = abs(len(norm_path) - len(norm_entry))
-            if best is None or diff < best[1]:
-                best = (path, diff)
-    return best[0] if best else None
+            if best_diff is None or diff < best_diff:
+                best_path, best_diff = path, diff
+    return best_path
 
 
 def resolve_entry_image_path(entry, paths, repo_map=None):

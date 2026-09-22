@@ -409,6 +409,9 @@ def select_release_columns(paths):
     }
     groups = find_versie_groups(paths)
     if len(groups) == 2:
+        # pylint can't see past the len(groups) == 2 guard above and
+        # still tracks groups as the empty list literal from line 332.
+        # pylint: disable-next=unbalanced-tuple-unpacking
         (_, source_cols), (_, target_cols) = groups
         columns["source_helm"] = find_column(paths, ["helm"], candidates=source_cols)
         columns["source_app"] = (
