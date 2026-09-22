@@ -7,6 +7,7 @@ to resolve a plain (non-component) Changes item to its own manifest
 entry."""
 
 import re
+from dataclasses import dataclass
 
 import yaml
 
@@ -43,6 +44,49 @@ from lib.upgradedoc.string_and_parsing_basics import extract_target_version
 from lib.upgradedoc.string_and_parsing_basics import match_dependency
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
+
+
+@dataclass
+class ManifestCheckContext:
+    """upgrade_docs_baseline/podiumd_version/deps/values/baseline_values/
+    chart_dir — check_images_manifest_format's own six raw inputs
+    (everything except the images-manifest path itself), bundled since
+    virtually every one of its many independent sub-checks below needs
+    some subset of the same six together. chart_dir=None skips every
+    chart_dir-gated sub-check entirely (see each one's own docstring)."""
+
+    upgrade_docs_baseline: str
+    podiumd_version: str
+    deps: list
+    values: dict
+    baseline_values: dict
+    chart_dir: object = None
+
+
+@dataclass
+class ResolvedManifest:
+    """entries/resolution — an images-manifest's own parsed YAML entries
+    paired with how to resolve one back to its own values-tree path/
+    display name (EntryResolution). Bundled since the Changes-item and
+    entry-comment checks below all need both together, and passing them
+    separately would put both back over the max-argument threshold this
+    split exists to clear."""
+
+    entries: list
+    resolution: EntryResolution
+
+
+@dataclass
+class ListDiffInputs:
+    """manifest/repo_groups/baseline_paths — find_images_manifest_list_
+    diff's own remaining caller-varying inputs (ManifestCheckContext
+    already supplies chart_dir/deps/upgrade_docs_baseline/values/
+    baseline_values), bundled purely to keep _list_diff_issues under the
+    max-argument threshold."""
+
+    manifest: ResolvedManifest
+    repo_groups: dict
+    baseline_paths: dict
 
 
 def match_changes_item_to_entry(item_name, entries):
@@ -158,7 +202,52 @@ def find_images_manifest_changes_items_out_of_order(text, entries, entry_positio
     return [(items[i][0], items[i + 1][0]) for i in range(len(items) - 1) if keys[i + 1] < keys[i]]
 
 
-def find_images_manifest_entries_missing_changes_mention(text, entries, deps, values, repo_map, canonical_names):
+def _covered_changes_display_names(lines, entries, display_name_positions, resolution):
+    """The set of every images-manifest entry/group display name a "#
+    Changes:" item in `lines` already resolves back to — the SAME two-
+    tier match find_images_manifest_changes_items_out_of_order/fix-doc-
+    consistency's own sort_images_manifest_changes_items apply:
+    match_changes_item_display_name's exact prefix match first,
+    match_changes_item_to_entry's fuzzy basename match as fallback."""
+
+    def entry_display_name(entry):
+        path = resolve_entry_image_path(entry, resolution.current_paths.keys(), resolution.repo_map)
+        return path_display_name(path, resolution.deps, resolution.canonical_names) if path else None
+
+    covered_names = set()
+    for rest, _start, _end in _images_manifest_changes_items(lines):
+        display_name = match_changes_item_display_name(rest, display_name_positions)
+        if display_name is not None:
+            covered_names.add(display_name)
+            continue
+        entry = match_changes_item_to_entry(rest, entries)
+        matched_name = entry_display_name(entry) if entry is not None else None
+        if matched_name is not None:
+            covered_names.add(matched_name)
+    return covered_names
+
+
+def _uncovered_entry_display_names(entries, entry_positions, resolution, covered_names):
+    """Display names of every entry GROUP (present in entry_positions)
+    not already in `covered_names` — one display name per group, first
+    entry only, skipping an entry whose display name is path_display_
+    name's raw-dotted-path fallback (see find_images_manifest_entries_
+    missing_changes_mention's own docstring for why)."""
+    missing, seen = [], set()
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.get("name") not in entry_positions:
+            continue
+        path = resolve_entry_image_path(entry, resolution.current_paths.keys(), resolution.repo_map)
+        display_name = path_display_name(path, resolution.deps, resolution.canonical_names) if path else None
+        if display_name is None or display_name in seen or display_name == ".".join(path):
+            continue
+        seen.add(display_name)
+        if display_name not in covered_names:
+            missing.append(display_name)
+    return missing
+
+
+def find_images_manifest_entries_missing_changes_mention(text, entries, context):
     """Display names (lib.upgradedoc.path_display_name) of every images-
     manifest entry GROUP (lib.upgradedoc.images_manifest_entry_positions'
     own group-level position) that has no "# Changes:" item resolving
@@ -169,20 +258,14 @@ def find_images_manifest_entries_missing_changes_mention(text, entries, deps, va
     never an entry that exists (and is otherwise perfectly correct) but
     was simply never added to the header list — e.g. a component added
     by hand straight into the body, or a manifest edited before header-
-    list items existed for it at all.
+    list items existed for it at all. `context` is a ManifestSortContext.
 
     "Resolving back to it" means the SAME two-tier match find_images_
     manifest_changes_items_out_of_order/fix-doc-consistency's own sort_
-    images_manifest_changes_items apply — match_changes_item_display_
-    name's exact prefix match against the entry's own canonical display
-    name, OR match_changes_item_to_entry's fuzzy basename match against
-    the entry's own raw "name:" — a free-form item using neither form
-    (real case: a bare "redis-ha ..." item for what canonical_sidecar_
-    row_names would call "redis-operator - redis") still counts as
-    covering it, exactly as it already does for ordering/sorting; this
-    is deliberately NOT a literal string search for the display name
-    inside the header, which would wrongly demand every item spell out
-    that one exact phrase.
+    images_manifest_changes_items apply (see _covered_changes_display_
+    names) — deliberately NOT a literal string search for the display
+    name inside the header, which would wrongly demand every item spell
+    out that one exact phrase.
 
     Compared by DISPLAY NAME, not by entry_positions' own per-entry
     position — a multi-image "lockstep" component (zgw-office-addin's
@@ -201,43 +284,18 @@ def find_images_manifest_entries_missing_changes_mention(text, entries, deps, va
     it's not a gap worth reporting. [] under the same guards images_
     manifest_entry_positions applies (invalid YAML, or fewer than 2
     entries) — nothing to cross-check with just 0 or 1 entries."""
-    sort_context = ManifestSortContext(deps, values, repo_map, canonical_names)
-    entry_positions = images_manifest_entry_positions(text, sort_context)
+    entry_positions = images_manifest_entry_positions(text, context)
     if not entry_positions:
         return []
-    display_name_positions = images_manifest_display_name_positions(text, sort_context)
+    display_name_positions = images_manifest_display_name_positions(text, context)
 
-    current_paths = dict(find_all_image_and_version_paths(values, deps))
-    current_paths.update(global_image_paths(values))
-
-    def entry_display_name(entry):
-        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
-        return path_display_name(path, deps, canonical_names) if path else None
+    current_paths = dict(find_all_image_and_version_paths(context.values, context.deps))
+    current_paths.update(global_image_paths(context.values))
+    resolution = EntryResolution(context.deps, current_paths, context.repo_map, context.canonical_names)
 
     lines = text.splitlines(keepends=True)
-    covered_names = set()
-    for rest, _start, _end in _images_manifest_changes_items(lines):
-        display_name = match_changes_item_display_name(rest, display_name_positions)
-        if display_name is not None:
-            covered_names.add(display_name)
-            continue
-        entry = match_changes_item_to_entry(rest, entries)
-        matched_name = entry_display_name(entry) if entry is not None else None
-        if matched_name is not None:
-            covered_names.add(matched_name)
-
-    missing, seen = [], set()
-    for entry in entries:
-        if not isinstance(entry, dict) or entry.get("name") not in entry_positions:
-            continue
-        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
-        display_name = path_display_name(path, deps, canonical_names) if path else None
-        if display_name is None or display_name in seen or display_name == ".".join(path):
-            continue
-        seen.add(display_name)
-        if display_name not in covered_names:
-            missing.append(display_name)
-    return sorted(missing)
+    covered_names = _covered_changes_display_names(lines, entries, display_name_positions, resolution)
+    return sorted(_uncovered_entry_display_names(entries, entry_positions, resolution, covered_names))
 
 
 def check_images_manifest_changes_numbering(images_path_name, text):
@@ -281,16 +339,370 @@ def check_images_manifest_changes_numbering(images_path_name, text):
     return issues
 
 
-def check_images_manifest_format(
-    images_path, upgrade_docs_baseline, podiumd_version, deps, values, baseline_values, chart_dir=None
-):
+def _entries_shape_issues(name, entries):
+    """None, or the single-item issue list for entries that are shape-
+    invalid at the whole-list or per-entry level — both checks
+    check_images_manifest_format runs immediately after a successful
+    YAML parse, before anything else looks at entries' own contents."""
+    if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
+        return [f"{name} does not contain a YAML list of mappings"]
+    for i, entry in enumerate(entries):
+        missing = [k for k in ("name", "url", "version", "digest") if k not in entry]
+        if missing:
+            return [f"{name} entry #{i + 1} is missing key(s): {', '.join(missing)}"]
+    return None
+
+
+def _baseline_and_vs_line_issues(name, text, context):
+    """The images-manifest's own two header-comment lines — "Baseline:
+    podiumd <version>" and "podiumd <target> vs <upgrade_docs_baseline>"
+    — checked against context.podiumd_version/context.upgrade_docs_
+    baseline."""
+    issues = []
+    baseline_m = re.search(r"Baseline:\s*podiumd\s+([\w.\-]+)", text)
+    if not baseline_m:
+        issues.append(f'{name}: no "Baseline: podiumd <version>" line found')
+    else:
+        # .rstrip(".") — the stub template writes "Baseline: podiumd 4.9.0."
+        # (trailing sentence period), and "." is inside the capture class;
+        # same handling as the "... vs ..." line just below.
+        baseline_str = baseline_m.group(1).rstrip(".")
+        if normalize_version(baseline_str) != normalize_version(context.upgrade_docs_baseline):
+            issues.append(
+                f'{name}: upgrade_docs_baseline line says "{baseline_str}", expected "{context.upgrade_docs_baseline}"'
+            )
+
+    vs_m = re.search(r"podiumd\s+([\w.\-]+)\s+vs\s+([\w.\-]+)", text)
+    if not vs_m:
+        issues.append(f'{name}: no "podiumd <target> vs <upgrade_docs_baseline>" line found')
+    else:
+        vs_target, vs_baseline = vs_m.group(1).rstrip("."), vs_m.group(2).rstrip(".")
+        if normalize_version(vs_target) != normalize_version(context.podiumd_version):
+            issues.append(f'{name}: "... vs ..." line says target "{vs_target}", expected "{context.podiumd_version}"')
+        if normalize_version(vs_baseline) != normalize_version(context.upgrade_docs_baseline):
+            issues.append(
+                f'{name}: "... vs ..." line says upgrade_docs_baseline "{vs_baseline}", '
+                f'expected "{context.upgrade_docs_baseline}"'
+            )
+    return issues
+
+
+def _manifest_resolution_context(context):
+    """(repo_groups, resolution) — repo_groups (see paths_by_repository,
+    needed only by the list-diff check) and an EntryResolution bundling
+    deps/current_paths/repo_map/canonical_names, both derived from
+    `context` the same way every entry-resolving check below needs them.
+    Computed once, early — a canonical "<key> - <basename>" sidecar item
+    name (see canonical_sidecar_row_names) needs repo_map/canonical_names
+    to resolve back to its own real entry directly via its known values-
+    tree path, needed as early as the Changes-item loop — match_changes_
+    item_to_entry's own text-only basename-word matching has no way to
+    resolve that on its own. {}/EntryResolution(..., {}, {}) for the
+    chart_dir-gated pieces when context.chart_dir is None."""
+    current_paths = dict(find_all_image_and_version_paths(context.values, context.deps))
+    current_paths.update(global_image_paths(context.values))
+    repo_groups = (
+        paths_by_repository(context.chart_dir, context.deps, context.values, current_paths.keys())
+        if context.chart_dir is not None
+        else {}
+    )
+    repo_map = {repo: repo_group_representative(paths, context.deps) for repo, paths in repo_groups.items()}
+    canonical_names = (
+        canonical_sidecar_row_names(context.chart_dir, context.deps, context.values, current_paths.keys())
+        if context.chart_dir is not None
+        else {}
+    )
+    return repo_groups, EntryResolution(context.deps, current_paths, repo_map, canonical_names)
+
+
+def _plain_image_entry_for_item(item_name, resolved):
+    """The images-manifest entry a non-component Changes item resolves
+    to — a KNOWN canonical sidecar name (see resolved.resolution.
+    canonical_names) tried FIRST, resolved directly via its own real
+    values-tree path — never guessed at from the item's own free-form
+    text — then match_changes_item_to_entry's fuzzy basename match as
+    fallback. None if neither resolves anything."""
+    path = resolved.resolution.canonical_names.get(item_name)
+    if path is not None:
+        entry = next(
+            (
+                e
+                for e in resolved.entries
+                if resolve_entry_image_path(e, resolved.resolution.current_paths.keys(), resolved.resolution.repo_map)
+                == path
+            ),
+            None,
+        )
+        if entry is not None:
+            return entry
+    return match_changes_item_to_entry(item_name, resolved.entries)
+
+
+def _changes_item_version_mismatches(name, item, actual_app, actual_chart, baseline_app):
+    """One issue per version cell (target app, target chart, source app)
+    a single Changes item claims that disagrees with the actual value —
+    a cell is only ever checked when the item actually claims one AND
+    the corresponding actual value is known."""
+    issues = []
+    if item["app"] and actual_app and normalize_version(item["app"]) != normalize_version(actual_app):
+        issues.append(f'{name}: Changes item "{item["name"]}" target app "{item["app"]}" != values.yaml "{actual_app}"')
+    if item["chart"] and actual_chart and normalize_version(item["chart"]) != normalize_version(actual_chart):
+        issues.append(
+            f'{name}: Changes item "{item["name"]}" target chart "{item["chart"]}" != Chart.yaml "{actual_chart}"'
+        )
+    if item["app_source"] and baseline_app and normalize_version(item["app_source"]) != normalize_version(baseline_app):
+        issues.append(
+            f'{name}: Changes item "{item["name"]}" source app '
+            f'"{item["app_source"]}" != upgrade_docs_baseline "{baseline_app}"'
+        )
+    return issues
+
+
+def _changes_item_issues(name, item, resolved, context, invalid_names):
+    """The issue(s) for a single "# Changes:" block item — wrong/stale
+    (see find_wrong_or_duplicate_dependency_claims), unresolvable, or a
+    version-cell mismatch against its resolved actual state."""
+    if item["name"] in invalid_names:
+        return [f'{name}: Changes item "{item["name"]}" is wrong or stale — not found in Chart.yaml or values.yaml']
+
+    # match_dependency_excluding_sidecar_names, not match_dependency
+    # directly — a canonical sidecar/shared-image Changes item like
+    # "keycloak-operator - python 3.14-slim -> 3.14.7-slim." must
+    # never fuzzy-match the real "keycloak-operator" dependency on
+    # its leading word and get compared against ITS OWN unrelated
+    # actual app version; it falls through to the "plain image"
+    # entry-matching branch below instead, same as any other
+    # non-component Changes item.
+    dep = match_dependency_excluding_sidecar_names(item["name"], context.deps)
+    if dep:
+        values_key = dep.get("alias", dep["name"])
+        actual_app = actual_app_version(context.values, values_key, dep["name"], chart_dir=context.chart_dir, dep=dep)
+        actual_chart = dep["version"]
+        baseline_app = (
+            actual_app_version(context.baseline_values, values_key, dep["name"]) if context.baseline_values else None
+        )
+    else:
+        # Not every Changes item is a component — a plain image (e.g. an
+        # init-container image with no subchart/dependency of its own)
+        # has nothing in Chart.yaml to match against at all; fall back
+        # to this same manifest's own entries instead of treating that
+        # as an error (see match_changes_item_to_entry).
+        entry = _plain_image_entry_for_item(item["name"], resolved)
+        if entry is None:
+            return [
+                f'{name}: Changes item "{item["name"]}" — no matching Chart.yaml dependency or images-manifest entry'
+            ]
+        actual_app = entry.get("version")
+        actual_chart = None  # a plain image has no chart version to check
+        baseline_app = None  # no baseline lookup available without a component scope
+
+    return _changes_item_version_mismatches(name, item, actual_app, actual_chart, baseline_app)
+
+
+def _changes_block_item_issues(name, text, resolved, context):
+    """One issue per "# Changes:" block item (see parse_changes_block)
+    whose target/source app or chart version disagrees with the actual
+    Chart.yaml/values.yaml/images-manifest state it claims to describe —
+    or that doesn't resolve to anything real at all. Same two
+    deterministic gaps as lib.docs_consistency's own upgrade-doc row loop
+    (see find_wrong_or_duplicate_dependency_claims) — a free-form Changes
+    item fuzzy-matching a dependency another item already exactly
+    claims. Real, live case this catches: item "Kiss's ECK-managed
+    Elasticsearch/Kibana/Enterprise Search 8.19.3 -> 8.19.19" fuzzy-
+    matches the real "kiss" dependency on the word "kiss" (there's also
+    an exact "KISS 2.2.4 -> 3.0.0" item) and was being compared against
+    kiss's own unrelated actual app version — same for "clamav_exporter
+    (metrics sidecar) ..." vs the exact "ClamAV ..." item."""
+    items = list(parse_changes_block(text))
+    duplicate_names, wrong_fuzzy_names = find_wrong_or_duplicate_dependency_claims(
+        [item["name"] for item in items], context.deps
+    )
+    invalid_names = duplicate_names | wrong_fuzzy_names
+
+    issues = []
+    for item in items:
+        issues.extend(_changes_item_issues(name, item, resolved, context, invalid_names))
+    return issues
+
+
+def _entry_comment_version_mismatches(name, entry, comment, resolution, baseline_paths):
+    """The issue(s) for a single entry's own preceding comment — its
+    target version cell vs. the entry's own actual version, and its
+    source version cell vs. upgrade_docs_baseline's actual value."""
+    issues = []
+    target = extract_target_version(comment)
+    if target and normalize_version(target) != normalize_version(entry["version"]):
+        issues.append(
+            f'{name}: entry "{entry["name"]}" comment says target "{target}", entry version is "{entry["version"]}"'
+        )
+
+    if baseline_paths:
+        path = resolve_entry_image_path(entry, resolution.current_paths.keys(), resolution.repo_map)
+        baseline_tag = baseline_paths.get(path) if path else None
+        baseline_version = baseline_tag.split("@")[0] if baseline_tag else None
+        source = extract_source_version(comment)
+        if source and baseline_version and normalize_version(source) != normalize_version(baseline_version):
+            issues.append(
+                f'{name}: entry "{entry["name"]}" comment says source '
+                f'"{source}", upgrade_docs_baseline actually has "{baseline_version}"'
+            )
+    return issues
+
+
+def _entry_comment_issues(name, lines, resolved, entry_line_indices, baseline_paths):
+    """One issue per images-manifest entry whose own preceding comment
+    is missing, or whose target/source app version disagrees with the
+    entry's own actual version / upgrade_docs_baseline's actual value."""
+
+    def same_group(entry_a, entry_b):
+        return images_manifest_entries_share_group(
+            entry_a, entry_b, resolved.resolution.current_paths, resolved.resolution.repo_map
+        )
+
+    issues = []
+    for index, (entry, _line_idx) in enumerate(zip(resolved.entries, entry_line_indices, strict=True)):
+        comment = find_grouped_preceding_comment(lines, resolved.entries, entry_line_indices, index, same_group)
+        if not comment:
+            issues.append(f'{name}: entry "{entry["name"]}" has no preceding comment')
+            continue
+        issues.extend(_entry_comment_version_mismatches(name, entry, comment, resolved.resolution, baseline_paths))
+    return issues
+
+
+def _sidecar_header_issues(name, parsed, resolution):
+    """One issue per SIDECAR entry (see is_primary_image_path) whose own
+    header doesn't correctly, unambiguously identify it — a sidecar
+    (see find_images_manifest_faulty_headers) needs its OWN indented "#
+    sidecar: <parent> - <basename> ..." header, never a plain header
+    borrowed from a preceding entry via same_group's "same component,
+    same declared version" heuristic — that heuristic is only ever a
+    proxy for "these two entries genuinely bumped in lockstep", and a
+    sidecar whose real version history diverges from its parent's
+    (kiss-elastic-sync: 0.3.3 -> 3.0.0, sharing "# KISS — 2.2.4 ->
+    3.0.0" purely because both happen to land on 3.0.0 this release)
+    silently inherits a header that doesn't describe it at all."""
+    issues = []
+    for entry_name, expected, problem in find_images_manifest_faulty_headers(parsed, resolution):
+        if problem == "missing":
+            issues.append(
+                f'{name}: entry "{entry_name}" is a sidecar of "{expected.split(" - ")[0]}" '
+                f'but has no own "#   sidecar: {expected} ..." header — it may be sharing a '
+                f"preceding entry's header, which only describes THAT entry's own version bump"
+            )
+        else:
+            issues.append(f'{name}: entry "{entry_name}" has its own sidecar header, but it does not name "{expected}"')
+    return issues
+
+
+def _out_of_order_entry_issues(name, parsed, resolution, key_order, values):
+    """One issue per adjacent pair of entries (or shared-header groups)
+    that don't follow values.yaml's own top-level component order — the
+    same rule find_out_of_order_names already enforces for -upgrade.md's
+    own rows/Changes headings."""
+    issues = []
+    for name_a, name_b in find_images_manifest_out_of_order_names(parsed, resolution, key_order, values):
+        issues.append(
+            f'{name}: entry "{name_b}" is listed right after "{name_a}", but '
+            f"values.yaml lists {name_b} before {name_a} — entries should follow values.yaml's "
+            f"own component order"
+        )
+    return issues
+
+
+def _changes_items_out_of_order_issues(name, text, entries, entry_positions, display_name_positions):
+    """One issue per adjacent pair of "# Changes:" items whose order
+    contradicts the entry list's own final order — the two can silently
+    disagree (entries correctly grouped/ordered, header list scrambled
+    relative to them) with nothing else here to catch it."""
+    issues = []
+    for item_a, item_b in find_images_manifest_changes_items_out_of_order(
+        text, entries, entry_positions, display_name_positions
+    ):
+        issues.append(
+            f'{name}: "# Changes:" list has "{item_b}" right after "{item_a}", but '
+            f"the entry list has them in the opposite order — Changes items should follow the "
+            f"same order as the entries below them"
+        )
+    return issues
+
+
+def _missing_changes_mention_issues(name, text, entries, sort_context):
+    """One issue per entry with no "# Changes:" mention at all (see
+    find_images_manifest_entries_missing_changes_mention)."""
+    return [
+        f'{name}: image "{entry_name}" has an entry but no mention in the "# Changes:" list'
+        for entry_name in find_images_manifest_entries_missing_changes_mention(text, entries, sort_context)
+    ]
+
+
+def _structural_issues(name, text, parsed, resolution, context):
+    """Every chart_dir-gated structural check that's independent of
+    upgrade_docs_baseline — sidecar headers, values.yaml component
+    order, and the "# Changes:" list's own order/coverage relative to
+    the entry list. Only called by check_images_manifest_format when
+    context.chart_dir is not None."""
+    issues = _sidecar_header_issues(name, parsed, resolution)
+
+    key_order = values_key_order(context.values)
+    issues.extend(_out_of_order_entry_issues(name, parsed, resolution, key_order, context.values))
+
+    sort_context = ManifestSortContext(context.deps, context.values, resolution.repo_map, resolution.canonical_names)
+    entry_positions = images_manifest_entry_positions(text, sort_context)
+    display_name_positions = images_manifest_display_name_positions(text, sort_context)
+    issues.extend(
+        _changes_items_out_of_order_issues(name, text, parsed.entries, entry_positions, display_name_positions)
+    )
+    issues.extend(_missing_changes_mention_issues(name, text, parsed.entries, sort_context))
+    return issues
+
+
+def _list_diff_issues(name, inputs, context):
+    """The list-diff check (find_images_manifest_list_diff) — every
+    changed image must have an entry, and every entry must correspond to
+    a real change. Only called by check_images_manifest_format once
+    there's something real to diff against (baseline_paths is non-empty
+    and context.chart_dir is not None) — without a resolvable upgrade_
+    docs_baseline, "changed" can't be computed at all."""
+    unresolvable_paths = set(find_images_without_repository(context.chart_dir))
+    missing_paths, stale_entry_names, unmatched_entry_names = find_images_manifest_list_diff(
+        inputs.manifest.entries,
+        inputs.manifest.resolution.current_paths,
+        inputs.baseline_paths,
+        inputs.manifest.resolution.repo_map,
+        inputs.repo_groups,
+        unresolvable_paths,
+        chart_dir=context.chart_dir,
+        deps=context.deps,
+        upgrade_docs_baseline=context.upgrade_docs_baseline,
+        values=context.values,
+        baseline_values=context.baseline_values,
+    )
+    resolution = inputs.manifest.resolution
+    issues = [
+        f'{name}: image "{path_display_name(path, resolution.deps, resolution.canonical_names)}" '
+        f"changed vs {context.upgrade_docs_baseline} but has no entry"
+        for path in missing_paths
+    ]
+    issues.extend(
+        f'{name}: entry "{entry_name}" is listed but its image did not change vs {context.upgrade_docs_baseline}'
+        for entry_name in stale_entry_names
+    )
+    issues.extend(
+        f'{name}: entry "{entry_name}" is wrong or stale — not found in Chart.yaml or values.yaml'
+        for entry_name in unmatched_entry_names
+    )
+    return issues
+
+
+def check_images_manifest_format(images_path, context):
     """Existence + YAML-validity + header-comment-accuracy precheck for the
     images manifest, run BEFORE the entry-by-entry content checks — mirrors
     check_baseline_doc_set for the three markdown docs. Also checks the
     manifest's own entry LIST against the full, actual set of images that
-    changed vs upgrade_docs_baseline (see find_images_manifest_list_diff)
-    — every changed image must have an entry, and every entry must
-    correspond to a real change, once chart_dir is given."""
+    changed vs context.upgrade_docs_baseline (see find_images_manifest_
+    list_diff) — every changed image must have an entry, and every entry
+    must correspond to a real change, once context.chart_dir is given.
+    `context` is a ManifestCheckContext."""
     if not images_path.is_file():
         return [f'expected "{images_path.name}" does not exist']
 
@@ -299,291 +711,37 @@ def check_images_manifest_format(
         entries = yaml.safe_load(text)
     except yaml.YAMLError as e:
         return [f"{images_path.name} is not valid YAML: {e}"]
-    if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
-        return [f"{images_path.name} does not contain a YAML list of mappings"]
-    for i, entry in enumerate(entries):
-        missing = [k for k in ("name", "url", "version", "digest") if k not in entry]
-        if missing:
-            return [f"{images_path.name} entry #{i + 1} is missing key(s): {', '.join(missing)}"]
+    shape_issue = _entries_shape_issues(images_path.name, entries)
+    if shape_issue is not None:
+        return shape_issue
 
-    issues = []
-
-    baseline_m = re.search(r"Baseline:\s*podiumd\s+([\w.\-]+)", text)
-    if not baseline_m:
-        issues.append(f'{images_path.name}: no "Baseline: podiumd <version>" line found')
-    else:
-        # .rstrip(".") — the stub template writes "Baseline: podiumd 4.9.0."
-        # (trailing sentence period), and "." is inside the capture class;
-        # same handling as the "... vs ..." line just below.
-        baseline_str = baseline_m.group(1).rstrip(".")
-        if normalize_version(baseline_str) != normalize_version(upgrade_docs_baseline):
-            issues.append(
-                f'{images_path.name}: upgrade_docs_baseline line says "{baseline_str}", '
-                f'expected "{upgrade_docs_baseline}"'
-            )
-
-    vs_m = re.search(r"podiumd\s+([\w.\-]+)\s+vs\s+([\w.\-]+)", text)
-    if not vs_m:
-        issues.append(f'{images_path.name}: no "podiumd <target> vs <upgrade_docs_baseline>" line found')
-    else:
-        vs_target, vs_baseline = vs_m.group(1).rstrip("."), vs_m.group(2).rstrip(".")
-        if normalize_version(vs_target) != normalize_version(podiumd_version):
-            issues.append(
-                f'{images_path.name}: "... vs ..." line says target "{vs_target}", expected "{podiumd_version}"'
-            )
-        if normalize_version(vs_baseline) != normalize_version(upgrade_docs_baseline):
-            issues.append(
-                f'{images_path.name}: "... vs ..." line says upgrade_docs_baseline "{vs_baseline}", '
-                f'expected "{upgrade_docs_baseline}"'
-            )
-
+    issues = _baseline_and_vs_line_issues(images_path.name, text, context)
     issues.extend(check_images_manifest_changes_numbering(images_path.name, text))
 
-    # Computed early (moved up from below, where the per-entry checks
-    # further down also need them) so the Changes-item loop right below
-    # can ALSO resolve a canonical "<key> - <basename>" sidecar item name
-    # (see canonical_sidecar_row_names) back to its own real entry
-    # directly via its known values-tree path — needed for a canonical
-    # name whose own "basename" isn't a real image-repository basename
-    # at all (e.g. "keycloak-operator - operator", the values-tree path
-    # SEGMENT fallback canonical_sidecar_row_names uses for a sidecar
-    # whose repo basename would otherwise self-referentially collide
-    # with its own dependency's key — see that function's own
-    # docstring): match_changes_item_to_entry's own text-only basename-
-    # word matching has no way to resolve that, since there's no real
-    # entry whose own name/repository is "operator" to word-match against.
-    current_paths = dict(find_all_image_and_version_paths(values, deps))
-    current_paths.update(global_image_paths(values))
-    repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys()) if chart_dir is not None else {}
-    repo_map = {repo: repo_group_representative(paths, deps) for repo, paths in repo_groups.items()}
-    canonical_names = (
-        canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys()) if chart_dir is not None else {}
-    )
-
-    items = list(parse_changes_block(text))
-    # Same two deterministic gaps as lib.docs_consistency's own upgrade-doc
-    # row loop (see find_wrong_or_duplicate_dependency_claims) — a
-    # free-form Changes item fuzzy-matching a dependency another item
-    # already exactly claims. Real, live case this catches: item "Kiss's
-    # ECK-managed Elasticsearch/Kibana/Enterprise Search 8.19.3 ->
-    # 8.19.19" fuzzy-matches the real "kiss" dependency on the word
-    # "kiss" (there's also an exact "KISS 2.2.4 -> 3.0.0" item) and was
-    # being compared against kiss's own unrelated actual app version —
-    # same for "clamav_exporter (metrics sidecar) ..." vs the exact
-    # "ClamAV ..." item.
-    duplicate_names, wrong_fuzzy_names = find_wrong_or_duplicate_dependency_claims(
-        [item["name"] for item in items], deps
-    )
-
-    for item in items:
-        if item["name"] in duplicate_names or item["name"] in wrong_fuzzy_names:
-            issues.append(
-                f'{images_path.name}: Changes item "{item["name"]}" is wrong or stale — '
-                f"not found in Chart.yaml or values.yaml"
-            )
-            continue
-
-        # match_dependency_excluding_sidecar_names, not match_dependency
-        # directly — a canonical sidecar/shared-image Changes item like
-        # "keycloak-operator - python 3.14-slim -> 3.14.7-slim." must
-        # never fuzzy-match the real "keycloak-operator" dependency on
-        # its leading word and get compared against ITS OWN unrelated
-        # actual app version; it falls through to the "plain image"
-        # entry-matching branch below instead, same as any other
-        # non-component Changes item.
-        dep = match_dependency_excluding_sidecar_names(item["name"], deps)
-        if dep:
-            values_key = dep.get("alias", dep["name"])
-            actual_app = actual_app_version(values, values_key, dep["name"], chart_dir=chart_dir, dep=dep)
-            actual_chart = dep["version"]
-            baseline_app = actual_app_version(baseline_values, values_key, dep["name"]) if baseline_values else None
-        else:
-            # Not every Changes item is a component — a plain image (e.g. an
-            # init-container image with no subchart/dependency of its own)
-            # has nothing in Chart.yaml to match against at all; fall back
-            # to this same manifest's own entries instead of treating that
-            # as an error (see match_changes_item_to_entry).
-            #
-            # A KNOWN canonical sidecar name (see canonical_names above)
-            # is tried FIRST, resolved directly via its own real values-
-            # tree path — never guessed at from the item's own free-form
-            # text — since match_changes_item_to_entry's basename-word
-            # matching can't resolve one whose "basename" is a values-
-            # tree path segment, not a real image-repository basename
-            # (see the comment where canonical_names is computed above).
-            entry = None
-            path = canonical_names.get(item["name"])
-            if path is not None:
-                entry = next(
-                    (e for e in entries if resolve_entry_image_path(e, current_paths.keys(), repo_map) == path), None
-                )
-            if entry is None:
-                entry = match_changes_item_to_entry(item["name"], entries)
-            if entry is None:
-                issues.append(
-                    f'{images_path.name}: Changes item "{item["name"]}" — no matching '
-                    f"Chart.yaml dependency or images-manifest entry"
-                )
-                continue
-            actual_app = entry.get("version")
-            actual_chart = None  # a plain image has no chart version to check
-            baseline_app = None  # no baseline lookup available without a component scope
-
-        if item["app"] and actual_app and normalize_version(item["app"]) != normalize_version(actual_app):
-            issues.append(
-                f'{images_path.name}: Changes item "{item["name"]}" target app '
-                f'"{item["app"]}" != values.yaml "{actual_app}"'
-            )
-        if item["chart"] and actual_chart and normalize_version(item["chart"]) != normalize_version(actual_chart):
-            issues.append(
-                f'{images_path.name}: Changes item "{item["name"]}" target chart '
-                f'"{item["chart"]}" != Chart.yaml "{actual_chart}"'
-            )
-        if (
-            item["app_source"]
-            and baseline_app
-            and normalize_version(item["app_source"]) != normalize_version(baseline_app)
-        ):
-            issues.append(
-                f'{images_path.name}: Changes item "{item["name"]}" source app '
-                f'"{item["app_source"]}" != upgrade_docs_baseline "{baseline_app}"'
-            )
+    repo_groups, resolution = _manifest_resolution_context(context)
+    resolved = ResolvedManifest(entries, resolution)
+    issues.extend(_changes_block_item_issues(images_path.name, text, resolved, context))
 
     lines = text.splitlines()
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
-    baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
+    baseline_paths = (
+        dict(find_all_image_and_version_paths(context.baseline_values, context.deps)) if context.baseline_values else {}
+    )
+    baseline_paths.update(global_image_paths(context.baseline_values) if context.baseline_values else [])
+    issues.extend(_entry_comment_issues(images_path.name, lines, resolved, entry_line_indices, baseline_paths))
 
-    # current_paths/repo_map/canonical_names: computed early, above the
-    # Changes-item loop — see the comment there for why. repo_map (see
-    # lib.chart.repository_path_map) is reused everywhere an entry needs
-    # matching to its values-tree path below — the SAME deterministic,
-    # exact "name: is a repository" lookup a doc row's own sidecar name
-    # resolves through (see canonical_sidecar_row_names, also repo_map-
-    # based) — never resolve_entry_path's fuzzy word-matching alone,
-    # which two entries sharing one comment (see same_group) need to be
-    # able to trust: word-matching a group's own free-form header prose
-    # to a component is exactly the kind of guess that stays wrong until
-    # the header itself is fixed to name that component properly.
-
-    def same_group(entry_a, entry_b):
-        return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
-
-    for index, (entry, _line_idx) in enumerate(zip(entries, entry_line_indices, strict=True)):
-        comment = find_grouped_preceding_comment(lines, entries, entry_line_indices, index, same_group)
-        if not comment:
-            issues.append(f'{images_path.name}: entry "{entry["name"]}" has no preceding comment')
-            continue
-
-        target = extract_target_version(comment)
-        if target and normalize_version(target) != normalize_version(entry["version"]):
-            issues.append(
-                f'{images_path.name}: entry "{entry["name"]}" comment says target '
-                f'"{target}", entry version is "{entry["version"]}"'
-            )
-
-        if baseline_paths:
-            path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
-            baseline_tag = baseline_paths.get(path) if path else None
-            baseline_version = baseline_tag.split("@")[0] if baseline_tag else None
-            source = extract_source_version(comment)
-            if source and baseline_version and normalize_version(source) != normalize_version(baseline_version):
-                issues.append(
-                    f'{images_path.name}: entry "{entry["name"]}" comment says source '
-                    f'"{source}", upgrade_docs_baseline actually has "{baseline_version}"'
-                )
-
-    # Structural, independent of upgrade_docs_baseline: a sidecar image
-    # (see is_primary_image_path) needs its OWN indented "#   sidecar:
-    # <parent> - <basename> ..." header, never a plain header borrowed
-    # from a preceding entry via same_group's "same component, same
-    # declared version" heuristic — that heuristic is only ever a proxy
-    # for "these two entries genuinely bumped in lockstep", and a
-    # sidecar whose real version history diverges from its parent's
-    # (kiss-elastic-sync: 0.3.3 -> 3.0.0, sharing "# KISS — 2.2.4 ->
-    # 3.0.0" purely because both happen to land on 3.0.0 this release)
-    # silently inherits a header that doesn't describe it at all.
-    if chart_dir is not None:
-        manifest = ParsedManifest(entries, entry_line_indices, lines)
-        resolution = EntryResolution(deps, current_paths, repo_map, canonical_names)
-        for name, expected, problem in find_images_manifest_faulty_headers(manifest, resolution):
-            if problem == "missing":
-                issues.append(
-                    f'{images_path.name}: entry "{name}" is a sidecar of "{expected.split(" - ")[0]}" '
-                    f'but has no own "#   sidecar: {expected} ..." header — it may be sharing a '
-                    f"preceding entry's header, which only describes THAT entry's own version bump"
-                )
-            else:
-                issues.append(
-                    f'{images_path.name}: entry "{name}" has its own sidecar header, but it does not name "{expected}"'
-                )
-
-    # Also structural, independent of upgrade_docs_baseline: entries
-    # (or shared-header groups) should follow values.yaml's own top-
-    # level component order — the same rule find_out_of_order_names
-    # already enforces for -upgrade.md's own rows/Changes headings.
-    if chart_dir is not None:
-        key_order = values_key_order(values)
-        for name_a, name_b in find_images_manifest_out_of_order_names(manifest, resolution, key_order, values):
-            issues.append(
-                f'{images_path.name}: entry "{name_b}" is listed right after "{name_a}", but '
-                f"values.yaml lists {name_b} before {name_a} — entries should follow values.yaml's "
-                f"own component order"
-            )
-
-    # Also structural, independent of upgrade_docs_baseline: the "#
-    # Changes:" header's OWN numbered item list should follow the SAME
-    # order as the entry list just checked above — the two can silently
-    # disagree (entries correctly grouped/ordered, header list scrambled
-    # relative to them) with nothing else here to catch it.
-    if chart_dir is not None:
-        sort_context = ManifestSortContext(deps, values, repo_map, canonical_names)
-        entry_positions = images_manifest_entry_positions(text, sort_context)
-        display_name_positions = images_manifest_display_name_positions(text, sort_context)
-        for item_a, item_b in find_images_manifest_changes_items_out_of_order(
-            text, entries, entry_positions, display_name_positions
-        ):
-            issues.append(
-                f'{images_path.name}: "# Changes:" list has "{item_b}" right after "{item_a}", but '
-                f"the entry list has them in the opposite order — Changes items should follow the "
-                f"same order as the entries below them"
-            )
-
-        issues.extend(
-            f'{images_path.name}: image "{name}" has an entry but no mention in the "# Changes:" list'
-            for name in find_images_manifest_entries_missing_changes_mention(
-                text, entries, deps, values, repo_map, canonical_names
-            )
-        )
+    # Also structural, independent of upgrade_docs_baseline (see
+    # _structural_issues): sidecar headers, values.yaml component order,
+    # and the "# Changes:" list's own order/coverage.
+    if context.chart_dir is not None:
+        parsed = ParsedManifest(entries, entry_line_indices, lines)
+        issues.extend(_structural_issues(images_path.name, text, parsed, resolution, context))
 
     # Only checked once there's something real to diff against — without
     # a resolvable upgrade_docs_baseline, "changed" can't be computed at
     # all (baseline_values is {} in that case, so baseline_paths is too).
-    if baseline_paths and chart_dir is not None:
-        unresolvable_paths = set(find_images_without_repository(chart_dir))
-        missing_paths, stale_entry_names, unmatched_entry_names = find_images_manifest_list_diff(
-            entries,
-            current_paths,
-            baseline_paths,
-            repo_map,
-            repo_groups,
-            unresolvable_paths,
-            chart_dir=chart_dir,
-            deps=deps,
-            upgrade_docs_baseline=upgrade_docs_baseline,
-            values=values,
-            baseline_values=baseline_values,
-        )
-        for path in missing_paths:
-            name = path_display_name(path, deps, canonical_names)
-            issues.append(f'{images_path.name}: image "{name}" changed vs {upgrade_docs_baseline} but has no entry')
-        issues.extend(
-            f'{images_path.name}: entry "{name}" is listed but its image did not change vs {upgrade_docs_baseline}'
-            for name in stale_entry_names
-        )
-        issues.extend(
-            f'{images_path.name}: entry "{name}" is wrong or stale — not found in Chart.yaml or values.yaml'
-            for name in unmatched_entry_names
-        )
+    if baseline_paths and context.chart_dir is not None:
+        list_diff_inputs = ListDiffInputs(resolved, repo_groups, baseline_paths)
+        issues.extend(_list_diff_issues(images_path.name, list_diff_inputs, context))
 
     return issues

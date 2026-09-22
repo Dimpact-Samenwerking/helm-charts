@@ -22,6 +22,7 @@ from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.values_delta_sections import has_stale_gemeente_specific_placeholder
 from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
+from lib.docs_consistency.images_manifest_format import ManifestCheckContext
 from lib.docs_consistency.images_manifest_format import check_images_manifest_format
 from lib.docs_consistency.markdown_format import check_baseline_doc_set
 from lib.docs_consistency.markdown_format import check_companion_doc
@@ -511,8 +512,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     # just to learn about them.
     images_format_ok = True
     if is_bare_version:
-        format_issues = check_images_manifest_format(
-            images_path,
+        manifest_check_context = ManifestCheckContext(
             upgrade_docs_baseline,
             podiumd_version,
             deps,
@@ -520,6 +520,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             baseline_values if baseline_ref else {},
             chart_dir=chart_dir,
         )
+        format_issues = check_images_manifest_format(images_path, manifest_check_context)
         if format_issues:
             images_format_ok = False
             checked.append(images_path.name)
