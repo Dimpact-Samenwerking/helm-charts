@@ -13,6 +13,7 @@ import json
 import shutil
 
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 
 from lib.procutil import run
@@ -89,6 +90,115 @@ def _kubeconform_item(entry, locations):
     return f"{base} (rendered line {line})" if line else base
 
 
+@dataclass
+class KubeconformScan:
+    """Everything check_kubeconform's own print/detail logic needs from a
+    completed render+validate pass: the rendered-line lookup (locations),
+    the friendly-vendor map (needed by the print step for its label text),
+    and the three own/vendored-friendly/vendored-other finding buckets.
+    See _scan_rendered_chart, which builds this."""
+
+    locations: object
+    vendor_map: dict
+    own_real: list
+    vendored_friendly: list
+    vendored_other: list
+
+
+def _scan_vendored_charts(docs, failing_statuses, vendor_map):
+    """Validates each vendored sub-chart's docs with kubeconform separately
+    (kubeconform's own JSON carries no per-resource source info, so —
+    unlike check_yamllint — each vendored sub-chart is its own run here),
+    splitting findings into (vendored_friendly, vendored_other) by
+    vendor_map membership. Returns (None, None, error) if any sub-chart's
+    kubeconform output couldn't be parsed."""
+    vendored_by_chart = {}
+    for source, text in docs:
+        if not source.startswith(OWN_TEMPLATES_PREFIX):
+            vendored_by_chart.setdefault(chart_name_from_source(source), []).append(text)
+
+    vendored_friendly, vendored_other = [], []
+    for chart, texts in vendored_by_chart.items():
+        resources = run_kubeconform("".join(texts))
+        if resources is None:
+            return None, None, "kubeconform produced unparseable output"
+        for r in resources:
+            if r.get("status") not in failing_statuses:
+                continue
+            (vendored_friendly if chart in vendor_map else vendored_other).append((chart, r))
+    return vendored_friendly, vendored_other, None
+
+
+def _scan_rendered_chart(chart_dir, extra_args, failing_statuses):
+    """Renders the chart, validates its own templates and every vendored
+    sub-chart's templates (see _scan_vendored_charts) with kubeconform, and
+    bundles the result into a KubeconformScan. Returns (None, error) on any
+    render/kubeconform failure, else (KubeconformScan, None)."""
+    result = render_chart(chart_dir, extra_args)
+    if result.returncode != 0:
+        return None, "helm template failed to render"
+
+    locations = build_resource_locations(result.stdout)
+    docs = split_rendered_by_source(result.stdout)
+    vendor_map = friendly_vendor_charts(chart_dir)
+
+    own_text = "".join(text for source, text in docs if source.startswith(OWN_TEMPLATES_PREFIX))
+    own_resources = run_kubeconform(own_text)
+    if own_resources is None:
+        return None, "kubeconform produced unparseable output"
+    own_real = [r for r in own_resources if r.get("status") in failing_statuses]
+
+    vendored_friendly, vendored_other, error = _scan_vendored_charts(docs, failing_statuses, vendor_map)
+    if error:
+        return None, error
+
+    return KubeconformScan(locations, vendor_map, own_real, vendored_friendly, vendored_other), None
+
+
+def _print_kubeconform_findings(scan):
+    """Prints check_kubeconform's three report sections (own/vendored-
+    friendly/vendored-other) for a completed KubeconformScan -- see
+    check_kubeconform's own docstring for what each section means and why
+    they're reported differently."""
+    if scan.own_real:
+        print(
+            f"Found {len(scan.own_real)} real kubeconform issue(s) in this chart's own templates "
+            f"(not cosmetic — these fail the check):"
+        )
+        print_grouped_findings(
+            [(None, r) for r in scan.own_real],
+            key_fn=_kubeconform_group_key,
+            item_fn=lambda entry: _kubeconform_item(entry, scan.locations),
+            label_fn=_kubeconform_group_label,
+            items_label="resource(s)",
+        )
+        print()
+
+    if scan.vendored_friendly:
+        print(
+            f"Found {len(scan.vendored_friendly)} kubeconform issue(s) in partner-maintained "
+            f"vendored sub-chart(s) (reported for visibility, never a failure):"
+        )
+        print_grouped_findings(
+            scan.vendored_friendly,
+            key_fn=lambda entry: (entry[0], *_kubeconform_group_key(entry)),
+            item_fn=lambda entry: _kubeconform_item(entry, scan.locations),
+            label_fn=lambda k: f"{_kubeconform_group_label(k[1:])} — {k[0]} ({scan.vendor_map[k[0]]})",
+            items_label="resource(s)",
+        )
+        print()
+
+    if scan.vendored_other:
+        by_chart = Counter(chart for chart, _ in scan.vendored_other)
+        print(
+            f"{len(scan.vendored_other)} kubeconform finding(s) across {len(by_chart)} other "
+            f"vendored sub-chart(s) (outside this repo's scope, not shown, never a failure)"
+        )
+
+    if not (scan.own_real or scan.vendored_friendly or scan.vendored_other):
+        print("OK: no kubeconform findings in the rendered chart")
+
+
 def check_kubeconform(chart_dir, extra_args):
     """Validates the full `helm template` render against real Kubernetes
     API schemas — catches unknown fields, wrong types, and missing
@@ -118,74 +228,16 @@ def check_kubeconform(chart_dir, extra_args):
 
     failing_statuses = quality_gates_kubeconform_failing_statuses(chart_dir)
 
-    result = render_chart(chart_dir, extra_args)
-    if result.returncode != 0:
-        return False, "helm template failed to render"
+    scan, error = _scan_rendered_chart(chart_dir, extra_args, failing_statuses)
+    if error:
+        return False, error
 
-    locations = build_resource_locations(result.stdout)
-    docs = split_rendered_by_source(result.stdout)
-    vendor_map = friendly_vendor_charts(chart_dir)
+    _print_kubeconform_findings(scan)
 
-    own_text = "".join(text for source, text in docs if source.startswith(OWN_TEMPLATES_PREFIX))
-    own_resources = run_kubeconform(own_text)
-    if own_resources is None:
-        return False, "kubeconform produced unparseable output"
-    own_real = [r for r in own_resources if r.get("status") in failing_statuses]
-
-    vendored_by_chart = {}
-    for source, text in docs:
-        if not source.startswith(OWN_TEMPLATES_PREFIX):
-            vendored_by_chart.setdefault(chart_name_from_source(source), []).append(text)
-
-    vendored_friendly, vendored_other = [], []
-    for chart, texts in vendored_by_chart.items():
-        resources = run_kubeconform("".join(texts))
-        if resources is None:
-            return False, "kubeconform produced unparseable output"
-        for r in resources:
-            if r.get("status") not in failing_statuses:
-                continue
-            (vendored_friendly if chart in vendor_map else vendored_other).append((chart, r))
-
-    if own_real:
-        print(
-            f"Found {len(own_real)} real kubeconform issue(s) in this chart's own templates "
-            f"(not cosmetic — these fail the check):"
-        )
-        print_grouped_findings(
-            [(None, r) for r in own_real],
-            key_fn=_kubeconform_group_key,
-            item_fn=lambda entry: _kubeconform_item(entry, locations),
-            label_fn=_kubeconform_group_label,
-            items_label="resource(s)",
-        )
-        print()
-
-    if vendored_friendly:
-        print(
-            f"Found {len(vendored_friendly)} kubeconform issue(s) in partner-maintained "
-            f"vendored sub-chart(s) (reported for visibility, never a failure):"
-        )
-        print_grouped_findings(
-            vendored_friendly,
-            key_fn=lambda entry: (entry[0], *_kubeconform_group_key(entry)),
-            item_fn=lambda entry: _kubeconform_item(entry, locations),
-            label_fn=lambda k: f"{_kubeconform_group_label(k[1:])} — {k[0]} ({vendor_map[k[0]]})",
-            items_label="resource(s)",
-        )
-        print()
-
-    if vendored_other:
-        by_chart = Counter(chart for chart, _ in vendored_other)
-        print(
-            f"{len(vendored_other)} kubeconform finding(s) across {len(by_chart)} other "
-            f"vendored sub-chart(s) (outside this repo's scope, not shown, never a failure)"
-        )
-
-    if not (own_real or vendored_friendly or vendored_other):
-        print("OK: no kubeconform findings in the rendered chart")
-
-    detail = f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, {len(vendored_other)} other-vendor"
-    if own_real:
+    detail = (
+        f"{len(scan.own_real)} real (own), {len(scan.vendored_friendly)} partner-vendor, "
+        f"{len(scan.vendored_other)} other-vendor"
+    )
+    if scan.own_real:
         return False, detail
     return True, detail
