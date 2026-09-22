@@ -22,6 +22,9 @@ from lib.release_baseline import resolve_baseline_chart_state
 
 
 def images_manifest_path(images_dir, target):
+    """The docs/images/images-<target>.yaml path for `target` — the one
+    place this filename shape is assembled, shared by create_missing_docs
+    and every caller that needs the same path without re-deriving it."""
     return images_dir / f"images-{target}.yaml"
 
 

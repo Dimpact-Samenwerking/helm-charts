@@ -99,6 +99,11 @@ def apply_fixes(text, fixes):
 
 
 def main():
+    """CLI entry point: walks templates/*.yaml, inserts a missing
+    nodeSelector into every workload document that has a containers: key to
+    anchor on, and (unless --dry-run) writes the fixed files back. Exits 1
+    if anything is left unresolved (no containers: key found) or, in
+    dry-run mode, whenever any insertion would be made."""
     if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
         print(__doc__)
         sys.exit(0)

@@ -21,6 +21,10 @@ def find_collisions(by_suffix):
 
 
 def git_mv(src, dst):
+    """`git mv src dst` (run from src's own directory), raising SystemExit
+    with git's own stderr on failure — the actual rename step behind
+    fix-doc-consistency's baseline-mismatch renames, so history/blame
+    follows the file instead of a plain filesystem move losing it."""
     result = run(["git", "mv", str(src), str(dst)], cwd=src.parent, capture_output=True, text=True)
     if result.returncode != 0:
         raise SystemExit(f"error: git mv {src} -> {dst} failed: {result.stderr.strip()}")

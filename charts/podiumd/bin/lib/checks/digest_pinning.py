@@ -268,6 +268,13 @@ def _print_shared_image_usage(chart_dir, deps, values, repo_groups, global_usage
 
 
 def check_digest_pinning(chart_dir):
+    """Fast, filesystem-only check that every image tag in values.yaml
+    (per find_image_tag_paths) is digest-pinned (has a trailing
+    "@sha256:<64 hex chars>"), unless its path is listed in
+    digest_pinning_exceptions. Unlike check_shared_image_usage below, this
+    does no rendering at all — a plain text scan of values.yaml. Fails if
+    any non-exempt tag is missing its digest suffix, printing each
+    offending dotted path and its current tag value."""
     values_path = chart_dir / "values.yaml"
     if not values_path.is_file():
         print("OK: no values.yaml found — nothing to check")

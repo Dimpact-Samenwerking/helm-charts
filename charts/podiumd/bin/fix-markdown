@@ -94,6 +94,10 @@ def dry_run_fix(pymarkdown, files, chart_dir, disabled_rules):
 
 
 def main():
+    """CLI entry point: runs pymarkdown's real fix against every markdown
+    file in the chart, or (with --dry-run) runs it against throwaway
+    copies via dry_run_fix and just reports which files would change,
+    leaving the real files untouched."""
     if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
         print(__doc__)
         sys.exit(0)

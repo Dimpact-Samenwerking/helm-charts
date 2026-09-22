@@ -69,6 +69,17 @@ from lib.settings import image_upgrade_tag_check_cache_ttl_days
 
 
 def check_image_upgrades(chart_dir, extra_args):
+    """The verify-podiumd check itself: for every unique digest-pinned
+    image in values.yaml, ask the registry (via find_newest_same_variant_
+    tag, cached per (repository, version) — see lib.image.upgrade_cache)
+    whether a numerically-newer same-variant tag is currently published,
+    then print the own/partner-vendor/other-vendor upgradable buckets
+    (see this module's own docstring for the full bucket/caching
+    rationale). Always returns (True, detail) — a newer tag being
+    published never fails this check, only informs it; `detail` is the
+    one-line "upgradable: X/Y own, ..." summary. Returns (False, "helm
+    template failed to render") only if the render itself fails, before
+    any registry call is made."""
     ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
 
     result = render_chart(chart_dir, extra_args)
@@ -162,10 +173,19 @@ def check_image_upgrades(chart_dir, extra_args):
 
 
 def bucket_totals(refs, images):
+    """(total, upgradable_count) for `refs` (one bucket's image refs) against
+    `images` (check_image_upgrades's own ref -> info map) — feeds the
+    final "upgradable: X/Y own, ..." summary line."""
     return len(refs), sum(1 for ref in refs if images[ref]["has_newer"])
 
 
 def print_upgradable(title, refs, images):
+    """Print `title` as a section heading followed by one line per ref in
+    `refs` that has a newer tag available (images[ref]["has_newer"]),
+    each with its vendor label suffix when the image has one (see
+    check_image_upgrades) — silently prints nothing at all if no ref in
+    this bucket is upgradable, so a clean bucket never adds an empty
+    heading to the report."""
     upgradable = [ref for ref in refs if images[ref]["has_newer"]]
     if not upgradable:
         return

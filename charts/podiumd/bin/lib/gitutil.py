@@ -36,6 +36,10 @@ def baseline_ref_candidates(baseline):
 
 
 def resolve_git_ref(repo_root, candidates):
+    """The first ref in `candidates` (in order) that `git rev-parse
+    --verify` resolves to a real commit in repo_root, or None if none of
+    them do — used by resolve_baseline_ref to try baseline_ref_candidates'
+    own tag-then-branch fallback order."""
     for ref in candidates:
         result = run(
             ["git", "-C", str(repo_root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
@@ -72,5 +76,9 @@ def git_show_text(repo_root, ref, relpath):
 
 
 def git_show_yaml(repo_root, ref, relpath):
+    """git_show_text, parsed as YAML — for a caller that needs relpath's
+    structured contents as they were at ref (e.g. a historical
+    values.yaml or Chart.yaml), not its raw text. None if the file didn't
+    exist at that ref."""
     text = git_show_text(repo_root, ref, relpath)
     return yaml.safe_load(text) if text is not None else None

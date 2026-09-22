@@ -122,6 +122,7 @@ from lib.fix_doc_consistency.manifest_changes_items import (
     dedupe_images_manifest_changes_items,
     sort_images_manifest_changes_items,
 )
+
 # resolve_entry_version below is test-only, see cdb.resolve_entry_version
 # in tests/fix-doc-consistency -- pylint attributes unused-import to the
 # "from" line of a multi-import statement, not the unused name's own line.
@@ -133,6 +134,7 @@ from lib.fix_doc_consistency.manifest_entries_new_and_urls import (
     add_missing_images_manifest_entries,
     fix_images_manifest_entry_urls,
 )
+
 # ensure_blank_lines_around_headings below is test-only, see
 # cdb.ensure_blank_lines_around_headings in tests/fix-doc-consistency.
 from lib.fix_doc_consistency.text_helpers_and_repo_rename import (  # pylint: disable=unused-import
@@ -161,6 +163,7 @@ from lib.upgradedoc.images_manifest_ordering import (
     sort_images_manifest_entries,
 )
 from lib.upgradedoc.sorting_and_ordering import sort_changes_blocks, sort_upgrade_doc_rows, sort_values_delta_sections
+
 # canonical_version_cell below is test-only, see cdb.canonical_version_cell
 # in tests/fix-doc-consistency.
 from lib.upgradedoc.version_cells_and_key_changes import (  # pylint: disable=unused-import
@@ -174,6 +177,8 @@ IMAGES_DIR = SCRIPT_DIR.parents[0] / "docs" / "images"
 
 
 def current_chart_version():
+    """Returns the rebase target: charts/podiumd/Chart.yaml's own
+    "version:" field."""
     return chart_version(CHART_YAML)
 
 
@@ -188,10 +193,17 @@ def current_chart_version():
 
 
 def images_manifest_path(target):
+    """Returns the path of the images manifest for `target`
+    (docs/images/images-<target>.yaml), whether or not it exists yet."""
     return IMAGES_DIR / f"images-{target}.yaml"
 
 
 def load_target_state():
+    """Returns (deps, values) as they currently are on disk: charts/
+    podiumd/Chart.yaml's own dependencies list and values.yaml's parsed
+    contents — the "current" side of every baseline-vs-target comparison
+    this script makes, paired with load_baseline_state's own (deps,
+    values) for the old baseline."""
     chart_yaml = yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))
     values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
     return chart_yaml.get("dependencies", []), values
@@ -216,6 +228,14 @@ def load_baseline_state(new_baseline):
 
 
 def main():
+    """CLI entry point: rebases every upgrade-path doc and the images
+    manifest for the current target version onto release-baseline.yaml's
+    own upgrade_docs baseline — renaming files, correcting the component-
+    versions table, values-deltas sections and images-manifest entries
+    against the current Chart.yaml/values.yaml (see module docstring for
+    the full list of what gets auto-fixed vs. just reported), and creating
+    TODO stubs for any of the three standard docs that don't exist yet
+    under any baseline."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)

@@ -38,11 +38,18 @@ TARGET_TO_SOURCE_COLUMN = {"target_version_app": "source_version_app", "target_v
 
 
 def load_rows(path):
+    """The release-table.csv at `path`, parsed as a list of dict rows
+    (csv.DictReader) — see export-confluence-release-table's own
+    CSV_HEADER for the column set."""
     with path.open(newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
 
 
 def matching_rows(rows, column, text):
+    """The rows whose `column` value contains `text` as a
+    case-insensitive substring — the plain single-column match every
+    query but "component" uses directly (component_matches layers its own
+    alias/name fallback on top of this)."""
     needle = text.lower()
     return [row for row in rows if needle in row[column].lower()]
 
@@ -110,6 +117,10 @@ def display_value(row, column):
 
 
 def print_table(rows):
+    """Prints `rows` as a whitespace-aligned table: name/component/alias/
+    image_basename plus the four version columns (see display_value for
+    how a target column renders as "UNCHANGED"), with each column's width
+    computed from its widest cell, header included."""
     headers = ["name", "component", "alias", "image_basename", *list(VERSION_COLUMNS)]
     table = [
         [row["name"], row["component"], row["alias"], row["image_basename"]]
@@ -123,6 +134,11 @@ def print_table(rows):
 
 
 def main():
+    """CLI entry point: matches release-table.csv rows against
+    `column`/`text` (a "component" query also matches alias/name — see
+    component_matches), printing them as a table via print_table, plus a
+    second table of any tooling rows whose "used_by" relates back to a
+    match (see used_by_rows_for)."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)

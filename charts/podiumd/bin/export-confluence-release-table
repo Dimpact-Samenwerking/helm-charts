@@ -137,6 +137,10 @@ def resolve_header_row_count(rows, grid):
 
 
 def parse_args():
+    """Parses this script's CLI arguments, enforcing that --url and --user
+    are both given unless --recompute-basenames is set (that mode reads
+    the already-exported CSV in place and needs no Confluence access at
+    all)."""
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -783,6 +787,11 @@ def apply_native_helm_marker(rows):
 
 
 def resolve_token(args):
+    """Returns the Confluence API token to authenticate with, preferring
+    --token-file, then --token, then the CONFLUENCE_API_TOKEN environment
+    variable, and finally an interactive getpass prompt as the last
+    resort — so a token never has to be typed on the command line (where
+    it'd land in shell history) or passed as a bare env var by mistake."""
     if args.token_file:
         return Path(args.token_file).read_text(encoding="utf-8").strip()
     if args.token:
@@ -945,6 +954,13 @@ def extract_release_rows(html, headings=None, chart_dir=None):
 
 
 def main():
+    """CLI entry point. With --recompute-basenames, only recomputes the
+    image_basename column of the CSV already at --output in place (no
+    Confluence fetch). Otherwise fetches --url, extracts the release rows
+    (extract_release_rows) and writes them fresh to --output as CSV,
+    always with LF line endings regardless of platform (see the writer's
+    own newline handling below) so re-exports don't produce spurious CRLF
+    diffs."""
     args = parse_args()
 
     if args.recompute_basenames:

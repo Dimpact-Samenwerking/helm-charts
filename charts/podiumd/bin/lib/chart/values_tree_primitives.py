@@ -22,6 +22,9 @@ UTF8_BOM = b"\xef\xbb\xbf"
 
 
 def get_path(node, dotted_path):
+    """The value at `dotted_path` (e.g. "openzaak.image.tag") inside the
+    parsed values-tree `node`, or None if any segment is missing or a
+    non-dict is encountered before the path is fully consumed."""
     for key in dotted_path.split("."):
         if not isinstance(node, dict):
             return None
@@ -141,6 +144,9 @@ def find_app_versions(values, values_key, image_paths):
 
 
 def version_of(tag):
+    """The version half of a tag string, dropping any trailing
+    "@sha256:<digest>" suffix — a bare, non-digest-pinned tag is returned
+    unchanged."""
     return tag.split("@", 1)[0]
 
 

@@ -42,6 +42,9 @@ CHART_DIR = SCRIPT_DIR.parent
 
 
 def build_cmd(dry_run):
+    """Builds the helm-docs argv for CHART_DIR, adding --dry-run when
+    `dry_run` is True and --template-files when a README.md.gotmpl template
+    exists alongside the chart."""
     cmd = ["helm-docs"]
     if dry_run:
         cmd.append("--dry-run")
@@ -52,6 +55,11 @@ def build_cmd(dry_run):
 
 
 def main():
+    """CLI entry point: regenerates README.md via helm-docs, but only
+    actually writes it (and only reports a diff) when the real output
+    differs from the current file — a no-op run never touches its mtime.
+    --dry-run instead just delegates to the same check verify-podiumd
+    runs (lib.checks.helm_docs.check_helm_docs) and exits accordingly."""
     if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
         print(__doc__)
         sys.exit(0)

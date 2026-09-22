@@ -748,6 +748,18 @@ def _confirm_against_full_chart(executor, full_scope, candidates):
 
 
 def check_dead_values(chart_dir, extra_args):
+    """Entry point for the dead-values sweep (see module docstring for the
+    full design): null-tests every values.yaml leaf top-down, per-subchart
+    scoped where possible, confirming any scoped-render candidate against
+    the real full-chart baseline before reporting it (see
+    _confirm_against_full_chart) — a scoped render only ever narrows the
+    search, never makes the final call. Report-only: always returns True,
+    even when dead leaves are found, since telling a genuinely dead entry
+    apart from one gated behind an internal, non-Chart.yaml-condition
+    toggle (e.g. zaakbrug's own "staging" mode) needs a human, not this
+    script (see module docstring's "human call" caveat). Returns "skipped
+    — baseline render failed" without scanning anything if even the
+    maximal baseline render itself doesn't succeed."""
     values = load_yaml(chart_dir / "values.yaml") or {}
     condition_paths = _condition_leaf_paths(chart_dir)
     total = len(candidate_leaf_paths(values, condition_paths))

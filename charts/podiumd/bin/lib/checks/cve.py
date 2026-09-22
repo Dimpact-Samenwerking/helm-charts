@@ -139,6 +139,9 @@ def cache_path(chart_dir):
 
 
 def load_cache(chart_dir):
+    """The parsed contents of cache_path(chart_dir), or {} if the file
+    doesn't exist yet or can't be parsed (corrupt/truncated) — never
+    raises, so a broken cache just behaves like a cold one."""
     path = cache_path(chart_dir)
     if not path.is_file():
         return {}
@@ -149,6 +152,8 @@ def load_cache(chart_dir):
 
 
 def save_cache(chart_dir, cache):
+    """Persist `cache` to cache_path(chart_dir) as pretty-printed,
+    key-sorted JSON, creating the .cache directory first if needed."""
     path = cache_path(chart_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
@@ -171,6 +176,10 @@ def open_cache_session(chart_dir):
 
 
 def cache_key(repository, digest):
+    """The cve-scan-cache.json key for one (repository, digest) pin — the
+    same "repo@sha256:digest" shape used as an image ref minus the tag,
+    so a cache hit is keyed purely on content, never on which tag
+    currently happens to point at that digest."""
     return f"{repository}@sha256:{digest}"
 
 
@@ -301,11 +310,19 @@ def parse_image_ref(ref):
 
 
 def dependency_names(chart_dir):
+    """Every direct dependency name/alias declared in Chart.yaml (alias
+    wins over name when present) — the set classify_by_key checks
+    membership against to tell a vendored sub-chart's own top-level key
+    apart from a podiumd-owned one."""
     chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
     return {dep.get("alias", dep["name"]) for dep in chart_yaml.get("dependencies", [])}
 
 
 def top_level_key_for_line(lines, line_no):
+    """The nearest indent-0 "<key>:" line at or above `line_no` (0-based)
+    in `lines`, per TOP_LEVEL_KEY_RE — the top-level values.yaml section a
+    given pin lives under, used as classify_by_key's fallback
+    classification signal. None if no such line precedes it."""
     for i in range(line_no - 1, -1, -1):
         m = TOP_LEVEL_KEY_RE.match(lines[i])
         if m:
@@ -333,6 +350,10 @@ def classify_by_key(top_level_key, dep_names, vendor_map):
 
 
 def bucket_of(label):
+    """Collapse a classify_source/classify_by_key label into one of the
+    three report buckets: "own"/"other" pass through unchanged, and any
+    specific vendor label collapses to "partner" — see print_bucket_report's
+    own/partner/other split."""
     if label in ("own", "other"):
         return label
     return "partner"
@@ -355,6 +376,16 @@ def render_image_labels(rendered_text, vendor_map):
 
 
 def check_cves(chart_dir, extra_args, detail=False):
+    """Entry point for the "CVE scan" step (see module docstring for the
+    full design). Renders the chart to classify every unique digest-pinned
+    image as own/partner-vendor/other-vendor, scans each one with trivy
+    (via scan_cached, reusing cve-scan-cache.json across runs), and prints
+    a per-bucket report — full itemization when `detail` is set, otherwise
+    per-image severity totals only (see print_bucket_report). Always
+    returns True (a CVE finding is never a failing condition here, only a
+    triage signal for a human — see module docstring); the detail string
+    carries the own/partner/other CVE and image counts plus any scan
+    error count for verify-podiumd's own summary line."""
     if shutil.which("docker") is None:
         return True, "docker is not installed — skipped (see --help)"
 
@@ -499,6 +530,8 @@ def check_cves(chart_dir, extra_args, detail=False):
 
 
 def bucket_totals(refs, images):
+    """(image count, total vulnerability count) for one bucket's `refs` —
+    the pair check_cves' own final detail string reports per bucket."""
     return len(refs), sum(len(images[ref]["vulns"]) for ref in refs)
 
 
@@ -524,6 +557,14 @@ def high_findings_by_package(vulns, high_severities):
 
 
 def print_package_line(pkg, vulns_for_pkg, threshold):
+    """Print one "full" detail-level line for `pkg`'s own CRIT/HIGH
+    findings (see high_findings_by_package) — every CVE ID listed
+    individually (worst severity first) when there are `threshold` (see
+    cve_scan.max_cves_per_package_before_summarizing in lib.settings) or
+    fewer, otherwise collapsed to a single per-severity count so a
+    bundled binary carrying hundreds of tracked CVEs against the same
+    package doesn't flood the report with IDs nobody will triage
+    individually."""
     # No fix-version shown here, deliberately: a package's FixedVersion is
     # an internal detail of the base image, not something this repo pins
     # or can bump directly — only a newer image tag is actionable, and
@@ -541,6 +582,10 @@ def print_package_line(pkg, vulns_for_pkg, threshold):
 
 
 def print_severity_totals_line(vulns):
+    """Print one "totals" detail-level line: every severity present in
+    `vulns` (including CRIT/HIGH), worst-first per SEVERITY_ORDER, as a
+    plain per-severity count — no package breakdown, no individual CVE
+    IDs."""
     counts = Counter(v["Severity"] for v in vulns)
     parts = ", ".join(f"{counts[s]} {severity_label(s)}" for s in SEVERITY_ORDER if counts.get(s))
     print(f"  {parts} CVE(s)")

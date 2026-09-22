@@ -41,6 +41,14 @@ FIX_COMMAND = "fix-helm-doc"
 
 
 def check_helm_docs(chart_dir):
+    """Regenerate README.md via `helm-docs --dry-run` (see module
+    docstring) and diff it against the real file. Fails outright if
+    helm-docs isn't installed or README.md doesn't exist yet — no
+    fallback heuristic, unlike the more permissive /helm-docs-check
+    skill. On drift, prints a unified diff capped at helm_doc.
+    max_diff_lines_shown (lib.settings) and points at fix-helm-doc to
+    actually regenerate the file; this check itself never writes to
+    README.md."""
     if shutil.which("helm-docs") is None:
         return False, "helm-docs is not installed — see --help"
 

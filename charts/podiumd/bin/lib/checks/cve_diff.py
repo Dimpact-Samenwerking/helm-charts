@@ -289,6 +289,8 @@ def _print_candidate_header(i, total, candidate):
 
 
 def print_candidate_result(closed, introduced, detail, high_severities, package_cve_list_threshold):
+    """Print one candidate's "closed"/"introduced" CVE-diff lines (see
+    _print_direction) followed by a blank separator line."""
     _print_direction("closed", closed, detail, high_severities, package_cve_list_threshold)
     _print_direction("introduced", introduced, detail, high_severities, package_cve_list_threshold)
     print()
@@ -365,6 +367,16 @@ def _process_bucket(
 
 
 def check_cve_diff(chart_dir, extra_args, detail=False):
+    """Entry point for the "CVE diff" step (see module docstring for the
+    full design): gathers every upgrade-available/sliding-digest
+    candidate (gather_candidates), classifies each into the own/partner/
+    other buckets (classify_candidates), then scans and prints a
+    current-vs-proposed CVE diff per candidate (_process_bucket), sharing
+    cve-scan-cache.json with check_cves via lib.checks.cve.scan_cached.
+    Always returns True — like check_cves, a diff result here is a triage
+    signal for a human, never a chart-correctness failure. The detail
+    string carries per-bucket candidate/closed/introduced counts plus any
+    scan error count."""
     candidates = gather_candidates(chart_dir)
 
     if not candidates:

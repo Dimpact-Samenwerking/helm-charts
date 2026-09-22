@@ -7,10 +7,16 @@ import yaml
 
 
 def load_yaml(path):
+    """Plain yaml.safe_load of `path`'s own text — the one shared reader
+    every other lib.chart.* module uses rather than re-opening/re-parsing
+    a YAML file itself."""
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 def chart_version(chart_yaml_path):
+    """The "version:" field of a Chart.yaml at `chart_yaml_path`, coerced
+    to str (YAML would otherwise parse a bare "4.9" as a float, silently
+    dropping a trailing zero like "4.90")."""
     return str(load_yaml(chart_yaml_path)["version"])
 
 

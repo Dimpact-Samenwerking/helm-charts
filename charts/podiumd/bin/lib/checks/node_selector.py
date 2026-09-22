@@ -80,6 +80,11 @@ def scan_missing_node_selector(templates_dir):
 
 
 def check_node_selector(chart_dir):
+    """Fails if scan_missing_node_selector finds any own-templates
+    workload with no nodeSelector field anywhere in its document (per the
+    AKS-Blue "all app workloads need nodeSelector" convention — see module
+    docstring), printing each offending template's path, kind, and
+    resource name."""
     findings = scan_missing_node_selector(chart_dir / "templates")
 
     if not findings:

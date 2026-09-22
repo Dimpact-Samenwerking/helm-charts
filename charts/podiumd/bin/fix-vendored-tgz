@@ -32,6 +32,9 @@ CHART_DIR = SCRIPT_DIR.parents[0]
 
 
 def main():
+    """CLI entry point: deletes every extracted charts/podiumd/charts/<name>/
+    directory that shadows a pinned <name>-<version>.tgz, or with
+    --dry-run just lists them and exits 1 without deleting anything."""
     if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
         print(__doc__)
         sys.exit(0)

@@ -115,6 +115,11 @@ IMAGES_DIR = CHART_DIR / "docs" / "images"
 
 
 def find_dependency(name_or_alias):
+    """Look up `name_or_alias` in Chart.yaml's own dependencies list
+    (matched by either the dependency's real "name" or its "alias" — see
+    lib.chart.values_tree_primitives.find_dependency for the actual
+    matching), exiting with a clear error instead of returning None when
+    no dependency matches."""
     deps = yaml.safe_load(CHART_YAML.read_text())["dependencies"]
     dep = _find_dependency(deps, name_or_alias)
     if dep is None:
@@ -304,6 +309,10 @@ ALIAS_REFERENCE_RE = re.compile(r"^\s*\S+:\s*\*\w+\s*(#.*)?\s*$")
 
 
 def is_alias_reference_line(line):
+    """True if `line` is a bare YAML alias reference ("<key>: *anchor", see
+    ALIAS_REFERENCE_RE above) rather than a literal scalar value —
+    write_tag_and_sha uses this to skip writing over a line that would
+    sever the anchor/alias link."""
     return bool(ALIAS_REFERENCE_RE.match(line))
 
 
@@ -376,6 +385,11 @@ def write_tag_and_sha(
 
 
 def update_chart_yaml(chart_name, new_chart_version):
+    """Rewrite the "version:" line under Chart.yaml's own "- name:
+    chart_name" dependency entry to new_chart_version, writing the file in
+    place. Returns (old_line, new_line) — each stripped — for the caller
+    to print as a before/after report; raises SystemExit if the
+    dependency entry or its version line can't be found."""
     lines = CHART_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
     entry_re = re.compile(r"^(\s*)-\s*name:\s*(\S+)\s*$")
     block = None
@@ -399,6 +413,12 @@ def update_chart_yaml(chart_name, new_chart_version):
 
 
 def update_values_yaml(values_key, image_paths, new_tags_by_path):
+    """For each path in image_paths, rewrite values.yaml's own
+    "<values_key>.<path>.tag" line to new_tags_by_path[path], writing the
+    file once after all paths are updated. Returns a list of
+    (dotted_path, old_line, new_line) tuples — each stripped — for the
+    caller to print as a before/after report; raises SystemExit if any
+    dotted path can't be found."""
     lines = VALUES_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
     changes = []
     for path in image_paths:
@@ -415,26 +435,49 @@ def update_values_yaml(values_key, image_paths, new_tags_by_path):
 
 
 def current_chart_version():
+    """The podiumd chart's own currently-pinned version, read from
+    Chart.yaml via lib.chart.release_baseline_basics.chart_version."""
     return _chart_version(CHART_YAML)
 
 
 def images_manifest_path(target):
+    """Path to docs/images/images-<target>.yaml for `target` — see
+    lib.component_docs.baseline_doc_stubs.images_manifest_path, scoped
+    here to this script's own IMAGES_DIR."""
     return _images_manifest_path(IMAGES_DIR, target)
 
 
 def baseline_doc_paths(upgrade_docs_baseline, target):
+    """The upgrade-path doc paths for `target`, scoped to this script's own
+    DOC_DIR — see lib.component_docs.baseline_doc_stubs.baseline_doc_paths
+    for what upgrade_docs_baseline selects between (the target's own docs
+    vs. a different version's docs still being treated as the current
+    baseline)."""
     return _baseline_doc_paths(DOC_DIR, upgrade_docs_baseline, target)
 
 
 def load_baseline_values(upgrade_docs_baseline):
+    """The parsed values.yaml content as of upgrade_docs_baseline, scoped
+    to this script's own VALUES_YAML — see lib.component_docs.
+    baseline_doc_stubs.load_baseline_values."""
     return _load_baseline_values(VALUES_YAML, upgrade_docs_baseline)
 
 
 def load_baseline_state(upgrade_docs_baseline):
+    """The combined Chart.yaml + values.yaml state as of
+    upgrade_docs_baseline, scoped to this script's own CHART_YAML/
+    VALUES_YAML — see lib.component_docs.baseline_doc_stubs.
+    load_baseline_state."""
     return _load_baseline_state(CHART_YAML, VALUES_YAML, upgrade_docs_baseline)
 
 
 def main():
+    """CLI entry point: verifies the requested app version (and chart
+    version, unless chart_version is "native") actually exist upstream
+    before writing anything, then updates Chart.yaml/values.yaml and
+    refreshes the upgrade docs, values-deltas doc, and images manifest for
+    the current podiumd target version. See this script's own module
+    docstring for the full argument contract and what "native" means."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)

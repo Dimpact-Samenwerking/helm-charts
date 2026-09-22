@@ -26,6 +26,9 @@ VALUES_PATH = SCRIPT_DIR.parents[0] / "values.yaml"
 
 
 def main():
+    """CLI entry point: strips a leading UTF-8 BOM from values.yaml in
+    place, or with --dry-run just reports whether one is present (exit 1)
+    without writing anything."""
     if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
         print(__doc__)
         sys.exit(0)

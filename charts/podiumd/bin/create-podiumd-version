@@ -92,10 +92,18 @@ BRANCH_RE = re.compile(r"^feature/podiumd-(\d+\.\d+\.\d+)$")
 
 
 def current_chart_version():
+    """The podiumd chart's own currently-pinned version, read from
+    Chart.yaml via lib.chart.release_baseline_basics.chart_version — the
+    "baseline" being left behind by this run."""
     return chart_version(CHART_YAML)
 
 
 def version_tuple(v):
+    """`v` (a plain "MAJOR.MINOR.PATCH" string) as an (int, int, int)
+    tuple, for the arithmetic comparison bump_kind needs — callers are
+    responsible for validating the shape first (see CHART_VERSION_RE in
+    main()), this raises ValueError on anything that isn't dot-separated
+    integers."""
     return tuple(int(part) for part in v.split("."))
 
 
@@ -134,6 +142,15 @@ def update_chart_version(new_version):
 
 
 def main():
+    """CLI entry point: opens a new podiumd release cycle — bumps
+    Chart.yaml's version/appVersion from the current branch's target
+    (parsed via BRANCH_RE) after checking the jump is a single valid
+    patch or minor increment (see bump_kind), records the outgoing
+    version as release-baseline.yaml's new upgrade_docs baseline (and, on
+    a minor bump, its new release_table baseline too), then scaffolds the
+    upgrade-path docs for that outgoing version by running
+    create-doc-version. See this script's own module docstring for the
+    full refusal conditions and worked examples."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)

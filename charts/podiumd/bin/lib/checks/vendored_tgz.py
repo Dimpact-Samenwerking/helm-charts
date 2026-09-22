@@ -38,6 +38,13 @@ def find_extracted_vendored_dirs(chart_dir):
 
 
 def check_vendored_tgz_extraction(chart_dir):
+    """Fails if find_extracted_vendored_dirs finds any vendored sub-chart
+    with both a pinned .tgz and an extracted directory of the same name —
+    Helm would silently prefer the extracted (possibly stale/modified)
+    copy over the pinned package. Must run before check_dependencies,
+    whose own `rmtree(chart_dir / "charts")` would otherwise wipe any such
+    extracted directory before this check gets to see it (see module
+    docstring)."""
     extracted = find_extracted_vendored_dirs(chart_dir)
 
     if not extracted:

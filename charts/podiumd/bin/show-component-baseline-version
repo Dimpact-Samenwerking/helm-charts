@@ -82,6 +82,9 @@ def show_at_baseline(chart_dir, label, baseline, component):
 
 
 def main():
+    """CLI entry point: prints `component`'s Helm chart version and app
+    image version(s) at both the upgrade_docs and release_table baselines,
+    exiting 1 only if neither baseline could be shown at all."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)

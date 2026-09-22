@@ -32,6 +32,10 @@ def cache_path(chart_dir):
 
 
 def load_cache(chart_dir):
+    """The cache dict at cache_path(chart_dir), or {} if it doesn't exist
+    yet or fails to parse (a corrupt/partial cache file is treated the
+    same as no cache at all, never raised — every lookup just misses and
+    gets re-fetched from the registry)."""
     path = cache_path(chart_dir)
     if not path.is_file():
         return {}
@@ -42,12 +46,21 @@ def load_cache(chart_dir):
 
 
 def save_cache(chart_dir, cache):
+    """Write `cache` to cache_path(chart_dir) as pretty, key-sorted JSON,
+    creating the .cache/ directory if needed. check_image_upgrades calls
+    this incrementally after each live registry check (not just once at
+    the end), so a run interrupted partway still keeps whatever it
+    already fetched."""
     path = cache_path(chart_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def cache_key(repository, version):
+    """The cache dict key for a given (repository, version) pin — e.g.
+    "example.com/repo:1.2.3" — shared by both load_cache/save_cache
+    callers (lib.image.upgrade_check and lib.checks.cve) so they always
+    agree on the same key shape."""
     return f"{repository}:{version}"
 
 

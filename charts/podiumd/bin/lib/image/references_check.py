@@ -36,6 +36,10 @@ def scan_image_references(templates_dir):
 
 
 def check_image_references(chart_dir):
+    """The verify-podiumd check itself: every `image:` field in chart_dir's
+    own templates/*.yaml must call the shared `podiumd.image` helper (see
+    scan_image_references). Prints each offending path:line:value and
+    fails if any are found; passes with "0 violation(s)" otherwise."""
     findings = scan_image_references(chart_dir / "templates")
 
     if not findings:
