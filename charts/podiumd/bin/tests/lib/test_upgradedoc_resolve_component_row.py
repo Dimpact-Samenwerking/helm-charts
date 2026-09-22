@@ -30,8 +30,19 @@ def _redis_sidecar_deps_and_values(target_tag="8.6.6", baseline_tag="8.6.2"):
     return target_deps, target_values, baseline_deps, baseline_values
 
 
+def _resolution(libupgradedocresolverow, chart_dir, deps, values, baseline_deps=None, baseline_values=None, upgrade_docs_baseline=None):
+    return libupgradedocresolverow.ResolutionContext(
+        chart_dir,
+        libupgradedocresolverow.ComponentState(deps, values),
+        libupgradedocresolverow.ComponentState(baseline_deps, baseline_values),
+        upgrade_docs_baseline,
+    )
+
+
 def test_resolve_component_row_unmatched_name(libupgradedocresolverow):
-    resolved = libupgradedocresolverow.resolve_component_row("Totally Unknown Thing", None, {}, DEPS, {})
+    resolved = libupgradedocresolverow.resolve_component_row(
+        "Totally Unknown Thing", {}, _resolution(libupgradedocresolverow, None, DEPS, {})
+    )
     assert resolved == {"kind": "unmatched"}
 
 
@@ -39,7 +50,9 @@ def test_resolve_component_row_dependency_no_baseline_requested(libupgradedocres
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
 
-    resolved = libupgradedocresolverow.resolve_component_row("ZAC", None, {}, deps, values)
+    resolved = libupgradedocresolverow.resolve_component_row(
+        "ZAC", {}, _resolution(libupgradedocresolverow, None, deps, values)
+    )
 
     assert resolved["kind"] == "dependency"
     assert resolved["values_key"] == resolved["top_level_key"] == "zac"
@@ -57,7 +70,7 @@ def test_resolve_component_row_dependency_baseline_resolved(libupgradedocresolve
     baseline_values = {"zac": {"image": {"tag": "5.1.0@sha256:bbbb"}}}
 
     resolved = libupgradedocresolverow.resolve_component_row(
-        "ZAC", None, {}, deps, values, baseline_deps=baseline_deps, baseline_values=baseline_values
+        "ZAC", {}, _resolution(libupgradedocresolverow, None, deps, values, baseline_deps, baseline_values)
     )
 
     assert resolved["baseline_resolved"] is True
@@ -74,7 +87,7 @@ def test_resolve_component_row_dependency_missing_from_baseline_is_unresolved(li
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
 
     resolved = libupgradedocresolverow.resolve_component_row(
-        "ZAC", None, {}, deps, values, baseline_deps=[], baseline_values={}
+        "ZAC", {}, _resolution(libupgradedocresolverow, None, deps, values, [], {})
     )
 
     assert resolved["kind"] == "dependency"
@@ -103,7 +116,7 @@ def test_resolve_component_row_dependency_baseline_dep_exists_values_entry_missi
     baseline_values = {"zac": {"image": {"tag": "5.1.0@sha256:bbbb"}}}  # no "brppersonenmock" key at all
 
     resolved = libupgradedocresolverow.resolve_component_row(
-        "brppersonenmock", tmp_path, {}, deps, values, baseline_deps=baseline_deps, baseline_values=baseline_values
+        "brppersonenmock", {}, _resolution(libupgradedocresolverow, tmp_path, deps, values, baseline_deps, baseline_values)
     )
 
     assert resolved["baseline_resolved"] is True
@@ -122,7 +135,7 @@ def test_resolve_component_row_dependency_missing_from_baseline_is_false(libupgr
     }
 
     resolved = libupgradedocresolverow.resolve_component_row(
-        "brppersonenmock", tmp_path, {}, deps, values, baseline_deps=[], baseline_values={}
+        "brppersonenmock", {}, _resolution(libupgradedocresolverow, tmp_path, deps, values, [], {})
     )
 
     assert resolved["baseline_resolved"] is False
@@ -133,7 +146,9 @@ def test_resolve_component_row_native_component_no_baseline_requested(libupgrade
     dependency at all — deps is empty on purpose."""
     values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
 
-    resolved = libupgradedocresolverow.resolve_component_row("frankgateway", None, {}, [], values)
+    resolved = libupgradedocresolverow.resolve_component_row(
+        "frankgateway", {}, _resolution(libupgradedocresolverow, None, [], values)
+    )
 
     assert resolved["kind"] == "native"
     assert resolved["dep"] is None
@@ -149,7 +164,7 @@ def test_resolve_component_row_native_component_baseline_resolved(libupgradedocr
     baseline_values = {"frankgateway": {"image": {"tag": "100@sha256:aaaa"}}}
 
     resolved = libupgradedocresolverow.resolve_component_row(
-        "frankgateway", None, {}, [], values, baseline_deps=[], baseline_values=baseline_values
+        "frankgateway", {}, _resolution(libupgradedocresolverow, None, [], values, [], baseline_values)
     )
 
     assert resolved["kind"] == "native"
@@ -165,7 +180,7 @@ def test_resolve_component_row_native_component_missing_from_baseline_is_unresol
     values = {"frankgateway": {"image": {"tag": "104@sha256:bbbb"}}}
 
     resolved = libupgradedocresolverow.resolve_component_row(
-        "frankgateway", None, {}, [], values, baseline_deps=[], baseline_values={}
+        "frankgateway", {}, _resolution(libupgradedocresolverow, None, [], values, [], {})
     )
 
     assert resolved["kind"] == "native"
@@ -195,13 +210,8 @@ def test_resolve_component_row_native_component_falls_back_to_historical_images_
 
     resolved = libupgradedocresolverow.resolve_component_row(
         "frankgateway",
-        tmp_path,
         {},
-        [],
-        values,
-        baseline_deps=[],
-        baseline_values=baseline_values,
-        upgrade_docs_baseline="4.8.5",
+        _resolution(libupgradedocresolverow, tmp_path, [], values, [], baseline_values, "4.8.5"),
     )
 
     assert resolved["baseline_resolved"] is True
@@ -214,12 +224,8 @@ def test_resolve_component_row_sidecar_resolved(libupgradedocresolverow):
 
     resolved = libupgradedocresolverow.resolve_component_row(
         "redis-operator - redis",
-        None,
         canonical_names,
-        target_deps,
-        target_values,
-        baseline_deps=baseline_deps,
-        baseline_values=baseline_values,
+        _resolution(libupgradedocresolverow, None, target_deps, target_values, baseline_deps, baseline_values),
     )
 
     assert resolved["kind"] == "sidecar"
@@ -239,12 +245,8 @@ def test_resolve_component_row_sidecar_missing_baseline_tag_is_unresolved(libupg
 
     resolved = libupgradedocresolverow.resolve_component_row(
         "redis-operator - redis",
-        None,
         canonical_names,
-        target_deps,
-        target_values,
-        baseline_deps=baseline_deps,
-        baseline_values={},
+        _resolution(libupgradedocresolverow, None, target_deps, target_values, baseline_deps, {}),
     )
 
     assert resolved["baseline_resolved"] is False
@@ -274,13 +276,8 @@ def test_resolve_component_row_sidecar_falls_back_to_historical_images_manifest(
 
     resolved = libupgradedocresolverow.resolve_component_row(
         "redis-operator - k8s",
-        tmp_path,
         canonical_names,
-        target_deps,
-        target_values,
-        baseline_deps=baseline_deps,
-        baseline_values=baseline_values,
-        upgrade_docs_baseline="4.8.5",
+        _resolution(libupgradedocresolverow, tmp_path, target_deps, target_values, baseline_deps, baseline_values, "4.8.5"),
     )
 
     assert resolved["baseline_resolved"] is True
@@ -315,7 +312,9 @@ def test_resolve_component_row_sidecar_same_repository_at_different_baseline_pat
     canonical_names = {"postgres": ("global", "images", "postgres")}
 
     resolved = libupgradedocresolverow.resolve_component_row(
-        "postgres", tmp_path, canonical_names, deps, target_values, baseline_deps=deps, baseline_values=baseline_values
+        "postgres",
+        canonical_names,
+        _resolution(libupgradedocresolverow, tmp_path, deps, target_values, deps, baseline_values),
     )
 
     assert resolved["kind"] == "sidecar"
@@ -342,7 +341,9 @@ def test_resolve_component_row_sidecar_genuinely_new_repository_stays_unresolved
     canonical_names = {"redis": ("global", "images", "redis")}
 
     resolved = libupgradedocresolverow.resolve_component_row(
-        "redis", tmp_path, canonical_names, deps, target_values, baseline_deps=deps, baseline_values=baseline_values
+        "redis",
+        canonical_names,
+        _resolution(libupgradedocresolverow, tmp_path, deps, target_values, deps, baseline_values),
     )
 
     assert resolved["kind"] == "sidecar"
@@ -365,12 +366,8 @@ def test_resolve_component_row_sidecar_target_itself_unresolvable_also_baseline_
 
     resolved = libupgradedocresolverow.resolve_component_row(
         "redis-operator - ghost-sidecar",
-        None,
         canonical_names,
-        target_deps,
-        target_values,
-        baseline_deps=baseline_deps,
-        baseline_values=baseline_values,
+        _resolution(libupgradedocresolverow, None, target_deps, target_values, baseline_deps, baseline_values),
     )
 
     assert resolved["baseline_resolved"] is False
@@ -387,12 +384,8 @@ def test_resolve_component_row_sidecar_shaped_name_with_no_canonical_match_is_un
 
     resolved = libupgradedocresolverow.resolve_component_row(
         "redis-operator - ghost",
-        None,
         canonical_names,
-        target_deps,
-        target_values,
-        baseline_deps=baseline_deps,
-        baseline_values=baseline_values,
+        _resolution(libupgradedocresolverow, None, target_deps, target_values, baseline_deps, baseline_values),
     )
 
     assert resolved == {"kind": "unmatched"}

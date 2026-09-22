@@ -9,7 +9,6 @@ from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
-from lib.component_docs.changes_section import ComponentState
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_ordering import header_name_segment
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
@@ -20,23 +19,6 @@ from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import canonical_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
-
-
-@dataclass
-class ResolutionContext:
-    """chart_dir/target-state/baseline-state/upgrade_docs_baseline —
-    every function in this module threads these same four values
-    through to resolve_component_row (directly or via
-    _resolved_rows_by_values_key), so bundling them keeps that plumbing
-    from dominating each function's own argument count. `target`/
-    `baseline` are ComponentState (see lib.component_docs.changes_
-    section — reused here rather than a second, equivalent local type),
-    never mixed with each other by construction."""
-
-    chart_dir: object
-    target: ComponentState
-    baseline: ComponentState
-    upgrade_docs_baseline: str = None
 
 
 @dataclass
@@ -236,16 +218,7 @@ def fix_component_version_table(text, resolution):
         # row-checker (check_docs_consistency) — see its docstring for why
         # (a checker/fixer that resolve a row two different ways can
         # silently drift apart on what "correct" even means).
-        resolved = resolve_component_row(
-            row["name"],
-            resolution.chart_dir,
-            canonical_names,
-            resolution.target.deps,
-            resolution.target.values,
-            baseline_deps=resolution.baseline.deps,
-            baseline_values=resolution.baseline.values,
-            upgrade_docs_baseline=resolution.upgrade_docs_baseline,
-        )
+        resolved = resolve_component_row(row["name"], canonical_names, resolution)
         if resolved["kind"] == "unmatched":
             # A row shaped like the canonical sidecar form ("<key> -
             # <basename>") with no resolvable repository (e.g. "kiss -
@@ -316,16 +289,7 @@ def _resolved_rows_by_values_key(upgrade_doc_text, resolution, canonical_names):
     own docstring."""
     resolved_by_values_key = {}
     for row in parse_upgrade_doc_rows(upgrade_doc_text):
-        resolved = resolve_component_row(
-            row["name"],
-            resolution.chart_dir,
-            canonical_names,
-            resolution.target.deps,
-            resolution.target.values,
-            baseline_deps=resolution.baseline.deps,
-            baseline_values=resolution.baseline.values,
-            upgrade_docs_baseline=resolution.upgrade_docs_baseline,
-        )
+        resolved = resolve_component_row(row["name"], canonical_names, resolution)
         if resolved["kind"] != "unmatched" and resolved["target_app"] is not None:
             resolved_by_values_key[resolved["values_key"]] = (row["name"], resolved)
     return resolved_by_values_key
