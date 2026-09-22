@@ -4,6 +4,10 @@ access or real Confluence page is needed."""
 
 import csv
 
+from lib.image.version import basenames_under_scope
+from lib.release_table.component_resolution import _extra_scope_keys_by_component
+from lib.release_table.component_resolution import _match_one
+
 
 def write_chart_yaml_with_dependencies(chart_dir, deps):
     """`deps`: [(name, alias_or_None), ...]."""
@@ -230,40 +234,40 @@ def write_values_yaml_raw(chart_dir, text):
     (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
 
 
-def test_match_one_exact_beats_containment(ecrt):
+def test_match_one_exact_beats_containment():
     """ "Solr" exactly equals candidate "solr", so it must win outright —
     even though "solr" also relates to "solr-operator" by containment."""
-    assert ecrt._match_one("Solr", {"solr", "solr-operator"}) == "solr"
+    assert _match_one("Solr", {"solr", "solr-operator"}) == "solr"
 
 
-def test_match_one_falls_back_to_unambiguous_containment(ecrt):
+def test_match_one_falls_back_to_unambiguous_containment():
     """ "Redis-ha" doesn't exactly equal any candidate, but relates to
     exactly one ("redis", contained in "redisha") — resolved via the
     fallback tier."""
-    assert ecrt._match_one("Redis-ha", {"redis-operator", "redis", "redis-exporter"}) == "redis"
+    assert _match_one("Redis-ha", {"redis-operator", "redis", "redis-exporter"}) == "redis"
 
 
-def test_match_one_bracket_content_resolves_a_role_named_row(ecrt):
+def test_match_one_bracket_content_resolves_a_role_named_row():
     """ "Zookeeper operator hooks (k8s-kubectl)" shares no text at all with
     "k8s-kubectl" as a whole string, but name_candidates' bracket
     extraction tries the bracket content on its own, which matches
     exactly."""
-    assert ecrt._match_one("Zookeeper operator hooks (k8s-kubectl)", {"k8s-kubectl", "solr"}) == "k8s-kubectl"
+    assert _match_one("Zookeeper operator hooks (k8s-kubectl)", {"k8s-kubectl", "solr"}) == "k8s-kubectl"
 
 
-def test_match_one_ambiguous_exact_match_is_none(ecrt):
+def test_match_one_ambiguous_exact_match_is_none():
     """ "Foo (Bar)" yields candidates "foobar", "foo", AND "bar" (see
     name_candidates) — two DIFFERENT options each exactly matching a
     different one of those candidates is still an ambiguity, never a
     guess."""
-    assert ecrt._match_one("Foo (Bar)", {"foo", "bar"}) is None
+    assert _match_one("Foo (Bar)", {"foo", "bar"}) is None
 
 
-def test_match_one_no_relation_is_none(ecrt):
-    assert ecrt._match_one("ITA Poller", {"internetaakafhandeling.poller"}) is None
+def test_match_one_no_relation_is_none():
+    assert _match_one("ITA Poller", {"internetaakafhandeling.poller"}) is None
 
 
-def test_basenames_under_scope_finds_nested_pins(ecrt, tmp_path):
+def test_basenames_under_scope_finds_nested_pins(tmp_path):
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -278,11 +282,11 @@ zac:
 """,
     )
     lines = (tmp_path / "values.yaml").read_text(encoding="utf-8").splitlines()
-    available = ecrt.basenames_under_scope(lines, "zac")
+    available = basenames_under_scope(lines, "zac")
     assert set(available) == {"zaakafhandelcomponent", "solr-operator"}
 
 
-def test_basenames_under_scope_ignores_other_components(ecrt, tmp_path):
+def test_basenames_under_scope_ignores_other_components(tmp_path):
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -297,7 +301,7 @@ openzaak:
 """,
     )
     lines = (tmp_path / "values.yaml").read_text(encoding="utf-8").splitlines()
-    assert set(ecrt.basenames_under_scope(lines, "zac")) == {"zaakafhandelcomponent"}
+    assert set(basenames_under_scope(lines, "zac")) == {"zaakafhandelcomponent"}
 
 
 def test_resolve_image_basenames_missing_values_yaml_is_blank(ecrt, tmp_path):
@@ -547,10 +551,10 @@ keycloak:
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["keycloak", "python"]
 
 
-def test_extra_scope_keys_by_component_ignores_multiple_and_unrelated_orphan_keys(ecrt, tmp_path):
+def test_extra_scope_keys_by_component_ignores_multiple_and_unrelated_orphan_keys(tmp_path):
     write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None), ("frankgateway", None)])
     write_values_yaml_raw(tmp_path, "keycloak: {}\nunrelated: {}\n")
-    extra = ecrt._extra_scope_keys_by_component(tmp_path)
+    extra = _extra_scope_keys_by_component(tmp_path)
     assert extra == {"keycloak-operator": ["keycloak"]}
 
 

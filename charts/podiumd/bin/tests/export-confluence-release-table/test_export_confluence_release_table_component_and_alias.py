@@ -3,6 +3,9 @@ orphan_values_yaml_keys, global_image_keys, extract_release_rows — with
 fetch_page_html mocked out, so no network access or real Confluence page
 is needed."""
 
+from lib.release_table.component_resolution import name_candidates
+from lib.release_table.component_resolution import normalize_name
+
 
 def write_chart_yaml_with_dependencies(chart_dir, deps):
     """`deps`: [(name, alias_or_None), ...]."""
@@ -151,23 +154,23 @@ def test_chart_dependencies_missing_chart_yaml_returns_empty(ecrt, tmp_path):
 # --- normalize_name / name_candidates ---
 
 
-def test_normalize_name_strips_all_punctuation(ecrt):
-    assert ecrt.normalize_name("Zaak - ZAC") == "zaakzac"
-    assert ecrt.normalize_name("OMC / Notify") == "omcnotify"
+def test_normalize_name_strips_all_punctuation():
+    assert normalize_name("Zaak - ZAC") == "zaakzac"
+    assert normalize_name("OMC / Notify") == "omcnotify"
 
 
-def test_name_candidates_no_brackets_is_just_the_whole_name(ecrt):
-    assert ecrt.name_candidates("Zaak - ZAC") == ["zaakzac"]
+def test_name_candidates_no_brackets_is_just_the_whole_name():
+    assert name_candidates("Zaak - ZAC") == ["zaakzac"]
 
 
-def test_name_candidates_splits_bracketed_part_from_the_rest(ecrt):
-    assert ecrt.name_candidates("Contact (KISS)") == ["contactkiss", "contact", "kiss"]
+def test_name_candidates_splits_bracketed_part_from_the_rest():
+    assert name_candidates("Contact (KISS)") == ["contactkiss", "contact", "kiss"]
 
 
-def test_name_candidates_dedupes_and_drops_empties(ecrt):
+def test_name_candidates_dedupes_and_drops_empties():
     """ "(KISS)" alone, with nothing outside the brackets, must not
     produce a spurious empty "rest" candidate."""
-    assert ecrt.name_candidates("(KISS)") == ["kiss"]
+    assert name_candidates("(KISS)") == ["kiss"]
 
 
 # --- component_and_alias ---
