@@ -100,6 +100,7 @@ But the two sides, and the two candidate KINDS, get there differently:
 import urllib.error
 
 from collections import Counter
+from dataclasses import dataclass
 
 from lib.checks.cve import CacheSession
 from lib.checks.cve import SEVERITY_ORDER
@@ -213,24 +214,42 @@ def gather_candidates(chart_dir):
     return candidates
 
 
-def _scan_current(chart_dir, candidate, old_cache, new_cache, ttl_days):
+@dataclass
+class DiffContext:
+    """chart_dir/cache/scan_errors/detail/ttl_days/high_severities/
+    package_cve_list_threshold — check_cve_diff's own per-run inputs,
+    identical across all three _process_bucket calls in one run (only
+    `title`/`bucket_candidates` differ per bucket) — same idea as lib.
+    checks.cve's own ScanContext/ReportSettings, bundled here so
+    _process_bucket/_scan_current/_scan_proposed each take this one
+    object instead of a handful of positional params. See
+    _build_diff_context, which builds one of these once per run."""
+
+    chart_dir: object
+    cache: CacheSession
+    scan_errors: list
+    detail: bool
+    ttl_days: int
+    high_severities: list
+    package_cve_list_threshold: int
+
+
+def _scan_current(context, candidate):
     """The CURRENT side of one candidate — always cache-eligible, its
     pinned digest is already known from values.yaml, a free hit whenever
     check_cves already scanned this exact digest (both route through the
-    same lib.checks.cve.scan_cached — see its own docstring). `ttl_days`
-    (see cve_scan.scan_cache_ttl_days in lib.settings) is resolved once by
-    check_cve_diff and threaded straight through."""
+    same lib.checks.cve.scan_cached — see its own docstring)."""
     vulns, _ = scan_cached(
-        chart_dir,
+        context.chart_dir,
         ScanTarget(candidate["repository"], candidate["current_digest"], candidate["current_ref"]),
-        CacheSession(old_cache, new_cache),
-        ttl_days,
+        context.cache,
+        context.ttl_days,
         label="current",
     )
     return vulns
 
 
-def _scan_proposed(chart_dir, candidate, old_cache, new_cache, ttl_days):
+def _scan_proposed(context, candidate):
     """The PROPOSED side of one candidate. A "sliding digest" candidate
     already carries its own resolved digest (see gather_candidates) — no
     extra call needed, straight to scan_cached. An "upgrade" candidate's
@@ -252,10 +271,10 @@ def _scan_proposed(chart_dir, candidate, old_cache, new_cache, ttl_days):
             digest = None
 
     vulns, _ = scan_cached(
-        chart_dir,
+        context.chart_dir,
         ScanTarget(candidate["repository"], digest, candidate["proposed_ref"]),
-        CacheSession(old_cache, new_cache),
-        ttl_days,
+        context.cache,
+        context.ttl_days,
         label="proposed",
     )
     return vulns
@@ -318,48 +337,80 @@ def classify_candidates(chart_dir, extra_args, candidates, values_lines):
         candidate["bucket"] = bucket_of(label)
 
 
-def _process_bucket(
-    chart_dir,
-    title,
-    bucket_candidates,
-    old_cache,
-    new_cache,
-    scan_errors,
-    detail,
-    ttl_days,
-    high_severities,
-    package_cve_list_threshold,
-):
+def _process_bucket(context, title, bucket_candidates):
     """Scan and print one bucket's candidates under its own "--- <title>
     ---" header (skipped entirely when the bucket is empty, via the same
     lib.checks.cve.print_bucket_header idiom print_bucket_report itself
     uses — not a second independently-written copy of that check). Returns
     (closed, introduced) totals for this bucket. Local per-bucket
     numbering ([i/N] where N is THIS bucket's own count), same convention
-    every other bucketed check in this codebase uses. `ttl_days`/
-    `high_severities`/`package_cve_list_threshold` are all resolved once
-    by check_cve_diff and threaded straight through."""
+    every other bucketed check in this codebase uses."""
     if not print_bucket_header(title, empty=not bucket_candidates):
         return 0, 0
 
     total_closed = total_introduced = 0
     for i, candidate in enumerate(bucket_candidates, 1):
         _print_candidate_header(i, len(bucket_candidates), candidate)
-        current_vulns = _scan_current(chart_dir, candidate, old_cache, new_cache, ttl_days)
+        current_vulns = _scan_current(context, candidate)
         if current_vulns is None:
-            scan_errors.append(candidate["current_ref"])
+            context.scan_errors.append(candidate["current_ref"])
             print(f"  [SCAN-ERR] {candidate['current_ref']}  trivy scan failed or produced unparseable output")
             continue
-        proposed_vulns = _scan_proposed(chart_dir, candidate, old_cache, new_cache, ttl_days)
+        proposed_vulns = _scan_proposed(context, candidate)
         if proposed_vulns is None:
-            scan_errors.append(candidate["proposed_ref"])
+            context.scan_errors.append(candidate["proposed_ref"])
             print(f"  [SCAN-ERR] {candidate['proposed_ref']}  trivy scan failed or produced unparseable output")
             continue
         closed, introduced = diff_vulns(current_vulns, proposed_vulns)
         total_closed += len(closed)
         total_introduced += len(introduced)
-        print_candidate_result(closed, introduced, detail, high_severities, package_cve_list_threshold)
+        print_candidate_result(
+            closed, introduced, context.detail, context.high_severities, context.package_cve_list_threshold
+        )
     return total_closed, total_introduced
+
+
+def _partition_by_bucket(candidates):
+    """[(bucket_key, title, candidates-in-that-bucket)] for the three
+    report buckets, own/partner/other, in print order — see
+    _process_all_buckets/_build_detail_message, which both iterate this
+    same list rather than re-deriving own/partner/other separately."""
+    titles = (("own", "Own images"), ("partner", "Partner-vendor images"), ("other", "Other-vendor images"))
+    return [(key, title, [c for c in candidates if c["bucket"] == key]) for key, title in titles]
+
+
+def _build_diff_context(chart_dir, detail):
+    """The DiffContext every _process_bucket/_scan_current/_scan_proposed
+    call in one check_cve_diff run shares — split out purely to keep
+    check_cve_diff's own local count down."""
+    old_cache, new_cache = open_cache_session(chart_dir)
+    return DiffContext(
+        chart_dir=chart_dir,
+        cache=CacheSession(old_cache, new_cache),
+        scan_errors=[],
+        detail=detail,
+        ttl_days=cve_scan_cache_ttl_days(chart_dir),
+        high_severities=cve_high_severity_levels(chart_dir),
+        package_cve_list_threshold=cve_max_cves_per_package_before_summarizing(chart_dir),
+    )
+
+
+def _process_all_buckets(context, buckets):
+    """{bucket_key: (closed, introduced)} — runs _process_bucket for each
+    (bucket_key, title, candidates) triple from _partition_by_bucket."""
+    return {key: _process_bucket(context, title, bucket_candidates) for key, title, bucket_candidates in buckets}
+
+
+def _build_detail_message(buckets, totals, scan_errors):
+    """check_cve_diff's own detail string: per-bucket candidate/closed/
+    introduced counts (own/partner-vendor/other-vendor, in that order)
+    plus the scan error count."""
+    labels = {"own": "own", "partner": "partner-vendor", "other": "other-vendor"}
+    parts = []
+    for key, _, bucket_candidates in buckets:
+        closed, introduced = totals[key]
+        parts.append(f"{len(bucket_candidates)} {labels[key]} ({closed} closed, {introduced} introduced)")
+    return ", ".join(parts) + f"; {len(scan_errors)} scan error(s)"
 
 
 def check_cve_diff(chart_dir, extra_args, detail=False):
@@ -379,71 +430,19 @@ def check_cve_diff(chart_dir, extra_args, detail=False):
         print("OK: no upgrade-available or sliding-digest candidate to diff")
         return True, "0 candidate(s)"
 
-    cve_cache_ttl_days = cve_scan_cache_ttl_days(chart_dir)
-    high_severities = cve_high_severity_levels(chart_dir)
-    package_cve_list_threshold = cve_max_cves_per_package_before_summarizing(chart_dir)
-
-    values_path = chart_dir / "values.yaml"
-    values_lines = values_path.read_text(encoding="utf-8").splitlines()
+    values_lines = (chart_dir / "values.yaml").read_text(encoding="utf-8").splitlines()
     classify_candidates(chart_dir, extra_args, candidates, values_lines)
-
-    own = [c for c in candidates if c["bucket"] == "own"]
-    partner = [c for c in candidates if c["bucket"] == "partner"]
-    other = [c for c in candidates if c["bucket"] == "other"]
+    buckets = _partition_by_bucket(candidates)
 
     print(f"Diffing CVEs for {len(candidates)} upgrade/slide candidate(s) (current vs proposed, via trivy)...")
 
-    old_cache, new_cache = open_cache_session(chart_dir)
-    scan_errors = []
+    context = _build_diff_context(chart_dir, detail)
+    totals = _process_all_buckets(context, buckets)
+    save_cache(chart_dir, context.cache.new_cache)
 
-    own_closed, own_introduced = _process_bucket(
-        chart_dir,
-        "Own images",
-        own,
-        old_cache,
-        new_cache,
-        scan_errors,
-        detail,
-        cve_cache_ttl_days,
-        high_severities,
-        package_cve_list_threshold,
-    )
-    partner_closed, partner_introduced = _process_bucket(
-        chart_dir,
-        "Partner-vendor images",
-        partner,
-        old_cache,
-        new_cache,
-        scan_errors,
-        detail,
-        cve_cache_ttl_days,
-        high_severities,
-        package_cve_list_threshold,
-    )
-    other_closed, other_introduced = _process_bucket(
-        chart_dir,
-        "Other-vendor images",
-        other,
-        old_cache,
-        new_cache,
-        scan_errors,
-        detail,
-        cve_cache_ttl_days,
-        high_severities,
-        package_cve_list_threshold,
-    )
-
-    save_cache(chart_dir, new_cache)
-
-    if scan_errors:
-        print(f"{len(scan_errors)} image(s) could not be scanned:")
-        for ref in scan_errors:
+    if context.scan_errors:
+        print(f"{len(context.scan_errors)} image(s) could not be scanned:")
+        for ref in context.scan_errors:
             print(f"  {ref}")
 
-    detail_msg = (
-        f"{len(own)} own ({own_closed} closed, {own_introduced} introduced), "
-        f"{len(partner)} partner-vendor ({partner_closed} closed, {partner_introduced} introduced), "
-        f"{len(other)} other-vendor ({other_closed} closed, {other_introduced} introduced); "
-        f"{len(scan_errors)} scan error(s)"
-    )
-    return True, detail_msg
+    return True, _build_detail_message(buckets, totals, context.scan_errors)
