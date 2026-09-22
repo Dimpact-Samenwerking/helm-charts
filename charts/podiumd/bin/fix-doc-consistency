@@ -162,6 +162,7 @@ from lib.render_scope import lint_args_for, render_chart, rendered_chart_paths
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths, find_image_tag_paths
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.images_manifest_ordering import (
+    ManifestSortContext,
     images_manifest_display_name_positions,
     images_manifest_entry_positions,
     sort_images_manifest_entries,
@@ -642,18 +643,15 @@ def main():
             entries_for_header_sort = yaml.safe_load(before_sort) or []
         except yaml.YAMLError:
             entries_for_header_sort = []
-        entry_positions = images_manifest_entry_positions(
-            before_sort, target_deps, target_values, repo_map, canonical_names
-        )
-        display_name_positions = images_manifest_display_name_positions(
-            before_sort, target_deps, target_values, repo_map, canonical_names
-        )
+        sort_context = ManifestSortContext(target_deps, target_values, repo_map, canonical_names)
+        entry_positions = images_manifest_entry_positions(before_sort, sort_context)
+        display_name_positions = images_manifest_display_name_positions(before_sort, sort_context)
         lines = before_sort.splitlines(keepends=True)
         moved_header_items = sort_images_manifest_changes_items(
             lines, entries_for_header_sort, entry_positions, display_name_positions
         )
         text = "".join(lines)
-        text, moved_entries = sort_images_manifest_entries(text, target_deps, target_values, repo_map, canonical_names)
+        text, moved_entries = sort_images_manifest_entries(text, sort_context)
         if text != before_sort:
             images_path.write_text(text, encoding="utf-8")
             print()

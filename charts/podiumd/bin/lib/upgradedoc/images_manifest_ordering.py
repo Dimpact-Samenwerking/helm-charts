@@ -3,6 +3,7 @@ the sort/out-of-order-detection built on that grouping -- entries
 sharing one dependency/sidecar group move and stay together."""
 
 import re
+from dataclasses import dataclass
 
 import yaml
 
@@ -18,6 +19,55 @@ from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.version_cells_and_key_changes import VERSION_PAIR_RE
 
 SIDECAR_HEADER_RE = re.compile(r"^#\s{2,}sidecar:\s*(?P<text>.*)$", re.IGNORECASE)
+
+
+@dataclass
+class ParsedManifest:
+    """entries/entry_line_indices/lines, kept in lockstep -- the images-
+    manifest's own parsed YAML entries, their corresponding "- name:"
+    line indices, and the raw text lines they were parsed from.
+    find_images_manifest_faulty_headers/_images_manifest_groups/find_
+    images_manifest_out_of_order_names all need the same three kept in
+    sync, so bundling them keeps that plumbing from dominating each
+    function's own argument count."""
+
+    entries: list
+    entry_line_indices: list
+    lines: list
+
+
+@dataclass
+class EntryResolution:
+    """deps/current_paths/repo_map/canonical_names -- how to resolve an
+    images-manifest entry back to its own values-tree path/display name
+    (see entry_component/path_display_name), bundled since find_images_
+    manifest_faulty_headers/_images_manifest_groups/find_images_manifest_
+    out_of_order_names all need the same four together, with `current_
+    paths` ALREADY computed by the caller (unlike ManifestSortContext
+    below, whose own `values` a caller hands over instead, for a
+    function that computes current_paths itself)."""
+
+    deps: list
+    current_paths: dict
+    repo_map: dict
+    canonical_names: dict
+
+
+@dataclass
+class ManifestSortContext:
+    """deps/values/repo_map/canonical_names -- sort_images_manifest_
+    entries/images_manifest_entry_positions/images_manifest_display_
+    name_positions' own shared inputs. Unlike EntryResolution, this
+    carries `values` instead of a pre-computed `current_paths`: these
+    three functions each need current_paths freshly derived from `values`
+    + `deps` together (find_all_image_and_version_paths + global_image_
+    paths combined, see _images_manifest_sorted_groups), never whatever a
+    caller happened to precompute for something else."""
+
+    deps: list
+    values: dict
+    repo_map: dict
+    canonical_names: dict
 
 
 def entry_component(entry, current_paths, repo_map):
@@ -149,14 +199,13 @@ def header_name_segment(text):
     return name.rstrip(" \t—-")
 
 
-def find_images_manifest_faulty_headers(
-    entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names
-):
+def find_images_manifest_faulty_headers(manifest, resolution):
     """[(entry_name, expected_display_name, problem), ...] for every
     SIDECAR entry (see is_primary_image_path — a co-equal primary image
     like zgw-office-addin's frontend/backend is exempt, expected and
     fine to keep sharing one plain header) whose own header doesn't
-    correctly, unambiguously identify it. problem is:
+    correctly, unambiguously identify it. `manifest` is a ParsedManifest,
+    `resolution` an EntryResolution. problem is:
     - "missing": no own indented "#   sidecar: ..." header directly
       above the entry at all — it may be silently sharing a PRECEDING
       entry's plain header instead (the exact ambiguity that once let
@@ -200,12 +249,12 @@ def find_images_manifest_faulty_headers(
     (see is_primary_image_path, which treats "no owning dependency" as
     primary/standalone for exactly this reason)."""
     problems = []
-    for entry, line_idx in zip(entries, entry_line_indices, strict=True):
-        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
-        if path is None or is_primary_image_path(path, deps):
+    for entry, line_idx in zip(manifest.entries, manifest.entry_line_indices, strict=True):
+        path = resolve_entry_image_path(entry, resolution.current_paths.keys(), resolution.repo_map)
+        if path is None or is_primary_image_path(path, resolution.deps):
             continue
-        display_name = path_display_name(path, deps, canonical_names)
-        top_line = _own_header_top_line(lines, line_idx)
+        display_name = path_display_name(path, resolution.deps, resolution.canonical_names)
+        top_line = _own_header_top_line(manifest.lines, line_idx)
         match = SIDECAR_HEADER_RE.match(top_line) if top_line is not None else None
         if match is None:
             problems.append((entry["name"], display_name, "missing"))
@@ -270,24 +319,28 @@ def images_manifest_entry_order_key(path, deps, key_order, values=None):
     return (idx, is_sidecar)
 
 
-def _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps, canonical_names):
+def _images_manifest_groups(manifest, resolution):
     """[(indices, path, display_name), ...] — one entry per physical
     GROUP of consecutive entries sharing a single preceding comment
     (see find_grouped_preceding_comment_line/images_manifest_entries_
     share_group), in the manifest's current top-to-bottom order. `path`/
     `display_name` are the group's FIRST entry's own resolved values-
     tree path (see resolve_entry_image_path) and path_display_name (or
-    the raw entry name when unresolvable). Shared by sort_images_
-    manifest_entries (which physically reorders these) and find_images_
-    manifest_out_of_order_names (which only compares adjacent keys) so
-    the two can never disagree about what counts as one group."""
-    n = len(entries)
+    the raw entry name when unresolvable). `manifest` is a
+    ParsedManifest, `resolution` an EntryResolution. Shared by sort_
+    images_manifest_entries (which physically reorders these) and find_
+    images_manifest_out_of_order_names (which only compares adjacent
+    keys) so the two can never disagree about what counts as one group."""
+    n = len(manifest.entries)
 
     def same_group(entry_a, entry_b):
-        return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
+        return images_manifest_entries_share_group(entry_a, entry_b, resolution.current_paths, resolution.repo_map)
 
     comment_idx_for = [
-        find_grouped_preceding_comment_line(lines, entries, entry_line_indices, i, same_group) for i in range(n)
+        find_grouped_preceding_comment_line(
+            manifest.lines, manifest.entries, manifest.entry_line_indices, i, same_group
+        )
+        for i in range(n)
     ]
     index_groups = []
     for i in range(n):
@@ -298,36 +351,41 @@ def _images_manifest_groups(entries, entry_line_indices, lines, current_paths, r
 
     groups = []
     for indices in index_groups:
-        path = resolve_entry_image_path(entries[indices[0]], current_paths.keys(), repo_map)
-        name = path_display_name(path, deps, canonical_names) if path else entries[indices[0]]["name"]
+        path = resolve_entry_image_path(
+            manifest.entries[indices[0]], resolution.current_paths.keys(), resolution.repo_map
+        )
+        name = (
+            path_display_name(path, resolution.deps, resolution.canonical_names)
+            if path
+            else manifest.entries[indices[0]]["name"]
+        )
         groups.append((indices, path, name))
     return groups
 
 
-def find_images_manifest_out_of_order_names(
-    entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names, key_order, values=None
-):
+def find_images_manifest_out_of_order_names(manifest, resolution, key_order, values=None):
     """[(name_a, name_b), ...] for every ADJACENT pair of images-
     manifest GROUPS (see _images_manifest_groups) whose relative order
     contradicts values.yaml's own top-level key order (see images_
     manifest_entry_order_key) — same "adjacent pairs are sufficient to
     catch any non-monotonic sequence" reasoning find_out_of_order_names
-    already uses for -upgrade.md's own rows/Changes headings.
+    already uses for -upgrade.md's own rows/Changes headings. `manifest`
+    is a ParsedManifest, `resolution` an EntryResolution.
 
     `values`, passed straight through to images_manifest_entry_order_
     key, is what actually distinguishes two different non-primary
     entries sharing the same top-level key (e.g. two "global.images.*"
     entries) — omitted, every such pair ties and is never flagged as
     out of order against each other, exactly as before."""
-    groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps, canonical_names)
+    groups = _images_manifest_groups(manifest, resolution)
     violations = []
     # groups[1:] is deliberately one element shorter than groups -- same
     # adjacent-pairs shape as find_out_of_order_names' own zip(names,
     # names[1:]) above -- not a same-length zip.
     for (_, path_a, name_a), (_, path_b, name_b) in zip(groups, groups[1:], strict=False):
-        if images_manifest_entry_order_key(path_b, deps, key_order, values) < images_manifest_entry_order_key(
-            path_a, deps, key_order, values
-        ):
+        if images_manifest_entry_order_key(
+            path_b, resolution.deps, key_order, values
+        ) < images_manifest_entry_order_key(path_a, resolution.deps, key_order, values):
             violations.append((name_a, name_b))
     return violations
 
@@ -350,11 +408,12 @@ def _collapse_group_internal_blank_lines(group_text):
     return "".join(body + lines[last_content:])
 
 
-def _images_manifest_sorted_groups(entries, entry_line_indices, lines, deps, values, repo_map, canonical_names):
+def _images_manifest_sorted_groups(manifest, context):
     """(groups, order) — groups from _images_manifest_groups; order is
     the permutation (list of original group indices, in their NEW
     sorted sequence) sort_images_manifest_entries physically applies,
     computed via values_key_order/images_manifest_entry_order_key.
+    `manifest` is a ParsedManifest, `context` a ManifestSortContext.
     Shared with images_manifest_entry_positions so any caller needing
     "what position does entry X end up at" (see sort_images_manifest_
     changes_items, which mirrors the entry list's own final order
@@ -370,13 +429,15 @@ def _images_manifest_sorted_groups(entries, entry_line_indices, lines, deps, val
     of the manifest instead of under "global" 's own values.yaml
     position (first, since "global:" is the file's own first top-level
     key)."""
-    current_paths = dict(find_all_image_and_version_paths(values, deps))
-    current_paths.update(global_image_paths(values))
-    groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps, canonical_names)
-    key_order = values_key_order(values)
+    current_paths = dict(find_all_image_and_version_paths(context.values, context.deps))
+    current_paths.update(global_image_paths(context.values))
+    resolution = EntryResolution(context.deps, current_paths, context.repo_map, context.canonical_names)
+    groups = _images_manifest_groups(manifest, resolution)
+    key_order = values_key_order(context.values)
     order = (
         sorted(
-            range(len(groups)), key=lambda gi: images_manifest_entry_order_key(groups[gi][1], deps, key_order, values)
+            range(len(groups)),
+            key=lambda gi: images_manifest_entry_order_key(groups[gi][1], context.deps, key_order, context.values),
         )
         if len(groups) >= 2
         else list(range(len(groups)))
@@ -384,7 +445,30 @@ def _images_manifest_sorted_groups(entries, entry_line_indices, lines, deps, val
     return groups, order
 
 
-def images_manifest_entry_positions(text, deps, values, repo_map, canonical_names):
+def _parsed_manifest_from_text(text):
+    """(ParsedManifest, ok) for `text` — ok is False (ParsedManifest is
+    then meaningless/unused) when `text` isn't valid YAML, isn't a list,
+    or has fewer than 2 entries — the same three guards images_manifest_
+    entry_positions/images_manifest_display_name_positions/sort_images_
+    manifest_entries all apply before there's anything meaningful to
+    group/sort/position at all."""
+    lines = text.splitlines(keepends=True)
+    try:
+        entries = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return None, False
+    if not isinstance(entries, list):
+        return None, False
+
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    n = min(len(entries), len(entry_line_indices))
+    entries, entry_line_indices = entries[:n], entry_line_indices[:n]
+    if n < 2:
+        return None, False
+    return ParsedManifest(entries, entry_line_indices, lines), True
+
+
+def images_manifest_entry_positions(text, context):
     """{entry_name: 0-based final position} for every entry in the
     images manifest, after applying the SAME group-level reordering
     sort_images_manifest_entries itself performs — for a caller that
@@ -396,53 +480,42 @@ def images_manifest_entry_positions(text, deps, values, repo_map, canonical_name
     own parenthetical aside, fuzzy-matched that dependency and landed
     ahead of its real sidecars instead of following its actual entry's
     own position). Every entry sharing one group gets that group's own
-    single position. {} if the manifest isn't valid YAML or has fewer
-    than 2 entries — same guards sort_images_manifest_entries applies."""
-    lines = text.splitlines(keepends=True)
-    try:
-        entries = yaml.safe_load(text)
-    except yaml.YAMLError:
-        return {}
-    if not isinstance(entries, list):
+    single position. `context` is a ManifestSortContext. {} if the
+    manifest isn't valid YAML or has fewer than 2 entries — same guards
+    sort_images_manifest_entries applies."""
+    manifest, ok = _parsed_manifest_from_text(text)
+    if not ok:
         return {}
 
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    n = min(len(entries), len(entry_line_indices))
-    entries, entry_line_indices = entries[:n], entry_line_indices[:n]
-    if n < 2:
-        return {}
-
-    groups, order = _images_manifest_sorted_groups(
-        entries, entry_line_indices, lines, deps, values, repo_map, canonical_names
-    )
+    groups, order = _images_manifest_sorted_groups(manifest, context)
     position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
     positions = {}
     for group_index, (indices, _path, _name) in enumerate(groups):
         for entry_index in indices:
-            positions[entries[entry_index]["name"]] = position_of_group[group_index]
+            positions[manifest.entries[entry_index]["name"]] = position_of_group[group_index]
     return positions
 
 
-def images_manifest_display_name_positions(text, deps, values, repo_map, canonical_names):
+def images_manifest_display_name_positions(text, context):
     """{display_name: 0-based final position} — the SAME group-level
     positions images_manifest_entry_positions computes, keyed by each
     group's own path_display_name instead of its entries' raw YAML
-    "name:" fields. Exists for matching a "# Changes:" item's own text
-    by EXACT prefix (see fix-doc-consistency's sort_images_manifest_
-    changes_items) rather than match_changes_item_to_entry's fuzzy
-    basename-in-text search — which only ever works when an entry's own
-    repository basename happens to appear in the item's own display
-    name (true for a "global" shared image, whose display name IS its
-    basename, and true by coincidence for a dependency like "keycloak-
-    operator" whose alias happens to start with its own image's
-    basename "keycloak") but is never true in general: "kiss" (the
-    dependency's own alias) shares no word at all with "kiss-frontend"
-    (its own image's repository basename), and "kiss-eck" shares
-    nothing with "elasticsearch"/"kibana" either — every auto-inserted
-    item's own text is built as f"{name} {old} -> {new}." (see
-    add_missing_images_manifest_entries' own version_text) using this
-    EXACT display name, so matching against it directly is never a
-    guess for anything the tooling itself wrote.
+    "name:" fields. `context` is a ManifestSortContext. Exists for
+    matching a "# Changes:" item's own text by EXACT prefix (see
+    fix-doc-consistency's sort_images_manifest_changes_items) rather
+    than match_changes_item_to_entry's fuzzy basename-in-text search —
+    which only ever works when an entry's own repository basename
+    happens to appear in the item's own display name (true for a
+    "global" shared image, whose display name IS its basename, and true
+    by coincidence for a dependency like "keycloak-operator" whose alias
+    happens to start with its own image's basename "keycloak") but is
+    never true in general: "kiss" (the dependency's own alias) shares no
+    word at all with "kiss-frontend" (its own image's repository
+    basename), and "kiss-eck" shares nothing with "elasticsearch"/
+    "kibana" either — every auto-inserted item's own text is built as
+    f"{name} {old} -> {new}." (see add_missing_images_manifest_entries'
+    own version_text) using this EXACT display name, so matching against
+    it directly is never a guess for anything the tooling itself wrote.
 
     More than one group can legitimately share one display name (real
     case: kiss-eck's own eck-elasticsearch and eck-kibana version
@@ -457,23 +530,11 @@ def images_manifest_display_name_positions(text, deps, values, repo_map, canonic
 
     {} under the exact same guards images_manifest_entry_positions
     applies (invalid YAML, or fewer than 2 entries)."""
-    lines = text.splitlines(keepends=True)
-    try:
-        entries = yaml.safe_load(text)
-    except yaml.YAMLError:
-        return {}
-    if not isinstance(entries, list):
+    manifest, ok = _parsed_manifest_from_text(text)
+    if not ok:
         return {}
 
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    n = min(len(entries), len(entry_line_indices))
-    entries, entry_line_indices = entries[:n], entry_line_indices[:n]
-    if n < 2:
-        return {}
-
-    groups, order = _images_manifest_sorted_groups(
-        entries, entry_line_indices, lines, deps, values, repo_map, canonical_names
-    )
+    groups, order = _images_manifest_sorted_groups(manifest, context)
     position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
     positions = {}
     for group_index, (_indices, _path, name) in enumerate(groups):
@@ -511,7 +572,76 @@ def match_changes_item_display_name(rest, display_name_positions):
     return best
 
 
-def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
+def _group_texts_and_components(lines, groups, starts):
+    """(per_group_texts, components) — each group's own captured text
+    span (with an already-multi-entry group's OWN internal blank lines
+    collapsed first, see _collapse_group_internal_blank_lines) and its
+    own top-level values-tree component (for the cross-group run-
+    collapsing _merge_ordered_groups does next)."""
+    ends = [*starts[1:], len(lines)]
+    original_texts = ["".join(lines[s:e]) for s, e in zip(starts, ends, strict=True)]
+    # A single GROUP already spanning more than one entry (a literal
+    # shared header, e.g. zgw-office-addin's own frontend+backend) needs
+    # its own internal collapse first — the broader cross-group merge
+    # in _merge_ordered_groups only ever looks at whole groups, so this
+    # is the only place that removes a blank line hand-inserted BETWEEN
+    # two entries that already share one comment line.
+    per_group_texts = [
+        _collapse_group_internal_blank_lines(t) if len(indices) > 1 else t
+        for (indices, _, _), t in zip(groups, original_texts, strict=True)
+    ]
+    components = [path[0] if path else None for _, path, _ in groups]
+    return per_group_texts, components
+
+
+def _merge_ordered_groups(per_group_texts, components, order):
+    """Runs of consecutive same-component groups (in the NEW, post-sort
+    `order`) merged into one text block each — collapsing blank lines
+    within a multi-group run (see _collapse_group_internal_blank_lines)
+    and normalizing exactly one blank line between different-component
+    runs, per sort_images_manifest_entries' own docstring. Never merges
+    two groups whose component can't be resolved at all (None) even if
+    they happen to sit next to each other — only a real, matching
+    component identifies one family."""
+    ordered_texts = [per_group_texts[i] for i in order]
+    ordered_components = [components[i] for i in order]
+
+    merged_texts = []
+    run_start = 0
+    for i in range(1, len(ordered_texts) + 1):
+        at_end = i == len(ordered_texts)
+        if at_end or ordered_components[i] is None or ordered_components[i] != ordered_components[run_start]:
+            run_text = "".join(ordered_texts[run_start:i])
+            run_text = _collapse_group_internal_blank_lines(run_text) if i - run_start > 1 else run_text
+            if not at_end:
+                # Exactly one blank line before the NEXT run — never
+                # zero (a group's own captured span never includes a
+                # LEADING blank line, so a pre-existing "no separator at
+                # all" defect otherwise survives forever once spliced
+                # next to a new neighbor — see sort_images_manifest_
+                # entries' own docstring) and never more than one (a
+                # run's own INTERNAL blanks are already handled above;
+                # this is purely its own trailing edge).
+                run_text = run_text.rstrip("\n") + "\n\n"
+            merged_texts.append(run_text)
+            run_start = i
+    return merged_texts
+
+
+def _sorted_manifest_text(lines, entry_line_indices, groups, order):
+    """The manifest's own full text after physically applying `order` to
+    `groups` — see sort_images_manifest_entries' own docstring for the
+    blank-line collapse/normalize rules this also applies. Restores the
+    manifest's own leading prefix (whatever precedes the very first
+    group — never itself part of any group's own captured span)."""
+    starts = [images_manifest_block_start(lines, entry_line_indices[indices[0]]) for indices, _, _ in groups]
+    per_group_texts, components = _group_texts_and_components(lines, groups, starts)
+    merged_texts = _merge_ordered_groups(per_group_texts, components, order)
+    prefix = "".join(lines[: starts[0]])
+    return prefix + "".join(merged_texts)
+
+
+def sort_images_manifest_entries(text, context):
     """Reorder the images manifest's own entry GROUPS (physically, in
     the text) to match values.yaml's own top-level key order — see
     values_key_order/images_manifest_entry_order_key, the same rule
@@ -519,7 +649,7 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     -upgrade.md's own rows/Changes blocks. A group (see _images_
     manifest_groups) is moved as ONE physical unit, never split, so a
     shared header always stays directly above every entry it actually
-    covers.
+    covers. `context` is a ManifestSortContext.
 
     Also collapses blank lines between entries belonging to the SAME
     top-level component (see _collapse_group_internal_blank_lines) — a
@@ -566,65 +696,14 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     were collapsed/normalized; both text and moved are exactly (text,
     []) only when NEITHER changed anything — e.g. isn't valid YAML, or
     has fewer than 2 entries total."""
-    lines = text.splitlines(keepends=True)
-    try:
-        entries = yaml.safe_load(text)
-    except yaml.YAMLError:
-        return text, []
-    if not isinstance(entries, list):
+    manifest, ok = _parsed_manifest_from_text(text)
+    if not ok:
         return text, []
 
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    n = min(len(entries), len(entry_line_indices))
-    entries, entry_line_indices = entries[:n], entry_line_indices[:n]
-    if n < 2:
-        return text, []
-
-    groups, order = _images_manifest_sorted_groups(
-        entries, entry_line_indices, lines, deps, values, repo_map, canonical_names
-    )
+    groups, order = _images_manifest_sorted_groups(manifest, context)
     moved = [(groups[i][2], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
 
-    starts = [images_manifest_block_start(lines, entry_line_indices[indices[0]]) for indices, _, _ in groups]
-    ends = [*starts[1:], len(lines)]
-    original_texts = ["".join(lines[s:e]) for s, e in zip(starts, ends, strict=True)]
-    # A single GROUP already spanning more than one entry (a literal
-    # shared header, e.g. zgw-office-addin's own frontend+backend) needs
-    # its own internal collapse first — the broader cross-group merge
-    # below only ever looks at whole groups, so this is the only place
-    # that removes a blank line hand-inserted BETWEEN two entries that
-    # already share one comment line.
-    per_group_texts = [
-        _collapse_group_internal_blank_lines(t) if len(indices) > 1 else t
-        for (indices, _, _), t in zip(groups, original_texts, strict=True)
-    ]
-    components = [path[0] if path else None for _, path, _ in groups]
-
-    ordered_texts = [per_group_texts[i] for i in order]
-    ordered_components = [components[i] for i in order]
-
-    merged_texts = []
-    run_start = 0
-    for i in range(1, len(ordered_texts) + 1):
-        at_end = i == len(ordered_texts)
-        if at_end or ordered_components[i] is None or ordered_components[i] != ordered_components[run_start]:
-            run_text = "".join(ordered_texts[run_start:i])
-            run_text = _collapse_group_internal_blank_lines(run_text) if i - run_start > 1 else run_text
-            if not at_end:
-                # Exactly one blank line before the NEXT run — never
-                # zero (a group's own captured span never includes a
-                # LEADING blank line, so a pre-existing "no separator at
-                # all" defect otherwise survives forever once spliced
-                # next to a new neighbor — see this function's own
-                # docstring) and never more than one (a run's own
-                # INTERNAL blanks are already handled above; this is
-                # purely its own trailing edge).
-                run_text = run_text.rstrip("\n") + "\n\n"
-            merged_texts.append(run_text)
-            run_start = i
-
-    prefix = "".join(lines[: starts[0]])
-    new_text = prefix + "".join(merged_texts)
+    new_text = _sorted_manifest_text(manifest.lines, manifest.entry_line_indices, groups, order)
     if new_text == text:
         return text, []
     return new_text, moved

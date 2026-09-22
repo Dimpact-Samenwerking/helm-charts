@@ -28,6 +28,9 @@ from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_prece
 from lib.upgradedoc.grouped_comments_and_changes_block import parse_changes_block
 from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
+from lib.upgradedoc.images_manifest_ordering import EntryResolution
+from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
+from lib.upgradedoc.images_manifest_ordering import ParsedManifest
 from lib.upgradedoc.images_manifest_ordering import find_images_manifest_faulty_headers
 from lib.upgradedoc.images_manifest_ordering import find_images_manifest_out_of_order_names
 from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
@@ -198,10 +201,11 @@ def find_images_manifest_entries_missing_changes_mention(text, entries, deps, va
     it's not a gap worth reporting. [] under the same guards images_
     manifest_entry_positions applies (invalid YAML, or fewer than 2
     entries) — nothing to cross-check with just 0 or 1 entries."""
-    entry_positions = images_manifest_entry_positions(text, deps, values, repo_map, canonical_names)
+    sort_context = ManifestSortContext(deps, values, repo_map, canonical_names)
+    entry_positions = images_manifest_entry_positions(text, sort_context)
     if not entry_positions:
         return []
-    display_name_positions = images_manifest_display_name_positions(text, deps, values, repo_map, canonical_names)
+    display_name_positions = images_manifest_display_name_positions(text, sort_context)
 
     current_paths = dict(find_all_image_and_version_paths(values, deps))
     current_paths.update(global_image_paths(values))
@@ -500,9 +504,9 @@ def check_images_manifest_format(
     # 3.0.0" purely because both happen to land on 3.0.0 this release)
     # silently inherits a header that doesn't describe it at all.
     if chart_dir is not None:
-        for name, expected, problem in find_images_manifest_faulty_headers(
-            entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names
-        ):
+        manifest = ParsedManifest(entries, entry_line_indices, lines)
+        resolution = EntryResolution(deps, current_paths, repo_map, canonical_names)
+        for name, expected, problem in find_images_manifest_faulty_headers(manifest, resolution):
             if problem == "missing":
                 issues.append(
                     f'{images_path.name}: entry "{name}" is a sidecar of "{expected.split(" - ")[0]}" '
@@ -520,9 +524,7 @@ def check_images_manifest_format(
     # already enforces for -upgrade.md's own rows/Changes headings.
     if chart_dir is not None:
         key_order = values_key_order(values)
-        for name_a, name_b in find_images_manifest_out_of_order_names(
-            entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names, key_order, values
-        ):
+        for name_a, name_b in find_images_manifest_out_of_order_names(manifest, resolution, key_order, values):
             issues.append(
                 f'{images_path.name}: entry "{name_b}" is listed right after "{name_a}", but '
                 f"values.yaml lists {name_b} before {name_a} — entries should follow values.yaml's "
@@ -535,8 +537,9 @@ def check_images_manifest_format(
     # disagree (entries correctly grouped/ordered, header list scrambled
     # relative to them) with nothing else here to catch it.
     if chart_dir is not None:
-        entry_positions = images_manifest_entry_positions(text, deps, values, repo_map, canonical_names)
-        display_name_positions = images_manifest_display_name_positions(text, deps, values, repo_map, canonical_names)
+        sort_context = ManifestSortContext(deps, values, repo_map, canonical_names)
+        entry_positions = images_manifest_entry_positions(text, sort_context)
+        display_name_positions = images_manifest_display_name_positions(text, sort_context)
         for item_a, item_b in find_images_manifest_changes_items_out_of_order(
             text, entries, entry_positions, display_name_positions
         ):
