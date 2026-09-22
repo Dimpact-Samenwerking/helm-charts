@@ -111,7 +111,9 @@ def test_write_tag_and_sha_inserts_new_sha_line_when_absent(ucv):
     lines = list(KEYCLOAK_OPERATOR_LINES)
     tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(lines, "keycloak-operator", "operator.image", "sha")
     ucv.write_tag_and_sha(
-        lines, tag_idx, tag_indent, sha_idx, "26.7.2", "b" * 64, "sha", "keycloak-operator.operator.image"
+        lines,
+        (tag_idx, tag_indent, sha_idx),
+        ucv.SiblingWrite("26.7.2", "b" * 64, "sha", "keycloak-operator.operator.image"),
     )
     assert lines[tag_idx] == '      tag: "26.7.2"\n'
     assert lines[tag_idx + 1] == f'      sha: "{"b" * 64}"\n'
@@ -126,13 +128,8 @@ def test_write_tag_and_sha_replaces_existing_sha_line(ucv):
     )
     ucv.write_tag_and_sha(
         lines,
-        tag_idx,
-        tag_indent,
-        sha_idx,
-        "26.7.3",
-        "c" * 64,
-        "sha",
-        "keycloak-operator.operator.config.keycloakImage",
+        (tag_idx, tag_indent, sha_idx),
+        ucv.SiblingWrite("26.7.3", "c" * 64, "sha", "keycloak-operator.operator.config.keycloakImage"),
     )
     assert lines[tag_idx] == '        tag: "26.7.3"\n'
     assert lines[sha_idx] == f'        sha: "{"c" * 64}"\n'
