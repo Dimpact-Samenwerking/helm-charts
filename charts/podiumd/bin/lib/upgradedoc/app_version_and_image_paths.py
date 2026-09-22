@@ -3,6 +3,8 @@ Chart.yaml dependency version, or vendored-subchart fallback) and
 walking a values tree for every image-tag/version path a
 dependency or native component actually pins."""
 
+from dataclasses import dataclass
+
 from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
 from lib.chart.pull_and_subchart_resolution import subchart_app_version
 from lib.chart.registered_paths import component_image_paths
@@ -74,9 +76,22 @@ def actual_app_version(values, values_key, component=None, chart_dir=None, dep=N
     return None
 
 
-def resolve_baseline_component_versions(
-    baseline_values, baseline_dep, values_key, image_path, chart_name, new_chart, chart_dir=None
-):
+@dataclass
+class BaselineComponentQuery:
+    """resolve_baseline_component_versions' own seven inputs, bundled since
+    both real callers (update-image-version, update-component-version)
+    build all seven the same way, just from differently-named locals."""
+
+    baseline_values: dict
+    baseline_dep: dict
+    values_key: str
+    image_path: str
+    chart_name: str
+    new_chart: str
+    chart_dir: object = None
+
+
+def resolve_baseline_component_versions(query):
     """(old_app, old_chart) resolved against the TRUE release baseline —
     the single source of truth update-image-version's own update_docs_
     single_component and update-component-version's own main() both
@@ -127,17 +142,21 @@ def resolve_baseline_component_versions(
     "old → new" transition implying a real prior baseline value existed
     and moved. None outright when baseline_dep is None (no Chart.yaml
     dependency at the baseline at all)."""
-    raw_old_chart = str(baseline_dep["version"]) if baseline_dep is not None else None
-    baseline_tag = get_path(baseline_values, f"{values_key}.{image_path}.tag") or ""
+    raw_old_chart = str(query.baseline_dep["version"]) if query.baseline_dep is not None else None
+    baseline_tag = get_path(query.baseline_values, f"{query.values_key}.{query.image_path}.tag") or ""
     old_app = baseline_tag.split("@", 1)[0] or None
     if (
         old_app is None
-        and chart_dir is not None
+        and query.chart_dir is not None
         and raw_old_chart is not None
-        and normalize_version(raw_old_chart) == normalize_version(new_chart)
+        and normalize_version(raw_old_chart) == normalize_version(query.new_chart)
     ):
         old_app = actual_app_version(
-            baseline_values, values_key, chart_name, chart_dir=chart_dir, dep={"name": chart_name, "version": new_chart}
+            query.baseline_values,
+            query.values_key,
+            query.chart_name,
+            chart_dir=query.chart_dir,
+            dep={"name": query.chart_name, "version": query.new_chart},
         )
     old_chart = raw_old_chart if old_app is not None else None
     return old_app, old_chart
