@@ -135,6 +135,7 @@ from lib.fix_doc_consistency.manifest_entries_core import (  # pylint: disable=u
     resolve_entry_version,  # noqa: F401
 )
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import (
+    MissingEntriesContext,
     add_missing_images_manifest_entries,
     fix_images_manifest_entry_urls,
 )
@@ -596,16 +597,16 @@ def main():
 
         if baseline_values:
             text = images_path.read_text(encoding="utf-8")
+            missing_entries_context = MissingEntriesContext(
+                CHART_YAML.parent,
+                target_deps,
+                target_values,
+                baseline_values,
+                allow_pull=True,
+                upgrade_docs_baseline=new_baseline,
+            )
             new_text, added_entry_names, skipped_entry_names, backfilled_header_names = (
-                add_missing_images_manifest_entries(
-                    text,
-                    CHART_YAML.parent,
-                    target_deps,
-                    target_values,
-                    baseline_values,
-                    allow_pull=True,
-                    upgrade_docs_baseline=new_baseline,
-                )
+                add_missing_images_manifest_entries(text, missing_entries_context)
             )
             if added_entry_names:
                 images_path.write_text(new_text, encoding="utf-8")

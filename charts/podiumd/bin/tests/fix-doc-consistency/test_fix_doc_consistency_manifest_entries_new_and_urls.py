@@ -177,7 +177,13 @@ def test_add_missing_images_manifest_entries_appends_new_entry(cdb, images_manif
     }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            images_manifest_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
 
     assert skipped == []
@@ -210,7 +216,13 @@ def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(cdb
     baseline_values = {}
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            images_manifest_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
 
     assert skipped == []
@@ -258,7 +270,13 @@ def test_add_missing_images_manifest_entries_moved_repository_gets_real_transiti
     }
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, tmp_path, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            tmp_path,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
 
     assert skipped == []
@@ -285,7 +303,13 @@ def test_add_missing_images_manifest_entries_catches_same_version_changed_digest
     baseline_values = {"clamav": {"image": {"repository": "clamav/clamav", "tag": "1.5.4@sha256:" + "a" * 64}}}
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            images_manifest_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
 
     assert skipped == []
@@ -319,7 +343,13 @@ def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_quali
     }
 
     new_text, added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values={}
+        text,
+        cdb.MissingEntriesContext(
+            images_manifest_chart_dir,
+            deps,
+            target_values,
+            baseline_values={},
+        ),
     )
     assert added == ["zac"]
     assert "- name: infonl/zaakafhandelcomponent" in new_text
@@ -337,7 +367,13 @@ def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wordi
     baseline_values = {"curl": {"image": {"repository": "curlimages/curl", "tag": "8.21.0@sha256:" + "a" * 64}}}
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            images_manifest_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
 
     assert skipped == []
@@ -356,7 +392,13 @@ def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_i
     target_values = {"zac": {"image": {"repository": "curlimages/curl", "tag": "8.22.0@sha256:aaaa"}}}
 
     new_text, added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values={}
+        text,
+        cdb.MissingEntriesContext(
+            images_manifest_chart_dir,
+            deps,
+            target_values,
+            baseline_values={},
+        ),
     )
     assert added == ["zac"]
     assert "- name: curlimages/curl" in new_text
@@ -378,7 +420,13 @@ def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_u
     }
 
     new_text, added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values={}
+        text,
+        cdb.MissingEntriesContext(
+            images_manifest_chart_dir,
+            deps,
+            target_values,
+            baseline_values={},
+        ),
     )
     assert added == ["zac"]
     assert "- name: azure-cli" in new_text
@@ -402,7 +450,13 @@ def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(c
     }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            images_manifest_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
     assert added == []
     assert skipped == []
@@ -429,7 +483,13 @@ def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb, im
     }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            images_manifest_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
     assert added == []
     assert skipped == ["zac"]
@@ -462,7 +522,13 @@ def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_res
     baseline_values = {"eck-operator": {"enabled": True}}
 
     new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            images_manifest_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
 
     assert skipped == []
@@ -534,7 +600,14 @@ def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_regi
     monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", fake_registry_tag_exists)
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        "", eck_stack_chart_dir, deps, target_values, baseline_values, allow_pull=True
+        "",
+        cdb.MissingEntriesContext(
+            eck_stack_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+            allow_pull=True,
+        ),
     )
 
     assert skipped == []
@@ -559,7 +632,13 @@ def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_netw
     monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", fail_if_called)
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        "", eck_stack_chart_dir, deps, target_values, baseline_values
+        "",
+        cdb.MissingEntriesContext(
+            eck_stack_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
 
     assert added == []
@@ -579,7 +658,14 @@ def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skip
     monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        "", eck_stack_chart_dir, deps, target_values, baseline_values, allow_pull=True
+        "",
+        cdb.MissingEntriesContext(
+            eck_stack_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+            allow_pull=True,
+        ),
     )
 
     assert added == []
@@ -648,7 +734,13 @@ def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(cd
     }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, keycloak_operator_chart_dir, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            keycloak_operator_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
 
     assert skipped == []
@@ -692,7 +784,13 @@ def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still
     }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, keycloak_operator_chart_dir, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            keycloak_operator_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
 
     assert added == []
@@ -743,7 +841,13 @@ def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per
     }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, global_image_chart_dir, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            global_image_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
 
     assert skipped == []
@@ -794,7 +898,13 @@ def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repo
     }
 
     new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
-        text, images_manifest_chart_dir, deps, target_values, baseline_values
+        text,
+        cdb.MissingEntriesContext(
+            images_manifest_chart_dir,
+            deps,
+            target_values,
+            baseline_values,
+        ),
     )
     assert added == ["zac"]
     assert skipped == []  # kiss.adapter.image is excluded entirely, not reported as skipped either
