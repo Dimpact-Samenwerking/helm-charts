@@ -30,6 +30,7 @@ from lib.docs_consistency.markdown_format import check_baseline_doc_set
 from lib.docs_consistency.markdown_format import check_companion_doc
 from lib.docs_consistency.markdown_format import check_doc_title
 from lib.docs_consistency.pointer_consistency import check_pointer_consistency
+from lib.docs_consistency.values_diff import ValuesDeltaInputs
 from lib.docs_consistency.values_diff import check_values_deltas_content
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import digest_pinning_exceptions
@@ -808,10 +809,7 @@ def _check_values_deltas(ctx, findings):
         check_values_deltas_content(
             values_deltas_path,
             ctx.actual_changed_keys,
-            ctx.baseline.values,
-            ctx.current.values,
-            ctx.current.deps,
-            canonical_names_for_deltas,
+            ValuesDeltaInputs(ctx.baseline.values, ctx.current.values, ctx.current.deps, canonical_names_for_deltas),
         )
     )
 
