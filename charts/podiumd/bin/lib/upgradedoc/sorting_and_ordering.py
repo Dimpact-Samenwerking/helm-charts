@@ -306,9 +306,8 @@ def sort_changes_blocks(text, deps, values, canonical_names=None):
     original_texts = ["".join(lines[b["start"] : b["end"]]) for b in blocks]
     new_texts = [original_texts[i] for i in order]
 
-    first_start, last_end = blocks[0]["start"], blocks[-1]["end"]
-    prefix = "".join(lines[:first_start])
-    suffix = "".join(lines[last_end:])
+    prefix = "".join(lines[: blocks[0]["start"]])
+    suffix = "".join(lines[blocks[-1]["end"] :])
     return prefix + "".join(new_texts) + suffix, moved
 
 
@@ -376,9 +375,8 @@ def sort_values_delta_sections(text, deps, values, canonical_names=None):
     original_texts = ["".join(lines[s["start"] : s["end"]]).rstrip("\n") + "\n" for s in sections]
     new_texts = [original_texts[i] for i in order]
 
-    first_start, last_end = sections[0]["start"], sections[-1]["end"]
-    prefix = "".join(lines[:first_start])
-    suffix = "".join(lines[last_end:])
+    prefix = "".join(lines[: sections[0]["start"]])
+    suffix = "".join(lines[sections[-1]["end"] :])
     body = "\n".join(new_texts)
     if suffix:
         body += "\n"
