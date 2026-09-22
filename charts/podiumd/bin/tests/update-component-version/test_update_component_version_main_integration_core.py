@@ -528,13 +528,8 @@ def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_r
     )
     ucv.write_tag_and_sha(
         lines,
-        anchor_tag_idx,
-        anchor_tag_indent,
-        anchor_sha_idx,
-        "26.7.3",
-        "d" * 64,
-        "sha",
-        "keycloak-operator.operator.config.keycloakImage",
+        (anchor_tag_idx, anchor_tag_indent, anchor_sha_idx),
+        ucv.SiblingWrite("26.7.3", "d" * 64, "sha", "keycloak-operator.operator.config.keycloakImage"),
     )
 
     assert lines[anchor_tag_idx] == '        tag: &keycloakImageVersion "26.7.3"\n'
@@ -546,7 +541,9 @@ def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_r
     original_alias_sha_line = lines[alias_sha_idx]
 
     ucv.write_tag_and_sha(
-        lines, alias_tag_idx, alias_tag_indent, alias_sha_idx, "26.7.3", "d" * 64, "sha", "keycloak.image"
+        lines,
+        (alias_tag_idx, alias_tag_indent, alias_sha_idx),
+        ucv.SiblingWrite("26.7.3", "d" * 64, "sha", "keycloak.image"),
     )
 
     # left completely untouched — never clobbered into a literal
