@@ -10,6 +10,68 @@ from lib.docs_consistency.images_manifest_format import match_changes_item_to_en
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 
 
+def _changes_item_block_bounds(lines, header_idx):
+    """Scans lines right after the "# Changes:" header for the item
+    block's own extent (block_end, one past the last "#"-prefixed line)
+    and the start line of every "#   N. ..." item within it (item_starts)
+    -- shared by dedupe_images_manifest_changes_items and
+    sort_images_manifest_changes_items, which both need the exact same
+    scan before doing their own, different thing with the result."""
+    item_starts = []
+    block_end = header_idx + 1
+    for i in range(header_idx + 1, len(lines)):
+        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+            break
+        block_end = i + 1
+        if CHANGES_ITEM_RE.match(lines[i]):
+            item_starts.append(i)
+    return item_starts, block_end
+
+
+def _renumbered_changes_block(chunks):
+    """Renumbers a list of "# Changes:" item chunks (each chunk the item's
+    own raw lines, already in their final relative order) to match their
+    position in `chunks` (1-based), returning the concatenated new block
+    lines -- shared by dedupe/sort, which each build `chunks` differently
+    (kept items in dedupe's case, reordered items in sort's) but then
+    renumber and splice them back the same way."""
+    new_block = []
+    for slot, chunk in enumerate(chunks):
+        chunk = list(chunk)
+        chunk[0] = CHANGES_ITEM_RE.sub(lambda m, n=slot + 1: f"#   {n}. {m.group('rest')}", chunk[0])
+        new_block.extend(chunk)
+    return new_block
+
+
+def _deduped_item_chunks(lines, item_starts, item_ends):
+    """Each item's FULL text (its own first line's "rest" plus any wrapped
+    continuation lines) compared verbatim -- the first occurrence of a
+    given text wins, every later exact repeat is dropped. Returns
+    (keep_chunks, removed) -- keep_chunks the surviving items' own raw
+    lines, removed the dropped items' "rest" text."""
+    seen = set()
+    keep_chunks = []
+    removed = []
+    for start, end in zip(item_starts, item_ends, strict=False):
+        rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
+        full_text = rest + "".join(lines[start + 1 : end])
+        if full_text in seen:
+            removed.append(rest)
+            continue
+        seen.add(full_text)
+        keep_chunks.append(lines[start:end])
+    return keep_chunks, removed
+
+
+def _update_changes_header_count(lines, header_idx, total):
+    """Updates the "# Changes:" header's own leading count word (e.g.
+    "three changes:") to match `total`, mutating lines[header_idx]."""
+    count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
+    noun = "change" if total == 1 else "changes"
+    header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+    lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+
+
 def dedupe_images_manifest_changes_items(lines):
     """Remove an exact-duplicate item from the images-manifest's own "#
     Changes:" numbered list — the real bug a multi-image "lockstep"
@@ -35,47 +97,41 @@ def dedupe_images_manifest_changes_items(lines):
     if header_idx is None:
         return []
 
-    item_starts = []
-    block_end = header_idx + 1
-    for i in range(header_idx + 1, len(lines)):
-        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-            break
-        block_end = i + 1
-        if CHANGES_ITEM_RE.match(lines[i]):
-            item_starts.append(i)
+    item_starts, block_end = _changes_item_block_bounds(lines, header_idx)
     if not item_starts:
         return []
 
     item_ends = [*item_starts[1:], block_end]
-    seen = set()
-    keep_chunks = []
-    removed = []
-    for start, end in zip(item_starts, item_ends, strict=False):
-        rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
-        full_text = rest + "".join(lines[start + 1 : end])
-        if full_text in seen:
-            removed.append(rest)
-            continue
-        seen.add(full_text)
-        keep_chunks.append(lines[start:end])
-
+    keep_chunks, removed = _deduped_item_chunks(lines, item_starts, item_ends)
     if not removed:
         return []
 
-    new_block = []
-    for slot, chunk in enumerate(keep_chunks):
-        chunk = list(chunk)
-        chunk[0] = CHANGES_ITEM_RE.sub(lambda m, n=slot + 1: f"#   {n}. {m.group('rest')}", chunk[0])
-        new_block.extend(chunk)
-    lines[item_starts[0] : block_end] = new_block
-
+    lines[item_starts[0] : block_end] = _renumbered_changes_block(keep_chunks)
     if header_has_count:
-        total = len(keep_chunks)
-        count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
-        noun = "change" if total == 1 else "changes"
-        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
-        lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+        _update_changes_header_count(lines, header_idx, len(keep_chunks))
     return removed
+
+
+def _resolved_changes_items(lines, item_bounds, entries, entry_positions, display_name_positions):
+    """Resolves each item's own sort key: exact display-name match first
+    (see match_changes_item_display_name/display_name_positions), falling
+    back to match_changes_item_to_entry's fuzzy basename-in-text search
+    when no display name matches -- see sort_images_manifest_changes_
+    items' own docstring for why both are needed and in that order.
+    item_bounds is a list of (start, end) line-index pairs, one per item.
+    Returns a list of {"start", "end", "rest", "key"} dicts, one per item,
+    in their ORIGINAL (pre-sort) order."""
+    items = []
+    for start, end in item_bounds:
+        rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
+        display_name = match_changes_item_display_name(rest, display_name_positions or {})
+        if display_name is not None:
+            position = display_name_positions[display_name]
+        else:
+            entry = match_changes_item_to_entry(rest, entries)
+            position = entry_positions.get(entry["name"], len(entry_positions)) if entry else len(entry_positions)
+        items.append({"start": start, "end": end, "rest": rest, "key": position})
+    return items
 
 
 def sort_images_manifest_changes_items(lines, entries, entry_positions, display_name_positions=None):
@@ -123,40 +179,19 @@ def sort_images_manifest_changes_items(lines, entries, entry_positions, display_
     if header_idx is None:
         return []
 
-    item_starts = []
-    block_end = header_idx + 1
-    for i in range(header_idx + 1, len(lines)):
-        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-            break
-        block_end = i + 1
-        if CHANGES_ITEM_RE.match(lines[i]):
-            item_starts.append(i)
+    item_starts, block_end = _changes_item_block_bounds(lines, header_idx)
     if len(item_starts) < 2:
         return []
 
     item_ends = [*item_starts[1:], block_end]
-    items = []
-    for start, end in zip(item_starts, item_ends, strict=False):
-        rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
-        display_name = match_changes_item_display_name(rest, display_name_positions or {})
-        if display_name is not None:
-            position = display_name_positions[display_name]
-        else:
-            entry = match_changes_item_to_entry(rest, entries)
-            position = entry_positions.get(entry["name"], len(entry_positions)) if entry else len(entry_positions)
-        items.append({"start": start, "end": end, "rest": rest, "key": position})
+    item_bounds = list(zip(item_starts, item_ends, strict=False))
+    items = _resolved_changes_items(lines, item_bounds, entries, entry_positions, display_name_positions)
 
     order = sorted(range(len(items)), key=lambda i: items[i]["key"])
     moved = [(items[i]["rest"], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
     if not moved:
         return []
 
-    original_chunks = [lines[it["start"] : it["end"]] for it in items]
-    new_block = []
-    for slot, i in enumerate(order):
-        chunk = list(original_chunks[i])
-        chunk[0] = CHANGES_ITEM_RE.sub(lambda m, n=slot + 1: f"#   {n}. {m.group('rest')}", chunk[0])
-        new_block.extend(chunk)
-
-    lines[item_starts[0] : block_end] = new_block
+    ordered_chunks = [lines[items[i]["start"] : items[i]["end"]] for i in order]
+    lines[item_starts[0] : block_end] = _renumbered_changes_block(ordered_chunks)
     return moved
