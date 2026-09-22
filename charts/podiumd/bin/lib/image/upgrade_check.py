@@ -48,6 +48,7 @@ this repo's own content violates."""
 
 import urllib.error
 
+from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
 
@@ -66,6 +67,194 @@ from lib.registry import parse_repo
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import render_chart
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
+
+
+@dataclass
+class UpgradeCheckContext:
+    """Everything _resolve_target_upgrade needs to resolve ONE digest-pin
+    target that doesn't vary per-target: the label lookups it falls back
+    through (rendered_labels/values_lines/dep_names/vendor_map) and the
+    cache state that stays fixed while the scan is in progress
+    (old_cache, ttl_days). See check_image_upgrades, which builds this."""
+
+    rendered_labels: dict
+    values_lines: list
+    dep_names: object
+    vendor_map: dict
+    old_cache: dict
+    ttl_days: int
+
+
+@dataclass
+class ImageUpgradeScan:
+    """Everything check_image_upgrades's own print/detail logic needs from
+    a completed registry-check pass: the per-ref info map, the three
+    own/partner-vendor/other-vendor ref buckets, and the fetch-errors/
+    cache-hits scan stats. See _scan_image_upgrades, which builds this."""
+
+    images: dict
+    own_refs: list
+    partner_refs: list
+    other_refs: list
+    fetch_errors: list
+    cache_hits: int
+
+
+def _upgrade_info(label, newest, version):
+    """One images[] entry: bucket_of(label), a vendor-label suffix (only
+    for a partner-vendor image — see check_image_upgrades' docstring for
+    why own/other never carry one), and whether a newer tag is published."""
+    return {
+        "bucket": bucket_of(label),
+        "vendor_label": label if bucket_of(label) == "partner" else None,
+        "newest": newest,
+        "has_newer": newest != version,
+    }
+
+
+def _label_for_target(repository, version, digest, line, ctx):
+    """Label for one target: the render's own "# Source:" attribution when
+    it rendered at all, else the values.yaml top-level-key heuristic (see
+    this module's own docstring for why own always wins)."""
+    label = ctx.rendered_labels.get((repository, version, digest))
+    if label is not None:
+        return label
+    top_key = top_level_key_for_line(ctx.values_lines, line)
+    return classify_by_key(top_key, ctx.dep_names, ctx.vendor_map)
+
+
+@dataclass
+class _TargetResolveInfo:
+    """A target's own fixed identity, resolved once up front and threaded
+    through both the cache-hit and registry-fetch paths of
+    _resolve_target_upgrade — see that function."""
+
+    image_ref: str
+    key: str
+    host: str
+    repo_path: str
+    version: str
+    label: str
+
+
+@dataclass
+class _TargetResult:
+    """One target's outcome, as returned by _resolve_target_upgrade: on a
+    registry fetch failure, only image_ref and error=True are meaningful;
+    otherwise key/cache_entry/info are this target's tag-cache entry and
+    images[] entry, and cache_hit says whether it came from the cache."""
+
+    image_ref: str
+    key: object = None
+    cache_entry: object = None
+    info: object = None
+    cache_hit: bool = False
+    error: bool = False
+
+
+def _fetch_target_upgrade(i, total, info):
+    """The registry-fetch path of _resolve_target_upgrade: announces the
+    real tag-list call (a cache hit is near-instant and stays silent —
+    same convention as check_cves), then queries the registry."""
+    print(f"  [{i}/{total}] checking {info.image_ref} for a newer tag...", flush=True)
+    try:
+        newest = find_newest_same_variant_tag(info.host, info.repo_path, info.version)
+    except (urllib.error.URLError, OSError) as e:
+        print(f"  [FETCH-ERR] {info.image_ref}  {e}")
+        return _TargetResult(info.image_ref, error=True)
+
+    cache_entry = {"checked_at": datetime.now(timezone.utc).isoformat(), "newest": newest}
+    return _TargetResult(info.image_ref, info.key, cache_entry, _upgrade_info(info.label, newest, info.version))
+
+
+def _resolve_target_upgrade(i, total, target, ctx):
+    """Resolves ONE unique_digest_pin_targets entry against the tag cache
+    (a fresh cache hit) or the registry (see _fetch_target_upgrade)."""
+    (repository, version), (digest, line) = target
+    host, repo_path = parse_repo(repository)
+    info = _TargetResolveInfo(
+        f"{host}/{repo_path}:{version}",
+        cache_key(repository, version),
+        host,
+        repo_path,
+        version,
+        _label_for_target(repository, version, digest, line, ctx),
+    )
+    cached = ctx.old_cache.get(info.key)
+
+    if cached and cache_entry_is_fresh(cached, ctx.ttl_days):
+        result_info = _upgrade_info(info.label, cached["newest"], info.version)
+        return _TargetResult(info.image_ref, info.key, cached, result_info, cache_hit=True)
+
+    return _fetch_target_upgrade(i, total, info)
+
+
+def _bucket_refs(images):
+    """own_refs, partner_refs, other_refs -- the ref lists for each of
+    check_image_upgrades' own/partner-vendor/other-vendor buckets, drawn
+    from `images`' own "bucket" field (see _upgrade_info)."""
+
+    def refs_in(bucket):
+        return [ref for ref, info in images.items() if info["bucket"] == bucket]
+
+    return refs_in("own"), refs_in("partner"), refs_in("other")
+
+
+def _scan_image_upgrades(chart_dir, targets, ctx):
+    """Resolves every target (see _resolve_target_upgrade), saving the tag
+    cache incrementally after each real registry call (same convention as
+    check_cves) and once more at the end (to drop stale entries for an
+    image no longer pinned). Bundles the result into an ImageUpgradeScan."""
+    new_cache = {}
+    cache_hits = 0
+    images = {}
+    fetch_errors = []
+
+    for i, target in enumerate(targets, 1):
+        r = _resolve_target_upgrade(i, len(targets), target, ctx)
+        if r.error:
+            fetch_errors.append(r.image_ref)
+            continue
+        new_cache[r.key] = r.cache_entry
+        if r.cache_hit:
+            cache_hits += 1
+        else:
+            save_cache(chart_dir, new_cache)  # persist incrementally, same as check_cves
+        images[r.image_ref] = r.info
+
+    save_cache(chart_dir, new_cache)  # drop entries for images no longer pinned
+
+    own_refs, partner_refs, other_refs = _bucket_refs(images)
+    return ImageUpgradeScan(images, own_refs, partner_refs, other_refs, fetch_errors, cache_hits)
+
+
+def _print_image_upgrade_findings(scan, total, ttl_days):
+    """Prints check_image_upgrades' three report sections (own/partner-
+    vendor/other-vendor), the OK-line/fetch-errors sections, and the
+    cache-hit summary line -- see check_image_upgrades' own docstring for
+    what each section means."""
+    print_upgradable("Own images", scan.own_refs, scan.images)
+    print_upgradable("Partner-vendor images", scan.partner_refs, scan.images)
+    print_upgradable("Other-vendor images", scan.other_refs, scan.images)
+
+    if not any(info["has_newer"] for info in scan.images.values()):
+        print("OK: no newer tag published for any pinned image")
+
+    if scan.fetch_errors:
+        print(f"{len(scan.fetch_errors)} image(s) could not be checked:")
+        for ref in scan.fetch_errors:
+            print(f"  {ref}")
+    print(f"{scan.cache_hits}/{total} image(s) served from cache (checked within the last {ttl_days} day(s))")
+
+
+def _image_upgrade_detail(scan):
+    own_n, own_up = bucket_totals(scan.own_refs, scan.images)
+    partner_n, partner_up = bucket_totals(scan.partner_refs, scan.images)
+    other_n, other_up = bucket_totals(scan.other_refs, scan.images)
+    return (
+        f"upgradable: {own_up}/{own_n} own, {partner_up}/{partner_n} partner-vendor, "
+        f"{other_up}/{other_n} other-vendor; {len(scan.fetch_errors)} fetch error(s)"
+    )
 
 
 def check_image_upgrades(chart_dir, extra_args):
@@ -94,82 +283,12 @@ def check_image_upgrades(chart_dir, extra_args):
     values_lines = values_path.read_text(encoding="utf-8").splitlines()
     targets = sorted(unique_digest_pin_targets(values_lines).items())
 
-    old_cache = load_cache(chart_dir)
-    new_cache = {}
-    cache_hits = 0
-
+    ctx = UpgradeCheckContext(rendered_labels, values_lines, dep_names, vendor_map, load_cache(chart_dir), ttl_days)
     print(f"Checking {len(targets)} unique pinned image(s) for a newer published tag...")
+    scan = _scan_image_upgrades(chart_dir, targets, ctx)
 
-    images = {}
-    fetch_errors = []
-    for i, ((repository, version), (digest, line)) in enumerate(targets, 1):
-        host, repo_path = parse_repo(repository)
-        image_ref = f"{host}/{repo_path}:{version}"
-        key = cache_key(repository, version)
-        cached = old_cache.get(key)
-
-        label = rendered_labels.get((repository, version, digest))
-        if label is None:
-            top_key = top_level_key_for_line(values_lines, line)
-            label = classify_by_key(top_key, dep_names, vendor_map)
-
-        if cached and cache_entry_is_fresh(cached, ttl_days):
-            newest = cached["newest"]
-            cache_hits += 1
-            new_cache[key] = cached
-        else:
-            # A cache hit is near-instant and stays silent (same
-            # convention as check_cves — only totaled in the final
-            # "N/M served from cache" line); a real tag-list call is the
-            # one thing here worth announcing as it starts.
-            print(f"  [{i}/{len(targets)}] checking {image_ref} for a newer tag...", flush=True)
-            try:
-                newest = find_newest_same_variant_tag(host, repo_path, version)
-            except (urllib.error.URLError, OSError) as e:
-                fetch_errors.append(image_ref)
-                print(f"  [FETCH-ERR] {image_ref}  {e}")
-                continue
-            new_cache[key] = {
-                "checked_at": datetime.now(timezone.utc).isoformat(),
-                "newest": newest,
-            }
-            save_cache(chart_dir, new_cache)  # persist incrementally, same as check_cves
-
-        images[image_ref] = {
-            "bucket": bucket_of(label),
-            "vendor_label": label if bucket_of(label) == "partner" else None,
-            "newest": newest,
-            "has_newer": newest != version,
-        }
-
-    save_cache(chart_dir, new_cache)  # drop entries for images no longer pinned
-
-    def refs_in(bucket):
-        return [ref for ref, info in images.items() if info["bucket"] == bucket]
-
-    own_refs, partner_refs, other_refs = refs_in("own"), refs_in("partner"), refs_in("other")
-
-    print_upgradable("Own images", own_refs, images)
-    print_upgradable("Partner-vendor images", partner_refs, images)
-    print_upgradable("Other-vendor images", other_refs, images)
-
-    if not any(info["has_newer"] for info in images.values()):
-        print("OK: no newer tag published for any pinned image")
-
-    if fetch_errors:
-        print(f"{len(fetch_errors)} image(s) could not be checked:")
-        for ref in fetch_errors:
-            print(f"  {ref}")
-    print(f"{cache_hits}/{len(targets)} image(s) served from cache (checked within the last {ttl_days} day(s))")
-
-    own_n, own_up = bucket_totals(own_refs, images)
-    partner_n, partner_up = bucket_totals(partner_refs, images)
-    other_n, other_up = bucket_totals(other_refs, images)
-    detail = (
-        f"upgradable: {own_up}/{own_n} own, {partner_up}/{partner_n} partner-vendor, "
-        f"{other_up}/{other_n} other-vendor; {len(fetch_errors)} fetch error(s)"
-    )
-    return True, detail
+    _print_image_upgrade_findings(scan, len(targets), ttl_days)
+    return True, _image_upgrade_detail(scan)
 
 
 def bucket_totals(refs, images):
