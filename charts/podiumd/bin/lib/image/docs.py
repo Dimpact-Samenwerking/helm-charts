@@ -19,6 +19,8 @@ since a bare basename never matches a Chart.yaml dependency by name."""
 
 import re
 
+from dataclasses import dataclass
+
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
@@ -35,6 +37,18 @@ from lib.chart.values_tree_primitives import version_of
 from lib.checks.digest_pinning import find_unresolved_subchart_images
 from lib.component_docs.changes_section import ComponentIdentity
 from lib.component_docs.changes_section import OrderingContext
+
+# ComponentState/DocContext aren't used by this module's own code below --
+# kept imported only so the tests/ suite's `libimagedocs` fixture (which
+# imports this whole module) can still reach them as
+# libimagedocs.ComponentState/libimagedocs.DocContext (add_missing_sidecar_
+# rows/update_stale_app_version_headings take one of each as a caller-
+# constructed argument).
+# pylint: disable-next=unused-import
+from lib.component_docs.changes_section import ComponentState  # noqa: F401
+
+# pylint: disable-next=unused-import
+from lib.component_docs.changes_section import DocContext  # noqa: F401
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import dep_for_values_key
 from lib.component_docs.changes_section import insert_changes_section
@@ -110,7 +124,126 @@ def make_image_changes_section(basename, target, old_version, new_version, pinne
     return "".join(lines)
 
 
-def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_values, target, upgrade_docs_baseline=None):
+@dataclass
+class _SidecarScanState:
+    """add_missing_sidecar_rows' own precomputed values.yaml-derived
+    tables its per-path loop reads from — computed once up front
+    (identical for every candidate path, not per-path) rather than
+    recomputed on every iteration."""
+
+    canonical_names: dict
+    current_paths: dict
+    baseline_paths: dict
+    baseline_repo_groups: dict
+    matched_paths: set
+
+
+@dataclass
+class _SidecarRowContext:
+    """_SidecarScanState + the target_state/baseline_values/doc_context
+    a single sidecar row's own resolution needs, bundled purely to keep
+    _add_sidecar_row's own argument count down."""
+
+    state: object
+    target_state: object
+    baseline_values: dict
+    doc_context: object
+
+
+def _sidecar_scan_state(text, doc_context, target_state, baseline_values):
+    """Builds _SidecarScanState — split out of add_missing_sidecar_rows
+    purely to keep its own local-variable count down."""
+    current_paths = dict(find_image_tag_paths(target_state.values))
+    current_paths.update(global_image_paths(target_state.values))
+    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+    baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
+    canonical_names = canonical_sidecar_row_names(
+        doc_context.chart_dir, target_state.deps, target_state.values, current_paths.keys()
+    )
+    # Grouped once, up front, against baseline_values (NOT target_state.
+    # values -- this is "where did this repository already live in the
+    # baseline tree", not a current-tree question) and reused across
+    # every path below rather than recomputed per path.
+    baseline_repo_groups = (
+        paths_by_repository(doc_context.chart_dir, target_state.deps, baseline_values, baseline_paths.keys())
+        if baseline_values
+        else {}
+    )
+    matched_paths = {
+        path for row in parse_upgrade_doc_rows(text) for path in [canonical_names.get(row["name"])] if path is not None
+    }
+    return _SidecarScanState(canonical_names, current_paths, baseline_paths, baseline_repo_groups, matched_paths)
+
+
+def _resolve_sidecar_old_app(path, ctx):
+    """A sidecar path's own prior app version when there's no EXACT
+    match in ctx.state.baseline_paths (baseline_tag is None) — not
+    immediately treated as genuinely new. Two fallback tiers, in order:
+    1. lib.chart.baseline_tag_for_sidecar_path — does this same
+       repository already live somewhere else in baseline_values, under
+       a different values-tree path? Real case: podiumd 4.9.1
+       consolidated two separate postgres pins (keycloak-operator's own
+       ensurePodiumdAdminUser job and openbao's own schemaJob) into one
+       new shared global.images.postgres anchor — that exact path never
+       existed in the 4.9.1 baseline, but the same "postgres" repository
+       already did, at openbao.database.schemaJob.image; that path's own
+       baseline tag is the true prior version, even though this exact
+       path is new.
+    2. Only once that also finds nothing: does this repository appear in
+       any of this chart's own PAST images-<version>.yaml manifests
+       (real, already-committed per-release documents)? Never a fallback
+       to the removed images-baseline.yaml side-file (ACR-mirror digest
+       provenance, a genuinely different, unrelated question)."""
+    old_app = baseline_tag_for_sidecar_path(
+        ctx.doc_context.chart_dir,
+        ctx.target_state.deps,
+        ctx.target_state.values,
+        ctx.baseline_values,
+        ctx.state.baseline_paths,
+        ctx.state.baseline_repo_groups,
+        path,
+    )
+    if old_app is None and ctx.baseline_values:
+        old_app = historical_app_version_for_path(
+            ctx.doc_context.chart_dir,
+            ctx.target_state.deps,
+            ctx.target_state.values,
+            path,
+            ctx.doc_context.upgrade_docs_baseline,
+        )
+    return old_app
+
+
+def _add_sidecar_row(text, name, path, ctx):
+    """Insert `name`'s own missing sidecar/shared-image row + Changes
+    section into `text` for values-tree path `path`, or (text, False)
+    unchanged if it's already matched, unchanged since baseline (a
+    digest-only re-pin never counts — -upgrade.md documents version
+    changes only), or the doc has no table to insert into at all. Split
+    out of add_missing_sidecar_rows' own per-path loop purely to keep
+    ITS own local-variable count down."""
+    if path in ctx.state.matched_paths:
+        return text, False
+    current_tag = ctx.state.current_paths.get(path)
+    baseline_tag = ctx.state.baseline_paths.get(path)
+    if current_tag is None or (baseline_tag is not None and version_of(current_tag) == version_of(baseline_tag)):
+        return text, False
+    new_app = current_tag.split("@", 1)[0]
+    old_app = _resolve_sidecar_old_app(path, ctx)
+
+    ordering = OrderingContext(ctx.target_state.deps, ctx.target_state.values, ctx.state.canonical_names)
+    text, table_action = update_component_table(text, name, VersionChange(old_app, new_app, None, "-"), ordering)
+    if table_action is None:
+        return text, False  # doc has no "Component versions" table at all to insert into
+
+    text, _ = remove_changes_section(text, name)
+    dotted_path = ".".join(path) + ".tag"
+    section = make_image_changes_section(name, ctx.doc_context.target, old_app, new_app, [(dotted_path, old_app)])
+    text = insert_changes_section(text, section, name, ordering)
+    return text, True
+
+
+def add_missing_sidecar_rows(text, doc_context, target_state, baseline_values):
     """Insert a new "Component versions" table row + matching "### ..."
     Changes section for every canonical sidecar/shared-image name (see
     lib.chart.canonical_sidecar_row_names — "<values_key> - <basename>"
@@ -163,70 +296,13 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
     "postgres" repository already did, elsewhere in the tree.
 
     Returns (new_text, added_names)."""
-    current_paths = dict(find_image_tag_paths(target_values))
-    current_paths.update(global_image_paths(target_values))
-    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
-    baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
-    canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
-    # Grouped once, up front, against baseline_values (NOT target_values —
-    # this is "where did this repository already live in the baseline
-    # tree", not a current-tree question) and reused across every path
-    # below rather than recomputed per path.
-    baseline_repo_groups = (
-        paths_by_repository(chart_dir, deps, baseline_values, baseline_paths.keys()) if baseline_values else {}
-    )
-
-    matched_paths = {
-        path for row in parse_upgrade_doc_rows(text) for path in [canonical_names.get(row["name"])] if path is not None
-    }
-
+    state = _sidecar_scan_state(text, doc_context, target_state, baseline_values)
+    ctx = _SidecarRowContext(state, target_state, baseline_values, doc_context)
     added_names = []
-    for name, path in sorted(canonical_names.items()):
-        if path in matched_paths:
-            continue
-        current_tag = current_paths.get(path)
-        baseline_tag = baseline_paths.get(path)
-        if current_tag is None or (baseline_tag is not None and version_of(current_tag) == version_of(baseline_tag)):
-            continue
-        new_app = current_tag.split("@", 1)[0]
-        # `path` not in baseline_paths at all (real case: redis-operator's
-        # own "k8s" sidecar, added in 4.9.0; or postgres's own two
-        # separate per-component pins consolidated into one new shared
-        # global.images.postgres anchor in 4.9.1) means baseline_tag is
-        # None — this EXACT values-tree path genuinely isn't in the
-        # baseline. Before concluding "genuinely new", check two fallback
-        # tiers, in order:
-        # 1. lib.chart.baseline_tag_for_sidecar_path — does this same
-        #    repository already live somewhere else in baseline_values,
-        #    under a different values-tree path? Real case: the postgres
-        #    consolidation above — global.images.postgres never existed
-        #    in the 4.9.1 baseline, but the same "postgres" repository
-        #    already did, at openbao.database.schemaJob.image; that
-        #    path's own baseline tag is the true prior version, even
-        #    though this exact path is new.
-        # 2. Only once that also finds nothing: does this repository
-        #    appear in any of this chart's own PAST images-<version>.yaml
-        #    manifests (real, already-committed per-release documents)?
-        # Never a fallback to the removed images-baseline.yaml side-file
-        # (ACR-mirror digest provenance, a genuinely different, unrelated
-        # question).
-        old_app = baseline_tag_for_sidecar_path(
-            chart_dir, deps, target_values, baseline_values, baseline_paths, baseline_repo_groups, path
-        )
-        if old_app is None and baseline_values:
-            old_app = historical_app_version_for_path(chart_dir, deps, target_values, path, upgrade_docs_baseline)
-
-        ordering = OrderingContext(deps, target_values, canonical_names)
-        text, table_action = update_component_table(text, name, VersionChange(old_app, new_app, None, "-"), ordering)
-        if table_action is None:
-            continue  # doc has no "Component versions" table at all to insert into
-
-        text, _ = remove_changes_section(text, name)
-        dotted_path = ".".join(path) + ".tag"
-        section = make_image_changes_section(name, target, old_app, new_app, [(dotted_path, old_app)])
-        text = insert_changes_section(text, section, name, ordering)
-        added_names.append(name)
-
+    for name, path in sorted(state.canonical_names.items()):
+        text, added = _add_sidecar_row(text, name, path, ctx)
+        if added:
+            added_names.append(name)
     return text, added_names
 
 
@@ -334,7 +410,83 @@ def _remove_changes_block_by_exact_heading(text, heading):
     return "".join(lines), True
 
 
-def update_stale_app_version_headings(text, chart_dir, deps, target_values, target, canonical_names):
+@dataclass
+class _StaleHeadingContext:
+    """doc_context (chart_dir/target) + ordering (deps/target_values/
+    canonical_names), bundled since every one of update_stale_app_
+    version_headings' own helpers needs some subset of both."""
+
+    doc_context: object
+    ordering: object
+
+
+def _rows_by_identity(text, ctx):
+    """{identity: row} for every "Component versions" table row in
+    `text` that resolves to a real identity (see resolve_component_
+    identity) — update_stale_app_version_headings' own way of looking up
+    a stale heading's matching row. Split out purely to keep its own
+    local-variable count down."""
+    rows_by_identity = {}
+    for row in parse_upgrade_doc_rows(text):
+        ident = resolve_component_identity(row["name"], ctx.ordering.deps, ctx.ordering.canonical_names)
+        if ident is not None:
+            rows_by_identity[ident] = row
+    return rows_by_identity
+
+
+def _stale_app_version_headings(text, ctx):
+    """[(heading, ident), ...] for every "### ..." Changes heading in
+    `text` that's missing its own primary-image app version (see
+    changes_heading_has_app_version) AND resolves to exactly one real
+    "dep" identity (never a sidecar — see update_stale_app_version_
+    headings' own docstring for why). Split out purely to keep its own
+    local-variable count down."""
+    stale = []
+    for heading in [b["heading"] for b in parse_upgrade_doc_changes_blocks(text)]:
+        if changes_heading_has_app_version(heading):
+            continue
+        idents = changes_heading_identities(heading, ctx.ordering.deps, ctx.ordering.canonical_names)
+        if len(idents) != 1:
+            continue
+        ident = next(iter(idents))
+        if ident[0] != "dep":
+            continue
+        stale.append((heading, ident))
+    return stale
+
+
+def _rewrite_stale_heading(text, heading, ident, rows_by_identity, ctx):
+    """Rewrites `heading`'s own "### ..." block in `text` from its
+    matching table row (see build_changes_section_for_row), if its
+    actual_app_version resolves at all — (new_text, True) if rewritten,
+    (text, False) unchanged otherwise (unresolvable dep/app version, no
+    matching row, or the heading couldn't be found to remove). Split out
+    of update_stale_app_version_headings' own per-heading loop purely to
+    keep ITS own local-variable count down."""
+    _, values_key = ident
+    dep = dep_for_values_key(ctx.ordering.deps, values_key)
+    if dep is None:
+        return text, False
+    actual_app = actual_app_version(
+        ctx.ordering.values, values_key, dep["name"], chart_dir=ctx.doc_context.chart_dir, dep=dep
+    )
+    if not actual_app:
+        return text, False
+    row = rows_by_identity.get(ident)
+    if row is None:
+        return text, False
+    section = build_changes_section_for_row(row, ident, ctx.ordering.deps, ctx.doc_context.target)
+    if section is None:
+        return text, False
+
+    text, removed = _remove_changes_block_by_exact_heading(text, heading)
+    if not removed:
+        return text, False
+    text = insert_changes_section(text, section, row["name"], ctx.ordering)
+    return text, True
+
+
+def update_stale_app_version_headings(text, doc_context, ordering):
     """Regenerate a "### ..." Changes section whose own heading is
     missing the primary-image app version (see lib.upgradedoc.changes_
     heading_has_app_version) for a component that DOES have one
@@ -361,46 +513,13 @@ def update_stale_app_version_headings(text, chart_dir, deps, target_values, targ
     missing the primary-image app version" check reports. Returns
     (new_text, updated_headings) — updated_headings is the ORIGINAL
     (pre-fix) heading text for every section actually rewritten."""
-    rows_by_identity = {}
-    for row in parse_upgrade_doc_rows(text):
-        ident = resolve_component_identity(row["name"], deps, canonical_names)
-        if ident is not None:
-            rows_by_identity[ident] = row
-
-    stale_headings = []
-    for heading in [b["heading"] for b in parse_upgrade_doc_changes_blocks(text)]:
-        if changes_heading_has_app_version(heading):
-            continue
-        idents = changes_heading_identities(heading, deps, canonical_names)
-        if len(idents) != 1:
-            continue
-        ident = next(iter(idents))
-        if ident[0] != "dep":
-            continue
-        stale_headings.append((heading, ident))
-
+    ctx = _StaleHeadingContext(doc_context, ordering)
+    rows_by_identity = _rows_by_identity(text, ctx)
     updated_headings = []
-    for heading, ident in stale_headings:
-        _, values_key = ident
-        dep = dep_for_values_key(deps, values_key)
-        if dep is None:
-            continue
-        actual_app = actual_app_version(target_values, values_key, dep["name"], chart_dir=chart_dir, dep=dep)
-        if not actual_app:
-            continue
-        row = rows_by_identity.get(ident)
-        if row is None:
-            continue
-        section = build_changes_section_for_row(row, ident, deps, target)
-        if section is None:
-            continue
-
-        text, removed = _remove_changes_block_by_exact_heading(text, heading)
-        if not removed:
-            continue
-        text = insert_changes_section(text, section, row["name"], OrderingContext(deps, target_values, canonical_names))
-        updated_headings.append(heading)
-
+    for heading, ident in _stale_app_version_headings(text, ctx):
+        text, updated = _rewrite_stale_heading(text, heading, ident, rows_by_identity, ctx)
+        if updated:
+            updated_headings.append(heading)
     return text, updated_headings
 
 
@@ -426,137 +545,216 @@ def resolve_basename_baseline_version(baseline_values, full_paths):
     return next(iter(versions)) if len(versions) == 1 else None
 
 
-def update_image_manifest(
-    images_path, basename, repository, old_version, new_version, digest, deps=(), values=None, canonical_names=None
-):
+@dataclass
+class ImageBump:
+    """A shared image basename's own version-bump facts, bundled since
+    update_image_manifest/remove_image_manifest_entry both need all
+    four to locate and rewrite the same images-manifest entry."""
+
+    basename: str
+    repository: str
+    old_version: str
+    new_version: str
+    digest: str
+
+
+def _manifest_header_items(lines, header_idx):
+    """([item_index, ...], block_end) — the "#   N. ..." item line
+    indices already under `lines`' own changes header (at header_idx),
+    and the header block's own end index (one past its last "#..."
+    line). Shared by update_image_manifest/remove_image_manifest_entry,
+    split out purely to keep both their own local-variable counts
+    down."""
+    item_indices = []
+    block_end = header_idx + 1
+    for i in range(header_idx + 1, len(lines)):
+        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+            break
+        block_end = i + 1
+        if re.match(r"^#\s*\d+\.", lines[i]):
+            item_indices.append(i)
+    return item_indices, block_end
+
+
+def _find_manifest_header_item(lines, item_indices, basename):
+    """Index within item_indices whose own item text mentions `basename`
+    (normalized), or None. Shared by update_image_manifest/remove_
+    image_manifest_entry."""
+    norm_basename = normalize_name(basename)
+    for idx in item_indices:
+        m = CHANGES_ITEM_RE.match(lines[idx])
+        if m and norm_basename in normalize_name(m.group("rest")):
+            return idx
+    return None
+
+
+def _find_manifest_entry(lines, repository):
+    """(entry_line, block_end) for the first images-manifest "- name:
+    ..." entry block whose own "url:" (host-stripped) matches
+    `repository` — (None, None) if none does. Shared by update_image_
+    manifest/remove_image_manifest_entry, which both need to locate the
+    SAME entry before doing two different things to it."""
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    url_re = re.compile(r"^\s*url:\s*(\S+)\s*$")
+    for idx in entry_line_indices:
+        block_end = len(lines)
+        for j in range(idx + 1, len(lines)):
+            if re.match(r"^-\s*name:", lines[j]) or not lines[j].strip():
+                block_end = j
+                break
+        for j in range(idx, block_end):
+            m = url_re.match(lines[j])
+            if m and m.group(1).rstrip("/").endswith(repository):
+                return idx, block_end
+    return None, None
+
+
+def _update_manifest_entry_scalars(lines, entry_line, block_end, new_version, digest):
+    """Rewrites lines[entry_line:block_end]'s own "version:"/"digest:"
+    scalars to new_version/digest in place. Returns True if entry_line
+    is a real match (something was updated), False (a no-op) if
+    entry_line is None. Shared by update_image_manifest/remove_image_
+    manifest_entry — their own source-comment handling differs
+    (rewritten vs deleted) and stays separate in each."""
+    if entry_line is None:
+        return False
+    entry_updated = False
+    for i in range(entry_line, block_end):
+        m = re.match(r"^\s*(version|digest):", lines[i])
+        if not m:
+            continue
+        new_value = new_version if m.group(1) == "version" else digest
+        lines[i] = replace_scalar_value(lines[i], new_value)
+        entry_updated = True
+    return entry_updated
+
+
+def _update_manifest_changes_header(lines, bump, ordering):
+    """Insert or update `bump.basename`'s own "#   N. ..." changes-
+    header item in `lines` (the images-manifest's own "# Changes:"/"#
+    <N> changes:" list) — None (nothing found to touch) if the manifest
+    has no header at all, else "updated" (an existing item for this
+    basename was found and rewritten) or "added" (a brand-new item was
+    inserted, in `ordering`'s own values.yaml order via component_
+    order_key when `ordering.values` is given, else appended at the
+    end). Split out of update_image_manifest purely to keep its own
+    local-variable count down."""
+    # find_images_manifest_changes_header (not a bare CHANGES_HEADER_RE
+    # scan) — the real, hand-curated images-manifest header is the plain
+    # "# Changes:" form (no count word at all), which CHANGES_HEADER_RE
+    # alone never recognizes. Silently finding no header at all meant
+    # this whole block — and so the header-list item — was skipped
+    # outright for every MULTIPLE-scope basename bump against a real
+    # manifest, never even reaching the "no existing entry" case a human
+    # could act on.
+    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
+    if header_idx is None:
+        return None
+
+    item_indices, block_end = _manifest_header_items(lines, header_idx)
+    match_idx = _find_manifest_header_item(lines, item_indices, bump.basename)
+    item_text = f"{bump.basename} {image_manifest_version_text(bump.old_version, bump.new_version)}."
+
+    if match_idx is not None:
+        m = CHANGES_ITEM_RE.match(lines[match_idx])
+        lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
+        return "updated"
+    if ordering.values is not None:
+        # insert_images_manifest_header_item never rewrites the header's
+        # own wording into a counted form ("# Three changes:") — same
+        # bare "# Changes:" convention this function already matched
+        # before this fix.
+        key_order = values_key_order(ordering.values)
+        new_key = component_order_key(
+            bump.basename, ordering.deps, key_order, ordering.canonical_names, ordering.values
+        )
+        insert_images_manifest_header_item(lines, ordering.deps, key_order, new_key, item_text)
+        return "added"
+    # No ordering context given at all — fall back to the previous
+    # always-append behavior rather than guessing.
+    new_num = len(item_indices) + 1
+    insert_at = block_end if item_indices else header_idx + 1
+    lines.insert(insert_at, f"#   {new_num}. {item_text}\n")
+    return "added"
+
+
+def update_image_manifest(images_path, bump, ordering=None):
     """Update the "# <N> changes:" header list and the images-manifest
-    entry for a shared image basename bump — keyed by `repository` (an
-    entry's "url:" resolving to it, host-stripped same as the "name:"
-    convention docs/images/acr-mirror-naming.md documents), not a
-    values-tree path. Returns (changes_action, entry_updated) —
+    entry for a shared image basename bump — keyed by `bump.repository`
+    (an entry's "url:" resolving to it, host-stripped same as the
+    "name:" convention docs/images/acr-mirror-naming.md documents), not
+    a values-tree path. Returns (changes_action, entry_updated) —
     entry_updated is False (not an error) when no existing entry's
     "url:" matches this repository; the caller reports the correct
     name/url to add by hand instead, same convention as
     lib.component_docs.update_images_manifest's own missing_entries.
 
-    deps/values/canonical_names position a BRAND-NEW header item at this
-    basename's own real values.yaml order slot (lib.upgradedoc.
-    component_order_key — the SAME convention update-image-version's own
-    update_docs_shared_image already uses to position this exact
-    basename's "Component versions" table row/"### ..." Changes section
-    in the upgrade doc, via canonical_names' "global" shared-image
-    fallback) — real bug this fixes: this function used to always
-    APPEND a new item at the very end of the existing list regardless of
-    where it really belongs, while lib.component_docs.update_images_
-    manifest (the sibling function for a real Chart.yaml dependency's
-    own bump) already positioned ITS new items by values.yaml order —
-    the two disagreeing on ordering convention meant a component bumped
-    through THIS function (e.g. a shared "global.images" anchor) could
-    land its header item in a position that contradicted another
-    component's own item bumped through the OTHER function in the very
-    same run, scrambling the header list's order relative to the entries
-    below it even though neither individual insert was wrong on its own
+    `ordering` (see _update_manifest_changes_header) positions a
+    BRAND-NEW header item at this basename's own real values.yaml order
+    slot (lib.upgradedoc.component_order_key — the SAME convention
+    update-image-version's own update_docs_shared_image already uses to
+    position this exact basename's "Component versions" table row/
+    "### ..." Changes section in the upgrade doc, via ordering.
+    canonical_names' "global" shared-image fallback) — real bug this
+    fixes: this function used to always APPEND a new item at the very
+    end of the existing list regardless of where it really belongs,
+    while lib.component_docs.update_images_manifest (the sibling
+    function for a real Chart.yaml dependency's own bump) already
+    positioned ITS new items by values.yaml order — the two disagreeing
+    on ordering convention meant a component bumped through THIS
+    function (e.g. a shared "global.images" anchor) could land its
+    header item in a position that contradicted another component's own
+    item bumped through the OTHER function in the very same run,
+    scrambling the header list's order relative to the entries below it
+    even though neither individual insert was wrong on its own
     (confirmed live: images-4.9.1.yaml's own "redis 8.0 (new)." item,
     always appended last here, ended up AFTER "mi ...unchanged."'s own
     values.yaml-order-positioned item even though redis's real entry
-    sits earlier). Omit (or pass deps=(), values=None) only where no
-    real ordering context is available at all — falls back to appending
-    at the end, same as before, never crashes."""
+    sits earlier). Omit `ordering` entirely only where no real ordering
+    context is available at all — falls back to appending at the end,
+    same as before, never crashes."""
+    ordering = ordering or OrderingContext((), None)
     original_text = images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
-    # find_images_manifest_changes_header (not a bare CHANGES_HEADER_RE
-    # scan) — the real, hand-curated images-manifest header is the plain
-    # "# Changes:" form (no count word at all), which CHANGES_HEADER_RE
-    # alone never recognizes (see that function's own docstring for the
-    # identical bug already fixed in update_images_manifest/lib.
-    # component_docs — this was the same gap in THIS function, just never
-    # given the same fix). Silently finding no header at all meant this
-    # whole block — and so the header-list item — was skipped outright
-    # for every MULTIPLE-scope basename bump against a real manifest,
-    # never even reaching the "no existing entry" case a human could act
-    # on.
-    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
+    changes_action = _update_manifest_changes_header(lines, bump, ordering)
 
-    changes_action = None
-    if header_idx is not None:
-        item_indices = []
-        block_end = header_idx + 1
-        for i in range(header_idx + 1, len(lines)):
-            if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-                break
-            block_end = i + 1
-            if re.match(r"^#\s*\d+\.", lines[i]):
-                item_indices.append(i)
-
-        norm_basename = normalize_name(basename)
-        match_idx = None
-        for idx in item_indices:
-            m = CHANGES_ITEM_RE.match(lines[idx])
-            if m and norm_basename in normalize_name(m.group("rest")):
-                match_idx = idx
-                break
-
-        item_text = f"{basename} {image_manifest_version_text(old_version, new_version)}."
-
-        if match_idx is not None:
-            m = CHANGES_ITEM_RE.match(lines[match_idx])
-            lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
-            changes_action = "updated"
-        elif values is not None:
-            # insert_images_manifest_header_item never rewrites the
-            # header's own wording into a counted form ("# Three
-            # changes:") — same bare "# Changes:" convention this
-            # function already matched before this fix.
-            key_order = values_key_order(values)
-            new_key = component_order_key(basename, deps, key_order, canonical_names, values)
-            insert_images_manifest_header_item(lines, deps, key_order, new_key, item_text)
-            changes_action = "added"
-        else:
-            # No ordering context given at all — fall back to the
-            # previous always-append behavior rather than guessing.
-            new_num = len(item_indices) + 1
-            insert_at = block_end if item_indices else header_idx + 1
-            lines.insert(insert_at, f"#   {new_num}. {item_text}\n")
-            changes_action = "added"
-
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    url_re = re.compile(r"^\s*url:\s*(\S+)\s*$")
-
-    entry_line, block_end2 = None, None
-    for idx in entry_line_indices:
-        candidate_end = len(lines)
-        for j in range(idx + 1, len(lines)):
-            if re.match(r"^-\s*name:", lines[j]) or not lines[j].strip():
-                candidate_end = j
-                break
-        for j in range(idx, candidate_end):
-            m = url_re.match(lines[j])
-            if m and m.group(1).rstrip("/").endswith(repository):
-                entry_line, block_end2 = idx, candidate_end
-                break
-        if entry_line is not None:
-            break
-
-    entry_updated = False
+    entry_line, block_end2 = _find_manifest_entry(lines, bump.repository)
+    entry_updated = _update_manifest_entry_scalars(lines, entry_line, block_end2, bump.new_version, bump.digest)
     if entry_line is not None:
-        for i in range(entry_line, block_end2):
-            m = re.match(r"^\s*(version|digest):", lines[i])
-            if not m:
-                continue
-            new_value = new_version if m.group(1) == "version" else digest
-            lines[i] = replace_scalar_value(lines[i], new_value)
-            entry_updated = True
         comment_idx = find_preceding_comment_line(lines, entry_line)
         if comment_idx is not None:
             current_source = extract_source_version(lines[comment_idx])
             if current_source:
-                lines[comment_idx] = replace_version_pair(lines[comment_idx], current_source, new_version)
+                lines[comment_idx] = replace_version_pair(lines[comment_idx], current_source, bump.new_version)
 
     new_text = "".join(lines)
     if new_text != original_text:
         images_path.write_text(new_text, encoding="utf-8")
     return changes_action, entry_updated
+
+
+def _remove_manifest_changes_header_item(lines, basename):
+    """Deletes `basename`'s own "#   N. ..." changes-header item from
+    `lines` (renumbering the ones after it) — returns "removed", or None
+    if there was no header, or no matching item, to touch. Split out of
+    remove_image_manifest_entry purely to keep its own local-variable
+    count down. Never rewrites the header's own wording — same as
+    update_image_manifest."""
+    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
+    if header_idx is None:
+        return None
+    item_indices, _block_end = _manifest_header_items(lines, header_idx)
+    match_idx = _find_manifest_header_item(lines, item_indices, basename)
+    if match_idx is None:
+        return None
+
+    del lines[match_idx]
+    remaining_indices = [i - 1 if i > match_idx else i for i in item_indices if i != match_idx]
+    for new_num, idx in enumerate(remaining_indices, start=1):
+        m = CHANGES_ITEM_RE.match(lines[idx])
+        lines[idx] = f"#   {new_num}. {m.group('rest')}\n"
+    return "removed"
 
 
 def remove_image_manifest_entry(images_path, basename, repository, new_version, digest):
@@ -569,65 +767,11 @@ def remove_image_manifest_entry(images_path, basename, repository, new_version, 
     original_text = images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
-    # Same bare-header fix as update_image_manifest above — see its own
-    # comment for why a plain CHANGES_HEADER_RE scan alone never finds
-    # the real manifest's own "# Changes:" header.
-    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
+    changes_action = _remove_manifest_changes_header_item(lines, basename)
 
-    changes_action = None
-    if header_idx is not None:
-        item_indices = []
-        for i in range(header_idx + 1, len(lines)):
-            if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-                break
-            if re.match(r"^#\s*\d+\.", lines[i]):
-                item_indices.append(i)
-
-        norm_basename = normalize_name(basename)
-        match_idx = None
-        for idx in item_indices:
-            m = CHANGES_ITEM_RE.match(lines[idx])
-            if m and norm_basename in normalize_name(m.group("rest")):
-                match_idx = idx
-                break
-
-        if match_idx is not None:
-            del lines[match_idx]
-            remaining_indices = [i - 1 if i > match_idx else i for i in item_indices if i != match_idx]
-            for new_num, idx in enumerate(remaining_indices, start=1):
-                m = CHANGES_ITEM_RE.match(lines[idx])
-                lines[idx] = f"#   {new_num}. {m.group('rest')}\n"
-            # Never rewrites the header's own wording — see
-            # update_image_manifest's identical comment above.
-            changes_action = "removed"
-
-    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    url_re = re.compile(r"^\s*url:\s*(\S+)\s*$")
-
-    entry_line, block_end2 = None, None
-    for idx in entry_line_indices:
-        candidate_end = len(lines)
-        for j in range(idx + 1, len(lines)):
-            if re.match(r"^-\s*name:", lines[j]) or not lines[j].strip():
-                candidate_end = j
-                break
-        for j in range(idx, candidate_end):
-            m = url_re.match(lines[j])
-            if m and m.group(1).rstrip("/").endswith(repository):
-                entry_line, block_end2 = idx, candidate_end
-                break
-        if entry_line is not None:
-            break
-
-    entry_updated = False
+    entry_line, block_end2 = _find_manifest_entry(lines, repository)
+    entry_updated = _update_manifest_entry_scalars(lines, entry_line, block_end2, new_version, digest)
     if entry_line is not None:
-        for i in range(entry_line, block_end2):
-            m = re.match(r"^\s*(version|digest):", lines[i])
-            if not m:
-                continue
-            new_value = new_version if m.group(1) == "version" else digest
-            lines[i] = replace_scalar_value(lines[i], new_value)
-            entry_updated = True
         comment_idx = find_preceding_comment_line(lines, entry_line)
         if comment_idx is not None and extract_source_version(lines[comment_idx]):
             del lines[comment_idx]
@@ -657,6 +801,105 @@ IMAGES_BASELINE_HEADER = (
     '# "NOT INCLUDED" exclusion notes, no stale dual-version entries. Editing this\n'
     "# file by hand is pointless — the next run overwrites it entirely.\n"
 )
+
+
+@dataclass
+class _BaselineManifestContext:
+    """chart_dir/deps/values + the key_order/sibling_fields derived from
+    them, bundled since regenerate_images_baseline_manifest's own per-
+    repo resolution helper needs all five together, computed once up
+    front rather than per repository."""
+
+    chart_dir: object
+    deps: list
+    values: dict
+    key_order: object
+    sibling_fields: object
+
+
+def _current_image_paths(chart_dir, deps, values, rendered_paths):
+    """Every currently-pinned image path in the chart (find_all_image_
+    and_version_paths + global_image_paths), PLUS every genuinely-live-
+    but-unpinned vendored-subchart-default image find_unresolved_
+    subchart_images finds (see regenerate_images_baseline_manifest's own
+    docstring for why). Split out purely to keep ITS own local-variable
+    count down."""
+    current_paths = dict(find_all_image_and_version_paths(values, deps))
+    current_paths.update(global_image_paths(values))
+    for scope_key, subpath, tag, _already_pinned in find_unresolved_subchart_images(
+        chart_dir, deps, values, rendered_paths
+    ):
+        current_paths.setdefault((scope_key, *subpath.split(".")), tag)
+    return current_paths
+
+
+def _resolve_baseline_entry(ctx, current_paths, repo, group_paths):
+    """(sort_key, repo, full_repo, new_version, digest) for one
+    repository group's own baseline entry, or None if it should be
+    skipped (unresolvable full_repo, or unresolvable digest) — the
+    caller appends `repo` to its own skipped list in that case. Split
+    out of regenerate_images_baseline_manifest's own per-repo loop
+    purely to keep ITS own local-variable count down."""
+    representative = repo_group_representative(group_paths, ctx.deps)
+    tag = current_paths[representative]
+    full_repo = full_repository_for_path(ctx.chart_dir, ctx.deps, ctx.values, representative)
+    if full_repo is None:
+        return None
+
+    pinned = resolved_digest_pin(ctx.values, representative, tag, ctx.sibling_fields)
+    if pinned is not None:
+        new_version, digest = pinned.split("@", 1)
+    else:
+        new_version = tag.split("@", 1)[0]
+        host, repo_path = parse_repo(full_repo)
+        exists, digest = registry_tag_exists(host, repo_path, new_version)
+        if not exists or not digest:
+            return None
+
+    sort_key = images_manifest_entry_order_key(representative, ctx.deps, ctx.key_order, ctx.values)
+    return sort_key, repo, full_repo, new_version, digest
+
+
+def _resolve_baseline_entries(ctx, current_paths, repo_groups):
+    """(resolved, skipped) for every repository group in repo_groups —
+    resolved is [(sort_key, repo, full_repo, new_version, digest), ...]
+    sorted by sort_key, skipped is [repo, ...] for every group _resolve_
+    baseline_entry couldn't resolve. Split out of regenerate_images_
+    baseline_manifest purely to keep its own local-variable count
+    down."""
+    resolved, skipped = [], []
+    for repo, group_paths in repo_groups.items():
+        entry = _resolve_baseline_entry(ctx, current_paths, repo, group_paths)
+        if entry is None:
+            skipped.append(repo)
+        else:
+            resolved.append(entry)
+    resolved.sort(key=lambda e: e[0])
+    return resolved, skipped
+
+
+def _render_baseline_manifest_lines(resolved):
+    """The full images-baseline.yaml text for `resolved` (see _resolve_
+    baseline_entries) — the fixed IMAGES_BASELINE_HEADER followed by one
+    "- name/url/version/digest" block per entry, exactly one trailing
+    newline (no blank line right before EOF)."""
+    lines = [IMAGES_BASELINE_HEADER, "\n"]
+    for _sort_key, repo, full_repo, new_version, digest in resolved:
+        lines.append(f"- name: {repo}\n")
+        lines.append(f"  url: {full_repo}\n")
+        lines.append(f'  version: "{new_version}"\n')
+        lines.append(f'  digest: "{digest}"\n')
+        lines.append("\n")
+    text = "".join(lines)
+    # A blank line after every entry (including the last) leaves the
+    # file ending in "...\n\n" — one syntactic blank line before EOF.
+    # Collapsed down to a single trailing newline, the same "exactly one
+    # final newline, never a blank line right before EOF" convention
+    # collapse_multiple_blank_lines already enforces for the three
+    # .md docs this script manages.
+    if text.endswith("\n\n"):
+        text = text[:-1]
+    return text
 
 
 def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline_path, rendered_paths):
@@ -732,57 +975,14 @@ def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline
     one exception, confirmed live: every run rewrote (and reported on)
     this file regardless of whether anything about it actually
     changed."""
-    current_paths = dict(find_all_image_and_version_paths(values, deps))
-    current_paths.update(global_image_paths(values))
-    for scope_key, subpath, tag, _already_pinned in find_unresolved_subchart_images(
-        chart_dir, deps, values, rendered_paths
-    ):
-        current_paths.setdefault((scope_key, *subpath.split(".")), tag)
+    current_paths = _current_image_paths(chart_dir, deps, values, rendered_paths)
     repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys())
-    key_order = values_key_order(values)
-    sibling_fields = digest_pinning_exceptions(chart_dir)
+    ctx = _BaselineManifestContext(
+        chart_dir, deps, values, values_key_order(values), digest_pinning_exceptions(chart_dir)
+    )
 
-    resolved, skipped = [], []
-    for repo, group_paths in repo_groups.items():
-        representative = repo_group_representative(group_paths, deps)
-        tag = current_paths[representative]
-        full_repo = full_repository_for_path(chart_dir, deps, values, representative)
-        if full_repo is None:
-            skipped.append(repo)
-            continue
-
-        pinned = resolved_digest_pin(values, representative, tag, sibling_fields)
-        if pinned is not None:
-            new_version, digest = pinned.split("@", 1)
-        else:
-            new_version = tag.split("@", 1)[0]
-            host, repo_path = parse_repo(full_repo)
-            exists, digest = registry_tag_exists(host, repo_path, new_version)
-            if not exists or not digest:
-                skipped.append(repo)
-                continue
-
-        sort_key = images_manifest_entry_order_key(representative, deps, key_order, values)
-        resolved.append((sort_key, repo, full_repo, new_version, digest))
-
-    resolved.sort(key=lambda entry: entry[0])
-
-    lines = [IMAGES_BASELINE_HEADER, "\n"]
-    for _sort_key, repo, full_repo, new_version, digest in resolved:
-        lines.append(f"- name: {repo}\n")
-        lines.append(f"  url: {full_repo}\n")
-        lines.append(f'  version: "{new_version}"\n')
-        lines.append(f'  digest: "{digest}"\n')
-        lines.append("\n")
-    text = "".join(lines)
-    # A blank line after every entry (including the last) leaves the
-    # file ending in "...\n\n" — one syntactic blank line before EOF.
-    # Collapsed down to a single trailing newline, the same "exactly one
-    # final newline, never a blank line right before EOF" convention
-    # collapse_multiple_blank_lines already enforces for the three
-    # .md docs this script manages.
-    if text.endswith("\n\n"):
-        text = text[:-1]
+    resolved, skipped = _resolve_baseline_entries(ctx, current_paths, repo_groups)
+    text = _render_baseline_manifest_lines(resolved)
     current_text = images_baseline_path.read_text(encoding="utf-8") if images_baseline_path.is_file() else None
     changed = text != current_text
     if changed:
