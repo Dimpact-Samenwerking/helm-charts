@@ -107,6 +107,8 @@ from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import add_missing_component_rows, strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import renumber_images_manifest_changes_items
 from lib.component_docs.values_delta_sections import (
+    ValuesDeltaBaseline,
+    ValuesDeltaOrdering,
     prune_empty_values_delta_sections,
     strip_stale_values_deltas_todo_stub,
     sync_values_delta_sections,
@@ -700,12 +702,9 @@ def main():
             text, created_names, updated_names = sync_values_delta_sections(
                 text,
                 CHART_YAML.parent,
-                target_deps,
-                target_values,
-                baseline_deps,
-                baseline_values,
+                ValuesDeltaOrdering(target_deps, target_values, values_delta_canonical_names),
+                ValuesDeltaBaseline(baseline_deps, baseline_values),
                 changed_keys,
-                values_delta_canonical_names,
             )
             if created_names or updated_names:
                 write_needed = True
