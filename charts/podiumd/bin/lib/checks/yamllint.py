@@ -39,6 +39,27 @@ YAMLLINT_FINDING_RE = re.compile(
 )
 
 
+def _classify_yamllint_findings(output, sources, vendor_map, failing_rules):
+    """Buckets every non-cosmetic yamllint finding in `output` into (own_real,
+    vendored_friendly, vendored_other) — see check_yamllint's own docstring
+    for what each bucket means."""
+    own_real, vendored_friendly, vendored_other = [], [], []
+    for m in YAMLLINT_FINDING_RE.finditer(output):
+        line_no = int(m.group("line"))
+        rule = m.group("rule")
+        source = sources.get(line_no)
+        if rule not in failing_rules:
+            continue  # cosmetic — never reported, own or vendored
+        finding = (line_no, source, m.group("level"), m.group("message"), rule)
+        if source and source.startswith(OWN_TEMPLATES_PREFIX):
+            own_real.append(finding)
+        elif chart_name_from_source(source) in vendor_map:
+            vendored_friendly.append(finding)
+        else:
+            vendored_other.append(finding)
+    return own_real, vendored_friendly, vendored_other
+
+
 def check_yamllint(chart_dir, extra_args):
     """Runs yamllint against the full `helm template` render (never against
     raw templates/*.yaml — those contain Go template syntax that isn't
@@ -81,20 +102,9 @@ def check_yamllint(chart_dir, extra_args):
     lint_result = run(["yamllint", "-d", YAMLLINT_CONFIG, "-"], input=rendered, capture_output=True, text=True)
     output = lint_result.stdout + lint_result.stderr
 
-    own_real, vendored_friendly, vendored_other = [], [], []
-    for m in YAMLLINT_FINDING_RE.finditer(output):
-        line_no = int(m.group("line"))
-        rule = m.group("rule")
-        source = sources.get(line_no)
-        if rule not in failing_rules:
-            continue  # cosmetic — never reported, own or vendored
-        finding = (line_no, source, m.group("level"), m.group("message"), rule)
-        if source and source.startswith(OWN_TEMPLATES_PREFIX):
-            own_real.append(finding)
-        elif chart_name_from_source(source) in vendor_map:
-            vendored_friendly.append(finding)
-        else:
-            vendored_other.append(finding)
+    own_real, vendored_friendly, vendored_other = _classify_yamllint_findings(
+        output, sources, vendor_map, failing_rules
+    )
 
     if own_real:
         print(
