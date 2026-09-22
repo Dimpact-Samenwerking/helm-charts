@@ -133,6 +133,7 @@ from lib.fix_doc_consistency.manifest_changes_items import (
 # in tests/fix-doc-consistency -- pylint attributes unused-import to the
 # "from" line of a multi-import statement, not the unused name's own line.
 from lib.fix_doc_consistency.manifest_entries_core import (  # pylint: disable=unused-import
+    ManifestEntriesContext,
     fix_images_manifest_entries,
     resolve_entry_version,  # noqa: F401
 )
@@ -553,12 +554,14 @@ def main():
         canonical_names = canonical_sidecar_row_names(CHART_YAML.parent, target_deps, target_values, target_paths)
         new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
             text,
-            CHART_YAML.parent,
-            target_deps,
-            target_values,
-            baseline_values,
-            repo_map,
-            upgrade_docs_baseline=new_baseline,
+            ManifestEntriesContext(
+                CHART_YAML.parent,
+                target_deps,
+                target_values,
+                baseline_values,
+                repo_map,
+                upgrade_docs_baseline=new_baseline,
+            ),
         )
         if changed_entries:
             images_path.write_text(new_text, encoding="utf-8")
