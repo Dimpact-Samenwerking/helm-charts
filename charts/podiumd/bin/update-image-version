@@ -88,6 +88,9 @@ from lib.component_docs.baseline_doc_stubs import baseline_doc_paths
 from lib.component_docs.baseline_doc_stubs import images_manifest_path
 from lib.component_docs.baseline_doc_stubs import load_baseline_state
 from lib.component_docs.baseline_doc_stubs import load_baseline_values
+from lib.component_docs.changes_section import ComponentIdentity
+from lib.component_docs.changes_section import OrderingContext
+from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import dep_for_values_key
 from lib.component_docs.changes_section import insert_changes_section
 from lib.component_docs.changes_section import make_changes_section
@@ -252,23 +255,14 @@ def update_docs_single_component(
             print(f"  removed '### {friendly} ...' Changes section")
     else:
         text = upgrade_path.read_text(encoding="utf-8")
-        new_text, table_action = update_component_table(
-            text, friendly, old_app, new_version, old_chart_str, chart_version_str, deps, values, canonical_names
-        )
+        change = VersionChange(old_app, new_version, old_chart_str, chart_version_str)
+        ordering = OrderingContext(deps, values, canonical_names)
+        new_text, table_action = update_component_table(text, friendly, change, ordering)
         if table_action is not None:
             new_text, _ = remove_changes_section(new_text, friendly)
-            section = make_changes_section(
-                friendly,
-                target,
-                chart_name,
-                values_key,
-                old_app,
-                new_version,
-                old_chart_str,
-                chart_version_str,
-                image_paths,
-            )
-            new_text = insert_changes_section(new_text, section, friendly, deps, values, canonical_names)
+            identity = ComponentIdentity(friendly, chart_name, values_key)
+            section = make_changes_section(identity, target, change, image_paths)
+            new_text = insert_changes_section(new_text, section, friendly, ordering)
             upgrade_path.write_text(new_text, encoding="utf-8")
             print()
             print(f"=== Updating {upgrade_path.name} ===")
@@ -492,13 +486,14 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
             print(f"  removed '### {basename} ...' Changes section")
     else:
         text = upgrade_path.read_text(encoding="utf-8")
+        ordering = OrderingContext(deps, values, canonical_names)
         new_text, table_action = update_component_table(
-            text, basename, old_version, new_version, None, "-", deps, values, canonical_names
+            text, basename, VersionChange(old_version, new_version, None, "-"), ordering
         )
         if table_action is not None:
             new_text, _ = remove_changes_section(new_text, basename)
             section = make_image_changes_section(basename, target, old_version, new_version, pinned)
-            new_text = insert_changes_section(new_text, section, basename, deps, values, canonical_names)
+            new_text = insert_changes_section(new_text, section, basename, ordering)
             upgrade_path.write_text(new_text, encoding="utf-8")
             print()
             print(f"=== Updating {upgrade_path.name} ===")

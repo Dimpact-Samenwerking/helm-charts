@@ -358,7 +358,8 @@ def test_resolve_component_own_version_change_true_when_both_unchanged(libcompon
     its own chart+app both unchanged must resolve unchanged=True."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
-    resolved = libcomponentdocschanges.resolve_component_own_version_change("zac", deps, deps, values, values, None, [])
+    state = libcomponentdocschanges.ComponentState(deps, values)
+    resolved = libcomponentdocschanges.resolve_component_own_version_change("zac", state, state, None, [])
     assert resolved is not None
     *_rest, unchanged = resolved
     assert unchanged is True
@@ -369,7 +370,11 @@ def test_resolve_component_own_version_change_false_when_app_changed(libcomponen
     current = {"zac": {"image": {"tag": "5.4.4@sha256:bbbb"}}}
     baseline = {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
     resolved = libcomponentdocschanges.resolve_component_own_version_change(
-        "zac", deps, deps, current, baseline, None, []
+        "zac",
+        libcomponentdocschanges.ComponentState(deps, current),
+        libcomponentdocschanges.ComponentState(deps, baseline),
+        None,
+        [],
     )
     _dep, _chart_name, _old_chart, _new_chart, old_app, new_app, unchanged = resolved
     assert (old_app, new_app, unchanged) == ("5.0.2", "5.4.4", False)
@@ -380,7 +385,11 @@ def test_resolve_component_own_version_change_false_when_chart_changed(libcompon
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
     resolved = libcomponentdocschanges.resolve_component_own_version_change(
-        "zac", deps, baseline_deps, values, values, None, []
+        "zac",
+        libcomponentdocschanges.ComponentState(deps, values),
+        libcomponentdocschanges.ComponentState(baseline_deps, values),
+        None,
+        [],
     )
     *_rest, unchanged = resolved
     assert unchanged is False
@@ -391,15 +400,15 @@ def test_resolve_component_own_version_change_native_component_ignores_chart(lib
     all — new_chart == "-" always counts as "chart unchanged", so the
     decision hinges entirely on the app version."""
     values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
-    resolved = libcomponentdocschanges.resolve_component_own_version_change(
-        "frankgateway", [], [], values, values, None, []
-    )
+    state = libcomponentdocschanges.ComponentState([], values)
+    resolved = libcomponentdocschanges.resolve_component_own_version_change("frankgateway", state, state, None, [])
     *_rest, unchanged = resolved
     assert unchanged is True
 
 
 def test_resolve_component_own_version_change_none_for_unmatched_key(libcomponentdocschanges):
-    resolved = libcomponentdocschanges.resolve_component_own_version_change("ghost", [], [], {}, {}, None, [])
+    state = libcomponentdocschanges.ComponentState([], {})
+    resolved = libcomponentdocschanges.resolve_component_own_version_change("ghost", state, state, None, [])
     assert resolved is None
 
 
@@ -441,9 +450,8 @@ def test_resolve_component_own_version_change_vendored_subchart_fallback_applies
     dep = {"name": "openbao", "version": "0.28.4"}
     values = {"openbao": {"server": {"image": {"repository": "quay.io/openbao/openbao", "tag": ""}}}}
 
-    resolved = libcomponentdocschanges.resolve_component_own_version_change(
-        "openbao", [dep], [dep], values, values, tmp_path, []
-    )
+    state = libcomponentdocschanges.ComponentState([dep], values)
+    resolved = libcomponentdocschanges.resolve_component_own_version_change("openbao", state, state, tmp_path, [])
     _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
     assert (old_chart, new_chart, old_app, new_app, unchanged) == ("0.28.4", "0.28.4", "v2.5.5", "v2.5.5", True)
 
@@ -482,7 +490,11 @@ def test_resolve_component_own_version_change_vendored_fallback_never_used_when_
     values = {"openbao": {"server": {"image": {"repository": "quay.io/openbao/openbao", "tag": ""}}}}
 
     resolved = libcomponentdocschanges.resolve_component_own_version_change(
-        "openbao", [dep], [baseline_dep], values, values, tmp_path, []
+        "openbao",
+        libcomponentdocschanges.ComponentState([dep], values),
+        libcomponentdocschanges.ComponentState([baseline_dep], values),
+        tmp_path,
+        [],
     )
     _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
     assert (old_chart, new_chart, old_app, new_app, unchanged) == ("0.28.4", "0.29.0", None, "v2.6.0", False)
@@ -523,7 +535,11 @@ def test_resolve_component_own_version_change_eck_operator_now_reads_unchanged(l
     target_values = {"eck-operator": {"enabled": True, "image": {"tag": "3.5.0", "digest": "sha256:" + "b" * 64}}}
 
     resolved = libcomponentdocschanges.resolve_component_own_version_change(
-        "eck-operator", [dep], [dep], target_values, baseline_values, tmp_path, []
+        "eck-operator",
+        libcomponentdocschanges.ComponentState([dep], target_values),
+        libcomponentdocschanges.ComponentState([dep], baseline_values),
+        tmp_path,
+        [],
     )
     _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
     assert (old_chart, new_chart, old_app, new_app, unchanged) == ("3.5.0", "3.5.0", "3.5.0", "3.5.0", True)
@@ -548,8 +564,9 @@ def test_add_missing_component_rows_skips_own_unchanged_component(libcomponentdo
         "| --- | --- | --- | --- |\n\n"
         "## Changes\n\n"
     )
+    state = libcomponentdocschanges.ComponentState(deps, values)
     new_text, added_names = libcomponentdocschanges.add_missing_component_rows(
-        text, tmp_path, deps, values, deps, values, {"zac"}, "4.9.1"
+        text, libcomponentdocschanges.DocContext(tmp_path, "4.9.1"), state, state, {"zac"}
     )
     assert added_names == []
     assert "zac" not in new_text
@@ -566,7 +583,11 @@ def test_add_missing_component_rows_still_adds_a_real_bump(libcomponentdocschang
         "## Changes\n\n"
     )
     new_text, added_names = libcomponentdocschanges.add_missing_component_rows(
-        text, tmp_path, deps, current_values, deps, baseline_values, {"zac"}, "4.9.1"
+        text,
+        libcomponentdocschanges.DocContext(tmp_path, "4.9.1"),
+        libcomponentdocschanges.ComponentState(deps, current_values),
+        libcomponentdocschanges.ComponentState(deps, baseline_values),
+        {"zac"},
     )
     assert added_names == ["zac"]
     assert "| zac | 5.0.2 → 5.4.4 | 1.0.297 (unchanged) | - |" in new_text
@@ -585,7 +606,9 @@ def test_insert_changes_section_strips_bare_todo_stub_on_first_insertion(libcomp
         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
         "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
     )
-    new_text = libcomponentdocschanges.insert_changes_section(text, section_text, "eck-operator", [], {})
+    new_text = libcomponentdocschanges.insert_changes_section(
+        text, section_text, "eck-operator", libcomponentdocschanges.OrderingContext([], {})
+    )
     assert "TODO" not in new_text
     assert new_text == "## Changes\n\n" + section_text
 
@@ -600,7 +623,7 @@ def test_insert_changes_section_second_insertion_after_real_block_unaffected(lib
     )
     section_text = "### zac 5.0.2 → 5.4.4\n\nSome prose.\n\n"
     new_text = libcomponentdocschanges.insert_changes_section(
-        text, section_text, "zac", DEPS, {"zac": {}, "eck-operator": {}}
+        text, section_text, "zac", libcomponentdocschanges.OrderingContext(DEPS, {"zac": {}, "eck-operator": {}})
     )
     assert "### eck-operator" in new_text
     assert "### zac" in new_text
@@ -616,7 +639,9 @@ def test_insert_changes_section_never_strips_real_prose_mentioning_todo(libcompo
         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
         "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
     )
-    new_text = libcomponentdocschanges.insert_changes_section(text, section_text, "eck-operator", [], {})
+    new_text = libcomponentdocschanges.insert_changes_section(
+        text, section_text, "eck-operator", libcomponentdocschanges.OrderingContext([], {})
+    )
     assert "TODO: figure out redis sidecar wording later." in new_text
 
 
@@ -635,7 +660,9 @@ def test_insert_changes_section_also_strips_the_top_level_intro_todo_on_first_in
         "### eck-operator 3.5.0 (new) (chart 3.5.0, unchanged)\n\n"
         "PodiumD 4.9.2 introduces **eck-operator** at app version 3.5.0.\n\n"
     )
-    new_text = libcomponentdocschanges.insert_changes_section(text, section_text, "eck-operator", [], {})
+    new_text = libcomponentdocschanges.insert_changes_section(
+        text, section_text, "eck-operator", libcomponentdocschanges.OrderingContext([], {})
+    )
     assert "TODO" not in new_text
     assert new_text == (UPGRADE_DOC_INTRO + "## Component versions (4.9.2 vs 4.9.1)\n\n## Changes\n\n" + section_text)
 

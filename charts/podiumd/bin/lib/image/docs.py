@@ -33,6 +33,9 @@ from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import version_of
 from lib.checks.digest_pinning import find_unresolved_subchart_images
+from lib.component_docs.changes_section import ComponentIdentity
+from lib.component_docs.changes_section import OrderingContext
+from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import dep_for_values_key
 from lib.component_docs.changes_section import insert_changes_section
 from lib.component_docs.changes_section import make_changes_section
@@ -213,16 +216,15 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
         if old_app is None and baseline_values:
             old_app = historical_app_version_for_path(chart_dir, deps, target_values, path, upgrade_docs_baseline)
 
-        text, table_action = update_component_table(
-            text, name, old_app, new_app, None, "-", deps, target_values, canonical_names
-        )
+        ordering = OrderingContext(deps, target_values, canonical_names)
+        text, table_action = update_component_table(text, name, VersionChange(old_app, new_app, None, "-"), ordering)
         if table_action is None:
             continue  # doc has no "Component versions" table at all to insert into
 
         text, _ = remove_changes_section(text, name)
         dotted_path = ".".join(path) + ".tag"
         section = make_image_changes_section(name, target, old_app, new_app, [(dotted_path, old_app)])
-        text = insert_changes_section(text, section, name, deps, target_values, canonical_names)
+        text = insert_changes_section(text, section, name, ordering)
         added_names.append(name)
 
     return text, added_names
@@ -261,18 +263,14 @@ def build_changes_section_for_row(row, ident, deps, target):
         # shape) would point the bullet at a path that doesn't exist.
         version_paths = version_paths_for(dep["name"])
         image_paths = [] if version_paths else image_paths_for(dep["name"])
-        return make_changes_section(
-            row["name"],
-            target,
-            dep["name"],
-            value,
+        identity = ComponentIdentity(row["name"], dep["name"], value)
+        change = VersionChange(
             row["app_source"] or row["app"],
             row["app"],
             row["chart_source"] or row["chart"] or str(dep["version"]),
             row["chart"] or str(dep["version"]),
-            image_paths,
-            version_paths,
         )
+        return make_changes_section(identity, target, change, image_paths, version_paths)
     dotted_path = ".".join(value) + ".tag"
     return make_image_changes_section(
         row["name"],
@@ -311,7 +309,7 @@ def add_missing_changes_sections(text, deps, target_values, target, canonical_na
         section = build_changes_section_for_row(row, ident, deps, target)
         if section is None:
             continue
-        text = insert_changes_section(text, section, row["name"], deps, target_values, canonical_names)
+        text = insert_changes_section(text, section, row["name"], OrderingContext(deps, target_values, canonical_names))
         added_names.append(row["name"])
 
     return text, added_names
@@ -400,7 +398,7 @@ def update_stale_app_version_headings(text, chart_dir, deps, target_values, targ
         text, removed = _remove_changes_block_by_exact_heading(text, heading)
         if not removed:
             continue
-        text = insert_changes_section(text, section, row["name"], deps, target_values, canonical_names)
+        text = insert_changes_section(text, section, row["name"], OrderingContext(deps, target_values, canonical_names))
         updated_headings.append(heading)
 
     return text, updated_headings

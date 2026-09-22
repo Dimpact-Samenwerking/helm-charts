@@ -86,6 +86,9 @@ from lib.component_docs.baseline_doc_stubs import baseline_doc_paths as _baselin
 from lib.component_docs.baseline_doc_stubs import images_manifest_path as _images_manifest_path
 from lib.component_docs.baseline_doc_stubs import load_baseline_state as _load_baseline_state
 from lib.component_docs.baseline_doc_stubs import load_baseline_values as _load_baseline_values
+from lib.component_docs.changes_section import ComponentIdentity
+from lib.component_docs.changes_section import OrderingContext
+from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import insert_changes_section
 from lib.component_docs.changes_section import make_changes_section
 from lib.component_docs.changes_section import remove_changes_section
@@ -763,9 +766,9 @@ def main():
             print(f"  removed '### {friendly} ...' Changes section")
     else:
         text = upgrade_path.read_text(encoding="utf-8")
-        new_text, table_action = update_component_table(
-            text, friendly, old_app, app_version, old_chart, new_chart, deps, values
-        )
+        change = VersionChange(old_app, app_version, old_chart, new_chart)
+        ordering = OrderingContext(deps, values)
+        new_text, table_action = update_component_table(text, friendly, change, ordering)
         if table_action is not None:
             # Always rewritten from scratch against the current upgrade_docs_baseline ->
             # final transition, rather than only ever created once on the
@@ -774,10 +777,9 @@ def main():
             # section stale even though the table row itself now correctly
             # says "1 -> 2".
             new_text, _ = remove_changes_section(new_text, friendly)
-            section = make_changes_section(
-                friendly, target, chart_name, values_key, old_app, app_version, old_chart, new_chart, paths_to_update
-            )
-            new_text = insert_changes_section(new_text, section, friendly, deps, values)
+            identity = ComponentIdentity(friendly, chart_name, values_key)
+            section = make_changes_section(identity, target, change, paths_to_update)
+            new_text = insert_changes_section(new_text, section, friendly, ordering)
             upgrade_path.write_text(new_text, encoding="utf-8")
             print()
             print(f"=== Updating {upgrade_path.name} ===")

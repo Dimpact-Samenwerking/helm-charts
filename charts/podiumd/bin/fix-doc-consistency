@@ -101,6 +101,8 @@ from lib.component_docs.baseline_doc_stubs import (
     STUB_TEMPLATES,
     existing_doc_baselines,
 )
+from lib.component_docs.changes_section import ComponentState
+from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import add_missing_component_rows, strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import renumber_images_manifest_changes_items
 from lib.component_docs.values_delta_sections import (
@@ -439,14 +441,10 @@ def main():
 
         text, added_names = add_missing_component_rows(
             text,
-            CHART_YAML.parent,
-            target_deps,
-            target_values,
-            baseline_deps,
-            baseline_values,
+            DocContext(CHART_YAML.parent, target, upgrade_docs_baseline=new_baseline),
+            ComponentState(target_deps, target_values),
+            ComponentState(baseline_deps, baseline_values),
             actual_changed_keys,
-            target,
-            upgrade_docs_baseline=new_baseline,
         )
         if added_names:
             print()
