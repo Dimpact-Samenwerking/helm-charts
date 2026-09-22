@@ -21,6 +21,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
 
@@ -172,6 +173,114 @@ def _host_of(test_kind, target):
     return target[0]
 
 
+@dataclass
+class ProbeConfig:
+    """chart_dir/denylisted_host_suffixes/cache_ttl_minutes/timeout_seconds
+    bundled since every entry _probe_entry checks needs the same four
+    settings."""
+
+    chart_dir: object
+    denylisted_host_suffixes: list
+    cache_ttl_minutes: float
+    timeout_seconds: float
+
+
+def _build_entries(chart_deps, img_targets):
+    """(kind, description, test_kind, target) for every unique repo/image
+    check_repo_access needs to probe — Chart.yaml dependencies grouped by
+    (kind, target) so everything sharing one repo (e.g. every
+    @maykinmedia chart) is tested once, values.yaml image pins grouped
+    separately since image_repos already groups by exact (host,
+    repo_path, version)."""
+    entries = []
+    grouped_chart = {}
+    for name, line, kind, target in chart_deps:
+        info = grouped_chart.setdefault((kind, target), {"names": [], "lines": []})
+        info["names"].append(name)
+        if line:
+            info["lines"].append(line)
+    for (kind, target), info in grouped_chart.items():
+        location = "Chart.yaml"
+        if info["lines"]:
+            location += ":" + ",".join(str(n) for n in sorted(info["lines"]))
+        if kind == "http":
+            endpoint = target
+        else:
+            host, repo_path, version = target
+            endpoint = f"oci://{host}/{repo_path}:{version}"
+        entries.append(("chart", f"{endpoint}  ({', '.join(info['names'])} — {location})", kind, target))
+
+    for target, lines in img_targets:
+        host, repo_path, version = target
+        endpoint = f"{host}/{repo_path}:{version}"
+        location = "values.yaml:" + ",".join(str(n) for n in sorted(lines))
+        entries.append(("image", f"{endpoint}  ({location})", "registry", target))
+    return entries
+
+
+def _probe_entry(config, entry):
+    """Probes one repo/image entry — denylist check, cache hit, or a real
+    reachability check — printing its own result line same as
+    check_repo_access always has. Returns ("denied", kind, description,
+    host), ("failure", kind, description, error), or ("ok",) for
+    check_repo_access's own failures/denied lists."""
+    kind, description, test_kind, target = entry
+    host = _host_of(test_kind, target)
+    if is_denylisted_host(host, config.denylisted_host_suffixes):
+        print(
+            f"  [DENIED] {kind:5}  {description}  — {host} may not be used: this chart's own "
+            f"tracked defaults must not reference this registry directly (see "
+            f"repo_access.never_probe_host_suffixes in lib.settings) — an environment-specific "
+            f"mirror override belongs in that environment's own podiumd.yml, not here"
+        )
+        return "denied", kind, description, host
+
+    # Re-loaded fresh on every entry (a small JSON file — cheap) rather
+    # than once at the top: a "registry" kind entry's own real check
+    # (below) writes straight to this SAME disk file via cached_tag_
+    # exists, mid-loop — a single cache snapshot taken once up front
+    # and saved once at the end would silently clobber whatever that
+    # wrote in between.
+    cache = load_cache(config.chart_dir)
+    key = cache_key(test_kind, target)
+    cache_entry = cache.get(key)
+    if cache_entry and cache_entry_is_fresh(cache_entry, config.cache_ttl_minutes):
+        print(f"  [OK] {kind:5}  {description}  (cached)")
+        return ("ok",)
+
+    if test_kind == "http":
+        ok, error = _check_http_repo(target, config.timeout_seconds)
+    else:
+        ok, error = _check_registry_repo(config.chart_dir, *target, config.timeout_seconds)
+    print(f"  [{'OK' if ok else 'FAIL'}] {kind:5}  {description}" + (f"  — {error}" if error else ""))
+    if not ok:
+        return "failure", kind, description, error
+    if test_kind == "http":
+        cache[key] = {"checked_at": datetime.now(timezone.utc).isoformat()}
+        save_cache(config.chart_dir, cache)
+    return ("ok",)
+
+
+def _format_result(checked, total_refs, failures, denied):
+    """Final (ok, message) check_repo_access returns — a combined message
+    covering both unreachable/unauthorized entries and denylisted-host
+    entries, or a plain success count when neither happened."""
+    if not (failures or denied):
+        return True, f"{checked} repo(s)/image(s) reachable ({total_refs} references)"
+    parts = []
+    if failures:
+        parts.append(
+            f"{len(failures)}/{checked} repo(s)/image(s) unreachable or unauthorized — "
+            + "; ".join(f"{kind} {description}: {error}" for kind, description, error in failures)
+        )
+    if denied:
+        parts.append(
+            f"{len(denied)} repo(s)/image(s) may not be used (denylisted host) — "
+            + "; ".join(f"{kind} {description} ({host})" for kind, description, host in denied)
+        )
+    return False, " | ".join(parts)
+
+
 def check_repo_access(chart_dir):
     """Fails if any repo a Chart.yaml dependency needs, or any registry a
     values.yaml digest pin needs, is unreachable or unauthorized — before
@@ -198,38 +307,21 @@ def check_repo_access(chart_dir):
     itself (same disk-persisted store, same key format) rather than here —
     only a "chart"/http entry (a classic Helm repo's index.yaml) still
     writes its own cache entry directly in this function, since cached_
-    tag_exists has no notion of that check at all."""
-    timeout_seconds = repo_access_request_timeout_seconds(chart_dir)
-    denylisted_host_suffixes = repo_access_never_probe_host_suffixes(chart_dir)
-    cache_ttl_minutes = repo_access_cache_ttl_minutes(chart_dir)
+    tag_exists has no notion of that check at all.
+
+    See _build_entries for how entries are collected, _probe_entry for
+    how each one is checked, and _format_result for the final message."""
+    config = ProbeConfig(
+        chart_dir,
+        repo_access_never_probe_host_suffixes(chart_dir),
+        repo_access_cache_ttl_minutes(chart_dir),
+        repo_access_request_timeout_seconds(chart_dir),
+    )
 
     chart_deps = dependency_repos(chart_dir)
     values_path = chart_dir / "values.yaml"
     img_targets = image_repos(values_path) if values_path.is_file() else []
-
-    entries = []  # (kind, endpoint, location, test_kind, test_target)
-    grouped_chart = {}
-    for name, line, kind, target in chart_deps:
-        info = grouped_chart.setdefault((kind, target), {"names": [], "lines": []})
-        info["names"].append(name)
-        if line:
-            info["lines"].append(line)
-    for (kind, target), info in grouped_chart.items():
-        location = "Chart.yaml"
-        if info["lines"]:
-            location += ":" + ",".join(str(n) for n in sorted(info["lines"]))
-        if kind == "http":
-            endpoint = target
-        else:
-            host, repo_path, version = target
-            endpoint = f"oci://{host}/{repo_path}:{version}"
-        entries.append(("chart", f"{endpoint}  ({', '.join(info['names'])} — {location})", kind, target))
-
-    for target, lines in img_targets:
-        host, repo_path, version = target
-        endpoint = f"{host}/{repo_path}:{version}"
-        location = "values.yaml:" + ",".join(str(n) for n in sorted(lines))
-        entries.append(("image", f"{endpoint}  ({location})", "registry", target))
+    entries = _build_entries(chart_deps, img_targets)
 
     total_refs = len(chart_deps) + sum(len(lines) for _, lines in img_targets)
     print(
@@ -238,54 +330,12 @@ def check_repo_access(chart_dir):
 
     failures = []
     denied = []
-    for kind, description, test_kind, target in entries:
-        host = _host_of(test_kind, target)
-        if is_denylisted_host(host, denylisted_host_suffixes):
-            denied.append((kind, description, host))
-            print(
-                f"  [DENIED] {kind:5}  {description}  — {host} may not be used: this chart's own "
-                f"tracked defaults must not reference this registry directly (see "
-                f"repo_access.never_probe_host_suffixes in lib.settings) — an environment-specific "
-                f"mirror override belongs in that environment's own podiumd.yml, not here"
-            )
-            continue
-
-        # Re-loaded fresh on every entry (a small JSON file — cheap) rather
-        # than once at the top: a "registry" kind entry's own real check
-        # (below) writes straight to this SAME disk file via cached_tag_
-        # exists, mid-loop — a single cache snapshot taken once up front
-        # and saved once at the end would silently clobber whatever that
-        # wrote in between.
-        cache = load_cache(chart_dir)
-        key = cache_key(test_kind, target)
-        entry = cache.get(key)
-        if entry and cache_entry_is_fresh(entry, cache_ttl_minutes):
-            print(f"  [OK] {kind:5}  {description}  (cached)")
-            continue
-
-        if test_kind == "http":
-            ok, error = _check_http_repo(target, timeout_seconds)
-        else:
-            ok, error = _check_registry_repo(chart_dir, *target, timeout_seconds)
-        print(f"  [{'OK' if ok else 'FAIL'}] {kind:5}  {description}" + (f"  — {error}" if error else ""))
-        if not ok:
-            failures.append((kind, description, error))
-        elif test_kind == "http":
-            cache[key] = {"checked_at": datetime.now(timezone.utc).isoformat()}
-            save_cache(chart_dir, cache)
+    for entry in entries:
+        result = _probe_entry(config, entry)
+        if result[0] == "denied":
+            denied.append(result[1:])
+        elif result[0] == "failure":
+            failures.append(result[1:])
 
     checked = len(entries) - len(denied)
-    if failures or denied:
-        parts = []
-        if failures:
-            parts.append(
-                f"{len(failures)}/{checked} repo(s)/image(s) unreachable or unauthorized — "
-                + "; ".join(f"{kind} {description}: {error}" for kind, description, error in failures)
-            )
-        if denied:
-            parts.append(
-                f"{len(denied)} repo(s)/image(s) may not be used (denylisted host) — "
-                + "; ".join(f"{kind} {description} ({host})" for kind, description, host in denied)
-            )
-        return False, " | ".join(parts)
-    return True, f"{checked} repo(s)/image(s) reachable ({total_refs} references)"
+    return _format_result(checked, total_refs, failures, denied)
