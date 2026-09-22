@@ -77,7 +77,9 @@ def test_update_images_manifest_entry_updates_version_digest_and_comment(libcomp
         '  digest: "sha256:aaaa"\n',
     ]
     entries = [{"name": "zac"}]
-    changed = libcomponentdocsentries.update_images_manifest_entry(lines, entries, [1], 0, "5.4.3@sha256:bbbb", "zac")
+    changed = libcomponentdocsentries.update_images_manifest_entry(
+        libcomponentdocsentries.ParsedManifest(lines, entries, [1]), 0, "5.4.3@sha256:bbbb", "zac"
+    )
     assert changed is True
     assert lines[0] == "# ZAC — 5.0.1 -> 5.4.3\n"
     assert '"5.4.3"' in lines[3]
@@ -100,7 +102,7 @@ def test_update_images_manifest_entry_updates_shared_group_comment(libcomponentd
     ]
     entries = [{"name": "zgw-office-addin-frontend"}, {"name": "zgw-office-addin-backend"}]
     changed = libcomponentdocsentries.update_images_manifest_entry(
-        lines, entries, [1, 5], 1, "v0.9.400@sha256:cccc", "zgw-office-addin"
+        libcomponentdocsentries.ParsedManifest(lines, entries, [1, 5]), 1, "v0.9.400@sha256:cccc", "zgw-office-addin"
     )
     assert changed is True
     assert lines[0] == "# ZGW Office Add-in — v0.9.313 -> v0.9.400\n"
@@ -137,16 +139,11 @@ def test_update_images_manifest_creates_missing_header(ucv, tmp_path):
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path,
-        "zac",
-        "zac",
-        "5.1.0",
-        "5.4.3",
-        "1.0.297",
-        "1.0.297",
-        ["image"],
-        {"image": "ghcr.io/infonl/zaakafhandelcomponent"},
-        {"image": "5.4.3@sha256:cccc"},
+        ucv.ManifestUpdateTarget(images_path, "zac", "zac"),
+        ucv.VersionChange("5.1.0", "5.4.3", "1.0.297", "1.0.297"),
+        ucv.ImagePathUpdate(
+            ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"}
+        ),
         [],
         {},
     )
@@ -181,16 +178,9 @@ def test_update_images_manifest_no_baseline_app_renders_new(ucv, tmp_path):
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path,
-        "redis",
-        "redis",
-        None,
-        "8.10.1",
-        "-",
-        "-",
-        ["image"],
-        {"image": "redis"},
-        {"image": "8.10.1@sha256:cccc"},
+        ucv.ManifestUpdateTarget(images_path, "redis", "redis"),
+        ucv.VersionChange(None, "8.10.1", "-", "-"),
+        ucv.ImagePathUpdate(["image"], {"image": "redis"}, {"image": "8.10.1@sha256:cccc"}),
         [],
         {},
     )
@@ -214,16 +204,11 @@ def test_update_images_manifest_updates_existing_entry(ucv, tmp_path):
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path,
-        "zac",
-        "zac",
-        "5.1.0",
-        "5.4.3",
-        "1.0.297",
-        "1.0.297",
-        ["image"],
-        {"image": "ghcr.io/infonl/zaakafhandelcomponent"},
-        {"image": "5.4.3@sha256:cccc"},
+        ucv.ManifestUpdateTarget(images_path, "zac", "zac"),
+        ucv.VersionChange("5.1.0", "5.4.3", "1.0.297", "1.0.297"),
+        ucv.ImagePathUpdate(
+            ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"}
+        ),
         [],
         {},
     )
@@ -252,16 +237,9 @@ def test_update_images_manifest_native_component_omits_chart_clause(ucv, tmp_pat
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path,
-        "frankgateway",
-        "frankgateway",
-        "100",
-        "104",
-        None,
-        "-",
-        [],
-        {},
-        {},
+        ucv.ManifestUpdateTarget(images_path, "frankgateway", "frankgateway"),
+        ucv.VersionChange("100", "104", None, "-"),
+        ucv.ImagePathUpdate([], {}, {}),
         [],
         {},
     )
@@ -294,16 +272,11 @@ def test_update_images_manifest_recognizes_bare_changes_header(ucv, tmp_path):
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path,
-        "zac",
-        "zac",
-        "5.1.0",
-        "5.4.3",
-        "1.0.297",
-        "1.0.297",
-        ["image"],
-        {"image": "ghcr.io/infonl/zaakafhandelcomponent"},
-        {"image": "5.4.3@sha256:cccc"},
+        ucv.ManifestUpdateTarget(images_path, "zac", "zac"),
+        ucv.VersionChange("5.1.0", "5.4.3", "1.0.297", "1.0.297"),
+        ucv.ImagePathUpdate(
+            ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"}
+        ),
         [],
         {},
     )
@@ -329,16 +302,9 @@ def test_update_images_manifest_bare_header_new_item_no_count_word_invented(ucv,
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path,
-        "openformulieren",
-        "openformulieren",
-        "3.4.10",
-        "3.5.6",
-        "1.12.0",
-        "1.12.0",
-        ["image"],
-        {"image": "openformulieren/open-forms"},
-        {"image": "3.5.6@sha256:dddd"},
+        ucv.ManifestUpdateTarget(images_path, "openformulieren", "openformulieren"),
+        ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
+        ucv.ImagePathUpdate(["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"}),
         [],
         {},
     )
@@ -362,16 +328,9 @@ def test_update_images_manifest_reports_missing_entry(ucv, tmp_path):
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path,
-        "openformulieren",
-        "openformulieren",
-        "3.4.10",
-        "3.5.6",
-        "1.12.0",
-        "1.12.0",
-        ["image"],
-        {"image": "openformulieren/open-forms"},
-        {"image": "3.5.6@sha256:dddd"},
+        ucv.ManifestUpdateTarget(images_path, "openformulieren", "openformulieren"),
+        ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
+        ucv.ImagePathUpdate(["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"}),
         [],
         {},
     )
@@ -401,16 +360,9 @@ def test_update_images_manifest_new_item_lands_after_continuation_line(ucv, tmp_
         encoding="utf-8",
     )
     changes_action, entry_updates, missing = ucv.update_images_manifest(
-        images_path,
-        "openformulieren",
-        "openformulieren",
-        "3.4.10",
-        "3.5.6",
-        "1.12.0",
-        "1.12.0",
-        ["image"],
-        {"image": "openformulieren/open-forms"},
-        {"image": "3.5.6@sha256:dddd"},
+        ucv.ManifestUpdateTarget(images_path, "openformulieren", "openformulieren"),
+        ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
+        ucv.ImagePathUpdate(["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"}),
         [],
         {},
     )
@@ -448,16 +400,9 @@ def test_update_images_manifest_new_item_inserted_at_values_yaml_position_not_ap
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:aaaa"}},
     }
     changes_action, _entry_updates, missing = ucv.update_images_manifest(
-        images_path,
-        "redis-operator",
-        "redis-operator",
-        "0.25.0",
-        "0.26.0",
-        "1.0.0",
-        "1.0.0",
-        ["image"],
-        {"image": "opstree/redis-operator"},
-        {"image": "0.26.0@sha256:bbbb"},
+        ucv.ManifestUpdateTarget(images_path, "redis-operator", "redis-operator"),
+        ucv.VersionChange("0.25.0", "0.26.0", "1.0.0", "1.0.0"),
+        ucv.ImagePathUpdate(["image"], {"image": "opstree/redis-operator"}, {"image": "0.26.0@sha256:bbbb"}),
         deps,
         values,
     )
