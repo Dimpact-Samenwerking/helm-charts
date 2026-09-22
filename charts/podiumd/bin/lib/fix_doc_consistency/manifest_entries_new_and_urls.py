@@ -30,6 +30,8 @@ from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
+from lib.upgradedoc.images_manifest_list_diff import ManifestDiffContext
+from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
 from lib.upgradedoc.images_manifest_ordering import images_manifest_block_start
 from lib.upgradedoc.sorting_and_ordering import insertion_index
@@ -272,17 +274,21 @@ def _missing_paths_for_entries(text, context, resolution):
     if not isinstance(entries, list):
         entries = []
     missing_paths, _stale_entry_names, _unmatched_entry_names = find_images_manifest_list_diff(
-        entries,
-        resolution.current_paths,
-        resolution.baseline.baseline_paths,
-        resolution.repo.repo_map,
-        resolution.repo.repo_groups,
-        resolution.unresolvable_paths,
-        chart_dir=context.chart_dir,
-        deps=context.deps,
-        upgrade_docs_baseline=context.upgrade_docs_baseline,
-        values=context.target_values,
-        baseline_values=context.baseline_values,
+        ManifestDiffInputs(
+            entries,
+            resolution.current_paths,
+            resolution.baseline.baseline_paths,
+            resolution.repo.repo_map,
+            resolution.repo.repo_groups,
+            resolution.unresolvable_paths,
+            context=ManifestDiffContext(
+                chart_dir=context.chart_dir,
+                deps=context.deps,
+                upgrade_docs_baseline=context.upgrade_docs_baseline,
+                values=context.target_values,
+                baseline_values=context.baseline_values,
+            ),
+        )
     )
     return missing_paths
 
