@@ -117,6 +117,7 @@ from lib.fix_doc_consistency.baseline_and_images_manifest_handling import (
     update_sibling_doc_refs,
 )
 from lib.fix_doc_consistency.component_version_table import (
+    ResolutionContext,
     fix_changes_heading_app_versions,
     fix_component_version_table,
     fix_values_delta_heading_app_versions,
@@ -407,15 +408,13 @@ def main():
     upgrade_path = DOC_DIR / f"{new_baseline}-to-{target}-upgrade.md"
     if upgrade_path.is_file():
         text = upgrade_path.read_text(encoding="utf-8")
-        text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(
-            text,
+        resolution = ResolutionContext(
             CHART_YAML.parent,
-            target_deps,
-            target_values,
-            baseline_deps,
-            baseline_values,
+            ComponentState(target_deps, target_values),
+            ComponentState(baseline_deps, baseline_values),
             upgrade_docs_baseline=new_baseline,
         )
+        text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(text, resolution)
         if changed_rows:
             print()
             print(f"=== Correcting component version table in {upgrade_path.name} ===")
@@ -494,15 +493,7 @@ def main():
             for heading in updated_stale_headings:
                 print(f"  {heading}")
 
-        text, updated_wrong_headings = fix_changes_heading_app_versions(
-            text,
-            CHART_YAML.parent,
-            target_deps,
-            target_values,
-            baseline_deps,
-            baseline_values,
-            upgrade_docs_baseline=new_baseline,
-        )
+        text, updated_wrong_headings = fix_changes_heading_app_versions(text, resolution)
         if updated_wrong_headings:
             print()
             print(
@@ -742,12 +733,12 @@ def main():
             text, updated_delta_headings = fix_values_delta_heading_app_versions(
                 upgrade_doc_text,
                 text,
-                CHART_YAML.parent,
-                target_deps,
-                target_values,
-                baseline_deps,
-                baseline_values,
-                upgrade_docs_baseline=new_baseline,
+                ResolutionContext(
+                    CHART_YAML.parent,
+                    ComponentState(target_deps, target_values),
+                    ComponentState(baseline_deps, baseline_values),
+                    upgrade_docs_baseline=new_baseline,
+                ),
             )
             if updated_delta_headings:
                 write_needed = True
