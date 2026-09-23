@@ -247,7 +247,7 @@ def is_primary_image_path(path: tuple | None, deps: list, chart_dir: Path | None
 
 
 def component_chart_versions(
-    chart_dir: Path, key: str, deps: list[dict], baseline_deps: list[dict] | None
+    chart_dir: Path | None, key: str, deps: list[dict], baseline_deps: list[dict] | None
 ) -> tuple[dict | None, str, str | None, str] | None:
     """(dep, chart_name, old_chart, new_chart) for values key `key`: its
     Chart.yaml dependency in deps (old_chart from baseline_deps, None when

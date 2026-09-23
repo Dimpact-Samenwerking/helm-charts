@@ -10,6 +10,8 @@ version bump resolves to one or more of these basename updates — the
 component name and the image name are not always the same (e.g.
 zgw-office-addin bumps two distinctly-named images, frontend + backend)."""
 
+from pathlib import Path
+
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import replace_scalar_value
@@ -21,14 +23,14 @@ from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 
 
-def image_basename(repository):
+def image_basename(repository: str):
     """The last "/"-separated segment of a repository string — "pabc-api"
     for "ghcr.io/platform-autorisatie-beheer-component/pabc-api", "curl"
     for "curlimages/curl"."""
     return repository.rstrip("/").rsplit("/", 1)[-1]
 
 
-def find_matches(lines, basename):
+def find_matches(lines: list[str], basename: str):
     """Every scan_digest_pins() pin whose resolved repository has this
     basename. A pin with no resolvable repository (relies on a vendored
     sub-chart's own default — e.g. openzaak/openformulieren, see
@@ -41,7 +43,7 @@ def find_matches(lines, basename):
     ]
 
 
-def find_matches_any_tag(lines, basename):
+def find_matches_any_tag(lines: list, basename: str):
     """The SAME search find_matches does, but over scan_version_pins
     instead of scan_digest_pins — matches a bare (non-digest-pinned) tag
     too, not just a digest-pinned one. Exists EXCLUSIVELY for verify-
@@ -57,7 +59,7 @@ def find_matches_any_tag(lines, basename):
     ]
 
 
-def basenames_under_scope(lines, scope_key):
+def basenames_under_scope(lines: list[str], scope_key: str):
     """{basename: [pin, ...]} for every literal digest pin (see
     scan_digest_pins) whose values.yaml path starts with scope_key and
     ends in "...tag" — i.e. every image actually pinned somewhere inside
@@ -69,7 +71,7 @@ def basenames_under_scope(lines, scope_key):
     return _group_by_basename_in_scope(lines, scan_digest_pins(lines), scope_key)
 
 
-def basenames_under_scope_any_tag(lines, scope_key):
+def basenames_under_scope_any_tag(lines: list, scope_key: str):
     """The SAME grouping basenames_under_scope does, but over scan_
     version_pins instead of scan_digest_pins — see find_matches_any_tag's
     own docstring for why, and when this one (vs. the digest-required
@@ -106,7 +108,7 @@ def _group_by_basename_in_scope(lines: list[str], pins: list[dict], scope_key: s
     return result
 
 
-def repository_for_basename_in_scope(lines, scope_key, basename):
+def repository_for_basename_in_scope(lines: list, scope_key: str, basename: str):
     """The single real repository <scope_key>.<basename> resolves to in
     THIS chart state (these `lines`) — basenames_under_scope_any_tag's
     own scoped result when it has one (authoritative: this basename
@@ -153,7 +155,7 @@ MULTIPLE_KEY = "MULTIPLE"
 GLOBAL_IMAGES_SCOPE = "global"
 
 
-def resolve_key_scope(key, deps):
+def resolve_key_scope(key: str, deps: list):
     """<key> as given on the CLI, translated to the literal top-level
     values.yaml key resolve_scoped_matches/find_matches_in_scope actually
     scan for — accepting EITHER a Chart.yaml dependency's own "name" or
@@ -180,7 +182,7 @@ def resolve_key_scope(key, deps):
     return values_key_of(dep) if dep is not None else key
 
 
-def find_matches_in_scope(lines, scope_key, basename):
+def find_matches_in_scope(lines: list, scope_key: str, basename: str):
     """Every scan_digest_pins() pin whose values.yaml path starts with
     scope_key AND whose resolved repository has this basename — the same
     search as find_matches, but scoped to one top-level component so the
@@ -197,7 +199,7 @@ def find_matches_in_scope(lines, scope_key, basename):
     return matches
 
 
-def resolve_scoped_matches(lines, key, basename):
+def resolve_scoped_matches(lines: list, key: str, basename: str):
     """The pins <key> <basename> together identify, uniquely. <key> is
     either a literal top-level values.yaml key (a component), or the
     literal string "MULTIPLE" (see MULTIPLE_KEY above), translated to
@@ -225,7 +227,7 @@ def resolve_scoped_matches(lines, key, basename):
     return matches
 
 
-def check_basename_version(lines, key, basename, new_version):
+def check_basename_version(lines: list, key: str, basename: str, new_version: str):
     """[{"repository", "host", "repo_path", "exists", "digest"}, ...] one
     for <key> <basename>'s single resolved repository (see
     resolve_scoped_matches — it never returns more than one distinct
@@ -254,7 +256,7 @@ def check_basename_version(lines, key, basename, new_version):
     return results
 
 
-def _resolve_pending_digests(pending, new_version):
+def _resolve_pending_digests(pending: list, new_version: str):
     """{repository: digest} for every distinct repository among `pending`
     (update_image_version's own not-yet-at-new_version matches),
     re-resolved against the registry for new_version. Raises SystemExit
@@ -273,7 +275,7 @@ def _resolve_pending_digests(pending, new_version):
     return digests
 
 
-def update_image_version(values_path, key, basename, new_version):
+def update_image_version(values_path: Path, key: str, basename: str, new_version: str):
     """Update every values.yaml tag pin <key> <basename> resolves to (see
     resolve_scoped_matches) to new_version, re-resolving each one's
     digest against the registry FIRST — before any file is touched, so a

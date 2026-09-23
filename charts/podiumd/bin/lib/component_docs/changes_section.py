@@ -25,6 +25,7 @@ general-purpose abstraction, just this module's own plumbing."""
 import re
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.registered_paths import component_chart_versions
@@ -123,7 +124,7 @@ class DocContext:
     upgrade_docs_baseline: str | None = None
 
 
-def find_component_row(rows, friendly):
+def find_component_row(rows: list, friendly: str):
     """The row whose Name names `friendly` (see text_names): at word
     boundaries, so "mi" never takes the "ensurePodiumdAdminUser" row,
     and a plain "openbao" never takes an "openbao - openbao-csi-provider"
@@ -131,7 +132,7 @@ def find_component_row(rows, friendly):
     return next((row for row in rows if text_names(row["name"], friendly)), None)
 
 
-def _new_row_insert_index(lines, rows, friendly, ordering):
+def _new_row_insert_index(lines: list[str], rows: list, friendly: str, ordering):
     """Line index to insert a brand-new component row at, matching
     update_component_table's own ordering rules: in values.yaml's own
     top-level component order relative to the rows already there when
@@ -166,7 +167,7 @@ def _new_row_insert_index(lines, rows, friendly, ordering):
     return None
 
 
-def update_component_table(text, friendly, change, ordering):
+def update_component_table(text: str, friendly: str, change, ordering):
     """Update this component's "Component versions" table row if it's
     already mentioned, or insert a new row if it isn't — in values.yaml's
     own top-level component order relative to the rows already there (see
@@ -201,7 +202,7 @@ def update_component_table(text, friendly, change, ordering):
     return "".join(lines), "added"
 
 
-def remove_component_row(text, friendly):
+def remove_component_row(text: str, friendly: str):
     """Delete this component's row from the "Component versions" table
     entirely — the counterpart to update_component_table's "added"/
     "updated" for a bump that nets out to no change from upgrade_docs_baseline at all
@@ -217,7 +218,7 @@ def remove_component_row(text, friendly):
     return "".join(lines), True
 
 
-def make_changes_section(identity, target, change, image_paths, version_paths=()):
+def make_changes_section(identity, target: str, change, image_paths: list, version_paths: list | tuple = ()):
     """`image_paths` (see lib.chart.image_paths_for) are rendered as
     "Image tag pin `<identity.values_key>.<path>.tag`" bullets — the
     ordinary "{repository, tag}" block shape. `version_paths` (see lib.
@@ -298,7 +299,7 @@ def make_changes_section(identity, target, change, image_paths, version_paths=()
     return "".join(lines)
 
 
-def _is_bare_placeholder_span(lines, start, end, placeholder_text):
+def _is_bare_placeholder_span(lines: list[str], start: int, end: int, placeholder_text: str):
     """True if lines[start:end] contains nothing but blank lines and
     exactly one line matching placeholder_text (stripped comparison) —
     the shared exact-shape "is this span JUST the placeholder, nothing
@@ -316,7 +317,7 @@ def _is_bare_placeholder_span(lines, start, end, placeholder_text):
     return non_blank == [placeholder_text.strip()]
 
 
-def _find_standalone_placeholder_line(lines, end, placeholder_text):
+def _find_standalone_placeholder_line(lines: list[str], end: int, placeholder_text: str):
     """Index of a line within lines[:end] whose stripped content exactly
     equals placeholder_text AND stands alone as its own paragraph — a
     blank line, or the start of the document, immediately before it; a
@@ -339,7 +340,7 @@ def _find_standalone_placeholder_line(lines, end, placeholder_text):
     return None
 
 
-def _strip_standalone_placeholder_line(lines, end, placeholder_text):
+def _strip_standalone_placeholder_line(lines: list[str], end: int, placeholder_text: str):
     """Removes the standalone placeholder line found by _find_standalone_
     placeholder_line (if any) from `lines` in place, collapsing the
     double blank-line gap left behind so exactly one blank line survives
@@ -354,7 +355,7 @@ def _strip_standalone_placeholder_line(lines, end, placeholder_text):
     return True
 
 
-def _strip_bare_changes_todo(lines, changes_idx, end_bound):
+def _strip_bare_changes_todo(lines: list[str], changes_idx: int, end_bound: int):
     """If lines[changes_idx+1:end_bound] is JUST "## Changes"' own bare
     TODO stub (see _is_bare_placeholder_span), deletes it in place and
     returns the new end_bound (changes_idx + 1) — shared by insert_
@@ -369,7 +370,7 @@ def _strip_bare_changes_todo(lines, changes_idx, end_bound):
     return changes_idx + 1
 
 
-def _insert_index_for_empty_changes_section(lines, changes_idx, section_end):
+def _insert_index_for_empty_changes_section(lines: list[str], changes_idx: int, section_end: int):
     """insert_at for insert_changes_section's own "no ### blocks yet"
     branch: strips BOTH of upgrade.md's own stub placeholders first (see
     insert_changes_section's own docstring for why), recomputing
@@ -382,11 +383,13 @@ def _insert_index_for_empty_changes_section(lines, changes_idx, section_end):
         # Line indices shifted -- recompute rather than patch by a
         # guessed amount (the standalone-placeholder removal may take
         # one line or two, depending on its own neighbors).
-        changes_idx, section_end = changes_section_bounds(lines)
+        new_changes_idx, section_end = changes_section_bounds(lines)
+        if new_changes_idx is not None:
+            changes_idx = new_changes_idx
     return _strip_bare_changes_todo(lines, changes_idx, section_end)
 
 
-def _normalize_blank_line_before_insert(lines, insert_at):
+def _normalize_blank_line_before_insert(lines: list[str], insert_at: int):
     """Adjusts `lines` in place so exactly one blank line sits
     immediately before `insert_at`, returning the (possibly shifted)
     insert_at — rather than assuming one is already there: section_
@@ -415,7 +418,7 @@ def _normalize_blank_line_before_insert(lines, insert_at):
     return insert_at
 
 
-def insert_changes_section(text, section_text, friendly, ordering):
+def insert_changes_section(text: str, section_text: str, friendly: str, ordering):
     """Insert section_text as a new "### ..." block into the "## Changes"
     section, in values.yaml's own top-level component order relative to
     the blocks already there (see lib.upgradedoc.component_order_key/
@@ -457,7 +460,7 @@ def insert_changes_section(text, section_text, friendly, ordering):
     return "".join(lines)
 
 
-def strip_stale_upgrade_placeholders(text):
+def strip_stale_upgrade_placeholders(text: str):
     """Retroactive cleanup companion to insert_changes_section's own
     insertion-time fix: a doc whose FIRST real "### ..." block was
     inserted BEFORE that fix existed still has BOTH of upgrade.md's own
@@ -543,7 +546,9 @@ def remove_changes_section(text: str, friendly: str, ordering: OrderingContext) 
     return remove_changes_block(text, block)
 
 
-def resolve_component_own_version_change(key, target_state, baseline_state, chart_dir, upgrade_docs_baseline=None):
+def resolve_component_own_version_change(
+    key: str, target_state, baseline_state, chart_dir: Path | None, upgrade_docs_baseline: str | None = None
+):
     """(dep, chart_name, old_chart, new_chart, old_app, new_app, unchanged)
     for `key` (a member of lib.upgradedoc.compute_changed_components'
     own result) — `unchanged` is True when BOTH this component's own
@@ -622,7 +627,7 @@ def resolve_component_own_version_change(key, target_state, baseline_state, char
     return dep, chart_name, old_chart, new_chart, old_app, new_app, (chart_unchanged and app_unchanged)
 
 
-def _matched_component_keys(text, target_deps, chart_dir):
+def _matched_component_keys(text: str, target_deps: list, chart_dir: Path):
     """Set of already-matched keys (a Chart.yaml dependency's own alias-
     or-name, or a lib.chart.native_components entry) found among
     `text`'s own current "Component versions" table rows —
@@ -645,7 +650,7 @@ def _matched_component_keys(text, target_deps, chart_dir):
     return matched_keys
 
 
-def _new_component_section(key, chart_name, change, doc_context):
+def _new_component_section(key: str, chart_name: str, change, doc_context):
     """The "### ..." Changes section body for a newly-auto-added
     component row (see _add_missing_row_for_key): the normal make_
     changes_section render when its own app version resolved at all —
@@ -674,7 +679,7 @@ def _new_component_section(key, chart_name, change, doc_context):
     )
 
 
-def _add_missing_row_for_key(text, key, target_state, baseline_state, doc_context):
+def _add_missing_row_for_key(text: str, key: str, target_state, baseline_state, doc_context):
     """Insert `key`'s own missing table row + Changes section into
     `text`, if resolve_component_own_version_change resolves it to a
     real, genuinely-changed component — (new_text, True) if a row was
@@ -718,7 +723,7 @@ def _add_missing_row_for_key(text, key, target_state, baseline_state, doc_contex
     return text, True
 
 
-def add_missing_component_rows(text, doc_context, target_state, baseline_state, actual_changed_keys):
+def add_missing_component_rows(text: str, doc_context, target_state, baseline_state, actual_changed_keys: set):
     """Insert a new "Component versions" table row + matching "### ..."
     Changes section for every key in `actual_changed_keys` (see
     lib.upgradedoc.compute_changed_components) that doesn't already have
