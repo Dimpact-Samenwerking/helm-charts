@@ -6,6 +6,7 @@ mocked out via rp.render_chart directly (same level test_misc.py's
 --skip=/--include= tests mock vp.check_X at) — no real helm invocation
 happens in these tests."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -242,31 +243,43 @@ def test_stdout_flag_failure_puts_everything_on_stderr_and_writes_nothing(rp, mo
 # --- stale vendored sub-charts guard ---
 
 
-def test_stale_vendored_dependencies_fail_before_rendering(rp, tmp_path, monkeypatch):
+def test_stale_vendored_dependencies_re_vendored_before_rendering(rp, tmp_path, monkeypatch):
     """Chart.yaml wants kiss-chart 3.1.1 but charts/ still has 3.0.0: the
-    guard must stop main() with the helm dependency update hint BEFORE
-    render_chart ever runs (which would otherwise fail on an unrelated-
-    looking kiss-chart schema error instead)."""
+    guard must re-vendor it BEFORE render_chart runs (which would
+    otherwise fail on an unrelated-looking kiss-chart schema error), so
+    the render sees an in-sync state. helm stubbed: `helm pull` writes the
+    .tgz into --destination, every other call just succeeds."""
     (tmp_path / "Chart.yaml").write_text(
-        "dependencies:\n  - name: kiss-chart\n    version: 3.1.1\n    repository: https://example.invalid\n",
+        "dependencies:\n  - name: kiss-chart\n    version: 3.1.1\n    repository: oci://ghcr.io/kiss\n",
         encoding="utf-8",
     )
     (tmp_path / "Chart.lock").write_text(
-        "dependencies:\n  - name: kiss-chart\n    version: 3.1.1\n    repository: https://example.invalid\n",
+        "dependencies:\n  - name: kiss-chart\n    version: 3.0.0\n    repository: oci://ghcr.io/kiss\n",
         encoding="utf-8",
     )
     (tmp_path / "charts").mkdir()
     (tmp_path / "charts" / "kiss-chart-3.0.0.tgz").touch()
 
+    def fake_helm(cmd, **kwargs):
+        if cmd[1] == "pull":
+            dest = Path(cmd[cmd.index("--destination") + 1])
+            (dest / "kiss-chart-3.1.1.tgz").touch()
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
     rendered = []
-    monkeypatch.setattr(rp, "require_vendored_dependencies", dependencies.require_vendored_dependencies)
+    monkeypatch.setattr(dependencies, "run", fake_helm)
+    monkeypatch.setattr(rp, "ensure_vendored_dependencies", dependencies.ensure_vendored_dependencies)
     monkeypatch.setattr(rp, "CHART_DIR", tmp_path)
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(tmp_path / "out.yaml")])
-    monkeypatch.setattr(rp, "render_chart", lambda chart_dir, extra_args: rendered.append(chart_dir))
 
-    with pytest.raises(SystemExit) as exc_info:
+    def fake_render(chart_dir, extra_args):
+        rendered.append(dependencies.vendored_dependency_problems(chart_dir))
+        raise SystemExit(0)
+
+    monkeypatch.setattr(rp, "render_chart", fake_render)
+
+    with pytest.raises(SystemExit):
         rp.main()
 
-    assert "kiss-chart: Chart.yaml wants 3.1.1, charts/ has 3.0.0" in str(exc_info.value.code)
-    assert "Run: helm dependency update" in str(exc_info.value.code)
-    assert not rendered
+    assert rendered == [[]]
+    assert sorted(path.name for path in (tmp_path / "charts").iterdir()) == ["kiss-chart-3.1.1.tgz"]

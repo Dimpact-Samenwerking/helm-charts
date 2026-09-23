@@ -40,7 +40,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
 from lib.checks.dead_values import check_dead_values
-from lib.dependencies import require_vendored_dependencies
+from lib.dependencies import ensure_vendored_dependencies
 from lib.render_scope import lint_args_for
 
 CHART_DIR = SCRIPT_DIR.parent
@@ -61,7 +61,7 @@ def main():
     if shutil.which("helm") is None:
         print("error: helm is not installed", file=sys.stderr)
         sys.exit(1)
-    require_vendored_dependencies(CHART_DIR)
+    ensure_vendored_dependencies(CHART_DIR)
 
     print(
         "WARNING: this can take a VERY long time to finish — 10 to 40+ "

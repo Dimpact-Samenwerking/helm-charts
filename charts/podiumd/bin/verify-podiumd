@@ -370,7 +370,7 @@ from lib.checks.vendored_tgz import check_vendored_tgz_extraction
 from lib.checks.yamllint import check_yamllint
 from lib.dependencies import check_dependencies
 from lib.dependencies import ensure_repos_configured
-from lib.dependencies import require_vendored_dependencies
+from lib.dependencies import ensure_vendored_dependencies
 from lib.docs_consistency import check_docs_consistency
 from lib.gitutil import find_repo_root
 from lib.gitutil import resolve_baseline_ref
@@ -842,7 +842,7 @@ def _run_all_steps(runner, chart_dir, args):
     if not ok:
         die(msg)
 
-    runner.run("Dependencies", "Resolving dependencies (helm dependency update)", check_dependencies, chart_dir)
+    runner.run("Dependencies", "Resolving dependencies (re-vendoring what changed)", check_dependencies, chart_dir)
 
     upgrade_docs_baseline = read_upgrade_docs_baseline(chart_dir)
     runner.run(
@@ -908,14 +908,15 @@ def _run_all_steps(runner, chart_dir, args):
     )
 
 
-def _require_vendored_dependencies_if_skipped(chart_dir, skipped_steps):
-    """--skip=dependencies (e.g. to avoid its ~80s re-vendor while
-    iterating) still runs every step that needs it, against whatever
-    charts/*.tgz + Chart.lock happen to be on disk. When at least one
-    such step is still going to run, fail fast with lib.dependencies.
-    require_vendored_dependencies' own message instead of letting each
+def _ensure_vendored_dependencies_if_skipped(chart_dir, skipped_steps):
+    """--skip=dependencies (e.g. to skip its repo config + `helm
+    dependency list` check while iterating) still runs every step that
+    needs it, against whatever charts/*.tgz + Chart.lock happen to be on
+    disk. When at least one such step is still going to run, re-vendor
+    a stale state first (lib.dependencies.ensure_vendored_dependencies:
+    only the changed dependencies where it can) instead of letting each
     of them fail on a stale sub-chart. When "Dependencies" itself runs,
-    it repairs a stale state on its own, so no guard is needed."""
+    it re-vendors on its own, so no guard is needed."""
     if "Dependencies" not in skipped_steps:
         return
     if any(
@@ -923,7 +924,7 @@ def _require_vendored_dependencies_if_skipped(chart_dir, skipped_steps):
         for _, step_name in SKIPPABLE_STEPS
         if step_name not in skipped_steps
     ):
-        require_vendored_dependencies(chart_dir)
+        ensure_vendored_dependencies(chart_dir)
 
 
 def main():
@@ -940,7 +941,7 @@ def main():
     log("Resolving chart source")
     chart_dir = resolve_chart_dir()
     print(f"Using local chart source: {chart_dir}")
-    _require_vendored_dependencies_if_skipped(chart_dir, skipped_steps)
+    _ensure_vendored_dependencies_if_skipped(chart_dir, skipped_steps)
 
     runner = StepRunner(skipped_steps=skipped_steps, skip_flags=skip_flags, include_flags=include_flags)
     _run_all_steps(runner, chart_dir, args)

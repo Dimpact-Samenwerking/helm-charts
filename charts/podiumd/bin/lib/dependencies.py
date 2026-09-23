@@ -15,26 +15,39 @@ digests.py instead warns and carries on with whatever it could already
 resolve, since a failed re-vendor there means only its subchart-default
 fallback stays degraded, not that the whole run is meaningless.
 
-vendored_dependency_problems/require_vendored_dependencies are the
-read-only side of the same concern: a purely local "is charts/ + Chart.lock
-still what Chart.yaml asks for?" check, and the fail-fast guard every
-script that renders the chart or reads its vendored .tgz calls first (see
-require_vendored_dependencies for why that one does exit)."""
+Re-vendoring fetches as little as it can (update_vendored_dependencies):
+nothing when charts/ + Chart.lock already match Chart.yaml, only the
+changed dependencies when it can (update_changed_dependencies, with
+lib.chart_lock writing the same Chart.lock Helm would), and a full `helm
+dependency update` otherwise.
+
+vendored_dependency_problems is the purely local "is charts/ + Chart.lock
+still what Chart.yaml asks for?" check behind all of that, and
+ensure_vendored_dependencies the guard every script that renders the
+chart or reads its vendored .tgz calls first: it re-vendors a stale state
+on the spot (see there for why that one does exit when it can't)."""
 
 import contextlib
+import re
 import shutil
 import sys
+import tempfile
 import time
 
 from pathlib import Path
 
 import yaml
 
+from lib.chart_lock import resolved_repository
+from lib.chart_lock import write_chart_lock
 from lib.checks.vendored_tgz import TGZ_NAME_RE
 from lib.procutil import run
 from lib.settings import dependency_fetch_retry_attempts
 from lib.settings import dependency_fetch_retry_backoff_seconds
 from lib.settings import helm_repos_urls_by_alias
+
+# An exact (semver) version, as opposed to a range like "~1.2" or ">=1".
+_EXACT_VERSION_RE = re.compile(r"^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
 
 
 def _dependency_key(dep, required_repos):
@@ -58,10 +71,7 @@ def _dependency_key(dep, required_repos):
     result). A repository Chart.yaml already writes as a plain URL/oci://
     reference (no dependency here uses an alias Helm itself doesn't also
     resolve identically) passes through unchanged."""
-    repo = dep.get("repository") or ""
-    if repo.startswith("@"):
-        repo = required_repos.get(repo[1:], repo)
-    return dep.get("name"), str(dep.get("version")), repo
+    return dep.get("name"), str(dep.get("version")), resolved_repository(dep, required_repos)
 
 
 def _lock_problems(chart_dir, chart_deps):
@@ -167,8 +177,8 @@ def vendored_dependency_problems(chart_dir):
     then fails with a sub-chart schema error that never mentions the
     real cause, and every vendored-.tgz-only lookup (lib.chart.
     subchart_values & co.) silently returns None instead. See
-    require_vendored_dependencies for the scripts' own fail-fast guard
-    built on this."""
+    ensure_vendored_dependencies for the scripts' own guard built on
+    this."""
     return _dependency_state(chart_dir)[1]
 
 
@@ -198,20 +208,26 @@ def vendored_state_matches_chart_yaml(chart_dir):
     return bool(chart_deps) and not problems
 
 
-def require_vendored_dependencies(chart_dir):
-    """Fail-fast guard for scripts that render chart_dir or read its
-    vendored charts/*.tgz / Chart.lock: raises SystemExit (exit 1, the
-    message on stderr) naming every stale or missing dependency and the
-    `helm dependency update` command that fixes it, instead of letting a
-    later render fail on an unrelated-looking sub-chart schema error.
+def ensure_vendored_dependencies(chart_dir):
+    """Guard for scripts that render chart_dir or read its vendored
+    charts/*.tgz / Chart.lock: when those don't match Chart.yaml, names
+    every stale or missing dependency and re-vendors them right away (see
+    update_vendored_dependencies — only the changed ones where it can),
+    instead of letting a later render fail on an unrelated-looking
+    sub-chart schema error. Raises SystemExit (exit 1, the message on
+    stderr) only when that re-vendor fails or still leaves a mismatch,
+    naming what's left and the manual `helm dependency update` fallback.
+
+    All progress goes to stderr, so a script's own stdout (a report, an
+    image list) is exactly what it would be on an in-sync checkout.
 
     The module's one exit-deciding function, on purpose: it is only ever
     called from a script's own main(), never from another lib function,
     so the "should this process exit?" policy still belongs to each
-    script — this just keeps the message and exit code identical across
-    all of them. Scripts that repair the state themselves (verify-
-    podiumd's "Dependencies" step, fix-image-digests) don't call it
-    before that repair."""
+    script — this just keeps the messages and exit code identical across
+    all of them. Scripts that re-vendor as a step of their own (verify-
+    podiumd's "Dependencies" step, fix-image-digests) call
+    check_dependencies instead."""
     problems = vendored_dependency_problems(chart_dir)
     if not problems:
         return
@@ -219,11 +235,17 @@ def require_vendored_dependencies(chart_dir):
     with contextlib.suppress(ValueError):
         shown = chart_dir.resolve().relative_to(Path.cwd())
     details = "\n".join(f"  - {problem}" for problem in problems)
-    message = (
-        f"error: {shown}/charts/ and Chart.lock do not match Chart.yaml (stale or missing sub-charts):\n"
-        f"{details}\n"
-        f"Run: helm dependency update {shown}"
-    )
+    print(f"{shown}/charts/ and Chart.lock do not match Chart.yaml, re-vendoring:\n{details}", file=sys.stderr)
+
+    ok, detail = ensure_repos_configured(chart_dir)
+    if ok:
+        ok, detail = update_vendored_dependencies(chart_dir, out=sys.stderr)
+    remaining = vendored_dependency_problems(chart_dir)
+    if ok and not remaining:
+        return
+    reason = detail if not ok else "re-vendored, but still out of sync"
+    details = "".join(f"\n  - {problem}" for problem in remaining)
+    message = f"error: could not re-vendor {shown}/charts/ ({reason}){details}\nRun: helm dependency update {shown}"
     raise SystemExit(message)
 
 
@@ -253,61 +275,209 @@ def ensure_repos_configured(chart_dir):
     return True, "repos configured"
 
 
+def _run_with_retries(chart_dir, cmd, label, out, **run_kwargs):
+    """run(cmd, **run_kwargs), retried per settings.yaml dependency_fetch
+    (transient network blips, registry throttling), announcing each
+    attempt on `out` as "Running <label> (attempt n/N)...". Flushes `out`
+    before each attempt so an earlier, still-buffered print can't end up
+    AFTER output a live-streamed child already wrote to the same fd (same
+    reason lib.procutil.run_script flushes). Returns the last result."""
+    retry_attempts = dependency_fetch_retry_attempts(chart_dir)
+    retry_backoff_seconds = dependency_fetch_retry_backoff_seconds(chart_dir)
+    result = None
+    for attempt in range(1, retry_attempts + 1):
+        print(f"Running {label} (attempt {attempt}/{retry_attempts})...", file=out)
+        out.flush()
+        result = run(cmd, **run_kwargs)
+        if result.returncode == 0:
+            break
+        if attempt < retry_attempts:
+            delay = retry_backoff_seconds[attempt - 1]
+            print(f"{label} failed (attempt {attempt}/{retry_attempts}), retrying in {delay}s...", file=out)
+            time.sleep(delay)
+    return result
+
+
+def _usable_lock_dependencies(chart_dir):
+    """Chart.lock's own dependency list, or None when there's no lock to
+    update in place (missing, not valid YAML, no dependency list)."""
+    lock_path = chart_dir / "Chart.lock"
+    if not lock_path.is_file():
+        return None
+    try:
+        lock = yaml.safe_load(lock_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return None
+    lock_deps = lock.get("dependencies")
+    return lock_deps if isinstance(lock_deps, list) else None
+
+
+def _changed_dependencies(chart_dir, chart_deps, lock_deps, required_repos):
+    """The Chart.yaml dependencies update_changed_dependencies must fetch:
+    those whose (name, version, repository) Chart.lock doesn't list (see
+    _dependency_key), or whose charts/<name>-<version>.tgz is missing.
+    One entry per (name, version, repository), so the same chart listed
+    twice under two aliases is fetched once."""
+    locked = {_dependency_key(dep, required_repos) for dep in lock_deps}
+    changed = {}
+    for dep in chart_deps:
+        key = _dependency_key(dep, required_repos)
+        tgz = chart_dir / "charts" / f"{key[0]}-{key[1]}.tgz"
+        if key not in locked or not tgz.is_file():
+            changed.setdefault(key, dep)
+    return list(changed.values())
+
+
+def _fetch_command(chart_dir, dep, required_repos, dest):
+    """The helm command that writes dep's <name>-<version>.tgz into
+    `dest`, the same source `helm dependency update` would use: `helm
+    package` for a file:// chart, `helm pull` straight from the oci://
+    reference or (with --repo, so no `helm repo add`/index refresh of
+    the local repo cache is needed) the plain repository URL. None for
+    an "@alias" settings.yaml helm_repos.urls_by_alias doesn't know."""
+    name, version = dep.get("name"), str(dep.get("version"))
+    repo = resolved_repository(dep, required_repos)
+    if repo.startswith("file://"):
+        source = (chart_dir / repo.removeprefix("file://")).resolve()
+        return ["helm", "package", str(source), "--destination", str(dest)]
+    if repo.startswith("oci://"):
+        return ["helm", "pull", f"{repo.rstrip('/')}/{name}", "--version", version, "--destination", str(dest)]
+    if repo.startswith("@"):
+        return None
+    return ["helm", "pull", name, "--repo", repo, "--version", version, "--destination", str(dest)]
+
+
+def _fetch_dependency(chart_dir, dep, required_repos, dest, out):
+    """Fetches one dependency's .tgz into `dest` (see _fetch_command),
+    retried like the full update. (ok, reason-if-not)."""
+    name, version = dep.get("name"), str(dep.get("version"))
+    cmd = _fetch_command(chart_dir, dep, required_repos, dest)
+    if cmd is None:
+        return False, f"{name}: repository {dep.get('repository')} is not in settings.yaml helm_repos.urls_by_alias"
+    label = f"{' '.join(cmd[:2])} {name} {version}"
+    result = _run_with_retries(chart_dir, cmd, label, out, capture_output=True, text=True)
+    if result.returncode != 0:
+        return False, f"{label} failed: {(result.stderr or '').strip()}"
+    if not (dest / f"{name}-{version}.tgz").is_file():
+        return False, f"{label} did not produce {name}-{version}.tgz"
+    return True, ""
+
+
+def _replace_vendored_tgz(chart_dir, chart_deps, fetched_dir):
+    """Drops every charts/<name>-<version>.tgz Chart.yaml no longer asks
+    for (what `helm dependency update` does too), then moves the freshly
+    fetched ones in. Extracted charts/<name>/ directories are left alone
+    (fix-vendored-tgz's job)."""
+    charts_dir = chart_dir / "charts"
+    charts_dir.mkdir(exist_ok=True)
+    wanted = {f"{dep.get('name')}-{dep.get('version')}.tgz" for dep in chart_deps}
+    for path in charts_dir.glob("*.tgz"):
+        if path.name not in wanted and TGZ_NAME_RE.match(path.name):
+            path.unlink()
+    for path in fetched_dir.glob("*.tgz"):
+        shutil.move(str(path), str(charts_dir / path.name))
+
+
+def update_changed_dependencies(chart_dir, out=None):
+    """Re-vendors only the Chart.yaml dependencies that changed (see
+    _changed_dependencies) instead of all of them: fetches each one into
+    a temp dir, and only once every fetch succeeded drops the charts/*.tgz
+    Chart.yaml no longer asks for, moves the new ones in, and rewrites
+    Chart.lock (lib.chart_lock.write_chart_lock — the same content and
+    digest Helm itself would write). charts/ and Chart.lock stay
+    untouched on any failure.
+
+    (False, reason) when this doesn't apply — no Chart.lock to update in
+    place, or a version range (only Helm's own repo index lookup
+    resolves one) — or a fetch failed; update_vendored_dependencies then
+    falls back to a full `helm dependency update`. Progress goes to
+    `out` (default: stdout)."""
+    out = out or sys.stdout
+    chart_deps, _problems = _dependency_state(chart_dir)
+    if not chart_deps:
+        return False, "Chart.yaml has no dependencies"
+    lock_deps = _usable_lock_dependencies(chart_dir)
+    if lock_deps is None:
+        return False, "no usable Chart.lock to update"
+    ranged = sorted(dep.get("name") for dep in chart_deps if not _EXACT_VERSION_RE.match(str(dep.get("version"))))
+    if ranged:
+        return False, f"version range for {', '.join(ranged)}"
+
+    required_repos = helm_repos_urls_by_alias(chart_dir)
+    changed = _changed_dependencies(chart_dir, chart_deps, lock_deps, required_repos)
+    with tempfile.TemporaryDirectory(prefix="podiumd-dependencies-") as tmp:
+        fetched_dir = Path(tmp)
+        for dep in changed:
+            ok, reason = _fetch_dependency(chart_dir, dep, required_repos, fetched_dir, out)
+            if not ok:
+                return False, reason
+        _replace_vendored_tgz(chart_dir, chart_deps, fetched_dir)
+    write_chart_lock(chart_dir, chart_deps, required_repos)
+    fetched = ", ".join(f"{dep.get('name')} {dep.get('version')}" for dep in changed) or "none, Chart.lock only"
+    return True, f"fetched {len(changed)} of {len(chart_deps)} dependencies ({fetched})"
+
+
+def _full_dependency_update(chart_dir, out):
+    """Rebuilds chart_dir/charts/ from scratch (rm -rf + `helm dependency
+    update`), retried a few times on failure.
+
+    Deliberately does NOT capture_output= the update call, unlike every
+    other `run(...)` here: `helm dependency update` re-downloads every
+    single dependency (see vendored_state_matches_chart_yaml) and prints
+    its own per-dependency "Downloading X from repo Y" progress as it
+    goes — capturing it would buffer that away until the whole (often
+    tens-of-seconds) update finishes, making this step look hung the
+    entire time. The subprocess writes straight to `out` instead, live,
+    interleaved with this module's own prints."""
+    shutil.rmtree(chart_dir / "charts", ignore_errors=True)
+    (chart_dir / "Chart.lock").unlink(missing_ok=True)
+    cmd = ["helm", "dependency", "update", str(chart_dir)]
+    result = _run_with_retries(chart_dir, cmd, "helm dependency update", out, stdout=out)
+    if result.returncode != 0:
+        attempts = dependency_fetch_retry_attempts(chart_dir)
+        return False, f"helm dependency update failed after {attempts} attempt(s)"
+    return True, "full helm dependency update"
+
+
+def update_vendored_dependencies(chart_dir, out=None):
+    """Brings chart_dir/charts/ + Chart.lock in line with Chart.yaml,
+    fetching as little as possible: nothing when they already match (see
+    vendored_state_matches_chart_yaml), only the changed dependencies
+    when update_changed_dependencies can (seconds, instead of the ~80s a
+    full re-fetch of all 25 takes), and a full `helm dependency update`
+    otherwise. The full fallback resolves "@alias" repositories through
+    the local repo config, so ensure_repos_configured must have run
+    first. Progress goes to `out` (default: stdout). Returns (ok,
+    detail)."""
+    out = out or sys.stdout
+    if vendored_state_matches_chart_yaml(chart_dir):
+        print(
+            "Chart.lock already matches Chart.yaml and every dependency is vendored — skipping helm dependency update",
+            file=out,
+        )
+        return True, "already vendored"
+    ok, detail = update_changed_dependencies(chart_dir, out)
+    if ok:
+        print(f"Re-vendored only what changed: {detail}", file=out)
+        return True, detail
+    print(f"Cannot re-vendor only what changed ({detail}) — falling back to a full helm dependency update", file=out)
+    return _full_dependency_update(chart_dir, out)
+
+
 def check_dependencies(chart_dir):
     """Confirms every Chart.yaml dependency actually resolved and bundled
-    into chart_dir/charts/ — skipping the (always slow — Helm re-fetches
-    every single dependency unconditionally, never just the changed ones;
-    see vendored_state_matches_chart_yaml's own docstring) `helm
-    dependency update` entirely when Chart.lock already proves the
-    on-disk vendored state matches Chart.yaml's current dependencies
-    exactly. Otherwise rebuilds chart_dir/charts/ from scratch (rm -rf +
-    `helm dependency update`), retried a few times on failure (transient
-    network blips, registry throttling).
+    into chart_dir/charts/, re-vendoring first as little as needed (see
+    update_vendored_dependencies: nothing, only what changed, or a full
+    `helm dependency update`).
 
     The `helm dependency list` verification below always runs regardless
     of which path was taken above — cheap (no network, purely local) and
     the one thing that actually proves the vendored state resolves
     correctly, so skipping the expensive re-download step never skips
-    that guarantee too.
-
-    Deliberately does NOT capture_output= the update call, unlike every
-    other `run(...)` here: `helm dependency update` re-downloads every
-    single dependency from scratch (see above) and prints its own per-
-    dependency "Downloading X from repo Y" progress as it goes —
-    capturing it would buffer that away until the whole (often tens-of-
-    seconds) update finishes, making this step look hung the entire
-    time. Letting the subprocess inherit stdout/stderr directly instead
-    streams Helm's own progress live, interleaved with this step's own
-    prints — flushing first (same reason lib.procutil.run_script's own
-    docstring flushes before a live-streamed child) so an earlier, still-
-    buffered print from this process can't end up appearing AFTER output
-    the child already wrote straight to the same fd."""
-    if vendored_state_matches_chart_yaml(chart_dir):
-        print(
-            "Chart.lock already matches Chart.yaml and every dependency is vendored — skipping helm dependency update"
-        )
-    else:
-        retry_attempts = dependency_fetch_retry_attempts(chart_dir)
-        retry_backoff_seconds = dependency_fetch_retry_backoff_seconds(chart_dir)
-
-        shutil.rmtree(chart_dir / "charts", ignore_errors=True)
-        (chart_dir / "Chart.lock").unlink(missing_ok=True)
-
-        result = None
-        for attempt in range(1, retry_attempts + 1):
-            print(f"Running helm dependency update (attempt {attempt}/{retry_attempts})...")
-            sys.stdout.flush()
-            result = run(["helm", "dependency", "update", str(chart_dir)])
-            if result.returncode == 0:
-                break
-
-            if attempt < retry_attempts:
-                delay = retry_backoff_seconds[attempt - 1]
-                print(f"helm dependency update failed (attempt {attempt}/{retry_attempts}), retrying in {delay}s...")
-                time.sleep(delay)
-
-        if result.returncode != 0:
-            return False, f"helm dependency update failed after {retry_attempts} attempt(s)"
+    that guarantee too."""
+    ok, detail = update_vendored_dependencies(chart_dir)
+    if not ok:
+        return False, detail
 
     result = run(["helm", "dependency", "list", str(chart_dir)], capture_output=True, text=True)
     if result.returncode != 0:

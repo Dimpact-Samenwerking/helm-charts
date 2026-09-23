@@ -76,8 +76,8 @@ def _resolve_pin_repositories(pins, chart_dir, lines, deps):
     subchart default (see lib.chart.subchart_default_repository) and
     returns the pins still left unresolved after that. If any of those
     are unresolved specifically because the vendored .tgz isn't there yet
-    (see lib.chart.subchart_needs_vendoring), vendors dependencies once (a
-    real `helm dependency update`) and retries — never for a pin that has
+    (see lib.chart.subchart_needs_vendoring), vendors dependencies once (see
+    lib.dependencies.check_dependencies) and retries — never for a pin that has
     no matching Chart.yaml dependency at all, since vendoring can't help
     that one regardless."""
     subchart_cache = {}
@@ -89,7 +89,7 @@ def _resolve_pin_repositories(pins, chart_dir, lines, deps):
     if any(subchart_needs_vendoring(chart_dir, lines, p["line"], deps) for p in still_unresolved):
         print(
             "Some pin(s) rely on their subchart's own default repository, but it isn't "
-            "vendored yet — running `helm dependency update` once to resolve them too."
+            "vendored yet — re-vendoring dependencies once to resolve them too."
         )
         ok, msg = ensure_repos_configured(chart_dir)
         if not ok:

@@ -75,21 +75,33 @@ the old versions until someone re-vendors them. A stale state makes `helm templa
 fail with a sub-chart schema error that never mentions the real cause.
 
 Every script that renders the chart or reads its vendored `.tgz` files checks this
-first, locally and in milliseconds (`lib.dependencies.require_vendored_dependencies`).
-When the state is stale it stops with the dependencies that are wrong and the fix:
+first, locally and in milliseconds (`lib.dependencies.ensure_vendored_dependencies`).
+When the state is stale it names the dependencies that are wrong and re-vendors them
+before it continues, on stderr:
 
 ```text
-error: charts/podiumd/charts/ and Chart.lock do not match Chart.yaml (stale or missing sub-charts):
-  - kiss-chart: Chart.yaml wants 3.1.1, charts/ has 3.0.0
-Run: helm dependency update charts/podiumd
+charts/podiumd/charts/ and Chart.lock do not match Chart.yaml, re-vendoring:
+  - referentielijsten: Chart.yaml wants 0.2.0, Chart.lock has 0.1.1
+  - referentielijsten: Chart.yaml wants 0.2.0, charts/ has 0.1.1
+Running helm pull referentielijsten 0.2.0 (attempt 1/3)...
+Re-vendored only what changed: fetched 1 of 25 dependencies (referentielijsten 0.2.0)
 ```
+
+Re-vendoring fetches only the dependencies that changed (`helm pull`, or `helm package`
+for a `file://` chart) and rewrites `Chart.lock` with the same content and digest
+`helm dependency update` would write. That takes seconds; `helm dependency update`
+itself always re-downloads all 25 dependencies (about 80s). The full update is still
+the fallback when there is no `Chart.lock` yet, a dependency uses a version range, or
+a fetch fails. The script stops only when re-vendoring fails too, with what is still
+wrong and `Run: helm dependency update charts/podiumd`.
 
 Checked by: `fix-doc-consistency`, `list-podiumd-images`, `render-podiumd`,
 `update-component-version`, `update-image-version`, `verify-helm-secret-size`
 (against its own `--chart`), `verify-podiumd-dead-values` and
 `verify-release-table-with-podiumd` (not with `--baseline-only`).
-`verify-podiumd` and `fix-image-digests` re-vendor a stale state themselves, so they
-are never blocked; `verify-podiumd --skip=dependencies` does check first.
+`verify-podiumd`'s "Dependencies" step and `fix-image-digests` re-vendor the same way
+as a step of their own; `verify-podiumd --skip=dependencies` still re-vendors first
+when a step that needs the sub-charts runs.
 
 ## Process steps
 
