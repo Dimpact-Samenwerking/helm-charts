@@ -150,7 +150,7 @@ global:
       tag: "8.21.0@sha256:{DIGEST_A}"
 """,
     )
-    ok, detail = vp.check_image_repository(tmp_path)
+    ok, _detail = vp.check_image_repository(tmp_path)
     assert ok is False
     out = capsys.readouterr().out
     assert "global.images.curlImage" in out
@@ -193,7 +193,7 @@ apiproxy:
     tag: "1.31.4@sha256:{DIGEST_A}"
 """,
     )
-    ok, detail = vp.check_image_repository(tmp_path)
+    ok, _detail = vp.check_image_repository(tmp_path)
     assert ok is False
     out = capsys.readouterr().out
     assert "apiproxy.image" in out

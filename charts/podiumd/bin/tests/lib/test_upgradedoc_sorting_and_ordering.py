@@ -339,7 +339,7 @@ def test_sort_upgrade_doc_rows_unmatched_row_stays_last(libupgradedocsorting):
         "| Open Zaak | 1.27.4 | 1.14.2 |\n"
     )
     values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
-    new_text, moved = libupgradedocsorting.sort_upgrade_doc_rows(text, DEPS, values)
+    new_text, _moved = libupgradedocsorting.sort_upgrade_doc_rows(text, DEPS, values)
     lines = new_text.splitlines()
     assert lines[4].startswith("| Open Zaak")
     assert lines[5].startswith("| nginx-unprivileged")
@@ -362,7 +362,7 @@ def test_sort_upgrade_doc_rows_global_row_sorts_to_its_own_real_position(libupgr
     values = {"global": {}, "openzaak": {}, "zac": {}, "openinwoner": {}}
     canonical_names = {"nginx-unprivileged": ("global", "images", "nginx")}
 
-    new_text, moved = libupgradedocsorting.sort_upgrade_doc_rows(text, DEPS, values, canonical_names)
+    new_text, _moved = libupgradedocsorting.sort_upgrade_doc_rows(text, DEPS, values, canonical_names)
 
     lines = new_text.splitlines()
     assert lines[4].startswith("| nginx-unprivileged")
@@ -389,7 +389,7 @@ def test_sort_upgrade_doc_rows_multiple_global_images_use_their_own_real_suborde
     )
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
 
-    new_text, moved = libupgradedocsorting.sort_upgrade_doc_rows(
+    new_text, _moved = libupgradedocsorting.sort_upgrade_doc_rows(
         text, deps, GLOBAL_IMAGES_VALUES, GLOBAL_IMAGES_CANONICAL_NAMES
     )
 
@@ -449,7 +449,7 @@ def test_sort_changes_blocks_unmatched_block_stays_last_and_later_h2_untouched(l
         "- [ ] Do the thing.\n"
     )
     values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
-    new_text, moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, values)
+    new_text, _moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, values)
     assert new_text.index("### Open Zaak") < new_text.index("### Fix: something unrelated")
     assert "## Per-environment checklist\n\n### A. Prepare\n\n- [ ] Do the thing.\n" in new_text
 
@@ -471,7 +471,7 @@ def test_sort_changes_blocks_global_block_sorts_to_its_own_real_position(libupgr
     values = {"global": {}, "openzaak": {}, "zac": {}, "openinwoner": {}}
     canonical_names = {"nginx-unprivileged": ("global", "images", "nginx")}
 
-    new_text, moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, values, canonical_names)
+    new_text, _moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, values, canonical_names)
 
     assert (
         new_text.index("### nginx-unprivileged") < new_text.index("### Open Zaak") < new_text.index("### Open Inwoner")
@@ -491,7 +491,7 @@ def test_sort_changes_blocks_multiple_global_images_use_their_own_real_suborder(
     )
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
 
-    new_text, moved = libupgradedocsorting.sort_changes_blocks(
+    new_text, _moved = libupgradedocsorting.sort_changes_blocks(
         text, deps, GLOBAL_IMAGES_VALUES, GLOBAL_IMAGES_CANONICAL_NAMES
     )
 
@@ -624,7 +624,7 @@ def test_sort_values_delta_sections_multiple_global_images_use_their_own_real_su
         "## busybox 1.37.0 → 1.38.0-glibc\n\n- `global.images.busybox.tag` bumped.\n"
     )
 
-    new_text, moved = libupgradedocsorting.sort_values_delta_sections(
+    new_text, _moved = libupgradedocsorting.sort_values_delta_sections(
         text, [], GLOBAL_IMAGES_VALUES, GLOBAL_IMAGES_CANONICAL_NAMES
     )
 

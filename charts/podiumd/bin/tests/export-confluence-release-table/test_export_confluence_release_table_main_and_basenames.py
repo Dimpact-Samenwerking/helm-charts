@@ -1,12 +1,12 @@
-"""main() integration tests, and basenames_under_scope / _match_one /
+"""main() integration tests, and basenames_under_scope / match_one /
 resolve_image_basenames — with fetch_page_html mocked out, so no network
 access or real Confluence page is needed."""
 
 import csv
 
 from lib.image.version import basenames_under_scope
-from lib.release_table.component_resolution import _extra_scope_keys_by_component
-from lib.release_table.component_resolution import _match_one
+from lib.release_table.component_resolution import extra_scope_keys_by_component
+from lib.release_table.component_resolution import match_one
 
 
 def write_chart_yaml_with_dependencies(chart_dir, deps):
@@ -226,7 +226,7 @@ def test_main_writes_lf_line_endings(ecrt, tmp_path, monkeypatch):
     assert b"\n" in raw
 
 
-# --- basenames_under_scope / _match_one / resolve_image_basenames ---
+# --- basenames_under_scope / match_one / resolve_image_basenames ---
 
 DIGEST_A = "a" * 64
 DIGEST_B = "b" * 64
@@ -240,14 +240,14 @@ def write_values_yaml_raw(chart_dir, text):
 def test_match_one_exact_beats_containment():
     """ "Solr" exactly equals candidate "solr", so it must win outright —
     even though "solr" also relates to "solr-operator" by containment."""
-    assert _match_one("Solr", {"solr", "solr-operator"}) == "solr"
+    assert match_one("Solr", {"solr", "solr-operator"}) == "solr"
 
 
 def test_match_one_falls_back_to_unambiguous_containment():
     """ "Redis-ha" doesn't exactly equal any candidate, but relates to
     exactly one ("redis", contained in "redisha") — resolved via the
     fallback tier."""
-    assert _match_one("Redis-ha", {"redis-operator", "redis", "redis-exporter"}) == "redis"
+    assert match_one("Redis-ha", {"redis-operator", "redis", "redis-exporter"}) == "redis"
 
 
 def test_match_one_bracket_content_resolves_a_role_named_row():
@@ -255,7 +255,7 @@ def test_match_one_bracket_content_resolves_a_role_named_row():
     "k8s-kubectl" as a whole string, but name_candidates' bracket
     extraction tries the bracket content on its own, which matches
     exactly."""
-    assert _match_one("Zookeeper operator hooks (k8s-kubectl)", {"k8s-kubectl", "solr"}) == "k8s-kubectl"
+    assert match_one("Zookeeper operator hooks (k8s-kubectl)", {"k8s-kubectl", "solr"}) == "k8s-kubectl"
 
 
 def test_match_one_ambiguous_exact_match_is_none():
@@ -263,11 +263,11 @@ def test_match_one_ambiguous_exact_match_is_none():
     name_candidates) — two DIFFERENT options each exactly matching a
     different one of those candidates is still an ambiguity, never a
     guess."""
-    assert _match_one("Foo (Bar)", {"foo", "bar"}) is None
+    assert match_one("Foo (Bar)", {"foo", "bar"}) is None
 
 
 def test_match_one_no_relation_is_none():
-    assert _match_one("ITA Poller", {"internetaakafhandeling.poller"}) is None
+    assert match_one("ITA Poller", {"internetaakafhandeling.poller"}) is None
 
 
 def test_basenames_under_scope_finds_nested_pins(tmp_path):
@@ -529,7 +529,7 @@ def test_resolve_image_basenames_finds_image_under_a_related_orphan_key(ecrt, tm
     """keycloak-operator's real app image lives under the separate
     "keycloak" values.yaml block (podiumd's own Keycloak instance
     config), not under "keycloak-operator" itself — an orphan key that
-    itself relates to the dependency (see _extra_scope_keys_by_component)
+    itself relates to the dependency (see extra_scope_keys_by_component)
     must be scanned too, not just the dependency's own top-level key."""
     write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None)])
     write_values_yaml_raw(
@@ -557,7 +557,7 @@ keycloak:
 def test_extra_scope_keys_by_component_ignores_multiple_and_unrelated_orphan_keys(tmp_path):
     write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None), ("frankgateway", None)])
     write_values_yaml_raw(tmp_path, "keycloak: {}\nunrelated: {}\n")
-    extra = _extra_scope_keys_by_component(tmp_path)
+    extra = extra_scope_keys_by_component(tmp_path)
     assert extra == {"keycloak-operator": ["keycloak"]}
 
 

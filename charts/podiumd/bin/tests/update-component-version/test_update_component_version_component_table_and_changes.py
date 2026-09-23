@@ -140,7 +140,7 @@ def test_update_component_table_updates_existing_row(libcomponentdocschanges: Mo
 
 def test_update_component_table_no_table_returns_none_action(libcomponentdocschanges: ModuleType):
     text = "# Upgrade guide\n\nJust prose, no table.\n"
-    new_text, action = libcomponentdocschanges.update_component_table(
+    _new_text, action = libcomponentdocschanges.update_component_table(
         text,
         "openformulieren",
         libcomponentdocschanges.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),

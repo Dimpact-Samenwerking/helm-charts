@@ -486,7 +486,7 @@ def test_update_image_manifest_no_matching_entry_reports_not_updated(libimagedoc
             '  digest: "sha256:aaaa"\n'
         ),
     )
-    changes_action, entry_updated = libimagedocs.update_image_manifest(
+    _changes_action, entry_updated = libimagedocs.update_image_manifest(
         path, libimagedocs.ImageBump("curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
     )
     assert entry_updated is False
@@ -509,7 +509,7 @@ def test_update_image_manifest_matches_entry_by_url_repository(libimagedocs, tmp
             '  digest: "sha256:aaaa"\n'
         ),
     )
-    changes_action, entry_updated = libimagedocs.update_image_manifest(
+    _changes_action, entry_updated = libimagedocs.update_image_manifest(
         path, libimagedocs.ImageBump("curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
     )
     assert entry_updated is True
@@ -540,7 +540,7 @@ def test_regenerate_images_baseline_manifest_full_enumeration_and_sort_order(lib
     }
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
-    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
     )
 
@@ -583,7 +583,7 @@ def test_regenerate_images_baseline_manifest_global_images_use_their_own_real_su
     }
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
-    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
     )
 
@@ -616,7 +616,7 @@ def test_regenerate_images_baseline_manifest_collapses_shared_repository(libimag
     }
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
-    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
     )
 
@@ -639,7 +639,7 @@ def test_regenerate_images_baseline_manifest_embedded_digest_used_directly(libim
 
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", fail_if_called)
 
-    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
     )
 
@@ -665,7 +665,7 @@ def test_regenerate_images_baseline_manifest_live_lookup_for_bare_tag(libimagedo
 
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", fake_registry_tag_exists)
 
-    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
     )
 
@@ -685,7 +685,7 @@ def test_regenerate_images_baseline_manifest_skips_when_live_lookup_fails(libima
 
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
-    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
     )
 
@@ -734,7 +734,7 @@ def test_regenerate_images_baseline_manifest_second_identical_run_does_not_rewri
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
 
-    written1, skipped1, changed1 = libimagedocs.regenerate_images_baseline_manifest(
+    written1, _skipped1, changed1 = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
     )
     assert changed1 is True
@@ -767,7 +767,7 @@ def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_e
     }
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
-    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
     )
 
@@ -833,7 +833,7 @@ def test_regenerate_images_baseline_manifest_includes_subchart_default_only_imag
     images_baseline_path = tmp_path / "images-baseline.yaml"
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "a" * 64))
 
-    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, {"podiumd/charts/eck-operator"}
     )
 
@@ -866,7 +866,7 @@ def test_regenerate_images_baseline_manifest_excludes_subchart_default_only_imag
     )
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
-    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
     )
 
@@ -896,7 +896,7 @@ def test_regenerate_images_baseline_manifest_blank_tag_override_not_treated_as_s
     )
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
-    written, skipped, changed = libimagedocs.regenerate_images_baseline_manifest(
+    written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, {"podiumd/charts/openbao"}
     )
 

@@ -24,9 +24,9 @@ def _clear_tag_exists_cache(libimagedigests):
     registry_tag_exists result could silently leak into a LATER test
     that reuses the same (repository, version), even though that later
     test mocks registry_tag_exists completely differently."""
-    libimagedigests._tag_exists_cache.clear()
+    libimagedigests.clear_tag_exists_cache()
     yield
-    libimagedigests._tag_exists_cache.clear()
+    libimagedigests.clear_tag_exists_cache()
 
 
 # --- cached_tag_exists ---

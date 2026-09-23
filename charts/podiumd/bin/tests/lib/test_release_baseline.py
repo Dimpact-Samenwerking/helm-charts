@@ -170,7 +170,7 @@ def test_resolve_baseline_values_never_requires_chart_yaml(librelease_baseline, 
     git("commit", "-q", "-m", "values.yaml, no Chart.yaml", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    ref, values, lines, error = librelease_baseline.resolve_baseline_values(tmp_path, "4.8.5")
+    ref, values, _lines, error = librelease_baseline.resolve_baseline_values(tmp_path, "4.8.5")
     assert error is None
     assert ref == "podiumd-4.8.5"
     assert values == {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
@@ -188,7 +188,7 @@ def test_resolve_baseline_chart_state_empty_dependencies_is_not_a_failure(librel
     git("commit", "-q", "-m", "no deps yet", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    ref, deps, values, lines, error = librelease_baseline.resolve_baseline_chart_state(tmp_path, "4.8.5")
+    ref, deps, values, _lines, error = librelease_baseline.resolve_baseline_chart_state(tmp_path, "4.8.5")
     assert error is None
     assert ref == "podiumd-4.8.5"
     assert deps == []

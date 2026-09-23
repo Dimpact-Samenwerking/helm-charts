@@ -437,7 +437,7 @@ def test_find_images_manifest_list_diff_representative_change_still_caught_despi
     repo_groups = {"nginxinc/nginx-unprivileged": list(current_paths.keys())}
     repo_map = {"nginxinc/nginx-unprivileged": ("global", "images", "nginx")}
 
-    missing, stale, unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
+    missing, _stale, _unmatched = libupgradedocmanifestdiff.find_images_manifest_list_diff(
         libupgradedocmanifestdiff.ManifestDiffInputs(
             entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set()
         )

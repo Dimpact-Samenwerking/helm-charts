@@ -83,7 +83,7 @@ def test_drift_shows_actual_diff_lines_not_just_a_count(libhelmdocscheck, vp, tm
     regenerated = README_CONTENT.replace("PodiumD Helm chart", "PodiumD Helm chart (updated)")
     monkeypatch.setattr(libhelmdocscheck, "run", lambda cmd, **kw: helm_docs_result(regenerated))
 
-    ok, detail = vp.check_helm_docs(chart_dir)
+    ok, _detail = vp.check_helm_docs(chart_dir)
     assert ok is False
     out = capsys.readouterr().out
     assert "-PodiumD Helm chart" in out
@@ -96,7 +96,7 @@ def test_drift_caps_diff_output_and_reports_how_many_were_dropped(libhelmdocsche
     regenerated = "\n".join(f"other{i}" for i in range(100)) + "\n"
     monkeypatch.setattr(libhelmdocscheck, "run", lambda cmd, **kw: helm_docs_result(regenerated))
 
-    ok, detail = vp.check_helm_docs(chart_dir)
+    ok, _detail = vp.check_helm_docs(chart_dir)
     assert ok is False
     out = capsys.readouterr().out
     diff_lines_printed = [line for line in out.splitlines() if line.startswith("  ") and line[2:3] in ("+", "-")]

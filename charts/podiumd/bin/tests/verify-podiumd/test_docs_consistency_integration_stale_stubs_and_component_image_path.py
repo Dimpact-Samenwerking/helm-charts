@@ -86,7 +86,7 @@ def test_stale_upgrade_placeholder_is_reported_as_a_finding(vp, chart_repo, caps
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text() + "\n## Changes\n\nTODO\n\n### zac 5.0.2 → 5.4.3\n\nSome prose.\n")
 
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out
@@ -120,7 +120,7 @@ def test_stale_values_deltas_placeholder_is_reported_as_a_finding(vp, chart_repo
         "No gemeente podiumd.yml changes are required for this hop.\n"
     )
 
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out
@@ -142,7 +142,7 @@ def test_stale_gemeente_specific_placeholder_is_reported_as_a_finding(vp, chart_
         "- Some real finding.\n"
     )
 
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out
@@ -183,7 +183,7 @@ def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(vp, chart_repo, 
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text() + "| Keycloak | 1.0.0 → 1.0.1 | 1.0.0 (unchanged) | n/a |\n")
 
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out
@@ -199,7 +199,7 @@ def test_duplicate_row_names_are_reported(vp, chart_repo, capsys):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text() + "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | dup |\n")
 
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out
@@ -219,7 +219,7 @@ def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(vp, chart_repo
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text() + "| zac | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | exact match |\n")
 
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out
@@ -248,7 +248,7 @@ def test_wrong_source_version_vs_baseline_is_caught(vp, chart_repo):
 
 
 def test_unresolvable_baseline_is_caught(vp, chart_repo):
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="9.9.9")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="9.9.9")
     assert ok is False
 
 
@@ -358,7 +358,7 @@ def test_images_manifest_entry_with_no_real_change_is_caught(vp, chart_repo, cap
         )
     )
 
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
 
     out = capsys.readouterr().out
@@ -373,7 +373,7 @@ def test_images_manifest_entry_missing_version_or_digest_is_reported_not_crashed
     images_path = chart_repo / "docs" / "images" / "images-4.9.0.yaml"
     images_path.write_text(images_path.read_text().replace('  digest: "sha256:abc"\n', ""))
 
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline=None)
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline=None)
     assert ok is False
     out = capsys.readouterr().out
     assert 'zac: entry in images-4.9.0.yaml is missing "version" or "digest"' in out
@@ -393,7 +393,7 @@ def test_images_manifest_missing_changes_header_entirely_is_caught(vp, chart_rep
     stripped = "\n".join(line for line in text.splitlines() if "# Changes:" not in line and "#   1." not in line)
     images_path.write_text(stripped, encoding="utf-8")
 
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
 
     out = capsys.readouterr().out
@@ -416,7 +416,7 @@ def test_images_manifest_format_issue_does_not_swallow_other_mismatches(vp, char
     images_path = chart_repo / "docs" / "images" / "images-4.9.0.yaml"
     images_path.write_text(images_path.read_text().replace("Baseline: podiumd 4.8.5", "Baseline: podiumd 9.9.9"))
 
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
 
     assert ok is False
@@ -441,7 +441,7 @@ def test_stale_pointer_reference_does_not_block_every_other_check(vp, chart_repo
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text().replace("ZAC (Zaakafhandelcomponent)", "Some Unrelated Name"))
 
-    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
 
     assert ok is False
@@ -528,7 +528,7 @@ def test_component_specific_image_path_mismatch_is_flagged_not_silently_skipped(
     "26.7.2" at keycloak-operator's own registered image path — this
     must surface as a normal target-app mismatch, not be silently
     skipped just because the doc cell was empty."""
-    ok, detail = vp.check_docs_consistency(keycloak_chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(keycloak_chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
 
     assert ok is False

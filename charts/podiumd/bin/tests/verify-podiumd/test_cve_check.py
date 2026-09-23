@@ -588,7 +588,7 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
     }
     monkeypatch.setattr(libcvecheck, "run", sequenced_run(trivy_by_image=trivy_by_image))
 
-    ok, detail = vp.check_cves(chart_dir, [])
+    ok, _detail = vp.check_cves(chart_dir, [])
     assert ok is True
 
     out = capsys.readouterr().out
@@ -629,7 +629,7 @@ def test_check_cves_stale_upgrade_cache_entry_not_marked_upgradable(
     }
     monkeypatch.setattr(libcvecheck, "run", sequenced_run(trivy_by_image=trivy_by_image))
 
-    ok, detail = vp.check_cves(chart_dir, [])
+    ok, _detail = vp.check_cves(chart_dir, [])
     assert ok is True
     out = capsys.readouterr().out
     assert "upgradable" not in out
@@ -668,7 +668,7 @@ def test_check_cves_detail_itemizes_every_bucket(vp, libcvecheck, tmp_path, monk
     }
     monkeypatch.setattr(libcvecheck, "run", sequenced_run(trivy_by_image=trivy_by_image))
 
-    ok, detail = vp.check_cves(chart_dir, [], detail=True)
+    ok, _detail = vp.check_cves(chart_dir, [], detail=True)
     assert ok is True
 
     out = capsys.readouterr().out
@@ -801,7 +801,7 @@ def test_check_cves_cache_miss_scans_and_persists(vp, libcvecheck, tmp_path, mon
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(libcvecheck, "run", sequenced_run())
 
-    ok, detail = vp.check_cves(chart_dir, [])
+    ok, _detail = vp.check_cves(chart_dir, [])
     assert ok is True
     saved = libcvecheck.load_cache(chart_dir)
     assert libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A) in saved
@@ -828,7 +828,7 @@ def test_check_cves_cache_hit_skips_scanning(vp, libcvecheck, tmp_path, monkeypa
         return trivy_result(stdout="{}")
 
     monkeypatch.setattr(libcvecheck, "run", fail_if_scanned)
-    ok, detail = vp.check_cves(chart_dir, [])
+    ok, _detail = vp.check_cves(chart_dir, [])
     assert ok is True
     out = capsys.readouterr().out
     assert "1 CRIT CVE(s)" in out  # own: per-image totals by default, no CVE ID itemized
@@ -893,7 +893,7 @@ def test_check_cves_still_updates_its_own_currently_pinned_targets(vp, libcveche
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(libcvecheck, "run", sequenced_run())
 
-    ok, detail = vp.check_cves(chart_dir, [])
+    ok, _detail = vp.check_cves(chart_dir, [])
     assert ok is True
     saved = libcvecheck.load_cache(chart_dir)
     assert libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A) in saved

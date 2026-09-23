@@ -87,7 +87,7 @@ def test_pair_renames_pairs_identical_scalars(libupgradedoccomments):
     current = {"mi": {"newName": "same-value"}}
     added = [("mi", "newName")]
     removed = [("mi", "oldName")]
-    renamed, added_left, removed_left = libupgradedoccomments.pair_renames(added, removed, baseline, current)
+    renamed, _added_left, _removed_left = libupgradedoccomments.pair_renames(added, removed, baseline, current)
     assert renamed == [(("mi", "oldName"), ("mi", "newName"))]
 
 

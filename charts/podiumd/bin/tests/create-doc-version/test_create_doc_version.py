@@ -75,7 +75,7 @@ def test_no_release_baseline_fails(cdv, tmp_path, monkeypatch, capsys):
 
 
 def test_uses_release_baseline(cdv, tmp_path, monkeypatch, capsys):
-    doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch, baseline="4.8.5")
+    doc_dir, _images_dir = setup_dirs(cdv, tmp_path, monkeypatch, baseline="4.8.5")
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
     cdv.main()  # success path: must not raise
@@ -100,7 +100,7 @@ def test_creates_all_standard_docs_when_none_exist(cdv, tmp_path, monkeypatch, c
 
 
 def test_creates_only_the_missing_doc(cdv, tmp_path, monkeypatch, capsys):
-    doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
+    doc_dir, _images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text("hand-written\n", encoding="utf-8")
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
@@ -126,7 +126,7 @@ def test_refuses_when_doc_exists_under_a_different_baseline(cdv, tmp_path, monke
     """The whole point of the split: never silently rebase docs that
     should have been created fresh (or vice versa) — this is
     fix-doc-consistency's job, so refuse outright instead."""
-    doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
+    doc_dir, _images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
     existing = doc_dir / "4.8.4-to-4.9.0-upgrade.md"
     existing.write_text("real content\n", encoding="utf-8")
     monkeypatch.setattr("sys.argv", ["create-doc-version"])

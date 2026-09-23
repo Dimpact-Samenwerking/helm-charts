@@ -138,7 +138,7 @@ def test_update_images_manifest_creates_missing_header(ucv, tmp_path):
         '  digest: "sha256:aaaa"\n',
         encoding="utf-8",
     )
-    changes_action, entry_updates, missing = ucv.update_images_manifest(
+    changes_action, entry_updates, _missing = ucv.update_images_manifest(
         ucv.ManifestUpdateTarget(images_path, "zac", "zac"),
         ucv.VersionChange("5.1.0", "5.4.3", "1.0.297", "1.0.297"),
         ucv.ImagePathUpdate(
@@ -177,7 +177,7 @@ def test_update_images_manifest_no_baseline_app_renders_new(ucv, tmp_path):
         '  digest: "sha256:aaaa"\n',
         encoding="utf-8",
     )
-    changes_action, entry_updates, missing = ucv.update_images_manifest(
+    changes_action, _entry_updates, _missing = ucv.update_images_manifest(
         ucv.ManifestUpdateTarget(images_path, "redis", "redis"),
         ucv.VersionChange(None, "8.10.1", "-", "-"),
         ucv.ImagePathUpdate(["image"], {"image": "redis"}, {"image": "8.10.1@sha256:cccc"}),
@@ -236,7 +236,7 @@ def test_update_images_manifest_native_component_omits_chart_clause(ucv, tmp_pat
         '  digest: "sha256:aaaa"\n',
         encoding="utf-8",
     )
-    changes_action, entry_updates, missing = ucv.update_images_manifest(
+    changes_action, entry_updates, _missing = ucv.update_images_manifest(
         ucv.ManifestUpdateTarget(images_path, "frankgateway", "frankgateway"),
         ucv.VersionChange("100", "104", None, "-"),
         ucv.ImagePathUpdate([], {}, {}),
@@ -271,7 +271,7 @@ def test_update_images_manifest_recognizes_bare_changes_header(ucv, tmp_path):
         '  digest: "sha256:aaaa"\n',
         encoding="utf-8",
     )
-    changes_action, entry_updates, missing = ucv.update_images_manifest(
+    changes_action, entry_updates, _missing = ucv.update_images_manifest(
         ucv.ManifestUpdateTarget(images_path, "zac", "zac"),
         ucv.VersionChange("5.1.0", "5.4.3", "1.0.297", "1.0.297"),
         ucv.ImagePathUpdate(
@@ -301,7 +301,7 @@ def test_update_images_manifest_bare_header_new_item_no_count_word_invented(ucv,
         '  digest: "sha256:aaaa"\n',
         encoding="utf-8",
     )
-    changes_action, entry_updates, missing = ucv.update_images_manifest(
+    changes_action, _entry_updates, missing = ucv.update_images_manifest(
         ucv.ManifestUpdateTarget(images_path, "openformulieren", "openformulieren"),
         ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
         ucv.ImagePathUpdate(["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"}),
@@ -359,7 +359,7 @@ def test_update_images_manifest_new_item_lands_after_continuation_line(ucv, tmp_
         '  digest: "sha256:aaaa"\n',
         encoding="utf-8",
     )
-    changes_action, entry_updates, missing = ucv.update_images_manifest(
+    changes_action, _entry_updates, _missing = ucv.update_images_manifest(
         ucv.ManifestUpdateTarget(images_path, "openformulieren", "openformulieren"),
         ucv.VersionChange("3.4.10", "3.5.6", "1.12.0", "1.12.0"),
         ucv.ImagePathUpdate(["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"}),

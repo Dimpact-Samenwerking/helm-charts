@@ -289,6 +289,11 @@ def resolve_pin_targets(chart_dir):
 _tag_exists_cache = {}
 
 
+def clear_tag_exists_cache() -> None:
+    """Empty cached_tag_exists' in-process tier; the disk cache stays."""
+    _tag_exists_cache.clear()
+
+
 def cached_tag_exists(chart_dir, repository, version, timeout=None):
     """Wrapper around lib.registry.registry_tag_exists for the tag-level
     lookup check_image_digests' own loop (below), find_sliding_pins, AND

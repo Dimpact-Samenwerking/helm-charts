@@ -136,7 +136,7 @@ def test_registry_tag_exists_omits_timeout_kwarg_by_default(libregistry, monkeyp
         return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
 
     monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
-    exists, digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
+    exists, _digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
     assert exists is True
 
 

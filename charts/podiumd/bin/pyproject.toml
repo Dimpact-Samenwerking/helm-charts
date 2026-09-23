@@ -247,6 +247,8 @@ sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 # internals, never called directly by this codebase at all:
 #   - pull_chart_values: called only from tests/lib/test_chart.py.
 #   - find_matches: called only from tests/lib/test_image_version.py.
+#   - clear_tag_exists_cache: resets lib/image/digests.py's in-process
+#     cache between tests; called only from tests/.
 #   - handle_starttag, handle_endtag, handle_data: _TableExtractor's own
 #     HTMLParser method overrides in lib/confluence_tables.py, dispatched
 #     by name from HTMLParser.feed() itself.
@@ -254,6 +256,7 @@ sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 ignore_names = [
     "pull_chart_values",
     "find_matches",
+    "clear_tag_exists_cache",
     "handle_starttag",
     "handle_endtag",
     "handle_data"

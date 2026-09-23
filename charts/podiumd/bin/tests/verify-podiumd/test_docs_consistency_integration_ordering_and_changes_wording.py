@@ -465,7 +465,7 @@ def two_dep_chart_repo(tmp_path):
 
 
 def test_values_deltas_sections_out_of_order_is_caught(vp, two_dep_chart_repo, capsys):
-    ok, detail = vp.check_docs_consistency(two_dep_chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(two_dep_chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
     out = capsys.readouterr().out
     assert (

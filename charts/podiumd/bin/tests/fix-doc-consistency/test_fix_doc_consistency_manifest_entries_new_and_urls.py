@@ -176,7 +176,7 @@ def test_add_missing_images_manifest_entries_appends_new_entry(cdb, images_manif
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}}
     }
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             images_manifest_chart_dir,
@@ -449,7 +449,7 @@ def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(c
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}}
     }
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             images_manifest_chart_dir,
@@ -482,7 +482,7 @@ def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb, im
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}}
     }
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             images_manifest_chart_dir,
@@ -599,7 +599,7 @@ def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_regi
 
     monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", fake_registry_tag_exists)
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         "",
         cdb.MissingEntriesContext(
             eck_stack_chart_dir,
@@ -632,7 +632,7 @@ def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_netw
 
     monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", fail_if_called)
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         "",
         cdb.MissingEntriesContext(
             eck_stack_chart_dir,
@@ -658,7 +658,7 @@ def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skip
 
     monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    _new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         "",
         cdb.MissingEntriesContext(
             eck_stack_chart_dir,
@@ -734,7 +734,7 @@ def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(cd
         }
     }
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             keycloak_operator_chart_dir,
@@ -784,7 +784,7 @@ def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still
         }
     }
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             keycloak_operator_chart_dir,
@@ -841,7 +841,7 @@ def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per
         "apiproxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}},
     }
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             global_image_chart_dir,
@@ -898,7 +898,7 @@ def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repo
         "kiss": {"adapter": {"image": {"tag": "0.6.6@sha256:dddd"}}},
     }
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             images_manifest_chart_dir,

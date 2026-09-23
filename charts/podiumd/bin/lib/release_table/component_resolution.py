@@ -253,16 +253,16 @@ def component_and_alias(name, dependencies, orphan_keys=(), global_image_key_nam
 
 def _exact_options(text, options):
     """{o for o in options if normalize_name(o) is one of name_candidates(text)}
-    — the raw exact-tier match set _exact_match and _match_one both
+    — the raw exact-tier match set exact_match and match_one both
     build on, factored out so neither recomputes it independently."""
     candidates = name_candidates(text)
     return {o for o in options if normalize_name(o) in candidates}
 
 
-def _exact_match(text, options):
+def exact_match(text, options):
     """The single option in `options` whose own normalize_name is exactly
     one of name_candidates(text) — None if none do, or more than one
-    ties (an ambiguity, never a guess). This is _match_one's own first,
+    ties (an ambiguity, never a guess). This is match_one's own first,
     strongest tier, exposed separately so a caller can require JUST this
     level of confidence without also accepting its much weaker fuzzy-
     containment fallback (see lib.release_table.image_basenames, which
@@ -275,9 +275,9 @@ def _exact_match(text, options):
     return next(iter(exact)) if len(exact) == 1 else None
 
 
-def _match_one(text, options):
+def match_one(text, options):
     """The single string in `options` that `text` unambiguously identifies
-    — an exact match (see _exact_match) if there is one, else the single
+    — an exact match (see exact_match) if there is one, else the single
     option related to it (see _related) if there's exactly one such
     relation; None if nothing matches, or more than one option ties at
     the same tier — this never guesses between two equally-plausible
@@ -293,7 +293,7 @@ def _match_one(text, options):
     return next(iter(related)) if len(related) == 1 else None
 
 
-def _extra_scope_keys_by_component(chart_dir):
+def extra_scope_keys_by_component(chart_dir):
     """{dependency_name: [orphan_key, ...]} for every orphan values.yaml
     key (see orphan_values_yaml_keys) that itself relates to exactly one
     real Chart.yaml dependency — e.g. orphan key "keycloak" (podiumd's

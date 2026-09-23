@@ -56,7 +56,7 @@ def test_fix_images_manifest_entries_leaves_correct_entry_untouched(cdb):
     target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
-    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+    new_text, changed, _unresolved = cdb.fix_images_manifest_entries(
         text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values)
     )
     assert changed == []
@@ -109,7 +109,7 @@ def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(c
 
     # without repo_map, the same entry is unresolved -- proves repo_map is
     # what makes the difference, not some other fixture quirk
-    new_text2, changed2, unresolved2 = cdb.fix_images_manifest_entries(
+    _new_text2, changed2, unresolved2 = cdb.fix_images_manifest_entries(
         text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values)
     )
     assert changed2 == []

@@ -171,7 +171,7 @@ def test_check_dependencies_retries_then_succeeds(libdependencies, tmp_path, mon
 
     monkeypatch.setattr(libdependencies, "run", sequenced_run)
     monkeypatch.setattr(libdependencies.time, "sleep", lambda *_: None)
-    ok, detail = libdependencies.check_dependencies(tmp_path)
+    ok, _detail = libdependencies.check_dependencies(tmp_path)
     assert ok is True
     assert calls["update"] == 2
     out = capsys.readouterr().out
@@ -308,7 +308,7 @@ def test_check_dependencies_falls_back_to_full_update_when_fetch_fails(libdepend
         return SimpleNamespace(returncode=0, stdout=dep_list_output, stderr="")
 
     monkeypatch.setattr(libdependencies, "run", sequenced_run)
-    ok, detail = libdependencies.check_dependencies(tmp_path)
+    ok, _detail = libdependencies.check_dependencies(tmp_path)
     assert ok is True
     out = capsys.readouterr().out
     assert "skipping helm dependency update" not in out

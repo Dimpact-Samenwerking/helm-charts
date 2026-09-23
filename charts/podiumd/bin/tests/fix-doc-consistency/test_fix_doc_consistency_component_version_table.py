@@ -64,7 +64,7 @@ def test_fix_component_version_table_leaves_correct_row_untouched(cdb):
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, _unresolved = cdb.fix_component_version_table(
         text,
         cdb.ResolutionContext(
             None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
@@ -82,7 +82,7 @@ def test_fix_component_version_table_unmatched_component_reported(cdb):
         "| Totally Unknown Thing | 1.0.0 → 2.0.0 | 1.0.0 → 2.0.0 | - |\n"
     )
     target_deps, target_values = target_deps_and_values()
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, unmatched, _unresolved = cdb.fix_component_version_table(
         text,
         cdb.ResolutionContext(
             None,
@@ -103,7 +103,7 @@ def test_fix_component_version_table_no_baseline_data_reported_unresolved(cdb):
         "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.1.0 | 1.0.251 → 1.0.257 | ACR mirror only |\n"
     )
     target_deps, target_values = target_deps_and_values()
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, unresolved = cdb.fix_component_version_table(
         text,
         cdb.ResolutionContext(None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(None, None)),
     )
@@ -143,7 +143,7 @@ def test_fix_component_version_table_leaves_a_correct_sidecar_row_untouched(cdb)
     )
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, _unresolved = cdb.fix_component_version_table(
         text,
         cdb.ResolutionContext(
             None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
@@ -167,7 +167,7 @@ def test_fix_component_version_table_corrects_a_stale_sidecar_row_using_its_own_
     )
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, _unresolved = cdb.fix_component_version_table(
         text,
         cdb.ResolutionContext(
             None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
@@ -220,7 +220,7 @@ def test_fix_component_version_table_leaves_a_correct_native_component_row_untou
     baseline_deps = [{"name": "zac", "version": "1.0.297"}]
     baseline_values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, _unresolved = cdb.fix_component_version_table(
         text,
         cdb.ResolutionContext(
             None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
@@ -245,7 +245,7 @@ def test_fix_component_version_table_unresolvable_canonical_row_reported_not_cor
     )
     target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, unresolved = cdb.fix_component_version_table(
         text,
         cdb.ResolutionContext(
             None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState(baseline_deps, baseline_values)
@@ -292,7 +292,7 @@ def test_fix_component_version_table_new_dependency_already_annotated_is_untouch
     target_deps = [{"name": "openklant", "version": "1.11.0"}]
     target_values = {"openklant": {"image": {"tag": "2.15.0@sha256:aaaa"}}}
 
-    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+    new_text, changed, _unmatched, _unresolved = cdb.fix_component_version_table(
         text, cdb.ResolutionContext(None, cdb.ComponentState(target_deps, target_values), cdb.ComponentState([], {}))
     )
     assert changed == []

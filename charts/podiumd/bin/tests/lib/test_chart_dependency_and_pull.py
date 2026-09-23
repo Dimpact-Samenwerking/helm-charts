@@ -276,7 +276,7 @@ def test_pull_chart_builds_correct_command(monkeypatch, tmp_path, libchartpullan
 
     monkeypatch.setattr(libchartpullandsubchartresolution, "run", fake_run)
     dep = {"name": "zaakafhandelcomponent", "repository": "@zac"}
-    ok, stderr = libchartpullandsubchartresolution.pull_chart(dep, "1.0.297", tmp_path)
+    ok, _stderr = libchartpullandsubchartresolution.pull_chart(dep, "1.0.297", tmp_path)
     assert ok is True
     assert captured["cmd"] == [
         "helm",
