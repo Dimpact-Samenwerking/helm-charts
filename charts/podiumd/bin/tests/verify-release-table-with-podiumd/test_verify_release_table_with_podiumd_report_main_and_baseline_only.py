@@ -576,3 +576,21 @@ def test_main_plain_invocation_still_reports_ok_when_baseline_unresolvable(vrt, 
     out = capsys.readouterr().out
     assert code == 0
     assert "OK: release-table.csv matches" in out
+
+
+# --- stale vendored sub-charts guard ---
+
+
+@pytest.mark.parametrize(("argv", "expect_guard"), [([], True), (["--baseline-only"], False)])
+def test_main_guards_vendored_dependencies_unless_baseline_only(vrt, tmp_path, monkeypatch, argv, expect_guard):
+    """The target-side checks read this checkout's own charts/*.tgz, so a
+    normal run checks them first; --baseline-only skips every target-side
+    check, so it must not be blocked by a stale charts/. The missing
+    release-table.csv ends main() right after the guard either way."""
+    calls = []
+    monkeypatch.setattr(vrt, "require_vendored_dependencies", calls.append)
+    monkeypatch.setattr(vrt, "RELEASE_TABLE_CSV", tmp_path / "release-table.csv")
+    monkeypatch.setattr(vrt.sys, "argv", ["verify-release-table-with-podiumd", *argv])
+    with pytest.raises(SystemExit):
+        vrt.main()
+    assert calls == ([vrt.CHART_DIR] if expect_guard else [])

@@ -135,6 +135,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # pylint: disable=wrong-import-position
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import release_table_baseline
+from lib.dependencies import require_vendored_dependencies
 
 # basenames_under_scope_any_tag isn't used by this script's own code
 # below -- kept imported only so the tests/ suite's `vrt` fixture (which
@@ -245,6 +246,10 @@ def main():
         print(__doc__)
         sys.exit(1)
     baseline_only = args == ["--baseline-only"]
+    if not baseline_only:
+        # --baseline-only skips every target-side check, the only ones
+        # that read this checkout's own vendored charts/*.tgz.
+        require_vendored_dependencies(CHART_DIR)
 
     if not RELEASE_TABLE_CSV.is_file():
         print(f"error: {RELEASE_TABLE_CSV} not found")

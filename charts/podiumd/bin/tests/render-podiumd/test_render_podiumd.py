@@ -10,6 +10,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from lib import dependencies
+
 
 def fake_render_chart(returncode=0, stdout="", stderr=""):
     def _render_chart(chart_dir, extra_args):
@@ -235,3 +237,36 @@ def test_stdout_flag_failure_puts_everything_on_stderr_and_writes_nothing(rp, mo
     assert captured.out == ""  # nothing on stdout, even on failure
     assert "zac: 1" in captured.err
     assert "nothing written to stdout" in captured.err
+
+
+# --- stale vendored sub-charts guard ---
+
+
+def test_stale_vendored_dependencies_fail_before_rendering(rp, tmp_path, monkeypatch):
+    """Chart.yaml wants kiss-chart 3.1.1 but charts/ still has 3.0.0: the
+    guard must stop main() with the helm dependency update hint BEFORE
+    render_chart ever runs (which would otherwise fail on an unrelated-
+    looking kiss-chart schema error instead)."""
+    (tmp_path / "Chart.yaml").write_text(
+        "dependencies:\n  - name: kiss-chart\n    version: 3.1.1\n    repository: https://example.invalid\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Chart.lock").write_text(
+        "dependencies:\n  - name: kiss-chart\n    version: 3.1.1\n    repository: https://example.invalid\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "charts").mkdir()
+    (tmp_path / "charts" / "kiss-chart-3.0.0.tgz").touch()
+
+    rendered = []
+    monkeypatch.setattr(rp, "require_vendored_dependencies", dependencies.require_vendored_dependencies)
+    monkeypatch.setattr(rp, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(tmp_path / "out.yaml")])
+    monkeypatch.setattr(rp, "render_chart", lambda chart_dir, extra_args: rendered.append(chart_dir))
+
+    with pytest.raises(SystemExit) as exc_info:
+        rp.main()
+
+    assert "kiss-chart: Chart.yaml wants 3.1.1, charts/ has 3.0.0" in str(exc_info.value.code)
+    assert "Run: helm dependency update" in str(exc_info.value.code)
+    assert not rendered

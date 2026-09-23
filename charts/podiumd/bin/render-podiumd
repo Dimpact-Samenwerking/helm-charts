@@ -45,6 +45,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.dependencies import require_vendored_dependencies
 from lib.render_scope import lint_args_for
 from lib.render_scope import render_chart
 from lib.render_scope import report_errors_by_subchart
@@ -65,6 +66,7 @@ def main():
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)
+    require_vendored_dependencies(CHART_DIR)
 
     args = sys.argv[1:]
     to_stdout = bool(args) and args[0] == "--stdout"

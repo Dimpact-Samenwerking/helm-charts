@@ -1,10 +1,11 @@
 """lib.dependencies — ensure_repos_configured, check_dependencies,
-_vendored_state_matches_chart_yaml. `helm` subprocess calls mocked out via
+vendored_state_matches_chart_yaml. `helm` subprocess calls mocked out via
 libdependencies.run, so these tests need neither the binary installed nor
 network access."""
 
 from types import SimpleNamespace
 
+import pytest
 import yaml
 
 
@@ -17,7 +18,7 @@ def fake_run(returncode=0, stdout="", stderr=""):
 
 def write_matching_lock_state(chart_dir, deps):
     """A Chart.yaml + Chart.lock + vendored charts/*.tgz set that
-    _vendored_state_matches_chart_yaml should recognize as already up to
+    vendored_state_matches_chart_yaml should recognize as already up to
     date — deps is [{"name", "version", "repository"}, ...], written to
     Chart.yaml exactly as given. Chart.lock gets each dependency's
     repository already resolved to its plain URL when Chart.yaml uses an
@@ -202,32 +203,32 @@ def test_check_dependencies_bad_status_fails(libdependencies, tmp_path, monkeypa
     assert "did not resolve" in detail
 
 
-# --- _vendored_state_matches_chart_yaml / check_dependencies fast path ---
+# --- vendored_state_matches_chart_yaml / check_dependencies fast path ---
 
 
-def test_vendored_state_matches_chart_yaml_true_when_everything_lines_up(libdependencies, tmp_path):
+def testvendored_state_matches_chart_yaml_true_when_everything_lines_up(libdependencies, tmp_path):
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_matching_lock_state(tmp_path, deps)
-    assert libdependencies._vendored_state_matches_chart_yaml(tmp_path) is True
+    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is True
 
 
-def test_vendored_state_matches_chart_yaml_false_when_no_lock_file(libdependencies, tmp_path):
+def testvendored_state_matches_chart_yaml_false_when_no_lock_file(libdependencies, tmp_path):
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
-    assert libdependencies._vendored_state_matches_chart_yaml(tmp_path) is False
+    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
 
 
-def test_vendored_state_matches_chart_yaml_false_when_version_bumped(libdependencies, tmp_path):
+def testvendored_state_matches_chart_yaml_false_when_version_bumped(libdependencies, tmp_path):
     """Chart.lock still has the OLD version — Chart.yaml moved on since
     it was generated."""
     old = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_matching_lock_state(tmp_path, old)
     new = [{"name": "zac", "version": "1.0.298", "repository": "@zac"}]
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": new}), encoding="utf-8")
-    assert libdependencies._vendored_state_matches_chart_yaml(tmp_path) is False
+    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
 
 
-def test_vendored_state_matches_chart_yaml_false_when_dependency_count_differs(libdependencies, tmp_path):
+def testvendored_state_matches_chart_yaml_false_when_dependency_count_differs(libdependencies, tmp_path):
     """A dependency was added or removed in Chart.yaml since the lock was
     generated — real case this guards against: frankgateway briefly added
     then removed as a Chart.yaml dependency."""
@@ -235,20 +236,20 @@ def test_vendored_state_matches_chart_yaml_false_when_dependency_count_differs(l
     write_matching_lock_state(tmp_path, deps)
     deps_plus_one = [*deps, {"name": "frankgateway", "version": "1.1.0", "repository": "@wearefrank"}]
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps_plus_one}), encoding="utf-8")
-    assert libdependencies._vendored_state_matches_chart_yaml(tmp_path) is False
+    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
 
 
-def test_vendored_state_matches_chart_yaml_false_when_tgz_missing(libdependencies, tmp_path):
+def testvendored_state_matches_chart_yaml_false_when_tgz_missing(libdependencies, tmp_path):
     """Chart.lock and Chart.yaml agree, but the vendored .tgz itself is
     missing (or got lost — real case hit today: charts/*.tgz emptied by
     an unrelated interrupted run) — never trust the lock alone."""
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_matching_lock_state(tmp_path, deps)
     (tmp_path / "charts" / "zac-1.0.297.tgz").unlink()
-    assert libdependencies._vendored_state_matches_chart_yaml(tmp_path) is False
+    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
 
 
-def test_vendored_state_matches_chart_yaml_int_version_normalized(libdependencies, tmp_path):
+def testvendored_state_matches_chart_yaml_int_version_normalized(libdependencies, tmp_path):
     """A bare-looking version ("version: 26") parses as a YAML int, not a
     string — must still compare equal to Chart.lock's own quoted-string
     form of the same version."""
@@ -262,7 +263,7 @@ def test_vendored_state_matches_chart_yaml_int_version_normalized(libdependencie
     )
     (tmp_path / "charts").mkdir()
     (tmp_path / "charts" / "keycloak-26.tgz").touch()
-    assert libdependencies._vendored_state_matches_chart_yaml(tmp_path) is True
+    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is True
 
 
 def test_check_dependencies_skips_update_when_already_vendored(libdependencies, tmp_path, monkeypatch, capsys):
@@ -307,3 +308,86 @@ def test_check_dependencies_falls_back_to_update_when_lock_stale(libdependencies
     out = capsys.readouterr().out
     assert "skipping helm dependency update" not in out
     assert "Running helm dependency update (attempt 1/3)..." in out
+
+
+# --- vendored_dependency_problems / require_vendored_dependencies ---
+
+
+def test_vendored_dependency_problems_empty_when_in_sync(libdependencies, tmp_path):
+    deps = [{"name": "kiss-chart", "version": "3.1.1", "repository": "@kiss"}]
+    write_matching_lock_state(tmp_path, deps)
+    assert libdependencies.vendored_dependency_problems(tmp_path) == []
+
+
+def test_vendored_dependency_problems_empty_when_chart_has_no_dependencies(libdependencies, tmp_path):
+    """Nothing to vendor at all — unlike vendored_state_matches_chart_yaml
+    (which returns False here so check_dependencies still runs a real
+    update), the guard has nothing to complain about."""
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"name": "x", "version": "1.0.0"}), encoding="utf-8")
+    assert libdependencies.vendored_dependency_problems(tmp_path) == []
+    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
+
+
+def test_vendored_dependency_problems_names_wrong_tgz_version(libdependencies, tmp_path):
+    """The real incident: Chart.yaml moved to kiss-chart 3.1.1 (Chart.lock
+    regenerated too), but charts/ still has the old 3.0.0 package."""
+    deps = [{"name": "kiss-chart", "version": "3.1.1", "repository": "@kiss"}]
+    write_matching_lock_state(tmp_path, deps)
+    (tmp_path / "charts" / "kiss-chart-3.1.1.tgz").rename(tmp_path / "charts" / "kiss-chart-3.0.0.tgz")
+    assert libdependencies.vendored_dependency_problems(tmp_path) == [
+        "kiss-chart: Chart.yaml wants 3.1.1, charts/ has 3.0.0"
+    ]
+
+
+def test_vendored_dependency_problems_tgz_missing_entirely(libdependencies, tmp_path):
+    deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
+    write_matching_lock_state(tmp_path, deps)
+    (tmp_path / "charts" / "zac-1.0.297.tgz").unlink()
+    assert libdependencies.vendored_dependency_problems(tmp_path) == ["zac: charts/zac-1.0.297.tgz is missing"]
+
+
+def test_vendored_dependency_problems_lock_missing(libdependencies, tmp_path):
+    deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
+    write_matching_lock_state(tmp_path, deps)
+    (tmp_path / "Chart.lock").unlink()
+    assert libdependencies.vendored_dependency_problems(tmp_path) == ["Chart.lock is missing"]
+
+
+def test_vendored_dependency_problems_lock_disagrees_with_chart_yaml(libdependencies, tmp_path):
+    """Chart.yaml bumped (and a dependency dropped) since Chart.lock and
+    charts/ were last generated — every side of the drift is named."""
+    old = [
+        {"name": "kiss-chart", "version": "3.0.0", "repository": "@kiss"},
+        {"name": "mi-data", "version": "1.0.0", "repository": "@dimpact"},
+    ]
+    write_matching_lock_state(tmp_path, old)
+    new = [{"name": "kiss-chart", "version": "3.1.1", "repository": "@kiss"}]
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": new}), encoding="utf-8")
+    assert libdependencies.vendored_dependency_problems(tmp_path) == [
+        "kiss-chart: Chart.yaml wants 3.1.1, Chart.lock has 3.0.0",
+        "mi-data: in Chart.lock (1.0.0) but no longer in Chart.yaml",
+        "kiss-chart: Chart.yaml wants 3.1.1, charts/ has 3.0.0",
+    ]
+
+
+def test_require_vendored_dependencies_passes_when_in_sync(libdependencies, tmp_path):
+    deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
+    write_matching_lock_state(tmp_path, deps)
+    assert libdependencies.require_vendored_dependencies(tmp_path) is None
+
+
+def test_require_vendored_dependencies_exits_with_actionable_message(libdependencies, tmp_path, monkeypatch):
+    deps = [{"name": "kiss-chart", "version": "3.1.1", "repository": "@kiss"}]
+    write_matching_lock_state(tmp_path, deps)
+    (tmp_path / "charts" / "kiss-chart-3.1.1.tgz").rename(tmp_path / "charts" / "kiss-chart-3.0.0.tgz")
+    monkeypatch.chdir(tmp_path.parent)
+
+    with pytest.raises(SystemExit) as exc_info:
+        libdependencies.require_vendored_dependencies(tmp_path)
+
+    message = str(exc_info.value.code)
+    assert message.startswith(
+        f"error: {tmp_path.name}/charts/ and Chart.lock do not match Chart.yaml (stale or missing sub-charts):"
+    )
+    assert "  - kiss-chart: Chart.yaml wants 3.1.1, charts/ has 3.0.0" in message
+    assert message.endswith(f"Run: helm dependency update {tmp_path.name}")
