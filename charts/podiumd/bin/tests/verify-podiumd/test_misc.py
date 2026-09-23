@@ -831,21 +831,21 @@ def test_detail_cve_diff_flag_true_is_passed_to_check_cve_diff(vp, monkeypatch):
 def test_guard_not_called_when_dependencies_step_runs(vp, monkeypatch):
     """The "Dependencies" step repairs a stale charts/ itself — no guard."""
     calls = []
-    monkeypatch.setattr(vp, "require_vendored_dependencies", calls.append)
-    vp._require_vendored_dependencies_if_skipped(Path("/chart"), set())
+    monkeypatch.setattr(vp, "ensure_vendored_dependencies", calls.append)
+    vp._ensure_vendored_dependencies_if_skipped(Path("/chart"), set())
     assert not calls
 
 
 def test_guard_called_when_dependencies_skipped_but_a_dependent_step_runs(vp, monkeypatch):
     calls = []
-    monkeypatch.setattr(vp, "require_vendored_dependencies", calls.append)
-    vp._require_vendored_dependencies_if_skipped(Path("/chart"), {"Dependencies"})
+    monkeypatch.setattr(vp, "ensure_vendored_dependencies", calls.append)
+    vp._ensure_vendored_dependencies_if_skipped(Path("/chart"), {"Dependencies"})
     assert calls == [Path("/chart")]
 
 
 def test_guard_not_called_when_every_dependent_step_is_skipped_too(vp, monkeypatch):
     calls = []
-    monkeypatch.setattr(vp, "require_vendored_dependencies", calls.append)
+    monkeypatch.setattr(vp, "ensure_vendored_dependencies", calls.append)
     dependents = {name for _, name in vp.SKIPPABLE_STEPS if "Dependencies" in vp.prerequisites_for(name)}
-    vp._require_vendored_dependencies_if_skipped(Path("/chart"), {"Dependencies", *dependents})
+    vp._ensure_vendored_dependencies_if_skipped(Path("/chart"), {"Dependencies", *dependents})
     assert not calls

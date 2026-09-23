@@ -18,6 +18,7 @@ import lib.chart.registered_paths as chart_registered_paths
 import lib.chart.release_baseline_basics as chart_release_baseline_basics
 import lib.chart.repo_and_path_resolution as chart_repo_and_path_resolution
 import lib.chart.values_tree_primitives as chart_values_tree_primitives
+import lib.chart_lock as chart_lock
 import lib.component_docs as component_docs
 import lib.component_docs.baseline_doc_stubs as component_docs_baseline_doc_stubs
 import lib.component_docs.changes_section as component_docs_changes_section
@@ -99,6 +100,11 @@ def libbaselinereport():
 @pytest.fixture(scope="session")
 def libdependencies():
     return dependencies
+
+
+@pytest.fixture(scope="session")
+def libchartlock():
+    return chart_lock
 
 
 @pytest.fixture(scope="session")

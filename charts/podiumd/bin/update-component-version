@@ -71,7 +71,7 @@ from lib.component_docs.values_delta_sections import ValuesDeltaOrdering
 from lib.component_docs.values_delta_sections import insert_values_delta_section
 from lib.component_docs.values_delta_sections import remove_values_delta_section
 from lib.component_docs.values_delta_sections import values_delta_section_heading
-from lib.dependencies import require_vendored_dependencies
+from lib.dependencies import ensure_vendored_dependencies
 from lib.image.version import image_basename
 from lib.image.version import update_image_version
 from lib.procutil import run_script
@@ -964,7 +964,7 @@ def main():
     writing anything, then updates Chart.yaml/values.yaml and refreshes
     the docs. See the module docstring for the full argument contract."""
     component, app_version, chart_version = _parse_cli_args()
-    require_vendored_dependencies(CHART_DIR)
+    ensure_vendored_dependencies(CHART_DIR)
     split_tag_sha_paths = _load_split_tag_sha_paths()
     ctx = _resolve_bump_context(component, app_version, chart_version)
 

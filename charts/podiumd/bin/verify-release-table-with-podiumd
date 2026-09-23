@@ -135,7 +135,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # pylint: disable=wrong-import-position
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import release_table_baseline
-from lib.dependencies import require_vendored_dependencies
+from lib.dependencies import ensure_vendored_dependencies
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.release_table_verification import ChartState
 from lib.release_table_verification import compare
@@ -254,7 +254,7 @@ def main():
     if not baseline_only:
         # --baseline-only skips every target-side check, the only ones
         # that read this checkout's own vendored charts/*.tgz.
-        require_vendored_dependencies(CHART_DIR)
+        ensure_vendored_dependencies(CHART_DIR)
 
     if not RELEASE_TABLE_CSV.is_file():
         print(f"error: {RELEASE_TABLE_CSV} not found")

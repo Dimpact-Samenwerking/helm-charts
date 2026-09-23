@@ -106,7 +106,7 @@ from lib.component_docs.values_delta_sections import ValuesDeltaOrdering
 from lib.component_docs.values_delta_sections import insert_values_delta_section
 from lib.component_docs.values_delta_sections import remove_values_delta_section
 from lib.component_docs.values_delta_sections import values_delta_section_heading
-from lib.dependencies import require_vendored_dependencies
+from lib.dependencies import ensure_vendored_dependencies
 from lib.image.docs import ImageBump
 from lib.image.docs import make_image_changes_section
 from lib.image.docs import remove_image_manifest_entry
@@ -798,7 +798,7 @@ def main():
         print(__doc__)
         sys.exit(1)
     key, basename, new_version = sys.argv[1], sys.argv[2], sys.argv[3]
-    require_vendored_dependencies(CHART_DIR)
+    ensure_vendored_dependencies(CHART_DIR)
 
     deps = load_yaml(CHART_YAML).get("dependencies", [])
     key = resolve_key_scope(key, deps)

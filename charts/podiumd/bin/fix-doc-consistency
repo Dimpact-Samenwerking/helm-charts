@@ -110,7 +110,7 @@ from lib.component_docs.values_delta_sections import ValuesDeltaOrdering
 from lib.component_docs.values_delta_sections import prune_empty_values_delta_sections
 from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
 from lib.component_docs.values_delta_sections import sync_values_delta_sections
-from lib.dependencies import require_vendored_dependencies
+from lib.dependencies import ensure_vendored_dependencies
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import extract_images_baseline
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_images_manifest_baseline
 from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_sibling_doc_refs
@@ -940,7 +940,7 @@ def main():
     manifest onto release-baseline.yaml's own upgrade_docs baseline (see
     module docstring for the full list of what gets fixed)."""
     _parse_cli_args()
-    require_vendored_dependencies(CHART_YAML.parent)
+    ensure_vendored_dependencies(CHART_YAML.parent)
     new_baseline, target = _load_and_validate_baseline()
     by_suffix = _check_no_collisions(target)
 

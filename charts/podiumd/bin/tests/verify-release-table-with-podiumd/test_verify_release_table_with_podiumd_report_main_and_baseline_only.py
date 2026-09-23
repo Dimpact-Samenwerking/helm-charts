@@ -588,7 +588,7 @@ def test_main_guards_vendored_dependencies_unless_baseline_only(vrt, tmp_path, m
     check, so it must not be blocked by a stale charts/. The missing
     release-table.csv ends main() right after the guard either way."""
     calls = []
-    monkeypatch.setattr(vrt, "require_vendored_dependencies", calls.append)
+    monkeypatch.setattr(vrt, "ensure_vendored_dependencies", calls.append)
     monkeypatch.setattr(vrt, "RELEASE_TABLE_CSV", tmp_path / "release-table.csv")
     monkeypatch.setattr(vrt.sys, "argv", ["verify-release-table-with-podiumd", *argv])
     with pytest.raises(SystemExit):
