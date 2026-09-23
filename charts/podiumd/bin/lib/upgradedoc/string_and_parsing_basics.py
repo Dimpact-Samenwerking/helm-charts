@@ -127,6 +127,14 @@ def _word_aligned_spans(text):
     return spans
 
 
+def word_contains(text: str, name: str) -> bool:
+    """Whether `name`, normalized, is a run of whole words of `text`
+    (see _word_aligned_spans): "Open Inwoner platform" contains
+    "openinwoner", but "ensurePodiumdAdminUser" does not contain "mi"."""
+    norm = normalize_name(name)
+    return bool(norm) and norm in _word_aligned_spans(text)
+
+
 def text_names(text: str, name: str) -> bool:
     """Whether `text` (a table row's Name cell, a "### ..." heading or a
     "# Changes:" item) names `name`. A plain name matches at word
@@ -137,7 +145,7 @@ def text_names(text: str, name: str) -> bool:
     matches "zac - postgres-exporter 1.0", and a plain name never
     matches a sidecar's text, nor the reverse."""
     if " - " not in text and " - " not in name:
-        return normalize_name(name) in _word_aligned_spans(text)
+        return word_contains(text, name)
     if " - " not in text or " - " not in name:
         return False
     name_words, words = words_of(name), words_of(text)

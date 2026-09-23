@@ -5,19 +5,10 @@ split out of that script for pylint's too-many-lines check."""
 import re
 
 from lib.chart.release_baseline_basics import load_yaml
+from lib.upgradedoc.string_and_parsing_basics import normalize_name
+from lib.upgradedoc.string_and_parsing_basics import word_contains
 
-NOT_ALNUM_RE = re.compile(r"[^a-z0-9]")
 BRACKETED_RE = re.compile(r"\(([^)]*)\)")
-
-
-def normalize_name(text):
-    """`text` lowercased with every non-alphanumeric character (spaces,
-    dashes, slashes, parentheses, ...) removed — needed because
-    Chart.yaml dependency names are plain lowercase-no-punctuation
-    (e.g. "zgw-office-addin", "internetaakafhandeling") while the page's
-    own component names use all sorts of separators ("Office Add-in",
-    "OMC / Notify")."""
-    return NOT_ALNUM_RE.sub("", text.lower())
 
 
 def name_candidates(name):
@@ -34,19 +25,28 @@ def name_candidates(name):
     exact match fire for a part that's short/generic enough that it
     would only ever relate to something by substring as part of the
     whole string."""
-    candidates = [normalize_name(name)]
+    return list(dict.fromkeys(normalize_name(part) for part in _candidate_parts(name)))
+
+
+def _candidate_parts(name: str) -> list[str]:
+    """name_candidates, before normalizing: `name` itself and, for a
+    "... (bracketed part)" name, the rest and the bracketed part. Parts
+    that normalize to "" are dropped."""
+    parts = [name]
     match = BRACKETED_RE.search(name)
     if match:
-        rest = name[: match.start()] + name[match.end() :]
-        candidates += [normalize_name(rest), normalize_name(match.group(1))]
-    return list(dict.fromkeys(c for c in candidates if c))
+        parts += [name[: match.start()] + name[match.end() :], match.group(1)]
+    return [part for part in parts if normalize_name(part)]
 
 
 def _related(a, b):
-    """True if `a` and `b` (both already normalized) are the same
-    string, or either contains the other whole — the single relation
-    every match rule in component_and_alias reduces to."""
-    return bool(a) and bool(b) and (a in b or b in a)
+    """True if either of `a` and `b` contains the other as a run of whole
+    words (lib.upgradedoc.string_and_parsing_basics.word_contains, the
+    same matching the doc scripts use) — the single relation every
+    loose match rule in component_and_alias reduces to. "Zaak - ZAC"
+    relates to "zac", "Office Add-in" to "zgw-office-addin", but "mi"
+    never to "AdminUser"."""
+    return word_contains(a, b) or word_contains(b, a)
 
 
 def chart_dependencies(chart_dir):
@@ -131,10 +131,10 @@ def _tier_matches(candidates, dependencies, predicate):
 # as ambiguous with "eck-stack" (alias "kiss-eck") just because
 # "kiss-eck" also happens to *contain* "kiss" as a substring.
 _MATCH_TIERS = [
-    lambda candidate, dependency_name, alias: candidate == normalize_name(dependency_name),
-    lambda candidate, dependency_name, alias: bool(alias) and candidate == normalize_name(alias),
-    lambda candidate, dependency_name, alias: bool(alias) and _related(candidate, normalize_name(alias)),
-    lambda candidate, dependency_name, alias: _related(candidate, normalize_name(dependency_name)),
+    lambda candidate, dependency_name, alias: normalize_name(candidate) == normalize_name(dependency_name),
+    lambda candidate, dependency_name, alias: bool(alias) and normalize_name(candidate) == normalize_name(alias),
+    lambda candidate, dependency_name, alias: bool(alias) and _related(candidate, alias),
+    lambda candidate, dependency_name, alias: _related(candidate, dependency_name),
 ]
 
 # The two EXACT-match tiers (candidate == dependency name/alias, no
@@ -228,12 +228,10 @@ def component_and_alias(name, dependencies, orphan_keys=(), global_image_key_nam
     pool, more than one distinct orphan key), or if anything at all
     matches a global image key — rather than silently picking whichever
     came first."""
-    candidates = name_candidates(name)
+    candidates = _candidate_parts(name)
 
     def relates_to_global_key():
-        return any(
-            _related(candidate, normalize_name(key)) for candidate in candidates for key in global_image_key_names
-        )
+        return any(_related(candidate, key) for candidate in candidates for key in global_image_key_names)
 
     exact = _resolve_against(candidates, dependencies, _EXACT_TIERS)
     if exact:
@@ -290,8 +288,8 @@ def _match_one(text, options):
     exact = _exact_options(text, options)
     if exact:
         return next(iter(exact)) if len(exact) == 1 else None
-    candidates = name_candidates(text)
-    related = {o for o in options if any(_related(c, normalize_name(o)) for c in candidates)}
+    candidates = _candidate_parts(text)
+    related = {o for o in options if any(_related(c, o) for c in candidates)}
     return next(iter(related)) if len(related) == 1 else None
 
 
@@ -312,7 +310,7 @@ def _extra_scope_keys_by_component(chart_dir):
     orphan_keys = orphan_values_yaml_keys(chart_dir, dependencies)
     extra = {}
     for key, _ in orphan_keys:
-        resolved = _resolve_against(name_candidates(key), dependencies)
+        resolved = _resolve_against(_candidate_parts(key), dependencies)
         if resolved and resolved[0] != "MULTIPLE":
             extra.setdefault(resolved[0], []).append(key)
     return extra

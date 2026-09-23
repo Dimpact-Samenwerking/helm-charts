@@ -3,8 +3,10 @@ orphan_values_yaml_keys, global_image_keys, extract_release_rows — with
 fetch_page_html mocked out, so no network access or real Confluence page
 is needed."""
 
+from types import ModuleType
+
 from lib.release_table.component_resolution import name_candidates
-from lib.release_table.component_resolution import normalize_name
+from lib.upgradedoc.string_and_parsing_basics import normalize_name
 
 
 def write_chart_yaml_with_dependencies(chart_dir, deps):
@@ -248,18 +250,26 @@ def test_component_and_alias_multiple_when_two_dependencies_share_exact_alias(ec
 
 def test_component_and_alias_multiple_alias_relation_matches_is_multiple(ecrt):
     """A genuine ambiguity at the (looser, substring) alias-relation
-    tier: "somekisseck" isn't an exact alias match for either dependency
+    tier: "some kiss eck" isn't an exact alias match for either dependency
     (ruling out tier 2), but contains both "kiss-chart"'s alias "kiss"
-    and "eck-stack"'s alias "kiss-eck" as substrings."""
+    and "eck-stack"'s alias "kiss-eck" as whole words."""
     deps = [("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")]
-    assert ecrt.component_and_alias("somekisseck", deps) == ("MULTIPLE", "MULTIPLE")
+    assert ecrt.component_and_alias("some kiss eck", deps) == ("MULTIPLE", "MULTIPLE")
 
 
 def test_component_and_alias_multiple_name_relation_matches_is_multiple(ecrt):
     """Same ambiguity, but at the (alias-less) name-relation tier: "foo"
-    relates to both dependency names "foobar" and "foobaz"."""
-    deps = [("foobar", ""), ("foobaz", "")]
+    relates to both dependency names "foo-bar" and "foo-baz"."""
+    deps = [("foo-bar", ""), ("foo-baz", "")]
     assert ecrt.component_and_alias("foo", deps) == ("MULTIPLE", "MULTIPLE")
+
+
+def test_component_and_alias_never_relates_mid_word(ecrt: ModuleType) -> None:
+    """Loose matching is at whole words only, like the doc scripts
+    (word_contains): "Referentielijst" does not relate to the plural
+    "referentielijsten", nor "mi" to "ensurePodiumdAdminUser"."""
+    assert ecrt.component_and_alias("Referentielijst", [("referentielijsten", "")]) == ("UNKNOWN", "")
+    assert ecrt.component_and_alias("mi", [("ensurePodiumdAdminUser", "")]) == ("UNKNOWN", "")
 
 
 def test_component_and_alias_clean_exact_match_short_circuits_ambiguous_lower_tier(ecrt):
@@ -320,7 +330,7 @@ def test_component_and_alias_orphan_key_multiple(ecrt):
     """The same ambiguity detection applies to the orphan-key fallback
     pool: two orphan keys relating to the same text is MULTIPLE, not a
     silent pick."""
-    orphans = [("foobar", ""), ("foobaz", "")]
+    orphans = [("foo-bar", ""), ("foo-baz", "")]
     assert ecrt.component_and_alias("foo", [], orphans) == ("MULTIPLE", "MULTIPLE")
 
 
