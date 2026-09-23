@@ -41,9 +41,11 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
 from lib.chart.pull_and_subchart_resolution import check_image_versions
+from lib.chart.pull_and_subchart_resolution import print_image_version_results
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.registered_paths import image_paths_for
-from lib.chart.registered_paths import native_components
+from lib.chart.registered_paths import is_native_chart_version
+from lib.chart.registered_paths import resolve_native_component
 from lib.chart.release_baseline_basics import chart_version as _chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as _read_upgrade_docs_baseline
 from lib.chart.values_tag_sha_lines import SiblingWrite
@@ -56,7 +58,6 @@ from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import require_dependency
-from lib.chart.values_tree_primitives import same_name
 from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs.baseline_doc_stubs import baseline_doc_paths as _baseline_doc_paths
@@ -112,13 +113,7 @@ def _check_and_print_image_versions(values_for_check, image_paths, app_version):
     exiting 1 if any don't exist upstream. Returns results keyed by path
     — shared by both verify_component_version branches below."""
     image_results = check_image_versions(values_for_check, image_paths, app_version)
-    ok_images = True
-    for r in image_results:
-        status = "FOUND  " if r["exists"] else "MISSING"
-        suffix = f"  digest={r['digest']}" if r["digest"] else ""
-        print(f"  [{status}] {r['host']}/{r['repo_path']}:{app_version}{suffix}")
-        ok_images = ok_images and r["exists"]
-    if not ok_images:
+    if not print_image_version_results(image_results, app_version):
         print()
         print("FAIL: one or more app image versions do not exist yet — refusing to change any files")
         sys.exit(1)
@@ -151,7 +146,7 @@ def verify_component_version(dep, image_paths, app_version, chart_version, compo
         print("FAIL: chart version does not exist — refusing to change any files")
         sys.exit(1)
 
-    print(f"\nChecking app version {app_version!r} for {dep.get('alias', chart_name)}:")
+    print(f"\nChecking app version {app_version!r} for {values_key_of(dep)}:")
     return _check_and_print_image_versions(upstream_values, image_paths, app_version)
 
 
@@ -368,21 +363,13 @@ def _resolve_bump_context(component, app_version, chart_version):
     that isn't registered as one."""
     # "-" is the not-applicable Helm-chart cell placeholder for a chart-
     # less sidecar row (see lib.upgradedoc.component_version_cell).
-    no_chart = chart_version.strip().lower() == "native"
+    no_chart = is_native_chart_version(chart_version)
     new_chart = "-" if no_chart else chart_version
     deps = yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["dependencies"]
     values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
 
     if no_chart:
-        natives = native_components(CHART_DIR)
-        component = next((n for n in natives if same_name(n, component)), component)
-        if component not in natives:
-            raise SystemExit(
-                f"error: chart-version 'native' is only valid for a component in "
-                f"settings.yaml's component_resolution.native_components "
-                f"({', '.join(sorted(natives))}); "
-                f"'{component}' isn't one — did you mean to pass its real chart version?"
-            )
+        component = resolve_native_component(CHART_DIR, component)
         dep = None
         chart_name = component
         values_key = component

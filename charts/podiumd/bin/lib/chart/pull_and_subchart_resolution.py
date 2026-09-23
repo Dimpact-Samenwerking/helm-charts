@@ -150,6 +150,15 @@ def verify_chart_version(chart_dir, dep, version):
     return values
 
 
+def native_component_values(chart_dir: Path, name: str) -> dict:
+    """The values.yaml block of native component `name` (see lib.chart.
+    registered_paths.native_components): the counterpart of verify_chart_
+    version's pulled values for a component that has no chart. {} when
+    values.yaml has no such block."""
+    values = yaml.safe_load((chart_dir / "values.yaml").read_text(encoding="utf-8")) or {}
+    return values.get(name) or {}
+
+
 def check_image_versions(values, image_paths, app_version):
     """[{"path", "repository", "host", "repo_path", "exists", "digest"},
     ...] for every path in `image_paths` (see image_paths_for) that has a
@@ -187,6 +196,16 @@ def check_image_versions(values, image_paths, app_version):
             {"path": path, "repository": repo, "host": host, "repo_path": repo_path, "exists": exists, "digest": digest}
         )
     return results
+
+
+def print_image_version_results(results: list[dict], app_version: str) -> bool:
+    """Prints a FOUND/MISSING line per check_image_versions result.
+    Returns True when every image version exists."""
+    for r in results:
+        status = "FOUND  " if r["exists"] else "MISSING"
+        suffix = f"  digest={r['digest']}" if r["digest"] else ""
+        print(f"  [{status}] {r['host']}/{r['repo_path']}:{app_version}{suffix}")
+    return all(r["exists"] for r in results)
 
 
 def subchart_values(chart_dir, dep, version=None):

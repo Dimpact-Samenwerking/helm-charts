@@ -7,6 +7,9 @@ this script's own glue: looking up the Chart.yaml dependency, resolving
 image_paths_for(component), and reporting the app-image FOUND/MISSING/
 OK/FAIL lines on top of whatever verify_chart_version already reported."""
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -251,3 +254,39 @@ def test_main_help_flag_prints_usage_and_exits_zero(vcv, monkeypatch, capsys, fl
     exc = run_main(vcv, monkeypatch, [flag])
     assert exc.code == 0
     assert capsys.readouterr().out == vcv.__doc__ + "\n"
+
+
+def test_main_native_component_reads_podiumd_values(
+    vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """chart-version "native": no chart pull; the image repositories come
+    from podiumd's own values.yaml block of the native component."""
+    monkeypatch.setattr(vcv, "CHART_DIR", tmp_path)
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump({"frankgateway": {"image": {"repository": "x/fg"}}}))
+
+    def no_chart_pull(*_args: object) -> None:
+        pytest.fail("must not pull a chart")
+
+    monkeypatch.setattr(vcv, "verify_chart_version", no_chart_pull)
+    seen = {}
+
+    def fake_check_image_versions(values: dict, image_paths: list[str], app_version: str) -> list[dict]:
+        seen.update(values=values, image_paths=image_paths)
+        return [{"path": "image", "host": "docker.io", "repo_path": "x/fg", "exists": True, "digest": None}]
+
+    monkeypatch.setattr(vcv, "check_image_versions", fake_check_image_versions)
+
+    exc = run_main(vcv, monkeypatch, ["FrankGateway", "104", "Native"])
+
+    assert exc.code == 0
+    assert seen == {"values": {"image": {"repository": "x/fg"}}, "image_paths": ["image"]}
+    assert "[FOUND  ] docker.io/x/fg:104" in capsys.readouterr().out
+
+
+def test_main_native_rejects_a_non_native_component(
+    vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(vcv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr("sys.argv", ["verify-component-version", "zac", "5.4.3", "native"])
+    with pytest.raises(SystemExit, match="only valid for a component in"):
+        vcv.main()

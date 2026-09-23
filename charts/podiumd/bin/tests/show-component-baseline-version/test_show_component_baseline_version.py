@@ -12,6 +12,9 @@ release-baseline.yaml baselines (upgrade_docs, release_table)."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -138,3 +141,22 @@ def test_main_help_flag_prints_usage_and_exits_zero(scbv, monkeypatch, capsys, f
         scbv.main()
     assert exc_info.value.code == 0
     assert capsys.readouterr().out == scbv.__doc__ + "\n"
+
+
+def test_main_shows_a_native_component_without_chart_version(
+    scbv: ModuleType, repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """frankgateway (a native component, settings.yaml default) has no
+    Chart.yaml dependency: its image tag is shown, no chart version."""
+    chart_dir = repo / "charts" / "podiumd"
+    (chart_dir / "values.yaml").write_text(yaml.safe_dump({"frankgateway": {"image": {"tag": "104@sha256:fff"}}}))
+    git("add", "-A", cwd=repo)
+    git("commit", "-q", "-m", "add frankgateway", cwd=repo)
+    git("tag", "podiumd-4.9.1", cwd=repo)
+    write_baselines(repo, upgrade_docs="4.9.1")
+    set_argv_and_repo(scbv, monkeypatch, repo, "frankgateway")
+    scbv.main()
+    out = capsys.readouterr().out
+    assert "Component: frankgateway (native, no Chart.yaml dependency; values key: frankgateway)" in out
+    assert "image: 104  (104@sha256:fff)" in out
+    assert "Helm chart version" not in out

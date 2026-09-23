@@ -20,6 +20,7 @@ from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.pull_and_subchart_resolution import subchart_values
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import is_primary_image_path
+from lib.chart.registered_paths import native_component_named
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_app_versions
@@ -60,14 +61,18 @@ def component_state_at_baseline(chart_dir, chart_dir_relpath, baseline, componen
     dependency named or aliased ...' message once the baseline itself
     resolved fine but `component` doesn't match anything there. Never
     raises: a caller-facing lookup like this treats "not found" as an
-    ordinary, reportable outcome, not an exceptional one."""
+    ordinary, reportable outcome, not an exceptional one.
+
+    A native_components component (no Chart.yaml dependency) resolves
+    with dep None and its own name as values_key."""
     baseline_ref, baseline_deps, baseline_values, _baseline_lines, error = resolve_baseline_chart_state(
         chart_dir, baseline
     )
     if error:
         return None, None, None, None, None, error
     dep = find_dependency(baseline_deps, component)
-    if not dep:
+    native = None if dep else native_component_named(chart_dir, component)
+    if not dep and not native:
         return (
             None,
             None,
@@ -76,8 +81,8 @@ def component_state_at_baseline(chart_dir, chart_dir_relpath, baseline, componen
             None,
             (f"no dependency named or aliased '{component}' in {chart_dir_relpath}/Chart.yaml at {baseline_ref}"),
         )
-    values_key = values_key_of(dep)
-    image_paths = image_paths_for(component, chart_dir)
+    values_key = values_key_of(dep) if dep else native
+    image_paths = image_paths_for(dep["name"] if dep else native, chart_dir)
     app_versions = find_app_versions(baseline_values, values_key, image_paths)
     return baseline_ref, dep, values_key, image_paths, app_versions, None
 

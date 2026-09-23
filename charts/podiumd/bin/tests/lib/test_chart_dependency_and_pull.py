@@ -162,7 +162,9 @@ def test_component_state_at_baseline_propagates_resolve_baseline_chart_state_err
     assert error == "could not resolve baseline '9.9.9' to a git ref (tried ...)"
 
 
-def test_component_state_at_baseline_dependency_not_found(monkeypatch, libchartrepoandpathresolution):
+def test_component_state_at_baseline_dependency_not_found(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, libchartrepoandpathresolution: ModuleType
+) -> None:
     monkeypatch.setattr(
         libchartrepoandpathresolution,
         "resolve_baseline_chart_state",
@@ -170,11 +172,32 @@ def test_component_state_at_baseline_dependency_not_found(monkeypatch, libchartr
     )
 
     ref, dep, values_key, image_paths, app_versions, error = libchartrepoandpathresolution.component_state_at_baseline(
-        "chart_dir", "charts/podiumd", "4.8.5", "totally-unknown"
+        tmp_path, "charts/podiumd", "4.8.5", "totally-unknown"
     )
 
     assert ref is dep is values_key is image_paths is app_versions is None
     assert error == ("no dependency named or aliased 'totally-unknown' in charts/podiumd/Chart.yaml at podiumd-4.8.5")
+
+
+def test_component_state_at_baseline_native_component(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, libchartrepoandpathresolution: ModuleType
+) -> None:
+    """A native component (settings.yaml default: frankgateway) resolves
+    without a Chart.yaml dependency: dep None, its own name as the key."""
+    values = {"frankgateway": {"image": {"tag": "104@sha256:abc"}}}
+
+    def baseline_state(_chart_dir: Path, _baseline: str) -> tuple[str, list[dict], dict, list[str], None]:
+        return "podiumd-4.9.1", [], values, [], None
+
+    monkeypatch.setattr(libchartrepoandpathresolution, "resolve_baseline_chart_state", baseline_state)
+
+    ref, dep, values_key, image_paths, app_versions, error = libchartrepoandpathresolution.component_state_at_baseline(
+        tmp_path, "charts/podiumd", "4.9.1", "FrankGateway"
+    )
+
+    assert (ref, dep, values_key, error) == ("podiumd-4.9.1", None, "frankgateway", None)
+    assert image_paths == ["image"]
+    assert app_versions == [("image", "104@sha256:abc")]
 
 
 # --- chart_ref ---
