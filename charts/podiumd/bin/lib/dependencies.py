@@ -35,6 +35,9 @@ import tempfile
 import time
 
 from pathlib import Path
+from typing import Any
+from typing import TextIO
+from typing import cast
 
 import yaml
 
@@ -275,7 +278,7 @@ def ensure_repos_configured(chart_dir: Path):
     return True, "repos configured"
 
 
-def _run_with_retries(chart_dir: Path, cmd: list[str], label: str, out, **run_kwargs):
+def _run_with_retries(chart_dir: Path, cmd: list[str], label: str, out: TextIO, **run_kwargs: Any):
     """run(cmd, **run_kwargs), retried per settings.yaml dependency_fetch
     (transient network blips, registry throttling), announcing each
     attempt on `out` as "Running <label> (attempt n/N)...". Flushes `out`
@@ -347,7 +350,7 @@ def _fetch_command(chart_dir: Path, dep: dict, required_repos: dict, dest: Path)
     return ["helm", "pull", name, "--repo", repo, "--version", version, "--destination", str(dest)]
 
 
-def _fetch_dependency(chart_dir: Path, dep: dict, required_repos: dict, dest: Path, out):
+def _fetch_dependency(chart_dir: Path, dep: dict, required_repos: dict, dest: Path, out: TextIO):
     """Fetches one dependency's .tgz into `dest` (see _fetch_command),
     retried like the full update. (ok, reason-if-not)."""
     name, version = dep.get("name"), str(dep.get("version"))
@@ -378,7 +381,7 @@ def _replace_vendored_tgz(chart_dir: Path, chart_deps: list, fetched_dir: Path):
         shutil.move(str(path), str(charts_dir / path.name))
 
 
-def update_changed_dependencies(chart_dir: Path, out=None):
+def update_changed_dependencies(chart_dir: Path, out: TextIO | None = None):
     """Re-vendors only the Chart.yaml dependencies that changed (see
     _changed_dependencies) instead of all of them: fetches each one into
     a temp dir, and only once every fetch succeeded drops the charts/*.tgz
@@ -392,7 +395,8 @@ def update_changed_dependencies(chart_dir: Path, out=None):
     resolves one) — or a fetch failed; update_vendored_dependencies then
     falls back to a full `helm dependency update`. Progress goes to
     `out` (default: stdout)."""
-    out = out or sys.stdout
+    if out is None:
+        out = cast("TextIO", sys.stdout)
     chart_deps, _problems = _dependency_state(chart_dir)
     if not chart_deps:
         return False, "Chart.yaml has no dependencies"
@@ -417,7 +421,7 @@ def update_changed_dependencies(chart_dir: Path, out=None):
     return True, f"fetched {len(changed)} of {len(chart_deps)} dependencies ({fetched})"
 
 
-def _full_dependency_update(chart_dir: Path, out):
+def _full_dependency_update(chart_dir: Path, out: TextIO):
     """Rebuilds chart_dir/charts/ from scratch (rm -rf + `helm dependency
     update`), retried a few times on failure.
 
@@ -439,7 +443,7 @@ def _full_dependency_update(chart_dir: Path, out):
     return True, "full helm dependency update"
 
 
-def update_vendored_dependencies(chart_dir: Path, out=None):
+def update_vendored_dependencies(chart_dir: Path, out: TextIO | None = None):
     """Brings chart_dir/charts/ + Chart.lock in line with Chart.yaml,
     fetching as little as possible: nothing when they already match (see
     vendored_state_matches_chart_yaml), only the changed dependencies
@@ -449,7 +453,8 @@ def update_vendored_dependencies(chart_dir: Path, out=None):
     the local repo config, so ensure_repos_configured must have run
     first. Progress goes to `out` (default: stdout). Returns (ok,
     detail)."""
-    out = out or sys.stdout
+    if out is None:
+        out = cast("TextIO", sys.stdout)
     if vendored_state_matches_chart_yaml(chart_dir):
         print(
             "Chart.lock already matches Chart.yaml and every dependency is vendored — skipping helm dependency update",

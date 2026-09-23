@@ -8,6 +8,7 @@ import urllib.parse
 import urllib.request
 
 from pathlib import Path
+from typing import BinaryIO
 
 from lib.procutil import run
 
@@ -33,7 +34,7 @@ MANIFEST_HOSTS = {
 BEARER_CHALLENGE_PARAM_RE = re.compile(r'(\w+)="([^"]*)"')
 
 
-def _read_json(resp):
+def _read_json(resp: BinaryIO):
     """Parse a registry response body as JSON, turning a non-JSON 200 (a
     rate-limit / interstitial HTML page, a caching proxy's own error page —
     routine for Docker Hub / Cloudflare-fronted registries under load) into
@@ -51,7 +52,7 @@ def _read_json(resp):
         raise urllib.error.URLError(msg) from e
 
 
-def _read_token(resp):
+def _read_token(resp: BinaryIO):
     """_read_json plus the ["token"] lookup an auth endpoint's response is
     expected to carry — a response that parsed but has no token is the same
     kind of "registry misbehaved" failure, raised the same way."""
@@ -63,7 +64,7 @@ def _read_token(resp):
         raise urllib.error.URLError(msg) from e
 
 
-def _urlopen(url_or_req, timeout: float | None = None):
+def _urlopen(url_or_req: str | urllib.request.Request, timeout: float | None = None):
     """urllib.request.urlopen, only passing timeout= when the caller asked
     for one — every existing call site (and its tests, mocking urlopen with
     a plain single-arg callable) keeps behaving exactly as before; a caller

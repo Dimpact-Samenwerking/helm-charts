@@ -342,6 +342,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
+from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -696,7 +697,7 @@ class StepRunner:
     results: list = field(default_factory=list)
     failed_or_blocked: set = field(default_factory=set)
 
-    def run(self, name: str, title: str, func: Callable, *fargs):
+    def run(self, name: str, title: str, func: Callable, *fargs: Any):
         """Runs one step: prints title, honors skipped_steps/a blocked
         prerequisite (see failed_or_blocked), else calls func(*fargs) and
         records (name, ok, detail) into results."""

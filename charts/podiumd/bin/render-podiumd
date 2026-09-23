@@ -26,6 +26,7 @@ import contextlib
 import sys
 
 from pathlib import Path
+from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -67,7 +68,7 @@ def main():
     # In --stdout mode, stdout is the data channel (the rendered YAML) —
     # every status/diagnostic message must go to stderr instead, or it
     # would corrupt a pipe/redirect of stdout.
-    def status(*a, **kw):
+    def status(*a: Any, **kw: Any):
         print(*a, file=sys.stderr if to_stdout else None, **kw)
 
     if args:

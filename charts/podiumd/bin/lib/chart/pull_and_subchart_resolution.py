@@ -234,7 +234,7 @@ def subchart_values(chart_dir: Path, dep: dict, version: str | None = None):
     return None if raw is None else (yaml.safe_load(raw) or {})
 
 
-def subchart_app_version(chart_dir: Path, dep: dict, version=None):
+def subchart_app_version(chart_dir: Path, dep: dict, version: str | None = None):
     """A vendored dependency's own Chart.yaml "appVersion" field — the
     real app version a subchart's own template falls back to via Helm's
     own "{{ .Values.<x>.tag | default .Chart.AppVersion }}" convention,
@@ -252,7 +252,7 @@ def subchart_app_version(chart_dir: Path, dep: dict, version=None):
     return None if raw is None else (yaml.safe_load(raw) or {}).get("appVersion")
 
 
-def subchart_dependencies(chart_dir: Path, dep: dict, version=None):
+def subchart_dependencies(chart_dir: Path, dep: dict, version: str | None = None):
     """`dep`'s own vendored Chart.yaml "dependencies" list (parsed, same
     shape as a top-level chart's own chart_yaml.get("dependencies", [])
     — each entry's own "name"/"alias"/... as declared there) — read
@@ -345,7 +345,7 @@ def resolve_chart_values(chart_dir: Path, dep: dict, version: str, *, allow_pull
 
 
 def primary_image_repositories(
-    chart_dir: Path | None, dep: dict, own_values: dict | None, version=None, *, allow_pull: bool = True
+    chart_dir: Path | None, dep: dict, own_values: dict | None, version: str | None = None, *, allow_pull: bool = True
 ):
     """({path: repository_or_None, ...}, error_or_None) for every one of
     dep's own primary image path(s) (see image_paths_for(dep["name"])) —

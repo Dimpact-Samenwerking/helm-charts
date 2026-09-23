@@ -257,7 +257,7 @@ def component_and_alias(
     return ("UNKNOWN", "")
 
 
-def _exact_options(text: str, options):
+def _exact_options(text: str, options: Collection):
     """{o for o in options if normalize_name(o) is one of name_candidates(text)}
     — the raw exact-tier match set exact_match and match_one both
     build on, factored out so neither recomputes it independently."""
@@ -281,7 +281,7 @@ def exact_match(text: str, options: Collection):
     return next(iter(exact)) if len(exact) == 1 else None
 
 
-def match_one(text: str, options):
+def match_one(text: str, options: Collection):
     """The single string in `options` that `text` unambiguously identifies
     — an exact match (see exact_match) if there is one, else the single
     option related to it (see _related) if there's exactly one such

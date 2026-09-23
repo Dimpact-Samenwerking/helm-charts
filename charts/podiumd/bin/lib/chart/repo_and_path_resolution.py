@@ -9,6 +9,7 @@ default_repository, subchart_needs_vendoring)."""
 
 import tarfile
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -145,7 +146,9 @@ def repo_group_representative(repo_paths: list, deps: list):
     return [path for path in repo_paths if rank(path) == best][-1]
 
 
-def paths_by_repository(chart_dir: Path | None, deps: list, values: dict, paths, *, allow_pull: bool = False):
+def paths_by_repository(
+    chart_dir: Path | None, deps: list, values: dict, paths: Collection, *, allow_pull: bool = False
+):
     """{strip_registry_host(repository): [path, ...]} for every path in
     `paths` (e.g. lib.upgradedoc.find_image_tag_paths(values)'s own
     keys) that resolves to a repository — not just each dependency's
@@ -458,7 +461,9 @@ def repository_path_map(chart_dir: Path | None, deps: list, values: dict, paths:
     }
 
 
-def canonical_sidecar_row_names(chart_dir: Path | None, deps: list, values: dict, paths, *, allow_pull: bool = False):
+def canonical_sidecar_row_names(
+    chart_dir: Path | None, deps: list, values: dict, paths: Collection, *, allow_pull: bool = False
+):
     """{canonical doc-row name: values-tree path} for every image path
     that isn't a Chart.yaml dependency's own name/alias directly — the
     two other shapes update-image-version actually writes a doc row
@@ -559,7 +564,7 @@ def _owner_name(deps: list[dict[str, Any]], natives: frozenset[str], path: tuple
     return path[0] if path[0] in natives else None
 
 
-def _classify_sidecar_and_global_paths(chart_dir: Path | None, deps: list, paths):
+def _classify_sidecar_and_global_paths(chart_dir: Path | None, deps: list, paths: Collection):
     """(sidecar_paths, global_paths) split of `paths` for canonical_
     sidecar_row_names — a path pinned under the shared "global" top-
     level key is handled entirely separately from one nested under a

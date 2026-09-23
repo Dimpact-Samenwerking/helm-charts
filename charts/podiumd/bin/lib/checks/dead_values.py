@@ -200,7 +200,7 @@ from lib.render_scope import CHART_NAME
 DEAD_VALUES_MAX_WORKERS = os.cpu_count() or 4
 
 
-def flatten_leaves(node, path: tuple = ()):
+def flatten_leaves(node: object, path: tuple = ()):
     """(path tuple, value) for every leaf under node — a dict is only a
     leaf itself when empty (nothing to descend into); a list is always
     treated as one leaf (its own elements are never individually

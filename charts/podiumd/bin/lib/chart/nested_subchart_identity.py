@@ -71,7 +71,9 @@ def nested_subchart_registered_paths(component: str, chart_dir: Path | None = No
 DOCUMENTED_IMAGE_RE = re.compile(r"^#\s*image:\s*([^\s:@]+)", re.MULTILINE)
 
 
-def nested_subchart_raw_text(chart_dir: Path, dep: dict, nested_chart_name: str, filename: str, version=None):
+def nested_subchart_raw_text(
+    chart_dir: Path, dep: dict, nested_chart_name: str, filename: str, version: str | None = None
+):
     """Raw text of a file inside a NESTED sub-subchart bundled within
     dep's own vendored .tgz (e.g. eck-stack's own "charts/
     eck-elasticsearch/values.yaml") — same vendored-.tgz-only lookup
@@ -87,7 +89,9 @@ def nested_subchart_raw_text(chart_dir: Path, dep: dict, nested_chart_name: str,
         return None
 
 
-def nested_subchart_documented_image_repository(chart_dir: Path, dep: dict, nested_chart_name: str, version=None):
+def nested_subchart_documented_image_repository(
+    chart_dir: Path, dep: dict, nested_chart_name: str, version: str | None = None
+):
     """The repository half of a nested sub-subchart's own commented-out
     "# image: <repo>[:<tag>][@sha256:...]" default — the FIRST such
     comment in its own values.yaml, always right under its own

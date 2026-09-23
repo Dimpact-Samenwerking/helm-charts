@@ -32,6 +32,7 @@ import tempfile
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -174,7 +175,7 @@ def load_chart(dep: dict, tmproot: Path, *, refresh: bool):
     return chart_yaml, values or {}
 
 
-def deep_merge(base: str | int | dict | None, override):
+def deep_merge(base: object, override: object) -> Any:
     """Recursively merges `override` onto `base` the way Helm merges a
     parent chart's values.yaml overrides onto a sub-chart's own defaults:
     dict values are merged key by key, and any other type (including a
