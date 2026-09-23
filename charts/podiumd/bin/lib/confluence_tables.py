@@ -42,7 +42,8 @@ def page_id_from_url(url):
     query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
     if "pageId" in query:
         return query["pageId"][0]
-    raise SystemExit(f"error: could not find a page ID in {url}")
+    msg = f"error: could not find a page ID in {url}"
+    raise SystemExit(msg)
 
 
 def api_base_url(url):
@@ -73,13 +74,16 @@ def fetch_page_html(url, user, token, urlopen=urllib.request.urlopen):
         with urlopen(request) as response:
             data = json.load(response)
     except urllib.error.HTTPError as e:
-        raise SystemExit(f"error: Confluence API request failed: HTTP {e.code} {e.reason}") from e
+        msg = f"error: Confluence API request failed: HTTP {e.code} {e.reason}"
+        raise SystemExit(msg) from e
     except urllib.error.URLError as e:
-        raise SystemExit(f"error: could not reach Confluence: {e.reason}") from e
+        msg = f"error: could not reach Confluence: {e.reason}"
+        raise SystemExit(msg) from e
     try:
         return data["body"]["storage"]["value"]
     except KeyError as e:
-        raise SystemExit("error: response had no body.storage.value — check the URL and permissions") from e
+        msg = "error: response had no body.storage.value — check the URL and permissions"
+        raise SystemExit(msg) from e
 
 
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}

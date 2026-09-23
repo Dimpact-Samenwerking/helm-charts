@@ -150,7 +150,8 @@ def test_fetch_page_html_http_error_raises(libconfluencetables):
 
 def test_fetch_page_html_url_error_raises(libconfluencetables):
     def fake_urlopen(request):
-        raise urllib.error.URLError("name resolution failed")
+        msg = "name resolution failed"
+        raise urllib.error.URLError(msg)
 
     with pytest.raises(SystemExit, match="could not reach Confluence"):
         libconfluencetables.fetch_page_html(

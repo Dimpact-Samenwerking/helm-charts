@@ -212,14 +212,16 @@ def resolve_scoped_matches(lines, key, basename):
     scope_key = GLOBAL_IMAGES_SCOPE if same_name(key, MULTIPLE_KEY) else key
     matches = find_matches_in_scope(lines, scope_key, basename)
     if not matches:
-        raise SystemExit(f"error: no image pin with basename '{basename}' found under '{key}'")
+        msg = f"error: no image pin with basename '{basename}' found under '{key}'"
+        raise SystemExit(msg)
     repositories = {m["repository"] for m in matches}
     if len(repositories) > 1:
-        raise SystemExit(
+        msg = (
             f"error: '{basename}' under '{key}' is not unique — "
             f"{len(repositories)} distinct repositories match: "
             f"{', '.join(sorted(repositories))}"
         )
+        raise SystemExit(msg)
     return matches
 
 
@@ -265,7 +267,8 @@ def _resolve_pending_digests(pending, new_version):
         host, repo_path = parse_repo(m["repository"])
         exists, digest = registry_tag_exists(host, repo_path, new_version)
         if not exists or not digest:
-            raise SystemExit(f"error: {host}/{repo_path}:{new_version} not found upstream")
+            msg = f"error: {host}/{repo_path}:{new_version} not found upstream"
+            raise SystemExit(msg)
         digests[m["repository"]] = digest
     return digests
 

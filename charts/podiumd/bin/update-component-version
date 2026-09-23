@@ -163,12 +163,14 @@ def update_chart_yaml(chart_name, new_chart_version):
             block = (i, len(m.group(1)))
             break
     if block is None:
-        raise SystemExit(f"error: could not find '- name: {chart_name}' in {CHART_YAML}")
+        msg = f"error: could not find '- name: {chart_name}' in {CHART_YAML}"
+        raise SystemExit(msg)
     entry_line, entry_indent = block
     block_end = find_block_end(lines, entry_line, entry_indent)
     version_line = find_child_key_line(lines, "version", entry_indent, entry_line, block_end)
     if version_line is None:
-        raise SystemExit(f"error: could not find 'version:' under '- name: {chart_name}' in {CHART_YAML}")
+        msg = f"error: could not find 'version:' under '- name: {chart_name}' in {CHART_YAML}"
+        raise SystemExit(msg)
 
     old_line = lines[version_line]
     lines[version_line] = replace_scalar_value(old_line, new_chart_version)
@@ -186,7 +188,8 @@ def update_values_yaml(values_key, image_paths, new_tags_by_path):
         dotted = f"{values_key}.{path}.tag"
         located = locate_dotted_key_line(lines, dotted)
         if located is None:
-            raise SystemExit(f"error: could not find '{dotted}' in {VALUES_YAML}")
+            msg = f"error: could not find '{dotted}' in {VALUES_YAML}"
+            raise SystemExit(msg)
         line_idx, _ = located
         old_line = lines[line_idx]
         lines[line_idx] = replace_scalar_value(old_line, new_tags_by_path[path])
@@ -452,29 +455,39 @@ def _write_split_tag_sha_pins(ctx, split_paths, split_tag_sha_paths, acc):
     print()
     print(f"=== Writing split tag/sha pin(s) for {', '.join(f'{ctx.values_key}.{p}' for p in split_paths)} ===")
     for path in split_paths:
-        sibling_field = split_tag_sha_paths[(ctx.values_key, path)]
-        repo = get_path(ctx.values, f"{ctx.values_key}.{path}.repository")
-        if not isinstance(repo, str) or not repo:
-            raise SystemExit(f"error: no repository found at {ctx.values_key}.{path}.repository in {VALUES_YAML}")
-        acc.repos[path] = repo
-        host, repo_path = parse_repo(repo)
-        exists, digest = registry_tag_exists(host, repo_path, ctx.app_version)
-        if not exists or not digest:
-            raise SystemExit(f"error: {host}/{repo_path}:{ctx.app_version} not found upstream")
-        digest_hex = digest.split("sha256:", 1)[1]
-        located = locate_tag_and_sha(values_lines, ctx.values_key, path, sibling_field)
-        if located is None:
-            raise SystemExit(f"error: could not find '{ctx.values_key}.{path}.tag' in {VALUES_YAML}")
-        write_tag_and_sha(
-            values_lines, located, SiblingWrite(ctx.app_version, digest_hex, sibling_field, f"{ctx.values_key}.{path}")
-        )
-        acc.new_tags_by_path[path] = f"{ctx.app_version}@sha256:{digest_hex}"
-        sibling_idx = located[2]
-        print(
-            f"  {ctx.values_key}.{path}: {host}/{repo_path}:{ctx.app_version} -> sha256:{digest_hex}"
-            f"{f'  (adding {sibling_field}: — no override yet)' if sibling_idx is None else ''}"
-        )
+        _write_split_tag_sha_pin(ctx, values_lines, path, split_tag_sha_paths[(ctx.values_key, path)], acc)
     VALUES_YAML.write_text("".join(values_lines), encoding="utf-8")
+
+
+def _write_split_tag_sha_pin(
+    ctx: BumpContext, values_lines: list[str], path: str, sibling_field: str, acc: TagUpdateAccumulator
+):
+    """Write one split pin pair for path into values_lines (see
+    _write_split_tag_sha_pins), updating acc in place."""
+    repo = get_path(ctx.values, f"{ctx.values_key}.{path}.repository")
+    if not isinstance(repo, str) or not repo:
+        msg = f"error: no repository found at {ctx.values_key}.{path}.repository in {VALUES_YAML}"
+        raise SystemExit(msg)
+    acc.repos[path] = repo
+    host, repo_path = parse_repo(repo)
+    exists, digest = registry_tag_exists(host, repo_path, ctx.app_version)
+    if not exists or not digest:
+        msg = f"error: {host}/{repo_path}:{ctx.app_version} not found upstream"
+        raise SystemExit(msg)
+    digest_hex = digest.split("sha256:", 1)[1]
+    located = locate_tag_and_sha(values_lines, ctx.values_key, path, sibling_field)
+    if located is None:
+        msg = f"error: could not find '{ctx.values_key}.{path}.tag' in {VALUES_YAML}"
+        raise SystemExit(msg)
+    write_tag_and_sha(
+        values_lines, located, SiblingWrite(ctx.app_version, digest_hex, sibling_field, f"{ctx.values_key}.{path}")
+    )
+    acc.new_tags_by_path[path] = f"{ctx.app_version}@sha256:{digest_hex}"
+    sibling_idx = located[2]
+    print(
+        f"  {ctx.values_key}.{path}: {host}/{repo_path}:{ctx.app_version} -> sha256:{digest_hex}"
+        f"{f'  (adding {sibling_field}: — no override yet)' if sibling_idx is None else ''}"
+    )
 
 
 def _write_delegated_tags(ctx, delegated_paths, acc):
@@ -488,7 +501,8 @@ def _write_delegated_tags(ctx, delegated_paths, acc):
     for path in delegated_paths:
         located = locate_dotted_key_line(values_lines, f"{ctx.values_key}.{path}.tag")
         if located is None:
-            raise SystemExit(f"error: could not find '{ctx.values_key}.{path}.tag' in {VALUES_YAML}")
+            msg = f"error: could not find '{ctx.values_key}.{path}.tag' in {VALUES_YAML}"
+            raise SystemExit(msg)
         own_line = located[0] + 1  # 1-indexed, matches lib.image.version's line numbering
         acc.repos[path] = get_path(ctx.values, f"{ctx.values_key}.{path}.repository")
         basename = image_basename(acc.repos[path])
@@ -514,7 +528,8 @@ def _write_fallback_tags(ctx, fallback_paths, upstream_images, acc):
     for path in fallback_paths:
         r = upstream_images.get(path)
         if r is None or not r["exists"] or not r["digest"]:
-            raise SystemExit(f"error: no repository found at {path}.repository in {ctx.chart_name}'s own values.yaml")
+            msg = f"error: no repository found at {path}.repository in {ctx.chart_name}'s own values.yaml"
+            raise SystemExit(msg)
         acc.repos[path] = r["repository"]
         acc.new_tags_by_path[path] = f"{ctx.app_version}@{r['digest']}"
         print(f"  {ctx.values_key}.{path}: {r['host']}/{r['repo_path']}:{ctx.app_version} -> {r['digest']}")

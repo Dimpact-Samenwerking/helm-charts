@@ -278,15 +278,17 @@ def _read_csv_rows(csv_path):
     header doesn't match CSV_HEADER (see recompute_image_basenames' own
     docstring for why that refuses to proceed)."""
     if not csv_path.is_file():
-        raise SystemExit(f"error: {csv_path} does not exist — nothing to recompute")
+        msg = f"error: {csv_path} does not exist — nothing to recompute"
+        raise SystemExit(msg)
     with csv_path.open(newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
         header = next(reader, None)
         if header != CSV_HEADER:
-            raise SystemExit(
+            msg = (
                 f"error: {csv_path}'s header doesn't match the expected CSV_HEADER — "
                 f"refusing to recompute a file this script didn't write"
             )
+            raise SystemExit(msg)
         return list(reader)
 
 
@@ -405,13 +407,38 @@ def extract_release_rows(html, headings=None, chart_dir=None):
     )
     all_tables = extract_tables(html)
     if not all_tables:
-        raise SystemExit("error: no <table> found on that page")
+        msg = "error: no <table> found on that page"
+        raise SystemExit(msg)
 
     matching = tables_under_headings(all_tables, headings)
     print(f"Found {len(all_tables)} table(s) on the page, {len(matching)} under a matching heading")
     if not matching:
-        raise SystemExit(f"error: no table found directly under any of: {', '.join(headings)}")
+        msg = f"error: no table found directly under any of: {', '.join(headings)}"
+        raise SystemExit(msg)
 
+    rows_out, unknown_count, target_labels = _rows_for_tables(matching, context)
+
+    check_target_matches_chart_version(target_labels, chart_dir)
+
+    if not rows_out:
+        msg = (
+            "error: every matching-heading table was missing a required column "
+            "(source/target Versie ... App) — see the skip reason(s) above"
+        )
+        raise SystemExit(msg)
+    if unknown_count:
+        print(f"{unknown_count} version value(s) were not semver-compatible — replaced with UNKNOWN")
+
+    _insert_resolved_basenames(rows_out, chart_dir)
+    apply_native_helm_marker(rows_out)
+    _warn_duplicate_component_basename_pairs(rows_out)
+
+    return rows_out
+
+
+def _rows_for_tables(matching: list, context: ComponentResolutionContext):
+    """_rows_for_table over every matched (heading, rows) table: returns
+    (all data rows, total non-semver cell count, target labels)."""
     rows_out = []
     unknown_count = 0
     target_labels = []
@@ -421,22 +448,7 @@ def extract_release_rows(html, headings=None, chart_dir=None):
         unknown_count += table_unknown_count
         if target_label is not None:
             target_labels.append(target_label)
-
-    check_target_matches_chart_version(target_labels, chart_dir)
-
-    if not rows_out:
-        raise SystemExit(
-            "error: every matching-heading table was missing a required column "
-            "(source/target Versie ... App) — see the skip reason(s) above"
-        )
-    if unknown_count:
-        print(f"{unknown_count} version value(s) were not semver-compatible — replaced with UNKNOWN")
-
-    _insert_resolved_basenames(rows_out, chart_dir)
-    apply_native_helm_marker(rows_out)
-    _warn_duplicate_component_basename_pairs(rows_out)
-
-    return rows_out
+    return rows_out, unknown_count, target_labels
 
 
 def _rows_for_table(heading, rows, context):

@@ -184,7 +184,8 @@ def test_find_stale_digests_warns_and_stays_unresolved_when_repos_configuration_
     write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
 
     def fail_if_called(*args, **kwargs):
-        raise AssertionError("vendor_dependencies must never run when ensure_repos_configured failed")
+        msg = "vendor_dependencies must never run when ensure_repos_configured failed"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(
         sid, "ensure_repos_configured", lambda chart_dir: (False, "helm repo add zac failed: network unreachable")
@@ -220,7 +221,8 @@ def test_find_stale_digests_never_vendors_when_no_matching_dependency(sid, tmp_p
     write_chart_yaml(tmp_path, [])  # no dependencies at all
 
     def fail_if_called(*args, **kwargs):
-        raise AssertionError("vendoring must never be attempted for an unmatched component")
+        msg = "vendoring must never be attempted for an unmatched component"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(sid, "ensure_repos_configured", fail_if_called)
     monkeypatch.setattr(sid, "vendor_dependencies", fail_if_called)

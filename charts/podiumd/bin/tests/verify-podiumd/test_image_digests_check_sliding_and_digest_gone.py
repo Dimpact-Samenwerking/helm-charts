@@ -211,7 +211,8 @@ def test_check_image_digests_fetch_error_with_digest_gone_fails(vp, libimagedige
 
     def spy(host, repo, tag):
         if tag == "1.0.0":
-            raise urllib.error.URLError("tag check failed")
+            msg = "tag check failed"
+            raise urllib.error.URLError(msg)
         return False, None  # the digest-liveness check: gone
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
@@ -243,7 +244,8 @@ def test_check_image_digests_unverifiable_host_skips_digest_liveness_check_entir
 
     def spy(host, repo, tag):
         calls.append(tag)
-        raise urllib.error.HTTPError("https://firewalled-registry.example.com/v2/...", 401, "Unauthorized", {}, None)
+        msg = "https://firewalled-registry.example.com/v2/..."
+        raise urllib.error.HTTPError(msg, 401, "Unauthorized", {}, None)
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
     ok, detail = vp.check_image_digests(tmp_path)

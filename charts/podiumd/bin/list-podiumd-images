@@ -117,7 +117,8 @@ def pull_chart(dep, dest):
     (ok, stderr) tuple for the caller to check."""
     ok, stderr = _pull_chart(dep, dep["version"], dest)
     if not ok:
-        raise SystemExit(f"error: helm pull failed for {dep['name']}@{dep['version']}\n{stderr}")
+        msg = f"error: helm pull failed for {dep['name']}@{dep['version']}\n{stderr}"
+        raise SystemExit(msg)
 
 
 def safe_extract_tgz(tgz_path, dest):
@@ -135,7 +136,8 @@ def safe_extract_tgz(tgz_path, dest):
         for member in tf.getmembers():
             member_path = (dest / member.name).resolve()
             if member_path != dest_resolved and dest_resolved not in member_path.parents:
-                raise SystemExit(f"error: {tgz_path} member '{member.name}' would extract outside {dest}")
+                msg = f"error: {tgz_path} member '{member.name}' would extract outside {dest}"
+                raise SystemExit(msg)
         # Member paths validated above.
         tf.extractall(dest)  # nosec B202
 
@@ -154,10 +156,11 @@ def load_chart(dep, tmproot, refresh):
         # way, since reading its own source directory is already always
         # current, never stale.
         if not local_dir.is_dir():
-            raise SystemExit(
+            msg = (
                 f"error: dependency '{dep['name']}' declares local path repository "
                 f"({dep['repository']}), but {local_dir} does not exist"
             )
+            raise SystemExit(msg)
         chart_dir = local_dir
     else:
         vendored = VENDORED_DIR / f"{dep['name']}-{dep['version']}.tgz"
@@ -388,7 +391,8 @@ def _compute_rendered_paths():
     extra_args = lint_args_for(chart_dir)
     render_result = render_chart(chart_dir, extra_args)
     if render_result.returncode != 0:
-        raise SystemExit(f"error: helm template failed to render\n{render_result.stderr}")
+        msg = f"error: helm template failed to render\n{render_result.stderr}"
+        raise SystemExit(msg)
     return rendered_chart_paths(render_result.stdout)
 
 

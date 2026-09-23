@@ -108,7 +108,8 @@ def test_check_image_digests_retries_once_on_network_error_then_succeeds(vp, lib
     def flaky(host, repo, tag):
         calls["n"] += 1
         if calls["n"] == 1:
-            raise urllib.error.URLError("temporary failure")
+            msg = "temporary failure"
+            raise urllib.error.URLError(msg)
         return True, f"sha256:{'a' * 64}"
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", flaky)

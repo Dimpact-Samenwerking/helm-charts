@@ -406,7 +406,8 @@ def test_load_chart_uses_vendored_tgz_without_network(lpi, tmp_path, monkeypatch
     )
 
     def must_not_be_called(*a, **kw):
-        raise AssertionError("pull_chart should not be called when a vendored .tgz exists")
+        msg = "pull_chart should not be called when a vendored .tgz exists"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(lpi, "pull_chart", must_not_be_called)
 

@@ -149,7 +149,8 @@ omc:
     monkeypatch.setattr(ecrt, "CHART_DIR", tmp_path)
 
     def fail_fetch(*a, **kw):
-        raise AssertionError("must not fetch Confluence when --recompute-basenames is set")
+        msg = "must not fetch Confluence when --recompute-basenames is set"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(ecrt, "fetch_page_html", fail_fetch)
     monkeypatch.setattr(

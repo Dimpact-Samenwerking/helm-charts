@@ -61,7 +61,8 @@ def replace_scalar_value(line, new_value):
         line,
     )
     if not m:
-        raise SystemExit(f"error: could not parse line for replacement: {line!r}")
+        msg = f"error: could not parse line for replacement: {line!r}"
+        raise SystemExit(msg)
     anchor = m.group("anchor") or ""
     quote = m.group("quote")
     comment = f"  {m.group('comment')}" if m.group("comment") else ""

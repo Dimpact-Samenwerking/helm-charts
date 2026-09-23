@@ -82,7 +82,8 @@ def test_verify_chart_version_prefers_vendored_tgz_without_pulling(
     tmp_path, monkeypatch, capsys, libchartpullandsubchartresolution
 ):
     def raise_if_pulled(dep, version, dest):
-        raise AssertionError("should not pull — an exact-version .tgz is already vendored")
+        msg = "should not pull — an exact-version .tgz is already vendored"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(libchartpullandsubchartresolution, "pull_chart", raise_if_pulled)
     dep = {"name": "openzaak", "version": "4.9.1", "repository": "@openzaak"}

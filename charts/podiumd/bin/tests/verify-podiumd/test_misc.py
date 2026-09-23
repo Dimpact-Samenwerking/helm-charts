@@ -185,7 +185,8 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_cve_diff", make_check("cve-diff"))
 
     def fail_if_called(*args):
-        raise AssertionError("this check should have been skipped")
+        msg = "this check should have been skipped"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(vp, "check_lint", fail_if_called)
     monkeypatch.setattr(vp, "check_render", fail_if_called)
@@ -398,7 +399,8 @@ def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys)
         monkeypatch.setattr(vp, name, ok)
 
     def fail_if_called(*args):
-        raise AssertionError("this check should have been skipped as a prerequisite's dependent")
+        msg = "this check should have been skipped as a prerequisite's dependent"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(vp, "check_dependencies", lambda *a: (False, "helm dependency update failed"))
     for name in (

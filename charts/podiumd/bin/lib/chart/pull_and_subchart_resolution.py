@@ -73,7 +73,8 @@ def chart_ref(dep):
         return dep["name"], repo
     if repo.startswith("file://"):
         return None, None
-    raise SystemExit(f"error: unsupported repository scheme: {repo}")
+    msg = f"error: unsupported repository scheme: {repo}"
+    raise SystemExit(msg)
 
 
 def local_chart_dir(chart_dir, dep):
@@ -107,7 +108,8 @@ def pulled_chart_dir(tmpdir):
     """The single chart directory `helm pull --untar` produced under tmpdir."""
     chart_dirs = [p for p in Path(tmpdir).iterdir() if p.is_dir()]
     if not chart_dirs:
-        raise SystemExit(f"error: helm pull produced no chart directory in {tmpdir}")
+        msg = f"error: helm pull produced no chart directory in {tmpdir}"
+        raise SystemExit(msg)
     return chart_dirs[0]
 
 
@@ -119,7 +121,8 @@ def pull_chart_values(dep, version):
     try:
         ok, stderr = pull_chart(dep, version, tmpdir)
         if not ok:
-            raise SystemExit(f"error: could not pull {dep['name']} {version}: {stderr}")
+            msg = f"error: could not pull {dep['name']} {version}: {stderr}"
+            raise SystemExit(msg)
         chart_dir = pulled_chart_dir(tmpdir)
         return yaml.safe_load((chart_dir / "values.yaml").read_text()) or {}
     finally:
@@ -183,10 +186,11 @@ def check_image_versions(values, image_paths, app_version):
         if isinstance(repo, str) and repo
     ]
     if not repos:
-        raise SystemExit(
+        msg = (
             f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)} "
             f"— wrong path? see lib.chart.component_image_paths()"
         )
+        raise SystemExit(msg)
 
     results = []
     for path, repo in repos:

@@ -254,7 +254,8 @@ def test_check_image_upgrades_fetch_error_reported_but_still_passes(
 
     def find(host, repo_path, version):
         if repo_path == "wearefrank/frank-gateway":
-            raise urllib.error.URLError("boom")
+            msg = "boom"
+            raise urllib.error.URLError(msg)
         return version
 
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag", find)
@@ -294,7 +295,8 @@ def test_check_image_upgrades_cache_hit_skips_registry_call(vp, libimageupgradec
 
     def fail_if_queried(host, repo_path, version):
         if repo_path == "wearefrank/frank-gateway":
-            raise AssertionError("frankgateway should have been served from cache")
+            msg = "frankgateway should have been served from cache"
+            raise AssertionError(msg)
         return version
 
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag", fail_if_queried)

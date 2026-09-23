@@ -55,7 +55,8 @@ def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None,
 
 def test_resolve_chart_values_prefers_vendored_over_pulling(tmp_path, monkeypatch, libchartpullandsubchartresolution):
     def raise_if_pulled(dep, version, dest):
-        raise AssertionError("should not pull — already vendored at this exact version")
+        msg = "should not pull — already vendored at this exact version"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(libchartpullandsubchartresolution, "pull_chart", raise_if_pulled)
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
@@ -106,7 +107,8 @@ def test_resolve_chart_values_no_pull_allowed_and_not_vendored_returns_error(
     tmp_path, monkeypatch, libchartpullandsubchartresolution
 ):
     def raise_if_pulled(dep, version, dest):
-        raise AssertionError("should not pull — allow_pull is False")
+        msg = "should not pull — allow_pull is False"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(libchartpullandsubchartresolution, "pull_chart", raise_if_pulled)
     dep = {"name": "openzaak", "version": "1.15.0"}
@@ -125,7 +127,8 @@ def test_resolve_chart_values_no_pull_allowed_and_not_vendored_returns_error(
 
 def test_primary_image_repositories_own_override_wins(tmp_path, monkeypatch, libchartpullandsubchartresolution):
     def raise_if_pulled(dep, version, dest):
-        raise AssertionError("own override present — should never consult the subchart")
+        msg = "own override present — should never consult the subchart"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(libchartpullandsubchartresolution, "pull_chart", raise_if_pulled)
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}

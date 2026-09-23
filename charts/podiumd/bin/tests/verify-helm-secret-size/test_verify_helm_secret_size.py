@@ -211,7 +211,8 @@ def test_main_without_record_flag_never_calls_record_result(vhss, monkeypatch, t
     monkeypatch.setattr(vhss, "build_release", lambda *a, **kw: ({}, "4.9.1", []))
 
     def fail_if_called(*a, **kw):
-        raise AssertionError("record_result must not be called without --record")
+        msg = "record_result must not be called without --record"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(vhss, "record_result", fail_if_called)
     monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path)])

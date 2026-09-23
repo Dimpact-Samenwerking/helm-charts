@@ -180,7 +180,8 @@ def test_check_http_repo_http_error(librepoaccess, monkeypatch):
 
 def test_check_http_repo_unreachable(librepoaccess, monkeypatch):
     def fake_urlopen(url, timeout=None):
-        raise urllib.error.URLError("Name or service not known")
+        msg = "Name or service not known"
+        raise urllib.error.URLError(msg)
 
     monkeypatch.setattr(librepoaccess.urllib.request, "urlopen", fake_urlopen)
     ok, error = librepoaccess._check_http_repo("https://nonexistent.invalid/charts/", TIMEOUT_SECONDS)
@@ -213,7 +214,8 @@ def test_check_registry_repo_not_found(librepoaccess, tmp_path, monkeypatch):
 
 def test_check_registry_repo_network_error(librepoaccess, tmp_path, monkeypatch):
     def raise_error(chart_dir, repository, version, timeout=None):
-        raise urllib.error.URLError("timed out")
+        msg = "timed out"
+        raise urllib.error.URLError(msg)
 
     monkeypatch.setattr(librepoaccess, "cached_tag_exists", raise_error)
     ok, error = librepoaccess._check_registry_repo(tmp_path, "ghcr.io", "org/chart", "1.0.0", TIMEOUT_SECONDS)
@@ -398,7 +400,8 @@ def test_check_repo_access_fails_on_denylisted_chart_repo(librepoaccess, tmp_pat
     )
 
     def fail_if_called(*a, **kw):
-        raise AssertionError("a denylisted host must never actually be checked")
+        msg = "a denylisted host must never actually be checked"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(librepoaccess, "_check_registry_repo", fail_if_called)
     ok, detail = librepoaccess.check_repo_access(tmp_path)
@@ -423,7 +426,8 @@ def test_check_repo_access_fails_on_denylisted_image(librepoaccess, tmp_path, mo
     )
 
     def fail_if_called(*a, **kw):
-        raise AssertionError("a denylisted host must never actually be checked")
+        msg = "a denylisted host must never actually be checked"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(librepoaccess, "_check_registry_repo", fail_if_called)
     ok, detail = librepoaccess.check_repo_access(tmp_path)

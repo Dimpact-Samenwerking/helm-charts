@@ -634,7 +634,8 @@ def test_regenerate_images_baseline_manifest_embedded_digest_used_directly(libim
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
     def fail_if_called(host, repo, tag):
-        raise AssertionError("registry_tag_exists must not be called for an already-digest-pinned tag")
+        msg = "registry_tag_exists must not be called for an already-digest-pinned tag"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(libimagedocs, "registry_tag_exists", fail_if_called)
 

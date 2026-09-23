@@ -364,7 +364,8 @@ def test_update_image_version_already_at_target_is_noop(libimageversion, tmp_pat
     )
 
     def fail_if_called(*a, **kw):
-        raise AssertionError("registry should not be queried when nothing needs updating")
+        msg = "registry should not be queried when nothing needs updating"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(libimageversion, "registry_tag_exists", fail_if_called)
     original = values_path.read_text(encoding="utf-8")
@@ -432,7 +433,8 @@ def test_update_image_version_ambiguous_repositories_under_key_raises(libimageve
     )
 
     def fail_if_called(*a, **kw):
-        raise AssertionError("registry should not be queried when the image isn't identified uniquely")
+        msg = "registry should not be queried when the image isn't identified uniquely"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(libimageversion, "registry_tag_exists", fail_if_called)
     original = values_path.read_text(encoding="utf-8")

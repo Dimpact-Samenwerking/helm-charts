@@ -627,7 +627,8 @@ def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_netw
     baseline_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.3"}}}
 
     def fail_if_called(host, repo, tag):
-        raise AssertionError("registry_tag_exists must never be called when allow_pull=False")
+        msg = "registry_tag_exists must never be called when allow_pull=False"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(manifest_entries_new_and_urls, "registry_tag_exists", fail_if_called)
 

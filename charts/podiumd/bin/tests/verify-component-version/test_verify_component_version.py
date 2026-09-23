@@ -237,7 +237,8 @@ def test_main_no_repository_at_configured_path_propagates(vcv, tmp_path, monkeyp
     )
 
     def raise_no_repo(values, image_paths, app_version):
-        raise SystemExit(f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)}")
+        msg = f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)}"
+        raise SystemExit(msg)
 
     monkeypatch.setattr(vcv, "check_image_versions", raise_no_repo)
     exc = run_main(vcv, monkeypatch, ["zac", "5.4.3", "1.0.297"])
