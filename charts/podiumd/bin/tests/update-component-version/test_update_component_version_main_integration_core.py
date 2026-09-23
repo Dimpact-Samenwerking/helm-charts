@@ -224,7 +224,7 @@ def test_main_runs_fix_doc_consistency_after_re_vendoring(
         order.append("fix-doc")
 
     monkeypatch.setattr(ucv, "ensure_vendored_dependencies", record_ensure)
-    monkeypatch.setattr(ucv, "run_fix_doc_consistency", record_fix_doc)
+    monkeypatch.setattr(ucv, "complete_docs_and_finish", record_fix_doc)
 
     ucv.main()
 
