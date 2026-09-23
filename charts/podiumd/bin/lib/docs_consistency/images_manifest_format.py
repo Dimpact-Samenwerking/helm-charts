@@ -21,8 +21,8 @@ from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_items
-from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_count_word
+from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
 from lib.image.repository_check import find_images_without_repository
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
@@ -148,14 +148,8 @@ def _images_manifest_changes_items(lines):
     header_idx, _has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return []
-    item_starts, block_end = images_manifest_changes_block(lines, header_idx)
-    if not item_starts:
-        return []
-    item_ends = [*item_starts[1:], block_end]
-    return [
-        (CHANGES_ITEM_RE.match(lines[start]).group("rest"), start, end)
-        for start, end in zip(item_starts, item_ends, strict=True)
-    ]
+    spans, _block_end = images_manifest_changes_item_spans(lines, header_idx)
+    return [(CHANGES_ITEM_RE.match(lines[start]).group("rest"), start, end) for start, end in spans]
 
 
 def find_images_manifest_changes_items_out_of_order(text, entries, entry_positions, display_name_positions):

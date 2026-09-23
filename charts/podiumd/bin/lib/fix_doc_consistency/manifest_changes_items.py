@@ -6,7 +6,7 @@ from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import NUMBER_WORDS
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
-from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
+from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
 from lib.docs_consistency.images_manifest_format import match_changes_item_to_entry
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 
@@ -26,7 +26,7 @@ def _renumbered_changes_block(chunks):
     return new_block
 
 
-def _deduped_item_chunks(lines, item_starts, item_ends):
+def _deduped_item_chunks(lines, spans: list[tuple[int, int]]):
     """Each item's FULL text (its own first line's "rest" plus any wrapped
     continuation lines) compared verbatim -- the first occurrence of a
     given text wins, every later exact repeat is dropped. Returns
@@ -35,7 +35,7 @@ def _deduped_item_chunks(lines, item_starts, item_ends):
     seen = set()
     keep_chunks = []
     removed = []
-    for start, end in zip(item_starts, item_ends, strict=False):
+    for start, end in spans:
         rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
         full_text = rest + "".join(lines[start + 1 : end])
         if full_text in seen:
@@ -80,16 +80,15 @@ def dedupe_images_manifest_changes_items(lines):
     if header_idx is None:
         return []
 
-    item_starts, block_end = images_manifest_changes_block(lines, header_idx)
-    if not item_starts:
+    spans, block_end = images_manifest_changes_item_spans(lines, header_idx)
+    if not spans:
         return []
 
-    item_ends = [*item_starts[1:], block_end]
-    keep_chunks, removed = _deduped_item_chunks(lines, item_starts, item_ends)
+    keep_chunks, removed = _deduped_item_chunks(lines, spans)
     if not removed:
         return []
 
-    lines[item_starts[0] : block_end] = _renumbered_changes_block(keep_chunks)
+    lines[spans[0][0] : block_end] = _renumbered_changes_block(keep_chunks)
     if header_has_count:
         _update_changes_header_count(lines, header_idx, len(keep_chunks))
     return removed
@@ -162,13 +161,11 @@ def sort_images_manifest_changes_items(lines, entries, entry_positions, display_
     if header_idx is None:
         return []
 
-    item_starts, block_end = images_manifest_changes_block(lines, header_idx)
-    if len(item_starts) < 2:
+    spans, block_end = images_manifest_changes_item_spans(lines, header_idx)
+    if len(spans) < 2:
         return []
 
-    item_ends = [*item_starts[1:], block_end]
-    item_bounds = list(zip(item_starts, item_ends, strict=False))
-    items = _resolved_changes_items(lines, item_bounds, entries, entry_positions, display_name_positions)
+    items = _resolved_changes_items(lines, spans, entries, entry_positions, display_name_positions)
 
     order = sorted(range(len(items)), key=lambda i: items[i]["key"])
     moved = [(items[i]["rest"], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
@@ -176,5 +173,5 @@ def sort_images_manifest_changes_items(lines, entries, entry_positions, display_
         return []
 
     ordered_chunks = [lines[items[i]["start"] : items[i]["end"]] for i in order]
-    lines[item_starts[0] : block_end] = _renumbered_changes_block(ordered_chunks)
+    lines[spans[0][0] : block_end] = _renumbered_changes_block(ordered_chunks)
     return moved

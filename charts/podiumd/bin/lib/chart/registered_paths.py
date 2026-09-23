@@ -6,6 +6,7 @@ component's own PRIMARY image path (as opposed to a sidecar)."""
 
 from pathlib import Path
 
+from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import same_name
 from lib.chart.values_tree_primitives import values_key_of
 from lib.settings import component_resolution_chart_version_lockstep_components
@@ -243,3 +244,20 @@ def is_primary_image_path(path, deps, chart_dir=None):
 # repository_for_path's own "chart_dir is not None" guard a few lines
 # below its own call here) — this must degrade the same tolerant way,
 # not crash a report-only check.
+
+
+def component_chart_versions(
+    chart_dir: Path, key: str, deps: list[dict], baseline_deps: list[dict] | None
+) -> tuple[dict | None, str, str | None, str] | None:
+    """(dep, chart_name, old_chart, new_chart) for values key `key`: its
+    Chart.yaml dependency in deps (old_chart from baseline_deps, None when
+    it isn't there), or a native component (dep None, chart_name key,
+    old_chart None, new_chart "-"). None when key is neither."""
+    dep = dep_for_values_key(deps, key)
+    if dep is not None:
+        baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
+        old_chart = str(baseline_dep["version"]) if baseline_dep else None
+        return dep, dep["name"], old_chart, str(dep["version"])
+    if key in native_components(chart_dir):
+        return None, key, None, "-"
+    return None

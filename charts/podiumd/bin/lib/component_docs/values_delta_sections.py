@@ -20,8 +20,7 @@ import re
 
 from dataclasses import dataclass
 
-from lib.chart.registered_paths import native_components
-from lib.chart.values_tree_primitives import dep_for_values_key
+from lib.chart.registered_paths import component_chart_versions
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
 from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
@@ -315,19 +314,10 @@ def _values_delta_new_section_heading(chart_dir, key, ordering, baseline):
     entry — nothing here can be generated confidently without a real
     Chart.yaml version to read, or the chart-less convention to fall
     back to (same skip add_missing_component_rows already applies)."""
-    dep = dep_for_values_key(ordering.deps, key)
-    if dep is not None:
-        chart_name = dep["name"]
-        baseline_dep = dep_for_values_key(baseline.deps, key) if baseline.deps else None
-        old_chart = str(baseline_dep["version"]) if baseline_dep else None
-        new_chart = str(dep["version"])
-    elif key in native_components(chart_dir):
-        chart_name = key
-        old_chart = None
-        new_chart = "-"
-    else:
+    chart_versions = component_chart_versions(chart_dir, key, ordering.deps, baseline.deps)
+    if chart_versions is None:
         return None
-
+    dep, chart_name, old_chart, new_chart = chart_versions
     old_app = actual_app_version(baseline.values, key, chart_name) if baseline.values else None
     new_app = actual_app_version(ordering.values, key, chart_name, chart_dir=chart_dir, dep=dep)
     return values_delta_section_heading(key, old_app, new_app, old_chart, new_chart)

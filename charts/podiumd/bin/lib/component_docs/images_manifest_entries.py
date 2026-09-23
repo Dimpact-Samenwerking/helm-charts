@@ -20,6 +20,7 @@ from lib.component_docs.images_manifest_changes_header import find_images_manife
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_count_word
 from lib.component_docs.images_manifest_changes_header import images_manifest_order_key
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
+from lib.component_docs.images_manifest_changes_header import remove_changes_item
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.sorting_and_ordering import values_key_order
@@ -287,13 +288,7 @@ def _remove_changes_header_item(lines, friendly):
     if match_idx is None:
         return None
 
-    del lines[match_idx]
-    remaining_indices = [i - 1 if i > match_idx else i for i in item_indices if i != match_idx]
-    for new_num, idx in enumerate(remaining_indices, start=1):
-        m = CHANGES_ITEM_RE.match(lines[idx])
-        lines[idx] = f"#   {new_num}. {m.group('rest')}\n"
-
-    remaining = len(remaining_indices)
+    remaining = len(remove_changes_item(lines, item_indices, match_idx))
     if header_has_count:
         count_word, noun = images_manifest_changes_count_word(remaining)
         header_m = CHANGES_HEADER_RE.match(lines[header_idx])
