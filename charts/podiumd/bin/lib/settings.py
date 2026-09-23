@@ -111,6 +111,13 @@ def render_report_top_n_largest_templates_shown(chart_dir):
     return _get(chart_dir, "render_report", "top_n_largest_templates_shown", 5)
 
 
+def render_report_default_output_file_name(chart_dir):
+    """render_report.default_output_file_name — render-podiumd's default
+    output file in the chart root, also excluded by lib.release_secret_size,
+    default "rendered-helm.yaml"."""
+    return _get(chart_dir, "render_report", "default_output_file_name", "rendered-helm.yaml")
+
+
 def dry_check_similarity_threshold(chart_dir):
     """dry_check.similarity_threshold — replaces lib.checks.dry.
     DRY_SIMILARITY_THRESHOLD, default 0.6."""

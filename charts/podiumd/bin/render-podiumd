@@ -45,15 +45,15 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
-from lib.render_scope import RENDERED_OUTPUT_NAME
 from lib.render_scope import lint_args_for
 from lib.render_scope import render_chart
 from lib.render_scope import report_errors_by_subchart
 from lib.render_scope import report_largest_templates
+from lib.settings import render_report_default_output_file_name
 from lib.settings import render_report_top_n_largest_templates_shown
 
 CHART_DIR = SCRIPT_DIR.parent
-DEFAULT_OUTPUT = CHART_DIR / RENDERED_OUTPUT_NAME
+DEFAULT_OUTPUT = CHART_DIR / render_report_default_output_file_name(CHART_DIR)
 
 
 def main():
