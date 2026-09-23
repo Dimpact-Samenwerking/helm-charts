@@ -97,7 +97,8 @@ def test_extra_cli_args_override_default_lint_args(rp, tmp_path, monkeypatch):
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(output_path), "-s", "templates/frankgateway.yaml"])
 
     def fail_if_called(chart_dir):
-        raise AssertionError("lint_args_for must not be called when extra args are given")
+        msg = "lint_args_for must not be called when extra args are given"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(rp, "lint_args_for", fail_if_called)
 
@@ -205,7 +206,8 @@ def test_stdout_flag_with_extra_args(rp, monkeypatch, capsys):
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", "--stdout", "-s", "templates/frankgateway.yaml"])
 
     def fail_if_called(chart_dir):
-        raise AssertionError("lint_args_for must not be called when extra args are given")
+        msg = "lint_args_for must not be called when extra args are given"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(rp, "lint_args_for", fail_if_called)
 

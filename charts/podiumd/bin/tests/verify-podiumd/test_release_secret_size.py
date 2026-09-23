@@ -485,7 +485,8 @@ def test_check_release_secret_size_never_writes_the_doc(librelease_secret_size, 
     )
 
     def fail_if_called(*a, **kw):
-        raise AssertionError("check_release_secret_size must never call record_result")
+        msg = "check_release_secret_size must never call record_result"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(librelease_secret_size, "record_result", fail_if_called)
 

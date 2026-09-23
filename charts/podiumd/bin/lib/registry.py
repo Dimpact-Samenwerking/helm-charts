@@ -45,7 +45,8 @@ def _read_json(resp):
         return json.loads(raw)
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         where = getattr(resp, "url", None) or "registry"
-        raise urllib.error.URLError(f"non-JSON response from {where}: {e}") from e
+        msg = f"non-JSON response from {where}: {e}"
+        raise urllib.error.URLError(msg) from e
 
 
 def _read_token(resp):
@@ -56,7 +57,8 @@ def _read_token(resp):
     try:
         return data["token"]
     except (TypeError, KeyError) as e:
-        raise urllib.error.URLError(f"auth response carried no token: {e}") from e
+        msg = f"auth response carried no token: {e}"
+        raise urllib.error.URLError(msg) from e
 
 
 def _urlopen(url_or_req, timeout=None):

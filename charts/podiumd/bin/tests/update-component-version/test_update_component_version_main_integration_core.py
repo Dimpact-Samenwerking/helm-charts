@@ -538,7 +538,8 @@ def test_main_keycloak_operator_operator_image_gets_independent_digest_regressio
             return True, f"sha256:{operator_digest}"
         if repo == "keycloak/keycloak":
             return True, f"sha256:{server_digest}"
-        raise AssertionError(f"unexpected repo {host}/{repo}")
+        msg = f"unexpected repo {host}/{repo}"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(ucv, "registry_tag_exists", fake_registry_tag_exists)
     monkeypatch.setattr("sys.argv", ["update-component-version", "keycloak-operator", "26.7.3", "1.12.1"])

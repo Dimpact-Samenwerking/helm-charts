@@ -405,7 +405,8 @@ def test_registry_tag_exists_non_json_token_response_raises_urlerror(libregistry
         url = arg if isinstance(arg, str) else arg.full_url
         if "auth.docker.io" in url:
             return FakeResponse(body=b"<html>503</html>")
-        raise AssertionError("must not reach the manifest request")
+        msg = "must not reach the manifest request"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
     with pytest.raises(urllib.error.URLError):
@@ -609,7 +610,8 @@ def test_find_newest_same_variant_tag_still_finds_newer_release_among_ci_run_id_
 
 def test_is_sliding_tag_true_from_history_alone(libregistry, values_repo, monkeypatch):
     def fail_if_called(*a, **k):
-        raise AssertionError("registry fallback should not be needed when history is conclusive")
+        msg = "registry fallback should not be needed when history is conclusive"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", fail_if_called)
     assert (
@@ -636,7 +638,8 @@ def test_is_sliding_tag_false_when_both_signals_say_no(libregistry, values_repo,
 
 def test_is_sliding_tag_false_when_registry_fallback_errors(libregistry, values_repo, monkeypatch):
     def raise_network_error(*a, **k):
-        raise urllib.error.URLError("down")
+        msg = "down"
+        raise urllib.error.URLError(msg)
 
     monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", raise_network_error)
     assert (

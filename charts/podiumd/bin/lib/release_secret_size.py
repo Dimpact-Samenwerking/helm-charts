@@ -117,7 +117,8 @@ def packaged_files(chart_dir):
     with tempfile.TemporaryDirectory() as tmp:
         result = run(["helm", "package", str(chart_dir), "-d", tmp], capture_output=True, text=True)
         if result.returncode != 0:
-            raise RuntimeError(f"helm package failed: {result.stderr.strip()}")
+            msg = f"helm package failed: {result.stderr.strip()}"
+            raise RuntimeError(msg)
         tgz_path = next(Path(tmp).glob("*.tgz"))
         out = {}
         with tarfile.open(tgz_path, "r:gz") as tar:

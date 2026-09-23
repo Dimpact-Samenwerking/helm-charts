@@ -276,7 +276,8 @@ def test_check_dependencies_skips_update_when_already_vendored(libdependencies, 
 
     def fail_if_update_called(cmd, **kwargs):
         if cmd[2] == "update":
-            raise AssertionError("helm dependency update should have been skipped")
+            msg = "helm dependency update should have been skipped"
+            raise AssertionError(msg)
         return SimpleNamespace(returncode=0, stdout=dep_list_output, stderr="")
 
     monkeypatch.setattr(libdependencies, "run", fail_if_update_called)

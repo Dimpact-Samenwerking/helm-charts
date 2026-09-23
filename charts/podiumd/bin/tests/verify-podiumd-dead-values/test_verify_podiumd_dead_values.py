@@ -28,7 +28,8 @@ def test_missing_helm_fails_before_running_the_check(vpdv, monkeypatch, capsys):
     monkeypatch.setattr(vpdv.shutil, "which", lambda name: None)
 
     def fail_if_called(*a, **kw):
-        raise AssertionError("check_dead_values should never run without helm installed")
+        msg = "check_dead_values should never run without helm installed"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(vpdv, "check_dead_values", fail_if_called)
 

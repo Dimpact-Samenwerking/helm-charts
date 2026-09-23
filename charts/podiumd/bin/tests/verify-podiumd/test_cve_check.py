@@ -190,7 +190,8 @@ def test_scan_cached_reports_a_hit_and_never_calls_run_trivy(libcvecheck, tmp_pa
     new_cache = {}
 
     def fail_if_called(ref):
-        raise AssertionError("a cache hit must never call run_trivy")
+        msg = "a cache hit must never call run_trivy"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(libcvecheck, "run_trivy", fail_if_called)
 
@@ -822,7 +823,8 @@ def test_check_cves_cache_hit_skips_scanning(vp, libcvecheck, tmp_path, monkeypa
 
     def fail_if_scanned(cmd, **kw):
         if "frank-gateway" in cmd[-1]:
-            raise AssertionError("frank-gateway should have been served from cache")
+            msg = "frank-gateway should have been served from cache"
+            raise AssertionError(msg)
         return trivy_result(stdout="{}")
 
     monkeypatch.setattr(libcvecheck, "run", fail_if_scanned)

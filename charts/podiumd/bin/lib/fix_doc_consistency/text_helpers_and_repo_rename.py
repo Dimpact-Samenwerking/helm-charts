@@ -27,7 +27,8 @@ def git_mv(src, dst):
     follows the file instead of a plain filesystem move losing it."""
     result = run(["git", "mv", str(src), str(dst)], cwd=src.parent, capture_output=True, text=True)
     if result.returncode != 0:
-        raise SystemExit(f"error: git mv {src} -> {dst} failed: {result.stderr.strip()}")
+        msg = f"error: git mv {src} -> {dst} failed: {result.stderr.strip()}"
+        raise SystemExit(msg)
 
 
 def update_title_line(text, old_baseline, target, new_baseline):

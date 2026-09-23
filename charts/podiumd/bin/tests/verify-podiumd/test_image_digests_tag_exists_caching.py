@@ -76,7 +76,8 @@ def testcached_tag_exists_does_not_cache_a_raised_exception(libimagedigests, tmp
     def flaky(host, repo, tag):
         calls["n"] += 1
         if calls["n"] == 1:
-            raise urllib.error.URLError("temporary failure")
+            msg = "temporary failure"
+            raise urllib.error.URLError(msg)
         return True, f"sha256:{'a' * 64}"
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", flaky)
@@ -108,7 +109,8 @@ def testcached_tag_exists_reads_a_fresh_disk_entry_without_a_network_call(libima
     )
 
     def fail_if_called(host, repo, tag):
-        raise AssertionError("should have been served from the disk cache")
+        msg = "should have been served from the disk cache"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", fail_if_called)
 

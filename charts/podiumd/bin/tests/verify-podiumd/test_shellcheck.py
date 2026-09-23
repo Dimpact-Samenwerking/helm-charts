@@ -459,7 +459,8 @@ def test_check_shellcheck_no_scripts_found_passes(vp, libshellcheckcheck, tmp_pa
     )
 
     def run(cmd, **kwargs):
-        raise AssertionError("shellcheck should never be invoked — no scripts to check")
+        msg = "shellcheck should never be invoked — no scripts to check"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(libshellcheckcheck, "run", run)
     ok, detail = vp.check_shellcheck(tmp_path, [])

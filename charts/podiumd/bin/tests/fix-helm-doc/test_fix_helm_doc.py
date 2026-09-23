@@ -64,7 +64,8 @@ def test_dry_run_fails_on_drift_without_writing(upr, tmp_path, monkeypatch):
     monkeypatch.setattr(upr, "check_helm_docs", lambda cd: (False, "3 line(s) out of sync"))
 
     def fail_if_called(cmd, **kw):
-        raise AssertionError("--dry-run must never invoke `run` (real helm-docs/git) itself")
+        msg = "--dry-run must never invoke `run` (real helm-docs/git) itself"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(upr, "run", fail_if_called)
     monkeypatch.setattr(upr.sys, "argv", ["fix-helm-doc", "--dry-run"])

@@ -95,7 +95,8 @@ def update_chart_version(new_version):
             lines[i] = replace_scalar_value(line, new_version)
             changed.append("appVersion")
     if "version" not in changed:
-        raise SystemExit(f"error: could not find a top-level 'version:' line in {CHART_YAML}")
+        msg = f"error: could not find a top-level 'version:' line in {CHART_YAML}"
+        raise SystemExit(msg)
     CHART_YAML.write_text("".join(lines), encoding="utf-8")
     return changed
 

@@ -386,7 +386,8 @@ zac:
     monkeypatch.setattr(libcvediffcheck, "find_sliding_pins", lambda chart_dir: [])
 
     def failing_resolve(host, repo, tag):
-        raise urllib.error.URLError("network down")
+        msg = "network down"
+        raise urllib.error.URLError(msg)
 
     monkeypatch.setattr(libcvediffcheck, "registry_tag_exists", failing_resolve)
 
