@@ -72,7 +72,11 @@ data:
       for objecttype in objecttypes_data:
         if(result["name"] == objecttype['name'] or result["namePlural"] == objecttype['namePlural']):
           objecttype['uuid']=result["uuid"]
-          objecttype['version']=findHighestVersion(result['versions'])
+          # Post-merge, objecten's objecttypes_config step creates these types
+          # without versions; they still need a (schema) version from here.
+          version=findHighestVersion(result['versions'])
+          if version is not None:
+            objecttype['version']=version
           existing_objecttypes.append(objecttype)
           print(f"found existing objecttype for {objecttype['name']}")
 
