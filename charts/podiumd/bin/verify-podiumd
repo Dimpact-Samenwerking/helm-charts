@@ -726,8 +726,7 @@ def _parse_cli_args():
     """Parses argv into (args, skipped_steps, skip_flags, include_flags) --
     see main()'s own docstring for the overall flow this feeds into."""
     parser = argparse.ArgumentParser(
-        description="Verify the podiumd chart: run every check step and print a summary.\n"
-        "Exits 1 when a step fails.",
+        description="Verify the podiumd chart: run every check step and print a summary.\nExits 1 when a step fails.",
         epilog=STEPS_HELP + REQUIRED_TOOLS_HELP,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

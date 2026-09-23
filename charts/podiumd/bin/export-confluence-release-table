@@ -185,7 +185,7 @@ def section_name(heading):
     "Product component versies" -> "Product". Unchanged if it doesn't end
     with that exact suffix (e.g. a custom --heading), rather than
     corrupting text this didn't anticipate."""
-    return heading[: -len(SECTION_SUFFIX)] if heading.endswith(SECTION_SUFFIX) else heading
+    return heading.removesuffix(SECTION_SUFFIX)
 
 
 def check_target_matches_chart_version(target_labels, chart_dir):

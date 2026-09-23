@@ -155,7 +155,7 @@ def _bare_digest(digest_ref):
     module gets handed back (find_sliding_pins, registry_tag_exists) has
     the full "sha256:" prefix already on it."""
     prefix = "sha256:"
-    return digest_ref[len(prefix) :] if digest_ref.startswith(prefix) else digest_ref
+    return digest_ref.removeprefix(prefix)
 
 
 def gather_candidates(chart_dir):

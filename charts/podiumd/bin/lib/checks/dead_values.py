@@ -596,7 +596,7 @@ def _make_own_scope(chart_dir, coalesced_values):
         kept_deps = [dep for dep in all_deps if values_key_of(dep) in keep]
         temp_dir = _build_own_scope_chart(chart_dir, chart_yaml, kept_deps)
 
-        # noqa: B023 -- _with_overlay_file calls render_fn synchronously,
+        # B023 is a false positive: _with_overlay_file calls render_fn synchronously,
         # so this always sees THIS iteration's temp_dir, never a later one.
         result = _with_overlay_file(
             coalesced_values,

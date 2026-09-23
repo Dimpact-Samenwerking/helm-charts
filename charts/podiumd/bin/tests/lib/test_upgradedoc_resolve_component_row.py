@@ -30,7 +30,15 @@ def _redis_sidecar_deps_and_values(target_tag="8.6.6", baseline_tag="8.6.2"):
     return target_deps, target_values, baseline_deps, baseline_values
 
 
-def _resolution(libupgradedocresolverow, chart_dir, deps, values, baseline_deps=None, baseline_values=None, upgrade_docs_baseline=None):
+def _resolution(
+    libupgradedocresolverow,
+    chart_dir,
+    deps,
+    values,
+    baseline_deps=None,
+    baseline_values=None,
+    upgrade_docs_baseline=None,
+):
     return libupgradedocresolverow.ResolutionContext(
         chart_dir,
         libupgradedocresolverow.ComponentState(deps, values),
@@ -116,7 +124,9 @@ def test_resolve_component_row_dependency_baseline_dep_exists_values_entry_missi
     baseline_values = {"zac": {"image": {"tag": "5.1.0@sha256:bbbb"}}}  # no "brppersonenmock" key at all
 
     resolved = libupgradedocresolverow.resolve_component_row(
-        "brppersonenmock", {}, _resolution(libupgradedocresolverow, tmp_path, deps, values, baseline_deps, baseline_values)
+        "brppersonenmock",
+        {},
+        _resolution(libupgradedocresolverow, tmp_path, deps, values, baseline_deps, baseline_values),
     )
 
     assert resolved["baseline_resolved"] is True
@@ -277,7 +287,9 @@ def test_resolve_component_row_sidecar_falls_back_to_historical_images_manifest(
     resolved = libupgradedocresolverow.resolve_component_row(
         "redis-operator - k8s",
         canonical_names,
-        _resolution(libupgradedocresolverow, tmp_path, target_deps, target_values, baseline_deps, baseline_values, "4.8.5"),
+        _resolution(
+            libupgradedocresolverow, tmp_path, target_deps, target_values, baseline_deps, baseline_values, "4.8.5"
+        ),
     )
 
     assert resolved["baseline_resolved"] is True

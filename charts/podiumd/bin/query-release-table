@@ -80,7 +80,7 @@ def component_matches(rows, text):
     from_alias = matching_rows(rows, "alias", text)
     seen = {id(row) for row in from_component}
     combined = from_component + [row for row in from_alias if id(row) not in seen]
-    return combined if combined else matching_rows(rows, "name", text)
+    return combined or matching_rows(rows, "name", text)
 
 
 def used_by_rows_for(rows, matches):
