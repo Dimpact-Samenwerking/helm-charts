@@ -91,5 +91,5 @@ def stub_run_fix_doc_consistency(uiv: ModuleType, monkeypatch: pytest.MonkeyPatc
     def record() -> None:
         calls.append("fix-doc")
 
-    monkeypatch.setattr(uiv, "run_fix_doc_consistency", record)
+    monkeypatch.setattr(uiv, "complete_docs_and_finish", record)
     return calls

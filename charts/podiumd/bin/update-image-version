@@ -55,7 +55,6 @@ from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_dependency
 from lib.cli import positional_args
-from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs.baseline_doc_stubs import baseline_doc_paths
 from lib.component_docs.baseline_doc_stubs import images_manifest_path
 from lib.component_docs.baseline_doc_stubs import load_baseline_state
@@ -63,17 +62,19 @@ from lib.component_docs.baseline_doc_stubs import load_baseline_values
 from lib.component_docs.changes_section import ComponentIdentity
 from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
-from lib.component_docs.changes_section import insert_changes_section
 from lib.component_docs.changes_section import make_changes_section
-from lib.component_docs.changes_section import remove_changes_section
-from lib.component_docs.changes_section import remove_component_row
-from lib.component_docs.changes_section import update_component_table
+from lib.component_docs.doc_updates import ValuesDeltaEntry
+from lib.component_docs.doc_updates import complete_docs_and_finish
+from lib.component_docs.doc_updates import print_missing_upgrade_doc
+from lib.component_docs.doc_updates import reset_upgrade_doc
+from lib.component_docs.doc_updates import rewrite_upgrade_doc
+from lib.component_docs.doc_updates import write_removed_values_delta_section
+from lib.component_docs.doc_updates import write_values_delta_entry
 from lib.component_docs.images_manifest_entries import ImagePathUpdate
 from lib.component_docs.images_manifest_entries import ManifestUpdateTarget
 from lib.component_docs.images_manifest_entries import remove_component_from_images_manifest
 from lib.component_docs.images_manifest_entries import update_images_manifest
 from lib.component_docs.values_delta_sections import ValuesDeltaOrdering
-from lib.component_docs.values_delta_sections import insert_values_delta_section
 from lib.component_docs.values_delta_sections import remove_values_delta_section
 from lib.component_docs.values_delta_sections import values_delta_section_heading
 from lib.dependencies import ensure_vendored_dependencies
@@ -94,7 +95,6 @@ from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
-FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
 
 
 def group_changes_by_component(changes, values_lines_before_write):
@@ -216,50 +216,16 @@ def _single_component_baseline_resolution(bump, chart_name, chart_version_str):
 
 def _update_single_component_upgrade_doc(upgrade_path, context, bump):
     if upgrade_path is None:
-        print()
-        if context.baseline.upgrade_docs_baseline is None:
-            print(
-                "No release-baseline.yaml upgrade_docs key found — run create-podiumd-version/"
-                "change-podiumd-baseline first; skipping doc updates."
-            )
-        else:
-            print(
-                f"No upgrade doc found for target {context.target} — run create-doc-version first "
-                f"to scaffold it; skipping doc updates."
-            )
+        print_missing_upgrade_doc(context.baseline.upgrade_docs_baseline, context.target)
         return
 
     if context.baseline.reset_to_baseline:
-        text = upgrade_path.read_text(encoding="utf-8")
-        new_text, row_removed = remove_component_row(text, context.friendly)
-        new_text, section_removed = remove_changes_section(new_text, context.friendly, context.ordering)
-        if row_removed or section_removed:
-            upgrade_path.write_text(new_text, encoding="utf-8")
-        print()
-        print(f"=== Updating {upgrade_path.name} ===")
-        print(
-            f"  {context.friendly} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
-            " version — nothing left to document"
-        )
-        if row_removed:
-            print("  removed table row")
-        if section_removed:
-            print(f"  removed '### {context.friendly} ...' Changes section")
+        reset_upgrade_doc(upgrade_path, context.friendly, context.ordering, context.baseline.upgrade_docs_baseline)
         return
 
-    text = upgrade_path.read_text(encoding="utf-8")
-    new_text, table_action = update_component_table(text, context.friendly, context.change, context.ordering)
-    if table_action is None:
-        return
-    new_text, _ = remove_changes_section(new_text, context.friendly, context.ordering)
     identity = ComponentIdentity(context.friendly, context.chart_name, bump.values_key)
     section = make_changes_section(identity, context.target, context.change, bump.group["paths"])
-    new_text = insert_changes_section(new_text, section, context.friendly, context.ordering)
-    upgrade_path.write_text(new_text, encoding="utf-8")
-    print()
-    print(f"=== Updating {upgrade_path.name} ===")
-    print(f"  {table_action} table row")
-    print(f"  (re)wrote '### {context.friendly} ...' Changes section")
+    rewrite_upgrade_doc(upgrade_path, context.friendly, context.change, section, context.ordering)
 
 
 def _update_single_component_values_deltas(values_deltas_path, context, bump, upgrade_path_exists):
@@ -307,7 +273,6 @@ def _update_single_component_values_deltas(values_deltas_path, context, bump, up
     # docstring for why a heading with nothing under it is worse
     # than no heading.
     if key_lines:
-        no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
         heading_line = values_delta_section_heading(
             context.friendly,
             context.change.old_app,
@@ -315,30 +280,14 @@ def _update_single_component_values_deltas(values_deltas_path, context, bump, up
             context.change.new_chart,
             context.change.new_chart,
         )
-        text = insert_values_delta_section(
+        write_values_delta_entry(
+            values_deltas_path,
             text,
-            context.friendly,
-            heading_line,
-            key_lines,
+            ValuesDeltaEntry(context.friendly, heading_line, key_lines),
             ValuesDeltaOrdering(context.ordering.deps, context.ordering.values, context.ordering.canonical_names),
         )
-        values_deltas_path.write_text(text, encoding="utf-8")
-        print()
-        print(f"=== Updating {values_deltas_path.name} ===")
-        print(f"  '{heading_line.rstrip()}'")
-        for line in key_lines:
-            print(f"  {line.rstrip()}")
-        if no_changes_claimed:
-            print(
-                "  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
-                "gemeente ACTION, not about whether anything changed, so it may still hold; "
-                "double-check it's still true now that this bullet's been added"
-            )
     elif section_removed:
-        values_deltas_path.write_text(text, encoding="utf-8")
-        print()
-        print(f"=== Updating {values_deltas_path.name} ===")
-        print(f"  removed stale section for {context.friendly} — no values-schema change to document for this bump")
+        write_removed_values_delta_section(values_deltas_path, text, context.friendly)
     if no_baseline_ref:
         print()
         print(
@@ -501,51 +450,17 @@ def _shared_image_baseline_resolution(new_version, bump):
 
 def _update_shared_image_upgrade_doc(upgrade_path, context, bump):
     if upgrade_path is None:
-        print()
-        if context.baseline.upgrade_docs_baseline is None:
-            print(
-                "No release-baseline.yaml upgrade_docs key found — run create-podiumd-version/"
-                "change-podiumd-baseline first; skipping doc updates."
-            )
-        else:
-            print(
-                f"No upgrade doc found for target {context.target} — run create-doc-version first "
-                f"to scaffold it; skipping doc updates."
-            )
+        print_missing_upgrade_doc(context.baseline.upgrade_docs_baseline, context.target)
         return
 
     if context.baseline.reset_to_baseline:
-        text = upgrade_path.read_text(encoding="utf-8")
-        new_text, row_removed = remove_component_row(text, bump.name)
-        new_text, section_removed = remove_changes_section(new_text, bump.name, context.ordering)
-        if row_removed or section_removed:
-            upgrade_path.write_text(new_text, encoding="utf-8")
-        print()
-        print(f"=== Updating {upgrade_path.name} ===")
-        print(
-            f"  {bump.name} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
-            " version — nothing left to document"
-        )
-        if row_removed:
-            print("  removed table row")
-        if section_removed:
-            print(f"  removed '### {bump.name} ...' Changes section")
+        reset_upgrade_doc(upgrade_path, bump.name, context.ordering, context.baseline.upgrade_docs_baseline)
         return
 
-    text = upgrade_path.read_text(encoding="utf-8")
-    new_text, table_action = update_component_table(text, bump.name, context.change, context.ordering)
-    if table_action is None:
-        return
-    new_text, _ = remove_changes_section(new_text, bump.name, context.ordering)
     section = make_image_changes_section(
         bump.name, context.target, context.change.old_app, context.change.new_app, context.baseline.pinned
     )
-    new_text = insert_changes_section(new_text, section, bump.name, context.ordering)
-    upgrade_path.write_text(new_text, encoding="utf-8")
-    print()
-    print(f"=== Updating {upgrade_path.name} ===")
-    print(f"  {table_action} table row")
-    print(f"  (re)wrote '### {bump.name} ...' Changes section")
+    rewrite_upgrade_doc(upgrade_path, bump.name, context.change, section, context.ordering)
 
 
 def _update_shared_image_values_deltas(values_deltas_path, context, bump, upgrade_path_exists):
@@ -578,10 +493,7 @@ def _update_shared_image_values_deltas(values_deltas_path, context, bump, upgrad
             f" version — {'removed its section' if section_removed else 'nothing to remove'}"
         )
     elif section_removed:
-        values_deltas_path.write_text(text, encoding="utf-8")
-        print()
-        print(f"=== Updating {values_deltas_path.name} ===")
-        print(f"  removed stale section for {bump.name} — no values-schema change to document for this bump")
+        write_removed_values_delta_section(values_deltas_path, text, bump.name)
 
 
 def _update_shared_image_manifest_entry(images_path, repository, c, context, bump):
@@ -690,13 +602,6 @@ def update_docs(basename, new_version, changes, values_lines_before_write):
     update_docs_shared_image(new_version, target, SharedImageBump(row_name, changes, full_paths), ordering)
 
 
-def run_fix_doc_consistency():
-    """Runs fix-doc-consistency on this chart's docs."""
-    print()
-    print("=== Completing the docs (fix-doc-consistency) ===")
-    run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT)])
-
-
 def main():
     """CLI entry point: resolves <key> <basename> to a single image pin
     scope, bumps every matching values.yaml tag pin to <new-version>
@@ -735,10 +640,7 @@ def main():
     # fix-doc-consistency completes the docs update_docs wrote (missing
     # images-manifest entries, order, images-baseline.yaml) the same way
     # check_docs_consistency expects them.
-    run_fix_doc_consistency()
-
-    print()
-    print("Done. Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
+    complete_docs_and_finish()
 
 
 if __name__ == "__main__":
