@@ -27,6 +27,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from dataclasses import dataclass
+from dataclasses import field
 from html.parser import HTMLParser
 
 PAGE_ID_RE = re.compile(r"/pages/(\d+)")
@@ -96,6 +98,16 @@ HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 BLOCK_SEPARATOR_TAGS = {"br", "hr", "p"}
 
 
+@dataclass
+class _HeadingState:
+    """_TableExtractor's heading tracking: the text of the last heading
+    closed (current), and the heading tag (h1-h6) and text being read."""
+
+    current: str | None = None
+    tag: str | None = None
+    text: list = field(default_factory=list)
+
+
 class _TableExtractor(HTMLParser):
     """Builds one list of rows per top-level <table> in the document; each
     row is a list of {"tag", "colspan", "rowspan", "text"} cell dicts.
@@ -118,9 +130,7 @@ class _TableExtractor(HTMLParser):
         self._row = None
         self._cell = None
         self._nested_depth = 0
-        self._current_heading = None
-        self._heading_tag = None
-        self._heading_text = []
+        self._heading = _HeadingState()
 
     def handle_starttag(self, tag, attrs):
         if self._cell is not None:
@@ -130,8 +140,8 @@ class _TableExtractor(HTMLParser):
                 self._cell["text"].append(" ")
             return
         if tag in HEADING_TAGS:
-            self._heading_tag = tag
-            self._heading_text = []
+            self._heading.tag = tag
+            self._heading.text = []
             return
         attrs = dict(attrs)
         if tag == "table":
@@ -159,12 +169,12 @@ class _TableExtractor(HTMLParser):
                 self._row.append(self._cell)
                 self._cell = None
             return
-        if tag == self._heading_tag:
-            self._current_heading = " ".join("".join(self._heading_text).split())
-            self._heading_tag = None
+        if tag == self._heading.tag:
+            self._heading.current = " ".join("".join(self._heading.text).split())
+            self._heading.tag = None
         elif tag == "table" and self._table_stack:
             self.tables.append(self._table_stack.pop())
-            self.table_headings.append(self._current_heading)
+            self.table_headings.append(self._heading.current)
         elif tag == "tr" and self._row is not None:
             if self._table_stack:
                 self._table_stack[-1].append(self._row)
@@ -173,8 +183,8 @@ class _TableExtractor(HTMLParser):
     def handle_data(self, data):
         if self._cell is not None:
             self._cell["text"].append(data)
-        elif self._heading_tag is not None:
-            self._heading_text.append(data)
+        elif self._heading.tag is not None:
+            self._heading.text.append(data)
 
 
 def _positive_int(value, default):
