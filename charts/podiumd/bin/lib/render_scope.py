@@ -337,7 +337,7 @@ def build_resource_locations(rendered_text):
             doc_lines = doc_lines[:-1]
         try:
             parsed = yaml.safe_load("\n".join(doc_lines))
-        except yaml.YAMLError:
+        except yaml.YAMLError:  # noqa: S112 -- not a YAML resource, has no location to record
             continue
         if not isinstance(parsed, dict):
             continue

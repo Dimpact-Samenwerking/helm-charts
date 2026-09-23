@@ -131,10 +131,10 @@ def _tier_matches(candidates, dependencies, predicate):
 # as ambiguous with "eck-stack" (alias "kiss-eck") just because
 # "kiss-eck" also happens to *contain* "kiss" as a substring.
 _MATCH_TIERS = [
-    lambda candidate, dependency_name, alias: normalize_name(candidate) == normalize_name(dependency_name),
-    lambda candidate, dependency_name, alias: bool(alias) and normalize_name(candidate) == normalize_name(alias),
-    lambda candidate, dependency_name, alias: bool(alias) and _related(candidate, alias),
-    lambda candidate, dependency_name, alias: _related(candidate, dependency_name),
+    lambda candidate, dependency_name, _alias: normalize_name(candidate) == normalize_name(dependency_name),
+    lambda candidate, _dependency_name, alias: bool(alias) and normalize_name(candidate) == normalize_name(alias),
+    lambda candidate, _dependency_name, alias: bool(alias) and _related(candidate, alias),
+    lambda candidate, dependency_name, _alias: _related(candidate, dependency_name),
 ]
 
 # The two EXACT-match tiers (candidate == dependency name/alias, no

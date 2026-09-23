@@ -137,11 +137,11 @@ def _check_http_repo(url, timeout_seconds):
         # exemption for this file documents.
         with urllib.request.urlopen(index_url, timeout=timeout_seconds):  # nosec B310
             pass
-        return True, None
     except urllib.error.HTTPError as e:
         return False, f"HTTP {e.code} fetching {index_url}"
     except (urllib.error.URLError, OSError) as e:
         return False, f"{getattr(e, 'reason', e)} fetching {index_url}"
+    return True, None
 
 
 def _check_registry_repo(chart_dir, host, repo_path, version, timeout_seconds):

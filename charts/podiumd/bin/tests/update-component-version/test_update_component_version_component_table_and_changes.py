@@ -110,7 +110,7 @@ def test_update_component_table_new_row_inserted_in_values_yaml_order(ucv):
         ucv.OrderingContext(DEPS, VALUES),
     )
     assert action == "added"
-    lines = [line for line in new_text.splitlines() if line.startswith("| zac") or line.startswith("| openformulieren")]
+    lines = [line for line in new_text.splitlines() if line.startswith(("| zac", "| openformulieren"))]
     assert lines == [
         "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | - |",
         "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |",

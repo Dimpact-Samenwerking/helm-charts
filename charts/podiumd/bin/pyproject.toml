@@ -156,9 +156,11 @@ check-typed-exception = true  # Enable additional checks for try-except-pass
 # positive class [tool.vulture]'s own ignore_names comment above documents
 # for this directory, just under a different tool.
 # S603/S607 (subprocess call, partial executable path): tests run `git`
-# with a fixed argv to build throwaway repos under tmp_path. bandit, the
-# security scan these rules mirror, never scans tests/ either.
-"tests/**" = ["S101", "ARG001", "ARG005", "SLF001", "INP001", "PT018", "RUF059", "S603", "S607"]
+# with a fixed argv to build throwaway repos under tmp_path. S106
+# (hardcoded password argument): fake tokens passed to the code under
+# test. bandit, the security scan these rules mirror, never scans tests/
+# either.
+"tests/**" = ["S101", "ARG001", "ARG005", "SLF001", "INP001", "PT018", "RUF059", "S603", "S607", "S106"]
 
 # S310 (audit URL open for permitted schemes): every urlopen() call in these
 # 3 files targets a known, config-derived trusted host (container registry

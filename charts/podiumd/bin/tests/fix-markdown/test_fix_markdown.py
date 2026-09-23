@@ -2,6 +2,7 @@
 pymarkdown binary) plus a main() integration test against real files in
 tmp_path."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -22,12 +23,10 @@ def strip_trailing_whitespace_run(cmd, **kwargs):
     fixed_lines = []
     paths = cmd[cmd.index("fix") + 1 :]
     for path_str in paths:
-        with open(path_str, encoding="utf-8") as f:
-            original = f.read()
+        original = Path(path_str).read_text(encoding="utf-8")
         new = "\n".join(line.rstrip() for line in original.split("\n"))
         if new != original:
-            with open(path_str, "w", encoding="utf-8") as f:
-                f.write(new)
+            Path(path_str).write_text(new, encoding="utf-8")
             fixed_lines.append(f"Fixed: {path_str}")
     return SimpleNamespace(returncode=0, stdout="\n".join(fixed_lines), stderr="")
 

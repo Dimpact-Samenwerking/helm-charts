@@ -156,8 +156,10 @@ def test_extract_shell_scripts_carries_resource_identity(libshellcheckcheck):
     docs = [
         (
             "podiumd/templates/x.yaml",
-            "kind: Job\nmetadata:\n  name: foo\n  namespace: bar\n"
-            'spec:\n  containers:\n    - command: ["sh", "-c", "echo hi"]\n',
+            (
+                "kind: Job\nmetadata:\n  name: foo\n  namespace: bar\n"
+                'spec:\n  containers:\n    - command: ["sh", "-c", "echo hi"]\n'
+            ),
         )
     ]
     found = libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES)

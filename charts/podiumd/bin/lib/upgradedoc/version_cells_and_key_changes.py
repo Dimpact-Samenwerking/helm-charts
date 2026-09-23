@@ -142,7 +142,7 @@ def replace_version_spec(line, new_spec):
     replace_version_pair's own `repl`) since the caller already has the
     FULL desired text from image_manifest_version_text, not just its
     two endpoints."""
-    new_line, count = VERSION_SPEC_RE.subn(lambda m: new_spec, line, count=1)
+    new_line, count = VERSION_SPEC_RE.subn(lambda _m: new_spec, line, count=1)
     return new_line if count else line
 
 

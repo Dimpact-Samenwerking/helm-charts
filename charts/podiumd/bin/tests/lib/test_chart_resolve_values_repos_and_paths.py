@@ -233,7 +233,7 @@ def test_primary_image_repositories_chart_dir_none_and_needed_returns_error(libc
 
 
 @pytest.mark.parametrize(
-    "url,expected",
+    ("url", "expected"),
     [
         ("quay.io/keycloak/keycloak", "keycloak/keycloak"),
         ("docker.io/maykinmedia/open-inwoner", "maykinmedia/open-inwoner"),

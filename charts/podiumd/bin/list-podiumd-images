@@ -139,7 +139,7 @@ def safe_extract_tgz(tgz_path, dest):
                 msg = f"error: {tgz_path} member '{member.name}' would extract outside {dest}"
                 raise SystemExit(msg)
         # Member paths validated above.
-        tf.extractall(dest)  # nosec B202
+        tf.extractall(dest)  # nosec B202  # noqa: S202
 
 
 def load_chart(dep, tmproot, refresh):
@@ -205,18 +205,20 @@ def resolution_note(values_lines, key, basename):
     literal pin of its own here — kept to the one thing a reader needs
     (the key that DOES work) so it still fits on the row's short first
     line alongside <key> <basename> <version> and the values.yaml path."""
+    if _resolves(values_lines, key, basename):
+        return None
+    if not same_name(key, MULTIPLE_KEY) and _resolves(values_lines, MULTIPLE_KEY, basename):
+        return f"use {MULTIPLE_KEY} {basename}"
+    return "unresolvable"
+
+
+def _resolves(values_lines: list[str], key: str, basename: str) -> bool:
+    """True if resolve_scoped_matches accepts <key> <basename>; it exits on failure."""
     try:
         resolve_scoped_matches(values_lines, key, basename)
-        return None
     except SystemExit:
-        pass
-    if not same_name(key, MULTIPLE_KEY):
-        try:
-            resolve_scoped_matches(values_lines, MULTIPLE_KEY, basename)
-            return f"use {MULTIPLE_KEY} {basename}"
-        except SystemExit:
-            pass
-    return "unresolvable"
+        return False
+    return True
 
 
 def _sorted_image_entries(rows):

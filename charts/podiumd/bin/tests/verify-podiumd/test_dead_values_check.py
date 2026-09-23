@@ -11,6 +11,7 @@ exercises."""
 import io
 import tarfile
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import yaml
@@ -59,8 +60,7 @@ def _overlay_values(cmd):
     merged = {}
     paths = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "-f"]
     for path in paths:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
+        data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
         _deep_merge(merged, data)
     return merged
 

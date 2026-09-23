@@ -479,7 +479,7 @@ def test_compare_chart_version_never_tracked_resolves_primary_via_vendored_subch
     assert 'Confluence: fill in the Helm version cell on "Open Zaak" ("Product component versies")' in hint
 
 
-@pytest.mark.parametrize("target_app,target_helm", [("", ""), ("UNKNOWN", "UNKNOWN")])
+@pytest.mark.parametrize(("target_app", "target_helm"), [("", ""), ("UNKNOWN", "UNKNOWN")])
 def test_compare_skips_blank_or_unknown_targets(vrt, target_app, target_helm):
     """A blank/UNKNOWN target means "nothing planned to compare" (see
     query-release-table's own UNCHANGED display logic) — not a

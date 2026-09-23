@@ -414,7 +414,7 @@ def find_sliding_pins(chart_dir):
         pinned_digest = group[0]["digest"]
         try:
             exists, digest = cached_tag_exists(chart_dir, repository, version)
-        except (urllib.error.URLError, OSError):
+        except (urllib.error.URLError, OSError):  # noqa: S112 -- silent by design, see docstring
             continue
         if not exists or not digest or digest == f"sha256:{pinned_digest}":
             continue

@@ -78,7 +78,7 @@ def extract_shell_scripts(docs, shell_names):
     for source, doc_text in docs:
         try:
             parsed = yaml.safe_load(doc_text)
-        except yaml.YAMLError:
+        except yaml.YAMLError:  # noqa: S112 -- not a YAML resource, holds no shell script
             continue
         if parsed is None:
             continue

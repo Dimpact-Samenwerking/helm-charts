@@ -69,7 +69,7 @@ def chart_ref(dep):
         return f"{repo}/{dep['name']}", None
     if repo.startswith("@"):
         return f"{repo[1:]}/{dep['name']}", None
-    if repo.startswith("http://") or repo.startswith("https://"):
+    if repo.startswith(("http://", "https://")):
         return dep["name"], repo
     if repo.startswith("file://"):
         return None, None
