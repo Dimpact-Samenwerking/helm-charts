@@ -149,9 +149,12 @@ comment for the full list and reasoning.
 ```bash
 cd charts/podiumd/bin
 pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
-PYTHONPATH=. pylint --disable=missing-function-docstring,wrong-import-position,unused-argument,protected-access,unused-variable,redefined-outer-name,duplicate-code \
-    $(find tests -name '*.py')
+PYTHONPATH=. pylint --disable="$TESTS_PYLINT_DISABLE" $(find tests -name '*.py')
 ```
+
+`TESTS_PYLINT_DISABLE` is the rule list `run_python_checks` defines (and
+explains): pylint false positives under `tests/`, plus the style and
+structure rules not enforced for test code. Copy its value from there.
 
 `lib` isn't an analyzed target in the second invocation, so its imports need
 `PYTHONPATH=.` (not the target list) to resolve — otherwise pylint can't see
@@ -200,8 +203,7 @@ ruff format --check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm
 vulture lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 bandit -c pyproject.toml -r lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) -q
 pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
-PYTHONPATH=. pylint --disable=missing-function-docstring,wrong-import-position,unused-argument,protected-access,unused-variable,redefined-outer-name,duplicate-code \
-    $(find tests -name '*.py')
+PYTHONPATH=. pylint --disable="$TESTS_PYLINT_DISABLE" $(find tests -name '*.py')
 basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) tests
 python3 -m pytest -q
 ```

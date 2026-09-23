@@ -195,15 +195,12 @@ line-ending = "auto"
 # run_python_checks itself isn't handed to a Python linter).
 #
 # This file has no per-directory scoping (unlike ruff's [tool.ruff.lint.
-# per-file-ignores]) -- pylint reads one config for the whole run. 7 checks
-# are false positives ONLY under tests/ (pytest fixture signatures,
-# sys.path-hack conftest imports, shared assertion boilerplate) and must
-# stay enabled for lib/ and the top-level scripts, so they're disabled via
-# a second, tests/-only `--disable` CLI flag in run_python_checks instead
-# of here: missing-function-docstring, wrong-import-position,
-# unused-argument, protected-access, unused-variable, redefined-outer-name,
-# duplicate-code. See run_python_checks for the two invocations and each
-# flag's own reasoning.
+# per-file-ignores]) -- pylint reads one config for the whole run. Checks
+# that are false positives under tests/, or not enforced for test code,
+# must stay enabled for lib/ and the top-level scripts, so they're disabled
+# via a second, tests/-only `--disable` CLI flag (TESTS_PYLINT_DISABLE) in
+# run_python_checks instead of here. See run_python_checks for the list and
+# its reasoning.
 
 [tool.pylint.basic]
 # Default module-rgx is snake_case-only and flags every extensionless
