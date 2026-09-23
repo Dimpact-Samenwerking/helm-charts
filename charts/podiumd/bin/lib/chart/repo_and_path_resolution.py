@@ -144,7 +144,7 @@ def repo_group_representative(repo_paths, deps):
     return [path for path in repo_paths if rank(path) == best][-1]
 
 
-def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
+def paths_by_repository(chart_dir, deps, values, paths, *, allow_pull=False):
     """{strip_registry_host(repository): [path, ...]} for every path in
     `paths` (e.g. lib.upgradedoc.find_image_tag_paths(values)'s own
     keys) that resolves to a repository — not just each dependency's
@@ -313,7 +313,7 @@ def _cached_subchart_values(dep, state):
     return sub_values
 
 
-def full_repository_for_path(chart_dir, deps, values, path, allow_pull=False):
+def full_repository_for_path(chart_dir, deps, values, path, *, allow_pull=False):
     """The FULLY host-qualified repository for `path` (e.g. "docker.io/
     curlimages/curl", "mcr.microsoft.com/azure-cli") — the same per-path
     resolution chain paths_by_repository uses internally (podiumd's own
@@ -432,7 +432,7 @@ def _full_repo_from_dependency(chart_dir, dep, path, values, allow_pull):
     return _formatted_repo(repo) if isinstance(repo, str) and repo else None
 
 
-def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
+def repository_path_map(chart_dir, deps, values, paths, *, allow_pull=False):
     """{strip_registry_host(repository): values-tree path} — paths_by_
     repository's own per-repository groups, collapsed to each group's
     single representative path (see repo_group_representative). Exists
@@ -453,7 +453,7 @@ def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
     }
 
 
-def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False):
+def canonical_sidecar_row_names(chart_dir, deps, values, paths, *, allow_pull=False):
     """{canonical doc-row name: values-tree path} for every image path
     that isn't a Chart.yaml dependency's own name/alias directly — the
     two other shapes update-image-version actually writes a doc row

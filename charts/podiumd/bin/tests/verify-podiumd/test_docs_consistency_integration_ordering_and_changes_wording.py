@@ -379,7 +379,7 @@ dependencies:
 """
 
 
-def two_dep_values(zac_app, openformulieren_app, with_schema_changes=False):
+def two_dep_values(zac_app, openformulieren_app, *, with_schema_changes=False):
     zac_extra = "  newFeature:\n    enabled: true\n" if with_schema_changes else ""
     openformulieren_extra = "  clamavConfigJob:\n    enabled: true\n" if with_schema_changes else ""
     return (

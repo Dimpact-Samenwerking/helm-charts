@@ -413,7 +413,7 @@ def _build_detail_message(buckets, totals, scan_errors):
     return ", ".join(parts) + f"; {len(scan_errors)} scan error(s)"
 
 
-def check_cve_diff(chart_dir, extra_args, detail=False):
+def check_cve_diff(chart_dir, extra_args, *, detail=False):
     """Entry point for the "CVE diff" step (see module docstring for the
     full design): gathers every upgrade-available/sliding-digest
     candidate (gather_candidates), classifies each into the own/partner/

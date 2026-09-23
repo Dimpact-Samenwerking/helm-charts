@@ -11,7 +11,7 @@ def result(returncode=0, stdout="", stderr=""):
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
-def make_chart_dir(tmp_path, gotmpl=False):
+def make_chart_dir(tmp_path, *, gotmpl=False):
     (tmp_path / "Chart.yaml").write_text("name: podiumd\nversion: 4.9.0\n", encoding="utf-8")
     (tmp_path / "values.yaml").write_text("foo: bar\n", encoding="utf-8")
     (tmp_path / "README.md").write_text("# podiumd\n", encoding="utf-8")

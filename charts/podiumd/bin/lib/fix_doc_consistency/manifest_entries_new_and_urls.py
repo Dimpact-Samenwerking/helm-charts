@@ -486,7 +486,8 @@ def _insert_added_entry(text, path, context, resolution, fields):
         path, new_version, fields.pinned_tag, context, resolution
     )
     new_key = images_manifest_order_key(resolution.key_order, path, " - " in fields.name, context.target_values)
-    version_text = f"{fields.name} {image_manifest_version_text(old_version, new_version, digest_only_change)}"
+    version_text = image_manifest_version_text(old_version, new_version, digest_only_change=digest_only_change)
+    version_text = f"{fields.name} {version_text}"
 
     lines = _manifest_lines_for_insert(text)
     ensure_images_manifest_changes_header(lines)

@@ -371,7 +371,7 @@ def check_chart_version(ref, rows, state, findings):
         )
 
 
-def check_chart_version_source(dep, rows, baseline_deps, findings, strict_presence=False):
+def check_chart_version_source(dep, rows, baseline_deps, findings, *, strict_presence=False):
     """The SOURCE-side sibling of check_chart_version: for every row with
     a verifiable source_version_helm (see is_verifiable_target — never
     just "blank, no prior value recorded yet"), compares it against
@@ -637,7 +637,7 @@ def _row_needs_source_check(row, strict_presence):
     return is_verifiable_target(source) or (strict_presence and source == "")
 
 
-def check_images_source(ref, rows, comparison, findings, strict_presence=False):
+def check_images_source(ref, rows, comparison, findings, *, strict_presence=False):
     """The SOURCE-side sibling of check_images — mirrors its own two-tier
     resolution (basenames_under_scope, falling back to a plain find_
     matches search) exactly, but against `comparison.baseline` (see
@@ -874,7 +874,7 @@ def _check_unmatched_component(component, rows_for_component, comparison, findin
         )
 
 
-def compare(rows, state, baseline=None, baseline_only=False):
+def compare(rows, state, baseline=None, *, baseline_only=False):
     """{"mismatches", "ambiguous", "missing_from_release_table",
     "missing_from_chart"}: str -> [str, ...], plus the separate list of
     rows whose component export-confluence-release-table never

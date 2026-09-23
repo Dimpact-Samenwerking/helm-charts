@@ -124,11 +124,9 @@ def test_images_manifest_order_key_bare_string_unaffected_by_values(libcomponent
     a full path TUPLE instead."""
     key_order = ["global", "zac"]
     values = {"global": {"images": {"nginx": {}, "curl": {}}}, "zac": {}}
-    assert libcomponentdocsheader.images_manifest_order_key(key_order, "global", False, values) == (0, 0)
-    assert libcomponentdocsheader.images_manifest_order_key(key_order, "global", True, values) == (
-        0,
-        1,
-    )
+    order_key = libcomponentdocsheader.images_manifest_order_key
+    assert order_key(key_order, "global", is_sidecar=False, values=values) == (0, 0)
+    assert order_key(key_order, "global", is_sidecar=True, values=values) == (0, 1)
 
 
 def test_images_manifest_order_key_path_tuple_resolves_full_nested_position(libcomponentdocsheader):
@@ -148,8 +146,9 @@ def test_images_manifest_order_key_path_tuple_resolves_full_nested_position(libc
             }
         }
     }
+    order_key = libcomponentdocsheader.images_manifest_order_key
     keys = [
-        libcomponentdocsheader.images_manifest_order_key(key_order, ("global", "images", name), True, values)
+        order_key(key_order, ("global", "images", name), is_sidecar=True, values=values)
         for name in ("nginx", "curl", "busybox", "redis")
     ]
     assert keys == sorted(keys)

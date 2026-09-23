@@ -19,7 +19,7 @@ FENCED_CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
-def version_change_suffix(old, new, digest_only_change=False):
+def version_change_suffix(old, new, *, digest_only_change=False):
     """The bracketed status suffix alone for a version transition —
     "(new)" when there's no real baseline value at all (`old` falsy);
     "(digest changed)" when the version itself didn't change but its
@@ -59,7 +59,7 @@ def version_change_suffix(old, new, digest_only_change=False):
     return None
 
 
-def image_manifest_version_text(old, new, digest_only_change=False):
+def image_manifest_version_text(old, new, *, digest_only_change=False):
     """The images-manifest's own house style for a version-change
     comment (an entry's own preceding comment, or a "# Changes:" header
     list item's own embedded version fragment) — ascii "->" arrow,
@@ -67,7 +67,7 @@ def image_manifest_version_text(old, new, digest_only_change=False):
     -upgrade.md's unicode "→" — see canonical_version_cell). See
     version_change_suffix for the shared new/unchanged/digest-changed
     decision both delegate to."""
-    suffix = version_change_suffix(old, new, digest_only_change)
+    suffix = version_change_suffix(old, new, digest_only_change=digest_only_change)
     return f"{new} {suffix}" if suffix else f"{old} -> {new}"
 
 

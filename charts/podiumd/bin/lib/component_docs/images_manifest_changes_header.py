@@ -302,7 +302,7 @@ def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_tex
         if item_dep is None:
             item_keys.append((len(key_order), 0))
             continue
-        item_keys.append(images_manifest_order_key(key_order, values_key_of(item_dep), False))
+        item_keys.append(images_manifest_order_key(key_order, values_key_of(item_dep), is_sidecar=False))
 
     insert_slot = insertion_index(new_key, item_keys)
     insert_line = item_indices[insert_slot] if insert_slot < len(item_indices) else block_end
