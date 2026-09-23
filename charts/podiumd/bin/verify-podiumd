@@ -668,17 +668,16 @@ def prerequisites_for(step_name):
 # rather than a hand-maintained list, so it can't drift out of sync with it.
 STEPS_HELP = (
     "\nSteps usable with --skip=/--include= (in run order):\n"
-    + "\n".join(f"  {flag:<18}{step_name}" for flag, step_name in SKIPPABLE_STEPS)
+    + "\n".join(
+        f"  {flag:<{max(len(f) for f, _ in SKIPPABLE_STEPS) + 2}}{step_name}" for flag, step_name in SKIPPABLE_STEPS
+    )
     + "\n"
 )
 
 REQUIRED_TOOLS_HELP = """
-Required external tools: see charts/podiumd/bin/README-release-process.md#setup
-for the full per-tool/per-check list and Debian/macOS install instructions.
-A missing tool makes its check fail with a clear message — add its step
-to --skip= to bypass it instead, e.g. if it's not installed locally.
-docker is the one exception: missing docker just reports the CVE scan as
-skipped, never blocks a run.
+Requires: the tools listed in README-release-process.md#setup. A step whose
+tool is missing fails; skip it with --skip. Without docker the CVE scan is
+reported as skipped.
 """
 
 
@@ -727,41 +726,32 @@ def _parse_cli_args():
     """Parses argv into (args, skipped_steps, skip_flags, include_flags) --
     see main()'s own docstring for the overall flow this feeds into."""
     parser = argparse.ArgumentParser(
-        description="Verify the podiumd chart.",
+        description="Verify the podiumd chart: run every check step and print a summary.\n"
+        "Exits 1 when a step fails.",
         epilog=STEPS_HELP + REQUIRED_TOOLS_HELP,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--detail-cve-check",
         action="store_true",
-        help="CVE scan: itemize CRITICAL/HIGH findings per affected package for "
-        "EVERY image bucket (own, partner-vendor, AND other-vendor), not just "
-        "the terse per-image severity totals a normal run prints",
+        help="CVE scan: list CRITICAL/HIGH findings per package for every image, not only totals",
     )
     parser.add_argument(
         "--detail-cve-diff",
         action="store_true",
-        help="CVE diff: itemize the actual CRITICAL/HIGH VulnerabilityID+PkgName "
-        "pairs closed/introduced by each upgrade/slide candidate, not just the "
-        "terse per-severity counts a normal run prints",
+        help="CVE diff: list the CRITICAL/HIGH findings each upgrade candidate closes or adds, not only counts",
     )
     parser.add_argument(
         "--skip",
         default=None,
         metavar="STEP1,STEP2,...",
-        help="comma-separated (no spaces) list of steps to skip (e.g. to iterate "
-        "faster, or work around a known-broken step) — shown as SKIP in the "
-        "summary, never counted as a failure. Cannot combine with --include. "
-        "See the step list below",
+        help="comma-separated steps to skip; shown as SKIP, not as a failure. Not with --include",
     )
     parser.add_argument(
         "--include",
         default=None,
         metavar="STEP1,STEP2,...",
-        help="comma-separated (no spaces) list of steps to run — plus any step(s) "
-        "each one needs as a prerequisite (see STEP_PREREQUISITES). Every step "
-        "not included (directly or as a prerequisite of an included step) shows "
-        "as SKIP. Cannot combine with --skip. See the step list below",
+        help="comma-separated steps to run, plus their prerequisites; the rest show as SKIP. Not with --skip",
     )
     args = parser.parse_args()
 

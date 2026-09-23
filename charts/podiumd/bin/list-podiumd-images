@@ -1,41 +1,28 @@
 #!/usr/bin/env python3
 """
-List every container image (repository + tag) actually configured for the
-podiumd chart: for each Chart.yaml dependency, the sub-chart's default
-values.yaml merged with podiumd's own overrides in values.yaml, plus any
-images configured directly at the top level of podiumd's own values.yaml.
+List every container image the podiumd chart configures.
 
-Each image is printed as two lines. The first is short: "<key> <basename>
-<version>  (path: ...)" — <key> <basename> <version> is the same
-argument order update-image-version/verify-image-version/show-image-
-baseline-version take, so it doubles as the exact arguments to hand one
-of those scripts; the values.yaml path it was found at is right there
-too. The second, indented line has the full "<repo>:<tag>" (digest
-included, never truncated) — for filling in a Confluence release-notes
-row (repo:tag/digest, appVersion, chart version, sub-chart dependencies)
-or manual lookup.
+For each Chart.yaml dependency, merges the sub-chart's default values
+with podiumd's values.yaml; also lists images set at podiumd's top
+level. Each image prints as two lines:
 
-<key> <basename> is only real, resolvable input for those other scripts
-when it's a literal digest pin in THIS chart's own values.yaml — the
-same lib.image.version.resolve_scoped_matches check they use. A row
-whose image instead comes from the sub-chart's own default (no podiumd
-override at all), from a shared values.yaml global.images.* image
-aliased into more than one component, or from a split tag/sha or
-non-digest pin those tools can't see structurally, gets a short trailing
-hint on its FIRST line ("use MULTIPLE <basename>", or "unresolvable")
-instead of a silently-wrong copy/paste — kept brief so it fits
-comfortably alongside <key> <basename> <version> and the path.
+    <key> <basename> <version>  (path: <values path>)
+        <repo>:<tag>
+
+The first line is the argument list for update-image-version,
+verify-image-version and show-image-baseline-version. When those
+scripts cannot use it, the line ends with a hint: "use MULTIPLE
+<basename>" (shared global.images.* image) or "unresolvable". The second
+line is the full image reference, digest included.
 
 Usage:
     list-podiumd-images [--refresh]
 
-    --refresh   Ignore locally vendored charts/podiumd/charts/*.tgz and
-                always `helm pull` the pinned version instead.
+Options:
+    --refresh   `helm pull` every pinned sub-chart, ignore vendored .tgz
 
-Requires the Helm repositories to already be added (see /helm-repos or
-charts/podiumd/scripts/add-helm-repos.sh) and the `helm` CLI on PATH, unless
-every dependency is already vendored locally (e.g. after `helm dependency
-update`), in which case no network access is needed at all.
+Requires: helm on PATH; Helm repositories added (/helm-repos) unless all
+sub-charts are vendored.
 """
 
 import shutil

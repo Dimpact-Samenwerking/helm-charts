@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 """
-Show the Helm chart version and app image version(s) pinned for a podiumd
-component at BOTH recorded release-baseline.yaml baselines (upgrade_docs
-and release_table — see lib.chart for what each means) — useful for
-finding out what a release actually shipped before writing an upgrade
-doc's "source" column, without checking out that release or digging
-through git history by hand. For just the image side (no Helm chart
-version), see show-image-baseline-version instead — same shape, and
-both scripts build on the same lib.release_baseline.resolve_baseline_
-chart_state for the underlying ref-resolution + `git show` work
-(lib.chart.component_state_at_baseline layers this script's own
-dependency/app-version lookup on top of it; show-image-baseline-version
-resolves a single image pin directly off the same primitive instead).
+Show a component's Helm chart and app image versions at both baselines.
+
+Reads Chart.yaml and values.yaml, via git show, as they were at each
+baseline in etc/release-baseline.yaml: upgrade_docs and release_table.
+A baseline "X.Y.Z" means git tag podiumd-X.Y.Z, else branch
+feature/podiumd-X.Y.Z or origin/feature/podiumd-X.Y.Z. A missing
+baseline is skipped; exits non-zero only when neither can be shown.
+For the image versions only, use show-image-baseline-version.
 
 Usage:
     show-component-baseline-version <component>
@@ -20,14 +16,6 @@ Examples:
     show-component-baseline-version zac
     show-component-baseline-version zgw-office-addin
     show-component-baseline-version openformulieren
-
-Each baseline is a bare version (e.g. "4.8.5"), resolved to the
-podiumd-4.8.5 git tag, falling back to the feature/podiumd-4.8.5 /
-origin/feature/podiumd-4.8.5 branch if the tag doesn't exist yet. A
-baseline missing from release-baseline.yaml is skipped (noted, not an
-error); this only fails outright if NEITHER baseline could be shown at
-all. Reads charts/podiumd/Chart.yaml + values.yaml as they were at each
-ref via `git show` — no checkout needed.
 """
 
 import sys

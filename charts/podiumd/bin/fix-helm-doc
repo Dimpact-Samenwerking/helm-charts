@@ -1,25 +1,17 @@
 #!/usr/bin/env python3
 """
-Regenerate charts/podiumd/README.md via the real `helm-docs` command — the
-fixer for verify-podiumd's "Helm doc" step (lib.checks.helm_docs),
-which only ever reports drift via `helm-docs --dry-run` and never writes
-to the real file itself. Same convention as fix-utf8-bom/
-fix-image-digests: a report-only check pairs with a separate, explicit
-fixer script.
+Regenerate charts/podiumd/README.md with helm-docs.
+
+Fixes what verify-podiumd's "Helm doc" step reports. Writes only when the
+output differs from the current README.md. Does not stage or commit.
 
 Usage:
-    fix-helm-doc             # regenerate README.md in place
-    fix-helm-doc --dry-run   # report only, no write — delegates to the
-                              # exact same check verify-podiumd runs
-                              # (lib.checks.helm_docs.check_helm_docs)
+    fix-helm-doc [--dry-run]
 
-Probes with `helm-docs --dry-run` first and only runs the real (writing)
-command when the output actually differs from the current README.md — so a
-no-op run never touches the file's mtime or its content.
+Options:
+    --dry-run   report drift only, write nothing
 
-Does not stage or commit — review the diff and stage it yourself.
-
-Requires the `helm-docs` binary on PATH (https://github.com/norwoodj/helm-docs).
+Requires: helm-docs on PATH (https://github.com/norwoodj/helm-docs).
 """
 
 import shutil

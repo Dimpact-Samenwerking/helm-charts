@@ -1,41 +1,24 @@
 #!/usr/bin/env python3
 """
-Create the standard docs/_UPGRADE_PATHS/<upgrade_docs_baseline>-to-<target>-*.md set
-(upgrade, gemeente-specific, values-deltas) and docs/images/images-
-<target>.yaml for the current chart's target version — charts/podiumd/
-Chart.yaml's own "version:" — as TODO stubs, for whichever of those
-don't already exist. Never renames or rewrites an existing doc — see
-fix-doc-consistency for that (rebasing docs already scaffolded under a
-different upgrade_docs_baseline onto a new one).
+Create TODO stubs for the upgrade docs of the current target version.
 
-Refuses to create anything if a doc already exists for this target under
-a DIFFERENT upgrade_docs_baseline than release-baseline.yaml's own —
-that's exactly the situation fix-doc-consistency exists for. Silently
-creating fresh stubs next to docs already scaffolded under some other
-upgrade_docs_baseline (this script's ancestor, set-doc-baseline, could
-do exactly that — blindly rebase docs that should have been left alone,
-or the reverse) is the one thing this split makes structurally
-impossible: creating and rebasing are now two different scripts, so
-neither can accidentally do the other's job.
+Reads the target from Chart.yaml "version:" and the baseline from
+etc/release-baseline.yaml "upgrade_docs". Creates whichever of these are
+missing: docs/_UPGRADE_PATHS/<baseline>-to-<target>-{upgrade,
+gemeente-specific,values-deltas}.md and docs/images/images-<target>.yaml.
+Never changes an existing doc. Then runs fix-helm-doc (README.md).
 
-Never takes the baseline as an argument — always release-baseline.
-yaml's own upgrade_docs key, so create-podiumd-version only has to
-write that key (which it does right before calling this script, at the
-start of a release cycle) for this to pick it up; see that script for
-the usual "open a new release" workflow. Errors if the file or key
-doesn't exist yet — run create-podiumd-version first. Also runnable
-standalone, to re-scaffold a doc that's missing without going through
-the whole flow.
+Exits 1 when release-baseline.yaml or its upgrade_docs key is missing
+(run create-podiumd-version), or when docs for the target exist under a
+different baseline (run fix-doc-consistency to rebase them).
 
 Usage:
     create-doc-version
 
 Example:
     create-doc-version
-        # if Chart.yaml's version is 4.10.0 and release-baseline.yaml's
-        # upgrade_docs is "4.9.0", creates whichever of
-        # 4.9.0-to-4.10.0-{upgrade,gemeente-specific,values-deltas}.md
-        # and images-4.10.0.yaml don't already exist
+        # target 4.10.0, upgrade_docs "4.9.0": creates the missing
+        # 4.9.0-to-4.10.0-*.md docs and images-4.10.0.yaml
 """
 
 import sys
@@ -94,6 +77,8 @@ def main():
         sys.exit(1)
     target = current_chart_version()
 
+    # Creating and rebasing stay separate: stubs next to docs of another
+    # baseline would leave two doc sets for one target.
     by_suffix = existing_doc_baselines(DOC_DIR, target)
     mismatched = {
         suffix: entries for suffix, entries in by_suffix.items() if any(b != upgrade_docs_baseline for b, _ in entries)

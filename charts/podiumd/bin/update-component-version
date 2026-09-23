@@ -1,32 +1,28 @@
 #!/usr/bin/env python3
 """
-Bump a component's app image version and Helm chart version in
-charts/podiumd/Chart.yaml + values.yaml — but only after verify-component-
-version.py confirms both versions actually exist upstream. Refuses to touch
-either file if that verification fails; whichever version is already at
-the requested value is left untouched (not an error). Also updates the
-docs for the current podiumd target version (upgrade-path doc, values-
-deltas doc, docs/images/images-<target>.yaml — see lib.component_docs),
-using release-baseline.yaml's upgrade_docs key as the baseline, runs
-fix-helm-doc to keep README.md in sync, re-vendors the bumped sub-chart
-(lib.dependencies.ensure_vendored_dependencies) so charts/ and Chart.lock
-match the new Chart.yaml, and finally regenerates images-baseline.yaml
-(lib.image.baseline_refresh).
+Bump a component's app image version and Helm chart version.
+
+Checks both versions exist upstream before writing anything; a version
+already at the requested value is left as is. Writes Chart.yaml and
+values.yaml, updates the docs for the current target version (upgrade
+doc, values-deltas, images-<target>.yaml), runs fix-helm-doc, re-vendors
+the bumped sub-chart and regenerates images-baseline.yaml.
 
 Usage:
     update-component-version <component> <app-version> <chart-version>
 
-    <chart-version> may also be the literal "native" (case-insensitive)
-    for a lib.chart.native_components component — one with no Chart.yaml
-    dependency at all (e.g. frankgateway).
+Arguments:
+    <component>       component name or alias
+    <app-version>     new app image version
+    <chart-version>   new Helm chart version, or "native" for a component
+                      without a Chart.yaml dependency (e.g. frankgateway)
 
 Examples:
     update-component-version zac 5.4.3 1.0.297
     update-component-version zgw-office-addin v0.9.352 0.0.92
     update-component-version frankgateway 104 native
 
-After writing, re-render the chart (verify-podiumd or /helm-render-all)
-to confirm before committing.
+Re-render the chart (verify-podiumd) before committing.
 """
 
 import re

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-Strip a UTF-8 BOM (bytes EF BB BF) from charts/podiumd/values.yaml, if
-present. A BOM breaks YAML tooling that doesn't expect one — verify-podiumd
-only detects and reports it (a verify script never writes to a tracked
-file); this script is the fixer.
+Strip a UTF-8 BOM (bytes EF BB BF) from charts/podiumd/values.yaml.
+
+A BOM breaks YAML tooling. verify-podiumd reports it; this script
+removes it in place. Does nothing when there is no BOM.
 
 Usage:
-    fix-utf8-bom             # strip the BOM in place, if present
-    fix-utf8-bom --dry-run   # report only, no write
+    fix-utf8-bom [--dry-run]
+
+Options:
+    --dry-run  report only, write nothing
 """
 
 import sys

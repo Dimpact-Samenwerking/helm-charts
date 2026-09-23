@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """
-Delete every extracted charts/podiumd/charts/<name>/ directory that
-shadows a pinned <name>-<version>.tgz of the same name — Helm silently
-prefers the extracted (possibly stale/modified) directory over the
-pinned package, which "has caused broken deployments" per
-.claude/commands/helm-tgz-inspect.md. verify-podiumd's "Vendored tgz"
-step only detects and reports this (a verify script never writes to a
-tracked file); this script is the fixer. Own-scope only isn't a relevant
-distinction here — this check has no vendor/own split to begin with, it's
-about charts/podiumd/charts/ itself.
+Delete extracted sub-chart directories that shadow a vendored .tgz.
+
+Removes every charts/podiumd/charts/<name>/ directory next to a pinned
+<name>-<version>.tgz. Helm prefers the directory over the .tgz, so a
+stale directory silently replaces the pinned sub-chart. verify-podiumd
+reports these; this script deletes them.
 
 Usage:
-    fix-vendored-tgz             # delete every shadowing extracted directory
-    fix-vendored-tgz --dry-run   # report only, no delete
+    fix-vendored-tgz [--dry-run]
+
+Options:
+    --dry-run   report the directories, delete nothing
 """
 
 import shutil

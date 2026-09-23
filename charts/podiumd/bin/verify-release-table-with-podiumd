@@ -1,125 +1,32 @@
 #!/usr/bin/env python3
 """
-Compare charts/podiumd/etc/release-table.csv (see
-export-confluence-release-table) against the CURRENT
-charts/podiumd/Chart.yaml + values.yaml, and report:
+Compare charts/podiumd/etc/release-table.csv with Chart.yaml and
+values.yaml.
 
-  - version mismatches: a row's target_version_helm/target_version_app
-    disagrees with what's actually pinned right now
-  - missing from release-table.csv: a real Chart.yaml dependency with no
-    row at all; a dependency that HAS row(s), but none of them has ever
-    recorded a Helm chart version at all (see chart_version_ever_
-    tracked — not merely "no change planned this cycle", which a blank
-    target_version_helm on an otherwise-tracked row already means; see
-    is_verifiable_target) — this catches a chart silently going
-    untracked, e.g. because its own row lives on "Technische component
-    versies", which has no Helm column at all to record one in; or an
-    image pinned in values.yaml under a tracked component's own scope
-    that no row's image_basename mentions — each finding's own second
-    line names the Confluence "... component versies" table to add it
-    to (see confluence_table_hint), plus exactly what the new row needs
-    to say (see missing_image_hint/missing_chart_version_hint) for
-    export-confluence-release-table's own component/image matching to
-    resolve it right back to this same component/basename next time
-  - missing from Chart.yaml/values.yaml: a row whose resolved "component"
-    isn't a Chart.yaml dependency (or values.yaml top-level key, for a
-    component with no separate Helm chart, e.g. frankgateway) anymore, or
-    whose image_basename names an image no longer pinned there
-
-A row's "component"/"alias"/"image_basename" columns are already resolved
-by export-confluence-release-table — this reads them directly rather
-than re-deriving anything from free-form text (component is always a
-literal Chart.yaml dependency name, or a values.yaml top-level key for a
-no-separate-chart component). The image lookup tries two lib.image.
-version calls in the same ORDER update-image-version/verify-
-image-version/show-image-baseline-version's own <key> <basename>
-resolution does (lib.image.version.resolve_scoped_matches): first
-basenames_under_scope_any_tag, scoped to the component's own values.yaml
-subtree (fast, and the common case); if that misses, a plain find_
-matches_any_tag search across the WHOLE file, since a basename is a real
-repository identity, not a values.yaml path, and can legitimately be
-pinned under a sibling scope instead (e.g. keycloak-config-cli lives
-under top-level "keycloak", not its own component's "keycloak-operator")
-— this script reports that as a finding either way, rather than
-requiring an exact <key> match the way those other tools do. Deliberately
-the "_any_tag" siblings, not the plain (digest-required)
-basenames_under_scope/find_matches those other tools themselves use:
-release-table.csv only ever records a version string, never a digest, so
-whether an image happens to be digest-pinned is irrelevant to every
-comparison THIS script makes — on either the current-values.yaml side or
-the release_table-baseline side (see check_images_source below). A chart
-old enough to predate this repo's own digest-pinning convention (real
-case: podiumd-4.8.5, this chart's own release_table baseline as of this
-writing) still compares correctly on version alone. The chart-version
-lookup is a plain Chart.yaml dependency read, the same one update-
-component-version's own pre-write gate uses — never touches either tag
-scanner at all, digest-required or not.
-
-A row whose component is "MULTIPLE" is a shared base image hoisted into
-values.yaml's top-level global.images map (see export-confluence-release-
-table.py's own global_image_keys/component_and_alias — e.g. nginx, curl,
-busybox, pinned once and reused via YAML anchor across several unrelated
-components) rather than owned by any single component — its image_basename
-is still resolved by export time, though, so it's checked here the exact
-same way as any other component's images, just scoped to "global" instead
-of a Chart.yaml dependency's own values.yaml block (and with no chart-
-version check, since it isn't backed by a separate Helm chart at all). A
-"MULTIPLE" row export couldn't even resolve an image_basename for (an
-ambiguous plain dependency-name collision, not a global image) has nothing
-to check either way and is silently skipped, same as blank.
-
-A row whose component is "UNKNOWN" (export-confluence-release-table
-couldn't resolve it to anything at export time) is listed separately as
-unresolved — that's a pre-existing export-time gap, not something this
-script can verify either way, so it isn't scored as a failure here.
-
-Purely local and network-free (no `helm pull`, no registry calls): this
-compares release-table.csv's OWN image_basename column against whatever
-is ALREADY pinned in values.yaml right now, so nothing needs pulling.
-Even a "fallback path" component's own primary image (one with no
-explicit "repository:" override in podiumd's own values.yaml at all,
-relying entirely on its subchart's own default — e.g. openzaak,
-opennotificaties) resolves its basename locally, from whatever .tgz is
-ALREADY vendored under charts/podiumd/charts/ (see lib.chart.
-primary_image_repositories) — never a fresh pull. If that subchart isn't
-vendored at its currently-pinned version, the primary basename for that
-component just can't be resolved yet (see primary_image_basename) — the
-same "not pulling" tradeoff verify-component-version makes explicitly,
-just silent here.
-
-Also compares version text literally, not semantically: a "v" prefix
-difference between the two sides (e.g. release-table "1.89.0" vs
-values.yaml "v1.89.0") is reported as a mismatch even though the actual
-version is the same — the release-table column and the values.yaml pin
-are supposed to record the identical string, so a drift there is itself
-worth surfacing rather than silently normalized away.
-
---baseline-only skips every target-side check (check_chart_version/
-check_images — no target_version_app/target_version_helm comparison at
-all) and runs only the source-side ones (check_chart_version_source/
-check_images_source), against the release_table baseline. It ALSO widens
-those two source-side checks themselves: normally, a row with a blank
-source_version_app/source_version_helm is silently skipped entirely — "no
-value recorded yet" is assumed to mean "this item didn't exist yet at the
-release_table baseline", never verified. Under --baseline-only, that
-assumption itself is checked: a blank source is only left silent if the
-item genuinely can't be found (via every tier the non-blank comparison
-already uses) at the release_table baseline; if it turns out the item
-DID already exist there, that's a real finding (a "...
--PRESENCE" tag) — the CSV should have recorded a source version for it
-but didn't. Default (no flag) behavior — both the target-side checks and
-the blank-source short-circuit — is completely unaffected.
-
-If the release_table baseline itself can't be resolved at all (see the
-WARNING this prints either way), --baseline-only has nothing left to
-check — the CLI errors out (exit 1) rather than silently reporting "OK".
+Reports:
+  - version mismatches: target_version_helm or target_version_app
+    differs from the current pin (compared as literal text, so "v1.0"
+    and "1.0" differ)
+  - missing from release-table.csv: a dependency without a row or
+    without any recorded chart version, or a pinned image no row names;
+    each finding says which Confluence table to add it to and what the
+    row needs
+  - missing from the chart: a row whose component or image is no longer
+    in Chart.yaml or values.yaml
+Rows with component "MULTIPLE" are checked against global.images.
+Rows with component "UNKNOWN" are listed as unresolved, not as failures.
+Uses only the local chart and vendored sub-charts, no network.
 
 Usage:
-    verify-release-table-with-podiumd
-    verify-release-table-with-podiumd --baseline-only
+    verify-release-table-with-podiumd [--baseline-only]
 
-Exit code is non-zero if any version mismatch, missing-from-release-table,
-or missing-from-chart-or-values item was found.
+Options:
+    --baseline-only   only check source_version_* against the
+                      release_table baseline; a blank source version is
+                      a finding when the item already existed there
+
+Exit code: 1 when a finding is reported, or with --baseline-only when
+the release_table baseline cannot be resolved; 0 otherwise.
 """
 
 import csv

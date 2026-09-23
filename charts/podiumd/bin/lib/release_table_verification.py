@@ -2,12 +2,27 @@
 charts/podiumd/etc/release-table.csv against a ChartState (either the
 CURRENT chart, or the release_table baseline resolved at some historical
 git ref — see lib.release_baseline.resolve_baseline_chart_state), and
-reports version mismatches / missing rows / missing pins. See that
-script's own module docstring for the full behavioral contract (what
-counts as a mismatch, --baseline-only, MULTIPLE/UNKNOWN handling, etc) —
-kept there since it also has to explain the CLI's own exit-code/usage
-contract, not just this module's internals. Split out of the script
-itself once it grew past pylint's too-many-lines threshold (1000)."""
+reports version mismatches / missing rows / missing pins. The script's
+--help describes the user-facing contract; maintainer notes:
+
+- The component/alias/image_basename columns are already resolved by
+  export-confluence-release-table and are read as-is.
+- An image is looked up the same way as update-image-version's <key>
+  <basename>: first basenames_under_scope_any_tag in the component's own
+  values.yaml subtree, then find_matches_any_tag across the whole file,
+  since a basename can be pinned under a sibling scope (keycloak-config-
+  cli lives under "keycloak", not "keycloak-operator").
+- The "_any_tag" variants are deliberate: release-table.csv records a
+  version, never a digest, so a chart older than digest pinning
+  (podiumd-4.8.5) still compares on version alone.
+- A component's primary image without a "repository:" override is
+  resolved from the vendored .tgz only (primary_image_repositories); if
+  that sub-chart is not vendored at its pinned version, its basename is
+  silently unresolved. Nothing is pulled.
+- A "MULTIPLE" row without an image_basename (an ambiguous name
+  collision at export time) is skipped, like a blank component.
+
+Split out of the script for pylint's too-many-lines threshold (1000)."""
 
 from collections import defaultdict
 from dataclasses import dataclass

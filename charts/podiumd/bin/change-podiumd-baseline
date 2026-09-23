@@ -1,26 +1,18 @@
 #!/usr/bin/env python3
 """
-Change the upgrade_docs baseline recorded in charts/podiumd/release-
-baseline.yaml (written by create-podiumd-version at the start of a
-release cycle) — for correcting a mistake, or rebasing the release onto
-a different baseline mid-cycle. Also rebases the docs onto the new
-baseline (runs fix-doc-consistency — see that script for exactly what
-gets renamed/rewritten vs. just reported for manual review) and, as a
-safety net for any values.yaml drift README.md hadn't already picked
-up, regenerates it too (runs fix-helm-doc).
+Change the upgrade_docs baseline of the current release.
 
-Only ever touches upgrade_docs — never release_table, which only ever
-changes via create-podiumd-version's own minor-bump rule. There is no
-equivalent "change" tool for release_table.
-
-<new-baseline> must resolve to an actual release: the podiumd-<version>
-git tag, falling back to the feature/podiumd-<version> / origin/feature/
-podiumd-<version> branch if the tag doesn't exist yet (same resolution as
-show-component-baseline-version) — refuses to record a baseline that
-doesn't exist.
+Writes <new-baseline> as upgrade_docs in charts/podiumd/etc/release-
+baseline.yaml, then runs fix-doc-consistency to rebase the upgrade docs
+onto it and fix-helm-doc to regenerate README.md. release_table is never
+changed. Fails if <new-baseline> has no podiumd-<version> tag or
+feature/podiumd-<version> branch (local or origin).
 
 Usage:
     change-podiumd-baseline <new-baseline>
+
+Arguments:
+    <new-baseline>   released podiumd version, e.g. 4.8.5
 
 Example:
     change-podiumd-baseline 4.8.5

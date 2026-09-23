@@ -1,44 +1,26 @@
 #!/usr/bin/env python3
 """
-Show the image version(s) pinned for <key> <basename> at BOTH recorded
-release-baseline.yaml baselines (upgrade_docs and release_table — see
-lib.chart for what each means) — useful for finding out what a release
-actually shipped before writing an upgrade doc's "source" column, without
-checking out that release or digging through git history by hand.
+Show the version of one image at both release-baseline.yaml baselines
+(upgrade_docs and release_table).
 
-<key> is either a Chart.yaml dependency's own top-level values.yaml key
-(a component, e.g. "openklant", "zac") or the literal "MULTIPLE" — the
-same convention release-table.csv itself uses (see export-confluence-
-release-table's component_and_alias) for a base image shared across
-several unrelated components via values.yaml's global.images anchor
-block. <key> <basename> together must resolve to exactly one real image
-pin under that scope, at whichever baseline is being shown — the same
-resolution update-image-version/verify-image-version's own <key>
-<basename> use (lib.image.version.resolve_scoped_matches), just applied
-to values.yaml text as it was at each baseline's ref (via `git show`)
-instead of the current file. Same narrower scope (one image, not a whole
-component) as update-image-version/verify-image-version have relative to
-update-component-version/verify-component-version — see
-show-component-baseline-version instead for a component's Helm chart
-version plus every image path it declares.
+Reads charts/podiumd/values.yaml as it was at each baseline with
+`git show`; no checkout needed. A baseline is resolved to the
+podiumd-<version> tag, else the feature/podiumd-<version> branch. A
+missing baseline or unresolved image is noted; the script fails only when
+neither baseline shows anything.
 
 Usage:
     show-image-baseline-version <key> <basename>
+
+Arguments:
+    <key>        values.yaml top-level key of a component (e.g. zac), or
+                 MULTIPLE for an image shared via global.images
+    <basename>   last path segment of the image repository
 
 Examples:
     show-image-baseline-version zac zaakafhandelcomponent
     show-image-baseline-version keycloak-operator python
     show-image-baseline-version MULTIPLE curl
-
-Each baseline is a bare version (e.g. "4.8.5"), resolved to the
-podiumd-4.8.5 git tag, falling back to the feature/podiumd-4.8.5 /
-origin/feature/podiumd-4.8.5 branch if the tag doesn't exist yet. A
-baseline missing from release-baseline.yaml is skipped (noted, not an
-error); a baseline where <key> <basename> doesn't resolve uniquely (not
-pinned there yet, or removed since) is also just noted, not fatal — this
-only fails outright if NEITHER baseline could show anything at all.
-Reads charts/podiumd/values.yaml as it was at each ref via `git show` —
-no checkout needed.
 """
 
 import sys

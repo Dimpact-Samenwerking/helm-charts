@@ -1,45 +1,28 @@
 #!/usr/bin/env python3
 """
-Refresh stale digest pins in charts/podiumd/values.yaml — a pin whose
-version tag is unchanged but upstream re-published it with new
-base/security layers, so the multi-arch index digest changed. Fetches the
-live "Docker-Content-Digest" for each unique "<repository>:<tag>" pin and,
-if it differs, replaces every occurrence of the old digest with the new
-one (byte-identical otherwise). See find_stale_digests for how a
-repository is resolved for a pin. Every stale pin is rewritten, sliding or
-not — see lib.registry.is_sliding_tag for what makes a mismatch "sliding"
-(expected drift, e.g. a floating base-image tag) versus a component's own
-release tag; it's still labeled "(sliding)" in the output since that's
-useful context, but verify-podiumd's own check fails on either kind
-the same way, so there's no reason to leave one kind unfixed here.
+Refresh stale image digest pins in charts/podiumd/values.yaml.
 
-An optional <key> <basename> pair — the same scoping update-image-version/
-verify-image-version/show-image-baseline-version use (<key> is a
-Chart.yaml dependency's own top-level values.yaml key, or the literal
-"MULTIPLE" for a base image shared via values.yaml's global.images
-anchor block — see lib.image.version.MULTIPLE_KEY) — resolves to exactly
-one image (lib.image.version.resolve_scoped_matches) and scopes the run
-to just that one. Every other stale pin is left untouched and unreported
-for that run.
+For each "<repository>:<tag>@sha256:<digest>" pin, fetches the tag's
+current digest from the registry. When it differs (the tag was
+re-published), replaces every occurrence of the old digest. Tags labelled
+"(sliding)" float by design; they are refreshed too.
+
+After a write it runs fix-helm-doc (README.md) and fix-doc-consistency
+(docs/images/images-<target>.yaml), which contain the same digests.
 
 Usage:
-    fix-image-digests                    # fetch, compare, rewrite every stale digest
-    fix-image-digests <key> <basename>   # scope to just one image
-    fix-image-digests --dry-run          # fetch and compare only, no write (combine with either of the above)
+    fix-image-digests [--dry-run] [<key> <basename>]
+
+Arguments:
+    <key> <basename>  only this image; <key> is a Chart.yaml dependency or
+                      "MULTIPLE" for a global.images base image, as in
+                      update-image-version
+    --dry-run         report stale digests, write nothing
 
 Examples:
+    fix-image-digests
     fix-image-digests MULTIPLE redis
-    fix-image-digests openklant open-klant
-
-After a real run, re-render the chart (verify-podiumd or
-/helm-render-all) to confirm the new digests are picked up cleanly. A
-real (non-dry-run, non-empty) run also regenerates README.md (runs
-fix-helm-doc) — its values-reference table embeds the same digest
-strings this script just rewrote, so it goes stale the moment values.yaml
-changes — and repairs the current target's images-<version>.yaml (runs
-fix-doc-consistency, scoped to the current baseline from release-
-baseline.yaml's own upgrade_docs key, never a rebase) — an entry there
-pins its own "digest:" copy of the same value, which goes just as stale.
+    fix-image-digests --dry-run openklant open-klant
 """
 
 import sys
