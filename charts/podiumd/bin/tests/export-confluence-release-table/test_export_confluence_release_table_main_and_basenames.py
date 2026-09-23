@@ -129,8 +129,11 @@ def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
     ]
     assert rows[1] == ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
     assert rows[2] == ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
-    out = capsys.readouterr().out
-    assert f"Wrote 2 row(s) to {output_path}" in out
+    captured = capsys.readouterr()
+    assert f"Wrote 2 row(s) to {output_path}" in captured.out
+    assert f"WARNING: 2 line(s) in {output_path} contain UNKNOWN:" in captured.err
+    assert '  line 2: "ZAC" (component)' in captured.err
+    assert '  line 3: "Open Zaak" (component)' in captured.err
 
 
 def test_main_passes_resolved_token_and_url_user_through(ecrt, tmp_path, monkeypatch):

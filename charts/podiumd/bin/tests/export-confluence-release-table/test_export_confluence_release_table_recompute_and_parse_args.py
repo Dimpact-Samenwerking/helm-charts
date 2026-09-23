@@ -4,6 +4,8 @@ real Confluence page is needed."""
 
 import csv
 
+from types import ModuleType
+
 import pytest
 
 DIGEST_A = "a" * 64
@@ -163,12 +165,27 @@ omc:
 
     ecrt.main()
 
-    out = capsys.readouterr().out
-    assert "Recomputed image_basename for 1 row(s)" in out
-    assert "'' -> 'notifynl-omc'" in out
+    captured = capsys.readouterr()
+    assert "Recomputed image_basename for 1 row(s)" in captured.out
+    assert "'' -> 'notifynl-omc'" in captured.out
+    assert "UNKNOWN" not in captured.err
     with output_path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
     assert rows[1][6] == "notifynl-omc"
+
+
+def test_warn_unknown_lines_names_every_unknown_column(ecrt: ModuleType, capsys: pytest.CaptureFixture[str]) -> None:
+    rows = [
+        ["Product", "", "", "ZAC", "zac", "", "", "5.0.0", "", "5.1.0", ""],
+        ["Overige", "", "", "Referentielijst", "UNKNOWN", "", "", "UNKNOWN", "", "0.7.4", ""],
+    ]
+
+    ecrt.warn_unknown_lines(rows, "release-table.csv")
+
+    assert capsys.readouterr().err == (
+        "WARNING: 1 line(s) in release-table.csv contain UNKNOWN:\n"
+        '  line 3: "Referentielijst" (component, source_version_app)\n'
+    )
 
 
 def test_parse_args_requires_url_and_user_unless_recompute_basenames(ecrt, monkeypatch):
