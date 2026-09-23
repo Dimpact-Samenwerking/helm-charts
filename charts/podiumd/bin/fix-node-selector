@@ -28,9 +28,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.checks.node_selector import DOC_SPLIT_RE
-from lib.checks.node_selector import NAME_RE
-from lib.checks.node_selector import NODE_SELECTOR_RE
-from lib.checks.node_selector import WORKLOAD_KIND_RE
+from lib.checks.node_selector import file_define_bodies
+from lib.checks.node_selector import missing_node_selector
 
 # The insert anchors on `containers:`, a required sibling of nodeSelector
 # at any nesting depth (Deployment vs CronJob), and is textual because Go
@@ -63,23 +62,21 @@ def find_fixes(text):
       nodeSelector with no containers: key to anchor on."""
     fixes = []
     unresolved = []
+    define_bodies = file_define_bodies(text)
     for doc, offset in split_docs_with_offsets(text):
-        kind_m = WORKLOAD_KIND_RE.search(doc)
-        if not kind_m:
+        missing = missing_node_selector(doc, define_bodies)
+        if missing is None:
             continue
-        if NODE_SELECTOR_RE.search(doc):
-            continue
-        name_m = NAME_RE.search(doc)
-        name = name_m.group(1).strip() if name_m else "(unknown name)"
+        kind, name = missing
 
         containers_m = CONTAINERS_RE.search(doc)
         if not containers_m:
-            unresolved.append((kind_m.group(1), name))
+            unresolved.append((kind, name))
             continue
 
         indent = containers_m.group("indent")
         insert_at = offset + containers_m.start()
-        fixes.append((insert_at, NODE_SELECTOR_BLOCK.format(indent=indent), kind_m.group(1), name))
+        fixes.append((insert_at, NODE_SELECTOR_BLOCK.format(indent=indent), kind, name))
     return fixes, unresolved
 
 

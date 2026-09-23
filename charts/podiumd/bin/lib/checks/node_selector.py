@@ -54,6 +54,26 @@ def _referenced_define_bodies(doc, define_bodies):
     return [define_bodies[m.group("name")] for m in INCLUDE_CALL_RE.finditer(doc) if m.group("name") in define_bodies]
 
 
+def file_define_bodies(text: str) -> dict[str, str]:
+    """{name: body} for every `{{ define "X" }}...{{ end }}` block in a
+    template file's text (see DEFINE_BLOCK_RE)."""
+    return {m.group("name"): m.group("body") for m in DEFINE_BLOCK_RE.finditer(text)}
+
+
+def missing_node_selector(doc: str, define_bodies: dict[str, str]) -> tuple[str, str] | None:
+    """(kind, name) when doc is a workload resource with no nodeSelector
+    field in its own text or in any same-file define block it includes
+    (see _referenced_define_bodies), else None. The one rule both
+    check_node_selector and fix-node-selector apply."""
+    kind_m = WORKLOAD_KIND_RE.search(doc)
+    if not kind_m or NODE_SELECTOR_RE.search(doc):
+        return None
+    if any(NODE_SELECTOR_RE.search(body) for body in _referenced_define_bodies(doc, define_bodies)):
+        return None
+    name_m = NAME_RE.search(doc)
+    return kind_m.group(1), (name_m.group(1).strip() if name_m else "(unknown name)")
+
+
 def scan_missing_node_selector(templates_dir):
     """Returns a list of (path, kind, name) for every workload resource in
     templates/*.yaml with no nodeSelector field anywhere in its document
@@ -64,18 +84,11 @@ def scan_missing_node_selector(templates_dir):
         if not path.is_file():
             continue
         text = path.read_text(encoding="utf-8")
-        define_bodies = {m.group("name"): m.group("body") for m in DEFINE_BLOCK_RE.finditer(text)}
+        define_bodies = file_define_bodies(text)
         for doc in DOC_SPLIT_RE.split(text):
-            kind_m = WORKLOAD_KIND_RE.search(doc)
-            if not kind_m:
-                continue
-            if NODE_SELECTOR_RE.search(doc):
-                continue
-            if any(NODE_SELECTOR_RE.search(body) for body in _referenced_define_bodies(doc, define_bodies)):
-                continue
-            name_m = NAME_RE.search(doc)
-            name = name_m.group(1).strip() if name_m else "(unknown name)"
-            findings.append((path, kind_m.group(1), name))
+            missing = missing_node_selector(doc, define_bodies)
+            if missing is not None:
+                findings.append((path, *missing))
     return findings
 
 

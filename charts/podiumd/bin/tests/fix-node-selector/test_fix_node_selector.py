@@ -1,6 +1,8 @@
 """find_fixes/apply_fixes (pure logic) plus a main() integration test
 against real files in tmp_path. No git/network/helm needed."""
 
+from types import ModuleType
+
 import pytest
 
 DEPLOYMENT_MISSING = """apiVersion: apps/v1
@@ -79,6 +81,34 @@ def test_find_fixes_deployment_missing_node_selector(sub):
 
 def test_find_fixes_already_has_node_selector_is_a_noop(sub):
     fixes, unresolved = sub.find_fixes(DEPLOYMENT_WITH_NODE_SELECTOR)
+    assert fixes == []
+    assert unresolved == []
+
+
+# A Job whose nodeSelector lives in a same-file `{{ define }}` block it
+# includes: check_node_selector accepts it, so the fixer must leave it too.
+JOB_WITH_SELECTOR_IN_DEFINE_BLOCK = """\
+{{- define "podiumd.testJob.podTemplate" -}}
+spec:
+  nodeSelector:
+    kubernetes.azure.com/mode: user
+  containers:
+  - name: seed
+{{- end }}
+---
+{{- $podTemplate := include "podiumd.testJob.podTemplate" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-seed-job
+spec:
+  template:
+    {{- $podTemplate | nindent 4 }}
+"""
+
+
+def test_find_fixes_selector_in_included_define_block_is_a_noop(sub: ModuleType):
+    fixes, unresolved = sub.find_fixes(JOB_WITH_SELECTOR_IN_DEFINE_BLOCK)
     assert fixes == []
     assert unresolved == []
 
