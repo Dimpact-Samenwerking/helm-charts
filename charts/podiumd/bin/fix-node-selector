@@ -26,12 +26,11 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
 from lib.checks.node_selector import DOC_SPLIT_RE
 from lib.checks.node_selector import NAME_RE
 from lib.checks.node_selector import NODE_SELECTOR_RE
 from lib.checks.node_selector import WORKLOAD_KIND_RE
-
-CHART_DIR = SCRIPT_DIR.parents[0]
 
 # The insert anchors on `containers:`, a required sibling of nodeSelector
 # at any nesting depth (Deployment vs CronJob), and is textual because Go

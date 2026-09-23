@@ -33,9 +33,10 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
+from lib.cli import exit_on_help
 from lib.upgradedoc.string_and_parsing_basics import word_contains
 
-CHART_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_INPUT = CHART_DIR / "etc" / "release-table.csv"
 
 COLUMNS = ("section", "vendor", "component")
@@ -146,9 +147,7 @@ def main():
     component_matches), printing them as a table via print_table, plus a
     second table of any tooling rows whose "used_by" relates back to a
     match (see used_by_rows_for)."""
-    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
-        print(__doc__)
-        sys.exit(0)
+    exit_on_help(__doc__)
     if len(sys.argv) != 3 or sys.argv[1] not in COLUMNS:
         print(__doc__)
         sys.exit(1)

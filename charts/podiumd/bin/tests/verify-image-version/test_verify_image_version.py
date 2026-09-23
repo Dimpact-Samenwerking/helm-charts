@@ -101,7 +101,6 @@ def test_main_resolves_given_component_key_and_basename(viv, tmp_path, monkeypat
         tmp_path,
         (f'openklant:\n  image:\n    repository: maykinmedia/open-klant\n    tag: "2.15.0@sha256:{"a" * 64}"\n'),
     )
-    monkeypatch.setattr(viv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     import lib.image.version as image_version
 
@@ -131,7 +130,6 @@ def test_main_accepts_dependency_name_not_just_alias(viv, tmp_path, monkeypatch,
         tmp_path,
         (f'zac:\n  image:\n    repository: infonl/zaakafhandelcomponent\n    tag: "5.4.3@sha256:{"a" * 64}"\n'),
     )
-    monkeypatch.setattr(viv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     import lib.image.version as image_version
@@ -151,7 +149,6 @@ def test_main_unresolvable_target_propagates(viv, tmp_path, monkeypatch):
     SystemExit with a clear message when <key> <basename> doesn't
     resolve to any pinned image — main() has nothing to add here."""
     values_path = write_values(tmp_path, "foo: bar\n")
-    monkeypatch.setattr(viv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     monkeypatch.setattr("sys.argv", ["verify-image-version", "foo", "totally-unknown", "1.0.0"])
 

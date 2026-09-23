@@ -38,6 +38,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
+from lib.chart.paths import CHART_YAML
 from lib.chart.pull_and_subchart_resolution import check_image_versions
 from lib.chart.pull_and_subchart_resolution import native_component_values
 from lib.chart.pull_and_subchart_resolution import print_image_version_results
@@ -46,9 +48,7 @@ from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import is_native_chart_version
 from lib.chart.registered_paths import resolve_native_component
 from lib.chart.values_tree_primitives import require_dependency
-
-CHART_DIR = SCRIPT_DIR.parents[0]
-CHART_YAML = CHART_DIR / "Chart.yaml"
+from lib.cli import positional_args
 
 
 def find_dependency(name_or_alias):
@@ -66,13 +66,7 @@ def main():
     one of that component's registered app image path(s). Exits non-zero
     if the chart version can't be pulled, or any app image version is
     missing."""
-    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
-        print(__doc__)
-        sys.exit(0)
-    if len(sys.argv) != 4:
-        print(__doc__)
-        sys.exit(1)
-    component, app_version, chart_version = sys.argv[1], sys.argv[2], sys.argv[3]
+    component, app_version, chart_version = positional_args(__doc__, 3)
 
     if is_native_chart_version(chart_version):
         chart_name = resolve_native_component(CHART_DIR, component)

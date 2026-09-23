@@ -40,6 +40,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
 from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
+from lib.chart.paths import CHART_DIR
+from lib.chart.paths import CHART_YAML
+from lib.chart.paths import VALUES_YAML
 from lib.chart.pull_and_subchart_resolution import local_chart_dir
 from lib.chart.pull_and_subchart_resolution import pull_chart as _pull_chart
 from lib.chart.pull_and_subchart_resolution import pulled_chart_dir
@@ -61,10 +64,7 @@ from lib.render_scope import lint_args_for
 from lib.render_scope import render_chart
 from lib.render_scope import rendered_chart_paths
 
-PODIUMD_DIR = SCRIPT_DIR.parents[0]
-CHART_YAML = PODIUMD_DIR / "Chart.yaml"
-VALUES_YAML = PODIUMD_DIR / "values.yaml"
-VENDORED_DIR = PODIUMD_DIR / "charts"
+VENDORED_DIR = CHART_DIR / "charts"
 
 
 @dataclass
@@ -149,7 +149,7 @@ def load_chart(dep, tmproot, refresh):
     extracted from the vendored charts/<name>-<version>.tgz if present and
     `refresh` is False, or freshly `helm pull`ed into `tmproot` otherwise.
     `values` is {} if the chart has no values.yaml at all."""
-    local_dir = local_chart_dir(PODIUMD_DIR, dep)
+    local_dir = local_chart_dir(CHART_DIR, dep)
     if local_dir is not None:
         # A "file://" dependency has no remote to pull from and no vendored
         # .tgz shape to extract — --refresh is meaningless for it either
@@ -331,7 +331,7 @@ def component_version_rows(dep, key, merged, ctx):
     vendored subchart default) — called against VENDORED_DIR.parent
     (podiumd's own chart root, where every dependency's vendored .tgz
     actually lives — read via VENDORED_DIR, not the module-level
-    PODIUMD_DIR constant directly, so this stays correct under whatever
+    CHART_DIR constant directly, so this stays correct under whatever
     tests/conftest.py's own `lpi` fixture repoints VENDORED_DIR to,
     exactly like load_chart's own vendored-.tgz lookup already does) and
     ctx.root_values (podiumd's own, unmerged values.yaml): the exact
@@ -356,14 +356,13 @@ def component_version_rows(dep, key, merged, ctx):
     never just `dep`'s own top-level enabled/disabled status, which a
     per-field toggle can disagree with independently."""
     rows = []
-    # PODIUMD_DIR, not VENDORED_DIR.parent -- unlike the repository
+    # CHART_DIR, not VENDORED_DIR.parent -- unlike the repository
     # resolution below, this lookup is settings.yaml-backed and tests
-    # never repoint PODIUMD_DIR (only VENDORED_DIR), so this is the real
+    # never repoint CHART_DIR (only VENDORED_DIR), so this is the real
     # production chart_dir either way, same result as the old
     # self-resolving default, just explicit.
     rels = sorted(
-        set(version_paths_for(dep["name"], PODIUMD_DIR))
-        | set(nested_subchart_registered_paths(dep["name"], PODIUMD_DIR))
+        set(version_paths_for(dep["name"], CHART_DIR)) | set(nested_subchart_registered_paths(dep["name"], CHART_DIR))
     )
     for rel in rels:
         tag = get_path(merged, rel)
@@ -386,7 +385,7 @@ def _compute_rendered_paths():
     via podiumd's top-level "tags: {redis: false}") is asked directly
     via a real render, rather than re-implemented here (see
     row_chart_tree_path/component_version_rows). Rendered against
-    VENDORED_DIR.parent, not PODIUMD_DIR directly, same reason
+    VENDORED_DIR.parent, not CHART_DIR directly, same reason
     component_version_rows already does — stays correct under whatever
     tests/conftest.py's own `lpi` fixture repoints VENDORED_DIR to."""
     chart_dir = VENDORED_DIR.parent

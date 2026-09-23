@@ -34,17 +34,18 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
 from lib.chart.historical_baselines import SEMVER_RE as CHART_VERSION_RE
+from lib.chart.paths import CHART_DIR
+from lib.chart.paths import CHART_YAML
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
 from lib.chart.release_baseline_basics import write_release_baselines
 from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.cli import positional_args
 from lib.gitutil import current_branch
 from lib.gitutil import find_repo_root
 from lib.gitutil import resolve_baseline_ref
 from lib.procutil import run_script
 
-CHART_DIR = SCRIPT_DIR.parent
-CHART_YAML = CHART_DIR / "Chart.yaml"
 CREATE_DOC_VERSION_SCRIPT = SCRIPT_DIR / "create-doc-version"
 
 BRANCH_RE = re.compile(r"^feature/podiumd-(\d+\.\d+\.\d+)$")
@@ -101,16 +102,6 @@ def update_chart_version(new_version):
     return changed
 
 
-def _check_no_args() -> None:
-    """Print __doc__ and exit: 0 for -h/--help, 1 for any other argument."""
-    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
-        print(__doc__)
-        sys.exit(0)
-    if len(sys.argv) != 1:
-        print(__doc__)
-        sys.exit(1)
-
-
 def _resolve_baseline_refs(repo_root: Path, upgrade_docs: str, release_table: str | None) -> dict:
     """{"upgrade_docs": ref, "release_table": ref} for the two new baseline
     values; exits 1 if release_table is None or either value has no ref."""
@@ -140,7 +131,7 @@ def main():
     a minor bump, its new release_table baseline too), then scaffolds the
     upgrade-path docs for that outgoing version by running
     create-doc-version. See --help for the refusal conditions."""
-    _check_no_args()
+    positional_args(__doc__, 0)
 
     repo_root = find_repo_root(CHART_DIR)
     if repo_root is None:

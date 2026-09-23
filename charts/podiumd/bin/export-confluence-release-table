@@ -32,6 +32,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
 from lib.chart.release_baseline_basics import load_yaml
 from lib.confluence_tables import effective_header_row_count
 from lib.confluence_tables import expand_grid
@@ -50,7 +51,6 @@ from lib.release_table.component_resolution import global_image_keys
 from lib.release_table.component_resolution import orphan_values_yaml_keys
 from lib.release_table.image_basenames import resolve_image_basenames
 
-CHART_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_OUTPUT = CHART_DIR / "etc" / "release-table.csv"
 
 # The four sections this export exists for, on the podiumd release-notes

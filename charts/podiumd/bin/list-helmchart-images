@@ -36,6 +36,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
+from lib.chart.paths import CHART_YAML
 from lib.chart.pull_and_subchart_resolution import chart_ref
 from lib.chart.pull_and_subchart_resolution import local_chart_dir
 from lib.chart.pull_and_subchart_resolution import pull_chart
@@ -45,10 +47,8 @@ from lib.chart.values_tree_primitives import find_dependency as _find_dependency
 from lib.chart.values_tree_primitives import find_images
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
+from lib.cli import positional_args
 from lib.image.version import image_basename
-
-CHART_DIR = SCRIPT_DIR.parents[0]
-CHART_YAML = CHART_DIR / "Chart.yaml"
 
 
 def find_dependency(name_or_alias):
@@ -118,14 +118,7 @@ def main():
     "file://" path or `helm pull`s <chart-version> into a scratch tempdir
     (always cleaned up), and reports its images and sub-chart dependencies
     via report_chart."""
-    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
-        print(__doc__)
-        sys.exit(0)
-    if len(sys.argv) != 3:
-        print(__doc__)
-        sys.exit(1)
-
-    name_or_alias, version = sys.argv[1], sys.argv[2]
+    name_or_alias, version = positional_args(__doc__, 2)
     dep = find_dependency(name_or_alias)
     key = values_key_of(dep)
 
