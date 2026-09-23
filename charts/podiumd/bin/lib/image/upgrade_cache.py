@@ -9,13 +9,13 @@ importing from image_upgrade_check (or vice versa) would be circular,
 since image_upgrade_check already imports classification helpers from
 cve_check."""
 
-import json
-
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 
-from lib.gitutil import find_repo_root
+from lib.json_cache import cache_file
+from lib.json_cache import load_json_cache
+from lib.json_cache import save_json_cache
 
 CACHE_FILENAME = "image-upgrade-cache.json"
 
@@ -27,8 +27,7 @@ def cache_path(chart_dir):
     .gitignore's plain /.cache/ entry covers it without a chart-specific
     rule. Falls back to chart_dir itself if it isn't inside a git
     checkout."""
-    root = find_repo_root(chart_dir) or chart_dir
-    return root / ".cache" / CACHE_FILENAME
+    return cache_file(chart_dir, CACHE_FILENAME)
 
 
 def load_cache(chart_dir):
@@ -36,13 +35,7 @@ def load_cache(chart_dir):
     yet or fails to parse (a corrupt/partial cache file is treated the
     same as no cache at all, never raised — every lookup just misses and
     gets re-fetched from the registry)."""
-    path = cache_path(chart_dir)
-    if not path.is_file():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
+    return load_json_cache(cache_path(chart_dir))
 
 
 def save_cache(chart_dir, cache):
@@ -51,9 +44,7 @@ def save_cache(chart_dir, cache):
     this incrementally after each live registry check (not just once at
     the end), so a run interrupted partway still keeps whatever it
     already fetched."""
-    path = cache_path(chart_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
+    save_json_cache(cache_path(chart_dir), cache)
 
 
 def cache_key(repository, version):
