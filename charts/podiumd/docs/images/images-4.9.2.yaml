@@ -5,11 +5,11 @@
 # Changes:
 #   1. nginx-unprivileged 1.31.5 (digest changed).
 #   2. postgres 16-alpine -> 16.15-alpine.
-#   3. eck-operator 3.5.0 (new).
-#   4. zac - solr 9.10.1-slim (digest changed).
-#   5. clamav 1.5.4 (digest changed).
-#   6. openformulieren 3.5.6 -> 3.5.8 (bugfix release).
-#   7. kiss 3.1.1 -> 3.1.3 (incl. kiss-elastic-sync).
+#   3. openformulieren 3.5.6 -> 3.5.8 (bugfix release).
+#   4. eck-operator 3.5.0 (new).
+#   5. kiss 3.1.1 -> 3.1.3 (incl. kiss-elastic-sync).
+#   6. zac - solr 9.10.1-slim (digest changed).
+#   7. clamav 1.5.4 (digest changed).
 #   8. ita 3.3.0 -> 3.3.2 (web en poller).
 #
 # See docs/_UPGRADE_PATHS/4.9.1-to-4.9.2-upgrade.md for the operator upgrade notes.
@@ -28,11 +28,28 @@
   version: "16.15-alpine"
   digest: "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
 
+# Applicaties
+- name: openformulieren/open-forms
+  url: docker.io/openformulieren/open-forms
+  version: "3.5.8"
+  digest: "sha256:1050b6dd1554ff6f620390870fbb2056157d792e75b9fe6e965371a2ae84f41a"
+
 # eck-operator 3.5.0 (new)
 - name: eck/eck-operator
   url: docker.elastic.co/eck/eck-operator
   version: "3.5.0"
   digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
+
+# kiss 3.1.1 -> 3.1.3
+- name: klantinteractie-servicesysteem/kiss-frontend
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+  version: "3.1.3"
+  digest: "sha256:54c354712079bfce7c325427c4a5966bb3d7905e11f387835a60f8d49f5d833b"
+#   sidecar: kiss - kiss-elastic-sync 3.1.1 -> 3.1.3
+- name: klantinteractie-servicesysteem/kiss-elastic-sync
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
+  version: "3.1.3"
+  digest: "sha256:a695ecfe738643a18ab6bb411e8a042ac09dd64c27f5dc98a469920a4a8ddcbd"
 
 #   sidecar: zac - solr 9.10.1-slim (digest changed)
 - name: library/solr
@@ -45,23 +62,6 @@
   url: docker.io/clamav/clamav
   version: "1.5.4"
   digest: "sha256:9cb27d7660bdf66e9878c832cb433dd8aa152cfbe16f3c2c0084c80b04ae22b4"
-
-# Applicaties
-- name: openformulieren
-  url: docker.io/openformulieren/open-forms
-  version: "3.5.8"
-  digest: "sha256:1050b6dd1554ff6f620390870fbb2056157d792e75b9fe6e965371a2ae84f41a"
-
-# kiss 3.1.1 -> 3.1.3
-- name: klantinteractie-servicesysteem/kiss-frontend
-  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-  version: "3.1.3"
-  digest: "sha256:54c354712079bfce7c325427c4a5966bb3d7905e11f387835a60f8d49f5d833b"
-#   sidecar: kiss - kiss-elastic-sync 3.1.1 -> 3.1.3
-- name: klantinteractie-servicesysteem/kiss-elastic-sync
-  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
-  version: "3.1.3"
-  digest: "sha256:a695ecfe738643a18ab6bb411e8a042ac09dd64c27f5dc98a469920a4a8ddcbd"
 
 # ita 3.3.0 -> 3.3.2
 - name: interne-taak-afhandeling/internetaakafhandeling.web

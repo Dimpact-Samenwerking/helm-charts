@@ -47,7 +47,7 @@
 {{- range $oidcClients }}
 {{- if not (eq .enabled false) }}
 {{- if or (empty .oidcUrl) (contains "example.nl" (.oidcUrl | toString)) }}
-{{- fail (printf "%s: configuration.oidcUrl is not set for this environment (found %q). The Keycloak client's redirect URIs are derived from it, so the deploy would succeed and every login would fail with 'Invalid parameter: redirect_uri'. Set it to the public https URL of %s." .name (.oidcUrl | toString) .name) }}
+{{- fail (printf "%s: configuration.oidcUrl is not set for this environment, or is still the example.nl placeholder (found %q). The Keycloak client's redirect URIs are derived from it, so the deploy would succeed and every login would fail with 'Invalid parameter: redirect_uri'. Set it to the public https URL of %s." .name (.oidcUrl | toString) .name) }}
 {{- end }}
 {{- end }}
 {{- end -}}
