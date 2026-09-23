@@ -56,6 +56,7 @@ from lib.chart.values_tag_sha_lines import write_tag_and_sha
 from lib.chart.values_tree_primitives import find_dependency as _find_dependency
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.chart.values_tree_primitives import same_name
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs.baseline_doc_stubs import baseline_doc_paths as _baseline_doc_paths
 from lib.component_docs.baseline_doc_stubs import images_manifest_path as _images_manifest_path
@@ -377,6 +378,7 @@ def _resolve_bump_context(component, app_version, chart_version):
 
     if no_chart:
         natives = native_components(CHART_DIR)
+        component = next((n for n in natives if same_name(n, component)), component)
         if component not in natives:
             raise SystemExit(
                 f"error: chart-version 'native' is only valid for a component in "

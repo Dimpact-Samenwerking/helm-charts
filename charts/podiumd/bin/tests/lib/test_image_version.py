@@ -4,6 +4,8 @@ basenames_under_scope. No network needed: lib.registry.
 registry_tag_exists is monkeypatched wherever a live fetch would otherwise
 happen."""
 
+from types import ModuleType
+
 import pytest
 
 
@@ -154,6 +156,28 @@ def test_resolve_scoped_matches_multiple_key_translates_to_global_scope(libimage
     ]
     matches = libimageversion.resolve_scoped_matches(lines, libimageversion.MULTIPLE_KEY, "curl")
     assert [m["line"] for m in matches] == [5]
+
+
+def test_resolve_scoped_matches_ignores_case_of_key_and_basename(libimageversion: ModuleType) -> None:
+    lines = [
+        "global:",
+        "  images:",
+        "    curl:",
+        "      repository: curlimages/curl",
+        '      tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        "zac:",
+        "  image:",
+        "    repository: ghcr.io/infonl/zaakafhandelcomponent",
+        '    tag: "5.0.2@sha256:' + "b" * 64 + '"',
+    ]
+    assert [m["line"] for m in libimageversion.resolve_scoped_matches(lines, "multiple", "CURL")] == [5]
+    assert [m["line"] for m in libimageversion.resolve_scoped_matches(lines, "ZAC", "ZaakAfhandelComponent")] == [9]
+
+
+def test_resolve_key_scope_ignores_case(libimageversion: ModuleType) -> None:
+    dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
+    assert libimageversion.resolve_key_scope("KISS-Chart", [dep]) == "kiss"
+    assert libimageversion.resolve_key_scope("multiple", [dep]) == libimageversion.MULTIPLE_KEY
 
 
 def test_resolve_scoped_matches_no_match_under_key_raises(libimageversion):

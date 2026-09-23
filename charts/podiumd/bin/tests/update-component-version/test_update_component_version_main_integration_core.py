@@ -294,6 +294,19 @@ def test_main_native_component_bumps_values_yaml_never_touches_chart_yaml(ucv, t
     assert f'"104@sha256:{"b" * 64}"' in values_yaml.read_text(encoding="utf-8")
 
 
+def test_main_native_component_name_ignores_case(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _chart_yaml, values_yaml = setup_native_component_repo(tmp_path, monkeypatch, ucv)
+    mock_verify_passes(monkeypatch, ucv)
+    mock_registry_passes(monkeypatch, ucv, "b")
+    monkeypatch.setattr("sys.argv", ["update-component-version", "FrankGateway", "104", "native"])
+
+    ucv.main()
+
+    assert f'"104@sha256:{"b" * 64}"' in values_yaml.read_text(encoding="utf-8")
+
+
 def test_main_native_component_rejects_unregistered_component(ucv, tmp_path, monkeypatch):
     """ "native" is only valid for a settings.yaml component_resolution.
     native_components component — a real Chart.yaml dependency like zac
