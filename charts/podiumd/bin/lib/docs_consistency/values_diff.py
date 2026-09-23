@@ -5,6 +5,7 @@ lib.docs_consistency.check_docs_consistency."""
 import re
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from lib.component_docs.values_delta_sections import find_values_delta_section
 from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys
@@ -25,7 +26,7 @@ class ValuesDeltaInputs:
     canonical_names: object = None
 
 
-def _diff_component_key(values_key, inputs):
+def _diff_component_key(values_key: str, inputs):
     """(added, removed, renamed) path lists for one component's
     values.yaml subtree vs baseline — all empty when unchanged."""
     baseline_subtree = inputs.baseline_values.get(values_key, {}) if isinstance(inputs.baseline_values, dict) else {}
@@ -37,7 +38,7 @@ def _diff_component_key(values_key, inputs):
     return added, removed, renamed
 
 
-def _added_removed_mentions(doc_path, values_key, paths, backtick_spans, verb):
+def _added_removed_mentions(doc_path: Path, values_key: str, paths: list, backtick_spans: set, verb: str):
     """One issue per path in `paths` (added or removed keys, per `verb`)
     that isn't backtick-quoted anywhere in values_key's own section."""
     issues = []
@@ -51,7 +52,7 @@ def _added_removed_mentions(doc_path, values_key, paths, backtick_spans, verb):
     return issues
 
 
-def _rename_mentions(doc_path, values_key, renamed, backtick_spans):
+def _rename_mentions(doc_path: Path, values_key: str, renamed: list, backtick_spans: set):
     """One issue per (old, new) rename pair not backtick-quoted on BOTH
     sides within values_key's own section."""
     issues = []
@@ -66,7 +67,7 @@ def _rename_mentions(doc_path, values_key, renamed, backtick_spans):
     return issues
 
 
-def _check_key_section_mentions(doc_path, text, values_key, changes, inputs):
+def _check_key_section_mentions(doc_path: Path, text: str, values_key: str, changes: tuple, inputs):
     """Verifies values_key has its own "## ..." section and that every
     change in it (added, removed, renamed) is backtick-quoted within
     that section — see check_values_deltas_content's own docstring."""
@@ -91,7 +92,7 @@ def _check_key_section_mentions(doc_path, text, values_key, changes, inputs):
     return issues
 
 
-def _check_empty_sections(doc_path, text):
+def _check_empty_sections(doc_path: Path, text: str):
     """Flags any "## ..." section whose own body is entirely blank — a
     heading with nothing under it, left over from before this rule
     existed (see lib.component_docs.prune_empty_values_delta_sections,
@@ -104,7 +105,7 @@ def _check_empty_sections(doc_path, text):
     ]
 
 
-def check_values_deltas_content(doc_path, actual_changed_keys, inputs):
+def check_values_deltas_content(doc_path: Path, actual_changed_keys: set[str], inputs):
     """For every top-level component key whose values.yaml SCHEMA
     changed vs upgrade_docs_baseline (a key was added/removed/renamed
     under it — see lib.upgradedoc.diff_keys/pair_renames), verify it has

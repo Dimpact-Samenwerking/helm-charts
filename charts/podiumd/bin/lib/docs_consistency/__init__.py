@@ -10,6 +10,7 @@ function's own docstring for why podiumd needs two baselines now."""
 import re
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
@@ -49,7 +50,7 @@ from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 
 
-def parse_upgrade_doc_rows(doc_path):
+def parse_upgrade_doc_rows(doc_path: Path):
     """lib.upgradedoc.string_and_parsing_basics.parse_upgrade_doc_rows
     (aliased here as _parse_upgrade_doc_rows), applied to `doc_path`'s own
     file contents — this module's own callers all have a Path, not
@@ -91,7 +92,7 @@ class DocQuery:
 
     doc_dir: object
     podiumd_version: str
-    upgrade_docs_baseline: str
+    upgrade_docs_baseline: str | None
     is_bare_version: bool
 
 
@@ -193,7 +194,7 @@ class ManifestEntryScan:
     sibling_fields: object
 
 
-def _pointer_consistency_mismatches(chart_dir, doc_dir, upgrade_docs_baseline, podiumd_version):
+def _pointer_consistency_mismatches(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str):
     """Unlike check_baseline_doc_set, a stale sibling-doc/images-manifest
     reference is a pure content finding about a doc that DOES exist and
     IS well-formed — nothing downstream needs to read or parse the
@@ -222,7 +223,9 @@ def _pointer_consistency_mismatches(chart_dir, doc_dir, upgrade_docs_baseline, p
     ]
 
 
-def _check_companion_docs(doc_dir, upgrade_docs_baseline, podiumd_version, is_bare_version, findings):
+def _check_companion_docs(
+    doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str, findings, *, is_bare_version: bool
+):
     """gemeente-specific/values-deltas companion-doc checks, appended
     straight onto `findings` — including the stale-placeholder findings
     (see lib.component_docs' own strip_stale_values_deltas_todo_stub/
@@ -259,7 +262,7 @@ def _check_companion_docs(doc_dir, upgrade_docs_baseline, podiumd_version, is_ba
                 )
 
 
-def _resolve_baseline(chart_dir, upgrade_docs_baseline):
+def _resolve_baseline(chart_dir: Path, upgrade_docs_baseline: str | None):
     """Wraps resolve_baseline_chart_state (shared with lib.component_docs'
     own load_baseline_state/load_baseline_values and verify-release-
     table-with-podiumd's own release_table_baseline lookup — see its
@@ -278,7 +281,9 @@ def _resolve_baseline(chart_dir, upgrade_docs_baseline):
     return baseline_ref, baseline_deps, baseline_values, mismatch
 
 
-def _resolve_image_paths(chart_dir, deps, values, baseline_ref, baseline_values):
+def _resolve_image_paths(
+    chart_dir: Path | None, deps: list, values: dict, baseline_ref: str | None, baseline_values: dict
+):
     """current/baseline image-tag-path maps plus the shared-image
     repository-group representative map — bundled since every
     downstream check that compares "the image at this path" needs all
@@ -292,7 +297,9 @@ def _resolve_image_paths(chart_dir, deps, values, baseline_ref, baseline_values)
     return current_paths, baseline_paths, repo_map
 
 
-def _build_docs_check_context(chart_dir, deps, values, podiumd_version, upgrade_docs_baseline):
+def _build_docs_check_context(
+    chart_dir: Path, deps: list, values: dict, podiumd_version: str, upgrade_docs_baseline: str | None
+):
     """Resolves the baseline and every image-tag-path map derived from
     it, and bundles all of it into the DocsCheckContext every later
     phase helper reads from — one place doing this resolution instead
@@ -330,7 +337,7 @@ def _build_docs_check_context(chart_dir, deps, values, podiumd_version, upgrade_
     return ctx, repo_map, baseline_mismatch
 
 
-def _doc_header_mismatches(doc_path, ctx):
+def _doc_header_mismatches(doc_path: Path, ctx):
     """Title + stale-TODO-placeholder checks on the selected upgrade doc
     itself — both read the doc's own text/title, nothing else, so
     bundled here together rather than as two separate one-line callers.
@@ -351,7 +358,7 @@ def _doc_header_mismatches(doc_path, ctx):
     return mismatches
 
 
-def _record_row_identity(resolved, result):
+def _record_row_identity(resolved: dict, result):
     """Extracts one resolved row's own sidecar_path/values_key/top_
     level_key/actual_app and records the bookkeeping every later check
     (in this row, and in later phases via ComponentRowsResult) needs —
@@ -376,7 +383,7 @@ def _record_row_identity(resolved, result):
     return values_key, actual_app
 
 
-def _check_row_target_versions(row, row_ctx, resolved, values_key, result):
+def _check_row_target_versions(row: dict, row_ctx, resolved: dict, values_key: str, result):
     """One row's own current chart/app-version cells vs. Chart.yaml/
     values.yaml reality."""
     actual_chart, actual_app = resolved["target_chart"], resolved["target_app"]
@@ -392,7 +399,7 @@ def _check_row_target_versions(row, row_ctx, resolved, values_key, result):
         )
 
 
-def _check_row_baseline_versions(row, row_ctx, resolved, values_key, result):
+def _check_row_baseline_versions(row: dict, row_ctx, resolved: dict, values_key: str, result):
     """One row's own source chart/app-version cells vs. row_ctx.
     baseline_ref reality — only called once row_ctx.baseline_ref is
     set (the caller's own loop already gates this)."""
@@ -432,7 +439,7 @@ def _check_row_baseline_versions(row, row_ctx, resolved, values_key, result):
         )
 
 
-def _check_component_rows(rows, row_ctx, row_lookup, resolution):
+def _check_component_rows(rows: list, row_ctx, row_lookup, resolution):
     """The per-row loop of the "Component versions" table section —
     resolves each row via resolve_component_row (shared with fix-doc-
     consistency's own row-rewriter, fix_component_version_table — see
@@ -549,7 +556,7 @@ def _check_row_and_heading_order(ctx, scan):
     return mismatches, changes_headings, doc_text
 
 
-def _check_changes_heading_correspondence(ctx, scan, rows_result, changes_headings, doc_text):
+def _check_changes_heading_correspondence(ctx, scan, rows_result, changes_headings: list, doc_text: str):
     """Only checked when the doc actually has a "## Changes" heading at
     all — a fixture/stub doc that never got that far yet (no section to
     compare against) would otherwise have EVERY row reported as missing
@@ -698,7 +705,7 @@ def _check_component_versions_table(ctx, findings):
     )
 
 
-def _check_images_manifest_entry(ctx, scan, entry, findings):
+def _check_images_manifest_entry(ctx, scan, entry: dict, findings):
     """One images-manifest entry's own version/digest/already-in-
     baseline checks — split out of the entries loop purely to keep
     that loop's own complexity down."""
@@ -727,7 +734,7 @@ def _check_images_manifest_entry(ctx, scan, entry, findings):
         )
 
 
-def _check_images_manifest(ctx, repo_map, sibling_fields, findings):
+def _check_images_manifest(ctx, repo_map: dict, sibling_fields: dict, findings):
     """The images-manifest section of check_docs_consistency (see that
     function's own docstring) — manifest format validation, the "any
     real entries but no '# Changes:' header" catch-all (real bug this
@@ -817,7 +824,9 @@ def _check_values_deltas(ctx, findings):
         )
 
 
-def _check_baseline_doc_set_and_pointers(chart_dir, doc_dir, upgrade_docs_baseline, podiumd_version, findings):
+def _check_baseline_doc_set_and_pointers(
+    chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | None, podiumd_version: str, findings
+):
     """When upgrade_docs_baseline is a genuine bare version: runs the
     baseline doc-set precheck (returns an early-return result the
     caller must propagate straight out of check_docs_consistency when
@@ -826,7 +835,7 @@ def _check_baseline_doc_set_and_pointers(chart_dir, doc_dir, upgrade_docs_baseli
     checks (folded into `findings` instead). Returns None both when
     there's nothing to precheck (not a bare version) and when the
     precheck passed clean."""
-    if not bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline)):
+    if not upgrade_docs_baseline or not re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline):
         return None
     precheck_issues = check_baseline_doc_set(doc_dir, upgrade_docs_baseline, podiumd_version)
     if precheck_issues:
@@ -843,7 +852,7 @@ def _check_baseline_doc_set_and_pointers(chart_dir, doc_dir, upgrade_docs_baseli
     return None
 
 
-def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
+def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = None):
     """The verify-podiumd check itself (see this module's own docstring for
     what it checks): Chart.yaml/values.yaml's actual component versions
     against docs/_UPGRADE_PATHS/<upgrade_docs_baseline>-to-<version>-
@@ -883,7 +892,9 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         return precheck_result
 
     if upgrade_docs_baseline:
-        _check_companion_docs(doc_dir, upgrade_docs_baseline, podiumd_version, is_bare_version, findings)
+        _check_companion_docs(
+            doc_dir, upgrade_docs_baseline, podiumd_version, findings, is_bare_version=is_bare_version
+        )
 
     ctx, repo_map, baseline_mismatch = _build_docs_check_context(
         chart_dir, deps, values, podiumd_version, upgrade_docs_baseline

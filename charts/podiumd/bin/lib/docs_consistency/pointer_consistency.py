@@ -4,13 +4,17 @@ lib.docs_consistency.check_docs_consistency."""
 
 import re
 
+from pathlib import Path
+
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 
 SIBLING_DOC_RE = re.compile(r"(\d+\.\d+\.\d+)-to-(\d+\.\d+\.\d+)-(upgrade|gemeente-specific|values-deltas)\.md")
 IMAGES_REF_RE = re.compile(r"images-(\d+\.\d+\.\d+)\.yaml")
 
 
-def check_pointer_consistency(doc_path, upgrade_docs_baseline, podiumd_version, doc_dir, images_dir):
+def check_pointer_consistency(
+    doc_path: Path, upgrade_docs_baseline: str, podiumd_version: str, doc_dir: Path, images_dir: Path
+):
     """Every reference to a sibling <X>-to-<Y>-*.md doc or an images-<Z>.yaml
     manifest found anywhere in this doc — comment, prose, or markdown link.
 

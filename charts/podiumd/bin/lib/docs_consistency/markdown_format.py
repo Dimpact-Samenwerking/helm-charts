@@ -4,8 +4,10 @@ used by lib.docs_consistency.check_docs_consistency."""
 
 import re
 
+from pathlib import Path
 
-def check_doc_title(doc_path, upgrade_docs_baseline, podiumd_version):
+
+def check_doc_title(doc_path: Path, upgrade_docs_baseline: str, podiumd_version: str):
     """Verify a doc's first line states the "<upgrade_docs_baseline> → <podiumd_version>"
     pair — catches a doc that was renamed without updating its own heading."""
     lines = doc_path.read_text(encoding="utf-8").splitlines()
@@ -17,7 +19,7 @@ def check_doc_title(doc_path, upgrade_docs_baseline, podiumd_version):
     return []
 
 
-def check_companion_doc(doc_dir, upgrade_docs_baseline, podiumd_version, suffix):
+def check_companion_doc(doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str, suffix: str):
     """When a bare-version upgrade_docs_baseline is given, verify the matching
     <upgrade_docs_baseline>-to-<podiumd_version>-<suffix>.md exists and its title line
     states the same "<upgrade_docs_baseline> → <podiumd_version>" pair."""
@@ -28,7 +30,7 @@ def check_companion_doc(doc_dir, upgrade_docs_baseline, podiumd_version, suffix)
     return name, check_doc_title(doc_path, upgrade_docs_baseline, podiumd_version)
 
 
-def check_markdown_format(doc_path):
+def check_markdown_format(doc_path: Path):
     """Minimal sanity check that a doc is well-formed markdown, before trying
     to parse anything out of it: non-empty, opens with a level-1 heading, and
     any fenced code blocks are balanced (an unclosed ``` silently swallows
@@ -51,7 +53,7 @@ def check_markdown_format(doc_path):
     return issues
 
 
-def check_baseline_doc_set(doc_dir, upgrade_docs_baseline, podiumd_version):
+def check_baseline_doc_set(doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str):
     """Existence + markdown-format precheck for all three upgrade_docs_baseline docs,
     run BEFORE any content-based check on them — a doc that's missing or
     malformed makes every downstream check on it meaningless."""

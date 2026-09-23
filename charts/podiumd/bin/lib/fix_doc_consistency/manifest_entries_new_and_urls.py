@@ -5,6 +5,7 @@ out for pylint's too-many-lines check."""
 import re
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import yaml
 
@@ -123,7 +124,7 @@ class AddedEntryFields:
     pinned_tag: str
 
 
-def _entry_url_line_index(lines, line_idx):
+def _entry_url_line_index(lines: list[str], line_idx: int):
     """The line index of this entry's own "url:" field, within its own
     block (up to the next entry or blank line) — None if it has none."""
     block_end = len(lines)
@@ -137,7 +138,7 @@ def _entry_url_line_index(lines, line_idx):
     return None
 
 
-def _entry_url_status(entry, line_idx, lines, current_paths, context):
+def _entry_url_status(entry: dict, line_idx: int, lines: list[str], current_paths: dict, context):
     """("unresolved", name) / ("changed", (name, old_url, new_url)) /
     ("unchanged", None) for a single images-manifest entry's own "url:"
     field, resolved against `context` (chart_dir/deps/target_values/
@@ -164,7 +165,9 @@ def _entry_url_status(entry, line_idx, lines, current_paths, context):
     return "changed", (name, current_url, full_repo)
 
 
-def fix_images_manifest_entry_urls(text, chart_dir, deps, target_values, repo_map=None):
+def fix_images_manifest_entry_urls(
+    text: str, chart_dir: Path, deps: list, target_values: dict, repo_map: dict | None = None
+):
     """Rewrite each images-manifest entry's own "url:" field to the REAL,
     fully host-qualified repository for its matched values-tree path
     (lib.chart.full_repository_for_path — the same convention add_
@@ -219,7 +222,7 @@ def fix_images_manifest_entry_urls(text, chart_dir, deps, target_values, repo_ma
     return "".join(lines), changed_names, unresolved_names
 
 
-def _images_manifest_changes_header_text(lines):
+def _images_manifest_changes_header_text(lines: list):
     """The full "# Changes:" header block's own text — header line
     through its last numbered item (and any wrapped continuation
     lines) — or "" if the file has no header at all. Used to check
@@ -253,7 +256,7 @@ def _baseline_setup(context):
     return baseline_paths, baseline_repo_groups
 
 
-def _repo_setup(context, current_paths):
+def _repo_setup(context, current_paths: dict):
     """(repo_groups, repo_map, path_to_repo) for `context`'s own
     target_values."""
     repo_groups = paths_by_repository(context.chart_dir, context.deps, context.target_values, current_paths.keys())
@@ -262,7 +265,7 @@ def _repo_setup(context, current_paths):
     return repo_groups, repo_map, path_to_repo
 
 
-def _missing_paths_for_entries(text, context, resolution):
+def _missing_paths_for_entries(text: str, context, resolution):
     """The list of paths find_images_manifest_list_diff reports as
     changed vs baseline but with no images-manifest entry yet — `text`
     is only ever parsed here, never needed again afterward."""
@@ -292,7 +295,7 @@ def _missing_paths_for_entries(text, context, resolution):
     return missing_paths
 
 
-def _missing_entries_setup(text, context):
+def _missing_entries_setup(text: str, context):
     """(resolution, missing_paths) — add_missing_images_manifest_
     entries' own one-time setup phase: current_paths/baseline_paths/
     repo groups/canonical names/key order/digest-pinning exceptions
@@ -322,7 +325,7 @@ def _missing_entries_setup(text, context):
     return resolution, missing_paths
 
 
-def _pinned_tag_for_path(path, context, resolution, current_tag, name):
+def _pinned_tag_for_path(path: tuple[str, ...], context, resolution, current_tag: str, name: str):
     """The resolved digest-pinned tag for `path` (see resolved_digest_
     pin) — when allow_pull is set and no digest is pinned locally at
     all, tries a real registry lookup instead of giving up immediately
@@ -353,7 +356,7 @@ def _pinned_tag_for_path(path, context, resolution, current_tag, name):
     return None
 
 
-def _entry_fields_for_missing_path(path, context, resolution):
+def _entry_fields_for_missing_path(path: tuple[str, ...], context, resolution):
     """(name, AddedEntryFields | None) for `path` — fields is None when
     it can't be resolved to a real repository or a digest-pinned tag at
     all (the caller reports `name` as skipped in that case; `name` is
@@ -378,7 +381,7 @@ def _entry_fields_for_missing_path(path, context, resolution):
     return name, AddedEntryFields(name, repo, full_repo_url, pinned_tag)
 
 
-def _entry_old_version_and_digest_change(path, new_version, pinned_tag, context, resolution):
+def _entry_old_version_and_digest_change(path: tuple[str, ...], new_version: str, pinned_tag: str, context, resolution):
     """(old_version, digest_only_change) for a newly-added entry's own
     comment — old_version from the exact baseline path when one exists
     (flagging a same-version/changed-digest re-pin via digest_only_
@@ -411,7 +414,7 @@ def _entry_old_version_and_digest_change(path, new_version, pinned_tag, context,
     return old_version, False
 
 
-def _manifest_lines_for_insert(text):
+def _manifest_lines_for_insert(text: str):
     """splitlines(keepends=True), with a trailing newline ensured and any
     leftover bare "[]" empty-list stub (see IMAGES_STUB_TEMPLATE) and its
     own trailing blank lines stripped. A still-untouched stub manifest
@@ -434,7 +437,7 @@ def _manifest_lines_for_insert(text):
     return lines
 
 
-def _entry_insertion_keys(lines, context, resolution):
+def _entry_insertion_keys(lines: list, context, resolution):
     """(entry_line_indices, entry_keys) — every existing entry's own
     line index and sort key (see images_manifest_order_key), used to
     find where a new entry belongs (see insertion_index)."""
@@ -459,7 +462,7 @@ def _entry_insertion_keys(lines, context, resolution):
     return entry_line_indices, entry_keys
 
 
-def _splice_added_entry_block(lines, context, resolution, new_key, block_lines):
+def _splice_added_entry_block(lines: list, context, resolution, new_key: tuple[int, ...], block_lines: list[str]):
     """Insert `block_lines` (a new entry's own comment+entry block) at
     the position matching values.yaml's own component order relative to
     what's already in `lines` (see insertion_index/images_manifest_
@@ -474,7 +477,7 @@ def _splice_added_entry_block(lines, context, resolution, new_key, block_lines):
         lines.extend(block_lines)
 
 
-def _insert_added_entry(text, path, context, resolution, fields):
+def _insert_added_entry(text: str, path: tuple[str, ...], context, resolution, fields):
     """Insert `fields`'s own comment+entry block (and header item, when
     not already covered by an earlier lockstep sibling's own item — see
     add_missing_images_manifest_entries' own docstring) at the position
@@ -508,7 +511,7 @@ def _insert_added_entry(text, path, context, resolution, fields):
     return "".join(lines)
 
 
-def _backfilled_header_target(lines, header_text, context, resolution):
+def _backfilled_header_target(lines: list[str], header_text: str, context, resolution):
     """The (entry_path, entry_name, entry_old, entry_new) for the FIRST
     entry (in manifest order) whose own display name isn't already
     mentioned anywhere in `header_text` — None if every entry is already
@@ -541,7 +544,7 @@ def _backfilled_header_target(lines, header_text, context, resolution):
     return None
 
 
-def _backfill_header_items(text, context, resolution):
+def _backfill_header_items(text: str, context, resolution):
     """Second pass: insert a header item for any entry that already has
     its own comment+entry block (e.g. added by an earlier run, before
     header-list support existed) but was never given one. Old/new
@@ -572,7 +575,7 @@ def _backfill_header_items(text, context, resolution):
     return text, backfilled_names
 
 
-def add_missing_images_manifest_entries(text, context):
+def add_missing_images_manifest_entries(text: str, context):
     """Insert a new entry (+ its own "# <name> — <old> -> <new>" comment,
     and a matching numbered item in the "# Changes:" header list) for
     every image lib.upgradedoc.find_images_manifest_list_diff's own
