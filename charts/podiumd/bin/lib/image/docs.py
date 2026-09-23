@@ -45,6 +45,7 @@ from lib.component_docs.changes_section import make_changes_section
 from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.changes_section import update_component_table
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
+from lib.component_docs.images_manifest_changes_header import find_changes_item
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.registry import parse_repo
@@ -63,7 +64,6 @@ from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
-from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
@@ -237,7 +237,7 @@ def _add_sidecar_row(text, name, path, ctx):
     if table_action is None:
         return text, False  # doc has no "Component versions" table at all to insert into
 
-    text, _ = remove_changes_section(text, name)
+    text, _ = remove_changes_section(text, name, ordering)
     dotted_path = ".".join(path) + ".tag"
     section = make_image_changes_section(name, ctx.doc_context.target, old_app, new_app, [(dotted_path, old_app)])
     text = insert_changes_section(text, section, name, ordering)
@@ -394,7 +394,7 @@ def add_missing_changes_sections(text, deps, target_values, target, canonical_na
 
 def _remove_changes_block_by_exact_heading(text, heading):
     """remove_changes_section, but matched by EXACT heading text instead
-    of fuzzy word-span containment — used for replacing a specific,
+    of component identity — used for replacing a specific,
     already-identified stale heading (see update_stale_app_version_
     headings), where a fuzzy match risks hitting the wrong block if some
     OTHER heading happens to share words with this one. Returns
@@ -577,18 +577,6 @@ def _manifest_header_items(lines, header_idx):
     return item_indices, block_end
 
 
-def _find_manifest_header_item(lines, item_indices, basename):
-    """Index within item_indices whose own item text mentions `basename`
-    (normalized), or None. Shared by update_image_manifest/remove_
-    image_manifest_entry."""
-    norm_basename = normalize_name(basename)
-    for idx in item_indices:
-        m = CHANGES_ITEM_RE.match(lines[idx])
-        if m and norm_basename in normalize_name(m.group("rest")):
-            return idx
-    return None
-
-
 def _find_manifest_entry(lines, repository):
     """(entry_line, block_end) for the first images-manifest "- name:
     ..." entry block whose own "url:" (host-stripped) matches
@@ -653,7 +641,7 @@ def _update_manifest_changes_header(lines, bump, ordering):
         return None
 
     item_indices, block_end = _manifest_header_items(lines, header_idx)
-    match_idx = _find_manifest_header_item(lines, item_indices, bump.basename)
+    match_idx = find_changes_item(lines, item_indices, bump.basename)
     item_text = f"{bump.basename} {image_manifest_version_text(bump.old_version, bump.new_version)}."
 
     if match_idx is not None:
@@ -746,7 +734,7 @@ def _remove_manifest_changes_header_item(lines, basename):
     if header_idx is None:
         return None
     item_indices, _block_end = _manifest_header_items(lines, header_idx)
-    match_idx = _find_manifest_header_item(lines, item_indices, basename)
+    match_idx = find_changes_item(lines, item_indices, basename)
     if match_idx is None:
         return None
 

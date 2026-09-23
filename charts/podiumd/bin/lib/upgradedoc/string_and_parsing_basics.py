@@ -126,6 +126,24 @@ def _word_aligned_spans(text):
     return spans
 
 
+def text_names(text: str, name: str) -> bool:
+    """Whether `text` (a table row's Name cell, a "### ..." heading or a
+    "# Changes:" item) names `name`. A plain name matches at word
+    boundaries (_word_aligned_spans), so "mi" never matches "AdminUser".
+    A canonical "<key> - <basename>" sidecar name (lib.chart.canonical_
+    sidecar_row_names) only matches text that starts with exactly its
+    words, followed by nothing or a version: "zac - postgres" never
+    matches "zac - postgres-exporter 1.0", and a plain name never
+    matches a sidecar's text, nor the reverse."""
+    if " - " not in text and " - " not in name:
+        return normalize_name(name) in _word_aligned_spans(text)
+    if " - " not in text or " - " not in name:
+        return False
+    name_words, words = words_of(name), words_of(text)
+    rest = words[len(name_words) :]
+    return words[: len(name_words)] == name_words and (not rest or re.match(r"v?\d", rest[0]) is not None)
+
+
 def match_dependency(text, deps):
     """Fuzzy-match a doc's free-form component name (e.g. "ZAC
     (Zaakafhandelcomponent)") against Chart.yaml dependencies by name/alias,

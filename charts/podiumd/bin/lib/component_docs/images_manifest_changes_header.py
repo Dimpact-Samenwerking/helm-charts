@@ -18,6 +18,7 @@ import re
 from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import values_tree_position
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
+from lib.upgradedoc.string_and_parsing_basics import text_names
 
 NUMBER_WORDS = [
     "Zero",
@@ -140,6 +141,17 @@ def find_images_manifest_changes_items(lines):
         if CHANGES_ITEM_RE.match(lines[i]):
             item_indices.append(i)
     return header_idx, header_has_count, item_indices
+
+
+def find_changes_item(lines: list[str], item_indices: list[int], name: str) -> int | None:
+    """The index in `item_indices` of the first "#   N. ..." item that
+    names `name` (see text_names), or None. Shared by every writer that
+    updates or removes a component's or image's item."""
+    for idx in item_indices:
+        m = CHANGES_ITEM_RE.match(lines[idx])
+        if m and text_names(m.group("rest"), name):
+            return idx
+    return None
 
 
 def images_manifest_changes_count_word(total):
