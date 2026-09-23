@@ -48,11 +48,22 @@ echo "=== bandit (security) ==="
 bandit -c pyproject.toml -r lib $(python_scripts) -q
 
 # Two invocations: lib/ and the top-level scripts get the full default
-# pylint rule set; tests/ additionally disables 7 checks that are false
-# positives only there (pytest fixture signatures, sys.path-hack conftest
-# imports, shared assertion boilerplate) -- see pyproject.toml's own
-# [tool.pylint."messages control"] comment for why this can't be scoped in
-# the config file itself.
+# pylint rule set; tests/ runs with TESTS_PYLINT_DISABLE on top. See
+# pyproject.toml's own [tool.pylint."messages control"] comment for why this
+# can't be scoped in the config file itself.
+#
+# False positives under tests/ (pytest fixture signatures, sys.path-hack
+# conftest imports, shared assertion boilerplate):
+TESTS_PYLINT_DISABLE=missing-function-docstring,wrong-import-position,unused-argument,protected-access
+TESTS_PYLINT_DISABLE=$TESTS_PYLINT_DISABLE,unused-variable,redefined-outer-name,duplicate-code
+# Style and structure rules not enforced for test code (pytest and ruff
+# still cover tests/):
+TESTS_PYLINT_DISABLE=$TESTS_PYLINT_DISABLE,import-outside-toplevel,consider-using-from-import
+TESTS_PYLINT_DISABLE=$TESTS_PYLINT_DISABLE,use-implicit-booleaness-not-comparison,too-many-positional-arguments
+TESTS_PYLINT_DISABLE=$TESTS_PYLINT_DISABLE,too-many-arguments,too-many-locals,import-error,superfluous-parens
+TESTS_PYLINT_DISABLE=$TESTS_PYLINT_DISABLE,too-many-lines,subprocess-run-check,missing-class-docstring
+TESTS_PYLINT_DISABLE=$TESTS_PYLINT_DISABLE,useless-return,unnecessary-lambda,too-few-public-methods
+TESTS_PYLINT_DISABLE=$TESTS_PYLINT_DISABLE,line-too-long,comparison-of-constants
 echo "=== pylint (lib + scripts) ==="
 pylint lib $(python_scripts)
 
@@ -60,8 +71,7 @@ echo "=== pylint (tests) ==="
 # lib isn't a target here, so its imports need PYTHONPATH (not an analyzed
 # target list) to resolve -- otherwise pylint can't see lib.* at all and
 # every cross-package import raises a false import-error.
-PYTHONPATH=. pylint --disable=missing-function-docstring,wrong-import-position,unused-argument,protected-access,unused-variable,redefined-outer-name,duplicate-code \
-    $(find tests -name '*.py')
+PYTHONPATH=. pylint --disable="$TESTS_PYLINT_DISABLE" $(find tests -name '*.py')
 
 echo "=== basedpyright (type checking) ==="
 basedpyright lib $(python_scripts) tests
