@@ -39,7 +39,7 @@
   digest: "sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"
 
 #   sidecar: keycloak-operator - python 3.14.7-slim (digest changed)
-- name: library/python
+- name: python
   url: docker.io/library/python
   version: "3.14.7-slim"
   digest: "sha256:caaf356f40667c496d405780745b9ac25771c189a51dfcc42430d531ea09f8a2"

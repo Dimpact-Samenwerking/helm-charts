@@ -47,7 +47,7 @@
   version: "26.7.3"
   digest: "sha256:e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
 
-- name: library/python
+- name: python
   url: docker.io/library/python
   version: "3.14.7-slim"
   digest: "sha256:caaf356f40667c496d405780745b9ac25771c189a51dfcc42430d531ea09f8a2"
@@ -282,7 +282,7 @@
   version: "v7.7.1"
   digest: "sha256:f6a4aa83a27e316114bf79664302b1ffb2cc8ce697fb479273af4feb3fb16fe3"
 
-- name: wearefrank/zaakbrug
+- name: zaakbrug
   url: docker.io/wearefrank/zaakbrug
   version: "1.26.18"
   digest: "sha256:255a717ff620b08608db2d8cde24e6993b96896f785ecfb7082054a4cc36bc3b"
