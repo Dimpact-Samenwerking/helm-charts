@@ -287,5 +287,8 @@ reportUntypedBaseClass = false # dony by ruff N801
 # rule still applies to tests/.
 [[tool.basedpyright.executionEnvironments]]
 root = "tests"
+# An execution environment resolves imports from its own root; tests
+# import lib.* from this directory.
+extraPaths = ["."]
 reportMissingParameterType = false
 reportUnknownLambdaType = false
