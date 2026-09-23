@@ -631,10 +631,11 @@ def _update_upgrade_doc_section(ctx, comparison, target, paths_to_update):
             )
         return
 
+    ordering = OrderingContext(ctx.deps, ctx.values)
     if comparison.reset_to_baseline:
         text = comparison.upgrade_path.read_text(encoding="utf-8")
         new_text, row_removed = remove_component_row(text, friendly)
-        new_text, section_removed = remove_changes_section(new_text, friendly)
+        new_text, section_removed = remove_changes_section(new_text, friendly, ordering)
         if row_removed or section_removed:
             comparison.upgrade_path.write_text(new_text, encoding="utf-8")
         print()
@@ -651,14 +652,13 @@ def _update_upgrade_doc_section(ctx, comparison, target, paths_to_update):
 
     text = comparison.upgrade_path.read_text(encoding="utf-8")
     change = VersionChange(comparison.old_app, ctx.app_version, comparison.old_chart, ctx.new_chart)
-    ordering = OrderingContext(ctx.deps, ctx.values)
     new_text, table_action = update_component_table(text, friendly, change, ordering)
     if table_action is None:
         return
     # Rewritten from scratch each time -- a later hop (e.g. reconsidering 3
     # for 2) would otherwise leave the ORIGINAL "1 -> 3" prose stale even
     # though the table row now correctly says "1 -> 2".
-    new_text, _ = remove_changes_section(new_text, friendly)
+    new_text, _ = remove_changes_section(new_text, friendly, ordering)
     identity = ComponentIdentity(friendly, ctx.chart_name, ctx.values_key)
     section = make_changes_section(identity, target, change, paths_to_update)
     new_text = insert_changes_section(new_text, section, friendly, ordering)

@@ -13,17 +13,19 @@ from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
-from lib.component_docs.images_manifest_changes_header import NUMBER_WORDS
 from lib.component_docs.images_manifest_changes_header import ensure_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import find_changes_item
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_items
+from lib.component_docs.images_manifest_changes_header import images_manifest_changes_count_word
 from lib.component_docs.images_manifest_changes_header import images_manifest_order_key
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
-from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
 
@@ -100,7 +102,7 @@ def _parsed_manifest(lines):
 
 
 def _component_of(values_key, entry):
-    return values_key if normalize_name(values_key) in normalize_name(entry["name"]) else None
+    return values_key if text_names(entry["name"], values_key) else None
 
 
 def _same_group(values_key, entry_a, entry_b):
@@ -165,34 +167,6 @@ def update_images_manifest_entry(manifest, index, new_tag, values_key):
     return changed
 
 
-def _changes_header_items(lines, header_idx):
-    """Every "#   <N>. ..." list-item line index under this manifest's own
-    "# Changes:" header, in document order — shared by update_images_
-    manifest/remove_component_from_images_manifest, whose own list-item
-    match/renumber logic both need the same set."""
-    item_indices = []
-    for i in range(header_idx + 1, len(lines)):
-        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-            break
-        if re.match(r"^#\s*\d+\.", lines[i]):
-            item_indices.append(i)
-    return item_indices
-
-
-def _matching_changes_header_item(lines, item_indices, friendly):
-    """The item_indices entry (or None) whose own rendered text already
-    names `friendly` (normalize_name-insensitive substring match) — same
-    "does this component already have a changes-header list item" check
-    both update_images_manifest and remove_component_from_images_manifest
-    need before deciding to update/renumber vs insert/remove."""
-    norm_friendly = normalize_name(friendly)
-    for idx in item_indices:
-        m = CHANGES_ITEM_RE.match(lines[idx])
-        if m and norm_friendly in normalize_name(m.group("rest")):
-            return idx
-    return None
-
-
 def _changes_header_item_text(friendly, change):
     """The rendered "<friendly> <app transition> (chart <chart bit>)."
     changes-header list-item text for `change` (a VersionChange) — a
@@ -206,7 +180,7 @@ def _changes_header_item_text(friendly, change):
     return f"{friendly} {image_manifest_version_text(change.old_app, change.new_app)} (chart {chart_bit})."
 
 
-def _update_changes_header_item(lines, header_idx, target, change, state):
+def _update_changes_header_item(lines, target, change, state):
     """Update this component's own existing changes-header list item in
     place, or insert a brand-new one at its own values.yaml-order slot
     (see update_images_manifest's own docstring for why the position
@@ -214,8 +188,8 @@ def _update_changes_header_item(lines, header_idx, target, change, state):
     ManifestUpdateTarget (only its own `friendly`/`values_key` are used
     here), `state` a ComponentState (deps/values). Returns "updated" or
     "added"."""
-    item_indices = _changes_header_items(lines, header_idx)
-    match_idx = _matching_changes_header_item(lines, item_indices, target.friendly)
+    _header_idx, _header_has_count, item_indices = find_images_manifest_changes_items(lines)
+    match_idx = find_changes_item(lines, item_indices, target.friendly)
     item_text = _changes_header_item_text(target.friendly, change)
 
     if match_idx is not None:
@@ -290,7 +264,7 @@ def update_images_manifest(target, change, path_update, deps, values):
 
     changes_action = None
     if header_idx is not None:
-        changes_action = _update_changes_header_item(lines, header_idx, target, change, ComponentState(deps, values))
+        changes_action = _update_changes_header_item(lines, target, change, ComponentState(deps, values))
 
     manifest = _parsed_manifest(lines)
     entry_updates, missing_entries = _apply_entry_updates(manifest, path_update, target.values_key)
@@ -301,15 +275,15 @@ def update_images_manifest(target, change, path_update, deps, values):
     return changes_action, entry_updates, missing_entries
 
 
-def _remove_changes_header_item(lines, header_idx, header_has_count, friendly):
+def _remove_changes_header_item(lines, friendly):
     """Delete this component's own "#   <N>. ..." changes-header list
     item (renumbering the rest) and update the header's own count word,
     when it has one — mirrors _update_changes_header_item's own item-match
-    logic (shared via _changes_header_items/_matching_changes_header_item)
+    logic (shared via find_images_manifest_changes_items/find_changes_item)
     but for removal instead of update/insert. Returns "removed" or None
     (no matching item found)."""
-    item_indices = _changes_header_items(lines, header_idx)
-    match_idx = _matching_changes_header_item(lines, item_indices, friendly)
+    header_idx, header_has_count, item_indices = find_images_manifest_changes_items(lines)
+    match_idx = find_changes_item(lines, item_indices, friendly)
     if match_idx is None:
         return None
 
@@ -321,8 +295,7 @@ def _remove_changes_header_item(lines, header_idx, header_has_count, friendly):
 
     remaining = len(remaining_indices)
     if header_has_count:
-        count_word = NUMBER_WORDS[remaining] if remaining < len(NUMBER_WORDS) else str(remaining)
-        noun = "change" if remaining == 1 else "changes"
+        count_word, noun = images_manifest_changes_count_word(remaining)
         header_m = CHANGES_HEADER_RE.match(lines[header_idx])
         lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
     # else: bare "# Changes:" header — left as-is, same convention
@@ -376,12 +349,8 @@ def remove_component_from_images_manifest(target, path_update):
     original_text = target.images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
-    header_idx, header_has_count = find_images_manifest_changes_header(lines)
-    changes_action = (
-        _remove_changes_header_item(lines, header_idx, header_has_count, target.friendly)
-        if header_idx is not None
-        else None
-    )
+    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
+    changes_action = _remove_changes_header_item(lines, target.friendly) if header_idx is not None else None
 
     manifest = _parsed_manifest(lines)
     entry_updates = _remove_entry_updates(manifest, path_update, target.values_key)

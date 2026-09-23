@@ -33,17 +33,18 @@ from lib.chart.registered_paths import version_paths_for
 from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.consistency_checks import resolve_component_identity
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import COMPONENT_VERSIONS_HEADING_RE
-from lib.upgradedoc.string_and_parsing_basics import _word_aligned_spans
+from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
-from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
+from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
 
@@ -120,37 +121,11 @@ class DocContext:
 
 
 def find_component_row(rows, friendly):
-    """The row whose own Name mentions `friendly` — matched only at word
-    boundaries (see lib.upgradedoc.match_dependency/_word_aligned_spans,
-    which need the exact same protection for the exact same reason): a
-    short friendly/values_key like "mi" is a literal substring of
-    "ensurePodiumdAdminUser" (inside "ad-mi-n"), which a raw
-    normalize_name() containment check can't tell apart from a real
-    word-level match — update_component_table would otherwise silently
-    overwrite that unrelated row's own cells instead of inserting "mi"'s
-    own new row.
-
-    A canonical "<key> - <basename>" sidecar/shared-image row (see lib.
-    chart.canonical_sidecar_row_names) legitimately STARTS with its owning
-    dependency's own name as a leading word-aligned span (e.g. "openbao -
-    openbao-csi-provider" starts with "openbao") — that leading-span match
-    must never satisfy a lookup for the dependency's OWN plain-name
-    friendly ("openbao"), same class of collision as the substring case
-    above, or update_component_table silently overwrites the SIDECAR's row
-    with the DEPENDENCY's own values instead of inserting the dependency's
-    own new row (real bug: exactly this, for openbao, when its own row
-    didn't exist yet but its sidecar rows already did — see lib.upgradedoc.
-    match_dependency_excluding_sidecar_names for the same class of
-    collision on the read side). Such a row only matches when `friendly`
-    is an exact whole-name match for it (i.e. friendly IS that same
-    compound name, not just its leading segment)."""
-    norm_friendly = normalize_name(friendly)
-    for row in rows:
-        if " - " in row["name"] and normalize_name(row["name"]) != norm_friendly:
-            continue
-        if norm_friendly in _word_aligned_spans(row["name"]):
-            return row
-    return None
+    """The row whose Name names `friendly` (see text_names): at word
+    boundaries, so "mi" never takes the "ensurePodiumdAdminUser" row,
+    and a plain "openbao" never takes an "openbao - openbao-csi-provider"
+    sidecar row. None when no row does."""
+    return next((row for row in rows if text_names(row["name"], friendly)), None)
 
 
 def _new_row_insert_index(lines, rows, friendly, ordering):
@@ -551,19 +526,24 @@ def strip_stale_upgrade_placeholders(text):
     return "".join(lines), True
 
 
-def remove_changes_section(text, friendly):
+def remove_changes_section(text: str, friendly: str, ordering: OrderingContext) -> tuple[str, bool]:
     """Delete this component's "### ..." block from the "## Changes"
     section entirely — the counterpart to insert_changes_section for a
     bump that nets out to no change from upgrade_docs_baseline at all. Also swallows
     the block's own trailing blank line(s) so removal doesn't leave a
-    double gap before whatever follows. Matched only at word boundaries
-    (see find_component_row's own identical protection) — a short
-    friendly/values_key must never delete an unrelated block just
-    because it's a coincidental mid-word substring of that block's own
-    heading. Returns (new_text, removed)."""
+    double gap before whatever follows. The block is the one whose
+    heading names exactly `friendly`'s identity, resolved the same way
+    check_docs_consistency pairs headings with rows (resolve_component_
+    identity / changes_heading_identities), so a sidecar's own
+    "<key> - <basename>" block is never taken for its parent's.
+    Returns (new_text, removed)."""
+    deps, canonical_names = ordering.deps, ordering.canonical_names
+    ident = resolve_component_identity(friendly, deps, canonical_names)
     blocks = parse_upgrade_doc_changes_blocks(text)
-    norm_friendly = normalize_name(friendly)
-    block = next((b for b in blocks if norm_friendly in _word_aligned_spans(b["heading"])), None)
+    block = next(
+        (b for b in blocks if ident and changes_heading_identities(b["heading"], deps, canonical_names) == {ident}),
+        None,
+    )
     if block is None:
         return text, False
     lines = text.splitlines(keepends=True)
@@ -757,7 +737,7 @@ def _add_missing_row_for_key(text, key, target_state, baseline_state, doc_contex
     if table_action is None:
         return text, False  # doc has no "Component versions" table at all to insert into
 
-    text, _ = remove_changes_section(text, key)
+    text, _ = remove_changes_section(text, key, OrderingContext(target_state.deps, target_state.values))
     change = VersionChange(old_app, new_app, old_chart, new_chart)
     text = insert_changes_section(
         text,

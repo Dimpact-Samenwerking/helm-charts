@@ -231,7 +231,7 @@ def _update_single_component_upgrade_doc(upgrade_path, context, bump):
     if context.baseline.reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, row_removed = remove_component_row(text, context.friendly)
-        new_text, section_removed = remove_changes_section(new_text, context.friendly)
+        new_text, section_removed = remove_changes_section(new_text, context.friendly, context.ordering)
         if row_removed or section_removed:
             upgrade_path.write_text(new_text, encoding="utf-8")
         print()
@@ -250,7 +250,7 @@ def _update_single_component_upgrade_doc(upgrade_path, context, bump):
     new_text, table_action = update_component_table(text, context.friendly, context.change, context.ordering)
     if table_action is None:
         return
-    new_text, _ = remove_changes_section(new_text, context.friendly)
+    new_text, _ = remove_changes_section(new_text, context.friendly, context.ordering)
     identity = ComponentIdentity(context.friendly, context.chart_name, bump.values_key)
     section = make_changes_section(identity, context.target, context.change, bump.group["paths"])
     new_text = insert_changes_section(new_text, section, context.friendly, context.ordering)
@@ -516,7 +516,7 @@ def _update_shared_image_upgrade_doc(upgrade_path, context, bump):
     if context.baseline.reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, row_removed = remove_component_row(text, bump.name)
-        new_text, section_removed = remove_changes_section(new_text, bump.name)
+        new_text, section_removed = remove_changes_section(new_text, bump.name, context.ordering)
         if row_removed or section_removed:
             upgrade_path.write_text(new_text, encoding="utf-8")
         print()
@@ -535,7 +535,7 @@ def _update_shared_image_upgrade_doc(upgrade_path, context, bump):
     new_text, table_action = update_component_table(text, bump.name, context.change, context.ordering)
     if table_action is None:
         return
-    new_text, _ = remove_changes_section(new_text, bump.name)
+    new_text, _ = remove_changes_section(new_text, bump.name, context.ordering)
     section = make_image_changes_section(
         bump.name, context.target, context.change.old_app, context.change.new_app, context.baseline.pinned
     )
