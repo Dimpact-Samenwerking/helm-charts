@@ -287,7 +287,7 @@ def encoded_secret_size(release: dict, secret_limit: int):
     return SecretSizeEstimate(len(raw), len(gzipped), size, size / secret_limit, secret_limit)
 
 
-def format_report(chart_name: str, version: str, estimate):
+def format_report(chart_name: str, version: str, estimate: SecretSizeEstimate):
     """The standard multi-line report both the standalone CLI and
     check_release_secret_size print — identical content, since it's the
     same estimate either way; only what surrounds it (report framing,
@@ -302,7 +302,7 @@ def format_report(chart_name: str, version: str, estimate):
     )
 
 
-def over_limit_warning(chart_name: str, version: str, estimate):
+def over_limit_warning(chart_name: str, version: str, estimate: SecretSizeEstimate):
     """The shared "approaching the 1 MiB limit" warning text (no prefix —
     same convention as check_subchart_freshness's own warnings) — printed
     by the standalone CLI (stderr, before sys.exit(1)) and by

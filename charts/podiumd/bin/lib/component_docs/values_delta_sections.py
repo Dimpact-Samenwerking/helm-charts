@@ -38,7 +38,7 @@ from lib.upgradedoc.version_cells_and_key_changes import strip_html_comments
 
 
 def values_delta_section_heading(
-    friendly: str, old_app: str | None, new_app: str | None, old_chart: str | None, new_chart: str
+    friendly: str, old_app: str | None, new_app: str | None, old_chart: str | None, new_chart: str | None
 ):
     """The "## <friendly> ..." heading for this component's own values-
     deltas.md section — carries the app/chart-transition info a flat
@@ -145,7 +145,7 @@ class ValuesDeltaOrdering:
     target_deps/target_values/canonical_names locals."""
 
     deps: list
-    values: dict
+    values: dict | None
     canonical_names: dict | None = None
 
 
@@ -156,11 +156,13 @@ class ValuesDeltaBaseline:
     a NEW section's own old_app/old_chart (a key already covered by an
     existing section never needs the baseline at all)."""
 
-    deps: list
-    values: dict
+    deps: list | None
+    values: dict | None
 
 
-def insert_values_delta_section(text: str, friendly: str, heading_line: str, body_lines: list[str], ordering):
+def insert_values_delta_section(
+    text: str, friendly: str, heading_line: str, body_lines: list[str], ordering: ValuesDeltaOrdering
+):
     """Insert a brand-new "## <heading_line>" section (heading_line
     already includes its own trailing newline) + body_lines as its
     content, in values.yaml's own top-level component order relative to
@@ -310,7 +312,9 @@ def remove_values_delta_section(text: str, friendly: str, deps: list, canonical_
     return text, False
 
 
-def _values_delta_new_section_heading(chart_dir: Path, key: str, ordering, baseline):
+def _values_delta_new_section_heading(
+    chart_dir: Path, key: str, ordering: ValuesDeltaOrdering, baseline: ValuesDeltaBaseline
+):
     """The "## ..." heading line for a brand-new values-deltas.md section
     for `key` (see sync_values_delta_sections), or None when `key` has no
     matching Chart.yaml dependency AND no lib.chart.native_components
@@ -326,7 +330,9 @@ def _values_delta_new_section_heading(chart_dir: Path, key: str, ordering, basel
     return values_delta_section_heading(key, old_app, new_app, old_chart, new_chart)
 
 
-def sync_values_delta_sections(text: str, chart_dir: Path, ordering, baseline, actual_changed_keys: set):
+def sync_values_delta_sections(
+    text: str, chart_dir: Path, ordering: ValuesDeltaOrdering, baseline: ValuesDeltaBaseline, actual_changed_keys: set
+):
     """Ensure every key in `actual_changed_keys` has its own values-
     deltas.md section (see find_values_delta_section/insert_values_
     delta_section) carrying every describe_key_changes line not already

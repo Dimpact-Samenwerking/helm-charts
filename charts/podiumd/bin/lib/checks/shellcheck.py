@@ -15,6 +15,7 @@ from typing import Any
 import yaml
 
 from lib.procutil import run
+from lib.render_scope import VendorBucketScan
 from lib.render_scope import chart_name_from_source
 from lib.render_scope import print_grouped_findings
 from lib.render_scope import print_other_vendor_summary
@@ -186,7 +187,7 @@ def _vendored_shellcheck_findings(
     return vendored_friendly, vendored_other, None
 
 
-def _print_shellcheck_findings(scan):
+def _print_shellcheck_findings(scan: VendorBucketScan):
     """Prints check_shellcheck's three report sections (own/vendored-
     friendly/vendored-other) for a completed VendorBucketScan -- see
     check_shellcheck's own docstring for what each section means and why
@@ -259,7 +260,7 @@ def check_shellcheck(chart_dir: Path, extra_args: list):
             docs, shell_names, failing_levels, vendor_map
         ),
     )
-    if error:
+    if scan is None:
         return False, error
 
     _print_shellcheck_findings(scan)

@@ -19,6 +19,7 @@ from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import values_key_of
+from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
@@ -33,16 +34,16 @@ class ResolutionContext:
     row itself), bundled so callers that thread these same four values
     through many rows/functions don't have to repeat them each time.
     `target`/`baseline` are ComponentState (see lib.component_docs.
-    changes_section). `baseline.deps` is None to skip baseline
+    changes_section). `baseline` is a BaselineState; `baseline.deps` is None to skip baseline
     resolution entirely — `baseline_resolved` on the result then stays
     None, not False, so a caller that deliberately isn't checking a
     baseline (no upgrade_docs_baseline given) can tell that apart from
     a baseline that was requested but couldn't be resolved for this one
     component."""
 
-    chart_dir: object
+    chart_dir: Path | None
     target: ComponentState
-    baseline: ComponentState
+    baseline: BaselineState
     upgrade_docs_baseline: str | None = None
 
 
@@ -114,11 +115,11 @@ def _match_row(row_name: str, chart_dir: Path | None, canonical_names: dict, dep
     return RowMatch(sidecar_path, dep, native_key)
 
 
-def _target_result(chart_dir: Path | None, values: dict, match) -> dict[str, Any]:
+def _target_result(chart_dir: Path | None, values: dict, match: RowMatch) -> dict[str, Any]:
     """The "kind"/"dep"/"sidecar_path"/values-and-chart-key/target_chart/
     target_app fields of resolve_component_row's result dict — the
     target-side resolution, independent of any baseline comparison."""
-    result = {"dep": match.dep, "sidecar_path": match.sidecar_path}
+    result: dict[str, Any] = {"dep": match.dep, "sidecar_path": match.sidecar_path}
     if match.sidecar_path is not None:
         result["kind"] = "sidecar"
         result["values_key"] = ".".join(match.sidecar_path)
@@ -134,7 +135,7 @@ def _target_result(chart_dir: Path | None, values: dict, match) -> dict[str, Any
         result["target_app"] = actual_app_version(
             values, values_key, match.dep["name"], chart_dir=chart_dir, dep=match.dep
         )
-    else:
+    elif match.native_key is not None:
         # No chart at all to verify against (never even attempted) — same
         # "-" not-applicable convention a sidecar's own chart-less cell
         # already uses (see component_version_cell), just via a different
@@ -150,7 +151,7 @@ def _target_result(chart_dir: Path | None, values: dict, match) -> dict[str, Any
     return result
 
 
-def _sidecar_baseline_app(resolution, sidecar_path: tuple[str, ...]):
+def _sidecar_baseline_app(resolution: ResolutionContext, sidecar_path: tuple[str, ...]):
     """A sidecar's own baseline app version — exact-path or same-
     repository-elsewhere-in-baseline_values match (via baseline_tag_
     for_sidecar_path's own two tiers), else a past images-<version>.yaml
@@ -181,12 +182,12 @@ def _sidecar_baseline_app(resolution, sidecar_path: tuple[str, ...]):
     return baseline_app
 
 
-def _dependency_baseline_result(resolution, values_key: str, dep: dict):
+def _dependency_baseline_result(resolution: ResolutionContext, values_key: str, dep: dict):
     """A real dependency's own baseline_resolved/baseline_chart/
     baseline_app trio — whether the Chart.yaml dependency line itself
     existed at the baseline ref at all (baseline_resolved), and its
     resolved app version if so."""
-    baseline_dep = dep_for_values_key(resolution.baseline.deps, values_key)
+    baseline_dep = dep_for_values_key(resolution.baseline.deps or [], values_key)
     if baseline_dep is None:
         return False, None, None
     baseline_chart = str(baseline_dep["version"])
@@ -210,7 +211,7 @@ def _dependency_baseline_result(resolution, values_key: str, dep: dict):
     return True, baseline_chart, baseline_app
 
 
-def _native_baseline_app(resolution, native_key: str):
+def _native_baseline_app(resolution: ResolutionContext, native_key: str):
     """A native component's own baseline app version — same "no
     existence check possible, just compare both app versions" shape as
     the sidecar case, since there's no dep to ask "did this exist at
@@ -229,7 +230,7 @@ def _native_baseline_app(resolution, native_key: str):
     return baseline_app
 
 
-def _add_baseline_result(resolution, match, result: dict):
+def _add_baseline_result(resolution: ResolutionContext, match: RowMatch, result: dict):
     """Mutates result in place with baseline_resolved/baseline_chart/
     baseline_app, dispatching to the matching kind's own baseline
     lookup. Only called once resolution.baseline.deps is not None (see
@@ -245,13 +246,13 @@ def _add_baseline_result(resolution, match, result: dict):
         result["baseline_resolved"] = resolved
         result["baseline_chart"] = baseline_chart
         result["baseline_app"] = baseline_app
-    else:
+    elif match.native_key is not None:
         baseline_app = _native_baseline_app(resolution, match.native_key)
         result["baseline_app"] = baseline_app
         result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
 
 
-def resolve_component_row(row_name: str, canonical_names: dict, resolution):
+def resolve_component_row(row_name: str, canonical_names: dict, resolution: ResolutionContext):
     """Resolve a "Component versions" table row's name to the real
     component it identifies, and its actual target (and, if requested,
     source) versions — the one place both fix-doc-consistency's row-
@@ -336,7 +337,7 @@ def resolve_component_row(row_name: str, canonical_names: dict, resolution):
         resolution = ResolutionContext(
             resolution.chart_dir,
             resolution.target,
-            ComponentState(resolution.baseline.deps, resolution.baseline.values or {}),
+            BaselineState(resolution.baseline.deps, resolution.baseline.values or {}),
             resolution.upgrade_docs_baseline,
         )
         _add_baseline_result(resolution, match, result)

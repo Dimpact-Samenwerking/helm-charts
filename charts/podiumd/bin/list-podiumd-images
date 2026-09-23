@@ -236,7 +236,7 @@ def _column_widths(entries: list):
     )
 
 
-def _print_image_entry(entry, values_lines: list, widths):
+def _print_image_entry(entry: ImageEntry, values_lines: list, widths: ColumnWidths):
     """Prints one entry's two lines (see print_image_lines): a short,
     column-aligned "<key> <basename> <version> (path: ...)" line — <key>
     <basename> <version> is exactly the copy/paste-able input for
@@ -302,7 +302,7 @@ def row_chart_tree_path(chart_dir: Path, dep: dict, first_segment: str):
     return f"{base}/charts/{nested.get('alias') or nested['name']}"
 
 
-def component_version_rows(dep: dict, key: str, merged: dict, ctx):
+def component_version_rows(dep: dict, key: str, merged: dict, ctx: ChartContext):
     """Extra (key, path, repo, tag, disabled) rows for `dep`'s own settings.
     yaml component_resolution.version_paths/version_path_nested_
     subcharts-registered bare version fields — the ONE image shape find_images'
@@ -405,7 +405,7 @@ def _top_level_image_rows(root_values: dict, dep_keys: set[str]):
     return rows
 
 
-def _print_dependency_header(dep: dict, ctx):
+def _print_dependency_header(dep: dict, ctx: ChartContext):
     """Prints the "=== <key> (<name> <version>) [disabled] ===" header
     line and returns `key` (dep's own values-key: alias if it declares
     one, else its real name)."""
@@ -417,7 +417,7 @@ def _print_dependency_header(dep: dict, ctx):
     return key
 
 
-def _merged_image_rows(dep: dict, key: str, merged: dict, ctx):
+def _merged_image_rows(dep: dict, key: str, merged: dict, ctx: ChartContext):
     """(key, path, repo, tag, disabled) rows for `dep`'s own effective
     image set: every find_images-shaped reference in `merged` (chart
     defaults + podiumd's own overrides), plus any component_version_
@@ -434,7 +434,7 @@ def _merged_image_rows(dep: dict, key: str, merged: dict, ctx):
     return rows
 
 
-def _print_dependency_images(dep: dict, tmproot: Path, ctx, values_lines: list[str], *, refresh: bool):
+def _print_dependency_images(dep: dict, tmproot: Path, ctx: ChartContext, values_lines: list[str], *, refresh: bool):
     """Prints one Chart.yaml dependency's "=== <key> (<name> <version>)
     ===" section: its own appVersion/sub-chart dependencies, then every
     resolved image reference (chart defaults merged with podiumd's own

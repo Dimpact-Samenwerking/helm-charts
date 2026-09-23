@@ -61,12 +61,12 @@ class ManifestCheckContext:
     some subset of the same six together. chart_dir=None skips every
     chart_dir-gated sub-check entirely (see each one's own docstring)."""
 
-    upgrade_docs_baseline: str
+    upgrade_docs_baseline: str | None
     podiumd_version: str
     deps: list
     values: dict
-    baseline_values: dict
-    chart_dir: object = None
+    baseline_values: dict | None
+    chart_dir: Path | None = None
 
 
 @dataclass
@@ -197,7 +197,9 @@ def find_images_manifest_changes_items_out_of_order(
     return [(items[i][0], items[i + 1][0]) for i in range(len(items) - 1) if keys[i + 1] < keys[i]]
 
 
-def _covered_changes_display_names(lines: list[str], entries: list, display_name_positions: dict, resolution):
+def _covered_changes_display_names(
+    lines: list[str], entries: list, display_name_positions: dict, resolution: EntryResolution
+):
     """The set of every images-manifest entry/group display name a "#
     Changes:" item in `lines` already resolves back to — the SAME two-
     tier match find_images_manifest_changes_items_out_of_order/fix-doc-
@@ -222,7 +224,9 @@ def _covered_changes_display_names(lines: list[str], entries: list, display_name
     return covered_names
 
 
-def _uncovered_entry_display_names(entries: list, entry_positions: dict, resolution, covered_names: set):
+def _uncovered_entry_display_names(
+    entries: list, entry_positions: dict, resolution: EntryResolution, covered_names: set
+):
     """Display names of every entry GROUP (present in entry_positions)
     not already in `covered_names` — one display name per group, first
     entry only, skipping an entry whose display name is path_display_
@@ -244,7 +248,7 @@ def _uncovered_entry_display_names(entries: list, entry_positions: dict, resolut
     return missing
 
 
-def find_images_manifest_entries_missing_changes_mention(text: str, entries: list, context):
+def find_images_manifest_entries_missing_changes_mention(text: str, entries: list, context: ManifestSortContext):
     """Display names (lib.upgradedoc.path_display_name) of every images-
     manifest entry GROUP (lib.upgradedoc.images_manifest_entry_positions'
     own group-level position) that has no "# Changes:" item resolving
@@ -350,7 +354,7 @@ def _entries_shape_issues(name: str, entries: object):
     return None
 
 
-def _baseline_and_vs_line_issues(name: str, text: str, context):
+def _baseline_and_vs_line_issues(name: str, text: str, context: ManifestCheckContext):
     """The images-manifest's own two header-comment lines — "Baseline:
     podiumd <version>" and "podiumd <target> vs <upgrade_docs_baseline>"
     — checked against context.podiumd_version/context.upgrade_docs_
@@ -384,7 +388,7 @@ def _baseline_and_vs_line_issues(name: str, text: str, context):
     return issues
 
 
-def _manifest_resolution_context(context):
+def _manifest_resolution_context(context: ManifestCheckContext):
     """(repo_groups, resolution) — repo_groups (see paths_by_repository,
     needed only by the list-diff check) and an EntryResolution bundling
     deps/current_paths/repo_map/canonical_names, both derived from
@@ -412,7 +416,7 @@ def _manifest_resolution_context(context):
     return repo_groups, EntryResolution(context.deps, current_paths, repo_map, canonical_names)
 
 
-def _plain_image_entry_for_item(item_name: str, resolved):
+def _plain_image_entry_for_item(item_name: str, resolved: ResolvedManifest):
     """The images-manifest entry a non-component Changes item resolves
     to — a KNOWN canonical sidecar name (see resolved.resolution.
     canonical_names) tried FIRST, resolved directly via its own real
@@ -457,7 +461,9 @@ def _changes_item_version_mismatches(
     return issues
 
 
-def _changes_item_issues(name: str, item: dict, resolved, context, invalid_names: set):
+def _changes_item_issues(
+    name: str, item: dict, resolved: ResolvedManifest, context: ManifestCheckContext, invalid_names: set
+):
     """The issue(s) for a single "# Changes:" block item — wrong/stale
     (see find_wrong_or_duplicate_dependency_claims), unresolvable, or a
     version-cell mismatch against its resolved actual state."""
@@ -498,7 +504,7 @@ def _changes_item_issues(name: str, item: dict, resolved, context, invalid_names
     return _changes_item_version_mismatches(name, item, actual_app, actual_chart, baseline_app)
 
 
-def _changes_block_item_issues(name: str, text: str, resolved, context):
+def _changes_block_item_issues(name: str, text: str, resolved: ResolvedManifest, context: ManifestCheckContext):
     """One issue per "# Changes:" block item (see parse_changes_block)
     whose target/source app or chart version disagrees with the actual
     Chart.yaml/values.yaml/images-manifest state it claims to describe —
@@ -524,7 +530,9 @@ def _changes_block_item_issues(name: str, text: str, resolved, context):
     return issues
 
 
-def _entry_comment_version_mismatches(name: str, entry: dict, comment: str, resolution, baseline_paths: dict):
+def _entry_comment_version_mismatches(
+    name: str, entry: dict, comment: str, resolution: EntryResolution, baseline_paths: dict
+):
     """The issue(s) for a single entry's own preceding comment — its
     target version cell vs. the entry's own actual version, and its
     source version cell vs. upgrade_docs_baseline's actual value."""
@@ -548,7 +556,9 @@ def _entry_comment_version_mismatches(name: str, entry: dict, comment: str, reso
     return issues
 
 
-def _entry_comment_issues(name: str, lines: list[str], resolved, entry_line_indices: list, baseline_paths: dict):
+def _entry_comment_issues(
+    name: str, lines: list[str], resolved: ResolvedManifest, entry_line_indices: list, baseline_paths: dict
+):
     """One issue per images-manifest entry whose own preceding comment
     is missing, or whose target/source app version disagrees with the
     entry's own actual version / upgrade_docs_baseline's actual value."""
@@ -568,7 +578,7 @@ def _entry_comment_issues(name: str, lines: list[str], resolved, entry_line_indi
     return issues
 
 
-def _sidecar_header_issues(name: str, parsed, resolution):
+def _sidecar_header_issues(name: str, parsed: ParsedManifest, resolution: EntryResolution):
     """One issue per SIDECAR entry (see is_primary_image_path) whose own
     header doesn't correctly, unambiguously identify it — a sidecar
     (see find_images_manifest_faulty_headers) needs its OWN indented "#
@@ -593,7 +603,9 @@ def _sidecar_header_issues(name: str, parsed, resolution):
     return issues
 
 
-def _out_of_order_entry_issues(name: str, parsed, resolution, key_order: list[str], values: dict):
+def _out_of_order_entry_issues(
+    name: str, parsed: ParsedManifest, resolution: EntryResolution, key_order: list[str], values: dict
+):
     """One issue per adjacent pair of entries (or shared-header groups)
     that don't follow values.yaml's own top-level component order — the
     same rule find_out_of_order_names already enforces for -upgrade.md's
@@ -627,7 +639,7 @@ def _changes_items_out_of_order_issues(
     return issues
 
 
-def _missing_changes_mention_issues(name: str, text: str, entries: list, sort_context):
+def _missing_changes_mention_issues(name: str, text: str, entries: list, sort_context: ManifestSortContext):
     """One issue per entry with no "# Changes:" mention at all (see
     find_images_manifest_entries_missing_changes_mention)."""
     return [
@@ -636,7 +648,9 @@ def _missing_changes_mention_issues(name: str, text: str, entries: list, sort_co
     ]
 
 
-def _structural_issues(name: str, text: str, parsed, resolution, context):
+def _structural_issues(
+    name: str, text: str, parsed: ParsedManifest, resolution: EntryResolution, context: ManifestCheckContext
+):
     """Every chart_dir-gated structural check that's independent of
     upgrade_docs_baseline — sidecar headers, values.yaml component
     order, and the "# Changes:" list's own order/coverage relative to
@@ -657,13 +671,15 @@ def _structural_issues(name: str, text: str, parsed, resolution, context):
     return issues
 
 
-def _list_diff_issues(name: str, inputs, context):
+def _list_diff_issues(name: str, inputs: ListDiffInputs, context: ManifestCheckContext):
     """The list-diff check (find_images_manifest_list_diff) — every
     changed image must have an entry, and every entry must correspond to
     a real change. Only called by check_images_manifest_format once
     there's something real to diff against (baseline_paths is non-empty
     and context.chart_dir is not None) — without a resolvable upgrade_
     docs_baseline, "changed" can't be computed at all."""
+    if context.chart_dir is None:
+        return []
     unresolvable_paths = set(find_images_without_repository(context.chart_dir))
     missing_paths, stale_entry_names, unmatched_entry_names = find_images_manifest_list_diff(
         ManifestDiffInputs(
@@ -699,7 +715,7 @@ def _list_diff_issues(name: str, inputs, context):
     return issues
 
 
-def check_images_manifest_format(images_path: Path, context):
+def check_images_manifest_format(images_path: Path, context: ManifestCheckContext):
     """Existence + YAML-validity + header-comment-accuracy precheck for the
     images manifest, run BEFORE the entry-by-entry content checks — mirrors
     check_baseline_doc_set for the three markdown docs. Also checks the

@@ -20,13 +20,13 @@ class ValuesDeltaInputs:
     step of the schema diff below (subtree lookup, rename pairing,
     section lookup) needs the same four things together."""
 
-    baseline_values: dict
-    values: dict
+    baseline_values: dict | None
+    values: dict | None
     deps: list
-    canonical_names: object = None
+    canonical_names: dict | None = None
 
 
-def _diff_component_key(values_key: str, inputs):
+def _diff_component_key(values_key: str, inputs: ValuesDeltaInputs):
     """(added, removed, renamed) path lists for one component's
     values.yaml subtree vs baseline — all empty when unchanged."""
     baseline_subtree = inputs.baseline_values.get(values_key, {}) if isinstance(inputs.baseline_values, dict) else {}
@@ -67,7 +67,7 @@ def _rename_mentions(doc_path: Path, values_key: str, renamed: list, backtick_sp
     return issues
 
 
-def _check_key_section_mentions(doc_path: Path, text: str, values_key: str, changes: tuple, inputs):
+def _check_key_section_mentions(doc_path: Path, text: str, values_key: str, changes: tuple, inputs: ValuesDeltaInputs):
     """Verifies values_key has its own "## ..." section and that every
     change in it (added, removed, renamed) is backtick-quoted within
     that section — see check_values_deltas_content's own docstring."""
@@ -105,7 +105,7 @@ def _check_empty_sections(doc_path: Path, text: str):
     ]
 
 
-def check_values_deltas_content(doc_path: Path, actual_changed_keys: set[str], inputs):
+def check_values_deltas_content(doc_path: Path, actual_changed_keys: set[str], inputs: ValuesDeltaInputs):
     """For every top-level component key whose values.yaml SCHEMA
     changed vs upgrade_docs_baseline (a key was added/removed/renamed
     under it — see lib.upgradedoc.diff_keys/pair_renames), verify it has

@@ -52,7 +52,7 @@ class UrlFixContext:
     urls' own resolution inputs, bundled since both it and its own per-
     entry helper need all four together."""
 
-    chart_dir: object
+    chart_dir: Path
     deps: list
     target_values: dict
     repo_map: dict | None = None
@@ -66,10 +66,10 @@ class MissingEntriesContext:
     virtually every helper below needs some subset of the same six
     together."""
 
-    chart_dir: object
+    chart_dir: Path
     deps: list
     target_values: dict
-    baseline_values: dict
+    baseline_values: dict | None
     allow_pull: bool = False
     upgrade_docs_baseline: str | None = None
 
@@ -109,7 +109,7 @@ class MissingEntriesResolution:
     unresolvable_paths: set
     canonical_names: dict
     key_order: list
-    sibling_fields: object
+    sibling_fields: dict
 
 
 @dataclass
@@ -120,7 +120,7 @@ class AddedEntryFields:
 
     name: str
     repo: str
-    full_repo_url: str
+    full_repo_url: str | None
     pinned_tag: str
 
 
@@ -138,7 +138,7 @@ def _entry_url_line_index(lines: list[str], line_idx: int):
     return None
 
 
-def _entry_url_status(entry: dict, line_idx: int, lines: list[str], current_paths: dict, context):
+def _entry_url_status(entry: dict, line_idx: int, lines: list[str], current_paths: dict, context: UrlFixContext):
     """("unresolved", name) / ("changed", (name, old_url, new_url)) /
     ("unchanged", None) for a single images-manifest entry's own "url:"
     field, resolved against `context` (chart_dir/deps/target_values/
@@ -236,7 +236,7 @@ def _images_manifest_changes_header_text(lines: list):
     return "".join(lines[header_idx:block_end])
 
 
-def _baseline_setup(context):
+def _baseline_setup(context: MissingEntriesContext):
     """(baseline_paths, baseline_repo_groups) — baseline_repo_groups
     grouped against baseline_values (NOT target_values — "where did
     this repository already live in the baseline tree"), reused across
@@ -256,7 +256,7 @@ def _baseline_setup(context):
     return baseline_paths, baseline_repo_groups
 
 
-def _repo_setup(context, current_paths: dict):
+def _repo_setup(context: MissingEntriesContext, current_paths: dict):
     """(repo_groups, repo_map, path_to_repo) for `context`'s own
     target_values."""
     repo_groups = paths_by_repository(context.chart_dir, context.deps, context.target_values, current_paths.keys())
@@ -265,7 +265,7 @@ def _repo_setup(context, current_paths: dict):
     return repo_groups, repo_map, path_to_repo
 
 
-def _missing_paths_for_entries(text: str, context, resolution):
+def _missing_paths_for_entries(text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution):
     """The list of paths find_images_manifest_list_diff reports as
     changed vs baseline but with no images-manifest entry yet — `text`
     is only ever parsed here, never needed again afterward."""
@@ -295,7 +295,7 @@ def _missing_paths_for_entries(text: str, context, resolution):
     return missing_paths
 
 
-def _missing_entries_setup(text: str, context):
+def _missing_entries_setup(text: str, context: MissingEntriesContext):
     """(resolution, missing_paths) — add_missing_images_manifest_
     entries' own one-time setup phase: current_paths/baseline_paths/
     repo groups/canonical names/key order/digest-pinning exceptions
@@ -325,7 +325,13 @@ def _missing_entries_setup(text: str, context):
     return resolution, missing_paths
 
 
-def _pinned_tag_for_path(path: tuple[str, ...], context, resolution, current_tag: str, name: str):
+def _pinned_tag_for_path(
+    path: tuple[str, ...],
+    context: MissingEntriesContext,
+    resolution: MissingEntriesResolution,
+    current_tag: str,
+    name: str,
+):
     """The resolved digest-pinned tag for `path` (see resolved_digest_
     pin) — when allow_pull is set and no digest is pinned locally at
     all, tries a real registry lookup instead of giving up immediately
@@ -356,7 +362,9 @@ def _pinned_tag_for_path(path: tuple[str, ...], context, resolution, current_tag
     return None
 
 
-def _entry_fields_for_missing_path(path: tuple[str, ...], context, resolution):
+def _entry_fields_for_missing_path(
+    path: tuple[str, ...], context: MissingEntriesContext, resolution: MissingEntriesResolution
+):
     """(name, AddedEntryFields | None) for `path` — fields is None when
     it can't be resolved to a real repository or a digest-pinned tag at
     all (the caller reports `name` as skipped in that case; `name` is
@@ -381,7 +389,13 @@ def _entry_fields_for_missing_path(path: tuple[str, ...], context, resolution):
     return name, AddedEntryFields(name, repo, full_repo_url, pinned_tag)
 
 
-def _entry_old_version_and_digest_change(path: tuple[str, ...], new_version: str, pinned_tag: str, context, resolution):
+def _entry_old_version_and_digest_change(
+    path: tuple[str, ...],
+    new_version: str,
+    pinned_tag: str,
+    context: MissingEntriesContext,
+    resolution: MissingEntriesResolution,
+):
     """(old_version, digest_only_change) for a newly-added entry's own
     comment — old_version from the exact baseline path when one exists
     (flagging a same-version/changed-digest re-pin via digest_only_
@@ -437,7 +451,7 @@ def _manifest_lines_for_insert(text: str):
     return lines
 
 
-def _entry_insertion_keys(lines: list, context, resolution):
+def _entry_insertion_keys(lines: list, context: MissingEntriesContext, resolution: MissingEntriesResolution):
     """(entry_line_indices, entry_keys) — every existing entry's own
     line index and sort key (see images_manifest_order_key), used to
     find where a new entry belongs (see insertion_index)."""
@@ -462,7 +476,13 @@ def _entry_insertion_keys(lines: list, context, resolution):
     return entry_line_indices, entry_keys
 
 
-def _splice_added_entry_block(lines: list, context, resolution, new_key: tuple[int, ...], block_lines: list[str]):
+def _splice_added_entry_block(
+    lines: list,
+    context: MissingEntriesContext,
+    resolution: MissingEntriesResolution,
+    new_key: tuple[int, ...],
+    block_lines: list[str],
+):
     """Insert `block_lines` (a new entry's own comment+entry block) at
     the position matching values.yaml's own component order relative to
     what's already in `lines` (see insertion_index/images_manifest_
@@ -477,7 +497,13 @@ def _splice_added_entry_block(lines: list, context, resolution, new_key: tuple[i
         lines.extend(block_lines)
 
 
-def _insert_added_entry(text: str, path: tuple[str, ...], context, resolution, fields):
+def _insert_added_entry(
+    text: str,
+    path: tuple[str, ...],
+    context: MissingEntriesContext,
+    resolution: MissingEntriesResolution,
+    fields: AddedEntryFields,
+):
     """Insert `fields`'s own comment+entry block (and header item, when
     not already covered by an earlier lockstep sibling's own item — see
     add_missing_images_manifest_entries' own docstring) at the position
@@ -511,7 +537,9 @@ def _insert_added_entry(text: str, path: tuple[str, ...], context, resolution, f
     return "".join(lines)
 
 
-def _backfilled_header_target(lines: list[str], header_text: str, context, resolution):
+def _backfilled_header_target(
+    lines: list[str], header_text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
+):
     """The (entry_path, entry_name, entry_old, entry_new) for the FIRST
     entry (in manifest order) whose own display name isn't already
     mentioned anywhere in `header_text` — None if every entry is already
@@ -544,7 +572,7 @@ def _backfilled_header_target(lines: list[str], header_text: str, context, resol
     return None
 
 
-def _backfill_header_items(text: str, context, resolution):
+def _backfill_header_items(text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution):
     """Second pass: insert a header item for any entry that already has
     its own comment+entry block (e.g. added by an earlier run, before
     header-list support existed) but was never given one. Old/new
@@ -575,7 +603,7 @@ def _backfill_header_items(text: str, context, resolution):
     return text, backfilled_names
 
 
-def add_missing_images_manifest_entries(text: str, context):
+def add_missing_images_manifest_entries(text: str, context: MissingEntriesContext):
     """Insert a new entry (+ its own "# <name> — <old> -> <new>" comment,
     and a matching numbered item in the "# Changes:" header list) for
     every image lib.upgradedoc.find_images_manifest_list_diff's own

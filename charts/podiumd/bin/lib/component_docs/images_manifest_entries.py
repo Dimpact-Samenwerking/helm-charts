@@ -6,11 +6,13 @@ Shared by update-component-version and update-image-version."""
 import re
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import yaml
 
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.component_docs.changes_section import ComponentState
+from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import ensure_images_manifest_changes_header
@@ -37,7 +39,7 @@ class ManifestUpdateTarget:
     component's own entries within it, update_images_manifest/remove_
     component_from_images_manifest operate on."""
 
-    images_path: object
+    images_path: Path
     friendly: str
     values_key: str
 
@@ -139,7 +141,7 @@ def _rewrite_entry_scalars(lines: list[str], entry_line_idx: int, new_app_versio
     return changed
 
 
-def update_images_manifest_entry(manifest, index: int, new_tag: str, values_key: str):
+def update_images_manifest_entry(manifest: ParsedManifest, index: int, new_tag: str, values_key: str):
     """Update an existing entry's version/digest fields and its preceding
     comment's version pair in place. The comment may be shared across
     several of this component's entries (e.g. zgw-office-addin's frontend +
@@ -168,7 +170,7 @@ def update_images_manifest_entry(manifest, index: int, new_tag: str, values_key:
     return changed
 
 
-def _changes_header_item_text(friendly: str, change):
+def _changes_header_item_text(friendly: str, change: VersionChange):
     """The rendered "<friendly> <app transition> (chart <chart bit>)."
     changes-header list-item text for `change` (a VersionChange) — a
     native_components component (see lib.chart.native_components,
@@ -181,7 +183,9 @@ def _changes_header_item_text(friendly: str, change):
     return f"{friendly} {image_manifest_version_text(change.old_app, change.new_app)} (chart {chart_bit})."
 
 
-def _update_changes_header_item(lines: list[str], target, change, state):
+def _update_changes_header_item(
+    lines: list[str], target: ManifestUpdateTarget, change: VersionChange, state: ComponentState
+):
     """Update this component's own existing changes-header list item in
     place, or insert a brand-new one at its own values.yaml-order slot
     (see update_images_manifest's own docstring for why the position
@@ -204,7 +208,7 @@ def _update_changes_header_item(lines: list[str], target, change, state):
     return "added"
 
 
-def _apply_entry_updates(manifest, path_update, values_key: str):
+def _apply_entry_updates(manifest: ParsedManifest, path_update: ImagePathUpdate, values_key: str):
     """Update every existing manifest entry for `path_update.paths`,
     returning (entry_names_updated, missing_entries) — missing_entries is
     [(image_path, repo, new_tag), ...] for a component_image_paths() path
@@ -224,7 +228,9 @@ def _apply_entry_updates(manifest, path_update, values_key: str):
     return entry_updates, missing_entries
 
 
-def update_images_manifest(target, change, path_update, deps: list, values: dict):
+def update_images_manifest(
+    target: ManifestUpdateTarget, change: VersionChange, path_update: ImagePathUpdate, deps: list, values: dict
+):
     """Update the "# <N> changes:" header list and any existing entries'
     version/digest/comment for this component. `target` is a
     ManifestUpdateTarget, `change` a VersionChange, `path_update` an
@@ -298,7 +304,7 @@ def _remove_changes_header_item(lines: list[str], friendly: str):
     return "removed"
 
 
-def _remove_entry_updates(manifest, path_update, values_key: str):
+def _remove_entry_updates(manifest: ParsedManifest, path_update: ImagePathUpdate, values_key: str):
     """Rewrite every touched entry's final version/digest (still correct
     even with no change left to document, see remove_component_from_
     images_manifest's own docstring) and delete its own preceding source
@@ -328,7 +334,7 @@ def _remove_entry_updates(manifest, path_update, values_key: str):
     return entry_updates
 
 
-def remove_component_from_images_manifest(target, path_update):
+def remove_component_from_images_manifest(target: ManifestUpdateTarget, path_update: ImagePathUpdate):
     """Counterpart to update_images_manifest for a bump that nets out to no
     change from upgrade_docs_baseline at all (see lib.upgradedoc.compute_changed_
     components): still writes each touched entry's final version/digest —

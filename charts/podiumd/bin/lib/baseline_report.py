@@ -6,8 +6,10 @@ resolve-and-print body actually does (a component's Helm chart version
 plus every image path it declares, vs. a single <key> <basename> image
 pin) — see show_baseline_section's own docstring."""
 
+from collections.abc import Callable
 
-def show_baseline_section(label: str, baseline: str | None, resolve):
+
+def show_baseline_section(label: str, baseline: str | None, resolve: Callable):
     """Prints "=== {label} baseline ===" (label: "upgrade_docs" or
     "release_table"), then one of three things:
       - `baseline` is None: a one-line "release-baseline.yaml has no

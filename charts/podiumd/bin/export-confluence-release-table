@@ -340,7 +340,7 @@ def apply_native_helm_marker(rows: list):
             row[target_idx] = "NATIVE"
 
 
-def resolve_token(args):
+def resolve_token(args: argparse.Namespace):
     """Returns the Confluence API token to authenticate with, preferring
     --token-file, then --token, then the CONFLUENCE_API_TOKEN environment
     variable, and finally an interactive getpass prompt as the last
@@ -451,7 +451,7 @@ def _rows_for_tables(matching: list, context: ComponentResolutionContext):
     return rows_out, unknown_count, target_labels
 
 
-def _rows_for_table(heading: str, rows: list, context):
+def _rows_for_table(heading: str, rows: list, context: ComponentResolutionContext):
     """The CSV data rows this one already-matched table contributes
     (before image_basename is resolved/inserted — see extract_release_
     rows' own docstring), plus how many of its version cells weren't
@@ -483,7 +483,7 @@ def _rows_for_table(heading: str, rows: list, context):
     return rows_out, unknown_count, target_label
 
 
-def _release_row_from_data_row(data_row: list[str], heading: str, columns: dict, context):
+def _release_row_from_data_row(data_row: list[str], heading: str, columns: dict, context: ComponentResolutionContext):
     """One CSV data row (section, vendor, used_by, name, component,
     alias, ...versions) resolved from one matched table's own data
     row, plus how many of its version cells weren't semver-compatible

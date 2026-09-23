@@ -18,7 +18,11 @@ from lib.upgradedoc.string_and_parsing_basics import words_of
 
 
 def actual_app_version(
-    values: dict, values_key: str, component: str | None = None, chart_dir: Path | None = None, dep: dict | None = None
+    values: dict | None,
+    values_key: str,
+    component: str | None = None,
+    chart_dir: Path | None = None,
+    dep: dict | None = None,
 ):
     """The app version currently pinned for a component — tries each of
     lib.chart.image_paths_for(component)'s own dotted path(s) in turn:
@@ -92,10 +96,10 @@ class BaselineComponentQuery:
     image_path: str
     chart_name: str
     new_chart: str
-    chart_dir: object = None
+    chart_dir: Path | None = None
 
 
-def resolve_baseline_component_versions(query):
+def resolve_baseline_component_versions(query: BaselineComponentQuery):
     """(old_app, old_chart) resolved against the TRUE release baseline —
     the single source of truth update-image-version's own update_docs_
     single_component and update-component-version's own main() both

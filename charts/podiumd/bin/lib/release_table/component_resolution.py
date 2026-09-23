@@ -4,6 +4,8 @@ split out of that script for pylint's too-many-lines check."""
 
 import re
 
+from collections.abc import Callable
+from collections.abc import Collection
 from pathlib import Path
 
 from lib.chart.release_baseline_basics import load_yaml
@@ -111,7 +113,7 @@ def global_image_keys(chart_dir: Path):
     return list(images) if isinstance(images, dict) else []
 
 
-def _tier_matches(candidates: list[str], dependencies: list | tuple, predicate):
+def _tier_matches(candidates: list[str], dependencies: list | tuple, predicate: Callable):
     """{dependency_name: alias} for every dependency in `dependencies`
     where `predicate(candidate, dependency_name, alias)` holds for at
     least one of `candidates` — every distinct dependency that matches
@@ -263,7 +265,7 @@ def _exact_options(text: str, options):
     return {o for o in options if normalize_name(o) in candidates}
 
 
-def exact_match(text: str, options):
+def exact_match(text: str, options: Collection):
     """The single option in `options` whose own normalize_name is exactly
     one of name_candidates(text) — None if none do, or more than one
     ties (an ambiguity, never a guess). This is match_one's own first,

@@ -5,6 +5,7 @@ pair_renames) they're built from, and path_display_name."""
 
 import re
 
+from collections.abc import Callable
 from typing import Any
 
 from lib.chart.registered_paths import is_primary_image_path
@@ -61,7 +62,7 @@ def find_preceding_comment_line(lines: list[str], entry_line_index: int):
 
 
 def find_grouped_preceding_comment(
-    lines: list[str], entries: list, entry_line_indices: list[int], index: int, same_group
+    lines: list[str], entries: list, entry_line_indices: list[int], index: int, same_group: Callable
 ):
     """The comment describing entries[index]'s version bump: its own
     directly-preceding comment if it has one, else — when a component's
@@ -89,7 +90,7 @@ def find_grouped_preceding_comment(
 
 
 def find_grouped_preceding_comment_line(
-    lines: list[str], entries: list, entry_line_indices: list[int], index: int, same_group
+    lines: list[str], entries: list, entry_line_indices: list[int], index: int, same_group: Callable
 ):
     """Same grouping rule as find_grouped_preceding_comment, for callers
     that need the matched comment's line index (to rewrite it in place)

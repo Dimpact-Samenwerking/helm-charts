@@ -29,7 +29,7 @@ from lib.registry import registry_tag_exists
 # A BOM breaks YAML tooling that doesn't expect one. Shared by
 # verify-podiumd (detects and reports it — a verify script never writes
 # to a tracked file) and fix-utf8-bom (the fixer).
-def resolved_digest_pin(values: dict, path: tuple[str, ...], tag: str, sibling_fields: dict):
+def resolved_digest_pin(values: dict | None, path: tuple[str, ...], tag: str, sibling_fields: dict):
     """`tag`'s own "@sha256:<hex>" suffix if it already has one, else —
     for a path registered in `sibling_fields` (lib.settings.
     digest_pinning_exceptions(chart_dir), or an equivalent {path:
@@ -345,7 +345,7 @@ def resolve_chart_values(chart_dir: Path, dep: dict, version: str, *, allow_pull
 
 
 def primary_image_repositories(
-    chart_dir: Path | None, dep: dict, own_values: dict, version=None, *, allow_pull: bool = True
+    chart_dir: Path | None, dep: dict, own_values: dict | None, version=None, *, allow_pull: bool = True
 ):
     """({path: repository_or_None, ...}, error_or_None) for every one of
     dep's own primary image path(s) (see image_paths_for(dep["name"])) —

@@ -5,6 +5,7 @@ diff implies), both diffing against the true git baseline."""
 
 from dataclasses import dataclass
 from dataclasses import field
+from pathlib import Path
 
 from lib.chart.historical_baselines import historical_app_version_for_repository
 from lib.chart.pull_and_subchart_resolution import global_image_paths
@@ -96,11 +97,11 @@ class ManifestDiffContext:
     real caller passes all five — see find_images_manifest_list_diff's
     own docstring for what each one means."""
 
-    chart_dir: object = None
-    deps: object = None
-    upgrade_docs_baseline: object = None
-    values: object = None
-    baseline_values: object = None
+    chart_dir: Path | None = None
+    deps: list | None = None
+    upgrade_docs_baseline: str | None = None
+    values: dict | None = None
+    baseline_values: dict | None = None
 
 
 @dataclass
@@ -119,11 +120,13 @@ class ManifestDiffInputs:
     baseline_paths: dict
     repo_map: dict
     repo_groups: dict
-    unresolvable_paths: object
+    unresolvable_paths: set
     context: ManifestDiffContext = field(default_factory=ManifestDiffContext)
 
 
-def _digest_changed(inputs, sibling_fields: dict, path: tuple[str, ...], tag: str, baseline_tag: str):
+def _digest_changed(
+    inputs: ManifestDiffInputs, sibling_fields: dict, path: tuple[str, ...], tag: str, baseline_tag: str
+):
     # Only fires when BOTH sides have a resolvable digest of their own
     # to compare (see find_images_manifest_list_diff's own docstring) —
     # a bare tag with no stored digest on either side yields None here
@@ -137,7 +140,7 @@ def _digest_changed(inputs, sibling_fields: dict, path: tuple[str, ...], tag: st
     return current_digest.split("@", 1)[1] != baseline_digest.split("@", 1)[1]
 
 
-def _pin_changed(inputs, path_to_repo: dict, sibling_fields: dict, path: tuple[str, ...], tag: str):
+def _pin_changed(inputs: ManifestDiffInputs, path_to_repo: dict, sibling_fields: dict, path: tuple[str, ...], tag: str):
     baseline_tag = inputs.baseline_paths.get(path)
     if baseline_tag is not None:
         return version_of(tag) != version_of(baseline_tag) or _digest_changed(
@@ -177,7 +180,7 @@ def _pin_changed(inputs, path_to_repo: dict, sibling_fields: dict, path: tuple[s
     return version_of(tag) != version_of(historical_version)
 
 
-def _match_entries(inputs, representative_of: dict, changed_paths: set):
+def _match_entries(inputs: ManifestDiffInputs, representative_of: dict, changed_paths: set):
     """(matched_paths, stale_entry_names, unmatched_entry_names) — every
     manifest entry resolved to its values-tree path (collapsed to its
     shared-repository group's representative, same as changed_paths
@@ -206,7 +209,7 @@ def _match_entries(inputs, representative_of: dict, changed_paths: set):
     return matched_paths, stale_entry_names, unmatched_entry_names
 
 
-def find_images_manifest_list_diff(inputs):
+def find_images_manifest_list_diff(inputs: ManifestDiffInputs):
     """(missing_paths, extra_entry_names) — the images-manifest's own
     "list of changed images" checked against the FULL, actual set of
     every image tag pin whose VERSION (lib.chart.version_of — the tag
