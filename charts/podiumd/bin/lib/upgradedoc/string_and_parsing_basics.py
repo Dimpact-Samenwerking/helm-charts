@@ -11,14 +11,14 @@ from lib.chart.values_tree_primitives import values_key_of
 COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
 
 
-def normalize_version(v):
+def normalize_version(v: str | None):
     """`v` with any leading "v"/"V" stripped (e.g. "v1.2.3" -> "1.2.3"), so a
     doc's own "v"-prefixed version and Chart.yaml/values.yaml's bare one
     compare equal. Passes through falsy `v` (None, "") unchanged."""
     return v.lstrip("vV") if v else v
 
 
-def normalize_name(s):
+def normalize_name(s: str):
     """`s` lowercased with every non-alphanumeric character stripped — the
     shared "same name, ignoring case/punctuation/spacing" key used
     throughout this module's fuzzy dependency/sidecar/component-name
@@ -26,7 +26,7 @@ def normalize_name(s):
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
-def words_of(s):
+def words_of(s: str):
     """`s` lowercased and split into its individual alphanumeric words,
     dropping every run of punctuation/whitespace between them (e.g. "ZGW
     Office Add-in (frontend)" -> ["zgw", "office", "add", "in",
@@ -35,7 +35,7 @@ def words_of(s):
     return [w for w in re.split(r"[^a-zA-Z0-9]+", s.lower()) if w]
 
 
-def extract_target_version(cell):
+def extract_target_version(cell: str):
     """Pull the target (right-hand) version out of a markdown table cell like
     "5.0.2 → 5.4.3" or "1.0.297 (unchanged)" or "`0.0.92`"."""
     cell = cell.strip()
@@ -46,7 +46,7 @@ def extract_target_version(cell):
     return m.group(1) if m else None
 
 
-def extract_source_version(cell):
+def extract_source_version(cell: str):
     """Pull the source (left-hand) version out of the same kind of cell —
     equal to the target when the cell has no arrow (e.g. "1.0.297 (unchanged)")."""
     cell = cell.strip()
@@ -57,7 +57,7 @@ def extract_source_version(cell):
     return m.group(1) if m else None
 
 
-def parse_upgrade_doc_rows(text):
+def parse_upgrade_doc_rows(text: str):
     """Every row of the "## Component versions (... vs ...)" table
     SPECIFICALLY — scoped to that one section (the heading through the
     next "## " heading, or EOF), never any OTHER pipe-table that happens
@@ -108,7 +108,7 @@ def parse_upgrade_doc_rows(text):
     return rows
 
 
-def _word_aligned_spans(text):
+def _word_aligned_spans(text: str):
     """Every contiguous run of words in `text`, concatenated and normalized
     — e.g. "ZGW Office Add-in (frontend)" -> {"zgw", "zgwoffice",
     "zgwofficeadd", "zgwofficeaddin", ..., "frontend"}. A substring check
@@ -153,7 +153,7 @@ def text_names(text: str, name: str) -> bool:
     return words[: len(name_words)] == name_words and (not rest or re.match(r"v?\d", rest[0]) is not None)
 
 
-def match_dependency(text, deps):
+def match_dependency(text: str, deps: list):
     """Fuzzy-match a doc's free-form component name (e.g. "ZAC
     (Zaakafhandelcomponent)") against Chart.yaml dependencies by name/alias,
     ignoring case and punctuation — so any component the doc mentions is
@@ -171,7 +171,7 @@ def match_dependency(text, deps):
     return best_dep
 
 
-def match_native_component(text, native_component_names):
+def match_native_component(text: str, native_component_names: set[str] | frozenset[str]):
     """match_dependency's own word-boundary-safe fuzzy match, against
     lib.chart.native_components() (a values.yaml top-level component with
     no backing Chart.yaml dependency at all — see that registry's own
@@ -194,7 +194,7 @@ def match_native_component(text, native_component_names):
     return best_key
 
 
-def match_canonical_sidecar_name(text, canonical_names):
+def match_canonical_sidecar_name(text: str, canonical_names: dict | None):
     """The values-tree path of the one canonical sidecar/shared-image
     name (lib.chart.canonical_sidecar_row_names) that `text` names: an
     exact key of canonical_names (a table row's bare name), else the
@@ -210,7 +210,7 @@ def match_canonical_sidecar_name(text, canonical_names):
     return paths.pop() if len(paths) == 1 else None
 
 
-def match_dependency_excluding_sidecar_names(text, deps):
+def match_dependency_excluding_sidecar_names(text: str, deps: list):
     """match_dependency, but refuses to match at all when `text` contains
     " - " — the canonical sidecar/shared-image delimiter (see
     lib.chart.canonical_sidecar_row_names) — since that shape never
@@ -232,7 +232,7 @@ def match_dependency_excluding_sidecar_names(text, deps):
     return None if " - " in text else match_dependency(text, deps)
 
 
-def changes_heading_identities(heading, deps, canonical_names):
+def changes_heading_identities(heading: str, deps: list, canonical_names: dict | None):
     """The set of component identities (see resolve_component_identity)
     found anywhere in a "### ..." Changes heading's text, assessed as a
     whole — never split on "+" or any other separator, since a doc could

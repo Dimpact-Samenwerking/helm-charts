@@ -608,7 +608,7 @@ def _check_changes_heading_correspondence(ctx, scan, rows_result, changes_headin
         if ctx.baseline_ref and identity in rows_result.baseline_app_by_identity:
             expected_app_heading = component_version_cell(rows_result.baseline_app_by_identity[identity], actual_app)
             without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
-            if expected_app_heading not in without_chart_clause:
+            if expected_app_heading is not None and expected_app_heading not in without_chart_clause:
                 mismatches.append(
                     f'{scan.doc_path.name}: "## Changes" section "### {heading}" shows the wrong '
                     f'app-version transition in its own heading — expected "{expected_app_heading}" '

@@ -20,7 +20,7 @@ CHANGES_BLOCK_HEADING_RE = re.compile(r"^###\s+(.+)$")
 VALUES_DELTA_SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
 
 
-def values_key_order(values):
+def values_key_order(values: dict | None):
     """Top-level keys of values.yaml in the order they appear in the file,
     top to bottom — yaml.safe_load's mapping is a plain dict, which
     preserves insertion order (Python 3.7+); for a top-level mapping that
@@ -31,7 +31,7 @@ def values_key_order(values):
     return list(values.keys()) if isinstance(values, dict) else []
 
 
-def values_tree_position(values, path):
+def values_tree_position(values: dict, path: tuple[str, ...]) -> tuple[int, ...]:
     """The FULL nested position of a resolved values-tree `path` (a
     tuple) within `values`'s own real structure — one index per path
     segment, each segment's own position among its immediate parent
@@ -83,7 +83,9 @@ def values_tree_position(values, path):
     return tuple(position)
 
 
-def component_order_key(name, deps, key_order, canonical_names=None, values=None):
+def component_order_key(
+    name: str, deps: list, key_order: list, canonical_names: dict | None = None, values: dict | None = None
+) -> tuple[int, ...]:
     """A doc item's (table row name, or "### ..." Changes heading) sort
     position: (values_key_index, is_sidecar) — values_key_index is the
     values.yaml top-level key match_dependency resolves `name` to (falling
@@ -169,7 +171,9 @@ def component_order_key(name, deps, key_order, canonical_names=None, values=None
     return (idx, is_sidecar)
 
 
-def find_out_of_order_names(names, deps, key_order, canonical_names=None, values=None):
+def find_out_of_order_names(
+    names: list, deps: list, key_order: list[str], canonical_names: dict | None = None, values: dict | None = None
+):
     """[(name_a, name_b), ...] for every ADJACENT pair whose relative order
     contradicts values.yaml's own top-level key order (see
     component_order_key) — checking only adjacent pairs is sufficient to
@@ -198,7 +202,7 @@ def find_out_of_order_names(names, deps, key_order, canonical_names=None, values
     return violations
 
 
-def insertion_index(new_key, existing_keys):
+def insertion_index(new_key: int | tuple[int, ...], existing_keys: list):
     """The index into `existing_keys` (each a component_order_key result,
     in their current order) where an item with new_key should be inserted
     to keep the sequence in non-decreasing key order: the first position
@@ -233,7 +237,7 @@ def changes_section_bounds(lines: list[str]) -> tuple[int | None, int]:
     return changes_idx, section_end
 
 
-def parse_upgrade_doc_changes_blocks(text):
+def parse_upgrade_doc_changes_blocks(text: str):
     """(heading, start, end) for every "### ..." item directly under the
     "## Changes" section of an upgrade doc — start is the heading line's
     0-based index, end is exclusive (the next "### " heading, the next
@@ -261,7 +265,7 @@ def parse_upgrade_doc_changes_blocks(text):
     return blocks
 
 
-def sort_upgrade_doc_rows(text, deps, values, canonical_names=None):
+def sort_upgrade_doc_rows(text: str, deps: list, values: dict, canonical_names: dict | None = None):
     """Reorder the "Component versions" table's rows (physically, in the
     text) to match values.yaml's own top-level key order — see
     values_key_order/component_order_key. canonical_names, when given,
@@ -294,7 +298,7 @@ def sort_upgrade_doc_rows(text, deps, values, canonical_names=None):
     return "".join(lines), moved
 
 
-def sort_changes_blocks(text, deps, values, canonical_names=None):
+def sort_changes_blocks(text: str, deps: list, values: dict, canonical_names: dict | None = None):
     """Reorder the "## Changes" section's "### ..." blocks (each block's
     full text, heading through its last line before the next block) to
     match values.yaml's own top-level key order — the same rule
@@ -325,7 +329,7 @@ def sort_changes_blocks(text, deps, values, canonical_names=None):
     return prefix + "".join(new_texts) + suffix, moved
 
 
-def parse_values_delta_sections(text):
+def parse_values_delta_sections(text: str):
     """(heading, start, end) for every top-level "## ..." heading in a
     values-deltas.md doc — start is the heading line's 0-based index,
     end is exclusive (the next "## " heading, or EOF). Unlike parse_
@@ -352,7 +356,7 @@ def parse_values_delta_sections(text):
     return sections
 
 
-def sort_values_delta_sections(text, deps, values, canonical_names=None):
+def sort_values_delta_sections(text: str, deps: list, values: dict, canonical_names: dict | None = None):
     """Reorder values-deltas.md's own top-level "## ..." sections (each
     section's full text, heading through its last line before the next
     section) to match values.yaml's own top-level key order — the same

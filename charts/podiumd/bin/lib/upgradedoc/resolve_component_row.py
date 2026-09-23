@@ -6,6 +6,7 @@ app version from values.yaml/Chart.yaml/vendored subcharts."""
 import re
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from lib.chart.historical_baselines import BaselineLookup
@@ -45,7 +46,7 @@ class ResolutionContext:
     upgrade_docs_baseline: str | None = None
 
 
-def changes_heading_has_app_version(heading):
+def changes_heading_has_app_version(heading: str):
     """Whether a "### ..." Changes heading's own text shows an app-
     version pair at all. make_changes_section's own template writes the
     app version as "<old> → <new>" when it changed, "<new> (unchanged)"
@@ -71,7 +72,7 @@ def changes_heading_has_app_version(heading):
     )
 
 
-def sidecar_tag(values, sidecar_path):
+def sidecar_tag(values: dict, sidecar_path: tuple[str, ...]):
     """The tag pinned at a sidecar's own values-tree path (as returned by
     lib.chart.canonical_sidecar_row_names — already ending in the real
     image key itself, e.g. "initImage", not a hardcoded "image") —
@@ -98,7 +99,7 @@ class RowMatch:
     native_key: str | None
 
 
-def _match_row(row_name, chart_dir, canonical_names, deps):
+def _match_row(row_name: str, chart_dir: Path | None, canonical_names: dict, deps: list):
     """RowMatch for row_name."""
     sidecar_path = canonical_names.get(row_name)
     dep = None if sidecar_path is not None else match_dependency_excluding_sidecar_names(row_name, deps)
@@ -113,7 +114,7 @@ def _match_row(row_name, chart_dir, canonical_names, deps):
     return RowMatch(sidecar_path, dep, native_key)
 
 
-def _target_result(chart_dir, values, match) -> dict[str, Any]:
+def _target_result(chart_dir: Path | None, values: dict, match) -> dict[str, Any]:
     """The "kind"/"dep"/"sidecar_path"/values-and-chart-key/target_chart/
     target_app fields of resolve_component_row's result dict — the
     target-side resolution, independent of any baseline comparison."""
@@ -149,7 +150,7 @@ def _target_result(chart_dir, values, match) -> dict[str, Any]:
     return result
 
 
-def _sidecar_baseline_app(resolution, sidecar_path):
+def _sidecar_baseline_app(resolution, sidecar_path: tuple[str, ...]):
     """A sidecar's own baseline app version — exact-path or same-
     repository-elsewhere-in-baseline_values match (via baseline_tag_
     for_sidecar_path's own two tiers), else a past images-<version>.yaml
@@ -180,7 +181,7 @@ def _sidecar_baseline_app(resolution, sidecar_path):
     return baseline_app
 
 
-def _dependency_baseline_result(resolution, values_key, dep):
+def _dependency_baseline_result(resolution, values_key: str, dep: dict):
     """A real dependency's own baseline_resolved/baseline_chart/
     baseline_app trio — whether the Chart.yaml dependency line itself
     existed at the baseline ref at all (baseline_resolved), and its
@@ -209,7 +210,7 @@ def _dependency_baseline_result(resolution, values_key, dep):
     return True, baseline_chart, baseline_app
 
 
-def _native_baseline_app(resolution, native_key):
+def _native_baseline_app(resolution, native_key: str):
     """A native component's own baseline app version — same "no
     existence check possible, just compare both app versions" shape as
     the sidecar case, since there's no dep to ask "did this exist at
@@ -228,7 +229,7 @@ def _native_baseline_app(resolution, native_key):
     return baseline_app
 
 
-def _add_baseline_result(resolution, match, result):
+def _add_baseline_result(resolution, match, result: dict):
     """Mutates result in place with baseline_resolved/baseline_chart/
     baseline_app, dispatching to the matching kind's own baseline
     lookup. Only called once resolution.baseline.deps is not None (see
@@ -250,7 +251,7 @@ def _add_baseline_result(resolution, match, result):
         result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
 
 
-def resolve_component_row(row_name, canonical_names, resolution):
+def resolve_component_row(row_name: str, canonical_names: dict, resolution):
     """Resolve a "Component versions" table row's name to the real
     component it identifies, and its actual target (and, if requested,
     source) versions — the one place both fix-doc-consistency's row-

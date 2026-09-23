@@ -19,7 +19,7 @@ FENCED_CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
-def version_change_suffix(old, new, *, digest_only_change=False):
+def version_change_suffix(old: str | None, new: str | None, *, digest_only_change: bool = False):
     """The bracketed status suffix alone for a version transition —
     "(new)" when there's no real baseline value at all (`old` falsy);
     "(digest changed)" when the version itself didn't change but its
@@ -59,7 +59,7 @@ def version_change_suffix(old, new, *, digest_only_change=False):
     return None
 
 
-def image_manifest_version_text(old, new, *, digest_only_change=False):
+def image_manifest_version_text(old: str | None, new: str, *, digest_only_change: bool = False):
     """The images-manifest's own house style for a version-change
     comment (an entry's own preceding comment, or a "# Changes:" header
     list item's own embedded version fragment) — ascii "->" arrow,
@@ -71,7 +71,7 @@ def image_manifest_version_text(old, new, *, digest_only_change=False):
     return f"{new} {suffix}" if suffix else f"{old} -> {new}"
 
 
-def canonical_version_cell(actual_source, actual_target):
+def canonical_version_cell(actual_source: str, actual_target: str | None):
     """A "Component versions" table cell in the established style:
     "<target> (unchanged)" when source==target, else "<source> → <target>"."""
     suffix = version_change_suffix(actual_source, actual_target)
@@ -80,7 +80,7 @@ def canonical_version_cell(actual_source, actual_target):
     return f"{actual_source} → {actual_target}"
 
 
-def new_component_version_cell(actual_target):
+def new_component_version_cell(actual_target: str):
     """A "Component versions" table cell for a component with no baseline
     version at all — brand new this hop: "<target> (new)", the third
     member of canonical_version_cell's own "<target> (unchanged)" /
@@ -88,7 +88,7 @@ def new_component_version_cell(actual_target):
     return f"{actual_target} {version_change_suffix(None, actual_target)}"
 
 
-def component_version_cell(old, new):
+def component_version_cell(old: str | None, new: str | None):
     """canonical_version_cell(old, new) when a baseline value exists;
     new_component_version_cell(new) when it doesn't AND `new` is a real
     version — never for the literal "-" not-applicable placeholder a
@@ -110,7 +110,7 @@ def component_version_cell(old, new):
     return new
 
 
-def replace_version_pair(line, new_source, new_target):
+def replace_version_pair(line: str, new_source: str, new_target: str):
     """Replace the first "<source> -> <target>" (or "→") pair in line with
     new_source/new_target, preserving everything else (the "# <Name> — "
     prefix, arrow style, trailing newline)."""
@@ -122,7 +122,7 @@ def replace_version_pair(line, new_source, new_target):
     return new_line if count else line
 
 
-def replace_version_spec(line, new_spec):
+def replace_version_spec(line: str, new_spec: str):
     """Replace the first version-spec substring in `line` — either an
     "<source> -> <target>" (or "→") arrow pair (see replace_version_
     pair/VERSION_PAIR_RE), or a "<version> (new)"/"(unchanged)"/"(digest
@@ -146,7 +146,7 @@ def replace_version_spec(line, new_spec):
     return new_line if count else line
 
 
-def describe_key_changes(values_key, baseline_subtree, current_subtree):
+def describe_key_changes(values_key: str, baseline_subtree: dict, current_subtree: dict):
     """One "- Key `<dotted>` was added/removed/renamed to `<dotted>`." line
     per top-level key change under this component — backtick-quoted,
     matching the convention verify-podiumd's own check looks for.
@@ -161,7 +161,7 @@ def describe_key_changes(values_key, baseline_subtree, current_subtree):
     removed = [p for kind, p in diffs if kind == "removed"]
     renamed, added, removed = pair_renames(added, removed, baseline_subtree, current_subtree)
 
-    def dotted(path):
+    def dotted(path: tuple[str, ...]):
         return ".".join((values_key, *path))
 
     lines = [f"- Key `{dotted(path)}` was added.\n" for path in added]
@@ -170,7 +170,9 @@ def describe_key_changes(values_key, baseline_subtree, current_subtree):
     return lines
 
 
-def missing_key_change_lines_by_key(text, changed_component_keys, baseline_values, values):
+def missing_key_change_lines_by_key(
+    text: str, changed_component_keys: set, baseline_values: dict | None, values: dict | None
+):
     """{values_key: [line, ...]} — every describe_key_changes() line for
     a changed component that isn't already mentioned (backtick-quoted,
     matching verify-podiumd's own check_values_deltas_content
@@ -213,7 +215,7 @@ def missing_key_change_lines_by_key(text, changed_component_keys, baseline_value
     for the one known way the "mentioned" check itself can be fooled)."""
     backtick_spans = set(re.findall(r"`([^`]+)`", strip_fenced_code_blocks(text)))
 
-    def mentioned(span):
+    def mentioned(span: str):
         return span in backtick_spans
 
     by_key = {}
@@ -230,7 +232,7 @@ def missing_key_change_lines_by_key(text, changed_component_keys, baseline_value
     return by_key
 
 
-def strip_fenced_code_blocks(text):
+def strip_fenced_code_blocks(text: str):
     """`text` with every ```...``` fenced code block blanked out. A single
     backtick or "**" sequence inside example code isn't a real inline-
     code/bold span, but naively pairing delimiters across the WHOLE
@@ -245,7 +247,7 @@ def strip_fenced_code_blocks(text):
     return FENCED_CODE_BLOCK_RE.sub("", text)
 
 
-def strip_html_comments(text):
+def strip_html_comments(text: str):
     """`text` with every <!-- ... --> HTML comment blanked out — same
     "scan the stripped text, never the original" precedent as strip_
     fenced_code_blocks above. Used by lib.component_docs.has_real_
@@ -256,7 +258,7 @@ def strip_html_comments(text):
     return HTML_COMMENT_RE.sub("", text)
 
 
-def append_to_doc(text, new_lines):
+def append_to_doc(text: str, new_lines: list):
     """Append new_lines to the end of a doc, blank-line-separated from
     whatever's already there — the shared "just tack this on" convention
     used when a script adds content to an existing markdown doc."""

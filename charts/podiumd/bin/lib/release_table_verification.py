@@ -26,6 +26,7 @@ Split out of the script for pylint's too-many-lines threshold (1000)."""
 
 from collections import defaultdict
 from dataclasses import dataclass
+from pathlib import Path
 
 from lib.chart.pull_and_subchart_resolution import primary_image_repositories
 from lib.chart.registered_paths import image_paths_for
@@ -76,7 +77,7 @@ class ChartState:
     (see primary_image_basename/check_images_source), never re-derived
     per snapshot."""
 
-    chart_dir: object
+    chart_dir: Path
     deps: list
     values: dict
     lines: list

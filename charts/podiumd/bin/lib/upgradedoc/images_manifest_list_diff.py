@@ -19,7 +19,7 @@ from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 
 
-def compute_changed_components(deps, baseline_deps, values, baseline_values):
+def compute_changed_components(deps: list, baseline_deps: list, values: dict, baseline_values: dict | None):
     """Top-level component keys (Chart.yaml alias, or name if unaliased) that
     actually differ between the baseline and now: dependency added or
     removed, chart version bumped, or any image tag anywhere under that
@@ -65,7 +65,7 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
     if baseline_values:
         global_tags |= {tag for _path, tag in global_image_paths(baseline_values)}
 
-    def subtree_paths(key, paths):
+    def subtree_paths(key: str, paths: dict):
         return {p: version_of(t) for p, t in paths.items() if p[0] == key and t not in global_tags}
 
     changed = set()
@@ -123,7 +123,7 @@ class ManifestDiffInputs:
     context: ManifestDiffContext = field(default_factory=ManifestDiffContext)
 
 
-def _digest_changed(inputs, sibling_fields, path, tag, baseline_tag):
+def _digest_changed(inputs, sibling_fields: dict, path: tuple[str, ...], tag: str, baseline_tag: str):
     # Only fires when BOTH sides have a resolvable digest of their own
     # to compare (see find_images_manifest_list_diff's own docstring) —
     # a bare tag with no stored digest on either side yields None here
@@ -137,7 +137,7 @@ def _digest_changed(inputs, sibling_fields, path, tag, baseline_tag):
     return current_digest.split("@", 1)[1] != baseline_digest.split("@", 1)[1]
 
 
-def _pin_changed(inputs, path_to_repo, sibling_fields, path, tag):
+def _pin_changed(inputs, path_to_repo: dict, sibling_fields: dict, path: tuple[str, ...], tag: str):
     baseline_tag = inputs.baseline_paths.get(path)
     if baseline_tag is not None:
         return version_of(tag) != version_of(baseline_tag) or _digest_changed(
@@ -177,7 +177,7 @@ def _pin_changed(inputs, path_to_repo, sibling_fields, path, tag):
     return version_of(tag) != version_of(historical_version)
 
 
-def _match_entries(inputs, representative_of, changed_paths):
+def _match_entries(inputs, representative_of: dict, changed_paths: set):
     """(matched_paths, stale_entry_names, unmatched_entry_names) — every
     manifest entry resolved to its values-tree path (collapsed to its
     shared-repository group's representative, same as changed_paths

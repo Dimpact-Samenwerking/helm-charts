@@ -9,6 +9,7 @@ entry generation."""
 import re
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import yaml
 
@@ -23,7 +24,7 @@ from lib.chart.repo_and_path_resolution import repo_group_representative
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
-def historical_images_manifest_paths(chart_dir, at_or_before=None):
+def historical_images_manifest_paths(chart_dir: Path | None, at_or_before: str | None = None):
     """This chart's own docs/images/images-<version>.yaml files, most-
     recent-first — every past release's own real, already-committed
     "what changed that hop" manifest (each one lists ONLY that hop's own
@@ -59,7 +60,9 @@ def historical_images_manifest_paths(chart_dir, at_or_before=None):
     return [path for _version_tuple, path in dated]
 
 
-def historical_app_version_for_repository(chart_dir, repo, at_or_before=None, expected_url=None):
+def historical_app_version_for_repository(
+    chart_dir: Path | None, repo: str, at_or_before: str | None = None, expected_url: str | None = None
+):
     """The most recent version this EXACT repository (already stripped,
     see strip_registry_host) was pinned to in any of this chart's own
     past images-<version>.yaml manifests (historical_images_manifest_
@@ -113,7 +116,9 @@ def historical_app_version_for_repository(chart_dir, repo, at_or_before=None, ex
     return None
 
 
-def historical_app_version_for_path(chart_dir, deps, values, path, at_or_before=None):
+def historical_app_version_for_path(
+    chart_dir: Path | None, deps: list, values: dict, path: tuple[str, ...], at_or_before: str | None = None
+):
     """historical_app_version_for_repository, for `path`'s own resolved
     repository (see paths_by_repository's own per-path resolution
     chain) — a single-path convenience wrapper, not a separate
@@ -156,7 +161,7 @@ class BaselineLookup:
     baseline_repo_groups: dict
 
 
-def baseline_lookup(chart_dir, deps, target_values, baseline_values, baseline_setup):
+def baseline_lookup(chart_dir: Path | None, deps: list, target_values: dict, baseline_values: dict, baseline_setup):
     """A BaselineLookup built from chart_dir/deps/target_values/
     baseline_values plus a caller's own baseline_paths/baseline_repo_groups
     bundle (baseline_setup — any object exposing those two attributes,
@@ -174,7 +179,7 @@ def baseline_lookup(chart_dir, deps, target_values, baseline_values, baseline_se
     )
 
 
-def baseline_tag_for_sidecar_path(lookup, path):
+def baseline_tag_for_sidecar_path(lookup, path: tuple[str, ...]):
     """The baseline (pre-upgrade) tag for a sidecar/shared-image (or
     registered bare-version, see below) values-tree `path`, tried in two
     tiers — the one place lib.image.docs.add_missing_sidecar_rows' own

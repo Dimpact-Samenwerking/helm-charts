@@ -5,6 +5,8 @@ pair_renames) they're built from, and path_display_name."""
 
 import re
 
+from typing import Any
+
 from lib.chart.registered_paths import is_primary_image_path
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
@@ -21,7 +23,7 @@ VERSION_SPEC_RE = re.compile(
 )
 
 
-def find_preceding_comment(lines, entry_line_index):
+def find_preceding_comment(lines: list[str], entry_line_index: int):
     """The comment line(s) immediately above a "- name: ..." line, e.g.
     "# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static" right above the opa
     entry — stops at the first blank/non-comment line, so it doesn't reach
@@ -34,7 +36,7 @@ def find_preceding_comment(lines, entry_line_index):
     return " ".join(comment_lines)
 
 
-def find_preceding_comment_line(lines, entry_line_index):
+def find_preceding_comment_line(lines: list[str], entry_line_index: int):
     """Index of the closest comment line above entry_line_index that
     states a version spec — a "<source> -> <target>" pair, OR a bare
     "<version> (new)"/"(unchanged)"/"(digest changed)" (see VERSION_
@@ -58,7 +60,9 @@ def find_preceding_comment_line(lines, entry_line_index):
     return None
 
 
-def find_grouped_preceding_comment(lines, entries, entry_line_indices, index, same_group):
+def find_grouped_preceding_comment(
+    lines: list[str], entries: list, entry_line_indices: list[int], index: int, same_group
+):
     """The comment describing entries[index]'s version bump: its own
     directly-preceding comment if it has one, else — when a component's
     images are listed as one contiguous block sharing a single comment
@@ -84,7 +88,9 @@ def find_grouped_preceding_comment(lines, entries, entry_line_indices, index, sa
     return find_grouped_preceding_comment(lines, entries, entry_line_indices, index - 1, same_group)
 
 
-def find_grouped_preceding_comment_line(lines, entries, entry_line_indices, index, same_group):
+def find_grouped_preceding_comment_line(
+    lines: list[str], entries: list, entry_line_indices: list[int], index: int, same_group
+):
     """Same grouping rule as find_grouped_preceding_comment, for callers
     that need the matched comment's line index (to rewrite it in place)
     rather than its text — built on find_preceding_comment_line's
@@ -97,7 +103,7 @@ def find_grouped_preceding_comment_line(lines, entries, entry_line_indices, inde
     return find_grouped_preceding_comment_line(lines, entries, entry_line_indices, index - 1, same_group)
 
 
-def diff_keys(baseline_node, current_node, path=()):
+def diff_keys(baseline_node, current_node, path: tuple = ()):
     """Yield ("added"|"removed", path) for the SHALLOWEST differing keys
     between two values subtrees — if a whole block is new or gone, report it
     once at that level rather than recursing into every leaf underneath it.
@@ -133,7 +139,7 @@ def flatten_leaf_keys(node):
     return keys
 
 
-def _get_at_path(node, path):
+def _get_at_path(node: object, path: tuple[str, ...]) -> Any:
     for key in path:
         if not isinstance(node, dict):
             return None
@@ -141,7 +147,7 @@ def _get_at_path(node, path):
     return node
 
 
-def _find_rename_match(add_path, removed_left, baseline_node, current_node):
+def _find_rename_match(add_path: tuple[str, ...], removed_left: list, baseline_node: dict, current_node: dict):
     """First rem_path in removed_left that pairs with add_path as a rename
     candidate — same parent path, and either similar leaf keys or an
     unchanged scalar value (see pair_renames) — or None."""
@@ -158,7 +164,7 @@ def _find_rename_match(add_path, removed_left, baseline_node, current_node):
     return None
 
 
-def pair_renames(added, removed, baseline_node, current_node):
+def pair_renames(added: list, removed: list, baseline_node: dict, current_node: dict):
     """Pair an added and a removed key at the same parent path into a rename
     candidate when their subtrees share enough leaf key names (e.g.
     mi.sftp -> mi.transfer, both containing host/user/password) — otherwise
@@ -173,7 +179,7 @@ def pair_renames(added, removed, baseline_node, current_node):
     return renamed, added_left, removed_left
 
 
-def parse_changes_block(text):
+def parse_changes_block(text: str):
     """Parse the "# Changes:" numbered-list block in an images manifest's
     header comment, e.g.:
         #   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).
@@ -241,7 +247,7 @@ def _changes_block_lines(text: str):
             yield line
 
 
-def _finalize_changes_item(rest):
+def _finalize_changes_item(rest: str):
     # extract_source_version/extract_target_version's own [\w.\-]* token
     # regex treats "." as a valid version character (needed for "1.31.4"
     # itself) — harmless for a table cell, but a Changes item is free-form
@@ -307,7 +313,7 @@ def _finalize_changes_item(rest):
     }
 
 
-def path_display_name(path, deps, canonical_names):
+def path_display_name(path: tuple[str, ...], deps: list, canonical_names: dict):
     """The doc-facing name for a values-tree image path — "<values_key>"
     for a dependency's own primary image (same convention as every
     "component "<key>" changed vs ..." message elsewhere in this check),

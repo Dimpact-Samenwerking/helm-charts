@@ -72,7 +72,7 @@ class ManifestSortContext:
     canonical_names: dict
 
 
-def entry_component(entry, current_paths, repo_map):
+def entry_component(entry: dict, current_paths: dict, repo_map: dict | None):
     """The top-level values-tree component an images-manifest entry
     resolves to (path[0], via resolve_entry_image_path), or None when it
     doesn't resolve to any real path at all."""
@@ -80,7 +80,7 @@ def entry_component(entry, current_paths, repo_map):
     return path[0] if path else None
 
 
-def images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map):
+def images_manifest_entries_share_group(entry_a: dict, entry_b: dict, current_paths: dict, repo_map: dict | None):
     """True when entry_a and entry_b are part of ONE shared-comment
     group in the images manifest — same top-level component AND the
     same declared manifest "version" (evidence of one lockstep bump
@@ -100,7 +100,7 @@ def images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_ma
     )
 
 
-def _own_header_top_line(lines, entry_line_index):
+def _own_header_top_line(lines: list[str], entry_line_index: int):
     """The raw (whitespace-preserving) text of the TOPMOST line in this
     entry's own directly-preceding comment block, or None when there's
     no comment directly above it at all (a blank/non-comment line sits
@@ -120,7 +120,7 @@ def _own_header_top_line(lines, entry_line_index):
     return top
 
 
-def images_manifest_block_start(lines, entry_line_idx):
+def images_manifest_block_start(lines: list[str], entry_line_idx: int):
     """The line index where this entry's own preceding comment block
     begins (or the entry line itself if it has none) — walks upward
     through contiguous "#"-prefixed lines directly above. When the
@@ -141,7 +141,7 @@ def images_manifest_block_start(lines, entry_line_idx):
     return i
 
 
-def header_name_segment(text):
+def header_name_segment(text: str):
     """A header's own component-name portion — everything before its
     version pair (or before a trailing "(...)" aside, or the whole text
     when neither is present), with a trailing dash/em-dash separator
@@ -265,7 +265,9 @@ def find_images_manifest_faulty_headers(manifest, resolution):
     return problems
 
 
-def images_manifest_entry_order_key(path, deps, key_order, values=None):
+def images_manifest_entry_order_key(
+    path: tuple[str, ...] | None, deps: list, key_order: list, values: dict | None = None
+):
     """An images-manifest entry's own sort key — (values_key_index,
     is_sidecar), the SAME shape and meaning component_order_key already
     uses for -upgrade.md's own rows/Changes headings — computed from the
@@ -335,7 +337,7 @@ def _images_manifest_groups(manifest, resolution):
     keys) so the two can never disagree about what counts as one group."""
     n = len(manifest.entries)
 
-    def same_group(entry_a, entry_b):
+    def same_group(entry_a: dict, entry_b: dict):
         return images_manifest_entries_share_group(entry_a, entry_b, resolution.current_paths, resolution.repo_map)
 
     comment_idx_for = [
@@ -365,7 +367,7 @@ def _images_manifest_groups(manifest, resolution):
     return groups
 
 
-def find_images_manifest_out_of_order_names(manifest, resolution, key_order, values=None):
+def find_images_manifest_out_of_order_names(manifest, resolution, key_order: list[str], values: dict | None = None):
     """[(name_a, name_b), ...] for every ADJACENT pair of images-
     manifest GROUPS (see _images_manifest_groups) whose relative order
     contradicts values.yaml's own top-level key order (see images_
@@ -392,7 +394,7 @@ def find_images_manifest_out_of_order_names(manifest, resolution, key_order, val
     return violations
 
 
-def _collapse_group_internal_blank_lines(group_text):
+def _collapse_group_internal_blank_lines(group_text: str):
     """Within one multi-entry group's own captured text, drop every
     blank line that separates two of the group's own entries — a shared
     header's entries sit directly below one another, no blank line
@@ -447,7 +449,7 @@ def _images_manifest_sorted_groups(manifest, context):
     return groups, order
 
 
-def _parsed_manifest_from_text(text):
+def _parsed_manifest_from_text(text: str):
     """(ParsedManifest, ok) for `text` — ok is False (ParsedManifest is
     then meaningless/unused) when `text` isn't valid YAML, isn't a list,
     or has fewer than 2 entries — the same three guards images_manifest_
@@ -470,7 +472,7 @@ def _parsed_manifest_from_text(text):
     return ParsedManifest(entries, entry_line_indices, lines), True
 
 
-def images_manifest_entry_positions(text, context):
+def images_manifest_entry_positions(text: str, context):
     """{entry_name: 0-based final position} for every entry in the
     images manifest, after applying the SAME group-level reordering
     sort_images_manifest_entries itself performs — for a caller that
@@ -498,7 +500,7 @@ def images_manifest_entry_positions(text, context):
     return positions
 
 
-def images_manifest_display_name_positions(text, context):
+def images_manifest_display_name_positions(text: str, context):
     """{display_name: 0-based final position} — the SAME group-level
     positions images_manifest_entry_positions computes, keyed by each
     group's own path_display_name instead of its entries' raw YAML
@@ -546,7 +548,7 @@ def images_manifest_display_name_positions(text, context):
     return positions
 
 
-def match_changes_item_display_name(rest, display_name_positions):
+def match_changes_item_display_name(rest: str, display_name_positions: dict):
     """The longest key of display_name_positions that `rest` starts with
     (followed by a space, or an exact match) — every auto-inserted
     Changes item's own text is always built as f"{name} {old} -> {new}."
@@ -574,7 +576,7 @@ def match_changes_item_display_name(rest, display_name_positions):
     return best
 
 
-def _group_texts_and_components(lines, groups, starts):
+def _group_texts_and_components(lines: list[str], groups: list, starts: list[int]):
     """(per_group_texts, components) — each group's own captured text
     span (with an already-multi-entry group's OWN internal blank lines
     collapsed first, see _collapse_group_internal_blank_lines) and its
@@ -596,7 +598,7 @@ def _group_texts_and_components(lines, groups, starts):
     return per_group_texts, components
 
 
-def _merge_ordered_groups(per_group_texts, components, order):
+def _merge_ordered_groups(per_group_texts: list[str], components: list, order: list[int]):
     """Runs of consecutive same-component groups (in the NEW, post-sort
     `order`) merged into one text block each — collapsing blank lines
     within a multi-group run (see _collapse_group_internal_blank_lines)
@@ -630,7 +632,7 @@ def _merge_ordered_groups(per_group_texts, components, order):
     return merged_texts
 
 
-def _sorted_manifest_text(lines, entry_line_indices, groups, order):
+def _sorted_manifest_text(lines: list[str], entry_line_indices: list[int], groups: list, order: list[int]):
     """The manifest's own full text after physically applying `order` to
     `groups` — see sort_images_manifest_entries' own docstring for the
     blank-line collapse/normalize rules this also applies. Restores the
@@ -643,7 +645,7 @@ def _sorted_manifest_text(lines, entry_line_indices, groups, order):
     return prefix + "".join(merged_texts)
 
 
-def sort_images_manifest_entries(text, context):
+def sort_images_manifest_entries(text: str, context):
     """Reorder the images manifest's own entry GROUPS (physically, in
     the text) to match values.yaml's own top-level key order — see
     values_key_order/images_manifest_entry_order_key, the same rule
