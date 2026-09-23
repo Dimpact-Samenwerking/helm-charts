@@ -556,6 +556,21 @@ def _warn_duplicate_component_basename_pairs(rows_out):
             )
 
 
+def warn_unknown_lines(rows: list[list[str]], csv_path: Path | str) -> None:
+    """Prints a warning to stderr naming every row of `csv_path` (by its
+    line number in the file) that has UNKNOWN in any column."""
+    unknown = [
+        (line, row[3], [column for column, value in zip(CSV_HEADER, row, strict=False) if value == "UNKNOWN"])
+        for line, row in enumerate(rows, start=2)
+        if "UNKNOWN" in row
+    ]
+    if not unknown:
+        return
+    print(f"WARNING: {len(unknown)} line(s) in {csv_path} contain UNKNOWN:", file=sys.stderr)
+    for line, name, columns in unknown:
+        print(f'  line {line}: "{name}" ({", ".join(columns)})', file=sys.stderr)
+
+
 def main():
     """CLI entry point. With --recompute-basenames, only recomputes the
     image_basename column of the CSV already at --output in place (no
@@ -574,6 +589,7 @@ def main():
                 print(f'  {component} ("{name}"): {old!r} -> {new!r}')
         else:
             print(f"No image_basename values changed in {args.output}.")
+        warn_unknown_lines(_read_csv_rows(Path(args.output)), args.output)
         return
 
     token = resolve_token(args)
@@ -593,6 +609,7 @@ def main():
         writer.writerows(rows)
 
     print(f"Wrote {len(rows)} row(s) to {output_path}")
+    warn_unknown_lines(rows, output_path)
 
 
 if __name__ == "__main__":
