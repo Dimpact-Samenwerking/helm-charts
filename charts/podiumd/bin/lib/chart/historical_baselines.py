@@ -145,7 +145,9 @@ def historical_app_version_for_path(
     return historical_app_version_for_repository(chart_dir, repo, at_or_before, expected_url=expected_url)
 
 
-class BaselineSetup(Protocol):
+# A Protocol only declares the attributes it needs; pylint counts it as a
+# class with too few public methods.
+class BaselineSetup(Protocol):  # pylint: disable=too-few-public-methods
     """What baseline_lookup reads from a caller's own baseline bundle
     (fix_doc_consistency's _BaselineSetup and BaselineResolution)."""
 
