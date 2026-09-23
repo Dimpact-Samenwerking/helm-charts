@@ -42,6 +42,7 @@ from lib.chart.pull_and_subchart_resolution import chart_ref
 from lib.chart.pull_and_subchart_resolution import local_chart_dir
 from lib.chart.pull_and_subchart_resolution import pull_chart
 from lib.chart.pull_and_subchart_resolution import pulled_chart_dir
+from lib.chart.pull_and_subchart_resolution import require_local_chart_dir
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import find_dependency as _find_dependency
 from lib.chart.values_tree_primitives import find_images
@@ -124,12 +125,7 @@ def main():
 
     local_dir = local_chart_dir(CHART_DIR, dep)
     if local_dir is not None:
-        if not local_dir.is_dir():
-            msg = (
-                f"error: dependency '{dep['name']}' declares local path repository "
-                f"({dep['repository']}), but {local_dir} does not exist"
-            )
-            raise SystemExit(msg)
+        require_local_chart_dir(local_dir, dep)
         print(f"Reading local chart source: {local_dir}")
         report_chart(local_dir, version, key)
         return

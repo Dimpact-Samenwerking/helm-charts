@@ -46,6 +46,7 @@ from lib.chart.paths import VALUES_YAML
 from lib.chart.pull_and_subchart_resolution import local_chart_dir
 from lib.chart.pull_and_subchart_resolution import pull_chart as _pull_chart
 from lib.chart.pull_and_subchart_resolution import pulled_chart_dir
+from lib.chart.pull_and_subchart_resolution import require_local_chart_dir
 from lib.chart.pull_and_subchart_resolution import subchart_dependencies
 from lib.chart.registered_paths import version_paths_for
 from lib.chart.release_baseline_basics import load_yaml
@@ -155,12 +156,7 @@ def load_chart(dep, tmproot, refresh):
         # .tgz shape to extract — --refresh is meaningless for it either
         # way, since reading its own source directory is already always
         # current, never stale.
-        if not local_dir.is_dir():
-            msg = (
-                f"error: dependency '{dep['name']}' declares local path repository "
-                f"({dep['repository']}), but {local_dir} does not exist"
-            )
-            raise SystemExit(msg)
+        require_local_chart_dir(local_dir, dep)
         chart_dir = local_dir
     else:
         vendored = VENDORED_DIR / f"{dep['name']}-{dep['version']}.tgz"

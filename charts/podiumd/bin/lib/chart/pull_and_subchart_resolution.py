@@ -10,7 +10,6 @@ grouped here rather than starting its own module)."""
 
 import shutil
 import sys
-import tarfile
 import tempfile
 
 from pathlib import Path
@@ -21,6 +20,7 @@ from lib.chart.nested_subchart_identity import nested_subchart_raw_text
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import values_key_of
+from lib.chart.vendored_files import vendored_chart_file
 from lib.procutil import run
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
@@ -88,6 +88,17 @@ def local_chart_dir(chart_dir, dep):
     if not repo.startswith("file://"):
         return None
     return (chart_dir / repo[len("file://") :]).resolve()
+
+
+def require_local_chart_dir(local_dir: Path, dep: dict) -> None:
+    """Exit with an error when local_dir, dep's "file://" source directory
+    (see local_chart_dir), does not exist."""
+    if not local_dir.is_dir():
+        msg = (
+            f"error: dependency '{dep['name']}' declares local path repository "
+            f"({dep['repository']}), but {local_dir} does not exist"
+        )
+        raise SystemExit(msg)
 
 
 def pull_chart(dep, version, dest):
@@ -219,18 +230,8 @@ def subchart_values(chart_dir, dep, version=None):
     merges podiumd's own values.yaml under at render time. None if that
     exact version isn't vendored (not pulled yet, or a different version
     is) or the .tgz doesn't have the expected layout."""
-    version = version or dep["version"]
-    tgz_path = chart_dir / "charts" / f"{dep['name']}-{version}.tgz"
-    if not tgz_path.is_file():
-        return None
-    try:
-        with tarfile.open(tgz_path) as tar:
-            member = tar.extractfile(f"{dep['name']}/values.yaml")
-            if member is None:
-                return None
-            return yaml.safe_load(member.read()) or {}
-    except (KeyError, tarfile.TarError):
-        return None
+    raw = vendored_chart_file(chart_dir, dep, "values.yaml", version)
+    return None if raw is None else (yaml.safe_load(raw) or {})
 
 
 def subchart_app_version(chart_dir, dep, version=None):
@@ -247,19 +248,8 @@ def subchart_app_version(chart_dir, dep, version=None):
     vendored-.tgz-only lookup as subchart_values (no network fallback —
     see resolve_chart_values for that). None if that exact version isn't
     vendored, its Chart.yaml can't be read, or it has no appVersion."""
-    version = version or dep["version"]
-    tgz_path = chart_dir / "charts" / f"{dep['name']}-{version}.tgz"
-    if not tgz_path.is_file():
-        return None
-    try:
-        with tarfile.open(tgz_path) as tar:
-            member = tar.extractfile(f"{dep['name']}/Chart.yaml")
-            if member is None:
-                return None
-            chart_yaml = yaml.safe_load(member.read()) or {}
-            return chart_yaml.get("appVersion")
-    except (KeyError, tarfile.TarError):
-        return None
+    raw = vendored_chart_file(chart_dir, dep, "Chart.yaml", version)
+    return None if raw is None else (yaml.safe_load(raw) or {}).get("appVersion")
 
 
 def subchart_dependencies(chart_dir, dep, version=None):
@@ -271,19 +261,8 @@ def subchart_dependencies(chart_dir, dep, version=None):
     [] if that exact version isn't vendored, its Chart.yaml can't be
     read, or it declares no dependencies of its own — never None, so a
     caller can always safely iterate it without an extra check."""
-    version = version or dep["version"]
-    tgz_path = chart_dir / "charts" / f"{dep['name']}-{version}.tgz"
-    if not tgz_path.is_file():
-        return []
-    try:
-        with tarfile.open(tgz_path) as tar:
-            member = tar.extractfile(f"{dep['name']}/Chart.yaml")
-            if member is None:
-                return []
-            chart_yaml = yaml.safe_load(member.read()) or {}
-            return chart_yaml.get("dependencies") or []
-    except (KeyError, tarfile.TarError):
-        return []
+    raw = vendored_chart_file(chart_dir, dep, "Chart.yaml", version)
+    return [] if raw is None else ((yaml.safe_load(raw) or {}).get("dependencies") or [])
 
 
 def resolve_subchart_default(chart_dir, dep, chart_name, path):
