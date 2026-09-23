@@ -66,15 +66,7 @@ def basenames_under_scope(lines, scope_key):
     that same component. Shared by export-confluence-release-table's
     own image_basename resolution — pure values.yaml text, no
     release-table.csv involved either way."""
-    result = {}
-    for pin in scan_digest_pins(lines):
-        if not pin["repository"]:
-            continue
-        path = dotted_key_path(lines, pin["line"] - 1).split(".")
-        if path[0] != scope_key or path[-1] != "tag":
-            continue
-        result.setdefault(image_basename(pin["repository"]), []).append(pin)
-    return result
+    return _group_by_basename_in_scope(lines, scan_digest_pins(lines), scope_key)
 
 
 def basenames_under_scope_any_tag(lines, scope_key):
@@ -96,12 +88,19 @@ def basenames_under_scope_any_tag(lines, scope_key):
     image_basename column used to come out blank even though the
     basename IS resolvable locally via this exact scan (see that
     function's own docstring)."""
+    return _group_by_basename_in_scope(lines, scan_version_pins(lines), scope_key)
+
+
+def _group_by_basename_in_scope(lines: list[str], pins: list[dict], scope_key: str) -> dict[str, list[dict]]:
+    """{basename: [pin, ...]} for the `pins` whose values.yaml path is
+    under top-level `scope_key` (ignoring case, like find_matches_in_
+    scope) and ends in "...tag"."""
     result = {}
-    for pin in scan_version_pins(lines):
+    for pin in pins:
         if not pin["repository"]:
             continue
         path = dotted_key_path(lines, pin["line"] - 1).split(".")
-        if path[0] != scope_key or path[-1] != "tag":
+        if not same_name(path[0], scope_key) or path[-1] != "tag":
             continue
         result.setdefault(image_basename(pin["repository"]), []).append(pin)
     return result

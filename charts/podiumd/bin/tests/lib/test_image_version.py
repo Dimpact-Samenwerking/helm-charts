@@ -620,3 +620,10 @@ b:
     )
     lines = values_path.read_text(encoding="utf-8").splitlines()
     assert libimageversion.repository_for_basename_in_scope(lines, "nowhere", "redis") is None
+
+
+def test_basenames_under_scope_ignores_scope_key_case(libimageversion: ModuleType) -> None:
+    """Scope matching ignores case, the same as find_matches_in_scope."""
+    lines = ["zac:", "  image:", "    repository: ghcr.io/infonl/zac", '    tag: "1.0@sha256:' + "a" * 64 + '"']
+    assert list(libimageversion.basenames_under_scope(lines, "ZAC")) == ["zac"]
+    assert list(libimageversion.basenames_under_scope_any_tag(lines, "Zac")) == ["zac"]
