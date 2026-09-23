@@ -60,6 +60,21 @@ def test_packaged_files_strips_chart_name_prefix(librelease_secret_size, monkeyp
     assert not any(k.startswith("podiumd") for k in files)
 
 
+def test_packaged_files_drops_render_podiumd_output(librelease_secret_size, monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        librelease_secret_size,
+        "run",
+        fake_helm_package(
+            "podiumd-1.0.0",
+            {"values.yaml": "a: 1\n", "rendered-helm.yaml": "kind: X\n", "files/rendered-helm.yaml": "b\n"},
+        ),
+    )
+    files = librelease_secret_size.packaged_files(tmp_path)
+    assert "rendered-helm.yaml" not in files
+    assert "files/rendered-helm.yaml" in files
+    assert "values.yaml" in files
+
+
 def test_packaged_files_raises_on_helm_package_failure(librelease_secret_size, monkeypatch, tmp_path):
     monkeypatch.setattr(
         librelease_secret_size, "run", lambda cmd, **kw: SimpleNamespace(returncode=1, stdout="", stderr="boom")

@@ -88,6 +88,7 @@ import yaml
 from lib.chart.release_baseline_basics import load_yaml
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
+from lib.render_scope import RENDERED_OUTPUT_NAME
 from lib.render_scope import render_chart
 from lib.settings import release_secret_kubernetes_limit_bytes
 from lib.settings import release_secret_warn_at_fraction_of_limit
@@ -104,7 +105,13 @@ def packaged_files(chart_dir):
     way `helm install`/`template` loading does — this repo's podiumd chart
     relies on that to keep docs/ci/scripts out of the release Secret (see
     charts/podiumd/.helmignore). Reading the resulting tgz, rather than
-    walking the raw directory, is what makes the file set match reality."""
+    walking the raw directory, is what makes the file set match reality.
+
+    One deliberate exception: render-podiumd's own default output
+    (RENDERED_OUTPUT_NAME in the chart root) is dropped. It is a local,
+    gitignored debugging artifact that is present most of the time, and
+    at ~1.4 MB it alone roughly doubles the estimate — a real release
+    is packaged from a clean checkout that never contains it."""
     with tempfile.TemporaryDirectory() as tmp:
         result = run(["helm", "package", str(chart_dir), "-d", tmp], capture_output=True, text=True)
         if result.returncode != 0:
@@ -118,6 +125,8 @@ def packaged_files(chart_dir):
                 # strip the leading "<chartname>/" the archive wraps everything in
                 rel = PurePosixPath(member.name)
                 rel = PurePosixPath(*rel.parts[1:]) if len(rel.parts) > 1 else rel
+                if str(rel) == RENDERED_OUTPUT_NAME:
+                    continue
                 out[str(rel)] = tar.extractfile(member).read()
     return out
 
