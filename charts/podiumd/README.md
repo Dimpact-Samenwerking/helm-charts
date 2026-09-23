@@ -30,8 +30,8 @@ PodiumD Helm chart
 | https://helm.elastic.co | kiss-eck(eck-stack) | 0.20.0 |
 | https://openbao.github.io/openbao-helm | openbao | 0.28.4 |
 | https://wearefrank.github.io/charts | zaakbrug | 2.3.32 |
-| oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.0 |
-| oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.1.1 |
+| oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.2 |
+| oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.1.3 |
 | oci://ghcr.io/platform-autorisatie-beheer-component | pabc(pabc) | 1.1.1 |
 
 ## Values
@@ -911,7 +911,7 @@ PodiumD Helm chart
 | openformulieren.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openformulieren.flower.enabled | bool | `false` |  |
 | openformulieren.fullnameOverride | string | `"openformulieren"` |  |
-| openformulieren.image.tag | string | `"3.5.6@sha256:f5a5d51a44f39edcfb2143ae5d2ed9525b22ea377faa35fd2cce26b678f7fe83"` |  |
+| openformulieren.image.tag | string | `"3.5.8@sha256:1050b6dd1554ff6f620390870fbb2056157d792e75b9fe6e965371a2ae84f41a"` |  |
 | openformulieren.nameOverride | string | `"openformulieren"` |  |
 | openformulieren.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openformulieren.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
