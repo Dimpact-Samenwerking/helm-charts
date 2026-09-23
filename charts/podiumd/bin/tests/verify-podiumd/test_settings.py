@@ -26,6 +26,7 @@ FULL_SETTINGS = {
     },
     "render_report": {
         "top_n_largest_templates_shown": 10,
+        "default_output_file_name": "custom-render.yaml",
     },
     "dry_check": {
         "similarity_threshold": 0.5,
@@ -87,6 +88,7 @@ ACCESSOR_CASES = [
     ("repo_access_request_timeout_seconds", 10, 20, None),
     ("repo_access_never_probe_host_suffixes", ("azurecr.io",), ("azurecr.io", "example.internal"), tuple),
     ("render_report_top_n_largest_templates_shown", 5, 10, None),
+    ("render_report_default_output_file_name", "rendered-helm.yaml", "custom-render.yaml", None),
     ("dry_check_similarity_threshold", 0.6, 0.5, None),
     ("dry_check_high_similarity_threshold", 0.75, 0.8, None),
     ("dry_check_min_significant_lines", 8, 12, None),

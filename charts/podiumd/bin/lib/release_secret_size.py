@@ -88,8 +88,8 @@ import yaml
 from lib.chart.release_baseline_basics import load_yaml
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
-from lib.render_scope import RENDERED_OUTPUT_NAME
 from lib.render_scope import render_chart
+from lib.settings import render_report_default_output_file_name
 from lib.settings import release_secret_kubernetes_limit_bytes
 from lib.settings import release_secret_warn_at_fraction_of_limit
 
@@ -108,10 +108,12 @@ def packaged_files(chart_dir):
     walking the raw directory, is what makes the file set match reality.
 
     One deliberate exception: render-podiumd's own default output
-    (RENDERED_OUTPUT_NAME in the chart root) is dropped. It is a local,
+    (render_report.default_output_file_name in the chart root, see
+    lib.settings) is dropped. It is a local,
     gitignored debugging artifact that is present most of the time, and
     at ~1.4 MB it alone roughly doubles the estimate — a real release
     is packaged from a clean checkout that never contains it."""
+    rendered_output_name = render_report_default_output_file_name(chart_dir)
     with tempfile.TemporaryDirectory() as tmp:
         result = run(["helm", "package", str(chart_dir), "-d", tmp], capture_output=True, text=True)
         if result.returncode != 0:
@@ -125,7 +127,7 @@ def packaged_files(chart_dir):
                 # strip the leading "<chartname>/" the archive wraps everything in
                 rel = PurePosixPath(member.name)
                 rel = PurePosixPath(*rel.parts[1:]) if len(rel.parts) > 1 else rel
-                if str(rel) == RENDERED_OUTPUT_NAME:
+                if str(rel) == rendered_output_name:
                     continue
                 out[str(rel)] = tar.extractfile(member).read()
     return out

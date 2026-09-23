@@ -34,6 +34,10 @@ repo_access:
 
 render_report:
   top_n_largest_templates_shown: 5
+  # render-podiumd's default output file, written into the chart root.
+  # verify-helm-secret-size / verify-podiumd exclude this same file from
+  # the release Secret estimate (it's a local, gitignored debug artifact).
+  default_output_file_name: "rendered-helm.yaml"
 
 dry_check:
   # Thresholds calibrated against this repo's own templates/ directory
