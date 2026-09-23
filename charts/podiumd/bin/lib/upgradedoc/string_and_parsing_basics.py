@@ -195,30 +195,19 @@ def match_native_component(text, native_component_names):
 
 
 def match_canonical_sidecar_name(text, canonical_names):
-    """canonical_names.get(text) for an exact hit (a table row's own bare
-    name, with no trailing text) — falling back to a fuzzy word-span
-    containment match (see _word_aligned_spans/match_dependency) for a
-    "### ..." Changes heading, whose canonical sidecar name is always
-    followed by version/arrow text the exact lookup can't see past (e.g.
-    "redis-operator - k8s 1.36.2 → 1.36.2" vs the table row's own bare
-    "redis-operator - k8s"). Longest name wins on overlap, the same
-    tie-break match_dependency itself uses. None if nothing matches, or
-    if canonical_names itself is None — a caller with no canonical-names
-    map handy at all (e.g. values-deltas.md section lookups that don't
-    always have one available) rather than every such call site having
-    to remember its own "or {}" guard."""
+    """The values-tree path of the one canonical sidecar/shared-image
+    name (lib.chart.canonical_sidecar_row_names) that `text` names: an
+    exact key of canonical_names (a table row's bare name), else the
+    only name text_names finds in it (a "### ..." heading, whose name is
+    followed by a version). None when no name or more than one name
+    matches, or when canonical_names is None."""
     if canonical_names is None:
         return None
     exact = canonical_names.get(text)
     if exact is not None:
         return exact
-    spans = _word_aligned_spans(text)
-    best_path, best_norm = None, None
-    for name, path in canonical_names.items():
-        norm_c = normalize_name(name)
-        if norm_c and norm_c in spans and (best_norm is None or len(norm_c) > len(best_norm)):
-            best_path, best_norm = path, norm_c
-    return best_path
+    paths = {path for name, path in canonical_names.items() if text_names(text, name)}
+    return paths.pop() if len(paths) == 1 else None
 
 
 def match_dependency_excluding_sidecar_names(text, deps):

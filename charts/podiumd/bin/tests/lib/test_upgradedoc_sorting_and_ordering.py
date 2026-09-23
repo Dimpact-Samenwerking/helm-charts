@@ -52,8 +52,7 @@ def test_component_order_key_global_shared_image_uses_its_own_values_position(li
     assert libupgradedocsorting.component_order_key("nginx-unprivileged", DEPS, key_order, canonical_names) == (0, 0)
 
     # A "### ..." Changes heading has version/arrow text after the name —
-    # match_canonical_sidecar_name's own fuzzy word-span fallback still
-    # finds it.
+    # match_canonical_sidecar_name's text_names fallback still finds it.
     assert libupgradedocsorting.component_order_key(
         "nginx-unprivileged 1.31.3 → 1.31.4", DEPS, key_order, canonical_names
     ) == (0, 0)
@@ -458,8 +457,8 @@ def test_sort_changes_blocks_unmatched_block_stays_last_and_later_h2_untouched(l
 def test_sort_changes_blocks_global_block_sorts_to_its_own_real_position(libupgradedocsorting):
     """Same real bug as sort_upgrade_doc_rows, for the "### ..." Changes
     heading shape — the heading text has version/arrow text after the
-    canonical name (match_canonical_sidecar_name's own fuzzy word-span
-    fallback handles that, unlike an exact dict-key lookup)."""
+    canonical name (match_canonical_sidecar_name's text_names fallback
+    handles that, unlike an exact dict-key lookup)."""
     text = (
         "## Changes\n\n"
         "### Open Zaak 1.27.3 → 1.27.4\n\n"
