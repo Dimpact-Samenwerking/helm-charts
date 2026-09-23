@@ -171,7 +171,7 @@ def test_main_invokes_fix_helm_doc(ucv, tmp_path, monkeypatch, block_real_subpro
     helm-docs-generated table can go stale in the same commit if this
     doesn't run — see fix-helm-doc."""
     calls = block_real_subprocess_calls
-    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    _chart_yaml, _values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
@@ -366,7 +366,7 @@ def test_main_bumps_only_config_keycloak_image_not_operator_image(ucv, tmp_path,
     sha (never a combined @sha256 pin, which would be an invalid double
     digest for the adfinis chart's own template) — operator.image is
     deliberately left completely untouched, with no override added."""
-    chart_yaml, values_yaml = setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv)
+    _chart_yaml, values_yaml = setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv, "b")
 
     monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "d" * 64))
@@ -436,7 +436,7 @@ def test_main_eck_operator_writes_digest_field_correctly_regression(ucv, tmp_pat
     doesn't start with "sha256:" (unlike keycloak's bare-hex "sha:"),
     so writing bare hex here would produce a broken chart, not merely a
     stylistic mismatch."""
-    chart_yaml, values_yaml = setup_eck_operator_repo(tmp_path, monkeypatch, ucv)
+    _chart_yaml, values_yaml = setup_eck_operator_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
     monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "e" * 64))
     monkeypatch.setattr("sys.argv", ["update-component-version", "eck-operator", "3.6.0", "3.6.0"])
@@ -518,7 +518,7 @@ def test_main_keycloak_operator_operator_image_gets_independent_digest_regressio
     dict — that constant no longer exists); CHART_DIR is already
     monkeypatched to this tmp_path by the setup helper above, so
     image_paths_for(chart_name, CHART_DIR) picks it up."""
-    chart_yaml, values_yaml, operator_old_digest = setup_keycloak_operator_repo_with_operator_image_tag(
+    _chart_yaml, values_yaml, operator_old_digest = setup_keycloak_operator_repo_with_operator_image_tag(
         tmp_path, monkeypatch, ucv
     )
     (tmp_path / "etc").mkdir(exist_ok=True)

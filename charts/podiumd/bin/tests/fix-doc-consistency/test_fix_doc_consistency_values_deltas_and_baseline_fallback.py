@@ -698,7 +698,7 @@ def test_main_new_component_row_annotated_unchanged_when_known_in_historical_man
     cell reads "(unchanged)" rather than a nonsensical "(new)" — its
     Helm-chart cell still correctly reads "(new)", since the Chart.yaml
     dependency line genuinely is."""
-    doc_dir, images_dir = repo_with_new_component_pinned_to_a_known_mirrored_image
+    doc_dir, _images_dir = repo_with_new_component_pinned_to_a_known_mirrored_image
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
 

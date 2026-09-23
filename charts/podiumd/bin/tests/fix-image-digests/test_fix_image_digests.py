@@ -207,7 +207,7 @@ def test_find_stale_digests_warns_and_stays_unresolved_when_vendoring_fails(sid,
     monkeypatch.setattr(sid, "ensure_repos_configured", lambda chart_dir: (True, "ok"))
     monkeypatch.setattr(sid, "vendor_dependencies", lambda cd: (False, "helm dependency update failed"))
 
-    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    _stale, unresolved, _fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
     assert len(unresolved) == 1
     err = capsys.readouterr().err
     assert "helm dependency update failed" in err
@@ -227,7 +227,7 @@ def test_find_stale_digests_never_vendors_when_no_matching_dependency(sid, tmp_p
     monkeypatch.setattr(sid, "ensure_repos_configured", fail_if_called)
     monkeypatch.setattr(sid, "vendor_dependencies", fail_if_called)
 
-    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    _stale, unresolved, _fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
     assert len(unresolved) == 1
 
 
@@ -262,7 +262,7 @@ def test_find_stale_digests_dedupes_shared_repo_and_tag(sid, tmp_path, monkeypat
 
     monkeypatch.setattr(sid, "registry_tag_exists", spy)
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
-    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    stale, _unresolved, _fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
     assert calls == [("docker.io", "org/repo", "1.0.0")]
     assert len(stale) == 1
     assert stale[0][4] == [4, 8]  # both pin lines share the one stale digest
@@ -275,7 +275,7 @@ def test_find_stale_digests_marks_sliding_from_is_sliding_tag(sid, tmp_path, mon
     lines = ["a:", "  image:", "    repository: org/repo", f'    tag: "1.0.0@sha256:{"a" * 64}"']
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: True)
-    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    stale, _unresolved, _fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
     assert stale[0][5] is True
 
 

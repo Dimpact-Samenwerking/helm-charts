@@ -180,7 +180,7 @@ zac:
     tag: "5.0.0@sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 """,
     )
-    ok, detail = vp.check_digest_pinning(tmp_path)
+    ok, _detail = vp.check_digest_pinning(tmp_path)
     assert ok is False
 
 

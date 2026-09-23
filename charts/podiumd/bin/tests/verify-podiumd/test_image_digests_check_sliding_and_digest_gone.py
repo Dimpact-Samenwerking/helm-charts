@@ -19,9 +19,9 @@ def _clear_tag_exists_cache(libimagedigests):
     registry_tag_exists result could silently leak into a LATER test
     that reuses the same (repository, version), even though that later
     test mocks registry_tag_exists completely differently."""
-    libimagedigests._tag_exists_cache.clear()
+    libimagedigests.clear_tag_exists_cache()
     yield
-    libimagedigests._tag_exists_cache.clear()
+    libimagedigests.clear_tag_exists_cache()
 
 
 def write_values(chart_dir, text):
@@ -121,7 +121,7 @@ def test_check_image_digests_matched_pin_never_gets_a_second_call(vp, libimagedi
         return True, f"sha256:{'a' * 64}"
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
-    ok, detail = vp.check_image_digests(tmp_path)
+    ok, _detail = vp.check_image_digests(tmp_path)
     assert ok is True
     assert calls == ["1.0.0"]  # exactly one call, the tag check — no digest-liveness follow-up
 
@@ -147,7 +147,7 @@ def test_check_image_digests_sliding_with_digest_still_pullable_only_warns(
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
     monkeypatch.setattr(libimagedigests, "is_sliding_tag", lambda *a, **k: True)
-    ok, detail = vp.check_image_digests(tmp_path)
+    ok, _detail = vp.check_image_digests(tmp_path)
     assert ok is True
     assert calls == ["1.31.3", f"sha256:{digest_a}"]  # tag check, then the digest-liveness follow-up
     out = capsys.readouterr().out
@@ -250,7 +250,7 @@ def test_check_image_digests_unverifiable_host_skips_digest_liveness_check_entir
         raise urllib.error.HTTPError(msg, 401, "Unauthorized", Message(), None)
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
-    ok, detail = vp.check_image_digests(tmp_path)
+    ok, _detail = vp.check_image_digests(tmp_path)
     assert ok is True
     # the tag check retries once on its own network error -- both attempts
     # are still just the TAG check; no digest-liveness follow-up at all.

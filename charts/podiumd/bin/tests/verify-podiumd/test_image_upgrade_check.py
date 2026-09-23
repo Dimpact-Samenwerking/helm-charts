@@ -276,7 +276,7 @@ def test_check_image_upgrades_cache_miss_scans_and_persists(vp, libimageupgradec
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag", newest_tag_for())
 
-    ok, detail = vp.check_image_upgrades(chart_dir, [])
+    ok, _detail = vp.check_image_upgrades(chart_dir, [])
     assert ok is True
     saved = libimageupgradecheck.load_cache(chart_dir)
     assert libimageupgradecheck.cache_key("ghcr.io/wearefrank/frank-gateway", "104") in saved
@@ -301,7 +301,7 @@ def test_check_image_upgrades_cache_hit_skips_registry_call(vp, libimageupgradec
 
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag", fail_if_queried)
 
-    ok, detail = vp.check_image_upgrades(chart_dir, [])
+    ok, _detail = vp.check_image_upgrades(chart_dir, [])
     assert ok is True
     out = capsys.readouterr().out
     assert "newer tag available: 999" in out  # cached value still used for reporting

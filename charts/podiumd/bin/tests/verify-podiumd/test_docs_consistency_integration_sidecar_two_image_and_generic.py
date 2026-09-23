@@ -305,7 +305,7 @@ def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_depende
     git("add", "-A", cwd=repo_root)
     git("commit", "-q", "-m", "bump redis-operator and its unresolvable ghost sidecar", cwd=repo_root)
 
-    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out

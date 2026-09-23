@@ -265,7 +265,7 @@ openzaak:
     }
     monkeypatch.setattr(libcvecheck, "run_trivy", make_run_trivy(vulns_by_ref, calls))
 
-    ok, detail = libcvediffcheck.check_cve_diff(tmp_path, [])
+    ok, _detail = libcvediffcheck.check_cve_diff(tmp_path, [])
 
     assert ok is True
     assert f"redis@sha256:{DIGEST_A}" in calls
@@ -806,7 +806,7 @@ def test_check_cve_diff_splits_own_partner_other_in_order_with_correct_content(
     }
     _setup_bucket_scenario(libcvediffcheck, libcvecheck, tmp_path, monkeypatch, vulns_by_ref)
 
-    ok, detail = libcvediffcheck.check_cve_diff(tmp_path, [])
+    ok, _detail = libcvediffcheck.check_cve_diff(tmp_path, [])
     assert ok is True
 
     out = capsys.readouterr().out
@@ -855,7 +855,7 @@ def test_check_cve_diff_bucket_with_no_candidates_prints_no_header(
         },
     )
 
-    ok, detail = libcvediffcheck.check_cve_diff(tmp_path, [])
+    ok, _detail = libcvediffcheck.check_cve_diff(tmp_path, [])
     assert ok is True
 
     out = capsys.readouterr().out

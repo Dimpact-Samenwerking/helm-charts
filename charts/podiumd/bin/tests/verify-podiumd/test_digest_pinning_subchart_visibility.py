@@ -117,7 +117,7 @@ frankgateway:
     )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd", "podiumd/charts/zac"])
 
-    ok, detail = vp.check_shared_image_usage(tmp_path, [])
+    ok, _detail = vp.check_shared_image_usage(tmp_path, [])
 
     assert ok is True
     out = capsys.readouterr().out
@@ -159,7 +159,7 @@ zac:
     )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd"])
 
-    ok, detail = vp.check_shared_image_usage(tmp_path, [])
+    ok, _detail = vp.check_shared_image_usage(tmp_path, [])
 
     assert ok is True
     out = capsys.readouterr().out
@@ -258,7 +258,7 @@ def test_subchart_image_visibility_finding_annotated_with_its_owning_chart(
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/eck-operator"])
 
-    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+    ok, _detail = vp.check_subchart_image_visibility(tmp_path, [])
 
     assert ok is False
     out = capsys.readouterr().out

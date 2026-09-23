@@ -989,7 +989,7 @@ def test_sync_values_delta_sections_creates_section_only_when_key_lines_exist(li
     text = "# Values deltas\n\nNo gemeente podiumd.yml changes are required for this hop.\n"
     baseline_values = {"zac": {"image": {}}}
     target_values = {"zac": {"image": {}, "newFeature": True}}
-    new_text, created, updated = libcomponentdocsdeltas.sync_values_delta_sections(
+    new_text, created, _updated = libcomponentdocsdeltas.sync_values_delta_sections(
         text,
         tmp_path,
         libcomponentdocsdeltas.ValuesDeltaOrdering(DEPS, target_values),

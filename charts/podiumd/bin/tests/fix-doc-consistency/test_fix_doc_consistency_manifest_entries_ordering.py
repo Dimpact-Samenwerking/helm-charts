@@ -93,7 +93,7 @@ def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_
         '  digest: "sha256:cccc"\n'
     )
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -198,7 +198,7 @@ def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(c
         '  digest: "sha256:cccc"\n'
     )
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -232,7 +232,7 @@ def test_add_missing_images_manifest_entries_no_header_still_orders_body(cdb, or
         '  digest: "sha256:cccc"\n'
     )
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -277,7 +277,7 @@ def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch
         '  digest: "sha256:aaaa"\n'
     )
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -322,7 +322,7 @@ def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(c
         "[]\n"
     )
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -352,7 +352,7 @@ def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside
     parsed back at all."""
     text = "# Baseline: podiumd 4.8.5. Re-verify before release.\n#\n# Changes:\n#\n\n[]\n"
 
-    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
         text,
         cdb.MissingEntriesContext(
             ordered_images_manifest_chart_dir,
@@ -390,7 +390,7 @@ def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicat
     )
     assert first_added != []
 
-    second_text, second_added, second_skipped, second_backfilled = cdb.add_missing_images_manifest_entries(
+    second_text, second_added, _second_skipped, second_backfilled = cdb.add_missing_images_manifest_entries(
         first_text,
         cdb.MissingEntriesContext(
             ordered_images_manifest_chart_dir,

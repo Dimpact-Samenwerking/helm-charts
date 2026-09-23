@@ -84,7 +84,7 @@ def test_find_shell_scripts_detects_command_then_args_pattern(libshellcheckcheck
     }
     found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     assert len(found) == 1
-    source, path, shell, script = found[0]
+    _source, _path, shell, script = found[0]
     assert shell == "sh"
     assert script == "echo hi"
 
@@ -164,7 +164,7 @@ def test_extract_shell_scripts_carries_resource_identity(libshellcheckcheck):
     ]
     found = libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES)
     assert len(found) == 1
-    source, path, shell, script, kind, namespace, name = found[0]
+    _source, _path, _shell, _script, kind, namespace, name = found[0]
     assert (kind, namespace, name) == ("Job", "bar", "foo")
 
 
@@ -272,7 +272,7 @@ def test_check_shellcheck_own_error_fails(vp, libshellcheckcheck, tmp_path, monk
         ),
     )
 
-    ok, detail = vp.check_shellcheck(tmp_path, [])
+    ok, _detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
     out = capsys.readouterr().out
     assert "ERROR" in out
@@ -302,7 +302,7 @@ def test_check_shellcheck_location_includes_script_line_and_column(
         ),
     )
 
-    ok, detail = vp.check_shellcheck(tmp_path, [])
+    ok, _detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
     out = capsys.readouterr().out
     assert f"script line 3:6 (rendered line {JOB_RENDERED_LINE})" in out
@@ -323,7 +323,7 @@ def test_check_shellcheck_location_line_without_column(vp, libshellcheckcheck, t
         ),
     )
 
-    ok, detail = vp.check_shellcheck(tmp_path, [])
+    ok, _detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
     out = capsys.readouterr().out
     assert "script line 2" in out

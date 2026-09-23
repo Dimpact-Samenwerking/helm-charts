@@ -443,7 +443,7 @@ def _images_manifest_two_component_fixture():
 
 
 def test_find_images_manifest_out_of_order_names_detects_violation(libupgradedocmanifestordering):
-    text, entries, deps, values, current_paths, repo_map, key_order = _images_manifest_two_component_fixture()
+    text, entries, deps, _values, current_paths, repo_map, key_order = _images_manifest_two_component_fixture()
     lines = text.splitlines()
     entry_line_indices = _entry_line_indices(lines)
 
@@ -456,7 +456,7 @@ def test_find_images_manifest_out_of_order_names_detects_violation(libupgradedoc
 
 
 def test_find_images_manifest_out_of_order_names_correctly_ordered_reports_nothing(libupgradedocmanifestordering):
-    text, entries, deps, values, current_paths, repo_map, key_order = _images_manifest_two_component_fixture()
+    text, entries, deps, _values, current_paths, repo_map, key_order = _images_manifest_two_component_fixture()
     lines = text.splitlines()
     entry_line_indices = _entry_line_indices(lines)
     key_order = ["zac", "redis-operator"]  # now matches the manifest's actual order
@@ -470,7 +470,7 @@ def test_find_images_manifest_out_of_order_names_correctly_ordered_reports_nothi
 
 
 def test_sort_images_manifest_entries_reorders_to_match_values_yaml(libupgradedocmanifestordering):
-    text, entries, deps, values, current_paths, repo_map, key_order = _images_manifest_two_component_fixture()
+    text, _entries, deps, values, _current_paths, repo_map, _key_order = _images_manifest_two_component_fixture()
     # values' own dict insertion order (redis-operator, zac) IS values_key_order's source.
 
     new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(
@@ -485,7 +485,7 @@ def test_sort_images_manifest_entries_reorders_to_match_values_yaml(libupgradedo
 
 
 def test_sort_images_manifest_entries_already_ordered_reports_nothing(libupgradedocmanifestordering):
-    text, entries, deps, values, current_paths, repo_map, key_order = _images_manifest_two_component_fixture()
+    text, _entries, deps, values, _current_paths, repo_map, _key_order = _images_manifest_two_component_fixture()
     values = {"zac": values["zac"], "redis-operator": values["redis-operator"]}  # matches manifest's actual order
 
     new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(
@@ -761,7 +761,7 @@ def test_sort_images_manifest_entries_multiple_global_images_use_their_own_real_
         "library/busybox": ("global", "images", "busybox"),
     }
 
-    new_text, moved = libupgradedocmanifestordering.sort_images_manifest_entries(
+    new_text, _moved = libupgradedocmanifestordering.sort_images_manifest_entries(
         text,
         libupgradedocmanifestordering.ManifestSortContext(
             [], GLOBAL_IMAGES_VALUES, repo_map, GLOBAL_IMAGES_CANONICAL_NAMES

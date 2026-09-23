@@ -122,7 +122,7 @@ def test_sidecar_row_wrong_target_app_is_caught(vp, redis_sidecar_chart_repo, ca
     doc = redis_sidecar_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="9.9.9"))
 
-    ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out
@@ -136,7 +136,7 @@ def test_sidecar_row_wrong_source_app_vs_baseline_is_caught(vp, redis_sidecar_ch
     doc = redis_sidecar_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="1.1.1", app_target="8.6.6"))
 
-    ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out
@@ -154,7 +154,7 @@ def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(vp, re
     doc = redis_sidecar_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text().replace("redis-operator - redis", "Redis (redis-ha)"))
 
-    ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out
@@ -369,7 +369,7 @@ def test_split_tag_sha_path_digest_is_resolved_not_compared_as_bare_tag(vp, keyc
     "tag:" string directly against the manifest's "version@digest",
     which can never match for a split-tag/sha path — every correctly
     up-to-date pin was wrongly reported as a mismatch."""
-    ok, detail = vp.check_docs_consistency(keycloak_split_chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(keycloak_split_chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
 
     assert ok is True, out
@@ -421,7 +421,7 @@ def test_split_tag_sha_path_real_mismatch_is_still_caught(vp, keycloak_split_cha
     values_path = keycloak_split_chart_repo / "values.yaml"
     values_path.write_text(values_path.read_text().replace('"' + "c" * 64 + '"', '"' + "e" * 64 + '"'))
 
-    ok, detail = vp.check_docs_consistency(keycloak_split_chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(keycloak_split_chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
 
     assert ok is False
@@ -443,7 +443,7 @@ def test_sidecar_with_no_row_at_all_is_caught_as_missing(vp, redis_sidecar_chart
         "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
     )
 
-    ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out
@@ -470,7 +470,7 @@ def test_sidecar_missing_from_images_manifest_uses_canonical_name(vp, redis_side
         "[]\n"
     )
 
-    ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, _detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out

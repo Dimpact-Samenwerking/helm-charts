@@ -125,7 +125,7 @@ def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(vp, li
         f"test fixture ratio {ratio} no longer represents the real ~0.82 storage-file case"
     )
 
-    ok, detail = vp.check_dry(tmp_path)
+    ok, _detail = vp.check_dry(tmp_path)
     assert ok is True
     out = capsys.readouterr().out
     assert "likely worth deduping" in out

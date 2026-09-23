@@ -6,10 +6,10 @@ from lib.chart.release_baseline_basics import load_yaml
 from lib.image.version import basenames_under_scope
 from lib.image.version import basenames_under_scope_any_tag
 from lib.image.version import image_basename
-from lib.release_table.component_resolution import _exact_match
-from lib.release_table.component_resolution import _extra_scope_keys_by_component
-from lib.release_table.component_resolution import _match_one
+from lib.release_table.component_resolution import exact_match
+from lib.release_table.component_resolution import extra_scope_keys_by_component
 from lib.release_table.component_resolution import global_image_keys
+from lib.release_table.component_resolution import match_one
 
 
 def resolve_image_basenames(rows, chart_dir):
@@ -19,7 +19,7 @@ def resolve_image_basenames(rows, chart_dir):
     values.yaml repository basename(s) each row's version numbers
     describe. Matches each row's own "used by"-tagged sibling images by
     NAME against the candidate basenames found under its component's own
-    values.yaml subtree (see basenames_under_scope + _match_one) — not
+    values.yaml subtree (see basenames_under_scope + match_one) — not
     by values-tree PATH, since a path segment often describes a job's
     ROLE ("ensurePodiumdAdminUser") rather than the image itself
     ("python"), and keys mix kebab-case/camelCase inconsistently, while
@@ -28,7 +28,7 @@ def resolve_image_basenames(rows, chart_dir):
 
     A component's scope isn't only its own top-level values.yaml key —
     it also includes any orphan key that itself resolves to that same
-    dependency (see _extra_scope_keys_by_component), since a
+    dependency (see extra_scope_keys_by_component), since a
     component's actual image sometimes lives under a values.yaml block
     that predates/sits outside the Chart.yaml dependency that now
     manages it (e.g. keycloak-operator's own "Keycloak" row resolves its
@@ -54,7 +54,7 @@ def resolve_image_basenames(rows, chart_dir):
     global_images = (values.get("global") or {}).get("images") or {}
 
     result = [""] * len(rows)
-    extra_scopes = _extra_scope_keys_by_component(chart_dir)
+    extra_scopes = extra_scope_keys_by_component(chart_dir)
     by_component = _by_component_row_indices(rows)
 
     for component, info in by_component.items():
@@ -117,19 +117,19 @@ def _assign_component_basenames(rows, result, info, available):
     """Claims `available` basenames into `result` for one component's
     own row indices (info["indices"]) — a primary (used_by-blank) row
     gets first refusal, but ONLY at an EXACT match against its own name
-    (see _exact_match) — claimed BEFORE any used_by-tagged sibling gets
+    (see exact_match) — claimed BEFORE any used_by-tagged sibling gets
     a turn, so a component whose own default image basename happens to
     EQUAL its plain display name outright (e.g. frankgateway's own
     "frank-gateway" image) can't be mistakenly grabbed by a sibling row
     instead, just because every "<Component> <Role>"-named sibling's
     text trivially contains that same shared component-name prefix too.
-    Deliberately NOT extended to _match_one's weaker fuzzy-containment
+    Deliberately NOT extended to match_one's weaker fuzzy-containment
     tier: a primary row's name merely CONTAINING a basename (e.g. "Redis
     Operator" containing "redis") is exactly the ambiguous case where a
     sibling ("Redis-ha") can be the more specific, correct owner instead
     — letting primary win there too regressed that case while fixing
     frankgateway (verified against real data). Every used_by-tagged
-    sibling row then claims its own match via the weaker _match_one,
+    sibling row then claims its own match via the weaker match_one,
     and finally whatever's left unclaimed is handed to any primary row
     that didn't exactly match anything — e.g. zgw-office-addin's
     frontend AND backend both landing on "Office Add-in"."""
@@ -138,7 +138,7 @@ def _assign_component_basenames(rows, result, info, available):
 
     unclaimed_primary_indices = []
     for i in primary_indices:
-        match = _exact_match(rows[i][3], available.keys())
+        match = exact_match(rows[i][3], available.keys())
         if match is not None:
             result[i] = match
             del available[match]
@@ -146,7 +146,7 @@ def _assign_component_basenames(rows, result, info, available):
             unclaimed_primary_indices.append(i)
 
     for i in sub_indices:
-        match = _match_one(rows[i][3], available.keys())
+        match = match_one(rows[i][3], available.keys())
         if match is not None:
             result[i] = match
             del available[match]
@@ -166,7 +166,7 @@ def _assign_multiple_row_basenames(rows, result, global_keys, global_images):
         used_by, name, component = row[2], row[3], row[4]
         if component != "MULTIPLE":
             continue
-        matched_key = _match_one(used_by or name, global_keys)
+        matched_key = match_one(used_by or name, global_keys)
         if matched_key is None:
             continue
         repo = (global_images.get(matched_key) or {}).get("repository")

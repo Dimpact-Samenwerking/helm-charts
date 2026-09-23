@@ -281,7 +281,7 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(ucv, tmp_path, monkey
     happened net of baseline. The manifest ENTRY itself must still show
     the correct (baseline) version/digest -- it lists every image
     regardless of change-tracking."""
-    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    _chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     commit_baseline_tag(tmp_path)  # baseline: chart 1.0.296, zac 5.0.2@sha256:aaaa...
 
     # Simulate "already bumped to 5.5.0 earlier in this release cycle" --
@@ -436,7 +436,7 @@ def test_main_collapses_repeated_bump_into_single_baseline_entry(ucv, tmp_path, 
     reconsidering to 5.5.0 instead must leave exactly ONE entry in each
     doc showing baseline -> final (5.0.2 -> 5.5.0) -- never two entries,
     and never an intermediate-hop transition like "5.4.3 -> 5.5.0"."""
-    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    _chart_yaml, _values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     commit_baseline_tag(tmp_path)  # baseline: chart 1.0.296, zac 5.0.2@sha256:aaaa...
     setup_docs(
         ucv,

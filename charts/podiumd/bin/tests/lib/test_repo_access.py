@@ -42,7 +42,7 @@ def test_dependency_repos_direct_http_url_passed_through(librepoaccess, tmp_path
     write_chart_yaml(
         tmp_path, [{"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"}]
     )
-    name, line, kind, target = librepoaccess.dependency_repos(tmp_path)[0]
+    name, _line, kind, target = librepoaccess.dependency_repos(tmp_path)[0]
     assert (name, kind, target) == ("zaakbrug", "http", "https://wearefrank.github.io/charts")
 
 
@@ -51,7 +51,7 @@ def test_dependency_repos_oci_combines_path_and_chart_name(librepoaccess, tmp_pa
         tmp_path,
         [{"name": "kiss-chart", "version": "3.0.0", "repository": "oci://ghcr.io/klantinteractie-servicesysteem"}],
     )
-    name, line, kind, target = librepoaccess.dependency_repos(tmp_path)[0]
+    name, _line, kind, target = librepoaccess.dependency_repos(tmp_path)[0]
     assert (name, kind, target) == (
         "kiss-chart",
         "oci",
@@ -572,7 +572,7 @@ def test_check_repo_access_and_check_image_digests_share_one_cache_entry(librepo
         return True, f"sha256:{digest}"
 
     monkeypatch.setattr(image_digests, "registry_tag_exists", fake_registry_tag_exists)
-    image_digests._tag_exists_cache.clear()
+    image_digests.clear_tag_exists_cache()
 
     ok, _ = librepoaccess.check_repo_access(tmp_path)
     assert ok is True
@@ -581,7 +581,7 @@ def test_check_repo_access_and_check_image_digests_share_one_cache_entry(librepo
     # Simulate a SEPARATE step of the same verify-podiumd run (or a wholly
     # separate later process) -- only the in-process tier is reset; the
     # disk cache check_repo_access just wrote stays warm.
-    image_digests._tag_exists_cache.clear()
+    image_digests.clear_tag_exists_cache()
     calls.clear()
 
     ok2, detail2 = image_digests.check_image_digests(tmp_path)

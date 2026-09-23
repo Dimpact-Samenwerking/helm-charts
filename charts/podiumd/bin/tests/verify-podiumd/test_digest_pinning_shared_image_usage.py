@@ -220,7 +220,7 @@ frankgateway:
     )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd", "podiumd/charts/zac"])
 
-    ok, detail = vp.check_shared_image_usage(tmp_path, [])
+    ok, _detail = vp.check_shared_image_usage(tmp_path, [])
 
     assert ok is True
     out = capsys.readouterr().out
@@ -337,7 +337,7 @@ zac:
     )
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd"])
 
-    ok, detail = vp.check_shared_image_usage(tmp_path, [])
+    ok, _detail = vp.check_shared_image_usage(tmp_path, [])
 
     assert ok is True
     out = capsys.readouterr().out
