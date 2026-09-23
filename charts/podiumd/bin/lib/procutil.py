@@ -7,7 +7,7 @@ import subprocess  # nosec B404
 import sys
 
 
-def run(cmd, **kwargs):
+def run(cmd: list[str], **kwargs):
     """For `helm`/`git`/etc. calls that capture output — never raises on a
     non-zero exit, so callers decide what a failure means for them."""
     # cmd is always a fixed argv list built by the caller (e.g. ["git", "mv", ...]),
@@ -16,7 +16,7 @@ def run(cmd, **kwargs):
     return subprocess.run(cmd, check=False, **kwargs)  # nosec B603  # noqa: S603
 
 
-def run_script(cmd, *, check=False, **kwargs):
+def run_script(cmd: list[str], *, check: bool = False, **kwargs):
     """For delegating to a sibling script (`[sys.executable, "other.py",
     ...]`) that inherits stdout/stderr, so its output interleaves with the
     caller's own prints in real time. Flushes the caller's stdout first —

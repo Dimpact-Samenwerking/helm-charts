@@ -14,13 +14,15 @@ check a no-op if it ran any later in the pipeline."""
 
 import re
 
+from pathlib import Path
+
 # <chart-name>-<version>.tgz — version must start with a digit so a
 # hyphenated chart name (e.g. "notifynl-omc-nodep", "keycloak-operator")
 # doesn't get misparsed as part of the version.
 TGZ_NAME_RE = re.compile(r"^(?P<name>.+)-(?P<version>\d[\w.+-]*)\.tgz$")
 
 
-def find_extracted_vendored_dirs(chart_dir):
+def find_extracted_vendored_dirs(chart_dir: Path):
     """Returns a sorted list of chart names that have BOTH a pinned
     `<name>-<version>.tgz` package and an extracted `<name>/` directory
     under chart_dir/charts/."""
@@ -37,7 +39,7 @@ def find_extracted_vendored_dirs(chart_dir):
     return sorted(name for name in tgz_names if (charts_subdir / name).is_dir())
 
 
-def check_vendored_tgz_extraction(chart_dir):
+def check_vendored_tgz_extraction(chart_dir: Path):
     """Fails if find_extracted_vendored_dirs finds any vendored sub-chart
     with both a pinned .tgz and an extracted directory of the same name —
     Helm would silently prefer the extracted (possibly stale/modified)

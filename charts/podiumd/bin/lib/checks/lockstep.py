@@ -33,6 +33,8 @@ sharing a version number is normal and not a mismatch — the exact
 opposite mistake same_group's own docstring already warns against (the
 kiss/kiss-elastic-sync precedent)."""
 
+from pathlib import Path
+
 from lib.chart.registered_paths import chart_version_lockstep_components
 from lib.chart.registered_paths import component_image_paths
 from lib.chart.registered_paths import component_version_paths
@@ -45,7 +47,7 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 
 
-def find_lockstep_mismatches(deps, values):
+def find_lockstep_mismatches(deps: list, values: dict | None):
     """[(component, values_key, [(path, version), ...])] for every
     multi-path component_image_paths()/component_version_paths() entry
     whose resolved paths disagree on version. `resolved` only ever lists the
@@ -86,7 +88,7 @@ def find_lockstep_mismatches(deps, values):
     return findings
 
 
-def find_chart_version_mismatches(deps, values):
+def find_chart_version_mismatches(deps: list, values: dict | None):
     """[(component, values_key, chart_version, app_version)] for every
     lib.chart.chart_version_lockstep_components() entry whose Chart.yaml
     dependency "version:" disagrees with its own resolved app version. Resolution
@@ -129,7 +131,7 @@ def find_chart_version_mismatches(deps, values):
     return findings
 
 
-def check_lockstep_versions(chart_dir):
+def check_lockstep_versions(chart_dir: Path):
     """Runs find_lockstep_mismatches and find_chart_version_mismatches
     against chart_dir's own Chart.yaml/values.yaml and reports every
     mismatch found."""

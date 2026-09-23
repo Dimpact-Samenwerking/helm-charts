@@ -8,6 +8,7 @@ import re
 
 from dataclasses import dataclass
 from dataclasses import field
+from pathlib import Path
 
 
 @dataclass
@@ -24,7 +25,7 @@ class DuplicateKeyScan:
     duplicates: list = field(default_factory=list)
 
 
-def _register_duplicate_key(scan, scope_id, key, line_no):
+def _register_duplicate_key(scan, scope_id: tuple, key: str, line_no: int):
     scan.scope_keys.setdefault(scope_id, {})
     if key in scan.scope_keys[scope_id]:
         parent = " > ".join(scope_id) if scope_id else "(root)"
@@ -36,7 +37,7 @@ def _register_duplicate_key(scan, scope_id, key, line_no):
         scan.scope_keys[scope_id][key] = line_no
 
 
-def _scan_list_item_line(scan, key_re, dash_re, line, line_no):
+def _scan_list_item_line(scan, key_re, dash_re, line: str, line_no: int):
     """A "- ..." line: closes any scope at or past this item's indent,
     opens a new one unique to this occurrence (so sibling list items never
     share a scope), then treats "- key: ..." same as a plain key line."""
@@ -56,7 +57,7 @@ def _scan_list_item_line(scan, key_re, dash_re, line, line_no):
         scan.stack.append((list_indent + 2, key))
 
 
-def _scan_key_line(scan, key_re, line, line_no):
+def _scan_key_line(scan, key_re, line: str, line_no: int):
     m = key_re.match(line)
     if not m:
         return
@@ -69,7 +70,7 @@ def _scan_key_line(scan, key_re, line, line_no):
     scan.stack.append((indent, key))
 
 
-def check_duplicate_keys(chart_dir):
+def check_duplicate_keys(chart_dir: Path):
     """Scan values.yaml for duplicate keys that would silently overwrite an
     earlier value. See module docstring for the scoping rule, and
     DuplicateKeyScan/_scan_list_item_line/_scan_key_line for the

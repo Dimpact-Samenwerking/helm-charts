@@ -94,13 +94,13 @@ from lib.settings import release_secret_warn_at_fraction_of_limit
 from lib.settings import render_report_default_output_file_name
 
 
-def b64(data):
+def b64(data: bytes):
     """`data` (raw bytes) base64-encoded to a str, the same shape Helm's
     Go structs store file contents in (Chart.Templates[].Data etc.)."""
     return base64.b64encode(data).decode()
 
 
-def packaged_files(chart_dir):
+def packaged_files(chart_dir: Path):
     """`helm package` (no dependency update) applies .helmignore exactly the
     way `helm install`/`template` loading does — this repo's podiumd chart
     relies on that to keep docs/ci/scripts out of the release Secret (see
@@ -134,7 +134,7 @@ def packaged_files(chart_dir):
     return out
 
 
-def check_subchart_freshness(chart_dir, metadata):
+def check_subchart_freshness(chart_dir: Path, metadata: dict):
     """`helm package` (as used by packaged_files()) bundles whatever is
     already vendored under <chart_dir>/charts/ as-is — it does NOT run
     `helm dependency update` first. If Chart.yaml's declared dependency
@@ -168,7 +168,7 @@ def check_subchart_freshness(chart_dir, metadata):
     return warnings
 
 
-def bucket_files(paths):
+def bucket_files(paths: dict):
     """Mirror helm's loader.LoadFiles bucketing: everything under charts/ is
     a subchart (excluded — dependencies is an unexported Go field, never
     serialized), templates/ files go to Templates, the rest to Files —
@@ -187,7 +187,7 @@ def bucket_files(paths):
     return templates, files
 
 
-def build_release(chart_dir, values_override, manifest, name, namespace):
+def build_release(chart_dir: Path, values_override: dict | None, manifest: str, name: str, namespace: str):
     """(release, version, warnings) for the chart under test.
 
     values_override: an already-parsed dict (becomes Release.Config), or
@@ -251,7 +251,7 @@ def build_release(chart_dir, values_override, manifest, name, namespace):
     return release, metadata.get("version", "unknown"), warnings
 
 
-def load_yaml_bytes(data):
+def load_yaml_bytes(data: bytes):
     """yaml.safe_load applied to a vendored-tgz member's raw bytes (see
     packaged_files) — the same parse load_yaml itself does for a real
     file, just against bytes already read out of the tar archive rather
@@ -273,7 +273,7 @@ class SecretSizeEstimate:
     secret_limit: int
 
 
-def encoded_secret_size(release, secret_limit):
+def encoded_secret_size(release: dict, secret_limit: int):
     """SecretSizeEstimate for `release` (see build_release) — encoded_len's
     fraction of `secret_limit` (see release_secret.kubernetes_secret_limit_
     bytes in lib.settings)."""
@@ -287,7 +287,7 @@ def encoded_secret_size(release, secret_limit):
     return SecretSizeEstimate(len(raw), len(gzipped), size, size / secret_limit, secret_limit)
 
 
-def format_report(chart_name, version, estimate):
+def format_report(chart_name: str, version: str, estimate):
     """The standard multi-line report both the standalone CLI and
     check_release_secret_size print — identical content, since it's the
     same estimate either way; only what surrounds it (report framing,
@@ -302,7 +302,7 @@ def format_report(chart_name, version, estimate):
     )
 
 
-def over_limit_warning(chart_name, version, estimate):
+def over_limit_warning(chart_name: str, version: str, estimate):
     """The shared "approaching the 1 MiB limit" warning text (no prefix —
     same convention as check_subchart_freshness's own warnings) — printed
     by the standalone CLI (stderr, before sys.exit(1)) and by
@@ -317,7 +317,7 @@ def over_limit_warning(chart_name, version, estimate):
     )
 
 
-def _doc_header(chart_name):
+def _doc_header(chart_name: str):
     """The header this doc gets the first time record_result creates it —
     table column order must match the row shape record_result builds."""
     return (
@@ -331,7 +331,7 @@ def _doc_header(chart_name):
     )
 
 
-def _merge_row(doc_path, lines, version, row):
+def _merge_row(doc_path: Path, lines: list[str], version: str, row: str):
     """Replace `version`'s own table row in `lines` with `row`, or append
     it if none exists yet. Warns (doesn't fix) instead of silently picking
     one, if more than one row for `version` already existed."""
@@ -356,7 +356,7 @@ def _merge_row(doc_path, lines, version, row):
     return lines
 
 
-def record_result(chart_dir, chart_name, version, encoded_bytes, pct):
+def record_result(chart_dir: Path, chart_name: str, version: str, encoded_bytes: int, pct: float):
     """Append/update `version`'s own row in <chart_dir>/docs/release-
     secret-size.md — the standalone CLI's own --record, never called by
     check_release_secret_size (verify-podiumd's checks are read-only;
@@ -378,7 +378,7 @@ def record_result(chart_dir, chart_name, version, encoded_bytes, pct):
     return doc_path
 
 
-def values_file_from_extra_args(extra_args):
+def values_file_from_extra_args(extra_args: list):
     """The values file path lib.render_scope.lint_args_for(chart_dir)
     encodes into extra_args as ["-f", "<path>"] (or [] if it found none)
     — reused here by check_release_secret_size instead of re-deriving/
@@ -391,7 +391,7 @@ def values_file_from_extra_args(extra_args):
     return None
 
 
-def check_release_secret_size(chart_dir, extra_args):
+def check_release_secret_size(chart_dir: Path, extra_args: list):
     """Verify-podiumd integration: renders podiumd via lib.render_scope.
     render_chart (the shared release-name-"podiumd" primitive, not a
     second inline `helm template` call), reuses `extra_args` (verify-

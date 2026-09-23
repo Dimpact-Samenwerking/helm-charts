@@ -49,7 +49,7 @@ def kubeconform_cache_dir():
     return Path.home() / ".cache" / "podiumd-kubeconform-schemas"
 
 
-def run_kubeconform(yaml_text):
+def run_kubeconform(yaml_text: str):
     """Validate a YAML stream with kubeconform, returning the parsed
     "resources" list (each a dict with at least kind/name/version/status/
     msg) — or None if kubeconform's own output couldn't be parsed as JSON
@@ -64,19 +64,19 @@ def run_kubeconform(yaml_text):
         return None
 
 
-def _kubeconform_group_key(entry):
+def _kubeconform_group_key(entry: tuple):
     _chart, r = entry
     message = r.get("msg") or "(no message)"
     return r["status"], message.splitlines()[0]
 
 
-def _kubeconform_group_label(key):
+def _kubeconform_group_label(key: tuple[str, ...]):
     status, first_line = key
     label = "ERROR" if status == "statusError" else "INVALID"
     return f"[{label:7s}] {first_line}"
 
 
-def _kubeconform_item(entry, locations):
+def _kubeconform_item(entry: tuple, locations: dict):
     """ "<kind>/<name>" plus a "(rendered line N)" hint when
     build_resource_locations can locate exactly this kind+name
     unambiguously (kubeconform's own JSON has no namespace field, so a
@@ -101,7 +101,9 @@ def _own_kubeconform_findings(
     return [r for r in own_resources if r.get("status") in failing_statuses], None
 
 
-def _scan_vendored_charts(docs, failing_statuses, vendor_map) -> tuple[list[Any] | None, list[Any] | None, str | None]:
+def _scan_vendored_charts(
+    docs: list, failing_statuses: set[str], vendor_map: dict
+) -> tuple[list[Any] | None, list[Any] | None, str | None]:
     """Validates each vendored sub-chart's docs (every rendered doc outside
     OWN_TEMPLATES_PREFIX) with kubeconform separately
     (kubeconform's own JSON carries no per-resource source info, so —
@@ -160,7 +162,7 @@ def _print_kubeconform_findings(scan):
         print("OK: no kubeconform findings in the rendered chart")
 
 
-def check_kubeconform(chart_dir, extra_args):
+def check_kubeconform(chart_dir: Path, extra_args: list):
     """Validates the full `helm template` render against real Kubernetes
     API schemas — catches unknown fields, wrong types, and missing
     required fields that neither `helm lint` nor yamllint check (those

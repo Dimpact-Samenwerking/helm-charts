@@ -7,6 +7,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from pathlib import Path
+
 from lib.procutil import run
 
 MANIFEST_ACCEPT = (
@@ -61,21 +63,22 @@ def _read_token(resp):
         raise urllib.error.URLError(msg) from e
 
 
-def _urlopen(url_or_req, timeout=None):
+def _urlopen(url_or_req, timeout: int | None = None):
     """urllib.request.urlopen, only passing timeout= when the caller asked
     for one — every existing call site (and its tests, mocking urlopen with
     a plain single-arg callable) keeps behaving exactly as before; a caller
     that wants a bounded wait (e.g. lib.repo_access's fast preflight, where
     a hung connection would defeat the whole point of "fast") passes one
     explicitly instead of blocking forever on an unreachable host."""
-    kwargs = {"timeout": timeout} if timeout is not None else {}
     # Every caller targets a known, config-derived trusted registry host, never an
     # attacker-controllable scheme; same trust boundary ruff's own per-file S310
     # exemption for this file documents.
-    return urllib.request.urlopen(url_or_req, **kwargs)  # nosec B310
+    if timeout is None:
+        return urllib.request.urlopen(url_or_req)  # nosec B310
+    return urllib.request.urlopen(url_or_req, timeout=timeout)  # nosec B310
 
 
-def _parse_bearer_challenge(header_value):
+def _parse_bearer_challenge(header_value: str | None):
     """Parses a `WWW-Authenticate: Bearer realm="...",service="...",
     scope="..."` challenge into {"realm": ..., "service": ..., "scope": ...}
     — the standard OCI Distribution auth flow every spec-compliant registry
@@ -87,7 +90,7 @@ def _parse_bearer_challenge(header_value):
     return params if "realm" in params else None
 
 
-def _get_with_dynamic_auth(url, repo, headers, timeout=None, method="GET"):
+def _get_with_dynamic_auth(url: str, repo: str, headers: dict, timeout: int | None = None, method: str = "GET"):
     """Requests url (GET by default; registry_tag_exists passes "HEAD" — see
     there), retrying once with a bearer token if the registry demands one
     via a WWW-Authenticate challenge that TOKEN_ENDPOINTS didn't already
@@ -130,7 +133,7 @@ def _get_with_dynamic_auth(url, repo, headers, timeout=None, method="GET"):
 UNVERIFIABLE_HOSTS = set()
 
 
-def parse_repo(repository):
+def parse_repo(repository: str):
     """Split a Docker-style repository string into (registry_host, repo_path)
     using the standard Docker convention: the first path segment is a
     registry host only if it contains a "." or ":" (or is "localhost");
@@ -145,7 +148,7 @@ def parse_repo(repository):
     return "docker.io", repository
 
 
-def _fetch_manifest_digest(url, repo, headers, timeout, method):
+def _fetch_manifest_digest(url: str, repo: str, headers: dict, timeout: int | None, method: str):
     """One manifest request via the given HTTP method, returning (exists,
     digest) — a 404 is a genuine "tag doesn't exist" answer regardless of
     method, not an error. Any other HTTPError (or URLError/OSError)
@@ -159,7 +162,7 @@ def _fetch_manifest_digest(url, repo, headers, timeout, method):
         raise
 
 
-def registry_tag_exists(registry_host, repo, tag, timeout=None):
+def registry_tag_exists(registry_host: str, repo: str, tag: str, timeout: int | None = None):
     """Return (exists, digest) for <repo>:<tag> on the given registry host,
     using an anonymous pull token where the registry requires one — same
     flow as /fetch-image-digest. timeout (seconds) bounds every request
@@ -200,7 +203,7 @@ def registry_tag_exists(registry_host, repo, tag, timeout=None):
 HISTORICAL_DIGEST_RE_TMPL = r'tag:\s*"?{version}@sha256:([0-9a-f]{{64}})'
 
 
-def historical_digests_for_tag(values_path, version):
+def historical_digests_for_tag(values_path: Path, version: str):
     """Every distinct digest this repo's own git history has ever recorded
     for a "tag: <version>@sha256:<digest>" pin with this exact version
     string — every value this tag has ever been pinned to here, across
@@ -228,7 +231,7 @@ def historical_digests_for_tag(values_path, version):
     return digests
 
 
-def list_tags(registry_host, repo):
+def list_tags(registry_host: str, repo: str):
     """All published tag names for a repository, via the generic OCI
     Distribution "tags/list" endpoint (GET /v2/<repo>/tags/list) — supported
     by Docker Hub, ghcr.io, quay.io, and any spec-compliant registry, unlike
@@ -247,7 +250,7 @@ def list_tags(registry_host, repo):
 NUMERIC_PREFIX_RE = re.compile(r"^(\d+(?:\.\d+)*)")
 
 
-def _numeric_prefix_and_suffix(tag):
+def _numeric_prefix_and_suffix(tag: str):
     """("3.14", "-slim") for "3.14-slim" — the leading dotted-digits run and
     everything after. (None, tag) if it doesn't start with a digit."""
     m = NUMERIC_PREFIX_RE.match(tag)
@@ -256,7 +259,7 @@ def _numeric_prefix_and_suffix(tag):
     return m.group(1), tag[m.end() :]
 
 
-def _is_more_specific_tag(candidate, version):
+def _is_more_specific_tag(candidate: str, version: str):
     """True if candidate refines version — e.g. "3.14.7-slim" or
     "3.14-slim-trixie" for "3.14-slim" — NOT a plain string-prefix check:
     "3.14.7-slim" doesn't literally start with "3.14-slim" (the dot lands
@@ -276,7 +279,7 @@ def _is_more_specific_tag(candidate, version):
     return cand_suffix == ver_suffix or cand_suffix.startswith(ver_suffix)
 
 
-def find_newest_same_variant_tag(registry_host, repo, version):
+def find_newest_same_variant_tag(registry_host: str, repo: str, version: str):
     """The numerically-highest published tag sharing version's suffix/
     variant (e.g. both "-slim", or both no suffix) — version itself if
     nothing newer is published, or if version isn't a numeric-style tag at
@@ -305,7 +308,7 @@ def find_newest_same_variant_tag(registry_host, repo, version):
     if ver_num is None:
         return version
 
-    def numeric_tuple(num):
+    def numeric_tuple(num: str):
         return tuple(int(p) for p in num.split("."))
 
     ver_parts = ver_num.split(".")
@@ -320,7 +323,7 @@ def find_newest_same_variant_tag(registry_host, repo, version):
     return best
 
 
-def find_more_specific_tag_at_same_digest(registry_host, repo, version, live_digest):
+def find_more_specific_tag_at_same_digest(registry_host: str, repo: str, version: str, live_digest: str):
     """A currently-published tag that's strictly more specific than version
     (e.g. "3.14.7-slim" for "3.14-slim" — see _is_more_specific_tag) and
     resolves to the same digest RIGHT NOW as version's own live digest —
@@ -337,7 +340,7 @@ def find_more_specific_tag_at_same_digest(registry_host, repo, version, live_dig
     return None
 
 
-def is_sliding_tag(values_path, registry_host, repo, version, live_digest):
+def is_sliding_tag(values_path: Path, registry_host: str, repo: str, version: str, live_digest: str):
     """True if this tag is expected to drift, so a digest mismatch against
     it is routine rather than a failure. Primary evidence: this repo's own
     git history shows the tag has changed digest before (>= 2 distinct

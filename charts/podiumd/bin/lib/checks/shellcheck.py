@@ -9,6 +9,7 @@ import json
 import shutil
 
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -26,11 +27,11 @@ from lib.settings import quality_gates_shellcheck_failing_levels
 from lib.settings import quality_gates_shellcheck_shell_names
 
 
-def _shell_name(token):
+def _shell_name(token: object):
     return token.rsplit("/", 1)[-1] if isinstance(token, str) else None
 
 
-def find_shell_scripts(obj, source, shell_names, path=""):
+def find_shell_scripts(obj: str | list | dict, source: str, shell_names: set[str], path: str = ""):
     """Recursively walk a parsed manifest (dict/list/scalar) looking for a
     container-shaped dict with a command/args pair that invokes a shell
     with "-c" (in either list, in either order — this chart uses both
@@ -65,7 +66,7 @@ def find_shell_scripts(obj, source, shell_names, path=""):
     return found
 
 
-def extract_shell_scripts(docs, shell_names):
+def extract_shell_scripts(docs: list, shell_names: set[str]):
     """docs: list of (source, doc_text) pairs, e.g. from
     split_rendered_by_source. Parses each doc_text as YAML and returns
     every embedded shell script found in it (see find_shell_scripts for
@@ -94,7 +95,7 @@ def extract_shell_scripts(docs, shell_names):
     return scripts
 
 
-def run_shellcheck(shell, script_text):
+def run_shellcheck(shell: str, script_text: str):
     """Lint one embedded script, returning shellcheck's "comments" list (each
     a dict with level/code/line/message) — or None if shellcheck's own
     output couldn't be parsed as JSON (a shellcheck bug/crash, not a chart
@@ -106,17 +107,17 @@ def run_shellcheck(shell, script_text):
         return None
 
 
-def _shellcheck_group_key(finding):
+def _shellcheck_group_key(finding: tuple):
     _source, _path, c, _kind, _namespace, _name = finding
     return c.get("level"), c.get("code"), c.get("message")
 
 
-def _shellcheck_group_label(key):
+def _shellcheck_group_label(key: tuple):
     level, code, message = key
     return f"[{level.upper():7s}] SC{code}: {message}"
 
 
-def _shellcheck_location(finding, locations):
+def _shellcheck_location(finding: tuple, locations: dict):
     """ "<source> (<path>) — script line <N>[:<col>] (rendered line M)" for
     one finding (source, path, comment, kind, namespace, name). The
     script line/column are shellcheck's own, against the embedded script
@@ -141,7 +142,9 @@ def _shellcheck_location(finding, locations):
     return f"{base} (rendered line {rendered_line})" if rendered_line else base
 
 
-def _own_shellcheck_findings(own_docs, shell_names, failing_levels) -> tuple[list[Any] | None, str | None]:
+def _own_shellcheck_findings(
+    own_docs: list, shell_names: set[str], failing_levels: set[str]
+) -> tuple[list[Any] | None, str | None]:
     """Lints every embedded script found in this chart's own docs, keeping
     only failing_levels-severity comments. Returns (None, error) if any
     script's shellcheck output couldn't be parsed."""
@@ -154,7 +157,7 @@ def _own_shellcheck_findings(own_docs, shell_names, failing_levels) -> tuple[lis
     return own_real, None
 
 
-def _vendored_script_result(entry, failing_levels):
+def _vendored_script_result(entry: tuple[str, ...], failing_levels: set[str]):
     """One extract_shell_scripts entry -> (chart, findings, error): lints
     the entry's script, keeping only failing_levels-severity comments as
     (source, path, comment, kind, namespace, name) findings. findings is
@@ -168,7 +171,7 @@ def _vendored_script_result(entry, failing_levels):
 
 
 def _vendored_shellcheck_findings(
-    vendored_docs, shell_names, failing_levels, vendor_map
+    vendored_docs: list, shell_names: set[str], failing_levels: set[str], vendor_map: dict
 ) -> tuple[list[Any] | None, list[Any] | None, str | None]:
     """Lints every embedded script found in vendored docs (see
     _vendored_script_result), splitting findings into (vendored_friendly,
@@ -220,7 +223,7 @@ def _print_shellcheck_findings(scan):
         print("OK: no shellcheck findings in the rendered chart")
 
 
-def check_shellcheck(chart_dir, extra_args):
+def check_shellcheck(chart_dir: Path, extra_args: list):
     """Lints every shell script embedded in a container's command/args
     (this chart's `command: [".../sh", "-c"], args: [<script>]` /
     `command: [...], args: ["-c", <script>]` convention) — catches actual

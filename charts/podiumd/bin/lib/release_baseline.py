@@ -26,6 +26,8 @@ if IT can't be read, precisely because every ITS OWN caller does need
 it) — see resolve_baseline_values' own docstring for exactly how its
 failure semantics differ."""
 
+from pathlib import Path
+
 import yaml
 
 from lib.gitutil import find_repo_root
@@ -33,7 +35,7 @@ from lib.gitutil import git_show_text
 from lib.gitutil import resolve_baseline_ref
 
 
-def resolve_baseline_chart_state(chart_dir, baseline):
+def resolve_baseline_chart_state(chart_dir: Path, baseline: str):
     """(baseline_ref, baseline_deps, baseline_values, baseline_lines,
     error) for `baseline` (any release-baseline.yaml value — upgrade_
     docs, release_table, or a raw git ref) resolved against chart_dir's
@@ -83,7 +85,7 @@ def resolve_baseline_chart_state(chart_dir, baseline):
         return None, [], {}, [], f"{chart_dir} is not inside a git repository"
 
     baseline_ref, error = resolve_baseline_ref(repo_root, baseline)
-    if error:
+    if baseline_ref is None:
         return None, [], {}, [], error
 
     rel_chart_dir = chart_dir.relative_to(repo_root)
@@ -100,7 +102,7 @@ def resolve_baseline_chart_state(chart_dir, baseline):
     return baseline_ref, baseline_deps, baseline_values, baseline_lines, None
 
 
-def resolve_baseline_values(chart_dir, baseline):
+def resolve_baseline_values(chart_dir: Path, baseline: str):
     """(baseline_ref, baseline_values, baseline_lines, error) for
     `baseline` resolved against chart_dir's own git history — the
     values.yaml-ONLY sibling of resolve_baseline_chart_state (see this
@@ -130,7 +132,7 @@ def resolve_baseline_values(chart_dir, baseline):
         return None, {}, [], f"{chart_dir} is not inside a git repository"
 
     baseline_ref, error = resolve_baseline_ref(repo_root, baseline)
-    if error:
+    if baseline_ref is None:
         return None, {}, [], error
 
     rel_chart_dir = chart_dir.relative_to(repo_root)

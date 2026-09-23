@@ -6,6 +6,7 @@ import re
 import shutil
 
 from collections import Counter
+from pathlib import Path
 
 from lib.procutil import run
 from lib.render_scope import OWN_TEMPLATES_PREFIX
@@ -43,7 +44,7 @@ YAMLLINT_FINDING_RE = re.compile(
 )
 
 
-def _classify_yamllint_findings(output, sources, vendor_map, failing_rules):
+def _classify_yamllint_findings(output: str, sources: dict, vendor_map: dict, failing_rules: set[str]):
     """Buckets every non-cosmetic yamllint finding in `output` into (own_real,
     vendored_friendly, vendored_other) — see check_yamllint's own docstring
     for what each bucket means."""
@@ -64,7 +65,7 @@ def _classify_yamllint_findings(output, sources, vendor_map, failing_rules):
     return own_real, vendored_friendly, vendored_other
 
 
-def check_yamllint(chart_dir, extra_args):
+def check_yamllint(chart_dir: Path, extra_args: list):
     """Runs yamllint against the full `helm template` render (never against
     raw templates/*.yaml — those contain Go template syntax that isn't
     valid YAML on its own) and buckets every finding several ways:
