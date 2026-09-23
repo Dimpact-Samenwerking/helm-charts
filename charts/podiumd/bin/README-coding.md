@@ -176,10 +176,25 @@ basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x
 ```
 
 `typeCheckingMode = "strict"` in `pyproject.toml` — every function parameter
-needs a type annotation. Unlike the other tools here, basedpyright walks
-`tests/` too (fixture/mock signatures benefit from typing same as
-production code); the extensionless top-level scripts still need to be
-passed explicitly, same file-discovery gap as pylint/vulture/bandit above.
+in `lib/` and the scripts needs a type annotation. basedpyright walks
+`tests/` too, with every rule except two: unannotated pytest fixture
+parameters and monkeypatch lambdas are allowed there (see the
+`executionEnvironments` entry in `pyproject.toml`). The extensionless
+top-level scripts still need to be passed explicitly, same file-discovery
+gap as pylint/vulture/bandit above.
+
+**Baseline.** `.basedpyright/baseline.json` records the type errors that
+existed when strict mode was adopted. basedpyright reads it automatically
+and only reports errors that are not in it, so a new error still fails the
+check. After fixing baselined errors, shrink the baseline:
+
+```bash
+basedpyright --writebaseline lib \
+    $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) tests
+```
+
+Only rewrite the baseline to drop fixed errors, never to accept a new one:
+check `git diff .basedpyright/baseline.json` removes entries only.
 
 ## Before committing
 

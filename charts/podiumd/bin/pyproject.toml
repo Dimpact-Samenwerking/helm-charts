@@ -281,3 +281,11 @@ reportUnknownMemberType = false
 reportUnknownVariableType = false
 reportUnusedImport = false  # done by ruff F401
 reportUntypedBaseClass = false # dony by ruff N801
+
+# tests/ only: pytest fixture parameters (tmp_path, monkeypatch, capsys,
+# module fixtures) and monkeypatch lambdas are not annotated. Every other
+# rule still applies to tests/.
+[[tool.basedpyright.executionEnvironments]]
+root = "tests"
+reportMissingParameterType = false
+reportUnknownLambdaType = false
