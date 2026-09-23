@@ -256,6 +256,27 @@ def images_manifest_changes_block(lines: list[str], header_idx: int) -> tuple[li
     return item_starts, block_end
 
 
+def images_manifest_changes_item_spans(lines: list[str], header_idx: int) -> tuple[list[tuple[int, int]], int]:
+    """(spans, block_end) for the "# Changes:" block at header_idx: one
+    (start, end) line span per "#   N. ..." item, its wrapped continuation
+    lines included (see images_manifest_changes_block)."""
+    item_starts, block_end = images_manifest_changes_block(lines, header_idx)
+    if not item_starts:
+        return [], block_end
+    return list(zip(item_starts, [*item_starts[1:], block_end], strict=True)), block_end
+
+
+def remove_changes_item(lines: list[str], item_indices: list[int], match_idx: int) -> list[int]:
+    """Delete the "#   N. ..." item at line match_idx and renumber the
+    items after it. Returns the remaining items' line indices."""
+    del lines[match_idx]
+    remaining_indices = [i - 1 if i > match_idx else i for i in item_indices if i != match_idx]
+    for new_num, idx in enumerate(remaining_indices, start=1):
+        m = CHANGES_ITEM_RE.match(lines[idx])
+        lines[idx] = f"#   {new_num}. {m.group('rest')}\n"
+    return remaining_indices
+
+
 def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_text):
     """Insert "#   N. <item_text>" into the images-manifest's own "#
     Changes:" header list (see find_images_manifest_changes_header) at

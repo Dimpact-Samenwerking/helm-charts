@@ -50,6 +50,7 @@ from lib.component_docs.images_manifest_changes_header import find_changes_item
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
+from lib.component_docs.images_manifest_changes_header import remove_changes_item
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
@@ -715,11 +716,7 @@ def _remove_manifest_changes_header_item(lines, basename):
     if match_idx is None:
         return None
 
-    del lines[match_idx]
-    remaining_indices = [i - 1 if i > match_idx else i for i in item_indices if i != match_idx]
-    for new_num, idx in enumerate(remaining_indices, start=1):
-        m = CHANGES_ITEM_RE.match(lines[idx])
-        lines[idx] = f"#   {new_num}. {m.group('rest')}\n"
+    remove_changes_item(lines, item_indices, match_idx)
     return "removed"
 
 

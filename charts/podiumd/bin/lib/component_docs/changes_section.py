@@ -27,10 +27,10 @@ import re
 from dataclasses import dataclass
 
 from lib.chart.historical_baselines import historical_app_version_for_path
+from lib.chart.registered_paths import component_chart_versions
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import native_components
 from lib.chart.registered_paths import version_paths_for
-from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
@@ -568,18 +568,10 @@ def resolve_component_own_version_change(key, target_state, baseline_state, char
     consistency's own "changed but has no row" finding (skip demanding
     one), so the two can never drift on which keys actually need a
     row of their own."""
-    dep = dep_for_values_key(target_state.deps, key)
-    if dep is not None:
-        chart_name = dep["name"]
-        baseline_dep = dep_for_values_key(baseline_state.deps, key) if baseline_state.deps else None
-        old_chart = str(baseline_dep["version"]) if baseline_dep else None
-        new_chart = str(dep["version"])
-    elif key in native_components(chart_dir):
-        chart_name = key
-        old_chart = None
-        new_chart = "-"
-    else:
+    chart_versions = component_chart_versions(chart_dir, key, target_state.deps, baseline_state.deps)
+    if chart_versions is None:
         return None
+    dep, chart_name, old_chart, new_chart = chart_versions
     chart_unchanged = new_chart == "-" or (
         old_chart is not None and normalize_version(old_chart) == normalize_version(new_chart)
     )
