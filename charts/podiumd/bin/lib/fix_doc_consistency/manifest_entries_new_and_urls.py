@@ -452,7 +452,9 @@ def _entry_insertion_keys(lines, context, resolution):
             continue
         entry_display = path_display_name(entry_path, context.deps, resolution.canonical_names)
         entry_keys.append(
-            images_manifest_order_key(resolution.key_order, entry_path, " - " in entry_display, context.target_values)
+            images_manifest_order_key(
+                resolution.key_order, entry_path, is_sidecar=" - " in entry_display, values=context.target_values
+            )
         )
     return entry_line_indices, entry_keys
 
@@ -482,7 +484,9 @@ def _insert_added_entry(text, path, context, resolution, fields):
     old_version, digest_only_change = _entry_old_version_and_digest_change(
         path, new_version, fields.pinned_tag, context, resolution
     )
-    new_key = images_manifest_order_key(resolution.key_order, path, " - " in fields.name, context.target_values)
+    new_key = images_manifest_order_key(
+        resolution.key_order, path, is_sidecar=" - " in fields.name, values=context.target_values
+    )
     version_text = image_manifest_version_text(old_version, new_version, digest_only_change=digest_only_change)
     version_text = f"{fields.name} {version_text}"
 
@@ -558,7 +562,7 @@ def _backfill_header_items(text, context, resolution):
 
         entry_path, entry_name, entry_old, entry_new = target
         new_key = images_manifest_order_key(
-            resolution.key_order, entry_path, " - " in entry_name, context.target_values
+            resolution.key_order, entry_path, is_sidecar=" - " in entry_name, values=context.target_values
         )
         insert_images_manifest_header_item(
             lines, context.deps, resolution.key_order, new_key, f"{entry_name} {entry_old} -> {entry_new}."

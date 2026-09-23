@@ -14,6 +14,8 @@ sections, and images-manifest entries)."""
 
 import re
 
+from pathlib import Path
+
 from lib.gitutil import baseline_ref_candidates
 from lib.gitutil import find_repo_root
 from lib.gitutil import git_show_yaml
@@ -21,14 +23,14 @@ from lib.gitutil import resolve_git_ref
 from lib.release_baseline import resolve_baseline_chart_state
 
 
-def images_manifest_path(images_dir, target):
+def images_manifest_path(images_dir: Path, target: str):
     """The docs/images/images-<target>.yaml path for `target` — the one
     place this filename shape is assembled, shared by create_missing_docs
     and every caller that needs the same path without re-deriving it."""
     return images_dir / f"images-{target}.yaml"
 
 
-def baseline_doc_paths(doc_dir, upgrade_docs_baseline, target):
+def baseline_doc_paths(doc_dir: Path, upgrade_docs_baseline: str | None, target: str):
     """(upgrade_path, values_deltas_path) for the <upgrade_docs_baseline>-to-<target>-
     *.md doc set, or (None, None) if upgrade_docs_baseline is None
     (release-baseline.yaml's own upgrade_docs key doesn't exist yet) or
@@ -121,7 +123,7 @@ IMAGES_STUB_TEMPLATE = (
 DOC_FILENAME_RE_TMPL = r"^(?P<upgrade_docs_baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+)\.md$"
 
 
-def existing_doc_baselines(doc_dir, target):
+def existing_doc_baselines(doc_dir: Path, target: str):
     """{suffix: [(upgrade_docs_baseline, path), ...]} for every *-to-<target>-<suffix>.md
     doc currently in doc_dir, whatever upgrade_docs_baseline each one currently names —
     the raw "what's actually there" scan. Shared by create-doc-version (to
@@ -137,7 +139,7 @@ def existing_doc_baselines(doc_dir, target):
     return by_suffix
 
 
-def create_missing_docs(doc_dir, images_dir, upgrade_docs_baseline, target):
+def create_missing_docs(doc_dir: Path, images_dir: Path, upgrade_docs_baseline: str, target: str):
     """Create whichever of the three standard <upgrade_docs_baseline>-to-<target>-*.md
     docs, and docs/images/images-<target>.yaml, don't already exist yet,
     as TODO stubs — never overwrites an existing file. Returns the
@@ -161,7 +163,7 @@ def create_missing_docs(doc_dir, images_dir, upgrade_docs_baseline, target):
     return created
 
 
-def load_baseline_values(values_path, upgrade_docs_baseline):
+def load_baseline_values(values_path: Path, upgrade_docs_baseline: str):
     """values.yaml as it actually was at the release these docs are written
     against (resolved via git) — NOT "before this script's own edit". A
     tag-only bump never touches values.yaml's schema, so a before/after-
@@ -198,9 +200,9 @@ def load_baseline_values(values_path, upgrade_docs_baseline):
 
 def load_baseline_state(
     # kept for signature compat, see docstring below
-    chart_yaml_path,  # pylint: disable=unused-argument  # noqa: ARG001
-    values_path,
-    upgrade_docs_baseline,
+    chart_yaml_path: Path,  # pylint: disable=unused-argument  # noqa: ARG001
+    values_path: Path,
+    upgrade_docs_baseline: str,
 ):
     """(baseline_deps, baseline_values) as they actually were at upgrade_docs_baseline's
     resolved git ref — same ref resolution as load_baseline_values, but

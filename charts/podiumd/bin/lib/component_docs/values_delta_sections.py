@@ -19,6 +19,7 @@ package."""
 import re
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from lib.chart.registered_paths import component_chart_versions
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
@@ -36,7 +37,9 @@ from lib.upgradedoc.version_cells_and_key_changes import missing_key_change_line
 from lib.upgradedoc.version_cells_and_key_changes import strip_html_comments
 
 
-def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_chart):
+def values_delta_section_heading(
+    friendly: str, old_app: str | None, new_app: str | None, old_chart: str | None, new_chart: str
+):
     """The "## <friendly> ..." heading for this component's own values-
     deltas.md section — carries the app/chart-transition info a flat
     "- **<friendly>** app ..." bullet used to restate on its own first
@@ -96,7 +99,7 @@ def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_char
     return f"## {friendly} {app_bit}{chart_bit}\n"
 
 
-def find_values_delta_section(text, friendly, deps, canonical_names=None):
+def find_values_delta_section(text: str, friendly: str, deps: list, canonical_names: dict | None = None):
     """The existing "## ..." section (see lib.upgradedoc.parse_values_
     delta_sections/changes_heading_identities) that already names the
     SAME component identity `friendly` does — reused for a real
@@ -118,7 +121,7 @@ def find_values_delta_section(text, friendly, deps, canonical_names=None):
     return None
 
 
-def _is_bare_values_deltas_todo_stub(lines):
+def _is_bare_values_deltas_todo_stub(lines: list[str]):
     """True if `lines` (a whole values-deltas.md doc with no "## ..."
     section yet) is JUST STUB_TEMPLATES["values-deltas"]'s own shape: its
     "# Values deltas — ..." H1 title, then nothing but blank lines and
@@ -157,7 +160,7 @@ class ValuesDeltaBaseline:
     values: dict
 
 
-def insert_values_delta_section(text, friendly, heading_line, body_lines, ordering):
+def insert_values_delta_section(text: str, friendly: str, heading_line: str, body_lines: list[str], ordering):
     """Insert a brand-new "## <heading_line>" section (heading_line
     already includes its own trailing newline) + body_lines as its
     content, in values.yaml's own top-level component order relative to
@@ -199,7 +202,7 @@ def insert_values_delta_section(text, friendly, heading_line, body_lines, orderi
     return "".join(lines)
 
 
-def strip_stale_values_deltas_todo_stub(text):
+def strip_stale_values_deltas_todo_stub(text: str):
     """Retroactive cleanup companion to insert_values_delta_section's own
     insertion-time fix (see _is_bare_values_deltas_todo_stub there): a
     values-deltas.md doc whose FIRST real "## ..." section was inserted
@@ -234,7 +237,7 @@ def strip_stale_values_deltas_todo_stub(text):
 GEMEENTE_SECTION_HEADING_RE = re.compile(r"^##\s+\S.*$", re.MULTILINE)
 
 
-def has_real_gemeente_specific_content(text):
+def has_real_gemeente_specific_content(text: str):
     """True if gemeente-specific.md has at least one real "## <gemeente>
     (<env>)" section outside its own commented-out example template (see
     STUB_TEMPLATES["gemeente-specific"], whose own EXAMPLE heading of
@@ -247,7 +250,7 @@ def has_real_gemeente_specific_content(text):
     return bool(GEMEENTE_SECTION_HEADING_RE.search(strip_html_comments(text)))
 
 
-def has_stale_gemeente_specific_placeholder(text):
+def has_stale_gemeente_specific_placeholder(text: str):
     """True if gemeente-specific.md still carries its own bare "_None
     recorded yet._" placeholder (GEMEENTE_SPECIFIC_STUB_LINE) ALONGSIDE
     at least one real "## <gemeente> (<env>)" section already added by
@@ -266,7 +269,7 @@ def has_stale_gemeente_specific_placeholder(text):
     return any(line.strip() == GEMEENTE_SPECIFIC_STUB_LINE.strip() for line in text.splitlines())
 
 
-def append_values_delta_section_body(text, section, new_lines):
+def append_values_delta_section_body(text: str, section: dict, new_lines: list[str]):
     """Append new_lines at the end of an EXISTING values-deltas.md
     section (see find_values_delta_section) — right before its own next
     "## " heading (or EOF) — blank-line-separated from whatever already
@@ -282,7 +285,7 @@ def append_values_delta_section_body(text, section, new_lines):
     return new_head + tail
 
 
-def remove_values_delta_section(text, friendly, deps, canonical_names=None):
+def remove_values_delta_section(text: str, friendly: str, deps: list, canonical_names: dict | None = None):
     """Delete this component's OWN values-deltas.md section entirely —
     the counterpart to insert_values_delta_section, for a bump that nets
     out to no change from upgrade_docs_baseline at all. Only ever
@@ -307,7 +310,7 @@ def remove_values_delta_section(text, friendly, deps, canonical_names=None):
     return text, False
 
 
-def _values_delta_new_section_heading(chart_dir, key, ordering, baseline):
+def _values_delta_new_section_heading(chart_dir: Path, key: str, ordering, baseline):
     """The "## ..." heading line for a brand-new values-deltas.md section
     for `key` (see sync_values_delta_sections), or None when `key` has no
     matching Chart.yaml dependency AND no lib.chart.native_components
@@ -323,7 +326,7 @@ def _values_delta_new_section_heading(chart_dir, key, ordering, baseline):
     return values_delta_section_heading(key, old_app, new_app, old_chart, new_chart)
 
 
-def sync_values_delta_sections(text, chart_dir, ordering, baseline, actual_changed_keys):
+def sync_values_delta_sections(text: str, chart_dir: Path, ordering, baseline, actual_changed_keys: set):
     """Ensure every key in `actual_changed_keys` has its own values-
     deltas.md section (see find_values_delta_section/insert_values_
     delta_section) carrying every describe_key_changes line not already
@@ -375,7 +378,7 @@ def sync_values_delta_sections(text, chart_dir, ordering, baseline, actual_chang
     return text, created_names, updated_names
 
 
-def prune_empty_values_delta_sections(text):
+def prune_empty_values_delta_sections(text: str):
     """Delete every "## ..." section (see lib.upgradedoc.parse_values_
     delta_sections) whose own body is entirely blank — no content at all
     between its heading and the next "## " heading (or EOF). Only ever

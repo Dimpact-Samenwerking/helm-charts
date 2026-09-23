@@ -56,7 +56,7 @@ CHANGES_ITEM_RE = re.compile(r"^#\s*(?P<num>\d+)\.\s+(?P<rest>.+)$")
 IMAGES_MANIFEST_INTRO_RE = re.compile(r"^#\s*Images new or changed in podiumd\b.*$", re.IGNORECASE)
 
 
-def find_images_manifest_changes_header(lines):
+def find_images_manifest_changes_header(lines: list):
     """(header_idx, header_has_count) for the images-manifest's own "#
     Changes:" header — matching EITHER CHANGES_HEADER_RE's counted form
     ("# Twenty One changes:") or BARE_CHANGES_HEADER_RE's plain "#
@@ -77,7 +77,7 @@ def find_images_manifest_changes_header(lines):
     return None, False
 
 
-def ensure_images_manifest_changes_header(lines):
+def ensure_images_manifest_changes_header(lines: list):
     """Create the images-manifest's own bare "# Changes:\n#\n" header
     (see find_images_manifest_changes_header/IMAGES_STUB_TEMPLATE),
     right after the "# Images new or changed in podiumd ... vs ..."
@@ -124,7 +124,7 @@ def ensure_images_manifest_changes_header(lines):
             return
 
 
-def find_images_manifest_changes_items(lines):
+def find_images_manifest_changes_items(lines: list):
     """(header_idx, header_has_count, item_indices) — item_indices is
     every "#   N. ..." line's own index (see CHANGES_ITEM_RE), in
     current top-to-bottom document order, scoped to the "# Changes:"
@@ -150,7 +150,7 @@ def find_changes_item(lines: list[str], item_indices: list[int], name: str) -> i
     return None
 
 
-def images_manifest_changes_count_word(total):
+def images_manifest_changes_count_word(total: int):
     """The header's own leading count word for `total` items — a single
     NUMBER_WORDS entry (Zero..Fifteen) when it has one, else the bare
     numeral string; CHANGES_HEADER_RE's own count_word group is a single
@@ -163,7 +163,7 @@ def images_manifest_changes_count_word(total):
     return count_word, noun
 
 
-def renumber_images_manifest_changes_items(lines):
+def renumber_images_manifest_changes_items(lines: list[str]):
     """Renumber the images-manifest's own "# Changes:" numbered item
     list to a gapless 1..N sequence matching CURRENT top-to-bottom
     document order, and update the header's own leading count word (see
@@ -205,7 +205,9 @@ def renumber_images_manifest_changes_items(lines):
     return changed
 
 
-def images_manifest_order_key(key_order, values_key, is_sidecar, values=None):
+def images_manifest_order_key(
+    key_order: list, values_key: str | tuple[str, ...], *, is_sidecar: bool, values: dict | None = None
+):
     """(index-in-key_order, 0-or-1-for-sidecar) sort key for an images-
     manifest "# Changes:" item belonging to `values_key` — an unknown
     values_key (not in key_order at all) sorts LAST, never crashes.
@@ -277,7 +279,9 @@ def remove_changes_item(lines: list[str], item_indices: list[int], match_idx: in
     return remaining_indices
 
 
-def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_text):
+def insert_images_manifest_header_item(
+    lines: list, deps: list, key_order: list, new_key: tuple[int, ...], item_text: str
+):
     """Insert "#   N. <item_text>" into the images-manifest's own "#
     Changes:" header list (see find_images_manifest_changes_header) at
     the position matching new_key relative to what's already there (see

@@ -12,6 +12,7 @@ cve_check."""
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from pathlib import Path
 
 from lib.json_cache import cache_file
 from lib.json_cache import load_json_cache
@@ -20,7 +21,7 @@ from lib.json_cache import save_json_cache
 CACHE_FILENAME = "image-upgrade-cache.json"
 
 
-def cache_path(chart_dir):
+def cache_path(chart_dir: Path):
     """<repo-root>/.cache/image-upgrade-cache.json — a personal,
     gitignored, per-checkout cache (same as cve_check's own), never
     committed. Rooted at the repo root (not chart_dir) so root
@@ -30,7 +31,7 @@ def cache_path(chart_dir):
     return cache_file(chart_dir, CACHE_FILENAME)
 
 
-def load_cache(chart_dir):
+def load_cache(chart_dir: Path):
     """The cache dict at cache_path(chart_dir), or {} if it doesn't exist
     yet or fails to parse (a corrupt/partial cache file is treated the
     same as no cache at all, never raised — every lookup just misses and
@@ -38,7 +39,7 @@ def load_cache(chart_dir):
     return load_json_cache(cache_path(chart_dir))
 
 
-def save_cache(chart_dir, cache):
+def save_cache(chart_dir: Path, cache: dict):
     """Write `cache` to cache_path(chart_dir) as pretty, key-sorted JSON,
     creating the .cache/ directory if needed. check_image_upgrades calls
     this incrementally after each live registry check (not just once at
@@ -47,7 +48,7 @@ def save_cache(chart_dir, cache):
     save_json_cache(cache_path(chart_dir), cache)
 
 
-def cache_key(repository, version):
+def cache_key(repository: str, version: str):
     """The cache dict key for a given (repository, version) pin — e.g.
     "example.com/repo:1.2.3" — shared by both load_cache/save_cache
     callers (lib.image.upgrade_check and lib.checks.cve) so they always
@@ -55,7 +56,7 @@ def cache_key(repository, version):
     return f"{repository}:{version}"
 
 
-def cache_entry_is_fresh(entry, ttl_days):
+def cache_entry_is_fresh(entry: dict, ttl_days: int):
     """True when `entry` was checked within the last `ttl_days` days (see
     image_upgrade_check.tag_check_cache_ttl_days in lib.settings — a new
     tag can be published at any moment, so this is deliberately much

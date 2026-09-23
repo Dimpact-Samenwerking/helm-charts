@@ -27,6 +27,7 @@ against a real `helm template` output already checked into this repo."""
 
 from dataclasses import dataclass
 from dataclasses import field
+from pathlib import Path
 
 from lib.chart.nested_subchart_identity import nested_subchart_documented_image_repository
 from lib.chart.nested_subchart_identity import nested_subchart_name_for
@@ -51,7 +52,7 @@ class _RepositoryResolutionContext:
     subchart_cache: dict = field(default_factory=dict)
 
 
-def _path_has_repository(path, values, dep, ctx):
+def _path_has_repository(path: tuple[str, ...], values: dict, dep: dict | None, ctx):
     """True if `path`'s image-tag block resolves to a non-empty
     repository, per find_images_without_repository's own resolution
     rules (own override, sibling repository field, documented nested
@@ -92,7 +93,7 @@ def _path_has_repository(path, values, dep, ctx):
     return isinstance(sub_repo, str) and bool(sub_repo)
 
 
-def find_images_without_repository(chart_dir, *, allow_pull=False):
+def find_images_without_repository(chart_dir: Path, *, allow_pull: bool = False):
     """[path, ...] (each as find_image_tag_paths' own tuple form, sorted)
     for every image-tag block whose repository can't be resolved at all.
     A path rooted at a real Chart.yaml dependency's own values-tree key
@@ -130,7 +131,7 @@ def find_images_without_repository(chart_dir, *, allow_pull=False):
     return sorted(missing)
 
 
-def check_image_repository(chart_dir):
+def check_image_repository(chart_dir: Path):
     """The verify-podiumd check itself: every image-tag block in
     chart_dir's values.yaml must resolve to a non-empty repository (see
     find_images_without_repository for the resolution rules). Prints each

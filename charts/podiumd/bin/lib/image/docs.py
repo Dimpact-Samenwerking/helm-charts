@@ -20,6 +20,7 @@ since a bare basename never matches a Chart.yaml dependency by name."""
 import re
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
@@ -88,7 +89,7 @@ from lib.component_docs.changes_section import DocContext  # noqa: F401
 # isort: on
 
 
-def make_image_changes_section(basename, target, old_version, new_version, pinned):
+def make_image_changes_section(basename: str, target: str, old_version: str | None, new_version: str, pinned: list):
     """The "### <basename> <old> → <new>" Changes block for a shared
     image basename bump. `pinned` is [(dotted_path, old_version), ...]
     for every values.yaml tag pin actually bumped (see
@@ -157,7 +158,7 @@ class _SidecarRowContext:
     doc_context: object
 
 
-def _sidecar_scan_state(text, doc_context, target_state, baseline_values):
+def _sidecar_scan_state(text: str, doc_context, target_state, baseline_values: dict):
     """Builds _SidecarScanState — split out of add_missing_sidecar_rows
     purely to keep its own local-variable count down."""
     current_paths = dict(find_image_tag_paths(target_state.values))
@@ -182,7 +183,7 @@ def _sidecar_scan_state(text, doc_context, target_state, baseline_values):
     return _SidecarScanState(canonical_names, current_paths, baseline_paths, baseline_repo_groups, matched_paths)
 
 
-def _resolve_sidecar_old_app(path, ctx):
+def _resolve_sidecar_old_app(path: tuple[str, ...], ctx):
     """A sidecar path's own prior app version when there's no EXACT
     match in ctx.state.baseline_paths (baseline_tag is None) — not
     immediately treated as genuinely new. Two fallback tiers, in order:
@@ -218,7 +219,7 @@ def _resolve_sidecar_old_app(path, ctx):
     return old_app
 
 
-def _add_sidecar_row(text, name, path, ctx):
+def _add_sidecar_row(text: str, name: str, path: tuple[str, ...], ctx):
     """Insert `name`'s own missing sidecar/shared-image row + Changes
     section into `text` for values-tree path `path`, or (text, False)
     unchanged if it's already matched, unchanged since baseline (a
@@ -247,7 +248,7 @@ def _add_sidecar_row(text, name, path, ctx):
     return text, True
 
 
-def add_missing_sidecar_rows(text, doc_context, target_state, baseline_values):
+def add_missing_sidecar_rows(text: str, doc_context, target_state, baseline_values: dict):
     """Insert a new "Component versions" table row + matching "### ..."
     Changes section for every canonical sidecar/shared-image name (see
     lib.chart.canonical_sidecar_row_names — "<values_key> - <basename>"
@@ -310,7 +311,7 @@ def add_missing_sidecar_rows(text, doc_context, target_state, baseline_values):
     return text, added_names
 
 
-def build_changes_section_for_row(row, ident, deps, target):
+def build_changes_section_for_row(row: dict, ident: tuple, deps: list, target: str):
     """The "### ..." Changes section for a single table row + its already-
     resolved identity (see resolve_component_identity) — make_changes_
     section for a real Chart.yaml dependency, make_image_changes_section
@@ -361,7 +362,7 @@ def build_changes_section_for_row(row, ident, deps, target):
     )
 
 
-def add_missing_changes_sections(text, deps, target_values, target, canonical_names):
+def add_missing_changes_sections(text: str, deps: list, target_values: dict, target: str, canonical_names: dict):
     """Insert a "### ..." Changes section (see build_changes_section_for_
     row) for every "Component versions" table row that already exists
     but has no matching section of its own yet (see lib.upgradedoc.
@@ -395,7 +396,7 @@ def add_missing_changes_sections(text, deps, target_values, target, canonical_na
     return text, added_names
 
 
-def _remove_changes_block_by_exact_heading(text, heading):
+def _remove_changes_block_by_exact_heading(text: str, heading: str):
     """remove_changes_section, but matched by EXACT heading text instead
     of component identity — used for replacing a specific,
     already-identified stale heading (see update_stale_app_version_
@@ -417,7 +418,7 @@ class _StaleHeadingContext:
     ordering: object
 
 
-def _rows_by_identity(text, ctx):
+def _rows_by_identity(text: str, ctx):
     """{identity: row} for every "Component versions" table row in
     `text` that resolves to a real identity (see resolve_component_
     identity) — update_stale_app_version_headings' own way of looking up
@@ -431,7 +432,7 @@ def _rows_by_identity(text, ctx):
     return rows_by_identity
 
 
-def _stale_app_version_headings(text, ctx):
+def _stale_app_version_headings(text: str, ctx):
     """[(heading, ident), ...] for every "### ..." Changes heading in
     `text` that's missing its own primary-image app version (see
     changes_heading_has_app_version) AND resolves to exactly one real
@@ -452,7 +453,7 @@ def _stale_app_version_headings(text, ctx):
     return stale
 
 
-def _rewrite_stale_heading(text, heading, ident, rows_by_identity, ctx):
+def _rewrite_stale_heading(text: str, heading: str, ident: tuple[str, ...], rows_by_identity: dict, ctx):
     """Rewrites `heading`'s own "### ..." block in `text` from its
     matching table row (see build_changes_section_for_row), if its
     actual_app_version resolves at all — (new_text, True) if rewritten,
@@ -483,7 +484,7 @@ def _rewrite_stale_heading(text, heading, ident, rows_by_identity, ctx):
     return text, True
 
 
-def update_stale_app_version_headings(text, doc_context, ordering):
+def update_stale_app_version_headings(text: str, doc_context, ordering):
     """Regenerate a "### ..." Changes section whose own heading is
     missing the primary-image app version (see lib.upgradedoc.changes_
     heading_has_app_version) for a component that DOES have one
@@ -520,7 +521,7 @@ def update_stale_app_version_headings(text, doc_context, ordering):
     return text, updated_headings
 
 
-def resolve_basename_baseline_version(baseline_values, full_paths):
+def resolve_basename_baseline_version(baseline_values: dict, full_paths: list):
     """The single version every one of this basename's touched pins
     actually started at in baseline_values (the true git-resolved release
     baseline, see lib.component_docs.load_baseline_values) — None if they
@@ -555,7 +556,7 @@ class ImageBump:
     digest: str
 
 
-def _find_manifest_entry(lines, repository):
+def _find_manifest_entry(lines: list[str], repository: str):
     """(entry_line, block_end) for the first images-manifest "- name:
     ..." entry block whose own "url:" (host-stripped) matches
     `repository` — (None, None) if none does. Shared by update_image_
@@ -576,14 +577,16 @@ def _find_manifest_entry(lines, repository):
     return None, None
 
 
-def _update_manifest_entry_scalars(lines, entry_line, block_end, new_version, digest):
+def _update_manifest_entry_scalars(
+    lines: list[str], entry_line: int | None, block_end: int | None, new_version: str, digest: str
+):
     """Rewrites lines[entry_line:block_end]'s own "version:"/"digest:"
     scalars to new_version/digest in place. Returns True if entry_line
     is a real match (something was updated), False (a no-op) if
     entry_line is None. Shared by update_image_manifest/remove_image_
     manifest_entry — their own source-comment handling differs
     (rewritten vs deleted) and stays separate in each."""
-    if entry_line is None:
+    if entry_line is None or block_end is None:
         return False
     entry_updated = False
     for i in range(entry_line, block_end):
@@ -596,7 +599,7 @@ def _update_manifest_entry_scalars(lines, entry_line, block_end, new_version, di
     return entry_updated
 
 
-def _update_manifest_changes_header(lines, bump, ordering):
+def _update_manifest_changes_header(lines: list[str], bump, ordering):
     """Insert or update `bump.basename`'s own "#   N. ..." changes-
     header item in `lines` (the images-manifest's own "# Changes:"/"#
     <N> changes:" list) — None (nothing found to touch) if the manifest
@@ -645,7 +648,7 @@ def _update_manifest_changes_header(lines, bump, ordering):
     return "added"
 
 
-def update_image_manifest(images_path, bump, ordering=None):
+def update_image_manifest(images_path: Path, bump, ordering=None):
     """Update the "# <N> changes:" header list and the images-manifest
     entry for a shared image basename bump — keyed by `bump.repository`
     (an entry's "url:" resolving to it, host-stripped same as the
@@ -701,7 +704,7 @@ def update_image_manifest(images_path, bump, ordering=None):
     return changes_action, entry_updated
 
 
-def _remove_manifest_changes_header_item(lines, basename):
+def _remove_manifest_changes_header_item(lines: list[str], basename: str):
     """Deletes `basename`'s own "#   N. ..." changes-header item from
     `lines` (renumbering the ones after it) — returns "removed", or None
     if there was no header, or no matching item, to touch. Split out of
@@ -720,7 +723,7 @@ def _remove_manifest_changes_header_item(lines, basename):
     return "removed"
 
 
-def remove_image_manifest_entry(images_path, basename, repository, new_version, digest):
+def remove_image_manifest_entry(images_path: Path, basename: str, repository: str, new_version: str, digest: str):
     """Counterpart to update_image_manifest for a shared-image bump that
     nets out to no change from baseline at all: still writes the matching
     entry's final version/digest, but removes the "changes:" list item
@@ -781,7 +784,7 @@ class _BaselineManifestContext:
     sibling_fields: object
 
 
-def _current_image_paths(chart_dir, deps, values, rendered_paths):
+def _current_image_paths(chart_dir: Path, deps: list, values: dict, rendered_paths: set):
     """Every currently-pinned image path in the chart (find_all_image_
     and_version_paths + global_image_paths), PLUS every genuinely-live-
     but-unpinned vendored-subchart-default image find_unresolved_
@@ -797,7 +800,7 @@ def _current_image_paths(chart_dir, deps, values, rendered_paths):
     return current_paths
 
 
-def _resolve_baseline_entry(ctx, current_paths, repo, group_paths):
+def _resolve_baseline_entry(ctx, current_paths: dict, repo: str, group_paths: list):
     """(sort_key, repo, full_repo, new_version, digest) for one
     repository group's own baseline entry, or None if it should be
     skipped (unresolvable full_repo, or unresolvable digest) — the
@@ -824,7 +827,7 @@ def _resolve_baseline_entry(ctx, current_paths, repo, group_paths):
     return sort_key, repo, full_repo, new_version, digest
 
 
-def _resolve_baseline_entries(ctx, current_paths, repo_groups):
+def _resolve_baseline_entries(ctx, current_paths: dict, repo_groups: dict):
     """(resolved, skipped) for every repository group in repo_groups —
     resolved is [(sort_key, repo, full_repo, new_version, digest), ...]
     sorted by sort_key, skipped is [repo, ...] for every group _resolve_
@@ -842,7 +845,7 @@ def _resolve_baseline_entries(ctx, current_paths, repo_groups):
     return resolved, skipped
 
 
-def _render_baseline_manifest_lines(resolved):
+def _render_baseline_manifest_lines(resolved: list):
     """The full images-baseline.yaml text for `resolved` (see _resolve_
     baseline_entries) — the fixed IMAGES_BASELINE_HEADER followed by one
     "- name/url/version/digest" block per entry, exactly one trailing
@@ -866,7 +869,9 @@ def _render_baseline_manifest_lines(resolved):
     return text
 
 
-def regenerate_images_baseline_manifest(chart_dir, deps, values, images_baseline_path, rendered_paths):
+def regenerate_images_baseline_manifest(
+    chart_dir: Path, deps: list, values: dict, images_baseline_path: Path, rendered_paths: set
+):
     """Overwrite docs/images/images-baseline.yaml WHOLESALE with a full,
     CURRENT snapshot of every image pinned anywhere in the chart right
     now — every component's own primary image, every sidecar, every

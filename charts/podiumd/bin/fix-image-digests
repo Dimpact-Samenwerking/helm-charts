@@ -245,7 +245,7 @@ def main():
     lines = text.splitlines()
 
     target_repository = None
-    if key is not None:
+    if key is not None and basename is not None:
         target_repository = resolve_scoped_matches(lines, key, basename)[0]["repository"]
 
     print(f"Scanning {VALUES_PATH} for digest-pinned images...")

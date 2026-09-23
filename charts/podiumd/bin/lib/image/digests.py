@@ -8,6 +8,7 @@ import urllib.error
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
+from pathlib import Path
 
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import subchart_default_repository
@@ -81,7 +82,7 @@ REF_COMMENT_RE = re.compile(
 )
 
 
-def find_sibling_registry(lines, tag_line_index, tag_indent):
+def find_sibling_registry(lines: list[str], tag_line_index: int, tag_indent: int):
     """The value of a sibling "registry:" key at the same indent as the
     "tag:" pin at tag_line_index, if present — e.g. redis-ha's split
     `registry: quay.io` / `repository: opstree/redis` style, as opposed to
@@ -101,7 +102,7 @@ def find_sibling_registry(lines, tag_line_index, tag_indent):
     return None
 
 
-def find_inconsistent_version_pins(pins):
+def find_inconsistent_version_pins(pins: list):
     """Every repository pinned as a literal (non-alias) "tag:" in more than
     one place across values.yaml — always a real problem, just one of two
     different kinds:
@@ -153,7 +154,7 @@ def find_inconsistent_version_pins(pins):
     return findings
 
 
-def resolve_pin_repo(lines, tag_line_index, tag_indent):
+def resolve_pin_repo(lines: list[str], tag_line_index: int, tag_indent: int):
     """Resolve the upstream repository for a "tag:" pin at tag_line_index.
     Most pins have an active sibling "repository:" key. A minority of
     components (e.g. office_converter, opa, solr-operator) deliberately
@@ -187,7 +188,7 @@ def resolve_pin_repo(lines, tag_line_index, tag_indent):
     return None
 
 
-def scan_digest_pins(lines):
+def scan_digest_pins(lines: list):
     """Yield one record per "tag: <version>@sha256:<digest>" pin in
     values.yaml, with its resolved upstream repository. A single image (e.g.
     nginx-unprivileged) is typically pinned many times across the file."""
@@ -208,7 +209,7 @@ def scan_digest_pins(lines):
     return pins
 
 
-def scan_version_pins(lines):
+def scan_version_pins(lines: list):
     """The SAME shape scan_digest_pins returns, but for EVERY "tag:" pin
     (see VERSION_PIN_RE) whether or not it's digest-pinned — "digest" is
     None for a bare tag, never a reason to skip it. Exists solely for
@@ -238,7 +239,7 @@ def scan_version_pins(lines):
     return pins
 
 
-def unique_digest_pin_targets(values_lines):
+def unique_digest_pin_targets(values_lines: list[str]):
     """{(repository, version): (digest, line)} for the FIRST occurrence
     of every digest pin whose repository resolves from values.yaml
     ITSELF (an active sibling "repository:"/"registry:" pair, or one of
@@ -258,7 +259,7 @@ def unique_digest_pin_targets(values_lines):
     return targets
 
 
-def resolve_pin_targets(chart_dir):
+def resolve_pin_targets(chart_dir: Path):
     """pins (repository resolved via resolve_pin_repo, falling back to
     the vendored subchart's own default via subchart_default_repository
     when values.yaml has no active "repository:" of its own — the
@@ -294,7 +295,7 @@ def clear_tag_exists_cache() -> None:
     _tag_exists_cache.clear()
 
 
-def cached_tag_exists(chart_dir, repository, version, timeout=None):
+def cached_tag_exists(chart_dir: Path, repository: str, version: str, timeout: int | None = None):
     """Wrapper around lib.registry.registry_tag_exists for the tag-level
     lookup check_image_digests' own loop (below), find_sliding_pins, AND
     lib.repo_access.check_repo_access all make for the same pin — keyed
@@ -389,7 +390,7 @@ def cached_tag_exists(chart_dir, repository, version, timeout=None):
     return result
 
 
-def find_sliding_pins(chart_dir):
+def find_sliding_pins(chart_dir: Path):
     """[(repository, version, pinned_digest, digest)] for every unique
     digest pin whose live upstream digest has SLID (see check_image_
     digests' own docstring for the sliding-vs-genuine-drift
@@ -485,7 +486,7 @@ def _call_with_retry(fn):
     return (result, None) if error is None else (None, error)
 
 
-def _build_pin_context(chart_dir, values_path, repository, version, group):
+def _build_pin_context(chart_dir: Path, values_path: Path, repository: str, version: str, group: list):
     """Resolve host/repo_path and the shared pinned_digest/lines_str for
     one (repository, version) target's pin group, bundled into the
     context every per-pin helper below needs."""
@@ -508,7 +509,7 @@ def _resolve_pin_tag_status(ctx):
     return digest, (None if exists else "tag not found upstream")
 
 
-def _classify_pin_tag_result(ctx, digest, error, acc):
+def _classify_pin_tag_result(ctx, digest: str | None, error: str | None, acc):
     """The four possible outcomes for one pin's tag-level lookup —
     unverifiable host, fetch error, mismatch (sliding or not), no digest
     header, or matched — each printed and recorded on acc. Returns
@@ -585,7 +586,7 @@ def _confirm_pinned_digest_still_resolvable(ctx, acc):
         )
 
 
-def _process_pin(ctx, i, total, acc):
+def _process_pin(ctx, i: int, total: int, acc):
     """One pin's full check: announce it, resolve its tag-level status,
     classify the result, then run the digest-still-resolvable check when
     warranted. No per-run cache of its own here (unlike check_cves/
@@ -599,7 +600,7 @@ def _process_pin(ctx, i, total, acc):
         _confirm_pinned_digest_still_resolvable(ctx, acc)
 
 
-def _print_unresolved_pins(unresolved):
+def _print_unresolved_pins(unresolved: list):
     """Every pin whose "tag:" has no resolvable "repository:" (see
     resolve_pin_repo/resolve_pin_targets) — skipped, not a failure."""
     if not unresolved:
@@ -610,7 +611,7 @@ def _print_unresolved_pins(unresolved):
     print()
 
 
-def _print_unverifiable_pins(unverifiable):
+def _print_unverifiable_pins(unverifiable: list):
     """Every pin on a host lib.registry.UNVERIFIABLE_HOSTS excuses, or
     whose manifest carried no digest header — not counted as a failure."""
     if not unverifiable:
@@ -642,7 +643,7 @@ def _print_warning_and_stale_notes(acc):
         )
 
 
-def _print_duplicate_pins(duplicates):
+def _print_duplicate_pins(duplicates: dict):
     """[DUPLICATE-PIN] — a repository hand-duplicated identically in more
     than one place instead of a shared YAML anchor (see
     find_inconsistent_version_pins)."""
@@ -657,7 +658,7 @@ def _print_duplicate_pins(duplicates):
         )
 
 
-def _print_drifted_pins(drifted):
+def _print_drifted_pins(drifted: dict):
     """[VERSION-DRIFT] — a repository pinned at genuinely different
     versions/digests across values.yaml (see find_inconsistent_version_
     pins)."""
@@ -671,7 +672,7 @@ def _print_drifted_pins(drifted):
             print(f"      {version}@sha256:{digest}  (values.yaml:{lines_str})")
 
 
-def _build_digest_check_result(acc, targets, duplicates, drifted, inconsistent):
+def _build_digest_check_result(acc, targets: dict, duplicates: dict, drifted: dict, inconsistent: dict):
     """The final (ok, detail) pair check_image_digests returns, built from
     the accumulator plus the inconsistent-pin groupings — factored out
     solely to keep check_image_digests' own local-variable count down."""
@@ -686,7 +687,7 @@ def _build_digest_check_result(acc, targets, duplicates, drifted, inconsistent):
     return ok, detail
 
 
-def check_image_digests(chart_dir):
+def check_image_digests(chart_dir: Path):
     """Report-only: verify every digest-pinned image in values.yaml against
     its live upstream registry digest, to catch pins that are stale (tag
     unchanged, but upstream re-published it with new base/security layers).

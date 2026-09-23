@@ -13,11 +13,13 @@ sub-chart's templates aren't this repo's source to scan."""
 
 import re
 
+from pathlib import Path
+
 IMAGE_LINE_RE = re.compile(r"^\s*image:\s*(.+)$")
 HELPER_CALL_RE = re.compile(r'include\s+"podiumd\.image"')
 
 
-def scan_image_references(templates_dir):
+def scan_image_references(templates_dir: Path):
     """Returns a list of (path, line_no, value) for every `image:` line in
     templates/*.yaml whose value doesn't call the podiumd.image helper."""
     findings = []
@@ -35,7 +37,7 @@ def scan_image_references(templates_dir):
     return findings
 
 
-def check_image_references(chart_dir):
+def check_image_references(chart_dir: Path):
     """The verify-podiumd check itself: every `image:` field in chart_dir's
     own templates/*.yaml must call the shared `podiumd.image` helper (see
     scan_image_references). Prints each offending path:line:value and
