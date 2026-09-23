@@ -47,6 +47,7 @@ from lib.component_docs.changes_section import update_component_table
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import find_changes_item
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
@@ -559,24 +560,6 @@ class ImageBump:
     digest: str
 
 
-def _manifest_header_items(lines, header_idx):
-    """([item_index, ...], block_end) — the "#   N. ..." item line
-    indices already under `lines`' own changes header (at header_idx),
-    and the header block's own end index (one past its last "#..."
-    line). Shared by update_image_manifest/remove_image_manifest_entry,
-    split out purely to keep both their own local-variable counts
-    down."""
-    item_indices = []
-    block_end = header_idx + 1
-    for i in range(header_idx + 1, len(lines)):
-        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-            break
-        block_end = i + 1
-        if re.match(r"^#\s*\d+\.", lines[i]):
-            item_indices.append(i)
-    return item_indices, block_end
-
-
 def _find_manifest_entry(lines, repository):
     """(entry_line, block_end) for the first images-manifest "- name:
     ..." entry block whose own "url:" (host-stripped) matches
@@ -640,7 +623,7 @@ def _update_manifest_changes_header(lines, bump, ordering):
     if header_idx is None:
         return None
 
-    item_indices, block_end = _manifest_header_items(lines, header_idx)
+    item_indices, block_end = images_manifest_changes_block(lines, header_idx)
     match_idx = find_changes_item(lines, item_indices, bump.basename)
     item_text = f"{bump.basename} {image_manifest_version_text(bump.old_version, bump.new_version)}."
 
@@ -733,7 +716,7 @@ def _remove_manifest_changes_header_item(lines, basename):
     header_idx, _header_has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return None
-    item_indices, _block_end = _manifest_header_items(lines, header_idx)
+    item_indices, _block_end = images_manifest_changes_block(lines, header_idx)
     match_idx = find_changes_item(lines, item_indices, basename)
     if match_idx is None:
         return None

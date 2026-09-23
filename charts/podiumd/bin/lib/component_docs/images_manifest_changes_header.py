@@ -135,12 +135,7 @@ def find_images_manifest_changes_items(lines):
     header_idx, header_has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return None, False, []
-    item_indices = []
-    for i in range(header_idx + 1, len(lines)):
-        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-            break
-        if CHANGES_ITEM_RE.match(lines[i]):
-            item_indices.append(i)
+    item_indices, _block_end = images_manifest_changes_block(lines, header_idx)
     return header_idx, header_has_count, item_indices
 
 
@@ -244,16 +239,21 @@ def images_manifest_order_key(key_order, values_key, is_sidecar, values=None):
     return (idx, 1 if is_sidecar else 0)
 
 
-def _images_manifest_changes_block_end(lines, header_idx):
-    """First index right after the "# Changes:" block's own last comment
-    line, scanning from header_idx (same block-scan condition find_
-    images_manifest_changes_items uses for its own item_indices scan)."""
+def images_manifest_changes_block(lines: list[str], header_idx: int) -> tuple[list[int], int]:
+    """(item_starts, block_end) for the "# Changes:" block whose header is
+    at header_idx: the index of every "#   N. ..." item line
+    (CHANGES_ITEM_RE), and the index one past the block's last comment
+    line. The block ends at a bare "#" line or the first line that isn't a
+    comment. The one scan every reader and writer of this block uses."""
+    item_starts = []
     block_end = header_idx + 1
     for i in range(header_idx + 1, len(lines)):
         if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
             break
         block_end = i + 1
-    return block_end
+        if CHANGES_ITEM_RE.match(lines[i]):
+            item_starts.append(i)
+    return item_starts, block_end
 
 
 def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_text):
@@ -293,7 +293,7 @@ def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_tex
     if header_idx is None:
         return
 
-    block_end = _images_manifest_changes_block_end(lines, header_idx)
+    block_end = images_manifest_changes_block(lines, header_idx)[1]
 
     item_keys = []
     for idx in item_indices:
