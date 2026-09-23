@@ -87,14 +87,14 @@ def fake_render_chart(rendered=RENDERED, returncode=0):
 
 
 @pytest.fixture(autouse=True)
-def _default_render(libkubescorecheck, monkeypatch):
+def _default_render(monkeypatch):
     """check_kube_score now gets its render via lib.render_scope.render_
     chart(chart_dir, extra_args), not a run([...]) call of its own —
     default every test in this file to the standard RENDERED fixture
     text; a test needing different rendered content (or a render
     failure) overrides this via its own monkeypatch.setattr(
-    libkubescorecheck, "render_chart", ...) call."""
-    monkeypatch.setattr(libkubescorecheck, "render_chart", fake_render_chart(RENDERED))
+    "lib.render_scope.render_chart", ...) call."""
+    monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart(RENDERED))
 
 
 def sequenced_run(own_objects, vendored_objects_by_chart=None, ks_returncode=1):
@@ -375,7 +375,7 @@ def test_check_kube_score_missing_binary_fails(vp, tmp_path, monkeypatch):
 
 def test_check_kube_score_render_failure_fails(vp, libkubescorecheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
-    monkeypatch.setattr(libkubescorecheck, "render_chart", fake_render_chart("", returncode=1))
+    monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart("", returncode=1))
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is False
     assert "failed to render" in detail

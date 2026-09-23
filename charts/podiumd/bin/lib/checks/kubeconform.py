@@ -13,18 +13,17 @@ import json
 import shutil
 
 from collections import Counter
-from dataclasses import dataclass
 from pathlib import Path
 
 from lib.procutil import run
 from lib.render_scope import OWN_TEMPLATES_PREFIX
-from lib.render_scope import build_resource_locations
+from lib.render_scope import VendorBucketScan
 from lib.render_scope import chart_name_from_source
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import print_grouped_findings
-from lib.render_scope import render_chart
+from lib.render_scope import render_chart_docs
 from lib.render_scope import resource_line
-from lib.render_scope import split_rendered_by_source
+from lib.render_scope import scan_outcome
 from lib.settings import quality_gates_kubeconform_failing_statuses
 
 KUBECONFORM_BASE_ARGS = [
@@ -90,21 +89,6 @@ def _kubeconform_item(entry, locations):
     return f"{base} (rendered line {line})" if line else base
 
 
-@dataclass
-class KubeconformScan:
-    """Everything check_kubeconform's own print/detail logic needs from a
-    completed render+validate pass: the rendered-line lookup (locations),
-    the friendly-vendor map (needed by the print step for its label text),
-    and the three own/vendored-friendly/vendored-other finding buckets.
-    See _scan_rendered_chart, which builds this."""
-
-    locations: object
-    vendor_map: dict
-    own_real: list
-    vendored_friendly: list
-    vendored_other: list
-
-
 def _scan_vendored_charts(docs, failing_statuses, vendor_map):
     """Validates each vendored sub-chart's docs with kubeconform separately
     (kubeconform's own JSON carries no per-resource source info, so —
@@ -132,14 +116,12 @@ def _scan_vendored_charts(docs, failing_statuses, vendor_map):
 def _scan_rendered_chart(chart_dir, extra_args, failing_statuses):
     """Renders the chart, validates its own templates and every vendored
     sub-chart's templates (see _scan_vendored_charts) with kubeconform, and
-    bundles the result into a KubeconformScan. Returns (None, error) on any
-    render/kubeconform failure, else (KubeconformScan, None)."""
-    result = render_chart(chart_dir, extra_args)
-    if result.returncode != 0:
-        return None, "helm template failed to render"
-
-    locations = build_resource_locations(result.stdout)
-    docs = split_rendered_by_source(result.stdout)
+    bundles the result into a VendorBucketScan. Returns (None, error) on any
+    render/kubeconform failure, else (VendorBucketScan, None)."""
+    rendered, error = render_chart_docs(chart_dir, extra_args)
+    if rendered is None:
+        return None, error
+    locations, docs = rendered.locations, rendered.docs
     vendor_map = friendly_vendor_charts(chart_dir)
 
     own_text = "".join(text for source, text in docs if source.startswith(OWN_TEMPLATES_PREFIX))
@@ -152,12 +134,12 @@ def _scan_rendered_chart(chart_dir, extra_args, failing_statuses):
     if error:
         return None, error
 
-    return KubeconformScan(locations, vendor_map, own_real, vendored_friendly, vendored_other), None
+    return VendorBucketScan(locations, vendor_map, own_real, vendored_friendly, vendored_other), None
 
 
 def _print_kubeconform_findings(scan):
     """Prints check_kubeconform's three report sections (own/vendored-
-    friendly/vendored-other) for a completed KubeconformScan -- see
+    friendly/vendored-other) for a completed VendorBucketScan -- see
     check_kubeconform's own docstring for what each section means and why
     they're reported differently."""
     if scan.own_real:
@@ -234,10 +216,4 @@ def check_kubeconform(chart_dir, extra_args):
 
     _print_kubeconform_findings(scan)
 
-    detail = (
-        f"{len(scan.own_real)} real (own), {len(scan.vendored_friendly)} partner-vendor, "
-        f"{len(scan.vendored_other)} other-vendor"
-    )
-    if scan.own_real:
-        return False, detail
-    return True, detail
+    return scan_outcome(scan.own_real, scan.vendored_friendly, scan.vendored_other)

@@ -9,19 +9,18 @@ import json
 import shutil
 
 from collections import Counter
-from dataclasses import dataclass
 
 import yaml
 
 from lib.procutil import run
 from lib.render_scope import OWN_TEMPLATES_PREFIX
-from lib.render_scope import build_resource_locations
+from lib.render_scope import VendorBucketScan
 from lib.render_scope import chart_name_from_source
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import print_grouped_findings
-from lib.render_scope import render_chart
+from lib.render_scope import render_chart_docs
 from lib.render_scope import resource_line
-from lib.render_scope import split_rendered_by_source
+from lib.render_scope import scan_outcome
 from lib.settings import quality_gates_shellcheck_failing_levels
 from lib.settings import quality_gates_shellcheck_shell_names
 
@@ -141,21 +140,6 @@ def _shellcheck_location(finding, locations):
     return f"{base} (rendered line {rendered_line})" if rendered_line else base
 
 
-@dataclass
-class ShellcheckScan:
-    """Everything check_shellcheck's own print/detail logic needs from a
-    completed render+lint pass: the rendered-line lookup (locations), the
-    friendly-vendor map (needed by the print step for its label text), and
-    the three own/vendored-friendly/vendored-other finding buckets. See
-    _scan_rendered_chart, which builds this."""
-
-    locations: object
-    vendor_map: dict
-    own_real: list
-    vendored_friendly: list
-    vendored_other: list
-
-
 def _own_shellcheck_findings(own_docs, shell_names, failing_levels):
     """Lints every embedded script found in this chart's own docs, keeping
     only failing_levels-severity comments. Returns (None, error) if any
@@ -200,14 +184,12 @@ def _scan_rendered_chart(chart_dir, extra_args, shell_names, failing_levels):
     """Renders the chart, lints its own scripts and every vendored sub-
     chart's scripts (see _own_shellcheck_findings/
     _vendored_shellcheck_findings) with shellcheck, and bundles the result
-    into a ShellcheckScan. Returns (None, error) on any render/shellcheck
-    failure, else (ShellcheckScan, None)."""
-    result = render_chart(chart_dir, extra_args)
-    if result.returncode != 0:
-        return None, "helm template failed to render"
-
-    locations = build_resource_locations(result.stdout)
-    docs = split_rendered_by_source(result.stdout)
+    into a VendorBucketScan. Returns (None, error) on any render/shellcheck
+    failure, else (VendorBucketScan, None)."""
+    rendered, error = render_chart_docs(chart_dir, extra_args)
+    if rendered is None:
+        return None, error
+    locations, docs = rendered.locations, rendered.docs
     vendor_map = friendly_vendor_charts(chart_dir)
     own_docs = [(s, t) for s, t in docs if s.startswith(OWN_TEMPLATES_PREFIX)]
     vendored_docs = [(s, t) for s, t in docs if not s.startswith(OWN_TEMPLATES_PREFIX)]
@@ -222,12 +204,12 @@ def _scan_rendered_chart(chart_dir, extra_args, shell_names, failing_levels):
     if error:
         return None, error
 
-    return ShellcheckScan(locations, vendor_map, own_real, vendored_friendly, vendored_other), None
+    return VendorBucketScan(locations, vendor_map, own_real, vendored_friendly, vendored_other), None
 
 
 def _print_shellcheck_findings(scan):
     """Prints check_shellcheck's three report sections (own/vendored-
-    friendly/vendored-other) for a completed ShellcheckScan -- see
+    friendly/vendored-other) for a completed VendorBucketScan -- see
     check_shellcheck's own docstring for what each section means and why
     they're reported differently."""
     if scan.own_real:
@@ -305,10 +287,4 @@ def check_shellcheck(chart_dir, extra_args):
 
     _print_shellcheck_findings(scan)
 
-    detail = (
-        f"{len(scan.own_real)} real (own), {len(scan.vendored_friendly)} partner-vendor, "
-        f"{len(scan.vendored_other)} other-vendor"
-    )
-    if scan.own_real:
-        return False, detail
-    return True, detail
+    return scan_outcome(scan.own_real, scan.vendored_friendly, scan.vendored_other)

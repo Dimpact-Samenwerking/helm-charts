@@ -195,14 +195,14 @@ def fake_render_chart(rendered=RENDERED, returncode=0):
 
 
 @pytest.fixture(autouse=True)
-def _default_render(libshellcheckcheck, monkeypatch):
+def _default_render(monkeypatch):
     """check_shellcheck now gets its render via lib.render_scope.render_
     chart(chart_dir, extra_args), not a run([...]) call of its own —
     default every test in this file to the standard RENDERED fixture
     text; a test needing different rendered content (or a render
     failure) overrides this via its own monkeypatch.setattr(
-    libshellcheckcheck, "render_chart", ...) call."""
-    monkeypatch.setattr(libshellcheckcheck, "render_chart", fake_render_chart(RENDERED))
+    "lib.render_scope.render_chart", ...) call."""
+    monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart(RENDERED))
 
 
 def sequenced_run(own_comments, vendored_comments=None, sc_returncode=1):
@@ -374,7 +374,7 @@ def test_check_shellcheck_repeated_root_cause_is_grouped(vp, libshellcheckcheck,
         '    - command: ["/bin/sh", "-c"]\n'
         '      args: ["set -euo pipefail\\necho b"]\n'
     )
-    monkeypatch.setattr(libshellcheckcheck, "render_chart", fake_render_chart(rendered))
+    monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart(rendered))
 
     def run(cmd, **kwargs):
         return sc_result(
@@ -455,8 +455,7 @@ def test_check_shellcheck_no_scripts_found_passes(vp, libshellcheckcheck, tmp_pa
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
     monkeypatch.setattr(
-        libshellcheckcheck,
-        "render_chart",
+        "lib.render_scope.render_chart",
         fake_render_chart("---\n# Source: podiumd/templates/x.yaml\nkind: ConfigMap\n"),
     )
 
@@ -479,7 +478,7 @@ def test_check_shellcheck_missing_binary_fails(vp, tmp_path, monkeypatch):
 
 def test_check_shellcheck_render_failure_fails(vp, libshellcheckcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
-    monkeypatch.setattr(libshellcheckcheck, "render_chart", fake_render_chart("", returncode=1))
+    monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart("", returncode=1))
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
     assert "failed to render" in detail

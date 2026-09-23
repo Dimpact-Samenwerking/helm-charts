@@ -12,13 +12,12 @@ from dataclasses import dataclass
 
 from lib.procutil import run
 from lib.render_scope import OWN_TEMPLATES_PREFIX
-from lib.render_scope import build_resource_locations
 from lib.render_scope import chart_name_from_source
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import print_grouped_findings
-from lib.render_scope import render_chart
+from lib.render_scope import render_chart_docs
 from lib.render_scope import resource_line
-from lib.render_scope import split_rendered_by_source
+from lib.render_scope import scan_outcome
 from lib.settings import quality_gates_kube_score_check_id
 
 
@@ -123,12 +122,10 @@ def _score_rendered_chart(chart_dir, extra_args, check_id):
     sub-chart's templates (see _score_vendored_charts) with kube-score, and
     bundles the result into a KubeScoreResult. Returns (None, error) on any
     render/kube-score failure, else (KubeScoreResult, None)."""
-    result = render_chart(chart_dir, extra_args)
-    if result.returncode != 0:
-        return None, "helm template failed to render"
-
-    locations = build_resource_locations(result.stdout)
-    docs = split_rendered_by_source(result.stdout)
+    rendered, error = render_chart_docs(chart_dir, extra_args)
+    if rendered is None:
+        return None, error
+    locations, docs = rendered.locations, rendered.docs
     own_text = "".join(text for source, text in docs if source.startswith(OWN_TEMPLATES_PREFIX))
     own_objects = run_kube_score(own_text)
     if own_objects is None:
@@ -234,10 +231,4 @@ def check_kube_score(chart_dir, extra_args):
 
     _print_kube_score_findings(scored)
 
-    detail = (
-        f"{len(scored.own_real)} real (own), {len(scored.vendored_partner)} partner-vendor, "
-        f"{len(scored.vendored_other)} other-vendor"
-    )
-    if scored.own_real:
-        return False, detail
-    return True, detail
+    return scan_outcome(scored.own_real, scored.vendored_partner, scored.vendored_other)
