@@ -10,6 +10,8 @@ needed."""
 import json
 import urllib.error
 
+from email.message import Message
+
 import pytest
 
 RELEASE_TABLE_HTML = """
@@ -137,7 +139,7 @@ def test_fetch_page_html_missing_body_storage_raises(libconfluencetables):
 
 def test_fetch_page_html_http_error_raises(libconfluencetables):
     def fake_urlopen(request):
-        raise urllib.error.HTTPError(request.full_url, 401, "Unauthorized", {}, None)
+        raise urllib.error.HTTPError(request.full_url, 401, "Unauthorized", Message(), None)
 
     with pytest.raises(SystemExit, match="HTTP 401"):
         libconfluencetables.fetch_page_html(

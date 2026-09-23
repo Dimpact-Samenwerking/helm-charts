@@ -68,6 +68,7 @@ import lib.upgradedoc.version_cells_and_key_changes as upgradedoc_version_cells_
 def _load_module():
     loader = SourceFileLoader("verify_podiumd", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("verify_podiumd", SCRIPT_PATH, loader=loader)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

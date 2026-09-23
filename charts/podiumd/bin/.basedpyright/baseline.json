@@ -17174,16 +17174,6 @@
                 }
             }
         ],
-        "./tests/change-podiumd-baseline/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./tests/change-podiumd-baseline/test_change_podiumd_baseline.py": [
             {
                 "code": "reportMissingImports",
@@ -17194,34 +17184,8 @@
                 }
             }
         ],
-        "./tests/create-doc-version/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./tests/create-doc-version/test_create_doc_version.py": [
             {
-                "code": "reportUnnecessaryComparison",
-                "range": {
-                    "startColumn": 7,
-                    "endColumn": 27,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 52,
-                    "endColumn": 56,
-                    "lineCount": 1
-                }
-            },
-            {
                 "code": "reportUnusedVariable",
                 "range": {
                     "startColumn": 13,
@@ -17242,26 +17206,6 @@
                 "range": {
                     "startColumn": 13,
                     "endColumn": 23,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/create-podiumd-version/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/export-confluence-release-table/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
                     "lineCount": 1
                 }
             }
@@ -17350,14 +17294,6 @@
                 "range": {
                     "startColumn": 5,
                     "endColumn": 14,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
                     "lineCount": 1
                 }
             },
@@ -17472,14 +17408,6 @@
                 "range": {
                     "startColumn": 34,
                     "endColumn": 44,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 4,
-                    "endColumn": 63,
                     "lineCount": 1
                 }
             }
@@ -17720,26 +17648,6 @@
                 }
             }
         ],
-        "./tests/fix-helm-doc/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/fix-image-digests/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./tests/fix-image-digests/test_fix_image_digests.py": [
             {
                 "code": "reportUnusedVariable",
@@ -17802,46 +17710,6 @@
                 "range": {
                     "startColumn": 23,
                     "endColumn": 35,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/fix-markdown/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/fix-node-selector/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/fix-utf8-bom/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/fix-vendored-tgz/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
                     "lineCount": 1
                 }
             }
@@ -18148,16 +18016,6 @@
                 }
             }
         ],
-        "./tests/lib/test_confluence_tables.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 76,
-                    "endColumn": 78,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./tests/lib/test_dependencies.py": [
             {
                 "code": "reportMissingImports",
@@ -18312,82 +18170,10 @@
         ],
         "./tests/lib/test_registry.py": [
             {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 69,
-                    "endColumn": 71,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 72,
-                    "endColumn": 74,
-                    "lineCount": 1
-                }
-            },
-            {
                 "code": "reportUnusedVariable",
                 "range": {
                     "startColumn": 12,
                     "endColumn": 18,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 12,
-                    "endColumn": 13,
-                    "lineCount": 5
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 72,
-                    "endColumn": 74,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 82,
-                    "endColumn": 84,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 69,
-                    "endColumn": 71,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 72,
-                    "endColumn": 74,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 12,
-                    "endColumn": 13,
-                    "lineCount": 5
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 12,
-                    "endColumn": 110,
                     "lineCount": 1
                 }
             }
@@ -18432,14 +18218,6 @@
                 "range": {
                     "startColumn": 10,
                     "endColumn": 14,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 60,
-                    "endColumn": 62,
                     "lineCount": 1
                 }
             }
@@ -18636,70 +18414,12 @@
                 }
             }
         ],
-        "./tests/list-helmchart-images/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/list-podiumd-images/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/query-release-table/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./tests/render-podiumd/conftest.py": [
             {
                 "code": "reportMissingImports",
                 "range": {
                     "startColumn": 7,
                     "endColumn": 23,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/show-component-baseline-version/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/show-image-baseline-version/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
                     "lineCount": 1
                 }
             }
@@ -18717,14 +18437,6 @@
                 "code": "reportMissingImports",
                 "range": {
                     "startColumn": 7,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
                     "endColumn": 49,
                     "lineCount": 1
                 }
@@ -18918,16 +18630,6 @@
                 }
             }
         ],
-        "./tests/update-image-version/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./tests/update-image-version/test_update_image_version_cli_basics.py": [
             {
                 "code": "reportMissingImports",
@@ -19050,42 +18752,12 @@
                 }
             }
         ],
-        "./tests/verify-component-version/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/verify-helm-secret-size/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./tests/verify-helm-secret-size/test_verify_helm_secret_size.py": [
             {
                 "code": "reportMissingImports",
                 "range": {
                     "startColumn": 5,
                     "endColumn": 28,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/verify-image-version/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
                     "lineCount": 1
                 }
             }
@@ -19120,16 +18792,6 @@
                 "range": {
                     "startColumn": 11,
                     "endColumn": 28,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/verify-podiumd-dead-values/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
                     "lineCount": 1
                 }
             }
@@ -19428,14 +19090,6 @@
                 "range": {
                     "startColumn": 7,
                     "endColumn": 51,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
                     "lineCount": 1
                 }
             }
@@ -19766,22 +19420,6 @@
         ],
         "./tests/verify-podiumd/test_helm_docs_check.py": [
             {
-                "code": "reportUnnecessaryComparison",
-                "range": {
-                    "startColumn": 7,
-                    "endColumn": 25,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 48,
-                    "endColumn": 52,
-                    "lineCount": 1
-                }
-            },
-            {
                 "code": "reportUnusedVariable",
                 "range": {
                     "startColumn": 8,
@@ -19794,24 +19432,6 @@
                 "range": {
                     "startColumn": 8,
                     "endColumn": 14,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/verify-podiumd/test_image_digests_check_drift_and_hosts.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 106,
-                    "endColumn": 108,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 84,
-                    "endColumn": 86,
                     "lineCount": 1
                 }
             }
@@ -19830,14 +19450,6 @@
                 "range": {
                     "startColumn": 8,
                     "endColumn": 14,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 63,
-                    "endColumn": 65,
                     "lineCount": 1
                 }
             },
@@ -19984,16 +19596,6 @@
                 "range": {
                     "startColumn": 25,
                     "endColumn": 37,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./tests/verify-release-table-with-podiumd/conftest.py": [
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 49,
                     "lineCount": 1
                 }
             }

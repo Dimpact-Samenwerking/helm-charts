@@ -1,6 +1,7 @@
 """canonical_version_cell, fix_component_version_table, fix_changes_heading_app_versions,
 fix_values_delta_heading_app_versions — pure logic, no git repo needed."""
 
+from typing import Any
 
 # --- canonical_version_cell ---
 
@@ -114,7 +115,7 @@ def test_fix_component_version_table_no_baseline_data_reported_unresolved(cdb):
 def redis_sidecar_deps_and_values(target_chart="0.26.1", baseline_chart="0.25.0", target_tag="8.6.6"):
     target_deps = [{"name": "redis-operator", "version": target_chart}]
     baseline_deps = [{"name": "redis-operator", "version": baseline_chart}]
-    target_values = {
+    target_values: dict[str, Any] = {
         "redis-operator": {
             "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": f"{target_tag}@sha256:aaaa"}}
         }

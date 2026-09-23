@@ -20,6 +20,7 @@ import lib.render_scope as render_scope
 def _load_module():
     loader = SourceFileLoader("render_podiumd", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("render_podiumd", SCRIPT_PATH, loader=loader)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

@@ -6,6 +6,8 @@ otherwise happen."""
 
 import urllib.error
 
+from email.message import Message
+
 import pytest
 
 
@@ -245,7 +247,7 @@ def test_check_image_digests_unverifiable_host_skips_digest_liveness_check_entir
     def spy(host, repo, tag):
         calls.append(tag)
         msg = "https://firewalled-registry.example.com/v2/..."
-        raise urllib.error.HTTPError(msg, 401, "Unauthorized", {}, None)
+        raise urllib.error.HTTPError(msg, 401, "Unauthorized", Message(), None)
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
     ok, detail = vp.check_image_digests(tmp_path)

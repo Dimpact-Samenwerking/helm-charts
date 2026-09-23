@@ -9,7 +9,7 @@ import subprocess
 import pytest
 
 
-def setup_dirs(cdv, tmp_path, monkeypatch, baseline="4.8.5"):
+def setup_dirs(cdv, tmp_path, monkeypatch, baseline: str | None = "4.8.5"):
     """baseline=None skips writing etc/release-baseline.yaml at all — for
     the "no release-baseline.yaml at all" error case."""
     chart_yaml = tmp_path / "Chart.yaml"

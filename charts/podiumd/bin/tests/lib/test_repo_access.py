@@ -10,6 +10,7 @@ import urllib.error
 
 from datetime import datetime
 from datetime import timezone
+from email.message import Message
 
 import yaml
 
@@ -170,7 +171,7 @@ def test_check_http_repo_adds_missing_trailing_slash(librepoaccess, monkeypatch)
 
 def test_check_http_repo_http_error(librepoaccess, monkeypatch):
     def fake_urlopen(url, timeout=None):
-        raise urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
+        raise urllib.error.HTTPError(url, 403, "Forbidden", Message(), None)
 
     monkeypatch.setattr(librepoaccess.urllib.request, "urlopen", fake_urlopen)
     ok, error = librepoaccess._check_http_repo("https://private.example.com/charts/", TIMEOUT_SECONDS)

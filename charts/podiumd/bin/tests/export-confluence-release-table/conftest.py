@@ -20,6 +20,7 @@ SCRIPT_PATH = SCRIPTS_DIR / "export-confluence-release-table"
 def ecrt():
     loader = SourceFileLoader("export_confluence_release_table", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("export_confluence_release_table", SCRIPT_PATH, loader=loader)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

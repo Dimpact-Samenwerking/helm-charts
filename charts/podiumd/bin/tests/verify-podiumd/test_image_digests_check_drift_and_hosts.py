@@ -5,6 +5,8 @@ a live fetch would otherwise happen."""
 
 import urllib.error
 
+from email.message import Message
+
 import pytest
 
 
@@ -147,7 +149,9 @@ def test_check_image_digests_unverifiable_host_does_not_fail_the_check(
         libimagedigests,
         "registry_tag_exists",
         lambda host, repo, tag: (_ for _ in ()).throw(
-            urllib.error.HTTPError("https://firewalled-registry.example.com/v2/...", 401, "Unauthorized", {}, None)
+            urllib.error.HTTPError(
+                "https://firewalled-registry.example.com/v2/...", 401, "Unauthorized", Message(), None
+            )
         ),
     )
     ok, detail = vp.check_image_digests(tmp_path)
@@ -166,7 +170,7 @@ def test_check_image_digests_non_unverifiable_host_fetch_error_still_fails(vp, l
         libimagedigests,
         "registry_tag_exists",
         lambda host, repo, tag: (_ for _ in ()).throw(
-            urllib.error.HTTPError("https://docker.io/v2/...", 401, "Unauthorized", {}, None)
+            urllib.error.HTTPError("https://docker.io/v2/...", 401, "Unauthorized", Message(), None)
         ),
     )
     ok, detail = vp.check_image_digests(tmp_path)

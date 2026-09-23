@@ -13,7 +13,7 @@ def helm_docs_result(stdout, returncode=0, stderr=""):
 README_CONTENT = "# podiumd\n\nPodiumD Helm chart\n\n## Values\n\n| Key | Type | Default | Description |\n"
 
 
-def make_chart_dir(tmp_path, readme=README_CONTENT, gotmpl=None):
+def make_chart_dir(tmp_path, readme: str | None = README_CONTENT, gotmpl: str | None = None):
     (tmp_path / "Chart.yaml").write_text("name: podiumd\nversion: 4.9.0\n", encoding="utf-8")
     (tmp_path / "values.yaml").write_text("foo: bar\n", encoding="utf-8")
     if readme is not None:

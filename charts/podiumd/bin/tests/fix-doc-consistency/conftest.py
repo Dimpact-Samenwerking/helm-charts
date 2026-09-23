@@ -28,6 +28,7 @@ def write(path, text):
 def cdb():
     loader = SourceFileLoader("fix_doc_consistency", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("fix_doc_consistency", SCRIPT_PATH, loader=loader)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

@@ -15,6 +15,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "change-podiumd-baseline"
 def cpb():
     loader = SourceFileLoader("change_podiumd_baseline", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("change_podiumd_baseline", SCRIPT_PATH, loader=loader)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

@@ -32,6 +32,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "update-image-version"
 def uiv():
     loader = SourceFileLoader("update_image_version_cli", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("update_image_version_cli", SCRIPT_PATH, loader=loader)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
