@@ -212,6 +212,27 @@ def insertion_index(new_key, existing_keys):
     return len(existing_keys)
 
 
+def changes_section_bounds(lines: list[str]) -> tuple[int | None, int]:
+    """(changes_idx, section_end) for the "## Changes" heading in
+    `lines` — changes_idx is None (with section_end == len(lines)) if
+    the heading doesn't exist yet at all; otherwise section_end is the
+    index of the next "## " heading after it, or len(lines) if "##
+    Changes" is the last section in the doc."""
+    changes_idx = None
+    for i, line in enumerate(lines):
+        if line.strip() == "## Changes":
+            changes_idx = i
+            break
+    if changes_idx is None:
+        return None, len(lines)
+    section_end = len(lines)
+    for i in range(changes_idx + 1, len(lines)):
+        if re.match(r"^##\s+\S", lines[i]):
+            section_end = i
+            break
+    return changes_idx, section_end
+
+
 def parse_upgrade_doc_changes_blocks(text):
     """(heading, start, end) for every "### ..." item directly under the
     "## Changes" section of an upgrade doc — start is the heading line's
@@ -222,19 +243,9 @@ def parse_upgrade_doc_changes_blocks(text):
     followed by whitespace, which a 4th "#" fails. Returns [] if the doc
     has no "## Changes" section at all."""
     lines = text.splitlines(keepends=True)
-    changes_idx = None
-    for i, line in enumerate(lines):
-        if line.strip() == "## Changes":
-            changes_idx = i
-            break
+    changes_idx, section_end = changes_section_bounds(lines)
     if changes_idx is None:
         return []
-
-    section_end = len(lines)
-    for i in range(changes_idx + 1, len(lines)):
-        if re.match(r"^##\s+\S", lines[i]):
-            section_end = i
-            break
 
     heading_indices = [i for i in range(changes_idx + 1, section_end) if CHANGES_BLOCK_HEADING_RE.match(lines[i])]
     blocks = []
