@@ -78,7 +78,9 @@ cleanup() {
 }
 
 # Set trap to cleanup on exit
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 usage() {
     echo "Usage: $0 <index-name> [namespace] [elasticsearch-name]"
