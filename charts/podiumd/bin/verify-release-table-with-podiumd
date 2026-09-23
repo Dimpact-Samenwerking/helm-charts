@@ -40,6 +40,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
+from lib.chart.paths import CHART_YAML
+from lib.chart.paths import VALUES_YAML
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import release_table_baseline
 from lib.dependencies import ensure_vendored_dependencies
@@ -70,9 +73,6 @@ from lib.chart.pull_and_subchart_resolution import primary_image_repositories  #
 from lib.release_table_verification import is_primary_image  # noqa: F401
 # isort: on
 
-CHART_DIR = SCRIPT_DIR.parents[0]
-CHART_YAML = CHART_DIR / "Chart.yaml"
-VALUES_YAML = CHART_DIR / "values.yaml"
 RELEASE_TABLE_CSV = CHART_DIR / "etc" / "release-table.csv"
 
 

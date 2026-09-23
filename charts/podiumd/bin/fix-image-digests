@@ -36,6 +36,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import subchart_default_repository
 from lib.chart.repo_and_path_resolution import subchart_needs_vendoring
@@ -48,7 +49,6 @@ from lib.registry import is_sliding_tag
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 
-CHART_DIR = SCRIPT_DIR.parents[0]
 VALUES_PATH = CHART_DIR / "values.yaml"
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"

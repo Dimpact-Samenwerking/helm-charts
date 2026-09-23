@@ -40,6 +40,11 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
+from lib.chart.paths import CHART_YAML
+from lib.chart.paths import DOC_DIR
+from lib.chart.paths import IMAGES_DIR
+from lib.chart.paths import VALUES_YAML
 from lib.chart.pull_and_subchart_resolution import check_image_versions
 from lib.chart.pull_and_subchart_resolution import print_image_version_results
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
@@ -59,6 +64,7 @@ from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import require_dependency
 from lib.chart.values_tree_primitives import values_key_of
+from lib.cli import positional_args
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs.baseline_doc_stubs import baseline_doc_paths as _baseline_doc_paths
 from lib.component_docs.baseline_doc_stubs import images_manifest_path as _images_manifest_path
@@ -94,11 +100,6 @@ from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
-CHART_DIR = SCRIPT_DIR.parents[0]
-CHART_YAML = CHART_DIR / "Chart.yaml"
-VALUES_YAML = CHART_DIR / "values.yaml"
-DOC_DIR = CHART_DIR / "docs" / "_UPGRADE_PATHS"
-IMAGES_DIR = CHART_DIR / "docs" / "images"
 
 
 def find_dependency(name_or_alias):
@@ -333,13 +334,8 @@ def _parse_cli_args():
     """-h/--help or a wrong argument count print the module docstring and
     exit; otherwise returns (component, app_version, chart_version) from
     sys.argv."""
-    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
-        print(__doc__)
-        sys.exit(0)
-    if len(sys.argv) != 4:
-        print(__doc__)
-        sys.exit(1)
-    return sys.argv[1], sys.argv[2], sys.argv[3]
+    component, app_version, chart_version = positional_args(__doc__, 3)
+    return component, app_version, chart_version
 
 
 # (values_key, path) pairs using a split "tag:" + sibling field (e.g.

@@ -43,12 +43,17 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
 from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
+from lib.chart.paths import CHART_YAML
+from lib.chart.paths import DOC_DIR
+from lib.chart.paths import IMAGES_DIR
+from lib.chart.paths import VALUES_YAML
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.cli import positional_args
 from lib.component_docs.baseline_doc_stubs import IMAGES_STUB_TEMPLATE
 from lib.component_docs.baseline_doc_stubs import STANDARD_SUFFIXES
 from lib.component_docs.baseline_doc_stubs import STUB_TEMPLATES
@@ -136,11 +141,6 @@ from lib.upgradedoc.version_cells_and_key_changes import (  # pylint: disable=un
 )
 # isort: on
 
-CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
-VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
-DOC_DIR = SCRIPT_DIR.parents[0] / "docs" / "_UPGRADE_PATHS"
-IMAGES_DIR = SCRIPT_DIR.parents[0] / "docs" / "images"
-
 
 def current_chart_version():
     """Returns the rebase target: charts/podiumd/Chart.yaml's own
@@ -209,12 +209,7 @@ class RebaseState:
 
 def _parse_cli_args():
     """Handles -h/--help and rejects any other argument."""
-    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
-        print(__doc__)
-        sys.exit(0)
-    if len(sys.argv) != 1:
-        print(__doc__)
-        sys.exit(1)
+    positional_args(__doc__, 0)
 
 
 def _load_and_validate_baseline():

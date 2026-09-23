@@ -33,6 +33,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
+from lib.cli import exit_on_help
 from lib.dependencies import ensure_vendored_dependencies
 from lib.render_scope import lint_args_for
 from lib.render_scope import render_chart
@@ -41,7 +43,6 @@ from lib.render_scope import report_largest_templates
 from lib.settings import render_report_default_output_file_name
 from lib.settings import render_report_top_n_largest_templates_shown
 
-CHART_DIR = SCRIPT_DIR.parent
 DEFAULT_OUTPUT = CHART_DIR / render_report_default_output_file_name(CHART_DIR)
 
 
@@ -51,9 +52,7 @@ def main():
     line, writing the manifest to [output-file] (default rendered-helm.
     yaml) or to stdout with --stdout (in which case every status message
     is redirected to stderr so stdout stays pure YAML)."""
-    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
-        print(__doc__)
-        sys.exit(0)
+    exit_on_help(__doc__)
     ensure_vendored_dependencies(CHART_DIR)
 
     args = sys.argv[1:]

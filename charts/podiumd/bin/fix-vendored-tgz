@@ -25,9 +25,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
 from lib.checks.vendored_tgz import find_extracted_vendored_dirs
-
-CHART_DIR = SCRIPT_DIR.parents[0]
 
 
 def main():
