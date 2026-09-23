@@ -23,6 +23,7 @@ from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import version_of
 from lib.component_docs.images_manifest_changes_header import ensure_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
 from lib.component_docs.images_manifest_changes_header import images_manifest_order_key
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.image.repository_check import find_images_without_repository
@@ -228,11 +229,7 @@ def _images_manifest_changes_header_text(lines):
     header_idx, _has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return ""
-    block_end = header_idx + 1
-    for i in range(header_idx + 1, len(lines)):
-        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-            break
-        block_end = i + 1
+    block_end = images_manifest_changes_block(lines, header_idx)[1]
     return "".join(lines[header_idx:block_end])
 
 

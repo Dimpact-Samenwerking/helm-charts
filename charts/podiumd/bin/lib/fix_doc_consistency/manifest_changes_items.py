@@ -6,26 +6,9 @@ from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import NUMBER_WORDS
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
 from lib.docs_consistency.images_manifest_format import match_changes_item_to_entry
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
-
-
-def _changes_item_block_bounds(lines, header_idx):
-    """Scans lines right after the "# Changes:" header for the item
-    block's own extent (block_end, one past the last "#"-prefixed line)
-    and the start line of every "#   N. ..." item within it (item_starts)
-    -- shared by dedupe_images_manifest_changes_items and
-    sort_images_manifest_changes_items, which both need the exact same
-    scan before doing their own, different thing with the result."""
-    item_starts = []
-    block_end = header_idx + 1
-    for i in range(header_idx + 1, len(lines)):
-        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-            break
-        block_end = i + 1
-        if CHANGES_ITEM_RE.match(lines[i]):
-            item_starts.append(i)
-    return item_starts, block_end
 
 
 def _renumbered_changes_block(chunks):
@@ -97,7 +80,7 @@ def dedupe_images_manifest_changes_items(lines):
     if header_idx is None:
         return []
 
-    item_starts, block_end = _changes_item_block_bounds(lines, header_idx)
+    item_starts, block_end = images_manifest_changes_block(lines, header_idx)
     if not item_starts:
         return []
 
@@ -179,7 +162,7 @@ def sort_images_manifest_changes_items(lines, entries, entry_positions, display_
     if header_idx is None:
         return []
 
-    item_starts, block_end = _changes_item_block_bounds(lines, header_idx)
+    item_starts, block_end = images_manifest_changes_block(lines, header_idx)
     if len(item_starts) < 2:
         return []
 
