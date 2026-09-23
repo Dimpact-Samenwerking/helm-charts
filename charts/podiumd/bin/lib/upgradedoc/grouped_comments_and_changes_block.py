@@ -201,19 +201,8 @@ def parse_changes_block(text):
     end whichever item is currently accumulating, the same way a new
     numbered line does, rather than being swallowed into it."""
     items = []
-    in_changes = False
     current = None  # raw text accumulated so far for the item being parsed
-    for line in text.splitlines():
-        if not line.startswith("#"):
-            if in_changes:
-                break
-            continue
-        if re.match(r"^#\s*Changes:\s*$", line):
-            in_changes = True
-            continue
-        if not in_changes:
-            continue
-
+    for line in _changes_block_lines(text):
         # "\.\s+" (period, then whitespace) — not "\.\s*" — so a version number
         # like "1.17.1-static" (period immediately followed by a digit) on an
         # indented continuation line is never mistaken for a new list item
@@ -234,6 +223,22 @@ def parse_changes_block(text):
     if current is not None:
         items.append(_finalize_changes_item(current))
     return items
+
+
+def _changes_block_lines(text: str):
+    """Yield the "#" comment lines after the "# Changes:" heading, up to
+    the first non-comment line."""
+    in_changes = False
+    for line in text.splitlines():
+        if not line.startswith("#"):
+            if in_changes:
+                return
+            continue
+        if re.match(r"^#\s*Changes:\s*$", line):
+            in_changes = True
+            continue
+        if in_changes:
+            yield line
 
 
 def _finalize_changes_item(rest):

@@ -101,6 +101,36 @@ def update_chart_version(new_version):
     return changed
 
 
+def _check_no_args() -> None:
+    """Print __doc__ and exit: 0 for -h/--help, 1 for any other argument."""
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
+    if len(sys.argv) != 1:
+        print(__doc__)
+        sys.exit(1)
+
+
+def _resolve_baseline_refs(repo_root: Path, upgrade_docs: str, release_table: str | None) -> dict:
+    """{"upgrade_docs": ref, "release_table": ref} for the two new baseline
+    values; exits 1 if release_table is None or either value has no ref."""
+    resolved_refs = {}
+    for label, value in (("upgrade_docs", upgrade_docs), ("release_table", release_table)):
+        if value is None:
+            print(
+                "error: release_table baseline is not yet recorded in release-baseline.yaml "
+                "— cannot open a patch release without one already set (a minor-bump run "
+                "records it for the first time; there's no fallback for a patch bump)"
+            )
+            sys.exit(1)
+        ref, error = resolve_baseline_ref(repo_root, value)
+        if error:
+            print(f"error: {label} baseline '{value}': {error}")
+            sys.exit(1)
+        resolved_refs[label] = ref
+    return resolved_refs
+
+
 def main():
     """CLI entry point: opens a new podiumd release cycle — bumps
     Chart.yaml's version/appVersion from the current branch's target
@@ -110,12 +140,7 @@ def main():
     a minor bump, its new release_table baseline too), then scaffolds the
     upgrade-path docs for that outgoing version by running
     create-doc-version. See --help for the refusal conditions."""
-    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
-        print(__doc__)
-        sys.exit(0)
-    if len(sys.argv) != 1:
-        print(__doc__)
-        sys.exit(1)
+    _check_no_args()
 
     repo_root = find_repo_root(CHART_DIR)
     if repo_root is None:
@@ -151,20 +176,7 @@ def main():
     # moves with it; a patch bump keeps the recorded one.
     new_release_table = baseline if kind == "minor" else read_release_table_baseline(CHART_DIR)
 
-    resolved_refs = {}
-    for label, value in (("upgrade_docs", baseline), ("release_table", new_release_table)):
-        if value is None:
-            print(
-                "error: release_table baseline is not yet recorded in release-baseline.yaml "
-                "— cannot open a patch release without one already set (a minor-bump run "
-                "records it for the first time; there's no fallback for a patch bump)"
-            )
-            sys.exit(1)
-        ref, error = resolve_baseline_ref(repo_root, value)
-        if error:
-            print(f"error: {label} baseline '{value}': {error}")
-            sys.exit(1)
-        resolved_refs[label] = ref
+    resolved_refs = _resolve_baseline_refs(repo_root, baseline, new_release_table)
 
     changed = update_chart_version(target)
     print(f"{CHART_YAML.name}: {', '.join(changed)} {baseline} -> {target} ({kind} bump)")

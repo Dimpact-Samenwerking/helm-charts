@@ -61,7 +61,7 @@ class ComponentRef:
 
     scope_key: str
     component: str
-    dep: dict = None
+    dep: dict | None = None
 
 
 @dataclass
@@ -728,29 +728,51 @@ def check_images_source(ref, rows, comparison, findings, *, strict_presence=Fals
     silently forced into "wasn't pinned anywhere" (which would be
     actively wrong: something WAS pinned, this just couldn't confirm
     what) and never a crash."""
-    baseline = comparison.baseline
-    baseline_basenames = basenames_under_scope_any_tag(baseline.lines, ref.scope_key)
-    baseline_dep = (
-        find_dependency(baseline.deps, ref.dep["name"]) if ref.dep is not None and baseline.deps is not None else None
-    )
-    subchart_repos_state = None  # lazily filled: (repos, error) from primary_image_repositories, at most once
+    resolver = _BaselineSourceResolver(ref, comparison)
+    for row in rows:
+        basenames = split_basenames(row["image_basename"])
+        if not basenames:
+            continue
+        if not _row_needs_source_check(row, strict_presence):
+            continue
 
-    def resolve_subchart_source(basename):
-        nonlocal subchart_repos_state
-        if baseline_dep is None:
+        for basename in basenames:
+            _check_image_source_pin(ref, row, basename, resolver.resolve_at_baseline, findings)
+
+
+class _BaselineSourceResolver:
+    """check_images_source's tier resolution of one ref's basenames at the
+    release_table baseline (see that function's docstring). Pulls the
+    baseline dependency's primary image repositories at most once."""
+
+    def __init__(self, ref: ComponentRef, comparison: Comparison):
+        self.ref = ref
+        self.comparison = comparison
+        baseline = comparison.baseline
+        self.baseline_basenames = basenames_under_scope_any_tag(baseline.lines, ref.scope_key)
+        self.baseline_dep = (
+            find_dependency(baseline.deps, ref.dep["name"]) if ref.dep is not None and baseline.deps else None
+        )
+        self._subchart_repos_state = None  # lazily filled: (repos, error) from primary_image_repositories
+
+    def resolve_subchart_source(self, basename):
+        """(version, None) from the subchart-default fallback, (None, error)
+        when it can't be verified, (None, None) when it doesn't apply."""
+        baseline = self.comparison.baseline
+        if self.baseline_dep is None:
             return None, None
-        if subchart_repos_state is None:
-            subchart_repos_state = primary_image_repositories(
-                baseline.chart_dir, baseline_dep, baseline.values, allow_pull=True
+        if self._subchart_repos_state is None:
+            self._subchart_repos_state = primary_image_repositories(
+                baseline.chart_dir, self.baseline_dep, baseline.values, allow_pull=True
             )
-        repos, error = subchart_repos_state
+        repos, error = self._subchart_repos_state
         matching_paths = [p for p, repo in repos.items() if repo and image_basename(repo) == basename]
         if matching_paths:
-            tag = get_path(baseline.values, f"{ref.scope_key}.{matching_paths[0]}.tag")
+            tag = get_path(baseline.values, f"{self.ref.scope_key}.{matching_paths[0]}.tag")
             return (version_of(tag) if isinstance(tag, str) and tag else None), None
         if error and all(
-            not get_path(baseline.values, f"{ref.scope_key}.{p}.repository")
-            for p in image_paths_for(baseline_dep["name"], baseline.chart_dir)
+            not get_path(baseline.values, f"{self.ref.scope_key}.{p}.repository")
+            for p in image_paths_for(self.baseline_dep["name"], baseline.chart_dir)
         ):
             # No path resolved to `basename`, but the resolution itself
             # failed AND this dependency has no explicit override for
@@ -760,7 +782,22 @@ def check_images_source(ref, rows, comparison, findings, *, strict_presence=Fals
             return None, error
         return None, None
 
-    def resolve_at_baseline(basename):
+    def _unscoped_fallback_pins(self, basename: str):
+        """find_matches_any_tag pins for basename at the baseline, kept only
+        when their repository matches basename's CURRENT scoped repository."""
+        fallback_pins = find_matches_any_tag(self.comparison.baseline.lines, basename)
+        if not fallback_pins:
+            return fallback_pins
+        current_repo = repository_for_basename_in_scope(self.comparison.current.lines, self.ref.scope_key, basename)
+        return [
+            p
+            for p in fallback_pins
+            if current_repo is not None
+            and p["repository"]
+            and strip_registry_host(p["repository"]) == strip_registry_host(current_repo)
+        ]
+
+    def resolve_at_baseline(self, basename):
         """The full tier resolution for `basename` at the release_table
         baseline, shared by both the verifiable-source comparison and the
         strict_presence blank-source check (so the two can never drift
@@ -775,55 +812,35 @@ def check_images_source(ref, rows, comparison, findings, *, strict_presence=Fals
         ("absent",) only once every tier — scoped scan, cross-scope
         find_matches_any_tag with the repo cross-check, and the
         subchart-default fallback — has come up with nothing at all."""
-        pins = baseline_basenames.get(basename)
+        pins = self.baseline_basenames.get(basename)
         if pins is None:
-            fallback_pins = find_matches_any_tag(baseline.lines, basename)
-            if fallback_pins:
-                current_repo = repository_for_basename_in_scope(comparison.current.lines, ref.scope_key, basename)
-                fallback_pins = [
-                    p
-                    for p in fallback_pins
-                    if current_repo is not None
-                    and p["repository"]
-                    and strip_registry_host(p["repository"]) == strip_registry_host(current_repo)
-                ]
-            pins = fallback_pins or None
+            pins = self._unscoped_fallback_pins(basename) or None
         if pins is not None:
             versions = {p["version"] for p in pins}
             if len(versions) > 1:
                 return (
                     "ambiguous",
                     (
-                        f"'{basename}' under '{ref.scope_key}' is pinned at {len(versions)} different versions at "
+                        f"'{basename}' under '{self.ref.scope_key}' is pinned at {len(versions)} different versions at "
                         f"the release_table baseline ({', '.join(sorted(versions))}) -- can't compare"
                     ),
                 )
             return ("found", next(iter(versions)), "values.yaml")
 
-        subchart_actual, subchart_error = resolve_subchart_source(basename)
+        subchart_actual, subchart_error = self.resolve_subchart_source(basename)
         if subchart_error:
             return (
                 "ambiguous",
                 (
-                    f"'{basename}' under '{ref.scope_key}' relies entirely on its vendored subchart's own default "
-                    f"repository at the release_table baseline (no override in values.yaml there), but its "
-                    f"historical chart version {baseline_dep['version']} couldn't be resolved to verify: "
+                    f"'{basename}' under '{self.ref.scope_key}' relies entirely on its vendored subchart's own "
+                    f"default repository at the release_table baseline (no override in values.yaml there), but "
+                    f"its historical chart version {self.baseline_dep['version']} couldn't be resolved to verify: "
                     f"{subchart_error}"
                 ),
             )
         if subchart_actual is not None:
             return ("found", subchart_actual, "subchart-default values.yaml")
         return ("absent",)
-
-    for row in rows:
-        basenames = split_basenames(row["image_basename"])
-        if not basenames:
-            continue
-        if not _row_needs_source_check(row, strict_presence):
-            continue
-
-        for basename in basenames:
-            _check_image_source_pin(ref, row, basename, resolve_at_baseline, findings)
 
 
 def _check_dependency(dep, rows_by_component, comparison, findings, baseline_only):
