@@ -29,7 +29,7 @@ set -e
 
 # Configuration
 INDEX_NAME="${1:-}"
-NAMESPACE="${2:-mynamespace}"
+NAMESPACE="${2:-podiumd}"
 ELASTICSEARCH_NAME="${3:-kiss}"
 USERNAME="elastic"
 ELASTICSEARCH_SERVICE="${ELASTICSEARCH_NAME}-es-http"
@@ -97,9 +97,9 @@ usage() {
     exit 1
 }
 
-# Require an explicit index name; refuse to guess to avoid deleting the wrong index
-if [[ -z "${INDEX_NAME}" ]]; then
-    print_error "No index name provided"
+# Require a single concrete index name; refuse to guess to avoid deleting the wrong index
+if [[ -z "${INDEX_NAME}" || ! "${INDEX_NAME}" =~ ^[a-z0-9][a-z0-9._-]*$ ]]; then
+    print_error "Index name must be a single concrete Elasticsearch index name"
     echo ""
     usage
 fi
