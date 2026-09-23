@@ -6,6 +6,7 @@ component's own PRIMARY image path (as opposed to a sidecar)."""
 
 from pathlib import Path
 
+from lib.chart.values_tree_primitives import same_name
 from lib.chart.values_tree_primitives import values_key_of
 from lib.settings import component_resolution_chart_version_lockstep_components
 from lib.settings import component_resolution_default_image_paths
@@ -97,6 +98,35 @@ def native_components(chart_dir=None):
     below."""
     chart_dir = chart_dir or Path(__file__).resolve().parents[2]
     return component_resolution_native_components(chart_dir)
+
+
+def is_native_chart_version(chart_version: str) -> bool:
+    """Whether a <chart-version> argument is "native" (any case): the
+    component has no Chart.yaml dependency (native_components)."""
+    return same_name(chart_version.strip(), "native")
+
+
+def native_component_named(chart_dir: Path, name: str) -> str | None:
+    """The native_components entry equal to `name` ignoring case, or
+    None."""
+    return next((n for n in native_components(chart_dir) if same_name(n, name)), None)
+
+
+def resolve_native_component(chart_dir: Path, name: str) -> str:
+    """native_component_named, exiting with an error listing the native
+    components when `name` is none of them. Used for the chart-version
+    argument "native" of update-component-version and
+    verify-component-version."""
+    native = native_component_named(chart_dir, name)
+    if native is None:
+        natives = ", ".join(sorted(native_components(chart_dir)))
+        msg = (
+            f"error: chart-version 'native' is only valid for a component in "
+            f"settings.yaml's component_resolution.native_components ({natives}); "
+            f"'{name}' isn't one — did you mean to pass its real chart version?"
+        )
+        raise SystemExit(msg)
+    return native
 
 
 # Chart.yaml dependency NAMEs (not alias) whose own declared "version:" is

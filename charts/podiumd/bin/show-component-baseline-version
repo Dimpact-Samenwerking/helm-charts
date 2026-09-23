@@ -12,10 +12,15 @@ For the image versions only, use show-image-baseline-version.
 Usage:
     show-component-baseline-version <component>
 
+Arguments:
+    <component>   Chart.yaml dependency name or alias, or a native
+                  component (e.g. frankgateway), which has no chart version
+
 Examples:
     show-component-baseline-version zac
     show-component-baseline-version zgw-office-addin
     show-component-baseline-version openformulieren
+    show-component-baseline-version frankgateway
 """
 
 import sys
@@ -51,9 +56,13 @@ def show_at_baseline(chart_dir, label, baseline, component):
         if error:
             return f"error: {error}"
 
-        print(f"  Component: {component} (Chart.yaml dependency: {dep['name']}, values key: {values_key})")
+        if dep is None:
+            print(f"  Component: {component} (native, no Chart.yaml dependency; values key: {values_key})")
+        else:
+            print(f"  Component: {component} (Chart.yaml dependency: {dep['name']}, values key: {values_key})")
         print(f"  Baseline: {baseline_value} (resolved to {ref})")
-        print(f"  Helm chart version: {dep['version']}")
+        if dep is not None:
+            print(f"  Helm chart version: {dep['version']}")
         if app_versions:
             print("  App version(s):")
             for name, tag in app_versions:
