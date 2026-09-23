@@ -11,6 +11,7 @@ from lib.chart.registered_paths import component_image_paths
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import version_paths_for
 from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import strip_registry_host
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import words_of
 
@@ -315,9 +316,35 @@ def resolve_entry_image_path(entry, paths, repo_map=None):
     repo_map has nothing for it (no repo_map given, an older manifest
     entry still under the legacy hand-translated slug convention, or a
     nested image with no Chart.yaml dependency of its own — e.g. a
-    component's bundled sidecar — that repo_map doesn't cover at all)."""
+    component's bundled sidecar — that repo_map doesn't cover at all).
+
+    repo_map is keyed by strip_registry_host of the repository as written
+    in values.yaml, which can be shorter than the entry's name: a bare
+    Docker Hub "repository: python" or a split "registry: wearefrank" +
+    "repository: zaakbrug" keys as "python"/"zaakbrug", while the entry
+    is named "library/python"/"wearefrank/zaakbrug". So the entry's own
+    strip_registry_host(url) is tried next, then the single repo_map key
+    the name ends with as a whole path segment. The fuzzy fallback tries
+    the name's last path segment too ("opa" for "openpolicyagent/opa"),
+    since a namespace word rarely appears in a values-tree path."""
     if repo_map:
-        path = repo_map.get(entry["name"])
+        path = _repo_map_path(entry, repo_map)
         if path is not None and path in paths:
             return path
-    return resolve_entry_path(entry["name"], paths)
+    name = entry["name"]
+    path = resolve_entry_path(name, paths)
+    if path is None and "/" in name:
+        path = resolve_entry_path(name.rsplit("/", 1)[-1], paths)
+    return path
+
+
+def _repo_map_path(entry, repo_map):
+    """repo_map's path for `entry` (see resolve_entry_image_path), or None."""
+    name = entry["name"]
+    if name in repo_map:
+        return repo_map[name]
+    url = entry.get("url")
+    if isinstance(url, str) and strip_registry_host(url) in repo_map:
+        return repo_map[strip_registry_host(url)]
+    suffix_keys = [key for key in repo_map if name.endswith("/" + key)]
+    return repo_map[suffix_keys[0]] if len(suffix_keys) == 1 else None

@@ -299,7 +299,7 @@ def test_update_image_manifest_adds_new_changes_item_when_absent(libimagedocs, t
             "# One change:\n"
             "#   1. ZAC 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n"
             "#\n\n"
-            "- name: zac\n"
+            "- name: infonl/zaakafhandelcomponent\n"
             "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
             '  version: "5.4.3"\n'
             '  digest: "sha256:aaaa"\n'
@@ -376,7 +376,7 @@ def test_update_image_manifest_new_item_uses_values_yaml_order_not_append(libima
             "# One change:\n"
             "#   1. mi 2.90.0 (new) (chart 1.1.0, new).\n"
             "#\n\n"
-            "- name: mi-data\n"
+            "- name: example/mi-data\n"
             "  url: example/mi-data\n"
             '  version: "2.90.0"\n'
             '  digest: "sha256:aaaa"\n'
@@ -425,7 +425,7 @@ def test_update_image_manifest_recognizes_bare_changes_header(libimagedocs, tmp_
             "#\n"
             "# Changes:\n"
             "#\n\n"
-            "- name: zac\n"
+            "- name: infonl/zaakafhandelcomponent\n"
             "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
             '  version: "5.4.3"\n'
             '  digest: "sha256:aaaa"\n'
@@ -457,7 +457,7 @@ def test_remove_image_manifest_entry_recognizes_bare_changes_header(libimagedocs
             "#   1. nginx-unprivileged 1.31.3 -> 1.31.4.\n"
             "#\n\n"
             "# nginx-unprivileged — 1.31.3 -> 1.31.4\n"
-            "- name: nginx-unprivileged\n"
+            "- name: nginxinc/nginx-unprivileged\n"
             "  url: docker.io/nginxinc/nginx-unprivileged\n"
             '  version: "1.31.4"\n'
             '  digest: "sha256:bbbb"\n'
@@ -480,7 +480,7 @@ def test_update_image_manifest_no_matching_entry_reports_not_updated(libimagedoc
         (
             "# One change:\n"
             "#   1. ZAC 5.0.2 -> 5.4.3.\n\n"
-            "- name: zac\n"
+            "- name: infonl/zaakafhandelcomponent\n"
             "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
             '  version: "5.4.3"\n'
             '  digest: "sha256:aaaa"\n'
@@ -503,7 +503,7 @@ def test_update_image_manifest_matches_entry_by_url_repository(libimagedocs, tmp
             "# One change:\n"
             "#   1. curl 8.20.0 -> 8.20.0.\n\n"
             "# curl — 8.20.0 -> 8.20.0\n"
-            "- name: curl\n"
+            "- name: curlimages/curl\n"
             "  url: docker.io/curlimages/curl\n"
             '  version: "8.20.0"\n'
             '  digest: "sha256:aaaa"\n'
@@ -595,7 +595,7 @@ def test_regenerate_images_baseline_manifest_global_images_use_their_own_real_su
         "nginxinc/nginx-unprivileged",
         "curlimages/curl",
         "library/busybox",
-        "redis",
+        "library/redis",
     ]
 
 

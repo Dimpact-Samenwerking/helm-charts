@@ -36,6 +36,7 @@ from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.chart.values_tree_primitives import strip_registry_host
 from lib.chart.values_tree_primitives import version_of
 from lib.checks.digest_pinning import find_unresolved_subchart_images
 from lib.component_docs.changes_section import ComponentIdentity
@@ -888,10 +889,12 @@ def _render_baseline_manifest_lines(resolved):
     """The full images-baseline.yaml text for `resolved` (see _resolve_
     baseline_entries) — the fixed IMAGES_BASELINE_HEADER followed by one
     "- name/url/version/digest" block per entry, exactly one trailing
-    newline (no blank line right before EOF)."""
+    newline (no blank line right before EOF). Each name is
+    strip_registry_host(url), the ACR mirror naming convention, never the
+    values.yaml repository key, which can omit a namespace ("python")."""
     lines = [IMAGES_BASELINE_HEADER, "\n"]
-    for _sort_key, repo, full_repo, new_version, digest in resolved:
-        lines.append(f"- name: {repo}\n")
+    for _sort_key, _repo, full_repo, new_version, digest in resolved:
+        lines.append(f"- name: {strip_registry_host(full_repo)}\n")
         lines.append(f"  url: {full_repo}\n")
         lines.append(f'  version: "{new_version}"\n')
         lines.append(f'  digest: "{digest}"\n')

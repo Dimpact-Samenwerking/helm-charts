@@ -86,6 +86,26 @@ def test_historical_app_version_for_repository_stops_at_most_recent_match(libcha
     )
 
 
+def test_historical_app_version_for_repository_matches_strip_registry_name_of_expected_url(
+    libcharthistoricalbaselines, tmp_path
+):
+    """values.yaml's "repository: python" keys as "python", while a
+    manifest written under the strip-registry convention names the same
+    image "library/python" — with expected_url given, that name matches."""
+    images_dir = tmp_path / "docs" / "images"
+    _write_images_manifest(
+        images_dir,
+        "4.8.5",
+        [{"name": "library/python", "url": "docker.io/library/python", "version": "3.14.6-slim", "digest": "sha256:a"}],
+    )
+    assert (
+        libcharthistoricalbaselines.historical_app_version_for_repository(
+            tmp_path, "python", at_or_before="4.9.0", expected_url="docker.io/library/python"
+        )
+        == "3.14.6-slim"
+    )
+
+
 def test_historical_app_version_for_repository_none_when_never_mentioned(libcharthistoricalbaselines, tmp_path):
     images_dir = tmp_path / "docs" / "images"
     _write_images_manifest(

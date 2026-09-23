@@ -20,6 +20,7 @@ from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.chart.values_tree_primitives import strip_registry_host
 from lib.chart.values_tree_primitives import version_of
 from lib.component_docs.images_manifest_changes_header import ensure_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
@@ -161,6 +162,33 @@ def _entry_url_status(entry, line_idx, lines, current_paths, context):
         return "unchanged", None
     lines[url_idx] = replace_scalar_value(lines[url_idx], full_repo)
     return "changed", (name, current_url, full_repo)
+
+
+def fix_images_manifest_entry_names(text):
+    """Rewrite each images-manifest entry's "name:" to strip_registry_host
+    of its own "url:" when it differs — the ACR mirror naming convention
+    (docs/images/acr-mirror-naming.md): the import pipeline mirrors each
+    image under its manifest name, so any other name lands in a different
+    ACR repository than the one the chart pulls. Run after
+    fix_images_manifest_entry_urls, so names follow corrected urls. An
+    entry without a "url:" is left as-is. Returns (new_text,
+    [(old_name, new_name), ...])."""
+    lines = text.splitlines(keepends=True)
+    changed = []
+    for i, line in enumerate(lines):
+        name_m = re.match(r"^-\s*name:\s*(\S+)\s*$", line)
+        url_idx = _entry_url_line_index(lines, i) if name_m else None
+        if url_idx is None:
+            continue
+        url_m = re.match(r"^\s*url:\s*(\S+)\s*$", lines[url_idx])
+        if not url_m:
+            continue
+        old_name = name_m.group(1).strip("\"'")
+        new_name = strip_registry_host(url_m.group(1).strip("\"'"))
+        if old_name != new_name:
+            lines[i] = replace_scalar_value(line, new_name)
+            changed.append((old_name, new_name))
+    return "".join(lines), changed
 
 
 def fix_images_manifest_entry_urls(text, chart_dir, deps, target_values, repo_map=None):
@@ -497,7 +525,7 @@ def _insert_added_entry(text, path, context, resolution, fields):
     header_prefix = "# " if is_primary_image_path(path, context.deps, context.chart_dir) else "#   sidecar: "
     block_lines = [
         f"{header_prefix}{version_text}\n",
-        f"- name: {fields.repo}\n",
+        f"- name: {strip_registry_host(fields.full_repo_url)}\n",
         f"  url: {fields.full_repo_url}\n",
         f'  version: "{new_version}"\n',
         f'  digest: "{digest}"\n',

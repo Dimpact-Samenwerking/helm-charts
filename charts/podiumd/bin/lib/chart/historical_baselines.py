@@ -15,6 +15,7 @@ import yaml
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.chart.values_tree_primitives import strip_registry_host
 
 # A bare MAJOR.MINOR.PATCH version, exactly — e.g. podiumd's own Chart.yaml
 # "version:", or a --baseline/target argument. Anything else (a suffix, a
@@ -100,12 +101,13 @@ def historical_app_version_for_repository(chart_dir, repo, at_or_before=None, ex
     exact previous name-only behavior, for a caller with no path/deps/
     values of its own to resolve one from — still a fully deterministic,
     exact comparison either way, never a heuristic."""
+    names = {repo, strip_registry_host(expected_url)} if expected_url else {repo}
     for path in historical_images_manifest_paths(chart_dir, at_or_before):
         entries = yaml.safe_load(path.read_text(encoding="utf-8")) or []
         if not isinstance(entries, list):
             continue
         for entry in entries:
-            if not isinstance(entry, dict) or entry.get("name") != repo:
+            if not isinstance(entry, dict) or entry.get("name") not in names:
                 continue
             if expected_url is not None and entry.get("url") != expected_url:
                 continue

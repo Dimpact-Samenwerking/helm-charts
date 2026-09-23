@@ -307,7 +307,7 @@ _CHART_REPO_IMAGES_MANIFEST = """\
 # See docs/_UPGRADE_PATHS/{baseline}-to-4.9.0-upgrade.md for the operator upgrade notes.
 
 # ZAC — {app_source} -> {app_target}
-- name: zac
+- name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
   version: "{app_target}"
   digest: "sha256:abc"

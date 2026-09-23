@@ -417,3 +417,41 @@ def test_resolve_entry_image_path_ignores_repo_map_hit_not_in_paths(libupgradedo
     repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
     entry = {"name": "infonl/zaakafhandelcomponent"}
     assert libupgradedocappversion.resolve_entry_image_path(entry, paths, repo_map) is None
+
+
+def test_resolve_entry_image_path_canonical_name_matches_short_repo_map_key(libupgradedocappversion):
+    """repo_map keys come from values.yaml's repository as written, which
+    can omit Docker Hub's "library/" ("repository: python") or keep the
+    namespace in a separate "registry:" field ("zaakbrug") — a manifest
+    entry named per the strip-registry convention must still resolve."""
+    paths = [("keycloak-operator", "python", "image"), ("zaakbrug", "image")]
+    repo_map = {"python": paths[0], "zaakbrug": paths[1]}
+    python = {"name": "library/python", "url": "docker.io/library/python"}
+    zaakbrug = {"name": "wearefrank/zaakbrug", "url": "docker.io/wearefrank/zaakbrug"}
+    assert libupgradedocappversion.resolve_entry_image_path(python, paths, repo_map) == paths[0]
+    assert libupgradedocappversion.resolve_entry_image_path(zaakbrug, paths, repo_map) == paths[1]
+
+
+def test_resolve_entry_image_path_uses_url_when_name_is_legacy(libupgradedocappversion):
+    """A legacy-named entry still resolves through its own url."""
+    paths = [("openformulieren", "image")]
+    repo_map = {"openformulieren/open-forms": paths[0]}
+    entry = {"name": "openformulieren", "url": "docker.io/openformulieren/open-forms"}
+    assert libupgradedocappversion.resolve_entry_image_path(entry, paths, repo_map) == paths[0]
+
+
+def test_resolve_entry_image_path_ambiguous_suffix_is_not_trusted(libupgradedocappversion):
+    """Two repo_map keys that are both a path-segment suffix of the name
+    are not guessed between; the fuzzy fallback decides instead."""
+    paths = [("a", "image"), ("b", "image")]
+    repo_map = {"redis": paths[0], "opstree/redis": paths[1]}
+    entry = {"name": "x/opstree/redis"}
+    assert libupgradedocappversion._repo_map_path(entry, repo_map) is None
+
+
+def test_resolve_entry_image_path_fuzzy_fallback_tries_last_segment(libupgradedocappversion):
+    """Without a repo_map, a namespaced name still fuzzy-matches on its
+    own last path segment ("opa" for "openpolicyagent/opa")."""
+    paths = [("zac", "opa", "image")]
+    entry = {"name": "openpolicyagent/opa", "url": "docker.io/openpolicyagent/opa"}
+    assert libupgradedocappversion.resolve_entry_image_path(entry, paths) == paths[0]

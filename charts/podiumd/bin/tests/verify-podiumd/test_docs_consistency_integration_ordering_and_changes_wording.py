@@ -448,12 +448,12 @@ def two_dep_chart_repo(tmp_path):
         "#   2. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged).\n#\n"
         "# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
         "# ZAC — 5.0.2 -> 5.4.3\n"
-        "- name: zac\n"
+        "- name: infonl/zaakafhandelcomponent\n"
         "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
         '  version: "5.4.3"\n'
         '  digest: "sha256:abc"\n\n'
         "# openformulieren — 3.4.10 -> 3.5.6\n"
-        "- name: openformulieren\n"
+        "- name: openformulieren/open-forms\n"
         "  url: openformulieren/open-forms\n"
         '  version: "3.5.6"\n'
         '  digest: "sha256:def"\n'

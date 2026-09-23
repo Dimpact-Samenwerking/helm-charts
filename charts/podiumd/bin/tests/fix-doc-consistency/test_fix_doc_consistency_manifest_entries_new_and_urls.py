@@ -37,6 +37,45 @@ def make_tgz(charts_dir, name, version, values, raw_files=None):
     return tgz_path
 
 
+# --- fix_images_manifest_entry_names ---
+
+
+def test_fix_images_manifest_entry_names_renames_to_strip_registry_of_url(cdb):
+    """Regression test (real doc): images-4.9.2.yaml/images-baseline.yaml
+    carried "python", "zaakbrug" and "openformulieren" while the chart
+    pulls library/python, wearefrank/zaakbrug and openformulieren/open-
+    forms — the ACR import mirrors each image under its manifest name, so
+    those land in the wrong ACR repository."""
+    text = (
+        "# header\n\n"
+        '- name: python\n  url: docker.io/library/python\n  version: "3.14.7-slim"\n\n'
+        '- name: "zaakbrug"\n  url: docker.io/wearefrank/zaakbrug\n  version: "1.26.18"\n\n'
+        '- name: openformulieren\n  url: docker.io/openformulieren/open-forms\n  version: "3.5.8"\n\n'
+        '- name: keycloak/keycloak\n  url: quay.io/keycloak/keycloak\n  version: "26.7.3"\n\n'
+        '- name: no-url-entry\n  version: "1.0"\n'
+    )
+    new_text, changed = cdb.fix_images_manifest_entry_names(text)
+    assert changed == [
+        ("python", "library/python"),
+        ("zaakbrug", "wearefrank/zaakbrug"),
+        ("openformulieren", "openformulieren/open-forms"),
+    ]
+    entries = yaml.safe_load(new_text)
+    assert [e["name"] for e in entries] == [
+        "library/python",
+        "wearefrank/zaakbrug",
+        "openformulieren/open-forms",
+        "keycloak/keycloak",
+        "no-url-entry",
+    ]
+    assert '- name: "wearefrank/zaakbrug"' in new_text
+
+
+def test_fix_images_manifest_entry_names_is_a_noop_on_a_conforming_manifest(cdb):
+    text = '- name: library/python\n  url: docker.io/library/python\n  version: "3.14.7-slim"\n'
+    assert cdb.fix_images_manifest_entry_names(text) == (text, [])
+
+
 # --- fix_images_manifest_entry_urls ---
 
 

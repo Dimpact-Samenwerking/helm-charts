@@ -22,13 +22,13 @@ REAL_MANIFEST = """\
 # See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
 
 # ZAC — 5.0.2 -> 5.4.3
-- name: zac
+- name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
   version: "5.4.3"
   digest: "sha256:aaa"
 
 # ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static
-- name: opa
+- name: openpolicyagent/opa
   url: openpolicyagent/opa
   version: "1.19.0-static"
   digest: "sha256:bbb"
@@ -291,7 +291,7 @@ def test_images_manifest_format_missing_entry_comment(libimagesmanifest, tmp_pat
             {},
         ),
     )
-    assert any('entry "opa" has no preceding comment' in i for i in issues)
+    assert any('entry "openpolicyagent/opa" has no preceding comment' in i for i in issues)
 
 
 ZGW_MANIFEST = """\
@@ -303,12 +303,12 @@ ZGW_MANIFEST = """\
 #   1. ZGW Office Add-in v0.9.313 -> v0.9.352 (chart 0.0.89, unchanged).
 
 # ZGW Office Add-in — v0.9.313 -> v0.9.352
-- name: zgw-office-addin-frontend
+- name: infonl/zgw-office-addin-frontend
   url: ghcr.io/infonl/zgw-office-addin-frontend
   version: "v0.9.352"
   digest: "sha256:aaa"
 
-- name: zgw-office-addin-backend
+- name: infonl/zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.352"
   digest: "sha256:bbb"
@@ -801,7 +801,7 @@ def test_images_manifest_format_free_form_mention_still_counts_as_covered(libima
         "#   1. redis-ha 8.6.2 -> 8.6.6\n"
         "#   2. some other free-form item -> nothing to do with this\n\n"
         "#   sidecar: redis-operator - redis 8.6.2 -> 8.6.6\n"
-        "- name: redis-ha\n"
+        "- name: opstree/redis\n"
         "  url: quay.io/opstree/redis\n"
         '  version: "8.6.6"\n'
         '  digest: "sha256:aaaa"\n'
@@ -1158,3 +1158,14 @@ def test_images_manifest_format_new_component_image_not_in_historical_manifest(l
         ),
     )
     assert any('image "brppersonenmock" changed vs 4.8.5 but has no entry' in i for i in issues)
+
+
+def test_images_manifest_format_flags_entry_not_named_after_its_url(libimagesmanifest, tmp_path):
+    """The ACR import mirrors each image under its manifest name, so a
+    name that isn't strip_registry_host(url) is reported."""
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(REAL_MANIFEST.replace("- name: openpolicyagent/opa", "- name: opa"))
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path, libimagesmanifest.ManifestCheckContext("4.8.5", "4.9.0", DEPS, VALUES, {})
+    )
+    assert any('entry "opa" is not named after its own url' in i and '"openpolicyagent/opa"' in i for i in issues)

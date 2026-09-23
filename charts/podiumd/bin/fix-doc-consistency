@@ -89,6 +89,7 @@ from lib.fix_doc_consistency.manifest_entries_core import (  # pylint: disable=u
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import (
     MissingEntriesContext,
     add_missing_images_manifest_entries,
+    fix_images_manifest_entry_names,
     fix_images_manifest_entry_urls,
 )
 
@@ -610,6 +611,19 @@ def _correct_images_manifest_urls(images_path, state, repo_map):
             print(f"  {name}")
 
 
+def _correct_images_manifest_names(images_path):
+    """Corrects images-manifest entry name(s) to strip_registry_host(url)
+    (see fix_images_manifest_entry_names)."""
+    text = images_path.read_text(encoding="utf-8")
+    new_text, changed_names = fix_images_manifest_entry_names(text)
+    if changed_names:
+        images_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Correcting entry name(s) in {images_path.name} to the ACR mirror naming convention ===")
+        for old_name, new_name in changed_names:
+            print(f"  {old_name} -> {new_name}")
+
+
 def _add_missing_images_manifest_entries(images_path, state):
     """Adds a missing entry for any changed image, and backfills a
     missing '# Changes:' header item. Skipped if baseline_values is
@@ -729,6 +743,7 @@ def _fix_images_manifest_content(state, images_path):
 
     _correct_images_manifest_entries(images_path, state, repo_map)
     _correct_images_manifest_urls(images_path, state, repo_map)
+    _correct_images_manifest_names(images_path)
     _add_missing_images_manifest_entries(images_path, state)
     _dedupe_images_manifest_changes_items(images_path)
     _sort_images_manifest(images_path, state, repo_map, canonical_names)

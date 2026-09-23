@@ -126,7 +126,7 @@ def test_main_bumps_existing_images_manifest(cdb, repo, monkeypatch):
         "# Images new or changed in podiumd 4.9.0 vs 4.8.2.\n"
         "#\n"
         "# See docs/_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
-        "- name: zac\n"
+        "- name: infonl/zaakafhandelcomponent\n"
         "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
         '  version: "5.1.0"\n'
         '  digest: "sha256:aaaa"\n',
@@ -138,7 +138,7 @@ def test_main_bumps_existing_images_manifest(cdb, repo, monkeypatch):
     assert "Baseline: podiumd 4.8.5" in text
     assert "podiumd 4.9.0 vs 4.8.5" in text
     assert "4.8.5-to-4.9.0-upgrade.md" in text
-    assert "- name: zac" in text  # entries untouched
+    assert "- name: infonl/zaakafhandelcomponent" in text  # entries untouched
 
 
 def test_main_images_manifest_already_at_baseline_is_noop(cdb, repo, monkeypatch, capsys):

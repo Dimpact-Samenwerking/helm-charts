@@ -50,7 +50,7 @@ IMAGES_MANIFEST = """\
 # See docs/_UPGRADE_PATHS/{baseline}-to-4.9.0-upgrade.md for the operator upgrade notes.
 
 # ZAC — {app_source} -> {app_target}
-- name: zac
+- name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
   version: "{app_target}"
   digest: "sha256:abc"
@@ -376,7 +376,7 @@ def test_images_manifest_entry_missing_version_or_digest_is_reported_not_crashed
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline=None)
     assert ok is False
     out = capsys.readouterr().out
-    assert 'zac: entry in images-4.9.0.yaml is missing "version" or "digest"' in out
+    assert 'infonl/zaakafhandelcomponent: entry in images-4.9.0.yaml is missing "version" or "digest"' in out
 
 
 def test_images_manifest_missing_changes_header_entirely_is_caught(vp, chart_repo, capsys):

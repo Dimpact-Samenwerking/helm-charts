@@ -16,6 +16,7 @@ from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.chart.values_tree_primitives import strip_registry_host
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
@@ -723,6 +724,25 @@ def _list_diff_issues(name, inputs, context):
     return issues
 
 
+def _entry_name_issues(name, entries):
+    """One issue per entry whose "name:" isn't strip_registry_host of its
+    own "url:" — the ACR mirror naming convention (docs/images/acr-mirror-
+    naming.md), which the import pipeline mirrors each image under. Entries
+    without a "url:" are skipped; fix-doc-consistency repairs the rest."""
+    issues = []
+    for entry in entries:
+        url = entry.get("url")
+        if not entry.get("name") or not isinstance(url, str):
+            continue
+        expected = strip_registry_host(url)
+        if str(entry["name"]) != expected:
+            issues.append(
+                f'{name}: entry "{entry["name"]}" is not named after its own url "{url}" -- the ACR '
+                f'mirror name should be "{expected}" (run fix-doc-consistency)'
+            )
+    return issues
+
+
 def check_images_manifest_format(images_path, context):
     """Existence + YAML-validity + header-comment-accuracy precheck for the
     images manifest, run BEFORE the entry-by-entry content checks — mirrors
@@ -730,7 +750,8 @@ def check_images_manifest_format(images_path, context):
     manifest's own entry LIST against the full, actual set of images that
     changed vs context.upgrade_docs_baseline (see find_images_manifest_
     list_diff) — every changed image must have an entry, and every entry
-    must correspond to a real change, once context.chart_dir is given.
+    must correspond to a real change, once context.chart_dir is given,
+    and that every entry is named after its own url (_entry_name_issues).
     `context` is a ManifestCheckContext."""
     if not images_path.is_file():
         return [f'expected "{images_path.name}" does not exist']
@@ -746,6 +767,7 @@ def check_images_manifest_format(images_path, context):
 
     issues = _baseline_and_vs_line_issues(images_path.name, text, context)
     issues.extend(check_images_manifest_changes_numbering(images_path.name, text))
+    issues.extend(_entry_name_issues(images_path.name, entries))
 
     repo_groups, resolution = _manifest_resolution_context(context)
     resolved = ResolvedManifest(entries, resolution)
