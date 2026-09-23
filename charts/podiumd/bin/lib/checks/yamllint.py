@@ -13,7 +13,11 @@ from lib.render_scope import build_line_sources
 from lib.render_scope import chart_name_from_source
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import print_grouped_findings
+from lib.render_scope import print_other_vendor_summary
+from lib.render_scope import print_own_findings_heading
+from lib.render_scope import print_partner_findings_heading
 from lib.render_scope import render_chart
+from lib.render_scope import scan_outcome
 from lib.settings import quality_gates_yamllint_failing_rules
 
 # yamllint config, tuned against this repo's own real findings (not
@@ -107,10 +111,7 @@ def check_yamllint(chart_dir, extra_args):
     )
 
     if own_real:
-        print(
-            f"Found {len(own_real)} real yamllint issue(s) in this chart's own templates "
-            f"(not cosmetic — these fail the check):"
-        )
+        print_own_findings_heading("yamllint", len(own_real))
         print_grouped_findings(
             own_real,
             key_fn=lambda f: (f[1], f[2], f[3], f[4]),
@@ -121,10 +122,7 @@ def check_yamllint(chart_dir, extra_args):
         print()
 
     if vendored_friendly:
-        print(
-            f"Found {len(vendored_friendly)} yamllint issue(s) in partner-maintained "
-            f"vendored sub-chart(s) (reported for visibility, never a failure):"
-        )
+        print_partner_findings_heading("yamllint", len(vendored_friendly))
         print_grouped_findings(
             vendored_friendly,
             key_fn=lambda f: (f[1], f[2], f[3], f[4]),
@@ -138,15 +136,9 @@ def check_yamllint(chart_dir, extra_args):
 
     if vendored_other:
         by_chart = Counter(chart_name_from_source(source) for _, source, _, _, _ in vendored_other)
-        print(
-            f"{len(vendored_other)} yamllint finding(s) across {len(by_chart)} other vendored "
-            f"sub-chart(s) (outside this repo's scope, not shown, never a failure)"
-        )
+        print_other_vendor_summary("yamllint", len(vendored_other), len(by_chart))
 
     if not (own_real or vendored_friendly or vendored_other):
         print("OK: no yamllint findings in the rendered chart")
 
-    detail = f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, {len(vendored_other)} other-vendor"
-    if own_real:
-        return False, detail
-    return True, detail
+    return scan_outcome(own_real, vendored_friendly, vendored_other)

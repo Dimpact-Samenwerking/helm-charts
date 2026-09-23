@@ -333,7 +333,7 @@ def test_render_consolidation_one_real_render_across_three_checks(
         "run",
         lambda cmd, **kw: SimpleNamespace(returncode=0, stdout=json.dumps({"resources": [], "summary": {}}), stderr=""),
     )
-    monkeypatch.setattr(libkubeconformcheck, "friendly_vendor_charts", lambda chart_dir: {})
+    monkeypatch.setattr("lib.render_scope.friendly_vendor_charts", lambda chart_dir: {})
 
     extra_args = []
     ok1, _ = vp.check_render(tmp_path, extra_args)

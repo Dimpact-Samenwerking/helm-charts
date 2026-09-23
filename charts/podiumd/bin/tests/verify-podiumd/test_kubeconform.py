@@ -27,7 +27,7 @@ def kc_result(resources, returncode=1):
 
 
 def no_friendly_vendors(libkubeconformcheck, monkeypatch):
-    monkeypatch.setattr(libkubeconformcheck, "friendly_vendor_charts", lambda chart_dir: {})
+    monkeypatch.setattr("lib.render_scope.friendly_vendor_charts", lambda chart_dir: {})
 
 
 RENDERED = (
@@ -324,7 +324,7 @@ def test_check_kubeconform_friendly_vendor_finding_reported_per_item_never_fails
     kubeconform is run once per distinct vendored chart precisely so this
     attribution is possible) but must still never fail."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
-    monkeypatch.setattr(libkubeconformcheck, "friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
+    monkeypatch.setattr("lib.render_scope.friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
     monkeypatch.setattr(
         libkubeconformcheck,
         "run",
