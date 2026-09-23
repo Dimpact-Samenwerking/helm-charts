@@ -9,8 +9,11 @@
 
 # Usage: ./delete-es-index.sh <index-name> [namespace] [elasticsearch-name]
 # Example: ./delete-es-index.sh "index-name"
-# Example: ./delete-es-index.sh "index-name" "mynamespace"
-# Example: ./delete-es-index.sh "index-name" "mynamespace" "kiss"
+# Example: ./delete-es-index.sh "index-name" "podiumd"
+# Example: ./delete-es-index.sh "index-name" "podiumd" "kiss"
+#
+# [namespace] defaults to 'podiumd' if not specified
+# [elasticsearch-name] defaults to 'kiss' if not specified
 #
 # Prerequisites:
 #   - kubectl must be installed and configured with the correct context
@@ -82,7 +85,7 @@ usage() {
     echo ""
     echo "Arguments:"
     echo "  index-name         Index to delete (required)"
-    echo "  namespace          Kubernetes namespace (default: mynamespace)"
+    echo "  namespace          Kubernetes namespace (default: podiumd)"
     echo "  elasticsearch-name ECK Elasticsearch resource name, e.g. 'kiss' (default: kiss)"
     echo ""
     echo "Prerequisites:"
@@ -92,8 +95,8 @@ usage() {
     echo ""
     echo "Examples:"
     echo "  $0 index-name"
-    echo "  $0 index-name mynamespace"
-    echo "  $0 index-name mynamespace kiss"
+    echo "  $0 index-name podiumd"
+    echo "  $0 index-name podiumd kiss"
     exit 1
 }
 
