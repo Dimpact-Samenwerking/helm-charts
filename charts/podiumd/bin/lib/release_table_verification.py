@@ -40,6 +40,8 @@ from lib.image.version import basenames_under_scope_any_tag
 from lib.image.version import find_matches_any_tag
 from lib.image.version import image_basename
 from lib.image.version import repository_for_basename_in_scope
+from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
 
 UNRESOLVED_COMPONENTS = ("", "UNKNOWN")
 
@@ -536,6 +538,36 @@ def _unscoped_fallback_pins(ref, state, basename, findings):
     return pins
 
 
+def _check_primary_row_without_basename(ref, rows, state, findings, primary_basename):
+    """Compares the app version of a component's primary row when that row
+    has a blank image_basename (so the per-basename pass in check_images
+    never looks at it) against actual_app_version for the component, the
+    same way a basename row is compared (_record_image_result). The blank
+    row counts as the primary row only when it is the component's single
+    blank row and no other row claims primary_basename. A leading "v"
+    is ignored ("v0.26.0" matches "0.26.0", see normalize_version).
+    Skipped for MULTIPLE_KEY, when no app version is pinned for the
+    component, and when the row records no app version at all (the
+    "pinned but not tracked" finding already covers that)."""
+    if ref.component == MULTIPLE_KEY:
+        return
+    blank_rows = [row for row in rows if not split_basenames(row["image_basename"])]
+    if len(blank_rows) != 1:
+        return
+    if primary_basename is not None and any(primary_basename in split_basenames(r["image_basename"]) for r in rows):
+        return
+    actual = actual_app_version(state.values, ref.scope_key, ref.component, state.chart_dir, ref.dep)
+    if not actual:
+        return
+    row = blank_rows[0]
+    recorded = row["target_version_app"] if is_verifiable_target(row["target_version_app"]) else row["source_version_app"]
+    if not is_verifiable_target(recorded):
+        return
+    if normalize_version(actual) == normalize_version(recorded):
+        actual = recorded
+    _record_image_result(ref, row, primary_basename or "primary image", actual, findings)
+
+
 def check_images(ref, rows, state, findings):
     """The TARGET-side counterpart to check_images_source: resolves every
     basename release-table.csv's rows for `ref.component` list under
@@ -545,7 +577,8 @@ def check_images(ref, rows, state, findings):
     live under a sibling scope, e.g. keycloak-config-cli under top-level
     "keycloak") and compares each resolved version against that row's own
     verifiable target_version_app, recording a mismatch (see
-    _record_image_result) when they disagree. A pin resolving to more
+    _record_image_result) when they disagree. A primary row with a blank
+    image_basename is compared too (_check_primary_row_without_basename). A pin resolving to more
     than one distinct version is reported as "ambiguous" instead of
     compared, and so is an unscoped fallback match spanning more than one
     distinct repository (the same "redis" collision check_images_source
@@ -599,6 +632,8 @@ def check_images(ref, rows, state, findings):
                 )
                 continue
             _record_image_result(ref, row, basename, next(iter(versions)), findings)
+
+    _check_primary_row_without_basename(ref, rows, state, findings, primary_basename)
 
     for basename, pins in actual_basenames.items():
         if basename not in csv_basenames:
