@@ -5,6 +5,7 @@ fix-image-digests for that)."""
 import re
 import urllib.error
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
@@ -295,7 +296,7 @@ def clear_tag_exists_cache() -> None:
     _tag_exists_cache.clear()
 
 
-def cached_tag_exists(chart_dir: Path, repository: str, version: str, timeout: int | None = None):
+def cached_tag_exists(chart_dir: Path, repository: str, version: str, timeout: float | None = None):
     """Wrapper around lib.registry.registry_tag_exists for the tag-level
     lookup check_image_digests' own loop (below), find_sliding_pins, AND
     lib.repo_access.check_repo_access all make for the same pin — keyed
@@ -447,8 +448,8 @@ class PinCheckContext:
     _resolve_pin_tag_status/_classify_pin_tag_result/_confirm_pinned_
     digest_still_resolvable — built once per pin by _build_pin_context."""
 
-    chart_dir: object
-    values_path: object
+    chart_dir: Path
+    values_path: Path
     pinned_digest: str
     lines_str: str
     loc: PinLocation
@@ -469,7 +470,7 @@ class DigestCheckAccumulator:
     digest_check_errors: list
 
 
-def _call_with_retry(fn):
+def _call_with_retry(fn: Callable):
     """Call fn() up to twice, retried only on a transient network error
     (never on a clean, non-exception result) — the same two-attempt shape
     both registry lookups below need. Returns (result, error): result is
@@ -497,7 +498,7 @@ def _build_pin_context(chart_dir: Path, values_path: Path, repository: str, vers
     return PinCheckContext(chart_dir, values_path, pinned_digest, lines_str, loc)
 
 
-def _resolve_pin_tag_status(ctx):
+def _resolve_pin_tag_status(ctx: PinCheckContext):
     """The tag-level lookup for one pin: cached_tag_exists, retried once
     on a transient network error. Returns (digest, error) — error is
     "tag not found upstream" for a clean 404, never None just because
@@ -509,7 +510,7 @@ def _resolve_pin_tag_status(ctx):
     return digest, (None if exists else "tag not found upstream")
 
 
-def _classify_pin_tag_result(ctx, digest: str | None, error: str | None, acc):
+def _classify_pin_tag_result(ctx: PinCheckContext, digest: str | None, error: str | None, acc: DigestCheckAccumulator):
     """The four possible outcomes for one pin's tag-level lookup —
     unverifiable host, fetch error, mismatch (sliding or not), no digest
     header, or matched — each printed and recorded on acc. Returns
@@ -554,7 +555,7 @@ def _classify_pin_tag_result(ctx, digest: str | None, error: str | None, acc):
     return False
 
 
-def _confirm_pinned_digest_still_resolvable(ctx, acc):
+def _confirm_pinned_digest_still_resolvable(ctx: PinCheckContext, acc: DigestCheckAccumulator):
     """The SECOND check for a pin already flagged by _classify_pin_tag_
     result (never for a matched pin, never for a host already in
     UNVERIFIABLE_HOSTS): is the EXACT digest values.yaml pins TODAY still
@@ -586,7 +587,7 @@ def _confirm_pinned_digest_still_resolvable(ctx, acc):
         )
 
 
-def _process_pin(ctx, i: int, total: int, acc):
+def _process_pin(ctx: PinCheckContext, i: int, total: int, acc: DigestCheckAccumulator):
     """One pin's full check: announce it, resolve its tag-level status,
     classify the result, then run the digest-still-resolvable check when
     warranted. No per-run cache of its own here (unlike check_cves/
@@ -625,7 +626,7 @@ def _print_unverifiable_pins(unverifiable: list):
     print()
 
 
-def _print_warning_and_stale_notes(acc):
+def _print_warning_and_stale_notes(acc: DigestCheckAccumulator):
     """The three one-line follow-up notes for sliding/stale/gone pins
     already printed in detail by _classify_pin_tag_result/_confirm_
     pinned_digest_still_resolvable above."""
@@ -672,7 +673,9 @@ def _print_drifted_pins(drifted: dict):
             print(f"      {version}@sha256:{digest}  (values.yaml:{lines_str})")
 
 
-def _build_digest_check_result(acc, targets: dict, duplicates: dict, drifted: dict, inconsistent: dict):
+def _build_digest_check_result(
+    acc: DigestCheckAccumulator, targets: dict, duplicates: dict, drifted: dict, inconsistent: dict
+):
     """The final (ok, detail) pair check_image_digests returns, built from
     the accumulator plus the inconsistent-pin groupings — factored out
     solely to keep check_image_digests' own local-variable count down."""

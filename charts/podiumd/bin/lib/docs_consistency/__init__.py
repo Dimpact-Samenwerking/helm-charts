@@ -15,6 +15,7 @@ from pathlib import Path
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.values_tree_primitives import version_of
+from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import resolve_component_own_version_change
 from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
@@ -90,7 +91,7 @@ class DocQuery:
     pylint's too-many-instance-attributes, since these four always
     travel together anyway."""
 
-    doc_dir: object
+    doc_dir: Path
     podiumd_version: str
     upgrade_docs_baseline: str | None
     is_bare_version: bool
@@ -108,9 +109,9 @@ class DocsCheckContext:
     deps/values pairing resolve_component_row's own ResolutionContext
     already uses."""
 
-    chart_dir: object
-    current: object
-    baseline: object
+    chart_dir: Path
+    current: ComponentState
+    baseline: BaselineState
     baseline_ref: str | None
     doc_query: DocQuery
     image_paths: ImagePaths
@@ -126,7 +127,7 @@ class DocScanState:
     compare them against each other and against the doc's own text in
     different ways."""
 
-    doc_path: object
+    doc_path: Path
     rows: list
     canonical_names: dict
 
@@ -136,8 +137,8 @@ class RowContext:
     """_check_component_rows' own doc_path/baseline_ref pair, threaded
     into each per-row sub-check purely to keep argument counts down."""
 
-    doc_path: object
-    baseline_ref: str
+    doc_path: Path
+    baseline_ref: str | None
 
 
 @dataclass
@@ -189,9 +190,9 @@ class ManifestEntryScan:
     sibling_fields triple -- bundled purely to keep that function's own
     argument count down."""
 
-    images_path: object
+    images_path: Path
     repo_map: dict
-    sibling_fields: object
+    sibling_fields: dict
 
 
 def _pointer_consistency_mismatches(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str):
@@ -224,7 +225,7 @@ def _pointer_consistency_mismatches(chart_dir: Path, doc_dir: Path, upgrade_docs
 
 
 def _check_companion_docs(
-    doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str, findings, *, is_bare_version: bool
+    doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str, findings: Findings, *, is_bare_version: bool
 ):
     """gemeente-specific/values-deltas companion-doc checks, appended
     straight onto `findings` — including the stale-placeholder findings
@@ -323,7 +324,7 @@ def _build_docs_check_context(
     ctx = DocsCheckContext(
         chart_dir=chart_dir,
         current=ComponentState(deps, values),
-        baseline=ComponentState(baseline_deps, baseline_values),
+        baseline=BaselineState(baseline_deps, baseline_values),
         baseline_ref=baseline_ref,
         doc_query=DocQuery(
             chart_dir / "docs" / "_UPGRADE_PATHS",
@@ -337,7 +338,7 @@ def _build_docs_check_context(
     return ctx, repo_map, baseline_mismatch
 
 
-def _doc_header_mismatches(doc_path: Path, ctx):
+def _doc_header_mismatches(doc_path: Path, ctx: DocsCheckContext):
     """Title + stale-TODO-placeholder checks on the selected upgrade doc
     itself — both read the doc's own text/title, nothing else, so
     bundled here together rather than as two separate one-line callers.
@@ -348,7 +349,7 @@ def _doc_header_mismatches(doc_path: Path, ctx):
     reused here unapplied — its own `changed` flag doubles as this
     finding, no separate detector to drift)."""
     mismatches = []
-    if ctx.doc_query.is_bare_version:
+    if ctx.doc_query.is_bare_version and ctx.doc_query.upgrade_docs_baseline:
         mismatches.extend(check_doc_title(doc_path, ctx.doc_query.upgrade_docs_baseline, ctx.doc_query.podiumd_version))
     if strip_stale_upgrade_placeholders(doc_path.read_text(encoding="utf-8"))[1]:
         mismatches.append(
@@ -358,7 +359,7 @@ def _doc_header_mismatches(doc_path: Path, ctx):
     return mismatches
 
 
-def _record_row_identity(resolved: dict, result):
+def _record_row_identity(resolved: dict, result: ComponentRowsResult):
     """Extracts one resolved row's own sidecar_path/values_key/top_
     level_key/actual_app and records the bookkeeping every later check
     (in this row, and in later phases via ComponentRowsResult) needs —
@@ -383,7 +384,9 @@ def _record_row_identity(resolved: dict, result):
     return values_key, actual_app
 
 
-def _check_row_target_versions(row: dict, row_ctx, resolved: dict, values_key: str, result):
+def _check_row_target_versions(
+    row: dict, row_ctx: RowContext, resolved: dict, values_key: str, result: ComponentRowsResult
+):
     """One row's own current chart/app-version cells vs. Chart.yaml/
     values.yaml reality."""
     actual_chart, actual_app = resolved["target_chart"], resolved["target_app"]
@@ -399,7 +402,9 @@ def _check_row_target_versions(row: dict, row_ctx, resolved: dict, values_key: s
         )
 
 
-def _check_row_baseline_versions(row: dict, row_ctx, resolved: dict, values_key: str, result):
+def _check_row_baseline_versions(
+    row: dict, row_ctx: RowContext, resolved: dict, values_key: str, result: ComponentRowsResult
+):
     """One row's own source chart/app-version cells vs. row_ctx.
     baseline_ref reality — only called once row_ctx.baseline_ref is
     set (the caller's own loop already gates this)."""
@@ -439,7 +444,7 @@ def _check_row_baseline_versions(row: dict, row_ctx, resolved: dict, values_key:
         )
 
 
-def _check_component_rows(rows: list, row_ctx, row_lookup, resolution):
+def _check_component_rows(rows: list, row_ctx: RowContext, row_lookup: RowLookup, resolution: ResolutionContext):
     """The per-row loop of the "Component versions" table section —
     resolves each row via resolve_component_row (shared with fix-doc-
     consistency's own row-rewriter, fix_component_version_table — see
@@ -471,7 +476,7 @@ def _check_component_rows(rows: list, row_ctx, row_lookup, resolution):
     return result
 
 
-def _check_missing_component_rows(ctx, scan, rows_result):
+def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, rows_result: ComponentRowsResult):
     """The two "changed vs baseline but has no row at all" checks — one
     for a dependency/native component's own primary row (358-380's
     original shape: a key whose own chart+app both resolve unchanged
@@ -488,7 +493,7 @@ def _check_missing_component_rows(ctx, scan, rows_result):
         resolved = resolve_component_own_version_change(
             key,
             ComponentState(ctx.current.deps, ctx.current.values),
-            ComponentState(ctx.baseline.deps, ctx.baseline.values),
+            BaselineState(ctx.baseline.deps, ctx.baseline.values),
             ctx.chart_dir,
             ctx.doc_query.upgrade_docs_baseline,
         )
@@ -523,7 +528,7 @@ def _check_missing_component_rows(ctx, scan, rows_result):
     return mismatches
 
 
-def _check_row_and_heading_order(ctx, scan):
+def _check_row_and_heading_order(ctx: DocsCheckContext, scan: DocScanState):
     """ "Component versions" table rows and "## Changes" headings should
     both follow values.yaml's own component order (see find_out_of_
     order_names) — checked here together since both use the same key_
@@ -556,7 +561,9 @@ def _check_row_and_heading_order(ctx, scan):
     return mismatches, changes_headings, doc_text
 
 
-def _check_changes_heading_correspondence(ctx, scan, rows_result, changes_headings: list, doc_text: str):
+def _check_changes_heading_correspondence(
+    ctx: DocsCheckContext, scan: DocScanState, rows_result: ComponentRowsResult, changes_headings: list, doc_text: str
+):
     """Only checked when the doc actually has a "## Changes" heading at
     all — a fixture/stub doc that never got that far yet (no section to
     compare against) would otherwise have EVERY row reported as missing
@@ -625,7 +632,7 @@ def _check_changes_heading_correspondence(ctx, scan, rows_result, changes_headin
     return mismatches
 
 
-def _select_upgrade_doc(ctx, findings):
+def _select_upgrade_doc(ctx: DocsCheckContext, findings: Findings):
     """Selects the one upgrade doc to check (see check_docs_consistency's
     own docstring for the "<baseline>-to-<target>-upgrade.md" filename
     shape), appends its own title/stale-placeholder findings and its
@@ -653,7 +660,7 @@ def _select_upgrade_doc(ctx, findings):
     return doc_path
 
 
-def _check_component_versions_table(ctx, findings):
+def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     """The "Component versions" table section of check_docs_consistency
     (see that function's own docstring) — doc selection, per-row
     checks, missing-row checks, row/heading ordering checks, and
@@ -671,7 +678,7 @@ def _check_component_versions_table(ctx, findings):
     resolution = ResolutionContext(
         ctx.chart_dir,
         ComponentState(ctx.current.deps, ctx.current.values),
-        ComponentState(ctx.baseline.deps if ctx.baseline_ref else None, ctx.baseline.values),
+        BaselineState(ctx.baseline.deps if ctx.baseline_ref else None, ctx.baseline.values),
         ctx.doc_query.upgrade_docs_baseline if ctx.baseline_ref else None,
     )
     rows = list(parse_upgrade_doc_rows(doc_path))
@@ -705,7 +712,7 @@ def _check_component_versions_table(ctx, findings):
     )
 
 
-def _check_images_manifest_entry(ctx, scan, entry: dict, findings):
+def _check_images_manifest_entry(ctx: DocsCheckContext, scan: ManifestEntryScan, entry: dict, findings: Findings):
     """One images-manifest entry's own version/digest/already-in-
     baseline checks — split out of the entries loop purely to keep
     that loop's own complexity down."""
@@ -734,7 +741,7 @@ def _check_images_manifest_entry(ctx, scan, entry: dict, findings):
         )
 
 
-def _check_images_manifest(ctx, repo_map: dict, sibling_fields: dict, findings):
+def _check_images_manifest(ctx: DocsCheckContext, repo_map: dict, sibling_fields: dict, findings: Findings):
     """The images-manifest section of check_docs_consistency (see that
     function's own docstring) — manifest format validation, the "any
     real entries but no '# Changes:' header" catch-all (real bug this
@@ -790,7 +797,7 @@ def _check_images_manifest(ctx, repo_map: dict, sibling_fields: dict, findings):
         _check_images_manifest_entry(ctx, scan, entry, findings)
 
 
-def _check_values_deltas(ctx, findings):
+def _check_values_deltas(ctx: DocsCheckContext, findings: Findings):
     """The values-deltas doc's own content + section-ordering checks —
     only called when a baseline was resolved, the doc set is a genuine
     bare version, and at least one component actually changed (see
@@ -825,7 +832,7 @@ def _check_values_deltas(ctx, findings):
 
 
 def _check_baseline_doc_set_and_pointers(
-    chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | None, podiumd_version: str, findings
+    chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str | None, podiumd_version: str, findings: Findings
 ):
     """When upgrade_docs_baseline is a genuine bare version: runs the
     baseline doc-set precheck (returns an early-return result the

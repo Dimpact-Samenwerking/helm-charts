@@ -226,7 +226,7 @@ class DiffContext:
     object instead of a handful of positional params. See
     _build_diff_context, which builds one of these once per run."""
 
-    chart_dir: object
+    chart_dir: Path
     cache: CacheSession
     scan_errors: list
     detail: bool
@@ -235,7 +235,7 @@ class DiffContext:
     package_cve_list_threshold: int
 
 
-def _scan_current(context, candidate: dict):
+def _scan_current(context: DiffContext, candidate: dict):
     """The CURRENT side of one candidate — always cache-eligible, its
     pinned digest is already known from values.yaml, a free hit whenever
     check_cves already scanned this exact digest (both route through the
@@ -250,7 +250,7 @@ def _scan_current(context, candidate: dict):
     return vulns
 
 
-def _scan_proposed(context, candidate: dict):
+def _scan_proposed(context: DiffContext, candidate: dict):
     """The PROPOSED side of one candidate. A "sliding digest" candidate
     already carries its own resolved digest (see gather_candidates) — no
     extra call needed, straight to scan_cached. An "upgrade" candidate's
@@ -354,7 +354,7 @@ def classify_candidates(chart_dir: Path, extra_args: list, candidates: list, val
         candidate["bucket"] = bucket_of(label)
 
 
-def _process_bucket(context, title: str, bucket_candidates: list):
+def _process_bucket(context: DiffContext, title: str, bucket_candidates: list):
     """Scan and print one bucket's candidates under its own "--- <title>
     ---" header (skipped entirely when the bucket is empty, via the same
     lib.checks.cve.print_bucket_header idiom print_bucket_report itself
@@ -416,7 +416,7 @@ def _build_diff_context(chart_dir: Path, *, detail: bool):
     )
 
 
-def _process_all_buckets(context, buckets: list):
+def _process_all_buckets(context: DiffContext, buckets: list):
     """{bucket_key: (closed, introduced)} — runs _process_bucket for each
     (bucket_key, title, candidates) triple from _partition_by_bucket."""
     return {key: _process_bucket(context, title, bucket_candidates) for key, title, bucket_candidates in buckets}

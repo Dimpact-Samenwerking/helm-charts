@@ -77,7 +77,7 @@ def cache_key(test_kind: str, target: str | tuple[str, ...]):
     return f"registry:{host}/{repo_path}:{version}"
 
 
-def cache_entry_is_fresh(entry: dict, ttl_minutes: int):
+def cache_entry_is_fresh(entry: dict, ttl_minutes: float):
     """True when `entry` was checked within the last `ttl_minutes`
     minutes (see repo_access.cache_ttl_minutes in lib.settings —
     deliberately short: long enough to skip a network round trip on a

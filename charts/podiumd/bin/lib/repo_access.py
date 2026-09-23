@@ -126,7 +126,7 @@ def image_repos(values_path: Path):
     return list(grouped.items())
 
 
-def _check_http_repo(url: str, timeout_seconds: int):
+def _check_http_repo(url: str, timeout_seconds: float):
     """A classic Helm repo (added via `helm repo add`) publishes its whole
     catalog as index.yaml at its root — fetching just that (typically a few
     hundred KB at most) proves reachability/auth without pulling a single
@@ -145,7 +145,7 @@ def _check_http_repo(url: str, timeout_seconds: int):
     return True, None
 
 
-def _check_registry_repo(chart_dir: Path, host: str, repo_path: str, version: str, timeout_seconds: int):
+def _check_registry_repo(chart_dir: Path, host: str, repo_path: str, version: str, timeout_seconds: float):
     """Same manifest-existence check check_image_digests uses for a live
     image — an OCI-based Helm chart is just another tagged artifact on the
     same registry API a container image is, so a missing/unauthorized/
@@ -181,7 +181,7 @@ class ProbeConfig:
     bundled since every entry _probe_entry checks needs the same four
     settings."""
 
-    chart_dir: object
+    chart_dir: Path
     denylisted_host_suffixes: tuple
     cache_ttl_minutes: float
     timeout_seconds: float
@@ -220,7 +220,7 @@ def _build_entries(chart_deps: list, img_targets: list):
     return entries
 
 
-def _probe_entry(config, entry: tuple):
+def _probe_entry(config: ProbeConfig, entry: tuple):
     """Probes one repo/image entry — denylist check, cache hit, or a real
     reachability check — printing its own result line same as
     check_repo_access always has. Returns ("denied", kind, description,

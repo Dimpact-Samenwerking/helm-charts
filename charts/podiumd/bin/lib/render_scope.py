@@ -369,7 +369,9 @@ def resource_line(locations: dict, kind: str, name: str | None, namespace: str |
     return candidates.pop() if len(candidates) == 1 else None
 
 
-def print_grouped_findings(findings: list, key_fn, item_fn, label_fn, items_label: str = "line(s)"):
+def print_grouped_findings(
+    findings: list, key_fn: Callable, item_fn: Callable, label_fn: Callable, items_label: str = "line(s)"
+):
     """Shared grouping printer for check_yamllint/check_kubeconform/
     check_shellcheck/check_kube_score: the same root cause (e.g. a
     duplicated label key) typically shows up once per resource, not once
@@ -396,7 +398,7 @@ class VendorBucketScan:
     the friendly-vendor map (for the report's label text), and the
     findings split into own / vendored-friendly / vendored-other."""
 
-    locations: object
+    locations: dict
     vendor_map: dict
     own_real: list
     vendored_friendly: list
@@ -409,7 +411,7 @@ class RenderedDocs:
     rendered-line lookup (see build_resource_locations) and the
     (source, text) docs (see split_rendered_by_source)."""
 
-    locations: object
+    locations: dict
     docs: list
 
 

@@ -179,6 +179,7 @@ import re
 import shutil
 import tempfile
 
+from collections.abc import Callable
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from pathlib import Path
@@ -380,7 +381,7 @@ def _render(chart_name: str, chart_path: Path, extra_args: list, overlay_path: P
     return _parsed_docs(result.stdout)
 
 
-def _with_overlay_file(overlay: dict, render_fn):
+def _with_overlay_file(overlay: dict, render_fn: Callable):
     """Dump `overlay` to a throwaway temp file and call
     render_fn(overlay_path) — the file is always cleaned up, even if
     render_fn raises."""
@@ -643,7 +644,7 @@ class ScopeResolutionContext:
     full_scope: dict
 
 
-def _resolve_scope(context, key: str):
+def _resolve_scope(context: ScopeResolutionContext, key: str):
     """The fast, sub-chart-scoped render for `key` if one can be built
     (see this module's docstring) and its own baseline render actually
     succeeds; context.own_scope (see _make_own_scope) if `key` matches no
@@ -694,7 +695,7 @@ def _pending_subtrees(frontier: list, exempt_full_paths: set | frozenset):
     return pending
 
 
-def _submit_level(executor, pending: list):
+def _submit_level(executor: concurrent.futures.ThreadPoolExecutor, pending: list):
     return {
         executor.submit(_render_with_null_overrides, scope, [p[scope["strip"] :] for p in leaf_paths]): (
             scope,
@@ -727,7 +728,10 @@ def _collect_level_results(futures: dict, found: list):
 
 
 def _run_dead_value_search(
-    executor, roots: list, total: int | None = None, exempt_full_paths: set | frozenset = frozenset()
+    executor: concurrent.futures.ThreadPoolExecutor,
+    roots: list,
+    total: int | None = None,
+    exempt_full_paths: set | frozenset = frozenset(),
 ):
     """(scope, full_path) for every candidate "looks dead within its own
     scope" leaf found by walking `roots` (a [(scope, path, node), ...]
@@ -778,7 +782,7 @@ def _tree_from_paths(paths: list):
     return tree
 
 
-def _confirm_against_full_chart(executor, full_scope: dict, candidates: list):
+def _confirm_against_full_chart(executor: concurrent.futures.ThreadPoolExecutor, full_scope: dict, candidates: list):
     """Re-verify every candidate that was found via some OTHER (scoped)
     scope against the real, authoritative full-chart render — a scoped
     render only ever narrows the search, never makes the final call (see
@@ -817,7 +821,7 @@ def _build_scan_context(chart_dir: Path, extra_args: list, full_scope: dict):
     )
 
 
-def _resolve_all_scopes(executor, context, values: dict):
+def _resolve_all_scopes(executor: concurrent.futures.ThreadPoolExecutor, context: ScopeResolutionContext, values: dict):
     """(scope, (key,), node) for every top-level values.yaml key,
     resolved concurrently via _resolve_scope."""
     scope_futures = {executor.submit(_resolve_scope, context, key): key for key in values}
@@ -828,14 +832,16 @@ def _resolve_all_scopes(executor, context, values: dict):
     return roots
 
 
-def _print_scope_summary(roots: list, context):
+def _print_scope_summary(roots: list, context: ScopeResolutionContext):
     scoped_n = sum(1 for scope, _, _ in roots if scope is not context.full_scope and scope is not context.own_scope)
     own_n = sum(1 for scope, _, _ in roots if scope is context.own_scope)
     full_n = sum(1 for scope, _, _ in roots if scope is context.full_scope)
     print(f"  {scoped_n} sub-chart-scoped, {own_n} own-templates-scoped, {full_n} full-chart-scoped", flush=True)
 
 
-def _search_and_confirm(executor, roots: list, total: int, condition_paths: set, full_scope: dict):
+def _search_and_confirm(
+    executor: concurrent.futures.ThreadPoolExecutor, roots: list, total: int, condition_paths: set, full_scope: dict
+):
     print("Searching top-down for dead leaves...", flush=True)
     found = _run_dead_value_search(executor, roots, total, condition_paths)
     confirmed = [path for scope, path in found if scope is full_scope]

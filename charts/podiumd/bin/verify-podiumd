@@ -338,6 +338,7 @@ import re
 import shutil
 import sys
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
@@ -695,7 +696,7 @@ class StepRunner:
     results: list = field(default_factory=list)
     failed_or_blocked: set = field(default_factory=set)
 
-    def run(self, name: str, title: str, func, *fargs):
+    def run(self, name: str, title: str, func: Callable, *fargs):
         """Runs one step: prints title, honors skipped_steps/a blocked
         prerequisite (see failed_or_blocked), else calls func(*fargs) and
         records (name, ok, detail) into results."""
@@ -786,7 +787,7 @@ def _parse_cli_args():
     return args, skipped_steps, skip_flags, include_flags
 
 
-def _run_all_steps(runner, chart_dir: Path, args):
+def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace):
     """Runs every step in SKIPPABLE_STEPS' fixed order via runner.run (see
     StepRunner), same order --help's step list documents. Split out of
     main() purely to keep main() itself short; this is still one linear,

@@ -249,7 +249,7 @@ def run_trivy(image_ref: str):
     return vulns
 
 
-def scan_cached(chart_dir: Path, target, session, ttl_days: int, label: str = "this image"):
+def scan_cached(chart_dir: Path, target: ScanTarget, session: CacheSession, ttl_days: int, label: str = "this image"):
     """Scan `target.ref` via trivy, reusing THIS module's own digest-keyed
     cve-scan-cache.json whenever `target.digest` (bare hex, no "sha256:"
     prefix) is known — the one shared "look up this (repository, digest)
@@ -425,7 +425,7 @@ class ScanContext:
     per-target loop body (_scan_one_target) doesn't need a dozen
     separate parameters."""
 
-    chart_dir: object
+    chart_dir: Path
     values_lines: list
     classification: ImageClassification
     upgrade_cache: dict
@@ -487,7 +487,7 @@ def _image_ref(repository: str, version: str):
     return f"{host}/{repo_path}:{version}"
 
 
-def _target_label(repository: str, version: str, digest: str, line: int, context):
+def _target_label(repository: str, version: str, digest: str, line: int, context: ScanContext):
     """ "own" | a vendor label | "other" for one scan target — the
     render-based classification (see render_image_labels) when the
     image was actually seen in the render, else classify_by_key's own
@@ -499,7 +499,7 @@ def _target_label(repository: str, version: str, digest: str, line: int, context
     return classify_by_key(top_key, context.classification.dep_names, context.classification.vendor_map)
 
 
-def _upgradable_to(repository: str, version: str, context):
+def _upgradable_to(repository: str, version: str, context: ScanContext):
     """The newer tag lib.image.upgrade_check's own cache reports for
     this (repository, version), or None if there's no fresh entry, or
     the freshest known tag IS the one already pinned."""
@@ -513,7 +513,7 @@ def _upgradable_to(repository: str, version: str, context):
     return None
 
 
-def _scan_one_target(repo_version: tuple[str, ...], digest_line: tuple, index: int, total: int, context):
+def _scan_one_target(repo_version: tuple[str, ...], digest_line: tuple, index: int, total: int, context: ScanContext):
     """(image_ref, entry, was_cached) for one (repository, version)
     target — entry is None when trivy's own scan failed (the caller
     reports image_ref as a scan error and skips it), otherwise the dict
@@ -546,7 +546,7 @@ def _scan_one_target(repo_version: tuple[str, ...], digest_line: tuple, index: i
     return image_ref, entry, was_cached
 
 
-def _scan_all_targets(targets: list, context):
+def _scan_all_targets(targets: list, context: ScanContext):
     """(images, ScanStats) — scan every target in `targets` (see
     _scan_one_target), printing progress/scan-error lines as it goes."""
     print(
@@ -577,13 +577,13 @@ def _bucket_refs(images: dict):
     return refs_in("own"), refs_in("partner"), refs_in("other")
 
 
-def _print_bucket_reports(images: dict, buckets, report_settings):
+def _print_bucket_reports(images: dict, buckets: BucketRefs, report_settings: ReportSettings):
     print_bucket_report("Own images", buckets.own, images, report_settings)
     print_bucket_report("Partner-vendor images", buckets.partner, images, report_settings)
     print_bucket_report("Other-vendor images", buckets.other, images, report_settings)
 
 
-def _print_cve_summary_lines(buckets, stats, cve_cache_ttl_days: int):
+def _print_cve_summary_lines(buckets: BucketRefs, stats: ScanStats, cve_cache_ttl_days: int):
     if not (buckets.own or buckets.partner or buckets.other):
         print("OK: no known CVEs found across pinned images")
     if stats.scan_errors:
@@ -596,7 +596,7 @@ def _print_cve_summary_lines(buckets, stats, cve_cache_ttl_days: int):
     )
 
 
-def _cve_summary_detail(buckets, images: dict, stats):
+def _cve_summary_detail(buckets: BucketRefs, images: dict, stats: ScanStats):
     """The final "CVEs: ... own (... img), ... partner-vendor (... img),
     ... other-vendor (... img); ... scan error(s)" detail string
     check_cves returns for verify-podiumd's own summary line."""
@@ -745,7 +745,7 @@ def print_bucket_header(title: str, *, empty: bool):
     return True
 
 
-def print_bucket_report(title: str, refs: list, images: dict, settings):
+def print_bucket_report(title: str, refs: list, images: dict, settings: ReportSettings):
     """`settings` is a ReportSettings; settings.detail_level, applied
     identically regardless of which bucket this is (own/partner-vendor/
     other-vendor all get the same treatment — no aggregate-only rollup

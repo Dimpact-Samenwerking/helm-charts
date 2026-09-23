@@ -59,7 +59,7 @@ def version_change_suffix(old: str | None, new: str | None, *, digest_only_chang
     return None
 
 
-def image_manifest_version_text(old: str | None, new: str, *, digest_only_change: bool = False):
+def image_manifest_version_text(old: str | None, new: str | None, *, digest_only_change: bool = False):
     """The images-manifest's own house style for a version-change
     comment (an entry's own preceding comment, or a "# Changes:" header
     list item's own embedded version fragment) — ascii "->" arrow,
@@ -115,7 +115,7 @@ def replace_version_pair(line: str, new_source: str, new_target: str):
     new_source/new_target, preserving everything else (the "# <Name> — "
     prefix, arrow style, trailing newline)."""
 
-    def repl(m):
+    def repl(m: re.Match):
         return f"{new_source} {m.group('arrow')} {new_target}"
 
     new_line, count = VERSION_PAIR_RE.subn(repl, line, count=1)

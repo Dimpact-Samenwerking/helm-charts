@@ -27,6 +27,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from html.parser import HTMLParser
@@ -59,7 +60,7 @@ def api_base_url(url: str):
     return f"{parsed.scheme}://{parsed.netloc}{api_path}"
 
 
-def fetch_page_html(url: str, user: str, token: str, urlopen=urllib.request.urlopen):
+def fetch_page_html(url: str, user: str, token: str, urlopen: Callable = urllib.request.urlopen):
     """The page's raw storage-format body (body.storage.value) via the
     Confluence REST API — see the module docstring for why storage, not
     the rendered view. `urlopen` is overridable for tests."""

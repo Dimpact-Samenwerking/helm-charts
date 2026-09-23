@@ -393,7 +393,7 @@ def _resolve_bump_context(component: str, app_version: str, chart_version: str):
     )
 
 
-def _verify_versions(ctx):
+def _verify_versions(ctx: BumpContext):
     """Run verify_component_version (the single upfront gate before any
     file is touched), then print the chart-version status line. Returns
     (upstream_images, chart_unchanged)."""
@@ -415,7 +415,7 @@ def _verify_versions(ctx):
     return upstream_images, chart_unchanged
 
 
-def _compute_paths_to_update(ctx):
+def _compute_paths_to_update(ctx: BumpContext):
     """Per-path current app version vs. ctx.app_version, printing an
     unchanged/bump line for each. old_app_by_path keeps every path's
     prior version (even unchanged ones) for phases below."""
@@ -433,7 +433,7 @@ def _compute_paths_to_update(ctx):
     return paths_to_update, old_app_by_path
 
 
-def _classify_paths_to_update(ctx, paths_to_update: list[str], split_tag_sha_paths: dict):
+def _classify_paths_to_update(ctx: BumpContext, paths_to_update: list[str], split_tag_sha_paths: dict):
     """Split paths_to_update three ways: an explicit split tag/sha pin, a
     path with its own "repository:" (see _write_delegated_tags), or a
     sub-chart-default fallback (see _write_fallback_tags)."""
@@ -447,7 +447,9 @@ def _classify_paths_to_update(ctx, paths_to_update: list[str], split_tag_sha_pat
     return TagUpdatePlan(split_paths, delegated_paths, fallback_paths)
 
 
-def _write_split_tag_sha_pins(ctx, split_paths: list, split_tag_sha_paths: dict, acc):
+def _write_split_tag_sha_pins(
+    ctx: BumpContext, split_paths: list, split_tag_sha_paths: dict, acc: TagUpdateAccumulator
+):
     """Write the split "tag:"/"<sibling_field>:" pin pairs (see the comment
     above _load_split_tag_sha_paths and lib.chart.values_tag_sha_lines)
     for split_paths, updating acc.new_tags_by_path/acc.repos in place."""
@@ -492,7 +494,7 @@ def _write_split_tag_sha_pin(
     )
 
 
-def _write_delegated_tags(ctx, delegated_paths: list, acc):
+def _write_delegated_tags(ctx: BumpContext, delegated_paths: list, acc: TagUpdateAccumulator):
     """Delegate delegated_paths to lib.image.version.update_image_version,
     keyed by each path's own real repository basename (not necessarily
     this component's own name) so a shared image is updated everywhere
@@ -519,7 +521,7 @@ def _write_delegated_tags(ctx, delegated_paths: list, acc):
         acc.new_tags_by_path[path] = f"{own_change['new_version']}@{own_change['new_digest']}"
 
 
-def _write_fallback_tags(ctx, fallback_paths: list, upstream_images: dict, acc):
+def _write_fallback_tags(ctx: BumpContext, fallback_paths: list, upstream_images: dict, acc: TagUpdateAccumulator):
     """For fallback_paths (sub-chart default repository), write the digest
     upstream_images already resolved straight into values.yaml. Updates
     acc.new_tags_by_path/acc.repos in place."""
@@ -543,7 +545,7 @@ def _write_fallback_tags(ctx, fallback_paths: list, upstream_images: dict, acc):
         print(f"    {new_v}")
 
 
-def _update_image_tags(ctx, paths_to_update: list, split_tag_sha_paths: dict, upstream_images: dict):
+def _update_image_tags(ctx: BumpContext, paths_to_update: list, split_tag_sha_paths: dict, upstream_images: dict):
     """Dispatch paths_to_update to whichever of the three tag-update
     strategies each one needs (see _classify_paths_to_update), writing
     values.yaml as needed. Returns (new_tags_by_path, repos)."""
@@ -557,7 +559,7 @@ def _update_image_tags(ctx, paths_to_update: list, split_tag_sha_paths: dict, up
     return acc.new_tags_by_path, acc.repos
 
 
-def _resolve_against_baseline(ctx, baseline_deps: list, baseline_values: dict | None, friendly: str):
+def _resolve_against_baseline(ctx: BumpContext, baseline_deps: list, baseline_values: dict | None, friendly: str):
     """When baseline_deps resolved to a real git ref: whether `friendly` is
     back at its baseline version, and old_app/old_chart resolved against
     it (see resolve_baseline_component_versions). Returns (old_app,
@@ -586,7 +588,7 @@ def _resolve_against_baseline(ctx, baseline_deps: list, baseline_values: dict | 
     return old_app, old_chart, reset_to_baseline
 
 
-def _resolve_baseline_comparison(ctx, target: str, old_app_by_path: dict):
+def _resolve_baseline_comparison(ctx: BumpContext, target: str, old_app_by_path: dict):
     """Compare against the TRUE release upgrade_docs_baseline (git-
     resolved), not "whatever this script last left on disk" — the only
     way a component bumped more than once in one cycle still documents as
@@ -615,7 +617,7 @@ def _resolve_baseline_comparison(ctx, target: str, old_app_by_path: dict):
     )
 
 
-def _update_upgrade_doc_section(ctx, comparison, target: str, paths_to_update: list):
+def _update_upgrade_doc_section(ctx: BumpContext, comparison: BaselineComparison, target: str, paths_to_update: list):
     """Rewrite (or explain skipping) the upgrade-path doc's Component-
     versions table row and Changes section for this component."""
     friendly = ctx.values_key
@@ -634,7 +636,9 @@ def _update_upgrade_doc_section(ctx, comparison, target: str, paths_to_update: l
     rewrite_upgrade_doc(comparison.upgrade_path, friendly, change, section, ordering)
 
 
-def _update_values_deltas_change(ctx, comparison, friendly: str, text: str, *, section_removed: bool):
+def _update_values_deltas_change(
+    ctx: BumpContext, comparison: BaselineComparison, friendly: str, text: str, *, section_removed: bool
+):
     """Non-reset branch of _update_values_deltas_section: describes
     added/removed/renamed values.yaml keys for this component since its
     baseline, writing a section if any."""
@@ -676,7 +680,7 @@ def _update_values_deltas_change(ctx, comparison, friendly: str, text: str, *, s
         )
 
 
-def _update_values_deltas_section(ctx, comparison):
+def _update_values_deltas_section(ctx: BumpContext, comparison: BaselineComparison):
     """Rewrite (or explain skipping) the values-deltas doc's section for
     this component."""
     friendly = ctx.values_key
@@ -703,7 +707,9 @@ def _update_values_deltas_section(ctx, comparison):
     )
 
 
-def _remove_images_manifest_entries(comparison, manifest_target, path_update):
+def _remove_images_manifest_entries(
+    comparison: BaselineComparison, manifest_target: ManifestUpdateTarget, path_update: ImagePathUpdate
+):
     """images-manifest write when this component is back at its baseline —
     see _update_images_manifest_section's reset_to_baseline branch."""
     changes_action, entry_updates = remove_component_from_images_manifest(manifest_target, path_update)
@@ -718,7 +724,12 @@ def _remove_images_manifest_entries(comparison, manifest_target, path_update):
         print(f"  updated entry '{name}' (now matches upgrade_docs_baseline — no longer a documented change)")
 
 
-def _write_images_manifest_updates(ctx, comparison, manifest_target, path_update):
+def _write_images_manifest_updates(
+    ctx: BumpContext,
+    comparison: BaselineComparison,
+    manifest_target: ManifestUpdateTarget,
+    path_update: ImagePathUpdate,
+):
     """images-manifest write for a genuine version change — see
     _update_images_manifest_section's non-reset branch."""
     change = VersionChange(comparison.old_app, ctx.app_version, comparison.old_chart, ctx.new_chart)
@@ -734,7 +745,9 @@ def _write_images_manifest_updates(ctx, comparison, manifest_target, path_update
         print(f"  updated entry '{name}'")
 
 
-def _update_images_manifest_section(ctx, comparison, paths_to_update: list, tags: tuple):
+def _update_images_manifest_section(
+    ctx: BumpContext, comparison: BaselineComparison, paths_to_update: list, tags: tuple
+):
     """Rewrite (or explain skipping) docs/images/images-<target>.yaml's
     entries and 'changes:' list for this component. `tags` is the
     (new_tags_by_path, repos) pair _update_image_tags returned."""

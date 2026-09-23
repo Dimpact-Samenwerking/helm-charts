@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from lib.procutil import run
+from lib.render_scope import VendorBucketScan
 from lib.render_scope import chart_name_from_source
 from lib.render_scope import print_grouped_findings
 from lib.render_scope import print_other_vendor_summary
@@ -127,7 +128,7 @@ def _scan_vendored_charts(
     return vendored_friendly, vendored_other, None
 
 
-def _print_kubeconform_findings(scan):
+def _print_kubeconform_findings(scan: VendorBucketScan):
     """Prints check_kubeconform's three report sections (own/vendored-
     friendly/vendored-other) for a completed VendorBucketScan -- see
     check_kubeconform's own docstring for what each section means and why
@@ -197,7 +198,7 @@ def check_kubeconform(chart_dir: Path, extra_args: list):
         own_findings=lambda docs: _own_kubeconform_findings(docs, failing_statuses),
         vendored_findings=lambda docs, vendor_map: _scan_vendored_charts(docs, failing_statuses, vendor_map),
     )
-    if error:
+    if scan is None:
         return False, error
 
     _print_kubeconform_findings(scan)

@@ -89,7 +89,7 @@ class KubeScoreResult:
     the three own/partner-vendor/other-vendor finding buckets. See
     _score_rendered_chart, which builds this."""
 
-    locations: object
+    locations: dict
     own_real: list
     vendored_partner: list
     vendored_other: list
@@ -141,7 +141,7 @@ def _score_rendered_chart(chart_dir: Path, extra_args: list, check_id: str):
     return KubeScoreResult(locations, own_real, vendored_partner, vendored_other), None
 
 
-def _print_kube_score_findings(scored):
+def _print_kube_score_findings(scored: KubeScoreResult):
     """Prints check_kube_score's three report sections (own/partner-vendor/
     other-vendor) for a completed KubeScoreResult -- see check_kube_score's
     own docstring for what each section means and why they're reported
@@ -227,7 +227,7 @@ def check_kube_score(chart_dir: Path, extra_args: list):
     check_id = quality_gates_kube_score_check_id(chart_dir)
 
     scored, error = _score_rendered_chart(chart_dir, extra_args, check_id)
-    if error:
+    if scored is None:
         return False, error
 
     _print_kube_score_findings(scored)

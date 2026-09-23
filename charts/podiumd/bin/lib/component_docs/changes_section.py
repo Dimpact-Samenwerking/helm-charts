@@ -107,8 +107,18 @@ class ComponentState:
     side, compared against each other, and never mix a target dep with
     a baseline value or vice versa by construction."""
 
-    deps: list | None
+    deps: list
     values: dict
+
+
+@dataclass
+class BaselineState:
+    """deps/values as they stood at upgrade_docs_baseline. deps is None
+    when no baseline was resolved: baseline comparisons are then skipped
+    (see lib.upgradedoc.resolve_component_row)."""
+
+    deps: list | None
+    values: dict | None
 
 
 @dataclass
@@ -119,7 +129,7 @@ class DocContext:
     common except being threaded through unchanged to resolve_
     component_own_version_change and make_changes_section."""
 
-    chart_dir: object
+    chart_dir: Path
     target: str
     upgrade_docs_baseline: str | None = None
 
@@ -132,7 +142,7 @@ def find_component_row(rows: list, friendly: str):
     return next((row for row in rows if text_names(row["name"], friendly)), None)
 
 
-def _new_row_insert_index(lines: list[str], rows: list, friendly: str, ordering):
+def _new_row_insert_index(lines: list[str], rows: list, friendly: str, ordering: OrderingContext):
     """Line index to insert a brand-new component row at, matching
     update_component_table's own ordering rules: in values.yaml's own
     top-level component order relative to the rows already there when
@@ -167,7 +177,7 @@ def _new_row_insert_index(lines: list[str], rows: list, friendly: str, ordering)
     return None
 
 
-def update_component_table(text: str, friendly: str, change, ordering):
+def update_component_table(text: str, friendly: str, change: VersionChange, ordering: OrderingContext):
     """Update this component's "Component versions" table row if it's
     already mentioned, or insert a new row if it isn't — in values.yaml's
     own top-level component order relative to the rows already there (see
@@ -218,7 +228,9 @@ def remove_component_row(text: str, friendly: str):
     return "".join(lines), True
 
 
-def make_changes_section(identity, target: str, change, image_paths: list, version_paths: list | tuple = ()):
+def make_changes_section(
+    identity: ComponentIdentity, target: str, change: VersionChange, image_paths: list, version_paths: list | tuple = ()
+):
     """`image_paths` (see lib.chart.image_paths_for) are rendered as
     "Image tag pin `<identity.values_key>.<path>.tag`" bullets — the
     ordinary "{repository, tag}" block shape. `version_paths` (see lib.
@@ -418,7 +430,7 @@ def _normalize_blank_line_before_insert(lines: list[str], insert_at: int):
     return insert_at
 
 
-def insert_changes_section(text: str, section_text: str, friendly: str, ordering):
+def insert_changes_section(text: str, section_text: str, friendly: str, ordering: OrderingContext):
     """Insert section_text as a new "### ..." block into the "## Changes"
     section, in values.yaml's own top-level component order relative to
     the blocks already there (see lib.upgradedoc.component_order_key/
@@ -547,7 +559,11 @@ def remove_changes_section(text: str, friendly: str, ordering: OrderingContext) 
 
 
 def resolve_component_own_version_change(
-    key: str, target_state, baseline_state, chart_dir: Path | None, upgrade_docs_baseline: str | None = None
+    key: str,
+    target_state: ComponentState,
+    baseline_state: BaselineState,
+    chart_dir: Path | None,
+    upgrade_docs_baseline: str | None = None,
 ):
     """(dep, chart_name, old_chart, new_chart, old_app, new_app, unchanged)
     for `key` (a member of lib.upgradedoc.compute_changed_components'
@@ -650,7 +666,7 @@ def _matched_component_keys(text: str, target_deps: list, chart_dir: Path):
     return matched_keys
 
 
-def _new_component_section(key: str, chart_name: str, change, doc_context):
+def _new_component_section(key: str, chart_name: str, change: VersionChange, doc_context: DocContext):
     """The "### ..." Changes section body for a newly-auto-added
     component row (see _add_missing_row_for_key): the normal make_
     changes_section render when its own app version resolved at all —
@@ -679,7 +695,9 @@ def _new_component_section(key: str, chart_name: str, change, doc_context):
     )
 
 
-def _add_missing_row_for_key(text: str, key: str, target_state, baseline_state, doc_context):
+def _add_missing_row_for_key(
+    text: str, key: str, target_state: ComponentState, baseline_state: BaselineState, doc_context: DocContext
+):
     """Insert `key`'s own missing table row + Changes section into
     `text`, if resolve_component_own_version_change resolves it to a
     real, genuinely-changed component — (new_text, True) if a row was
@@ -723,7 +741,13 @@ def _add_missing_row_for_key(text: str, key: str, target_state, baseline_state, 
     return text, True
 
 
-def add_missing_component_rows(text: str, doc_context, target_state, baseline_state, actual_changed_keys: set):
+def add_missing_component_rows(
+    text: str,
+    doc_context: DocContext,
+    target_state: ComponentState,
+    baseline_state: BaselineState,
+    actual_changed_keys: set,
+):
     """Insert a new "Component versions" table row + matching "### ..."
     Changes section for every key in `actual_changed_keys` (see
     lib.upgradedoc.compute_changed_components) that doesn't already have

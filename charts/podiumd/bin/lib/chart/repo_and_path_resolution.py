@@ -232,13 +232,13 @@ class _RepoResolutionState:
     happens at most once regardless of how many of its paths need
     resolving."""
 
-    chart_dir: object
+    chart_dir: Path | None
     allow_pull: bool
     subchart_cache: dict
     nested_subchart_cache: dict
 
 
-def _grouped_repository_for_path(values: dict, path: tuple[str, ...], dep: dict | None, state):
+def _grouped_repository_for_path(values: dict, path: tuple[str, ...], dep: dict | None, state: _RepoResolutionState):
     """paths_by_repository's own resolution chain for a single path,
     stripped to its group key (see that function's own docstring for
     the tier order) — podiumd's own explicit override checked first,
@@ -252,7 +252,7 @@ def _grouped_repository_for_path(values: dict, path: tuple[str, ...], dep: dict 
     return _grouped_repository_from_dependency(dep, path, values, state)
 
 
-def _grouped_repository_from_dependency(dep: dict, path: tuple[str, ...], values: dict, state):
+def _grouped_repository_from_dependency(dep: dict, path: tuple[str, ...], values: dict, state: _RepoResolutionState):
     """The sibling-tag-field / nested-subchart / vendored-subchart-
     default tiers of _grouped_repository_for_path — only ever reached
     once `dep` is known and podiumd's own values.yaml has no explicit
@@ -274,7 +274,7 @@ def _grouped_repository_from_dependency(dep: dict, path: tuple[str, ...], values
     return strip_registry_host(repo) if isinstance(repo, str) and repo else None
 
 
-def _cached_nested_subchart_repository(dep: dict, path: tuple[str, ...], state):
+def _cached_nested_subchart_repository(dep: dict, path: tuple[str, ...], state: _RepoResolutionState):
     """state.nested_subchart_cache-backed lookup of dep's own registered
     nested sub-subchart's documented default repository at `path` (e.g.
     eck-stack's own three — see nested_subchart_documented_image_
@@ -294,7 +294,7 @@ def _cached_nested_subchart_repository(dep: dict, path: tuple[str, ...], state):
     return state.nested_subchart_cache[cache_key]
 
 
-def _cached_subchart_values(dep: dict, state):
+def _cached_subchart_values(dep: dict, state: _RepoResolutionState):
     """state.subchart_cache-backed resolve_chart_values(dep) lookup,
     resolved at most once per dependency across the whole paths_by_
     repository call — the same caching primary_image_repositories does
@@ -315,7 +315,7 @@ def _cached_subchart_values(dep: dict, state):
 
 
 def full_repository_for_path(
-    chart_dir: Path | None, deps: list, values: dict, path: tuple[str, ...], *, allow_pull: bool = False
+    chart_dir: Path | None, deps: list, values: dict | None, path: tuple[str, ...], *, allow_pull: bool = False
 ):
     """The FULLY host-qualified repository for `path` (e.g. "docker.io/
     curlimages/curl", "mcr.microsoft.com/azure-cli") — the same per-path
@@ -391,7 +391,7 @@ def _formatted_repo(repo: str):
     return f"{host}/{repo_path}"
 
 
-def _full_repo_from_own_override(values: dict, path: tuple[str, ...]):
+def _full_repo_from_own_override(values: dict | None, path: tuple[str, ...]):
     """full_repository_for_path's own "podiumd values.yaml override"
     tier (see that function's own docstring for the registry-sibling /
     Docker-Hub-inference rules), or None when there's no own override
@@ -409,7 +409,7 @@ def _full_repo_from_own_override(values: dict, path: tuple[str, ...]):
 
 
 def _full_repo_from_dependency(
-    chart_dir: Path | None, dep: dict, path: tuple[str, ...], values: dict, *, allow_pull: bool
+    chart_dir: Path | None, dep: dict, path: tuple[str, ...], values: dict | None, *, allow_pull: bool
 ):
     """full_repository_for_path's own sibling-tag-field / nested-
     subchart / vendored-subchart-default tiers — only ever reached once

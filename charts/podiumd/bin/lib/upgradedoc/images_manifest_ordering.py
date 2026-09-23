@@ -201,7 +201,7 @@ def header_name_segment(text: str):
     return name.rstrip(" \t—-")
 
 
-def find_images_manifest_faulty_headers(manifest, resolution):
+def find_images_manifest_faulty_headers(manifest: ParsedManifest, resolution: EntryResolution):
     """[(entry_name, expected_display_name, problem), ...] for every
     SIDECAR entry (see is_primary_image_path — a co-equal primary image
     like zgw-office-addin's frontend/backend is exempt, expected and
@@ -323,7 +323,7 @@ def images_manifest_entry_order_key(
     return (idx, is_sidecar)
 
 
-def _images_manifest_groups(manifest, resolution):
+def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolution):
     """[(indices, path, display_name), ...] — one entry per physical
     GROUP of consecutive entries sharing a single preceding comment
     (see find_grouped_preceding_comment_line/images_manifest_entries_
@@ -367,7 +367,9 @@ def _images_manifest_groups(manifest, resolution):
     return groups
 
 
-def find_images_manifest_out_of_order_names(manifest, resolution, key_order: list[str], values: dict | None = None):
+def find_images_manifest_out_of_order_names(
+    manifest: ParsedManifest, resolution: EntryResolution, key_order: list[str], values: dict | None = None
+):
     """[(name_a, name_b), ...] for every ADJACENT pair of images-
     manifest GROUPS (see _images_manifest_groups) whose relative order
     contradicts values.yaml's own top-level key order (see images_
@@ -412,7 +414,7 @@ def _collapse_group_internal_blank_lines(group_text: str):
     return "".join(body + lines[last_content:])
 
 
-def _images_manifest_sorted_groups(manifest, context):
+def _images_manifest_sorted_groups(manifest: ParsedManifest, context: ManifestSortContext):
     """(groups, order) — groups from _images_manifest_groups; order is
     the permutation (list of original group indices, in their NEW
     sorted sequence) sort_images_manifest_entries physically applies,
@@ -472,7 +474,7 @@ def _parsed_manifest_from_text(text: str):
     return ParsedManifest(entries, entry_line_indices, lines), True
 
 
-def images_manifest_entry_positions(text: str, context):
+def images_manifest_entry_positions(text: str, context: ManifestSortContext):
     """{entry_name: 0-based final position} for every entry in the
     images manifest, after applying the SAME group-level reordering
     sort_images_manifest_entries itself performs — for a caller that
@@ -488,7 +490,7 @@ def images_manifest_entry_positions(text: str, context):
     manifest isn't valid YAML or has fewer than 2 entries — same guards
     sort_images_manifest_entries applies."""
     manifest, ok = _parsed_manifest_from_text(text)
-    if not ok:
+    if not ok or manifest is None:
         return {}
 
     groups, order = _images_manifest_sorted_groups(manifest, context)
@@ -500,7 +502,7 @@ def images_manifest_entry_positions(text: str, context):
     return positions
 
 
-def images_manifest_display_name_positions(text: str, context):
+def images_manifest_display_name_positions(text: str, context: ManifestSortContext):
     """{display_name: 0-based final position} — the SAME group-level
     positions images_manifest_entry_positions computes, keyed by each
     group's own path_display_name instead of its entries' raw YAML
@@ -535,7 +537,7 @@ def images_manifest_display_name_positions(text: str, context):
     {} under the exact same guards images_manifest_entry_positions
     applies (invalid YAML, or fewer than 2 entries)."""
     manifest, ok = _parsed_manifest_from_text(text)
-    if not ok:
+    if not ok or manifest is None:
         return {}
 
     groups, order = _images_manifest_sorted_groups(manifest, context)
@@ -645,7 +647,7 @@ def _sorted_manifest_text(lines: list[str], entry_line_indices: list[int], group
     return prefix + "".join(merged_texts)
 
 
-def sort_images_manifest_entries(text: str, context):
+def sort_images_manifest_entries(text: str, context: ManifestSortContext):
     """Reorder the images manifest's own entry GROUPS (physically, in
     the text) to match values.yaml's own top-level key order — see
     values_key_order/images_manifest_entry_order_key, the same rule
@@ -701,7 +703,7 @@ def sort_images_manifest_entries(text: str, context):
     []) only when NEITHER changed anything — e.g. isn't valid YAML, or
     has fewer than 2 entries total."""
     manifest, ok = _parsed_manifest_from_text(text)
-    if not ok:
+    if not ok or manifest is None:
         return text, []
 
     groups, order = _images_manifest_sorted_groups(manifest, context)

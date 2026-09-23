@@ -80,7 +80,7 @@ class UpgradeCheckContext:
 
     rendered_labels: dict
     values_lines: list
-    dep_names: object
+    dep_names: set[str]
     vendor_map: dict
     old_cache: dict
     ttl_days: int
@@ -113,7 +113,7 @@ def _upgrade_info(label: str, newest: str, version: str):
     }
 
 
-def _label_for_target(repository: str, version: str, digest: str, line: int, ctx):
+def _label_for_target(repository: str, version: str, digest: str, line: int, ctx: UpgradeCheckContext):
     """Label for one target: the render's own "# Source:" attribution when
     it rendered at all, else the values.yaml top-level-key heuristic (see
     this module's own docstring for why own always wins)."""
@@ -146,14 +146,14 @@ class _TargetResult:
     images[] entry, and cache_hit says whether it came from the cache."""
 
     image_ref: str
-    key: object = None
-    cache_entry: object = None
-    info: object = None
+    key: str | None = None
+    cache_entry: dict | None = None
+    info: dict | None = None
     cache_hit: bool = False
     error: bool = False
 
 
-def _fetch_target_upgrade(i: int, total: int, info):
+def _fetch_target_upgrade(i: int, total: int, info: _TargetResolveInfo):
     """The registry-fetch path of _resolve_target_upgrade: announces the
     real tag-list call (a cache hit is near-instant and stays silent —
     same convention as check_cves), then queries the registry."""
@@ -168,7 +168,7 @@ def _fetch_target_upgrade(i: int, total: int, info):
     return _TargetResult(info.image_ref, info.key, cache_entry, _upgrade_info(info.label, newest, info.version))
 
 
-def _resolve_target_upgrade(i: int, total: int, target: tuple, ctx):
+def _resolve_target_upgrade(i: int, total: int, target: tuple, ctx: UpgradeCheckContext):
     """Resolves ONE unique_digest_pin_targets entry against the tag cache
     (a fresh cache hit) or the registry (see _fetch_target_upgrade)."""
     (repository, version), (digest, line) = target
@@ -201,7 +201,7 @@ def _bucket_refs(images: dict):
     return refs_in("own"), refs_in("partner"), refs_in("other")
 
 
-def _scan_image_upgrades(chart_dir: Path, targets: list, ctx):
+def _scan_image_upgrades(chart_dir: Path, targets: list, ctx: UpgradeCheckContext):
     """Resolves every target (see _resolve_target_upgrade), saving the tag
     cache incrementally after each real registry call (same convention as
     check_cves) and once more at the end (to drop stale entries for an
@@ -229,7 +229,7 @@ def _scan_image_upgrades(chart_dir: Path, targets: list, ctx):
     return ImageUpgradeScan(images, own_refs, partner_refs, other_refs, fetch_errors, cache_hits)
 
 
-def _print_image_upgrade_findings(scan, total: int, ttl_days: int):
+def _print_image_upgrade_findings(scan: ImageUpgradeScan, total: int, ttl_days: int):
     """Prints check_image_upgrades' three report sections (own/partner-
     vendor/other-vendor), the OK-line/fetch-errors sections, and the
     cache-hit summary line -- see check_image_upgrades' own docstring for
@@ -248,7 +248,7 @@ def _print_image_upgrade_findings(scan, total: int, ttl_days: int):
     print(f"{scan.cache_hits}/{total} image(s) served from cache (checked within the last {ttl_days} day(s))")
 
 
-def _image_upgrade_detail(scan):
+def _image_upgrade_detail(scan: ImageUpgradeScan):
     own_n, own_up = bucket_totals(scan.own_refs, scan.images)
     partner_n, partner_up = bucket_totals(scan.partner_refs, scan.images)
     other_n, other_up = bucket_totals(scan.other_refs, scan.images)

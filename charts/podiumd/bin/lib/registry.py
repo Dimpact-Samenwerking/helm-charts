@@ -63,7 +63,7 @@ def _read_token(resp):
         raise urllib.error.URLError(msg) from e
 
 
-def _urlopen(url_or_req, timeout: int | None = None):
+def _urlopen(url_or_req, timeout: float | None = None):
     """urllib.request.urlopen, only passing timeout= when the caller asked
     for one — every existing call site (and its tests, mocking urlopen with
     a plain single-arg callable) keeps behaving exactly as before; a caller
@@ -90,7 +90,7 @@ def _parse_bearer_challenge(header_value: str | None):
     return params if "realm" in params else None
 
 
-def _get_with_dynamic_auth(url: str, repo: str, headers: dict, timeout: int | None = None, method: str = "GET"):
+def _get_with_dynamic_auth(url: str, repo: str, headers: dict, timeout: float | None = None, method: str = "GET"):
     """Requests url (GET by default; registry_tag_exists passes "HEAD" — see
     there), retrying once with a bearer token if the registry demands one
     via a WWW-Authenticate challenge that TOKEN_ENDPOINTS didn't already
@@ -148,7 +148,7 @@ def parse_repo(repository: str):
     return "docker.io", repository
 
 
-def _fetch_manifest_digest(url: str, repo: str, headers: dict, timeout: int | None, method: str):
+def _fetch_manifest_digest(url: str, repo: str, headers: dict, timeout: float | None, method: str):
     """One manifest request via the given HTTP method, returning (exists,
     digest) — a 404 is a genuine "tag doesn't exist" answer regardless of
     method, not an error. Any other HTTPError (or URLError/OSError)
@@ -162,7 +162,7 @@ def _fetch_manifest_digest(url: str, repo: str, headers: dict, timeout: int | No
         raise
 
 
-def registry_tag_exists(registry_host: str, repo: str, tag: str, timeout: int | None = None):
+def registry_tag_exists(registry_host: str, repo: str, tag: str, timeout: float | None = None):
     """Return (exists, digest) for <repo>:<tag> on the given registry host,
     using an anonymous pull token where the registry requires one — same
     flow as /fetch-image-digest. timeout (seconds) bounds every request

@@ -12,6 +12,7 @@ from lib.chart.registered_paths import image_paths_for
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_ordering import header_name_segment
+from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
@@ -37,7 +38,7 @@ class HeadingFixInputs:
     heading_marker: str
 
 
-def _dep_old_app_for_new_dependency(resolution, resolved: dict):
+def _dep_old_app_for_new_dependency(resolution: ResolutionContext, resolved: dict):
     """The APP cell's own "old" version for a Chart.yaml dependency with
     NO baseline value at all (resolved["baseline_resolved"] is False,
     resolved["dep"] is not None, resolved["target_app"] is not None) —
@@ -65,7 +66,7 @@ def _dep_old_app_for_new_dependency(resolution, resolved: dict):
     return old_app
 
 
-def _new_dependency_row_update(lines: list[str], row: dict, resolved: dict, resolution):
+def _new_dependency_row_update(lines: list[str], row: dict, resolved: dict, resolution: ResolutionContext):
     """The baseline_resolved=False row-rewrite mechanics for
     fix_component_version_table's own row loop — a genuinely brand-new
     component (or a sidecar whose current tag can't even be resolved,
@@ -168,7 +169,7 @@ def _existing_row_update(lines: list[str], row: dict, resolved: dict):
     return (row["name"], cells[1], cells[2])
 
 
-def fix_component_version_table(text: str, resolution):
+def fix_component_version_table(text: str, resolution: ResolutionContext):
     """Rewrite each "Component versions" table row's App/Helm-chart cells to
     the actual baseline (source) and target versions found in git/Chart.yaml/
     values.yaml. A row is only rewritten when both its source and target are
@@ -245,7 +246,7 @@ def fix_component_version_table(text: str, resolution):
     return "".join(lines), changed_rows, unmatched_names, unresolved_names
 
 
-def _resolved_rows_by_values_key(upgrade_doc_text: str, resolution, canonical_names: dict):
+def _resolved_rows_by_values_key(upgrade_doc_text: str, resolution: ResolutionContext, canonical_names: dict):
     """{values_key: (row_name, resolved)} for every resolvable row (see
     resolve_component_row - "dependency", "native", AND "sidecar" kind
     alike; only "unmatched" or a row with no resolvable target_app at
@@ -291,7 +292,9 @@ def _chart_clause(heading: str):
     return match.group(0) if match else ""
 
 
-def _heading_resolved_row(heading: str, resolution, inputs, canonical_path_to_name: dict):
+def _heading_resolved_row(
+    heading: str, resolution: ResolutionContext, inputs: HeadingFixInputs, canonical_path_to_name: dict
+):
     """The (row_name, resolved, old_app, expected_bare_name) tuple
     _heading_replacement needs to decide whether/how to rewrite
     `heading`, or None when the heading names something this whole
@@ -325,7 +328,9 @@ def _heading_resolved_row(heading: str, resolution, inputs, canonical_path_to_na
     return row_name, resolved, old_app, expected_bare_name
 
 
-def _heading_replacement(block: dict, resolution, inputs, canonical_path_to_name: dict):
+def _heading_replacement(
+    block: dict, resolution: ResolutionContext, inputs: HeadingFixInputs, canonical_path_to_name: dict
+):
     """The rewritten heading LINE text (marker + name + app-version +
     chart clause, no trailing newline) and the block's ORIGINAL heading
     text, when `block` needs correcting, or None when it's already
@@ -374,7 +379,7 @@ def _heading_replacement(block: dict, resolution, inputs, canonical_path_to_name
     return f"{inputs.heading_marker} {corrected_name} {expected_app_heading}{_chart_clause(heading)}", heading
 
 
-def _fix_heading_app_versions(text: str, resolution, inputs):
+def _fix_heading_app_versions(text: str, resolution: ResolutionContext, inputs: HeadingFixInputs):
     """Shared implementation for fix_changes_heading_app_versions
     (-upgrade.md's own "### ..." Changes-section headings) and fix_
     values_delta_heading_app_versions (-values-deltas.md's own "## ..."
@@ -432,7 +437,7 @@ def _fix_heading_app_versions(text: str, resolution, inputs):
     return "".join(lines), updated_headings
 
 
-def fix_changes_heading_app_versions(text: str, resolution):
+def fix_changes_heading_app_versions(text: str, resolution: ResolutionContext):
     """Rewrite a "### ..." Changes section heading's own name and app-
     version portions (never the "(chart ...)" clause, or the body below
     it, both left untouched) to match what fix_component_version_table's
@@ -507,7 +512,9 @@ def fix_changes_heading_app_versions(text: str, resolution):
     )
 
 
-def fix_values_delta_heading_app_versions(upgrade_doc_text: str, values_deltas_text: str, resolution):
+def fix_values_delta_heading_app_versions(
+    upgrade_doc_text: str, values_deltas_text: str, resolution: ResolutionContext
+):
     """The SAME stale-heading gap fix_changes_heading_app_versions closes
     for -upgrade.md's own "### ..." Changes-section headings, but for
     -values-deltas.md's own "## ..." section headings instead (see

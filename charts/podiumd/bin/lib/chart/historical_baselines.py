@@ -153,15 +153,17 @@ class BaselineLookup:
     docstring for why these three are computed once up front rather
     than re-derived per path/per call)."""
 
-    chart_dir: object
-    deps: object
+    chart_dir: Path | None
+    deps: list
     target_values: dict
-    baseline_values: dict
+    baseline_values: dict | None
     baseline_paths: dict
     baseline_repo_groups: dict
 
 
-def baseline_lookup(chart_dir: Path | None, deps: list, target_values: dict, baseline_values: dict, baseline_setup):
+def baseline_lookup(
+    chart_dir: Path | None, deps: list, target_values: dict, baseline_values: dict | None, baseline_setup
+):
     """A BaselineLookup built from chart_dir/deps/target_values/
     baseline_values plus a caller's own baseline_paths/baseline_repo_groups
     bundle (baseline_setup — any object exposing those two attributes,
@@ -179,7 +181,7 @@ def baseline_lookup(chart_dir: Path | None, deps: list, target_values: dict, bas
     )
 
 
-def baseline_tag_for_sidecar_path(lookup, path: tuple[str, ...]):
+def baseline_tag_for_sidecar_path(lookup: BaselineLookup, path: tuple[str, ...]):
     """The baseline (pre-upgrade) tag for a sidecar/shared-image (or
     registered bare-version, see below) values-tree `path`, tried in two
     tiers — the one place lib.image.docs.add_missing_sidecar_rows' own

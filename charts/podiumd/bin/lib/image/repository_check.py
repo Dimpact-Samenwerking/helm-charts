@@ -46,13 +46,13 @@ class _RepositoryResolutionContext:
     fills in across paths, bundled since every one of its 4 params is
     threaded unchanged through every call in the same loop."""
 
-    chart_dir: object
+    chart_dir: Path
     allow_pull: bool
     nested_subchart_cache: dict = field(default_factory=dict)
     subchart_cache: dict = field(default_factory=dict)
 
 
-def _path_has_repository(path: tuple[str, ...], values: dict, dep: dict | None, ctx):
+def _path_has_repository(path: tuple[str, ...], values: dict, dep: dict | None, ctx: _RepositoryResolutionContext):
     """True if `path`'s image-tag block resolves to a non-empty
     repository, per find_images_without_repository's own resolution
     rules (own override, sibling repository field, documented nested
