@@ -14,6 +14,7 @@ from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import same_name
+from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import scan_digest_pins
 from lib.image.digests import scan_version_pins
 from lib.registry import parse_repo
@@ -177,7 +178,7 @@ def resolve_key_scope(key, deps):
     if same_name(key, MULTIPLE_KEY):
         return MULTIPLE_KEY
     dep = find_dependency(deps, key)
-    return (dep.get("alias") or dep["name"]) if dep is not None else key
+    return values_key_of(dep) if dep is not None else key
 
 
 def find_matches_in_scope(lines, scope_key, basename):

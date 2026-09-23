@@ -18,6 +18,7 @@ from collections import Counter
 import yaml
 
 from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.values_tree_primitives import values_key_of
 from lib.procutil import run
 from lib.settings import helm_repos_urls_by_alias
 from lib.settings import vendor_classification_chart_overrides
@@ -259,14 +260,14 @@ def friendly_vendor_charts(chart_dir):
 
     chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
     deps = chart_yaml.get("dependencies", [])
-    dep_chart_names = {dep.get("alias", dep["name"]) for dep in deps}
+    dep_chart_names = {values_key_of(dep) for dep in deps}
 
     # Only apply an override for a chart that's actually a dependency here
     # — otherwise a name collision with some unrelated future dependency
     # would silently inherit an override meant for a specific chart.
     mapping = {name: vendor for name, vendor in chart_overrides.items() if name in dep_chart_names}
     for dep in deps:
-        chart_name = dep.get("alias", dep["name"])
+        chart_name = values_key_of(dep)
         repo = resolve_dependency_repo(dep.get("repository", ""), required_repos)
         if repo.startswith("file://"):
             mapping[chart_name] = "Local"

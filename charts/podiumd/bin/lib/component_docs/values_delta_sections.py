@@ -21,9 +21,9 @@ import re
 from dataclasses import dataclass
 
 from lib.chart.registered_paths import native_components
+from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
 from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
-from lib.component_docs.changes_section import dep_for_values_key
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import insertion_index

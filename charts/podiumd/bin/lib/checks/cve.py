@@ -95,6 +95,7 @@ from datetime import timedelta
 from datetime import timezone
 
 from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.values_tree_primitives import values_key_of
 from lib.gitutil import find_repo_root
 from lib.image.digests import unique_digest_pin_targets
 from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
@@ -339,7 +340,7 @@ def dependency_names(chart_dir):
     membership against to tell a vendored sub-chart's own top-level key
     apart from a podiumd-owned one."""
     chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
-    return {dep.get("alias", dep["name"]) for dep in chart_yaml.get("dependencies", [])}
+    return {values_key_of(dep) for dep in chart_yaml.get("dependencies", [])}
 
 
 def top_level_key_for_line(lines, line_no):

@@ -64,6 +64,7 @@ from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import resolve_values_path_source
 from lib.chart.values_tree_primitives import strip_registry_host
+from lib.chart.values_tree_primitives import values_key_of
 from lib.render_scope import CHART_NAME
 from lib.render_scope import render_chart
 from lib.render_scope import rendered_chart_paths
@@ -436,7 +437,7 @@ def _findings_for_dependency(chart_dir, dep, own_values, rendered_paths):
     purely to keep that function's own local count down — one dependency's
     worth of (scope_key, subpath, tag, already_pinned) findings, using the
     exact same rules its own docstring describes."""
-    scope_key = dep.get("alias") or dep["name"]
+    scope_key = values_key_of(dep)
     sub_values = subchart_values(chart_dir, dep)
     if sub_values is None:
         return []

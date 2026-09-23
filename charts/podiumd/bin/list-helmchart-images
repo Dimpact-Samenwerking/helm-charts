@@ -43,6 +43,7 @@ from lib.chart.pull_and_subchart_resolution import pulled_chart_dir
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import find_dependency as _find_dependency
 from lib.chart.values_tree_primitives import find_images
+from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 from lib.image.version import image_basename
 
@@ -125,7 +126,7 @@ def main():
 
     name_or_alias, version = sys.argv[1], sys.argv[2]
     dep = find_dependency(name_or_alias)
-    key = dep.get("alias", dep["name"])
+    key = values_key_of(dep)
 
     local_dir = local_chart_dir(CHART_DIR, dep)
     if local_dir is not None:

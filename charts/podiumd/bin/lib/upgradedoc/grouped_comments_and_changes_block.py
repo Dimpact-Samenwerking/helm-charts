@@ -6,6 +6,7 @@ pair_renames) they're built from, and path_display_name."""
 import re
 
 from lib.chart.registered_paths import is_primary_image_path
+from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
 
@@ -312,7 +313,7 @@ def path_display_name(path, deps, canonical_names):
     (e.g. an image with no Chart.yaml dependency and no vendored/own
     repository to resolve a basename from at all) — this should be rare
     in practice, never the normal case."""
-    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    by_values_key = {values_key_of(dep): dep for dep in deps}
     dep = by_values_key.get(path[0])
     if dep is not None and is_primary_image_path(path, deps):
         return path[0]

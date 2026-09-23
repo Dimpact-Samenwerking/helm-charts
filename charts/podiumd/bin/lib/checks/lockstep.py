@@ -41,6 +41,7 @@ from lib.chart.registered_paths import version_paths_for
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 
 
@@ -71,7 +72,7 @@ def find_lockstep_mismatches(deps, values):
         dep = find_dependency(deps, component)
         if dep is None:
             continue
-        values_key = dep.get("alias") or dep["name"]
+        values_key = values_key_of(dep)
         base = values.get(values_key, {}) if isinstance(values, dict) else {}
 
         resolved = []
@@ -104,7 +105,7 @@ def find_chart_version_mismatches(deps, values):
         dep = find_dependency(deps, component)
         if dep is None:
             continue
-        values_key = dep.get("alias") or dep["name"]
+        values_key = values_key_of(dep)
         base = values.get(values_key, {}) if isinstance(values, dict) else {}
 
         app_version = None

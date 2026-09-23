@@ -49,6 +49,28 @@ def test_find_dependency_exits_when_case_insensitive_match_is_ambiguous(
         libchartvaluestreeprimitives.find_dependency(deps, "zac")
 
 
+def test_values_key_of_is_the_alias_or_else_the_name(libchartvaluestreeprimitives: ModuleType) -> None:
+    assert libchartvaluestreeprimitives.values_key_of({"name": "zaakafhandelcomponent", "alias": "zac"}) == "zac"
+    assert libchartvaluestreeprimitives.values_key_of({"name": "clamav", "alias": ""}) == "clamav"
+    assert libchartvaluestreeprimitives.values_key_of({"name": "clamav"}) == "clamav"
+
+
+def test_dep_for_values_key_matches_the_values_key_only(libchartvaluestreeprimitives: ModuleType) -> None:
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
+    assert libchartvaluestreeprimitives.dep_for_values_key(deps, "zac") is deps[0]
+    assert libchartvaluestreeprimitives.dep_for_values_key(deps, "zaakafhandelcomponent") is None
+
+
+def test_require_dependency_exits_naming_the_chart_yaml(
+    libchartvaluestreeprimitives: ModuleType, tmp_path: Path
+) -> None:
+    chart_yaml = tmp_path / "Chart.yaml"
+    chart_yaml.write_text(yaml.safe_dump({"dependencies": [{"name": "clamav"}]}), encoding="utf-8")
+    assert libchartvaluestreeprimitives.require_dependency(chart_yaml, "ClamAV") == {"name": "clamav"}
+    with pytest.raises(SystemExit, match=r"no dependency named or aliased 'nope' found in .*Chart\.yaml"):
+        libchartvaluestreeprimitives.require_dependency(chart_yaml, "nope")
+
+
 # --- find_app_versions ---
 # used by show-component-baseline-version, via component_state_at_baseline
 # below.

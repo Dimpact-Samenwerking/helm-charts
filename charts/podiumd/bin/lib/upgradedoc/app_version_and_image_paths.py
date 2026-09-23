@@ -11,6 +11,7 @@ from lib.chart.registered_paths import component_image_paths
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import version_paths_for
 from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import words_of
 
@@ -83,7 +84,7 @@ class BaselineComponentQuery:
     build all seven the same way, just from differently-named locals."""
 
     baseline_values: dict
-    baseline_dep: dict
+    baseline_dep: dict | None
     values_key: str
     image_path: str
     chart_name: str
@@ -245,7 +246,7 @@ def find_component_version_tags(values, deps):
     includes both this and find_image_tag_paths; this on its own only
     when just the registered paths are wanted."""
     for dep in deps:
-        values_key = dep.get("alias", dep["name"])
+        values_key = values_key_of(dep)
         rels = set(version_paths_for(dep["name"])) | set(nested_subchart_registered_paths(dep["name"]))
         for rel in rels:
             value = get_path(values, f"{values_key}.{rel}")

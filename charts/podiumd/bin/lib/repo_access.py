@@ -26,6 +26,7 @@ from datetime import datetime
 from datetime import timezone
 
 from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import cached_tag_exists
 from lib.image.digests import scan_digest_pins
 from lib.registry import parse_repo
@@ -91,7 +92,7 @@ def dependency_repos(chart_dir):
     repos = []
     for dep in deps:
         repository = resolve_dependency_repo(dep.get("repository", ""), required_repos)
-        name = dep.get("alias", dep["name"])
+        name = values_key_of(dep)
         line = line_numbers.get(dep["name"])
         if repository.startswith("file://"):
             continue

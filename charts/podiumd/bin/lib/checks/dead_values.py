@@ -186,6 +186,7 @@ import yaml
 
 from lib.chart.pull_and_subchart_resolution import subchart_values
 from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.values_tree_primitives import values_key_of
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
 
@@ -295,7 +296,7 @@ def _load_merged_values(chart_dir, extra_args):
 
 def _dependency_by_key(chart_dir):
     chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
-    return {(dep.get("alias") or dep["name"]): dep for dep in chart_yaml.get("dependencies", [])}
+    return {values_key_of(dep): dep for dep in chart_yaml.get("dependencies", [])}
 
 
 def _coalesced_values(chart_dir, merged_values, dep_by_key):
@@ -588,11 +589,11 @@ def _make_own_scope(chart_dir, coalesced_values):
     existing)."""
     chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
     all_deps = chart_yaml.get("dependencies", [])
-    dep_by_name_or_alias = {(dep.get("alias") or dep["name"]): dep for dep in all_deps}
+    dep_by_name_or_alias = {values_key_of(dep): dep for dep in all_deps}
 
     keep = set(_own_template_subchart_refs(chart_dir)) & set(dep_by_name_or_alias)
     while True:
-        kept_deps = [dep for dep in all_deps if (dep.get("alias") or dep["name"]) in keep]
+        kept_deps = [dep for dep in all_deps if values_key_of(dep) in keep]
         temp_dir = _build_own_scope_chart(chart_dir, chart_yaml, kept_deps)
 
         # noqa: B023 -- _with_overlay_file calls render_fn synchronously,

@@ -8,6 +8,7 @@ import tarfile
 
 from pathlib import Path
 
+from lib.chart.values_tree_primitives import values_key_of
 from lib.settings import component_resolution_version_path_nested_subcharts
 from lib.settings import component_resolution_version_repository_paths
 
@@ -123,7 +124,7 @@ def documented_repository_for_path(chart_dir, deps, path):
     subchart at all, or that subchart isn't vendored at chart_dir."""
     if not path:
         return None
-    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    by_values_key = {values_key_of(dep): dep for dep in deps}
     dep = by_values_key.get(path[0])
     if dep is None or chart_dir is None:
         return None

@@ -11,6 +11,7 @@ from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.registered_paths import native_components
 from lib.chart.repo_and_path_resolution import full_repository_for_path
+from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
@@ -54,8 +55,8 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
     which then got a spurious, fully "(unchanged)" table row/Changes
     section added of its own, purely because its subtree gained that
     one shared path — confirmed live."""
-    current_by_key = {dep.get("alias", dep["name"]): dep for dep in deps}
-    baseline_by_key = {dep.get("alias", dep["name"]): dep for dep in baseline_deps}
+    current_by_key = {values_key_of(dep): dep for dep in deps}
+    baseline_by_key = {values_key_of(dep): dep for dep in baseline_deps}
 
     current_paths = dict(find_all_image_and_version_paths(values, deps))
     baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}

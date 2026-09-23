@@ -16,6 +16,7 @@ from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
@@ -478,7 +479,7 @@ def _changes_item_issues(name, item, resolved, context, invalid_names):
     # non-component Changes item.
     dep = match_dependency_excluding_sidecar_names(item["name"], context.deps)
     if dep:
-        values_key = dep.get("alias", dep["name"])
+        values_key = values_key_of(dep)
         actual_app = actual_app_version(context.values, values_key, dep["name"], chart_dir=context.chart_dir, dep=dep)
         actual_chart = dep["version"]
         baseline_app = (

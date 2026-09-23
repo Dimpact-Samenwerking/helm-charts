@@ -20,6 +20,7 @@ import yaml
 from lib.chart.nested_subchart_identity import nested_subchart_raw_text
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import values_key_of
 from lib.procutil import run
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
@@ -307,7 +308,7 @@ def resolve_subchart_default(chart_dir, dep, chart_name, path):
     nested_chart_text = nested_subchart_raw_text(chart_dir, dep, nested["name"], "Chart.yaml")
     nested_chart_yaml = yaml.safe_load(nested_chart_text) if nested_chart_text else None
     version = (nested_chart_yaml or {}).get("appVersion") if nested_chart_yaml else None
-    nested_key = nested.get("alias") or nested["name"]
+    nested_key = values_key_of(nested)
     return f"{base_path}/charts/{nested_key}", version
 
 
@@ -366,7 +367,7 @@ def primary_image_repositories(chart_dir, dep, own_values, version=None, allow_p
     `chart_dir` may itself be None (a caller with no vendored-charts
     location at all, e.g. a pure in-memory test) — treated exactly like
     "not vendored, and pulling is disabled", never raising."""
-    values_key = dep.get("alias") or dep["name"]
+    values_key = values_key_of(dep)
     version = version or dep["version"]
     results = {}
     subchart_state = None  # lazily filled on first path that needs it: (values_or_None, error_or_None)
