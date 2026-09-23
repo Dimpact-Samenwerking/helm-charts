@@ -51,6 +51,12 @@ from lib.chart.release_baseline_basics import chart_version as _chart_version
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as _read_upgrade_docs_baseline
 from lib.chart.repo_and_path_resolution import full_repository_for_path
+from lib.chart.values_tag_sha_lines import SiblingWrite
+from lib.chart.values_tag_sha_lines import find_block_end
+from lib.chart.values_tag_sha_lines import find_child_key_line
+from lib.chart.values_tag_sha_lines import locate_dotted_key_line
+from lib.chart.values_tag_sha_lines import locate_tag_and_sha
+from lib.chart.values_tag_sha_lines import write_tag_and_sha
 from lib.chart.values_tree_primitives import find_dependency as _find_dependency
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import replace_scalar_value
@@ -153,146 +159,6 @@ def verify_component_version(dep, image_paths, app_version, chart_version, compo
 
     print(f"\nChecking app version {app_version!r} for {dep.get('alias', chart_name)}:")
     return _check_and_print_image_versions(upstream_values, image_paths, app_version)
-
-
-def find_block_end(lines, block_start, indent):
-    """The exclusive end index of the block starting at block_start (a key
-    line at `indent`): the next non-blank, non-comment line at indent <=
-    that level, or EOF."""
-    for i in range(block_start + 1, len(lines)):
-        line = lines[i]
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        if len(line) - len(line.lstrip(" ")) <= indent:
-            return i
-    return len(lines)
-
-
-def find_child_key_line(lines, key, parent_indent, block_start, block_end):
-    """The immediate child "<key>:" line inside [block_start, block_end) —
-    smallest indent strictly greater than parent_indent, so a same-named key
-    nested deeper inside a grandchild block is never mistaken for it."""
-    key_re = re.compile(rf"^(\s*){re.escape(key)}:\s*(.*)$")
-    candidates = []
-    for i in range(block_start, block_end):
-        line = lines[i]
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        m = key_re.match(line)
-        if m:
-            indent = len(m.group(1))
-            if indent > parent_indent:
-                candidates.append((indent, i))
-    if not candidates:
-        return None
-    candidates.sort()
-    return candidates[0][1]
-
-
-def locate_dotted_key_line(lines, dotted_path):
-    """Walk a dotted path (e.g. "zac.opa.image.tag") down through nested
-    mapping blocks, returning (line_index, indent) of the final key, or None
-    if any segment can't be found unambiguously."""
-    segments = dotted_path.split(".")
-    indent, start, end = -1, 0, len(lines)
-    idx = None
-    for seg in segments:
-        idx = find_child_key_line(lines, seg, indent, start, end)
-        if idx is None:
-            return None
-        indent = len(lines[idx]) - len(lines[idx].lstrip(" "))
-        start = idx + 1
-        end = find_block_end(lines, idx, indent)
-    return idx, indent
-
-
-# (values_key, path) pairs using a split "tag:" + sibling field (e.g.
-# "sha:"/"digest:") instead of the combined "tag: <version>@sha256:
-# <digest>" pin — see settings.yaml's "digest_pinning.exceptions" (lib.
-# settings.digest_pinning_exceptions) and _load_split_tag_sha_paths.
-# Checked BEFORE the explicit-repository/subchart-default split below,
-# since these paths DO have a "repository:" too.
-
-
-def locate_parent_block(lines, dotted_path):
-    """Like locate_dotted_key_line, but stops one level higher: returns
-    (indent, start, end) for the FINAL segment's own body, so a caller
-    can look for more than one sibling key within it."""
-    segments = dotted_path.split(".")
-    indent, start, end = -1, 0, len(lines)
-    for seg in segments:
-        idx = find_child_key_line(lines, seg, indent, start, end)
-        if idx is None:
-            return None
-        indent = len(lines[idx]) - len(lines[idx].lstrip(" "))
-        start = idx + 1
-        end = find_block_end(lines, idx, indent)
-    return indent, start, end
-
-
-# A bare YAML alias reference — "<key>: *someAnchor" — that write_tag_
-# and_sha must skip (real case: keycloak.image's "tag:"/"sha:" are bare
-# aliases of keycloak-operator...keycloakImage's own anchor; the anchor's
-# own site is written for real elsewhere, so the alias still inherits it).
-ALIAS_REFERENCE_RE = re.compile(r"^\s*\S+:\s*\*\w+\s*(#.*)?\s*$")
-
-
-def is_alias_reference_line(line):
-    """True if `line` is a bare YAML alias reference (see
-    ALIAS_REFERENCE_RE) rather than a literal scalar value."""
-    return bool(ALIAS_REFERENCE_RE.match(line))
-
-
-def locate_tag_and_sha(lines, values_key, path, sibling_field):
-    """(tag_line_index, tag_indent, sibling_line_index_or_None) for the
-    "tag:"/"<sibling_field>:" pair at values_key.path. sibling_line_index
-    is None when podiumd doesn't override it yet. None if "tag:" itself
-    can't be found."""
-    located = locate_parent_block(lines, f"{values_key}.{path}")
-    if located is None:
-        return None
-    parent_indent, start, end = located
-    tag_idx = find_child_key_line(lines, "tag", parent_indent, start, end)
-    if tag_idx is None:
-        return None
-    tag_indent = len(lines[tag_idx]) - len(lines[tag_idx].lstrip(" "))
-    sibling_idx = find_child_key_line(lines, sibling_field, parent_indent, start, end)
-    return tag_idx, tag_indent, sibling_idx
-
-
-@dataclass
-class SiblingWrite:
-    """New tag/sibling values + field name + print label, bundled for
-    write_tag_and_sha (too-many-arguments)."""
-
-    new_version: str
-    new_digest_hex: str
-    sibling_field: str
-    label: str
-
-
-def write_tag_and_sha(lines, location, write):
-    """Write write.new_version/new_digest_hex into the "tag:"/sibling-field
-    lines at `location` (locate_tag_and_sha's own return value), inserting
-    a sibling line if none exists. Either line is skipped instead, with a
-    printed note, if it's a bare YAML alias reference. Mutates `lines`."""
-    tag_line_index, tag_indent, sibling_line_index = location
-    sibling_value = f"sha256:{write.new_digest_hex}" if write.sibling_field == "digest" else write.new_digest_hex
-    if is_alias_reference_line(lines[tag_line_index]):
-        print(f"  {write.label}.tag: *alias reference — inherits from its own anchor, not written directly")
-    else:
-        lines[tag_line_index] = replace_scalar_value(lines[tag_line_index], write.new_version)
-    if sibling_line_index is not None:
-        if is_alias_reference_line(lines[sibling_line_index]):
-            print(
-                f"  {write.label}.{write.sibling_field}: *alias reference — "
-                "inherits from its own anchor, not written directly"
-            )
-        else:
-            lines[sibling_line_index] = replace_scalar_value(lines[sibling_line_index], sibling_value)
-    else:
-        indent_str = " " * tag_indent
-        lines.insert(tag_line_index + 1, f'{indent_str}{write.sibling_field}: "{sibling_value}"\n')
 
 
 def update_chart_yaml(chart_name, new_chart_version):
@@ -484,10 +350,16 @@ def _parse_cli_args():
     return sys.argv[1], sys.argv[2], sys.argv[3]
 
 
+# (values_key, path) pairs using a split "tag:" + sibling field (e.g.
+# "sha:"/"digest:") instead of the combined "tag: <version>@sha256:
+# <digest>" pin — see settings.yaml's "digest_pinning.exceptions" (lib.
+# settings.digest_pinning_exceptions) and _load_split_tag_sha_paths below.
+# Checked BEFORE the explicit-repository/subchart-default split, since
+# these paths DO have a "repository:" too.
 def _load_split_tag_sha_paths():
     """digest_pinning.exceptions, filtered to writable: true entries and
     reshaped to (values_key, path) -> sibling_field (see the comment
-    above locate_parent_block)."""
+    above)."""
     return {
         (tuple_path[0], ".".join(tuple_path[1:])): entry["sibling_field"]
         for tuple_path, entry in digest_pinning_exceptions(CHART_DIR).items()
@@ -590,8 +462,8 @@ def _classify_paths_to_update(ctx, paths_to_update, split_tag_sha_paths):
 
 def _write_split_tag_sha_pins(ctx, split_paths, split_tag_sha_paths, acc):
     """Write the split "tag:"/"<sibling_field>:" pin pairs (see the comment
-    above locate_tag_and_sha/write_tag_and_sha) for split_paths, updating
-    acc.new_tags_by_path/acc.repos in place."""
+    above _load_split_tag_sha_paths and lib.chart.values_tag_sha_lines)
+    for split_paths, updating acc.new_tags_by_path/acc.repos in place."""
     if not split_paths:
         return
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines(keepends=True)

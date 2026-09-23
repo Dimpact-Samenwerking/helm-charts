@@ -20,6 +20,7 @@ import subprocess
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 import yaml
@@ -81,10 +82,14 @@ def stub_ensure_vendored_dependencies(uiv, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def stub_refresh_images_baseline(uiv, monkeypatch):
+def stub_refresh_images_baseline(uiv: ModuleType, monkeypatch: pytest.MonkeyPatch) -> list[tuple[object, ...]]:
     """main() ends with lib.image.baseline_refresh.refresh_images_baseline,
     which renders the chart with real helm. Recorded instead: returns the
     list of (chart_dir, deps, values, images_baseline_path) calls."""
-    calls = []
-    monkeypatch.setattr(uiv, "refresh_images_baseline", lambda *args: calls.append(args))
+    calls: list[tuple[object, ...]] = []
+
+    def record(*args: object) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr(uiv, "refresh_images_baseline", record)
     return calls

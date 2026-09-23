@@ -11,6 +11,8 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from lib.image import baseline_refresh
+
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "fix-doc-consistency"
 
 
@@ -55,7 +57,7 @@ def stub_registry_tag_exists(cdb, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def stub_render_chart(cdb, monkeypatch):
+def stub_render_chart(monkeypatch):
     """cdb.main()'s own new render_chart() call (feeding regenerate_
     images_baseline_manifest's own render-gate for subchart-default-only
     images — see lib.checks.digest_pinning.find_unresolved_subchart_
@@ -71,8 +73,6 @@ def stub_render_chart(cdb, monkeypatch):
     stub_registry_tag_exists above already uses — patched on lib.image.
     baseline_refresh's own module globals (where main()'s
     refresh_images_baseline actually calls it from)."""
-    from lib.image import baseline_refresh
-
     monkeypatch.setattr(
         baseline_refresh,
         "render_chart",

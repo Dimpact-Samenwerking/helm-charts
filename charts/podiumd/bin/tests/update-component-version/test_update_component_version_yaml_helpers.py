@@ -5,36 +5,38 @@ test_update_component_version.py for pylint's too-many-lines check)."""
 import pytest
 import yaml
 
+from lib.chart import values_tag_sha_lines as tag_sha_lines
+
 # --- parse_repo ---
 
 # --- find_block_end / find_child_key_line ---
 
 
-def test_find_block_end_stops_at_dedent(ucv):
+def test_find_block_end_stops_at_dedent():
     lines = [
         "a:\n",
         "  b: 1\n",
         "  c: 2\n",
         "d: 3\n",
     ]
-    assert ucv.find_block_end(lines, 0, 0) == 3
+    assert tag_sha_lines.find_block_end(lines, 0, 0) == 3
 
 
-def test_find_child_key_line_ignores_deeper_nested_same_name(ucv):
+def test_find_child_key_line_ignores_deeper_nested_same_name():
     lines = [
         "image:\n",
         "  tag: outer\n",
         "  nested:\n",
         "    tag: inner\n",
     ]
-    idx = ucv.find_child_key_line(lines, "tag", 0, 0, len(lines))
+    idx = tag_sha_lines.find_child_key_line(lines, "tag", 0, 0, len(lines))
     assert idx == 1
 
 
 # --- locate_dotted_key_line ---
 
 
-def test_locate_dotted_key_line_walks_nested_path(ucv):
+def test_locate_dotted_key_line_walks_nested_path():
     lines = [
         "zac:\n",
         "  opa:\n",
@@ -44,14 +46,16 @@ def test_locate_dotted_key_line_walks_nested_path(ucv):
         "    image:\n",
         "      tag: 9.10.1-slim@sha256:bbbb\n",
     ]
-    idx, indent = ucv.locate_dotted_key_line(lines, "zac.opa.image.tag")
+    located = tag_sha_lines.locate_dotted_key_line(lines, "zac.opa.image.tag")
+    assert located is not None
+    idx, indent = located
     assert idx == 3
     assert indent == 6
 
 
-def test_locate_dotted_key_line_missing_segment_returns_none(ucv):
+def test_locate_dotted_key_line_missing_segment_returns_none():
     lines = ["zac:\n", "  image:\n", "    tag: 1.0.0\n"]
-    assert ucv.locate_dotted_key_line(lines, "zac.frontend.image.tag") is None
+    assert tag_sha_lines.locate_dotted_key_line(lines, "zac.frontend.image.tag") is None
 
 
 # --- locate_parent_block / locate_tag_and_sha / write_tag_and_sha ---
@@ -70,50 +74,56 @@ KEYCLOAK_OPERATOR_LINES = [
 ]
 
 
-def test_locate_parent_block_returns_own_indent_and_child_range(ucv):
-    indent, start, end = ucv.locate_parent_block(KEYCLOAK_OPERATOR_LINES, "keycloak-operator.operator.image")
+def test_locate_parent_block_returns_own_indent_and_child_range():
+    located = tag_sha_lines.locate_parent_block(KEYCLOAK_OPERATOR_LINES, "keycloak-operator.operator.image")
+    assert located is not None
+    indent, start, end = located
     assert indent == 4  # "    image:" itself
     assert (start, end) == (3, 5)  # its own children: repository + tag lines
 
 
-def test_locate_parent_block_missing_segment_returns_none(ucv):
-    assert ucv.locate_parent_block(KEYCLOAK_OPERATOR_LINES, "keycloak-operator.nope.image") is None
+def test_locate_parent_block_missing_segment_returns_none():
+    assert tag_sha_lines.locate_parent_block(KEYCLOAK_OPERATOR_LINES, "keycloak-operator.nope.image") is None
 
 
-def test_locate_tag_and_sha_no_existing_sha_override(ucv):
+def test_locate_tag_and_sha_no_existing_sha_override():
     """operator.image today: podiumd doesn't override "sha" -- the
     vendored subchart's own default applies as-is."""
-    tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(
-        KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.image", "sha"
-    )
+    located = tag_sha_lines.locate_tag_and_sha(KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.image", "sha")
+    assert located is not None
+    tag_idx, tag_indent, sha_idx = located
     assert tag_idx == 4
     assert tag_indent == 6
     assert sha_idx is None
 
 
-def test_locate_tag_and_sha_existing_sha_override(ucv):
+def test_locate_tag_and_sha_existing_sha_override():
     """operator.config.keycloakImage today: podiumd already overrides
     "sha" explicitly."""
-    tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(
+    located = tag_sha_lines.locate_tag_and_sha(
         KEYCLOAK_OPERATOR_LINES, "keycloak-operator", "operator.config.keycloakImage", "sha"
     )
+    assert located is not None
+    tag_idx, tag_indent, sha_idx = located
     assert tag_idx == 8
     assert tag_indent == 8
     assert sha_idx == 9
 
 
-def test_locate_tag_and_sha_missing_tag_returns_none(ucv):
+def test_locate_tag_and_sha_missing_tag_returns_none():
     lines = ["a:\n", "  image:\n", "    repository: org/repo\n"]
-    assert ucv.locate_tag_and_sha(lines, "a", "image", "sha") is None
+    assert tag_sha_lines.locate_tag_and_sha(lines, "a", "image", "sha") is None
 
 
-def test_write_tag_and_sha_inserts_new_sha_line_when_absent(ucv):
+def test_write_tag_and_sha_inserts_new_sha_line_when_absent():
     lines = list(KEYCLOAK_OPERATOR_LINES)
-    tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(lines, "keycloak-operator", "operator.image", "sha")
-    ucv.write_tag_and_sha(
+    located = tag_sha_lines.locate_tag_and_sha(lines, "keycloak-operator", "operator.image", "sha")
+    assert located is not None
+    tag_idx, tag_indent, sha_idx = located
+    tag_sha_lines.write_tag_and_sha(
         lines,
         (tag_idx, tag_indent, sha_idx),
-        ucv.SiblingWrite("26.7.2", "b" * 64, "sha", "keycloak-operator.operator.image"),
+        tag_sha_lines.SiblingWrite("26.7.2", "b" * 64, "sha", "keycloak-operator.operator.image"),
     )
     assert lines[tag_idx] == '      tag: "26.7.2"\n'
     assert lines[tag_idx + 1] == f'      sha: "{"b" * 64}"\n'
@@ -121,17 +131,18 @@ def test_write_tag_and_sha_inserts_new_sha_line_when_absent(ucv):
     assert lines[tag_idx + 2] == "    config:\n"
 
 
-def test_write_tag_and_sha_replaces_existing_sha_line(ucv):
+def test_write_tag_and_sha_replaces_existing_sha_line():
     lines = list(KEYCLOAK_OPERATOR_LINES)
-    tag_idx, tag_indent, sha_idx = ucv.locate_tag_and_sha(
-        lines, "keycloak-operator", "operator.config.keycloakImage", "sha"
-    )
-    ucv.write_tag_and_sha(
+    located = tag_sha_lines.locate_tag_and_sha(lines, "keycloak-operator", "operator.config.keycloakImage", "sha")
+    assert located is not None
+    tag_idx, tag_indent, sha_idx = located
+    tag_sha_lines.write_tag_and_sha(
         lines,
         (tag_idx, tag_indent, sha_idx),
-        ucv.SiblingWrite("26.7.3", "c" * 64, "sha", "keycloak-operator.operator.config.keycloakImage"),
+        tag_sha_lines.SiblingWrite("26.7.3", "c" * 64, "sha", "keycloak-operator.operator.config.keycloakImage"),
     )
     assert lines[tag_idx] == '        tag: "26.7.3"\n'
+    assert sha_idx is not None
     assert lines[sha_idx] == f'        sha: "{"c" * 64}"\n'
     assert len(lines) == len(KEYCLOAK_OPERATOR_LINES)  # replaced in place, no line added
     assert "831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669" not in "".join(lines)
