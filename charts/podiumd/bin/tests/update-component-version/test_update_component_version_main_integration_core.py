@@ -4,9 +4,14 @@ monolithic test_update_component_version.py for pylint's too-many-lines
 check. block_real_subprocess_calls (used across nearly the whole original
 file) now lives in conftest.py as a session-wide autouse fixture."""
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 import lib.image.version as image_version
+
+from lib.chart import values_tag_sha_lines as tag_sha_lines
 
 OLD_DIGEST = "a" * 64
 
@@ -201,23 +206,34 @@ def test_main_re_vendors_after_writing_chart_yaml(ucv, tmp_path, monkeypatch, bl
     assert calls_before_last_ensure > fix_helm_doc_index
 
 
-def test_main_refreshes_images_baseline_after_re_vendoring(ucv, tmp_path, monkeypatch):
+def test_main_refreshes_images_baseline_after_re_vendoring(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """images-baseline.yaml follows the bump: regenerated last, from the
     bumped Chart.yaml/values.yaml, after the re-vendor its render needs."""
     setup_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
-    order = []
-    monkeypatch.setattr(ucv, "ensure_vendored_dependencies", lambda chart_dir: order.append("ensure"))
-    monkeypatch.setattr(ucv, "refresh_images_baseline", lambda *args: order.append(("refresh", *args)))
+    order: list[tuple[object, ...]] = []
+
+    def record_ensure(_chart_dir: Path) -> None:
+        order.append(("ensure",))
+
+    def record_refresh(*args: object) -> None:
+        order.append(("refresh", *args))
+
+    monkeypatch.setattr(ucv, "ensure_vendored_dependencies", record_ensure)
+    monkeypatch.setattr(ucv, "refresh_images_baseline", record_refresh)
 
     ucv.main()
 
-    assert order[-2] == "ensure"
+    assert order[-2] == ("ensure",)
     _step, chart_dir, deps, values, images_baseline_path = order[-1]
     assert chart_dir == tmp_path
     assert images_baseline_path == tmp_path / "docs" / "images" / "images-baseline.yaml"
+    assert isinstance(deps, list)
+    assert isinstance(values, dict)
     assert [str(d["version"]) for d in deps] == ["1.0.297"]
     assert values["zac"]["image"]["tag"].startswith("5.4.3@sha256:")
 
@@ -549,7 +565,7 @@ KEYCLOAK_ALIAS_LINES = [
 ]
 
 
-def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_regression(ucv):
+def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_regression():
     """Regression test for real bug #3 (this iteration's plan): keycloak.
     image's own "tag:"/"sha:" fields are bare YAML alias references
     (*keycloakImageVersion/*keycloakImageDigest) to the anchor keycloak-
@@ -569,27 +585,31 @@ def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_r
     lines = list(KEYCLOAK_ALIAS_LINES)
 
     # The anchor's own site: keycloak-operator.operator.config.keycloakImage
-    anchor_tag_idx, anchor_tag_indent, anchor_sha_idx = ucv.locate_tag_and_sha(
-        lines, "keycloak-operator", "operator.config.keycloakImage", "sha"
-    )
-    ucv.write_tag_and_sha(
+    located = tag_sha_lines.locate_tag_and_sha(lines, "keycloak-operator", "operator.config.keycloakImage", "sha")
+    assert located is not None
+    anchor_tag_idx, anchor_tag_indent, anchor_sha_idx = located
+    assert anchor_sha_idx is not None
+    tag_sha_lines.write_tag_and_sha(
         lines,
         (anchor_tag_idx, anchor_tag_indent, anchor_sha_idx),
-        ucv.SiblingWrite("26.7.3", "d" * 64, "sha", "keycloak-operator.operator.config.keycloakImage"),
+        tag_sha_lines.SiblingWrite("26.7.3", "d" * 64, "sha", "keycloak-operator.operator.config.keycloakImage"),
     )
 
     assert lines[anchor_tag_idx] == '        tag: &keycloakImageVersion "26.7.3"\n'
     assert lines[anchor_sha_idx] == f'        sha: &keycloakImageDigest "{"d" * 64}"\n'
 
     # The alias site: keycloak.image — same split shape, different values_key
-    alias_tag_idx, alias_tag_indent, alias_sha_idx = ucv.locate_tag_and_sha(lines, "keycloak", "image", "sha")
+    located = tag_sha_lines.locate_tag_and_sha(lines, "keycloak", "image", "sha")
+    assert located is not None
+    alias_tag_idx, alias_tag_indent, alias_sha_idx = located
+    assert alias_sha_idx is not None
     original_alias_tag_line = lines[alias_tag_idx]
     original_alias_sha_line = lines[alias_sha_idx]
 
-    ucv.write_tag_and_sha(
+    tag_sha_lines.write_tag_and_sha(
         lines,
         (alias_tag_idx, alias_tag_indent, alias_sha_idx),
-        ucv.SiblingWrite("26.7.3", "d" * 64, "sha", "keycloak.image"),
+        tag_sha_lines.SiblingWrite("26.7.3", "d" * 64, "sha", "keycloak.image"),
     )
 
     # left completely untouched — never clobbered into a literal

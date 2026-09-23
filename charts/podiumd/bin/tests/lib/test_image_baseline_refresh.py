@@ -1,29 +1,46 @@
 """lib.image.baseline_refresh — the render + regenerate step shared by
 fix-doc-consistency, update-component-version and update-image-version."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-import lib.image.baseline_refresh as baseline_refresh
+from lib.image import baseline_refresh
 
 
-def test_refresh_images_baseline_passes_the_render_to_the_regeneration(tmp_path, monkeypatch, capsys):
+def no_lint_args(_chart_dir: Path) -> list[str]:
+    return []
+
+
+def render_returning(returncode: int, stdout: str):
+    """A render_chart stand-in whose render ends with `returncode`."""
+
+    def fake_render_chart(_chart_dir: Path, _extra_args: list[str]) -> SimpleNamespace:
+        return SimpleNamespace(returncode=returncode, stdout=stdout, stderr="boom" if returncode else "")
+
+    return fake_render_chart
+
+
+def test_refresh_images_baseline_passes_the_render_to_the_regeneration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     """The render's paths reach regenerate_images_baseline_manifest, and
     its result (written count, unresolvable repositories) is reported."""
-    seen = {}
-    monkeypatch.setattr(baseline_refresh, "lint_args_for", lambda chart_dir: ["-f", "ci/lint-values.yaml"])
-    monkeypatch.setattr(
-        baseline_refresh,
-        "render_chart",
-        lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="rendered", stderr=""),
-    )
-    monkeypatch.setattr(baseline_refresh, "rendered_chart_paths", lambda stdout: {stdout})
+    seen: dict[str, object] = {}
 
-    def fake_regenerate(chart_dir, deps, values, images_baseline_path, rendered_paths):
+    def rendered_paths_of(stdout: str) -> set[str]:
+        return {stdout}
+
+    def fake_regenerate(
+        chart_dir: Path, deps: list, values: dict, images_baseline_path: Path, rendered_paths: set[str]
+    ) -> tuple[int, list[str], bool]:
         seen.update(chart_dir=chart_dir, deps=deps, values=values, path=images_baseline_path, rendered=rendered_paths)
         return 3, ["docker.io/unresolvable"], True
 
+    monkeypatch.setattr(baseline_refresh, "lint_args_for", no_lint_args)
+    monkeypatch.setattr(baseline_refresh, "render_chart", render_returning(0, "rendered"))
+    monkeypatch.setattr(baseline_refresh, "rendered_chart_paths", rendered_paths_of)
     monkeypatch.setattr(baseline_refresh, "regenerate_images_baseline_manifest", fake_regenerate)
     path = tmp_path / "images-baseline.yaml"
 
@@ -42,14 +59,10 @@ def test_refresh_images_baseline_passes_the_render_to_the_regeneration(tmp_path,
     assert "docker.io/unresolvable" in out
 
 
-def test_refresh_images_baseline_exits_when_the_render_fails(tmp_path, monkeypatch):
+def test_refresh_images_baseline_exits_when_the_render_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A failed render exits 1 before anything is written."""
-    monkeypatch.setattr(baseline_refresh, "lint_args_for", lambda chart_dir: [])
-    monkeypatch.setattr(
-        baseline_refresh,
-        "render_chart",
-        lambda chart_dir, extra_args: SimpleNamespace(returncode=1, stdout="", stderr="boom"),
-    )
+    monkeypatch.setattr(baseline_refresh, "lint_args_for", no_lint_args)
+    monkeypatch.setattr(baseline_refresh, "render_chart", render_returning(1, ""))
     path = tmp_path / "images-baseline.yaml"
 
     with pytest.raises(SystemExit) as exc_info:
