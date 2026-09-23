@@ -13,7 +13,7 @@ def run(cmd, **kwargs):
     # cmd is always a fixed argv list built by the caller (e.g. ["git", "mv", ...]),
     # never a shell string or user input; shell=True would be the actually unsafe
     # choice here.
-    return subprocess.run(cmd, check=False, **kwargs)  # nosec B603
+    return subprocess.run(cmd, check=False, **kwargs)  # nosec B603  # noqa: S603
 
 
 def run_script(cmd, *, check=False, **kwargs):
@@ -26,4 +26,4 @@ def run_script(cmd, *, check=False, **kwargs):
     flushes at process exit."""
     sys.stdout.flush()
     # Same fixed-argv-list guarantee as run() above.
-    return subprocess.run(cmd, check=check, **kwargs)  # nosec B603
+    return subprocess.run(cmd, check=check, **kwargs)  # nosec B603  # noqa: S603
