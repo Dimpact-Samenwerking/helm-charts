@@ -10,6 +10,8 @@ default_repository, subchart_needs_vendoring)."""
 import tarfile
 
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 from lib.chart.nested_subchart_identity import nested_subchart_documented_image_repository
 from lib.chart.nested_subchart_identity import nested_subchart_name_for
@@ -509,12 +511,49 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
     return names
 
 
+def doc_row_name(
+    chart_dir: Path,
+    deps: list[dict[str, Any]],
+    values: dict[str, Any],
+    path: tuple[str, ...],
+    all_paths: list[tuple[str, ...]],
+) -> str | None:
+    """The upgrade-doc row name for the image at values-tree `path`
+    (ending in the image key, e.g. ("redis-operator", "redis-ha",
+    "image")): path[0] for the primary image of a dependency or native
+    component, else the canonical_sidecar_row_names name of the image's
+    repository among `all_paths`. None when neither applies.
+    update-image-version names its rows with this, so they match what
+    fix-doc-consistency and check_docs_consistency resolve."""
+    names = canonical_sidecar_row_names(chart_dir, deps, values, all_paths)
+    owner_name = _owner_name(deps, native_components(chart_dir), path)
+    if owner_name is not None and ".".join(path[1:]) in set(image_paths_for(owner_name, chart_dir)):
+        return path[0]
+    for group in paths_by_repository(chart_dir, deps, values, all_paths).values():
+        if path in group:
+            return next((name for name, name_path in names.items() if name_path in group), None)
+    return None
+
+
+def _owner_name(deps: list[dict[str, Any]], natives: frozenset[str], path: tuple[str, ...]) -> str | None:
+    """The Chart.yaml dependency name or native component (`natives`)
+    that owns values-tree `path` (by its top-level key), or None."""
+    dep = next((dep for dep in deps if (dep.get("alias") or dep["name"]) == path[0]), None)
+    if dep is not None:
+        return dep["name"]
+    # A native_components component (e.g. frankgateway) owns its own
+    # nested sidecars the same way a real Chart.yaml dependency does —
+    # path[0] itself IS the component's name here (no alias possible;
+    # it isn't in Chart.yaml at all).
+    return path[0] if path[0] in natives else None
+
+
 def _classify_sidecar_and_global_paths(chart_dir, deps, paths):
     """(sidecar_paths, global_paths) split of `paths` for canonical_
     sidecar_row_names — a path pinned under the shared "global" top-
     level key is handled entirely separately from one nested under a
-    real dependency or native_components component's own subtree."""
-    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    real dependency or native_components component's own subtree. An
+    owner's primary image (image_paths_for) is neither."""
     natives = native_components(chart_dir)
     sidecar_paths, global_paths = [], []
     for path in paths:
@@ -523,14 +562,7 @@ def _classify_sidecar_and_global_paths(chart_dir, deps, paths):
         if path[0] == "global":
             global_paths.append(path)
             continue
-        dep = by_values_key.get(path[0])
-        # A native_components component (e.g. frankgateway) owns its own
-        # nested sidecars the same way a real Chart.yaml dependency does —
-        # path[0] itself IS the component's name here (no alias possible;
-        # it isn't in Chart.yaml at all), so image_paths_for(path[0])
-        # excludes its own primary image the same way image_paths_for(dep
-        # ["name"]) does for a real dependency just below.
-        owner_name = dep["name"] if dep is not None else (path[0] if path[0] in natives else None)
+        owner_name = _owner_name(deps, natives, path)
         if owner_name is not None and ".".join(path[1:]) not in set(image_paths_for(owner_name, chart_dir)):
             sidecar_paths.append(path)
     return sidecar_paths, global_paths

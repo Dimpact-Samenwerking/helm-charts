@@ -182,11 +182,8 @@ def test_fix_component_version_table_corrects_a_native_components_wrong_chart_ce
     """Real bug this guards against: frankgateway (see lib.chart.
     NATIVE_COMPONENTS — no Chart.yaml dependency at all) briefly gained a
     mistaken Chart.yaml dependency entry, and its row's Helm-chart cell
-    was written as if it were a real version ("1.1.0"). Unlike a
-    sidecar's own "-" (trusted correct from the moment it's first
-    written), a native component's chart cell CAN start out wrong like
-    this, and nothing else ever corrects it back — this is the one place
-    that does."""
+    was written as if it were a real version ("1.1.0"). This is the one
+    place that corrects it back."""
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"

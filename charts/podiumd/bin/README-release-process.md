@@ -189,9 +189,10 @@ Tools:
 - `show-image-baseline-version`: get just the app image version(s) of a component at BOTH `release-baseline.yaml` baselines, given the component name (same shape as `show-component-baseline-version`, minus the Helm chart version)
 - `update-component-version`: update the version of component, given component
   name, app-version and helm-version; also updates the release docs, `README.md`
-  and `images-baseline.yaml`
+  and `images-baseline.yaml`, ending with `fix-doc-consistency`
 - `update-image-version`: update the version of image, given image name and
-  version; also updates the release docs, `README.md` and `images-baseline.yaml`
+  version; also updates the release docs, `README.md` and `images-baseline.yaml`,
+  ending with `fix-doc-consistency`
 - `verify-component-version`: verify that a component's helm-chart version AND app image version(s) exist, given component name, app-version and chart-version (same shape as `update-component-version`) — pre-flight check for that command
 - `verify-helm-secret-size`: estimate the size of the Helm release Secret a chart would produce vs Kubernetes' 1 MiB limit, given a chart directory (`--record` appends/updates a row in `<chart>/docs/release-secret-size.md`) — also runs automatically as part of `verify-podiumd`'s own "Release secret size" step for podiumd itself; this standalone tool is what covers any other chart (e.g. `charts/monitoring-logging`)
 - `verify-image-version`: verify that an image version exists for an already-pinned image, given image name and version (same shape as `update-image-version`) — pre-flight check for that command, no chart involved

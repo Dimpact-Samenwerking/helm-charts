@@ -206,36 +206,29 @@ def test_main_re_vendors_after_writing_chart_yaml(ucv, tmp_path, monkeypatch, bl
     assert calls_before_last_ensure > fix_helm_doc_index
 
 
-def test_main_refreshes_images_baseline_after_re_vendoring(
+def test_main_runs_fix_doc_consistency_after_re_vendoring(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """images-baseline.yaml follows the bump: regenerated last, from the
-    bumped Chart.yaml/values.yaml, after the re-vendor its render needs."""
+    """The bump ends with fix-doc-consistency, after the re-vendor its
+    images-baseline.yaml render needs."""
     setup_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
-    order: list[tuple[object, ...]] = []
+    order: list[str] = []
 
     def record_ensure(_chart_dir: Path) -> None:
-        order.append(("ensure",))
+        order.append("ensure")
 
-    def record_refresh(*args: object) -> None:
-        order.append(("refresh", *args))
+    def record_fix_doc() -> None:
+        order.append("fix-doc")
 
     monkeypatch.setattr(ucv, "ensure_vendored_dependencies", record_ensure)
-    monkeypatch.setattr(ucv, "refresh_images_baseline", record_refresh)
+    monkeypatch.setattr(ucv, "run_fix_doc_consistency", record_fix_doc)
 
     ucv.main()
 
-    assert order[-2] == ("ensure",)
-    _step, chart_dir, deps, values, images_baseline_path = order[-1]
-    assert chart_dir == tmp_path
-    assert images_baseline_path == tmp_path / "docs" / "images" / "images-baseline.yaml"
-    assert isinstance(deps, list)
-    assert isinstance(values, dict)
-    assert [str(d["version"]) for d in deps] == ["1.0.297"]
-    assert values["zac"]["image"]["tag"].startswith("5.4.3@sha256:")
+    assert order[-2:] == ["ensure", "fix-doc"]
 
 
 def setup_native_component_repo(tmp_path, monkeypatch, ucv):

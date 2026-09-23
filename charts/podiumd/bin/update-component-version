@@ -6,7 +6,8 @@ Checks both versions exist upstream before writing anything; a version
 already at the requested value is left as is. Writes Chart.yaml and
 values.yaml, updates the docs for the current target version (upgrade
 doc, values-deltas, images-<target>.yaml), runs fix-helm-doc, re-vendors
-the bumped sub-chart and regenerates images-baseline.yaml.
+the bumped sub-chart and runs fix-doc-consistency, which also regenerates
+images-baseline.yaml.
 
 Usage:
     update-component-version <component> <app-version> <chart-version>
@@ -44,9 +45,7 @@ from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import native_components
 from lib.chart.release_baseline_basics import chart_version as _chart_version
-from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as _read_upgrade_docs_baseline
-from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.values_tag_sha_lines import SiblingWrite
 from lib.chart.values_tag_sha_lines import find_block_end
 from lib.chart.values_tag_sha_lines import find_child_key_line
@@ -79,7 +78,6 @@ from lib.component_docs.values_delta_sections import insert_values_delta_section
 from lib.component_docs.values_delta_sections import remove_values_delta_section
 from lib.component_docs.values_delta_sections import values_delta_section_heading
 from lib.dependencies import ensure_vendored_dependencies
-from lib.image.baseline_refresh import refresh_images_baseline
 from lib.image.version import image_basename
 from lib.image.version import update_image_version
 from lib.procutil import run_script
@@ -92,6 +90,7 @@ from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
+FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"
 VALUES_YAML = CHART_DIR / "values.yaml"
@@ -752,29 +751,6 @@ def _update_values_deltas_section(ctx, comparison):
     )
 
 
-def _report_missing_manifest_entries(ctx, missing_entries, old_app_by_path):
-    """Print the "add manually" block for images-manifest entries
-    update_images_manifest couldn't find an existing entry to update."""
-    friendly = ctx.values_key
-    print(
-        "  No existing entry for the following — add manually (see "
-        "docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):"
-    )
-    for path, repo, new_tag in missing_entries:
-        new_app_version, digest = new_tag.split("@", 1)
-        # repo may have no registry host embedded (Docker Hub's own
-        # convention) — never printed as-is for "url:", which needs the
-        # real, fully host-qualified value.
-        full_repo = (
-            full_repository_for_path(CHART_DIR, ctx.deps, ctx.values, (ctx.values_key, *tuple(path.split(".")))) or repo
-        )
-        print(f"    # {friendly} — {old_app_by_path.get(path) or '(none)'} -> {new_app_version}")
-        print("    - name: <ACR-mirror-name>")
-        print(f"      url: {full_repo}")
-        print(f'      version: "{new_app_version}"')
-        print(f'      digest: "{digest}"')
-
-
 def _remove_images_manifest_entries(comparison, manifest_target, path_update):
     """images-manifest write when this component is back at its baseline —
     see _update_images_manifest_section's reset_to_baseline branch."""
@@ -790,11 +766,12 @@ def _remove_images_manifest_entries(comparison, manifest_target, path_update):
         print(f"  updated entry '{name}' (now matches upgrade_docs_baseline — no longer a documented change)")
 
 
-def _write_images_manifest_updates(ctx, comparison, manifest_target, path_update, old_app_by_path):
+def _write_images_manifest_updates(ctx, comparison, manifest_target, path_update):
     """images-manifest write for a genuine version change — see
     _update_images_manifest_section's non-reset branch."""
     change = VersionChange(comparison.old_app, ctx.app_version, comparison.old_chart, ctx.new_chart)
-    changes_action, entry_updates, missing_entries = update_images_manifest(
+    # A missing entry is added by the fix-doc-consistency run at the end of main().
+    changes_action, entry_updates, _missing_entries = update_images_manifest(
         manifest_target, change, path_update, ctx.deps, ctx.values
     )
     print()
@@ -803,11 +780,9 @@ def _write_images_manifest_updates(ctx, comparison, manifest_target, path_update
         print(f"  {changes_action} 'changes:' list entry")
     for name in entry_updates:
         print(f"  updated entry '{name}'")
-    if missing_entries:
-        _report_missing_manifest_entries(ctx, missing_entries, old_app_by_path)
 
 
-def _update_images_manifest_section(ctx, comparison, paths_to_update, tags, old_app_by_path):
+def _update_images_manifest_section(ctx, comparison, paths_to_update, tags):
     """Rewrite (or explain skipping) docs/images/images-<target>.yaml's
     entries and 'changes:' list for this component. `tags` is the
     (new_tags_by_path, repos) pair _update_image_tags returned."""
@@ -826,14 +801,21 @@ def _update_images_manifest_section(ctx, comparison, paths_to_update, tags, old_
     if comparison.reset_to_baseline:
         _remove_images_manifest_entries(comparison, manifest_target, path_update)
     else:
-        _write_images_manifest_updates(ctx, comparison, manifest_target, path_update, old_app_by_path)
+        _write_images_manifest_updates(ctx, comparison, manifest_target, path_update)
+
+
+def run_fix_doc_consistency():
+    """Runs fix-doc-consistency on this chart's docs."""
+    print()
+    print("=== Completing the docs (fix-doc-consistency) ===")
+    run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT)])
 
 
 def main():
     """CLI entry point: verifies requested versions exist upstream before
     writing anything, then updates Chart.yaml/values.yaml, refreshes the
-    docs, re-vendors the bumped sub-chart and regenerates
-    images-baseline.yaml. See the module docstring for the full argument
+    docs, re-vendors the bumped sub-chart and runs fix-doc-consistency.
+    See the module docstring for the full argument
     contract."""
     component, app_version, chart_version = _parse_cli_args()
     ensure_vendored_dependencies(CHART_DIR)
@@ -861,7 +843,7 @@ def main():
 
     _update_upgrade_doc_section(ctx, comparison, target, paths_to_update)
     _update_values_deltas_section(ctx, comparison)
-    _update_images_manifest_section(ctx, comparison, paths_to_update, (new_tags_by_path, repos), old_app_by_path)
+    _update_images_manifest_section(ctx, comparison, paths_to_update, (new_tags_by_path, repos))
 
     print()
     print("=== Regenerating README.md (fix-helm-doc) ===")
@@ -872,13 +854,11 @@ def main():
     print("=== Re-vendoring changed sub-charts ===")
     ensure_vendored_dependencies(CHART_DIR)
 
-    # Last: the render behind images-baseline.yaml needs the re-vendored sub-charts.
-    refresh_images_baseline(
-        CHART_DIR,
-        load_yaml(CHART_YAML).get("dependencies", []),
-        load_yaml(VALUES_YAML) or {},
-        IMAGES_DIR / "images-baseline.yaml",
-    )
+    # Last: fix-doc-consistency completes the docs the steps above wrote
+    # (missing images-manifest entries, order, images-baseline.yaml) the
+    # same way check_docs_consistency expects them. Its render needs the
+    # re-vendored sub-charts.
+    run_fix_doc_consistency()
 
     print()
     print("Done. Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")

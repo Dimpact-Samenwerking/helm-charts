@@ -1,9 +1,8 @@
 """update-image-version's main() doc-update path for a sidecar bump (not
-a dependency's own primary image) -- gets a "<values_key> (<basename>)"
-disambiguated row/section name, since "<values_key>" alone would collide
-with the dependency's own primary-image row (or another sidecar's own
-row) -- see update-image-version's own update_docs_single_component
-docstring. No network needed: lib.registry.registry_tag_exists is
+a dependency's own primary image) -- gets the canonical "<values_key> -
+<basename>" row/section name (lib.chart.repo_and_path_resolution.
+doc_row_name) and chart column "-", the row check_docs_consistency
+expects. No network needed: lib.registry.registry_tag_exists is
 monkeypatched via the uiv module's own imported binding (update_image_
 version lives in lib.image.version, which resolves `registry_tag_exists`
 via ITS OWN globals — see lib.image.version's import — so tests patch
@@ -88,7 +87,7 @@ def test_main_sidecar_bump_gets_disambiguated_row_name(uiv, tmp_path, monkeypatc
     uiv.main()
 
     upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
-    assert "| redis-operator - redis | 8.6.2 → 8.6.6 | 1.0.0 (unchanged) | - |" in upgrade
+    assert "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |" in upgrade
     assert "### redis-operator - redis 8.6.2 → 8.6.6" in upgrade
 
     # No git repo at all here, so the baseline (and any schema diff) can
@@ -134,7 +133,7 @@ def test_main_sidecar_bump_does_not_corrupt_dependencys_own_row(uiv, tmp_path, m
 
     upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
     assert "| redis-operator | 0.25.0 → 0.26.0 | 0.25.0 → 0.26.1 | ACR mirror only |" in upgrade
-    assert "| redis-operator - redis | 8.6.2 → 8.6.6 | 1.0.0 (unchanged) | - |" in upgrade
+    assert "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |" in upgrade
 
 
 def test_main_sidecar_reset_to_baseline_uses_raw_values_key(uiv, tmp_path, monkeypatch):

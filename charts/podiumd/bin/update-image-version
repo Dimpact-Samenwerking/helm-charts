@@ -6,7 +6,8 @@ Bump every values.yaml image tag pin sharing an image basename, scoped to
 Checks the version exists upstream and resolves its digest before writing
 anything. Then updates the docs for the current target version, if they
 exist (upgrade doc, values-deltas, images-<target>.yaml), runs
-fix-helm-doc and regenerates images-baseline.yaml. Fails when <key>
+fix-helm-doc and then fix-doc-consistency, which also regenerates
+images-baseline.yaml. Fails when <key>
 <basename> does not match exactly one repository.
 
 Usage:
@@ -32,6 +33,7 @@ import sys
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -40,11 +42,10 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
 from lib.chart.pull_and_subchart_resolution import global_image_paths
-from lib.chart.registered_paths import image_paths_for
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
-from lib.chart.repo_and_path_resolution import full_repository_for_path
+from lib.chart.repo_and_path_resolution import doc_row_name
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_dependency
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
@@ -70,7 +71,6 @@ from lib.component_docs.values_delta_sections import insert_values_delta_section
 from lib.component_docs.values_delta_sections import remove_values_delta_section
 from lib.component_docs.values_delta_sections import values_delta_section_heading
 from lib.dependencies import ensure_vendored_dependencies
-from lib.image.baseline_refresh import refresh_images_baseline
 from lib.image.docs import ImageBump
 from lib.image.docs import make_image_changes_section
 from lib.image.docs import remove_image_manifest_entry
@@ -93,6 +93,7 @@ VALUES_YAML = CHART_DIR / "values.yaml"
 DOC_DIR = CHART_DIR / "docs" / "_UPGRADE_PATHS"
 IMAGES_DIR = CHART_DIR / "docs" / "images"
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
+FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
 
 
 def group_changes_by_component(changes, values_lines_before_write):
@@ -183,10 +184,7 @@ def _single_component_baseline_resolution(bump, chart_name, chart_version_str):
         current_deps = load_yaml(CHART_YAML).get("dependencies", [])
         current_values = load_yaml(VALUES_YAML) or {}
         changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
-        # compute_changed_components only ever returns top-level values.yaml
-        # keys (see its own docstring) — never `friendly`'s own possibly-
-        # disambiguated "<values_key> - <basename>" form, which wouldn't be
-        # a member of that set even when this specific image DID change.
+        # compute_changed_components returns top-level values.yaml keys.
         reset_to_baseline = bump.values_key not in changed_keys
         # resolve_baseline_component_versions (lib.upgradedoc) is the
         # single shared source of truth for this resolution — see its own
@@ -348,37 +346,6 @@ def _update_single_component_values_deltas(values_deltas_path, context, bump, up
         )
 
 
-def _print_missing_manifest_entries(missing_entries, context, bump):
-    print(
-        "  No existing entry for the following — add manually (see "
-        "docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):"
-    )
-    for path, repo, new_tag in missing_entries:
-        new_app_version, digest = new_tag.split("@", 1)
-        # repo (group["repos"], the raw values.yaml/text-scan
-        # "repository:" string) may have no registry host embedded
-        # at all (Docker Hub's own convention, e.g. "curlimages/
-        # curl") — never printed as-is for "url:", which needs the
-        # real, fully host-qualified value (see lib.chart.
-        # full_repository_for_path's own docstring for why
-        # reconstructing one from a stripped/bare string can't be
-        # done correctly without this resolution).
-        full_repo = (
-            full_repository_for_path(
-                CHART_DIR,
-                context.ordering.deps,
-                context.ordering.values,
-                (bump.values_key, *tuple(path.split("."))),
-            )
-            or repo
-        )
-        print(f"    # {context.friendly} — {bump.group['old_app_by_path'].get(path) or '(none)'} -> {new_app_version}")
-        print("    - name: <ACR-mirror-name>")
-        print(f"      url: {full_repo}")
-        print(f'      version: "{new_app_version}"')
-        print(f'      digest: "{digest}"')
-
-
 def _update_single_component_images_manifest(context, bump):
     images_path = images_manifest_path(IMAGES_DIR, context.target)
     if not images_path.is_file():
@@ -402,7 +369,8 @@ def _update_single_component_images_manifest(context, bump):
             print(f"  updated entry '{name}' (now matches upgrade_docs_baseline — no longer a documented change)")
         return
 
-    changes_action, entry_updates, missing_entries = update_images_manifest(
+    # A missing entry is added by the fix-doc-consistency run at the end of main().
+    changes_action, entry_updates, _missing_entries = update_images_manifest(
         manifest_target, context.change, path_update, context.ordering.deps, context.ordering.values
     )
     print()
@@ -411,35 +379,17 @@ def _update_single_component_images_manifest(context, bump):
         print(f"  {changes_action} 'changes:' list entry")
     for name in entry_updates:
         print(f"  updated entry '{name}'")
-    if missing_entries:
-        _print_missing_manifest_entries(missing_entries, context, bump)
 
 
-def update_docs_single_component(new_version, basename, bump, ordering, target):
+def update_docs_single_component(new_version, bump, ordering, target):
     """The exact update-component-version doc-update flow (see that
     script's own main() for the version this was factored out of),
-    applied to a basename bump that happens to affect only this one
-    component — old_chart/new_chart are the SAME (Chart.yaml's own
-    version), since a basename bump never touches Chart.yaml.
-
-    The doc row/Changes-section/values-delta bullet is named
-    `bump.values_key` alone when the bumped image is this dependency's
-    own registered primary image (image_paths_for) — the usual,
-    unambiguous case, same display name as ever. For any OTHER image
-    under this dependency's own subtree (a sidecar — e.g. redis-ha's
-    own redis image or its redis-exporter sidecar, both nested under
-    "redis-operator") `bump.values_key` alone would collide with — and
-    silently corrupt — the row already representing the dependency's
-    own primary image (or another sidecar's own row): find_component_row
-    matches by word-containment against a SINGLE name, so two different
-    images sharing that same `values_key` name are indistinguishable to
-    it. Disambiguated as "<values_key> - <basename>" instead — both are
-    already-resolved, exact inputs (resolve_scoped_matches guarantees
-    <values_key> <basename> identifies exactly one distinct repository),
-    not a guess."""
+    applied to a bump of a dependency's own primary image — old_chart/
+    new_chart are the SAME (Chart.yaml's own version), since a basename
+    bump never touches Chart.yaml. The doc row is named
+    `bump.values_key`."""
     chart_name = bump.dep["name"]
-    is_primary_image = set(bump.group["paths"]) <= set(image_paths_for(bump.dep["name"], CHART_DIR))
-    friendly = bump.values_key if is_primary_image else f"{bump.values_key} - {basename}"
+    friendly = bump.values_key
     chart_version_str = str(bump.dep["version"])
 
     baseline = _single_component_baseline_resolution(bump, chart_name, chart_version_str)
@@ -454,14 +404,14 @@ def update_docs_single_component(new_version, basename, bump, ordering, target):
 
 @dataclass
 class SharedImageBump:
-    """basename/changes/pinned -- one basename bump's own shared-image
-    match (more than one Chart.yaml component pins it -- see update_
-    docs_shared_image's own docstring): `changes` is update_image_
-    version's raw per-pin change list, `pinned` is [(path, old_version),
-    ...] for every place it's pinned, both threaded through every
-    doc-update phase below."""
+    """name/changes/pinned -- one bump documented as an image row (see
+    update_docs_shared_image's own docstring): `name` is its doc row
+    name (lib.chart.repo_and_path_resolution.doc_row_name), `changes`
+    is update_image_version's raw per-pin change list, `pinned` is
+    [(path, old_version), ...] for every place it's pinned, all
+    threaded through every doc-update phase below."""
 
-    basename: str
+    name: str
     changes: list
     pinned: list
 
@@ -565,36 +515,36 @@ def _update_shared_image_upgrade_doc(upgrade_path, context, bump):
 
     if context.baseline.reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
-        new_text, row_removed = remove_component_row(text, bump.basename)
-        new_text, section_removed = remove_changes_section(new_text, bump.basename)
+        new_text, row_removed = remove_component_row(text, bump.name)
+        new_text, section_removed = remove_changes_section(new_text, bump.name)
         if row_removed or section_removed:
             upgrade_path.write_text(new_text, encoding="utf-8")
         print()
         print(f"=== Updating {upgrade_path.name} ===")
         print(
-            f"  {bump.basename} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
+            f"  {bump.name} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
             " version — nothing left to document"
         )
         if row_removed:
             print("  removed table row")
         if section_removed:
-            print(f"  removed '### {bump.basename} ...' Changes section")
+            print(f"  removed '### {bump.name} ...' Changes section")
         return
 
     text = upgrade_path.read_text(encoding="utf-8")
-    new_text, table_action = update_component_table(text, bump.basename, context.change, context.ordering)
+    new_text, table_action = update_component_table(text, bump.name, context.change, context.ordering)
     if table_action is None:
         return
-    new_text, _ = remove_changes_section(new_text, bump.basename)
+    new_text, _ = remove_changes_section(new_text, bump.name)
     section = make_image_changes_section(
-        bump.basename, context.target, context.change.old_app, context.change.new_app, context.baseline.pinned
+        bump.name, context.target, context.change.old_app, context.change.new_app, context.baseline.pinned
     )
-    new_text = insert_changes_section(new_text, section, bump.basename, context.ordering)
+    new_text = insert_changes_section(new_text, section, bump.name, context.ordering)
     upgrade_path.write_text(new_text, encoding="utf-8")
     print()
     print(f"=== Updating {upgrade_path.name} ===")
     print(f"  {table_action} table row")
-    print(f"  (re)wrote '### {bump.basename} ...' Changes section")
+    print(f"  (re)wrote '### {bump.name} ...' Changes section")
 
 
 def _update_shared_image_values_deltas(values_deltas_path, context, bump, upgrade_path_exists):
@@ -616,28 +566,28 @@ def _update_shared_image_values_deltas(values_deltas_path, context, bump, upgrad
 
     text = values_deltas_path.read_text(encoding="utf-8")
     text, section_removed = remove_values_delta_section(
-        text, bump.basename, context.ordering.deps, context.ordering.canonical_names
+        text, bump.name, context.ordering.deps, context.ordering.canonical_names
     )
     if context.baseline.reset_to_baseline:
         values_deltas_path.write_text(text, encoding="utf-8")
         print()
         print(f"=== Updating {values_deltas_path.name} ===")
         print(
-            f"  {bump.basename} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
+            f"  {bump.name} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
             f" version — {'removed its section' if section_removed else 'nothing to remove'}"
         )
     elif section_removed:
         values_deltas_path.write_text(text, encoding="utf-8")
         print()
         print(f"=== Updating {values_deltas_path.name} ===")
-        print(f"  removed stale section for {bump.basename} — no values-schema change to document for this bump")
+        print(f"  removed stale section for {bump.name} — no values-schema change to document for this bump")
 
 
 def _update_shared_image_manifest_entry(images_path, repository, c, context, bump):
-    host, repo_path = parse_repo(repository)
+    _host, repo_path = parse_repo(repository)
     if context.baseline.reset_to_baseline:
         changes_action, entry_updated = remove_image_manifest_entry(
-            images_path, bump.basename, repo_path, c["new_version"], c["new_digest"]
+            images_path, bump.name, repo_path, c["new_version"], c["new_digest"]
         )
         if changes_action:
             print("  removed 'changes:' list entry")
@@ -649,23 +599,13 @@ def _update_shared_image_manifest_entry(images_path, repository, c, context, bum
 
     changes_action, entry_updated = update_image_manifest(
         images_path,
-        ImageBump(bump.basename, repo_path, context.baseline.old_version, c["new_version"], c["new_digest"]),
+        ImageBump(bump.name, repo_path, context.baseline.old_version, c["new_version"], c["new_digest"]),
         context.ordering,
     )
     if changes_action:
         print(f"  {changes_action} 'changes:' list entry")
     if entry_updated:
         print(f"  updated entry for {repo_path}")
-        return
-    print(
-        f"  No existing entry for {repo_path} — add manually (see "
-        f"docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):"
-    )
-    print(f"    # {bump.basename} — {context.baseline.old_version} -> {c['new_version']}")
-    print("    - name: <ACR-mirror-name>")
-    print(f"      url: {host}/{repo_path}")
-    print(f'      version: "{c["new_version"]}"')
-    print(f'      digest: "{c["new_digest"]}"')
 
 
 def _update_shared_image_images_manifest(context, bump):
@@ -685,11 +625,12 @@ def _update_shared_image_images_manifest(context, bump):
 
 
 def update_docs_shared_image(new_version, target, bump, ordering):
-    """The 4.8.1-to-4.8.2-upgrade.md convention for a genuinely shared
-    image (more than one Chart.yaml component pins it): a table row keyed
-    by the basename itself (Helm chart column "-" — see
+    """The 4.8.1-to-4.8.2-upgrade.md convention for an image that is not
+    a dependency's own primary image (a shared global image, a sidecar,
+    or a native component's image): a table row keyed by bump.name
+    (Helm chart column "-" — see
     lib.upgradedoc.component_order_key's "unmatched sorts last" rule for
-    why it naturally lands after every real component), a "### <basename>
+    why it naturally lands after every real component), a "### <name>
     ..." Changes block listing every place it's pinned, a values-deltas
     bullet, and one images-manifest entry per distinct repository (rare
     for the SAME basename to span more than one, but not impossible)."""
@@ -703,13 +644,26 @@ def update_docs_shared_image(new_version, target, bump, ordering):
     _update_shared_image_images_manifest(context, bump)
 
 
+def _ordering_and_row_name(
+    deps: list[dict[str, Any]], values: dict[str, Any], values_key: str, group: dict[str, Any]
+) -> tuple[OrderingContext, str | None]:
+    """(OrderingContext, doc row name or None) for a bump of `group`'s
+    first image path under `values_key` (see doc_row_name)."""
+    all_paths = [p for p, _tag in find_all_image_and_version_paths(values, deps)] + [
+        p for p, _tag in global_image_paths(values)
+    ]
+    ordering = OrderingContext(deps, values, canonical_sidecar_row_names(CHART_DIR, deps, values, all_paths))
+    bumped_path = (values_key, *filter(None, group["paths"][0].split(".")))
+    return ordering, doc_row_name(CHART_DIR, deps, values, bumped_path, all_paths)
+
+
 def update_docs(basename, new_version, changes, values_lines_before_write):
     """Updates the current target's upgrade docs for this run's `changes`
     (all under one values.yaml key/scope — see the module docstring for
-    why). Dispatches to update_docs_single_component when the scope is a
-    real Chart.yaml dependency, or to update_docs_shared_image for the
-    MULTIPLE-key case (a base image shared via global.images with no
-    matching dependency named "global")."""
+    why). The doc row name comes from doc_row_name, the same name
+    fix-doc-consistency and check_docs_consistency resolve. Dispatches
+    to update_docs_single_component for a dependency's own primary
+    image, else to update_docs_shared_image (chart column "-")."""
     chart_yaml = load_yaml(CHART_YAML) or {}
     deps = chart_yaml.get("dependencies", [])
     target = str(chart_yaml.get("version"))
@@ -724,36 +678,30 @@ def update_docs(basename, new_version, changes, values_lines_before_write):
     groups, full_paths = group_changes_by_component(changes, values_lines_before_write)
     values_key, group = next(iter(groups.items()))
 
-    all_paths = [p for p, _tag in find_all_image_and_version_paths(values, deps)] + [
-        p for p, _tag in global_image_paths(values)
-    ]
-    canonical_names = canonical_sidecar_row_names(CHART_DIR, deps, values, all_paths)
+    ordering, row_name = _ordering_and_row_name(deps, values, values_key, group)
+    row_name = row_name or basename
 
     dep = find_dependency(deps, values_key)
-    if dep is not None:
-        update_docs_single_component(
-            new_version,
-            basename,
-            ComponentBump(dep, values_key, group),
-            OrderingContext(deps, values, canonical_names),
-            target,
-        )
+    if dep is not None and row_name == values_key:
+        update_docs_single_component(new_version, ComponentBump(dep, values_key, group), ordering, target)
         return
 
-    update_docs_shared_image(
-        new_version,
-        target,
-        SharedImageBump(basename, changes, full_paths),
-        OrderingContext(deps, values, canonical_names),
-    )
+    update_docs_shared_image(new_version, target, SharedImageBump(row_name, changes, full_paths), ordering)
+
+
+def run_fix_doc_consistency():
+    """Runs fix-doc-consistency on this chart's docs."""
+    print()
+    print("=== Completing the docs (fix-doc-consistency) ===")
+    run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT)])
 
 
 def main():
     """CLI entry point: resolves <key> <basename> to a single image pin
     scope, bumps every matching values.yaml tag pin to <new-version>
     (re-resolving digests against the registry), updates the matching
-    upgrade docs for the current target if they exist, and regenerates
-    README.md (fix-helm-doc) and images-baseline.yaml. A no-op (already
+    upgrade docs for the current target if they exist, and runs
+    fix-helm-doc and fix-doc-consistency. A no-op (already
     at that version everywhere) prints a message and returns without
     touching anything."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
@@ -789,7 +737,10 @@ def main():
     print("=== Regenerating README.md (fix-helm-doc) ===")
     run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
 
-    refresh_images_baseline(CHART_DIR, deps, load_yaml(VALUES_YAML) or {}, IMAGES_DIR / "images-baseline.yaml")
+    # fix-doc-consistency completes the docs update_docs wrote (missing
+    # images-manifest entries, order, images-baseline.yaml) the same way
+    # check_docs_consistency expects them.
+    run_fix_doc_consistency()
 
     print()
     print("Done. Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
