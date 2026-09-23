@@ -3,6 +3,8 @@ display_value, print_table, main — with DEFAULT_INPUT monkeypatched to a
 fixture CSV, so no dependency on a real charts/podiumd/etc/release-table.csv
 on disk."""
 
+from types import ModuleType
+
 import pytest
 
 CSV_TEXT = """\
@@ -82,6 +84,19 @@ def test_used_by_rows_for_finds_rows_by_name_substring(qrt, rows):
     tooling that row uses."""
     zac = [rows[0]]
     assert [r["name"] for r in qrt.used_by_rows_for(rows, zac)] == ["Solr"]
+
+
+def test_used_by_rows_for_matches_whole_words_only(qrt: ModuleType) -> None:
+    """used_by relates to a name at whole words (word_contains): "mi"
+    never pulls in a row for "Admin User", "keycloak-operator" does
+    match "Keycloak Operator"."""
+    admin = {"name": "Admin User", "used_by": "", "alias": ""}
+    operator = {"name": "Keycloak Operator", "used_by": "", "alias": ""}
+    mi = {"name": "MI image", "used_by": "mi", "alias": ""}
+    postgres = {"name": "Postgres", "used_by": "keycloak-operator", "alias": ""}
+    rows = [admin, operator, mi, postgres]
+    assert qrt.used_by_rows_for(rows, [admin]) == []
+    assert qrt.used_by_rows_for(rows, [operator]) == [postgres]
 
 
 def test_used_by_rows_for_no_match_returns_empty(qrt, rows):

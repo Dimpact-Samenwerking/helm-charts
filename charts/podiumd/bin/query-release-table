@@ -28,6 +28,13 @@ import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.upgradedoc.string_and_parsing_basics import word_contains
+
 CHART_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_INPUT = CHART_DIR / "etc" / "release-table.csv"
 
@@ -82,13 +89,14 @@ def used_by_rows_for(rows, matches):
     "alias" values, so that a Technische-section row comes back
     regardless of which column/text the original query actually matched
     on. Two ways a used_by value can relate to a match:
-    - plain substring of its "name" — e.g. "zac" is contained in "Zaak -
-      ZAC"
+    - whole words of its "name" (word_contains, the matching the doc
+      scripts use) — e.g. "zac" in "Zaak - ZAC", "keycloak-operator" in
+      "Keycloak Operator"
     - exact match of its "alias" column (set by
       export-confluence-release-table) — e.g. used_by "ita" equals
       "Interne Taak Afhandeling"'s own alias; "ita" itself is not a
       substring of that name at all."""
-    names = [m["name"].lower() for m in matches]
+    names = [m["name"] for m in matches]
     aliases = {m["alias"].lower() for m in matches if m["alias"]}
     match_ids = {id(m) for m in matches}
 
@@ -97,8 +105,7 @@ def used_by_rows_for(rows, matches):
         used_by = row["used_by"]
         if not used_by or id(row) in match_ids:
             continue
-        needle = used_by.lower()
-        if any(needle in name for name in names) or needle in aliases:
+        if any(word_contains(name, used_by) for name in names) or used_by.lower() in aliases:
             result.append(row)
     return result
 

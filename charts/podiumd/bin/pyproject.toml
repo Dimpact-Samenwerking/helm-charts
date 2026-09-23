@@ -131,6 +131,7 @@ check-typed-exception = true  # Enable additional checks for try-except-pass
 "fix-vendored-tgz" = ["E402"]
 "list-helmchart-images" = ["E402"]
 "list-podiumd-images" = ["E402"]
+"query-release-table" = ["E402"]
 "render-podiumd" = ["E402"]
 "show-component-baseline-version" = ["E402"]
 "show-image-baseline-version" = ["E402"]
