@@ -317,3 +317,51 @@ def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched
     assert unresolved == []
     assert changed == []
     assert new_text == text
+
+
+# --- fix_images_manifest_entry_pins ---
+
+
+def test_fix_images_manifest_entry_pins_follows_a_refreshed_digest(cdb):
+    """Regression test (real data, PR #461): fix-image-digests refreshed
+    postgres/solr/clamav pins in values.yaml, but the entries already in
+    images-4.9.2.yaml kept their old digests, so verify-podiumd's doc-
+    consistency check failed right after the fixer ran."""
+    text = (
+        "# ZAC — 5.0.2 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+    target_values = {"zac": {"image": {"tag": "5.1.0@sha256:bbbb"}}}
+    repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image")}
+    new_text, changed = cdb.fix_images_manifest_entry_pins(
+        text, cdb.ManifestEntriesContext(None, [], target_values, {}, repo_map)
+    )
+    assert changed == [("infonl/zaakafhandelcomponent", "5.1.0@sha256:aaaa", "5.1.0@sha256:bbbb")]
+    assert '  digest: "sha256:bbbb"\n' in new_text
+    assert '  version: "5.1.0"\n' in new_text
+    assert "# ZAC — 5.0.2 -> 5.1.0" in new_text
+
+
+def test_fix_images_manifest_entry_pins_leaves_matching_and_unresolvable_entries(cdb):
+    text = (
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n'
+        "\n"
+        "- name: some/unknown-image\n"
+        "  url: docker.io/some/unknown-image\n"
+        '  version: "1.0"\n'
+        '  digest: "sha256:cccc"\n'
+    )
+    target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image")}
+    assert cdb.fix_images_manifest_entry_pins(
+        text, cdb.ManifestEntriesContext(None, [], target_values, {}, repo_map)
+    ) == (
+        text,
+        [],
+    )

@@ -14,6 +14,7 @@ from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
@@ -215,6 +216,53 @@ def _process_manifest_entry(index, entry, context, setup, state):
     if new_comment_line != setup.lines[comment_idx]:
         setup.lines[comment_idx] = new_comment_line
         state.changed_entries.append((name, actual_baseline, actual_target))
+
+
+def _entry_field_line_index(lines, entry_line, field):
+    """Index of the "<field>:" line inside the entry block starting at
+    entry_line (up to the next entry or blank line), or None."""
+    for j in range(entry_line, len(lines)):
+        if j > entry_line and (re.match(r"^-\s*name:", lines[j]) or not lines[j].strip()):
+            return None
+        if re.match(rf"^\s*{field}:\s*\S", lines[j]):
+            return j
+    return None
+
+
+def fix_images_manifest_entry_pins(text, context):
+    """Rewrite each images-manifest entry's "version:"/"digest:" to the pin
+    values.yaml actually has at its matched values-tree path — the same
+    comparison verify-podiumd's doc-consistency check makes (resolved_
+    digest_pin, else the bare tag) — when they differ. Closes the gap
+    after fix-image-digests refreshes a pin already listed in images-
+    <target>.yaml: the entry kept its old digest and the check failed.
+    An entry whose path can't be resolved, whose pin has no digest, or
+    that lacks a version/digest line is left as-is (the check reports
+    those on its own). Returns (new_text, [(name, old_tag, new_tag), ...])."""
+    setup = _manifest_entries_setup(text, context)
+    if setup is None:
+        return text, []
+    changed = []
+    for entry, line_idx in zip(setup.entries, setup.entry_line_indices, strict=False):
+        path = resolve_entry_image_path(entry, setup.current_paths.keys(), context.repo_map)
+        if path is None:
+            continue
+        tag = setup.current_paths[path]
+        actual = resolved_digest_pin(context.target_values, path, tag, setup.sibling_fields) or tag
+        if not isinstance(actual, str) or "@" not in actual:
+            continue
+        old = f"{entry.get('version')}@{entry.get('digest')}"
+        if old == actual:
+            continue
+        version_idx = _entry_field_line_index(setup.lines, line_idx, "version")
+        digest_idx = _entry_field_line_index(setup.lines, line_idx, "digest")
+        if version_idx is None or digest_idx is None:
+            continue
+        new_version, new_digest = actual.split("@", 1)
+        setup.lines[version_idx] = replace_scalar_value(setup.lines[version_idx], new_version)
+        setup.lines[digest_idx] = replace_scalar_value(setup.lines[digest_idx], new_digest)
+        changed.append((entry["name"], old, actual))
+    return "".join(setup.lines), changed
 
 
 def fix_images_manifest_entries(text, context):

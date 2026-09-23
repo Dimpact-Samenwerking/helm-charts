@@ -84,6 +84,7 @@ from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_
 from lib.fix_doc_consistency.manifest_entries_core import (  # pylint: disable=unused-import
     ManifestEntriesContext,
     fix_images_manifest_entries,
+    fix_images_manifest_entry_pins,
     resolve_entry_version,  # noqa: F401
 )
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import (
@@ -588,6 +589,29 @@ def _correct_images_manifest_entries(images_path, state, repo_map):
             print(f"  {name}")
 
 
+def _correct_images_manifest_pins(images_path, state, repo_map):
+    """Corrects images-manifest entry version/digest pins to values.yaml's
+    (see fix_images_manifest_entry_pins)."""
+    text = images_path.read_text(encoding="utf-8")
+    new_text, changed_pins = fix_images_manifest_entry_pins(
+        text,
+        ManifestEntriesContext(
+            CHART_YAML.parent,
+            state.target_deps,
+            state.target_values,
+            state.baseline_values,
+            repo_map,
+            upgrade_docs_baseline=state.new_baseline,
+        ),
+    )
+    if changed_pins:
+        images_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Correcting entry version/digest pin(s) in {images_path.name} to values.yaml ===")
+        for name, old_tag, new_tag in changed_pins:
+            print(f"  {name}: {old_tag} -> {new_tag}")
+
+
 def _correct_images_manifest_urls(images_path, state, repo_map):
     """Corrects images-manifest entry url(s)."""
     text = images_path.read_text(encoding="utf-8")
@@ -742,6 +766,7 @@ def _fix_images_manifest_content(state, images_path):
     )
 
     _correct_images_manifest_entries(images_path, state, repo_map)
+    _correct_images_manifest_pins(images_path, state, repo_map)
     _correct_images_manifest_urls(images_path, state, repo_map)
     _correct_images_manifest_names(images_path)
     _add_missing_images_manifest_entries(images_path, state)
