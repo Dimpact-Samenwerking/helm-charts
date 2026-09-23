@@ -6,6 +6,7 @@ string/regex logic, no filesystem or values.yaml access."""
 import re
 
 from lib.chart.registered_paths import native_components
+from lib.chart.values_tree_primitives import values_key_of
 
 COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
 
@@ -291,9 +292,7 @@ def changes_heading_identities(heading, deps, canonical_names):
     words = words_of(heading)
     matches = []  # [(start, end, values_key), ...], end exclusive
     candidates_by_key = [
-        (cand, dep.get("alias", dep["name"]))
-        for dep in deps
-        for cand in filter(None, [dep.get("name"), dep.get("alias")])
+        (cand, values_key_of(dep)) for dep in deps for cand in filter(None, [dep.get("name"), dep.get("alias")])
     ]
     candidates_by_key += [(key, key) for key in native_components()]
     for candidate, key in candidates_by_key:

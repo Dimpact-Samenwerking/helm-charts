@@ -7,6 +7,10 @@ on-disk templates/ tree)."""
 
 import re
 
+from pathlib import Path
+
+import yaml
+
 UTF8_BOM = b"\xef\xbb\xbf"
 
 # component (name or alias) -> dotted values.yaml path(s) for its own image
@@ -69,6 +73,19 @@ def same_name(a: str, b: str) -> bool:
     return a.casefold() == b.casefold()
 
 
+def values_key_of(dep: dict) -> str:
+    """The values.yaml key of a Chart.yaml dependency: its alias, or its
+    name when it has no (or an empty) alias."""
+    return dep.get("alias") or dep["name"]
+
+
+def dep_for_values_key(deps: list[dict], values_key: str) -> dict | None:
+    """The Chart.yaml dependency whose values_key_of equals `values_key`,
+    or None when no dependency owns that key (e.g. an orphan top-level
+    values.yaml block with no separate chart, like frankgateway)."""
+    return next((dep for dep in deps if values_key_of(dep) == values_key), None)
+
+
 def find_dependency(deps, name_or_alias):
     """The Chart.yaml dependency entry matching this name or alias, or None
     if there isn't one — pure lookup, no I/O; callers load `deps` themselves
@@ -82,10 +99,21 @@ def find_dependency(deps, name_or_alias):
         dep for dep in deps if same_name(dep["name"], name_or_alias) or same_name(dep.get("alias") or "", name_or_alias)
     ]
     if len(matches) > 1:
-        names = ", ".join(dep.get("alias") or dep["name"] for dep in matches)
+        names = ", ".join(values_key_of(dep) for dep in matches)
         msg = f"error: '{name_or_alias}' matches more than one dependency ignoring case: {names}"
         raise SystemExit(msg)
     return matches[0] if matches else None
+
+
+def require_dependency(chart_yaml: Path, name_or_alias: str) -> dict:
+    """find_dependency on `chart_yaml`'s dependencies; exits with an
+    error naming `chart_yaml` when none matches."""
+    deps = yaml.safe_load(chart_yaml.read_text(encoding="utf-8"))["dependencies"]
+    dep = find_dependency(deps, name_or_alias)
+    if dep is None:
+        msg = f"error: no dependency named or aliased '{name_or_alias}' found in {chart_yaml}"
+        raise SystemExit(msg)
+    return dep
 
 
 def own_template_files_referencing(chart_dir, key):

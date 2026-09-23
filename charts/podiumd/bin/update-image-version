@@ -46,6 +46,7 @@ from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import doc_row_name
+from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_dependency
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
@@ -56,7 +57,6 @@ from lib.component_docs.baseline_doc_stubs import load_baseline_values
 from lib.component_docs.changes_section import ComponentIdentity
 from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
-from lib.component_docs.changes_section import dep_for_values_key
 from lib.component_docs.changes_section import insert_changes_section
 from lib.component_docs.changes_section import make_changes_section
 from lib.component_docs.changes_section import remove_changes_section

@@ -6,6 +6,7 @@ order machinery all three sorts are built on."""
 import re
 
 from lib.chart.registered_paths import native_components
+from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
 from lib.upgradedoc.string_and_parsing_basics import match_dependency
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
@@ -146,7 +147,7 @@ def component_order_key(name, deps, key_order, canonical_names=None, values=None
     (values_key_index, is_sidecar) behavior unchanged — a caller with no
     values.yaml dict handy is never worse off than before."""
     dep = match_dependency(name, deps)
-    values_key = dep.get("alias", dep["name"]) if dep else None
+    values_key = values_key_of(dep) if dep else None
     is_sidecar = 1 if " - " in name else 0
     sidecar_path = None
     if values_key is None:

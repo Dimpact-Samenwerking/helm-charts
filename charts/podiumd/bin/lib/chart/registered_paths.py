@@ -6,6 +6,7 @@ component's own PRIMARY image path (as opposed to a sidecar)."""
 
 from pathlib import Path
 
+from lib.chart.values_tree_primitives import values_key_of
 from lib.settings import component_resolution_chart_version_lockstep_components
 from lib.settings import component_resolution_default_image_paths
 from lib.settings import component_resolution_image_paths
@@ -82,7 +83,7 @@ def version_paths_for(component, chart_dir=None):
 # yaml's dependencies (lib.upgradedoc.compute_changed_components,
 # component_order_key) must also consult this registry, or such a
 # component's own image-tag changes silently never register as "changed"
-# at all (see lib.component_docs.dep_for_values_key's own docstring, which
+# at all (see lib.chart.values_tree_primitives.dep_for_values_key's own docstring, which
 # already anticipated exactly this gap). Now lives in charts/podiumd/etc/
 # settings.yaml's own "component_resolution.native_components" (see
 # lib.settings.component_resolution_native_components and that file's own
@@ -189,7 +190,7 @@ def is_primary_image_path(path, deps, chart_dir=None):
     frankgateway's own primary image; don't merge the two."""
     if not path:
         return False
-    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    by_values_key = {values_key_of(dep): dep for dep in deps}
     dep = by_values_key.get(path[0])
     if dep is None:
         return True

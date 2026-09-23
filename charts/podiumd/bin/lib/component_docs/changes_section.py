@@ -30,6 +30,8 @@ from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import native_components
 from lib.chart.registered_paths import version_paths_for
+from lib.chart.values_tree_primitives import dep_for_values_key
+from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
@@ -554,17 +556,6 @@ def remove_changes_section(text: str, friendly: str, ordering: OrderingContext) 
     return "".join(lines), True
 
 
-def dep_for_values_key(deps, values_key):
-    """The Chart.yaml dependency whose own alias-or-name equals
-    values_key — the reverse of "dep.get('alias', dep['name'])" — or
-    None if no dependency owns that key (e.g. an orphan top-level
-    values.yaml block with no separate chart, like frankgateway)."""
-    for dep in deps:
-        if dep.get("alias", dep["name"]) == values_key:
-            return dep
-    return None
-
-
 def resolve_component_own_version_change(key, target_state, baseline_state, chart_dir, upgrade_docs_baseline=None):
     """(dep, chart_name, old_chart, new_chart, old_app, new_app, unchanged)
     for `key` (a member of lib.upgradedoc.compute_changed_components'
@@ -667,7 +658,7 @@ def _matched_component_keys(text, target_deps, chart_dir):
         # row if IT independently changed with no row of its own yet.
         dep = match_dependency_excluding_sidecar_names(row["name"], target_deps)
         if dep:
-            matched_keys.add(dep.get("alias", dep["name"]))
+            matched_keys.add(values_key_of(dep))
             continue
         native_key = match_native_component(row["name"], native_components(chart_dir))
         if native_key:

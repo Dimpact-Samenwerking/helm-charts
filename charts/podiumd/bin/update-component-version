@@ -52,10 +52,12 @@ from lib.chart.values_tag_sha_lines import find_child_key_line
 from lib.chart.values_tag_sha_lines import locate_dotted_key_line
 from lib.chart.values_tag_sha_lines import locate_tag_and_sha
 from lib.chart.values_tag_sha_lines import write_tag_and_sha
-from lib.chart.values_tree_primitives import find_dependency as _find_dependency
+from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.chart.values_tree_primitives import require_dependency
 from lib.chart.values_tree_primitives import same_name
+from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs.baseline_doc_stubs import baseline_doc_paths as _baseline_doc_paths
 from lib.component_docs.baseline_doc_stubs import images_manifest_path as _images_manifest_path
@@ -102,11 +104,7 @@ def find_dependency(name_or_alias):
     """Chart.yaml dependency matching name_or_alias (name or alias — see
     lib.chart.values_tree_primitives.find_dependency); exits instead of
     returning None."""
-    deps = yaml.safe_load(CHART_YAML.read_text())["dependencies"]
-    dep = _find_dependency(deps, name_or_alias)
-    if dep is None:
-        raise SystemExit(f"error: no dependency named or aliased '{name_or_alias}' found in {CHART_YAML}")
-    return dep
+    return require_dependency(CHART_YAML, name_or_alias)
 
 
 def _check_and_print_image_versions(values_for_check, image_paths, app_version):
@@ -247,7 +245,7 @@ class ComponentResolution:
     """no_chart/dep/chart_name/values_key, grouped for BumpContext."""
 
     no_chart: bool
-    dep: dict
+    dep: dict | None
     chart_name: str
     values_key: str
 
@@ -391,7 +389,7 @@ def _resolve_bump_context(component, app_version, chart_version):
     else:
         dep = find_dependency(component)
         chart_name = dep["name"]
-        values_key = dep.get("alias", dep["name"])
+        values_key = values_key_of(dep)
     # Keyed by the dependency's Chart.yaml "name", never its alias.
     image_paths = image_paths_for(chart_name, CHART_DIR)
     return BumpContext(
@@ -565,7 +563,7 @@ def _resolve_against_baseline(ctx, baseline_deps, baseline_values, friendly):
     changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
     reset_to_baseline = friendly not in changed_keys
 
-    baseline_dep = None if ctx.no_chart else _find_dependency(baseline_deps, ctx.chart_name)
+    baseline_dep = None if ctx.no_chart else dep_for_values_key(baseline_deps, ctx.values_key)
     old_app, old_chart = resolve_baseline_component_versions(
         BaselineComponentQuery(
             baseline_values,

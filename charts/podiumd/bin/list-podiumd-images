@@ -49,6 +49,7 @@ from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.values_tree_primitives import find_images
 from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 from lib.dependencies import ensure_vendored_dependencies
 from lib.image.version import MULTIPLE_KEY
@@ -406,7 +407,7 @@ def _print_dependency_header(dep, ctx):
     """Prints the "=== <key> (<name> <version>) [disabled] ===" header
     line and returns `key` (dep's own values-key: alias if it declares
     one, else its real name)."""
-    key = dep.get("alias", dep["name"])
+    key = values_key_of(dep)
     dep_chart_tree_path = f"{CHART_NAME}/charts/{key}"
     enabled = dep_chart_tree_path in ctx.rendered_paths
     status = "" if enabled else "  [disabled]"
@@ -477,7 +478,7 @@ def main():
 
     deps = load_yaml(CHART_YAML)["dependencies"]
     root_values = load_yaml(VALUES_YAML) or {}
-    dep_keys = {dep.get("alias", dep["name"]) for dep in deps}
+    dep_keys = {values_key_of(dep) for dep in deps}
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
     ctx = ChartContext(deps=deps, root_values=root_values, rendered_paths=_compute_rendered_paths())
 

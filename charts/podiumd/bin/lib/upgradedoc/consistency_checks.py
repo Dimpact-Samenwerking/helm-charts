@@ -5,6 +5,7 @@ corresponds to no real row, or text claiming a dependency that
 doesn't exist, rather than ever guessing a match."""
 
 from lib.chart.registered_paths import native_components
+from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
@@ -34,7 +35,7 @@ def resolve_component_identity(text, deps, canonical_names):
         return ("sidecar", sidecar_path)
     dep = match_dependency_excluding_sidecar_names(text, deps)
     if dep is not None:
-        return ("dep", dep.get("alias", dep["name"]))
+        return ("dep", values_key_of(dep))
     native_key = match_native_component(text, native_components())
     if native_key is not None:
         return ("dep", native_key)
@@ -148,7 +149,7 @@ def find_wrong_or_duplicate_dependency_claims(names, deps):
             continue
         dep = match_dependency_excluding_sidecar_names(name, deps)
         if dep is not None and is_exact_dependency_match(name, dep):
-            exact_claims[dep.get("alias", dep["name"])] = name
+            exact_claims[values_key_of(dep)] = name
 
     wrong_fuzzy_names = set()
     for name in names:
@@ -157,7 +158,7 @@ def find_wrong_or_duplicate_dependency_claims(names, deps):
         dep = match_dependency_excluding_sidecar_names(name, deps)
         if dep is None:
             continue
-        key = dep.get("alias", dep["name"])
+        key = values_key_of(dep)
         if key in exact_claims:
             wrong_fuzzy_names.add(name)
 

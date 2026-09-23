@@ -26,6 +26,7 @@ from lib.chart.values_tree_primitives import find_app_versions
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import strip_registry_host
+from lib.chart.values_tree_primitives import values_key_of
 from lib.registry import parse_repo
 from lib.release_baseline import resolve_baseline_chart_state
 
@@ -75,7 +76,7 @@ def component_state_at_baseline(chart_dir, chart_dir_relpath, baseline, componen
             None,
             (f"no dependency named or aliased '{component}' in {chart_dir_relpath}/Chart.yaml at {baseline_ref}"),
         )
-    values_key = dep.get("alias", dep["name"])
+    values_key = values_key_of(dep)
     image_paths = image_paths_for(component, chart_dir)
     app_versions = find_app_versions(baseline_values, values_key, image_paths)
     return baseline_ref, dep, values_key, image_paths, app_versions, None
@@ -122,7 +123,7 @@ def repo_group_representative(repo_paths, deps):
     values.yaml's own top-level traversal (keycloak, since it sorts
     after keycloak-operator there) — the tier split here is what
     actually prefers real ownership over "no parent at all"."""
-    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    by_values_key = {values_key_of(dep): dep for dep in deps}
 
     def rank(path):
         if path[0] == "global":
@@ -204,7 +205,7 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
     repositories' own default) — a doc-consistency check has no
     business making a network pull; whatever's already vendored is what
     it works with."""
-    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    by_values_key = {values_key_of(dep): dep for dep in deps}
     state = _RepoResolutionState(chart_dir, allow_pull, {}, {})
     groups = {}
     for path in paths:
@@ -367,7 +368,7 @@ def full_repository_for_path(chart_dir, deps, values, path, allow_pull=False):
     if own_repo is not None:
         return own_repo
 
-    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    by_values_key = {values_key_of(dep): dep for dep in deps}
     dep = by_values_key.get(path[0]) if path else None
     if dep is None:
         return None
@@ -538,7 +539,7 @@ def doc_row_name(
 def _owner_name(deps: list[dict[str, Any]], natives: frozenset[str], path: tuple[str, ...]) -> str | None:
     """The Chart.yaml dependency name or native component (`natives`)
     that owns values-tree `path` (by its top-level key), or None."""
-    dep = next((dep for dep in deps if (dep.get("alias") or dep["name"]) == path[0]), None)
+    dep = next((dep for dep in deps if values_key_of(dep) == path[0]), None)
     if dep is not None:
         return dep["name"]
     # A native_components component (e.g. frankgateway) owns its own

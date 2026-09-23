@@ -14,7 +14,9 @@ from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import native_components
 from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.changes_section import ComponentState
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
@@ -122,7 +124,7 @@ def _target_result(chart_dir, values, match):
         result["target_chart"] = None
         result["target_app"] = sidecar_tag(values, match.sidecar_path)
     elif match.dep is not None:
-        values_key = match.dep.get("alias", match.dep["name"])
+        values_key = values_key_of(match.dep)
         result["kind"] = "dependency"
         result["values_key"] = values_key
         result["top_level_key"] = values_key
@@ -177,12 +179,12 @@ def _sidecar_baseline_app(resolution, sidecar_path):
     return baseline_app
 
 
-def _dependency_baseline_result(resolution, row_name, values_key, dep):
+def _dependency_baseline_result(resolution, values_key, dep):
     """A real dependency's own baseline_resolved/baseline_chart/
     baseline_app trio — whether the Chart.yaml dependency line itself
     existed at the baseline ref at all (baseline_resolved), and its
     resolved app version if so."""
-    baseline_dep = match_dependency_excluding_sidecar_names(row_name, resolution.baseline.deps)
+    baseline_dep = dep_for_values_key(resolution.baseline.deps, values_key)
     if baseline_dep is None:
         return False, None, None
     baseline_chart = str(baseline_dep["version"])
@@ -225,7 +227,7 @@ def _native_baseline_app(resolution, native_key):
     return baseline_app
 
 
-def _add_baseline_result(resolution, row_name, match, result):
+def _add_baseline_result(resolution, match, result):
     """Mutates result in place with baseline_resolved/baseline_chart/
     baseline_app, dispatching to the matching kind's own baseline
     lookup. Only called once resolution.baseline.deps is not None (see
@@ -236,7 +238,7 @@ def _add_baseline_result(resolution, row_name, match, result):
         result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
     elif match.dep is not None:
         resolved, baseline_chart, baseline_app = _dependency_baseline_result(
-            resolution, row_name, result["values_key"], match.dep
+            resolution, result["values_key"], match.dep
         )
         result["baseline_resolved"] = resolved
         result["baseline_chart"] = baseline_chart
@@ -335,6 +337,6 @@ def resolve_component_row(row_name, canonical_names, resolution):
             ComponentState(resolution.baseline.deps, resolution.baseline.values or {}),
             resolution.upgrade_docs_baseline,
         )
-        _add_baseline_result(resolution, row_name, match, result)
+        _add_baseline_result(resolution, match, result)
 
     return result

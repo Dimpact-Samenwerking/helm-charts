@@ -34,6 +34,7 @@ from lib.chart.nested_subchart_identity import version_repository_path_for
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 
 
@@ -115,7 +116,7 @@ def find_images_without_repository(chart_dir, allow_pull=False):
     chart_yaml = load_yaml(chart_dir / "Chart.yaml")
     deps = chart_yaml.get("dependencies", [])
     values = load_yaml(chart_dir / "values.yaml") or {}
-    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    by_values_key = {values_key_of(dep): dep for dep in deps}
     ctx = _RepositoryResolutionContext(chart_dir, allow_pull)
 
     missing = []
