@@ -34,6 +34,7 @@ call the matching accessor here instead of its own local constant, and
 only then can that constant be deleted from the consumer."""
 
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -52,7 +53,7 @@ def _load_settings(chart_dir: Path):
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
-def _get(chart_dir: Path, section: str, key: str, default):
+def _get(chart_dir: Path, section: str, key: str, default: Any):
     """One `settings[section][key]`, or `default` if settings.yaml, the
     section, or the key itself is missing. Shared by every accessor
     below so each one stays a one-liner; the default is always supplied

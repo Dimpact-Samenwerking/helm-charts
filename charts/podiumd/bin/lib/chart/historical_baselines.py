@@ -10,6 +10,7 @@ import re
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 import yaml
 
@@ -144,6 +145,14 @@ def historical_app_version_for_path(
     return historical_app_version_for_repository(chart_dir, repo, at_or_before, expected_url=expected_url)
 
 
+class BaselineSetup(Protocol):
+    """What baseline_lookup reads from a caller's own baseline bundle
+    (fix_doc_consistency's _BaselineSetup and BaselineResolution)."""
+
+    baseline_paths: dict
+    baseline_repo_groups: dict
+
+
 @dataclass
 class BaselineLookup:
     """Everything baseline_tag_for_sidecar_path needs that stays fixed
@@ -162,7 +171,7 @@ class BaselineLookup:
 
 
 def baseline_lookup(
-    chart_dir: Path | None, deps: list, target_values: dict, baseline_values: dict | None, baseline_setup
+    chart_dir: Path | None, deps: list, target_values: dict, baseline_values: dict | None, baseline_setup: BaselineSetup
 ):
     """A BaselineLookup built from chart_dir/deps/target_values/
     baseline_values plus a caller's own baseline_paths/baseline_repo_groups

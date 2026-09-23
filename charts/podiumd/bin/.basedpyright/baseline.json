@@ -34,94 +34,6 @@
                     "endColumn": 39,
                     "lineCount": 1
                 }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 91,
-                    "endColumn": 105,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./lib/chart/nested_subchart_identity.py": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 96,
-                    "endColumn": 103,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 100,
-                    "endColumn": 107,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./lib/chart/pull_and_subchart_resolution.py": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 53,
-                    "endColumn": 60,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 54,
-                    "endColumn": 61,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 64,
-                    "endColumn": 71,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./lib/chart/repo_and_path_resolution.py": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 74,
-                    "endColumn": 79,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 82,
-                    "endColumn": 87,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 75,
-                    "endColumn": 80,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./lib/chart/values_tree_primitives.py": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 16,
-                    "endColumn": 20,
-                    "lineCount": 1
-                }
             }
         ],
         "./lib/checks/cve.py": [
@@ -135,14 +47,6 @@
             }
         ],
         "./lib/checks/dead_values.py": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 19,
-                    "endColumn": 23,
-                    "lineCount": 1
-                }
-            },
             {
                 "code": "reportUnknownLambdaType",
                 "range": {
@@ -494,56 +398,6 @@
                 }
             }
         ],
-        "./lib/dependencies.py": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 67,
-                    "endColumn": 70,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 74,
-                    "endColumn": 84,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 84,
-                    "endColumn": 87,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 49,
-                    "endColumn": 52,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 48,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 50,
-                    "endColumn": 53,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./lib/fix_doc_consistency/manifest_changes_items.py": [
             {
                 "code": "reportUnknownLambdaType",
@@ -578,50 +432,6 @@
                 "range": {
                     "startColumn": 32,
                     "endColumn": 36,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./lib/procutil.py": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 26,
-                    "endColumn": 32,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 57,
-                    "endColumn": 63,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./lib/registry.py": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 15,
-                    "endColumn": 19,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 16,
-                    "endColumn": 20,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 13,
-                    "endColumn": 23,
                     "lineCount": 1
                 }
             }
@@ -722,84 +532,6 @@
                     "endColumn": 45,
                     "lineCount": 1
                 }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 30,
-                    "endColumn": 37,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 25,
-                    "endColumn": 32,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./lib/settings.py": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 50,
-                    "endColumn": 57,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./lib/upgradedoc/app_version_and_image_paths.py": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 25,
-                    "endColumn": 29,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 40,
-                    "endColumn": 45,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 42,
-                    "endColumn": 47,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./lib/upgradedoc/grouped_comments_and_changes_block.py": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 14,
-                    "endColumn": 27,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 29,
-                    "endColumn": 41,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 22,
-                    "endColumn": 26,
-                    "lineCount": 1
-                }
             }
         ],
         "./list-helmchart-images": [
@@ -816,44 +548,6 @@
                 "range": {
                     "startColumn": 31,
                     "endColumn": 35,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./list-podiumd-images": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 46,
-                    "endColumn": 54,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./render-podiumd": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 16,
-                    "endColumn": 17,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 21,
-                    "endColumn": 23,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./verify-podiumd": [
-            {
-                "code": "reportMissingParameterType",
-                "range": {
-                    "startColumn": 58,
-                    "endColumn": 63,
                     "lineCount": 1
                 }
             }

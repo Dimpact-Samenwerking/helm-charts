@@ -104,7 +104,7 @@ def find_grouped_preceding_comment_line(
     return find_grouped_preceding_comment_line(lines, entries, entry_line_indices, index - 1, same_group)
 
 
-def diff_keys(baseline_node, current_node, path: tuple = ()):
+def diff_keys(baseline_node: object, current_node: object, path: tuple = ()):
     """Yield ("added"|"removed", path) for the SHALLOWEST differing keys
     between two values subtrees — if a whole block is new or gone, report it
     once at that level rather than recursing into every leaf underneath it.
@@ -124,7 +124,7 @@ def diff_keys(baseline_node, current_node, path: tuple = ()):
         yield from diff_keys(baseline_node[key], current_node[key], (*path, key))
 
 
-def flatten_leaf_keys(node):
+def flatten_leaf_keys(node: object):
     """All leaf key names anywhere under a subtree, used to measure how
     similar two blocks are (for rename detection) — not full paths, just the
     set of innermost key names, so "host"/"user"/"password" overlapping

@@ -3,6 +3,7 @@ Chart.yaml dependency version, or vendored-subchart fallback) and
 walking a values tree for every image-tag/version path a
 dependency or native component actually pins."""
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -170,7 +171,7 @@ def resolve_baseline_component_versions(query: BaselineComponentQuery):
     return old_app, old_chart
 
 
-def find_image_tag_paths(node, path: tuple = (), *, include_null_tags: bool = False):
+def find_image_tag_paths(node: object, path: tuple = (), *, include_null_tags: bool = False):
     """Yield (path, tag) for every "<key>: {tag: ...}" block anywhere in a
     values tree, where <key> is "image" or ends with "Image" (e.g.
     "initImage", alongside "image" in the very same job, for a component
@@ -272,7 +273,7 @@ def find_all_image_and_version_paths(values: dict, deps: list):
     return list(find_image_tag_paths(values)) + list(find_component_version_tags(values, deps))
 
 
-def resolve_entry_path(entry_name: str, paths):
+def resolve_entry_path(entry_name: str, paths: Collection):
     """Match an images-manifest entry name (e.g. "zgw-office-addin-frontend")
     to a values-tree path (e.g. ("zgw-office-addin", "frontend")) by comparing
     word-split, concatenated path segments — no hardcoded name list.
@@ -313,7 +314,7 @@ def resolve_entry_path(entry_name: str, paths):
     return best_path
 
 
-def resolve_entry_image_path(entry: dict, paths, repo_map: dict | None = None):
+def resolve_entry_image_path(entry: dict, paths: Collection, repo_map: dict | None = None):
     """Match an images-manifest entry (the full {"name", "url", ...}
     mapping) to a values-tree path — an exact repo_map lookup first
     (see lib.chart.repository_path_map: under the current strip-

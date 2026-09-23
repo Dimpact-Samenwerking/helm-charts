@@ -235,7 +235,7 @@ def strip_registry_host(url: str):
     return url
 
 
-def find_images(node, path: str = ""):
+def find_images(node: object, path: str = ""):
     """Recursively walk a parsed values.yaml tree, yielding (path, repository,
     tag) for every dict that has both a "repository" and a "tag" key."""
     images = []
