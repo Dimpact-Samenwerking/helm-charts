@@ -114,9 +114,9 @@ def component_order_key(name, deps, key_order, canonical_names=None, values=None
     used to always fall to the "unmatched sorts last" sentinel — even
     though "global:" is values.yaml's own FIRST top-level key. Matched
     via match_canonical_sidecar_name (exact bare-name hit for a table
-    row, fuzzy word-span containment for a "### ..." Changes heading
-    whose name is followed by version/arrow text) rather than a raw
-    dict lookup, so both doc shapes resolve the same way. Omit (or pass
+    row, text_names for a "### ..." Changes heading whose name is
+    followed by version/arrow text) rather than a raw dict lookup, so
+    both doc shapes resolve the same way. Omit (or pass
     None) wherever a canonical_names lookup isn't available/relevant —
     behaves exactly as before, real dependency names and their own "<dep>
     - <basename>" sidecars are entirely unaffected either way.
