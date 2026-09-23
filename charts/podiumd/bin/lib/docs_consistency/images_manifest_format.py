@@ -724,7 +724,7 @@ def _list_diff_issues(name, inputs, context):
     return issues
 
 
-def _entry_name_issues(name, entries):
+def _entry_name_issues(name: str, entries: list[dict]) -> list[str]:
     """One issue per entry whose "name:" isn't strip_registry_host of its
     own "url:" — the ACR mirror naming convention (docs/images/acr-mirror-
     naming.md), which the import pipeline mirrors each image under. Entries

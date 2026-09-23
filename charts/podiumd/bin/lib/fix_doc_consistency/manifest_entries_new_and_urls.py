@@ -164,7 +164,7 @@ def _entry_url_status(entry, line_idx, lines, current_paths, context):
     return "changed", (name, current_url, full_repo)
 
 
-def fix_images_manifest_entry_names(text):
+def fix_images_manifest_entry_names(text: str) -> tuple[str, list[tuple[str, str]]]:
     """Rewrite each images-manifest entry's "name:" to strip_registry_host
     of its own "url:" when it differs — the ACR mirror naming convention
     (docs/images/acr-mirror-naming.md): the import pipeline mirrors each

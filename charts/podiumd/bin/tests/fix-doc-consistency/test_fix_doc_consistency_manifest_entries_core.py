@@ -1,5 +1,6 @@
 """resolve_entry_version, fix_images_manifest_entries — pure logic, no git repo needed."""
 
+from types import ModuleType
 
 # --- resolve_entry_version ---
 # replace_version_pair itself (no longer imported into this module — see
@@ -322,7 +323,7 @@ def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched
 # --- fix_images_manifest_entry_pins ---
 
 
-def test_fix_images_manifest_entry_pins_follows_a_refreshed_digest(cdb):
+def test_fix_images_manifest_entry_pins_follows_a_refreshed_digest(cdb: ModuleType) -> None:
     """Regression test (real data, PR #461): fix-image-digests refreshed
     postgres/solr/clamav pins in values.yaml, but the entries already in
     images-4.9.2.yaml kept their old digests, so verify-podiumd's doc-
@@ -345,7 +346,7 @@ def test_fix_images_manifest_entry_pins_follows_a_refreshed_digest(cdb):
     assert "# ZAC — 5.0.2 -> 5.1.0" in new_text
 
 
-def test_fix_images_manifest_entry_pins_leaves_matching_and_unresolvable_entries(cdb):
+def test_fix_images_manifest_entry_pins_leaves_matching_and_unresolvable_entries(cdb: ModuleType) -> None:
     text = (
         "- name: infonl/zaakafhandelcomponent\n"
         "  url: ghcr.io/infonl/zaakafhandelcomponent\n"

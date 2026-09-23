@@ -338,7 +338,7 @@ def resolve_entry_image_path(entry, paths, repo_map=None):
     return path
 
 
-def _repo_map_path(entry, repo_map):
+def _repo_map_path(entry: dict, repo_map: dict):
     """repo_map's path for `entry` (see resolve_entry_image_path), or None."""
     name = entry["name"]
     if name in repo_map:

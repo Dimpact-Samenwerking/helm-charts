@@ -12,6 +12,8 @@ that suite."""
 import io
 import tarfile
 
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -583,17 +585,17 @@ def test_compare_blank_target_helm_but_source_now_stale_is_reported(vrt):
 OPENFORMS_DEPS = [{"name": "openforms", "alias": "openformulieren", "version": "1.12.0"}]
 
 
-def _openforms_state(vrt, tag):
+def _openforms_state(vrt: ModuleType, tag: str) -> object:
     values = {"openformulieren": {"image": {"tag": f"{tag}@sha256:{'a' * 64}"}}}
     block = f'openformulieren:\n  image:\n    tag: "{tag}@sha256:{"a" * 64}"\n'
     return vrt.ChartState(None, OPENFORMS_DEPS, values, values_lines(block))
 
 
-def _openforms_row(**versions):
+def _openforms_row(**versions: str) -> dict:
     return csv_row("Formulier (Open Formulieren)", "openforms", alias="openformulieren", **versions)
 
 
-def test_compare_checks_primary_row_without_image_basename(vrt):
+def test_compare_checks_primary_row_without_image_basename(vrt: ModuleType) -> None:
     """Regression test (real data, PR #461): open-forms moved to 3.5.8 in
     values.yaml while its release-table row, whose image_basename is
     blank, still said 3.5.6 — the per-basename pass never looked at it,
@@ -602,17 +604,17 @@ def test_compare_checks_primary_row_without_image_basename(vrt):
     assert any("release-table target 3.5.6 != values.yaml 3.5.8" in m for m in findings["mismatches"])
 
 
-def test_compare_primary_row_without_image_basename_matching_is_clean(vrt):
+def test_compare_primary_row_without_image_basename_matching_is_clean(vrt: ModuleType) -> None:
     findings, _ = vrt.compare([_openforms_row(source_app="3.4.10", target_app="3.5.8")], _openforms_state(vrt, "3.5.8"))
     assert "mismatches" not in findings
 
 
-def test_compare_primary_row_without_image_basename_ignores_v_prefix(vrt):
+def test_compare_primary_row_without_image_basename_ignores_v_prefix(vrt: ModuleType) -> None:
     findings, _ = vrt.compare([_openforms_row(target_app="3.5.8")], _openforms_state(vrt, "v3.5.8"))
     assert "mismatches" not in findings
 
 
-def test_compare_two_rows_without_image_basename_are_not_guessed_between(vrt):
+def test_compare_two_rows_without_image_basename_are_not_guessed_between(vrt: ModuleType) -> None:
     """With two blank rows there is no telling which one is primary."""
     rows = [_openforms_row(target_app="1.0.0"), _openforms_row(target_app="2.0.0")]
     findings, _ = vrt.compare(rows, _openforms_state(vrt, "3.5.8"))

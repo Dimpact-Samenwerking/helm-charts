@@ -1,6 +1,7 @@
 """lib.upgradedoc -- actual app-version lookup and image/version
 tag path discovery across values trees."""
 
+from types import ModuleType
 
 # --- actual_app_version ---
 
@@ -419,7 +420,9 @@ def test_resolve_entry_image_path_ignores_repo_map_hit_not_in_paths(libupgradedo
     assert libupgradedocappversion.resolve_entry_image_path(entry, paths, repo_map) is None
 
 
-def test_resolve_entry_image_path_canonical_name_matches_short_repo_map_key(libupgradedocappversion):
+def test_resolve_entry_image_path_canonical_name_matches_short_repo_map_key(
+    libupgradedocappversion: ModuleType,
+) -> None:
     """repo_map keys come from values.yaml's repository as written, which
     can omit Docker Hub's "library/" ("repository: python") or keep the
     namespace in a separate "registry:" field ("zaakbrug") — a manifest
@@ -432,7 +435,7 @@ def test_resolve_entry_image_path_canonical_name_matches_short_repo_map_key(libu
     assert libupgradedocappversion.resolve_entry_image_path(zaakbrug, paths, repo_map) == paths[1]
 
 
-def test_resolve_entry_image_path_uses_url_when_name_is_legacy(libupgradedocappversion):
+def test_resolve_entry_image_path_uses_url_when_name_is_legacy(libupgradedocappversion: ModuleType) -> None:
     """A legacy-named entry still resolves through its own url."""
     paths = [("openformulieren", "image")]
     repo_map = {"openformulieren/open-forms": paths[0]}
@@ -440,7 +443,7 @@ def test_resolve_entry_image_path_uses_url_when_name_is_legacy(libupgradedocappv
     assert libupgradedocappversion.resolve_entry_image_path(entry, paths, repo_map) == paths[0]
 
 
-def test_resolve_entry_image_path_ambiguous_suffix_is_not_trusted(libupgradedocappversion):
+def test_resolve_entry_image_path_ambiguous_suffix_is_not_trusted(libupgradedocappversion: ModuleType) -> None:
     """Two repo_map keys that are both a path-segment suffix of the name
     are not guessed between; the fuzzy fallback decides instead."""
     paths = [("a", "image"), ("b", "image")]
@@ -449,7 +452,7 @@ def test_resolve_entry_image_path_ambiguous_suffix_is_not_trusted(libupgradedoca
     assert libupgradedocappversion._repo_map_path(entry, repo_map) is None
 
 
-def test_resolve_entry_image_path_fuzzy_fallback_tries_last_segment(libupgradedocappversion):
+def test_resolve_entry_image_path_fuzzy_fallback_tries_last_segment(libupgradedocappversion: ModuleType) -> None:
     """Without a repo_map, a namespaced name still fuzzy-matches on its
     own last path segment ("opa" for "openpolicyagent/opa")."""
     paths = [("zac", "opa", "image")]

@@ -3,10 +3,14 @@ failing on any finding (or a missing pymarkdown install). No real
 pymarkdown binary is invoked in most of these tests — `run` is mocked
 throughout except where find_pymarkdown itself is under test."""
 
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
+import pytest
 
-def pymarkdown_result(stdout, returncode=4, stderr=""):
+
+def pymarkdown_result(stdout: str, returncode: int = 4, stderr: str = "") -> SimpleNamespace:
     """Default returncode 4: --return-code-scheme explicit's own "findings reported" code."""
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
@@ -203,12 +207,19 @@ def test_no_findings_passes(libmarkdowncheck, vp, tmp_path, monkeypatch, capsys)
     assert "OK: no markdown findings" in capsys.readouterr().out
 
 
-def test_a_pymarkdown_crash_is_reported_as_a_failure_not_a_clean_pass(libmarkdowncheck, vp, tmp_path, monkeypatch):
+def test_a_pymarkdown_crash_is_reported_as_a_failure_not_a_clean_pass(
+    libmarkdowncheck: ModuleType, vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     chart_dir = make_chart_dir(tmp_path, files={"docs/foo.md": "# a\n"})
-    monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
-    monkeypatch.setattr(
-        libmarkdowncheck, "run", lambda cmd, **kw: pymarkdown_result("", returncode=1, stderr="not a valid path")
-    )
+
+    def fake_find_pymarkdown(chart_dir: Path) -> str:
+        return "/usr/local/bin/pymarkdown"
+
+    def fake_run(cmd: list[str], **kw: object) -> SimpleNamespace:
+        return pymarkdown_result("", returncode=1, stderr="not a valid path")
+
+    monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", fake_find_pymarkdown)
+    monkeypatch.setattr(libmarkdowncheck, "run", fake_run)
 
     ok, detail = vp.check_markdown(chart_dir)
     assert ok is False

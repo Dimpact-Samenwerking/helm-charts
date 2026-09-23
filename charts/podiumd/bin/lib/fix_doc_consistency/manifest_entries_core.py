@@ -218,7 +218,7 @@ def _process_manifest_entry(index, entry, context, setup, state):
         state.changed_entries.append((name, actual_baseline, actual_target))
 
 
-def _entry_field_line_index(lines, entry_line, field):
+def _entry_field_line_index(lines: list[str], entry_line: int, field: str) -> int | None:
     """Index of the "<field>:" line inside the entry block starting at
     entry_line (up to the next entry or blank line), or None."""
     for j in range(entry_line, len(lines)):
@@ -229,7 +229,9 @@ def _entry_field_line_index(lines, entry_line, field):
     return None
 
 
-def fix_images_manifest_entry_pins(text, context):
+def fix_images_manifest_entry_pins(
+    text: str, context: ManifestEntriesContext
+) -> tuple[str, list[tuple[str, str, str]]]:
     """Rewrite each images-manifest entry's "version:"/"digest:" to the pin
     values.yaml actually has at its matched values-tree path — the same
     comparison verify-podiumd's doc-consistency check makes (resolved_

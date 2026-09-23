@@ -97,7 +97,6 @@ But the two sides, and the two candidate KINDS, get there differently:
   same tolerance the tag-check that produced the candidate in the first
   place already has for its own failed lookups."""
 
-import subprocess
 import tarfile
 import urllib.error
 
@@ -328,14 +327,15 @@ def classify_candidates(chart_dir, extra_args, candidates, values_lines):
     own _render_cache), and "Image upgrades" already runs before this step
     (STEP_PREREQUISITES) with the same extra_args, so this call is a free
     cache hit in the normal pipeline, not a second real `helm template`.
-    "Never a crash" covers what those calls can raise: file/subprocess
-    errors, a broken .tgz, invalid YAML, and a malformed Chart.yaml entry."""
+    "Never a crash" covers what those calls can raise: file errors
+    (including a missing helm binary), a broken .tgz, invalid YAML, and a
+    malformed Chart.yaml entry."""
     try:
         result = render_chart(chart_dir, extra_args)
         vendor_map = friendly_vendor_charts(chart_dir)
         dep_names = dependency_names(chart_dir)
         rendered_labels = render_image_labels(result.stdout, vendor_map) if result.returncode == 0 else {}
-    except (OSError, subprocess.SubprocessError, tarfile.TarError, yaml.YAMLError, KeyError, TypeError, ValueError):
+    except (OSError, tarfile.TarError, yaml.YAMLError, KeyError, TypeError, ValueError):
         vendor_map = {}
         dep_names = set()
         rendered_labels = {}

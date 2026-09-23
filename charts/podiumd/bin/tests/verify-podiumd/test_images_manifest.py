@@ -3,6 +3,9 @@ regressions found during development: a version number like "1.17.1-static"
 on a continuation line being mistaken for a new numbered list item, and a
 trailing period being captured as part of a version."""
 
+from pathlib import Path
+from types import ModuleType
+
 import yaml
 
 from dep_helpers import make_dep
@@ -1160,7 +1163,9 @@ def test_images_manifest_format_new_component_image_not_in_historical_manifest(l
     assert any('image "brppersonenmock" changed vs 4.8.5 but has no entry' in i for i in issues)
 
 
-def test_images_manifest_format_flags_entry_not_named_after_its_url(libimagesmanifest, tmp_path):
+def test_images_manifest_format_flags_entry_not_named_after_its_url(
+    libimagesmanifest: ModuleType, tmp_path: Path
+) -> None:
     """The ACR import mirrors each image under its manifest name, so a
     name that isn't strip_registry_host(url) is reported."""
     images_path = tmp_path / "images-4.9.0.yaml"

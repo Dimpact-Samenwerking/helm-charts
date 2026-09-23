@@ -125,7 +125,7 @@ def test_check_image_digests_gives_up_after_one_retry(vp, libimagedigests, tmp_p
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     calls = {"n": 0}
 
-    def always_down(host, repo, tag):
+    def always_down(host: str, repo: str, tag: str) -> tuple[bool, str]:
         calls["n"] += 1
         raise urllib.error.URLError("down")
 
@@ -157,7 +157,7 @@ def test_check_image_digests_dedupes_shared_repo_and_tag(vp, libimagedigests, tm
     )
     calls = []
 
-    def spy(host, repo, tag):
+    def spy(host: str, repo: str, tag: str) -> tuple[bool, str]:
         calls.append((host, repo, tag))
         return True, f"sha256:{'a' * 64}"
 
@@ -202,7 +202,7 @@ def test_check_image_digests_falls_back_to_subchart_default_repository(vp, libim
 
     called = []
 
-    def spy(host, repo, tag):
+    def spy(host: str, repo: str, tag: str) -> tuple[bool, str]:
         called.append((host, repo, tag))
         return True, f"sha256:{'a' * 64}"
 
@@ -220,7 +220,7 @@ def test_check_image_digests_falls_back_via_alias(vp, libimagedigests, tmp_path,
 
     called = []
 
-    def spy(host, repo, tag):
+    def spy(host: str, repo: str, tag: str) -> tuple[bool, str]:
         called.append((host, repo, tag))
         return True, f"sha256:{'a' * 64}"
 

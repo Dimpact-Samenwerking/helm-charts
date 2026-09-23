@@ -1,6 +1,7 @@
 """lib.upgradedoc -- preceding-comment/grouped-comment lookup and
 Changes-block parsing."""
 
+from types import ModuleType
 
 # --- path_display_name ---
 
@@ -252,7 +253,7 @@ def test_flatten_leaf_keys_collects_all_nested_names(libupgradedoccomments):
     assert libupgradedoccomments.flatten_leaf_keys(node) == {"host", "user", "password"}
 
 
-def test_flatten_leaf_keys_excludes_intermediate_keys(libupgradedoccomments):
+def test_flatten_leaf_keys_excludes_intermediate_keys(libupgradedoccomments: ModuleType) -> None:
     """Regression: an intermediate key whose value is itself a dict/list must
     never count as a "leaf" -- it inflates the Jaccard similarity ratio
     pair_renames uses to decide a rename pairing."""

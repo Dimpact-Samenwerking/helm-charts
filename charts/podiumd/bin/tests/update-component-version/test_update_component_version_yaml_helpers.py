@@ -2,6 +2,8 @@
 no main() integration tests (split out of the former, monolithic
 test_update_component_version.py for pylint's too-many-lines check)."""
 
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -33,7 +35,7 @@ def test_find_child_key_line_ignores_deeper_nested_same_name():
     assert idx == 1
 
 
-def test_find_child_key_line_returns_none_when_only_a_deeper_nested_match_exists(ucv):
+def test_find_child_key_line_returns_none_when_only_a_deeper_nested_match_exists(ucv: ModuleType) -> None:
     lines = [
         "image:\n",
         "  other: 1\n",

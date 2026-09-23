@@ -6,6 +6,8 @@ test_chart.py (see test_chart_path_and_version_helpers.py for
 upgrade_docs_baseline/release_table_baseline reads, and the other
 test_chart_*.py files for the rest)."""
 
+from pathlib import Path
+from types import ModuleType
 
 # --- historical_images_manifest_paths / historical_app_version_for_repository ---
 # the replacement for the removed images-baseline.yaml fallback: walks
@@ -87,8 +89,8 @@ def test_historical_app_version_for_repository_stops_at_most_recent_match(libcha
 
 
 def test_historical_app_version_for_repository_matches_strip_registry_name_of_expected_url(
-    libcharthistoricalbaselines, tmp_path
-):
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
+) -> None:
     """values.yaml's "repository: python" keys as "python", while a
     manifest written under the strip-registry convention names the same
     image "library/python" — with expected_url given, that name matches."""

@@ -589,7 +589,7 @@ def _correct_images_manifest_entries(images_path, state, repo_map):
             print(f"  {name}")
 
 
-def _correct_images_manifest_pins(images_path, state, repo_map):
+def _correct_images_manifest_pins(images_path: Path, state: RebaseState, repo_map: dict) -> None:
     """Corrects images-manifest entry version/digest pins to values.yaml's
     (see fix_images_manifest_entry_pins)."""
     text = images_path.read_text(encoding="utf-8")
@@ -599,7 +599,7 @@ def _correct_images_manifest_pins(images_path, state, repo_map):
             CHART_YAML.parent,
             state.target_deps,
             state.target_values,
-            state.baseline_values,
+            state.baseline_values or {},
             repo_map,
             upgrade_docs_baseline=state.new_baseline,
         ),
@@ -635,7 +635,7 @@ def _correct_images_manifest_urls(images_path, state, repo_map):
             print(f"  {name}")
 
 
-def _correct_images_manifest_names(images_path):
+def _correct_images_manifest_names(images_path: Path) -> None:
     """Corrects images-manifest entry name(s) to strip_registry_host(url)
     (see fix_images_manifest_entry_names)."""
     text = images_path.read_text(encoding="utf-8")

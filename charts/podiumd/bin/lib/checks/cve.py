@@ -522,6 +522,15 @@ def _upgradable_to(repository, version, context):
     return None
 
 
+def _digest_ref(repository: str, digest: str | None) -> str | None:
+    """ "<host>/<repo_path>@sha256:<digest>" for `repository`, or None
+    without a digest."""
+    if not digest:
+        return None
+    host, repo_path = parse_repo(repository)
+    return f"{host}/{repo_path}@sha256:{digest}"
+
+
 def _scan_one_target(repo_version, digest_line, index, total, context):
     """(image_ref, entry, was_cached) for one (repository, version)
     target — entry is None when trivy's own scan failed (the caller
@@ -533,8 +542,6 @@ def _scan_one_target(repo_version, digest_line, index, total, context):
     repository, version = repo_version
     digest, line = digest_line
     image_ref = _image_ref(repository, version)
-    host, repo_path = parse_repo(repository)
-    scan_ref = f"{host}/{repo_path}@sha256:{digest}" if digest else image_ref
     label = _target_label(repository, version, digest, line, context)
 
     # Per-image cache-hit/fresh-scan reporting and the actual cache
@@ -543,7 +550,7 @@ def _scan_one_target(repo_version, digest_line, index, total, context):
     # docstring for why this is shared rather than reimplemented here.
     vulns, was_cached = scan_cached(
         context.chart_dir,
-        ScanTarget(repository, digest, scan_ref),
+        ScanTarget(repository, digest, _digest_ref(repository, digest) or image_ref),
         context.session,
         context.settings.cve_cache_ttl_days,
         label=f"[{index}/{total}] this image",

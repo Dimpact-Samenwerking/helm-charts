@@ -4,6 +4,8 @@ core/split-tag/allow-pull/global-image scenarios."""
 import io
 import tarfile
 
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -40,7 +42,7 @@ def make_tgz(charts_dir, name, version, values, raw_files=None):
 # --- fix_images_manifest_entry_names ---
 
 
-def test_fix_images_manifest_entry_names_renames_to_strip_registry_of_url(cdb):
+def test_fix_images_manifest_entry_names_renames_to_strip_registry_of_url(cdb: ModuleType) -> None:
     """Regression test (real doc): images-4.9.2.yaml/images-baseline.yaml
     carried "python", "zaakbrug" and "openformulieren" while the chart
     pulls library/python, wearefrank/zaakbrug and openformulieren/open-
@@ -71,7 +73,7 @@ def test_fix_images_manifest_entry_names_renames_to_strip_registry_of_url(cdb):
     assert '- name: "wearefrank/zaakbrug"' in new_text
 
 
-def test_fix_images_manifest_entry_names_is_a_noop_on_a_conforming_manifest(cdb):
+def test_fix_images_manifest_entry_names_is_a_noop_on_a_conforming_manifest(cdb: ModuleType) -> None:
     text = '- name: library/python\n  url: docker.io/library/python\n  version: "3.14.7-slim"\n'
     assert cdb.fix_images_manifest_entry_names(text) == (text, [])
 

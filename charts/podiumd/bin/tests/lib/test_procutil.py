@@ -30,6 +30,10 @@ def test_run_script_flushes_stdout_before_running(libprocutil, monkeypatch):
     child's inherited-stdout output once stdout isn't a tty."""
     calls = []
     monkeypatch.setattr(libprocutil.sys.stdout, "flush", lambda: calls.append("flush"))
-    monkeypatch.setattr(libprocutil.subprocess, "run", lambda cmd, **kw: calls.append("run"))
+
+    def fake_run(cmd: list[str], **kw: object) -> None:
+        calls.append("run")
+
+    monkeypatch.setattr(libprocutil.subprocess, "run", fake_run)
     libprocutil.run_script(["true"])
     assert calls == ["flush", "run"]

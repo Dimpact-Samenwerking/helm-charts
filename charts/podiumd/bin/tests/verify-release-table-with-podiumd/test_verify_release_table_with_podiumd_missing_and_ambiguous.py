@@ -10,6 +10,8 @@ too-many-lines) -- purely a test reorganization, no behavior change. See the
 sibling test_verify_release_table_with_podiumd_*.py files for the rest of
 that suite."""
 
+from types import ModuleType
+
 import pytest
 
 DIGEST = "a" * 64
@@ -273,7 +275,7 @@ def test_compare_reports_ambiguous_when_basename_pinned_at_multiple_versions(vrt
     assert "mismatches" not in findings
 
 
-def test_compare_reports_ambiguous_when_unscoped_basename_matches_different_repos(vrt):
+def test_compare_reports_ambiguous_when_unscoped_basename_matches_different_repos(vrt: ModuleType) -> None:
     """A basename absent from the row's own scope but present under two
     unrelated sibling scopes with DIFFERENT repositories (the real "redis"
     collision: quay.io/opstree/redis vs. an unrelated redis pin) must not be

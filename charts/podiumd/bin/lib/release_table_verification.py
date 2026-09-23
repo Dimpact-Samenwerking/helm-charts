@@ -518,37 +518,30 @@ def _record_image_result(ref, row, basename, actual, findings):
     )
 
 
-def _unscoped_fallback_pins(ref, state, basename, findings):
-    """check_images' unscoped find_matches_any_tag fallback for a basename
-    not pinned under ref.scope_key: the pins, None when nothing matches, or
-    False (after recording an "ambiguous" finding) when the matches span
-    more than one distinct repository — the same "redis" collision
-    check_images_source guards against on the baseline side."""
+def _unscoped_fallback_pins(
+    ref: ComponentRef, state: ChartState, basename: str, findings: dict[str, list[str]]
+) -> tuple[list[dict] | None, bool]:
+    """(pins, ambiguous) for check_images' unscoped fallback; ambiguous (with an "ambiguous" finding
+    recorded) when the matches span several repositories, like check_images_source's "redis" case."""
     pins = find_matches_any_tag(state.lines, basename) or None
-    if pins is None:
-        return None
-    repos = {strip_registry_host(p["repository"]) for p in pins if p["repository"]}
+    repos = {strip_registry_host(p["repository"]) for p in pins or [] if p["repository"]}
     if len(repos) > 1:
         findings["ambiguous"].append(
             f"[IMAGE] '{basename}' matches {len(repos)} different repositories outside "
             f"'{ref.scope_key}' own scope ({', '.join(sorted(repos))}) -- can't tell which one "
             f"this row means"
         )
-        return False
-    return pins
+        return pins, True
+    return pins, False
 
 
-def _check_primary_row_without_basename(ref, rows, state, findings, primary_basename):
-    """Compares the app version of a component's primary row when that row
-    has a blank image_basename (so the per-basename pass in check_images
-    never looks at it) against actual_app_version for the component, the
-    same way a basename row is compared (_record_image_result). The blank
-    row counts as the primary row only when it is the component's single
-    blank row and no other row claims primary_basename. A leading "v"
-    is ignored ("v0.26.0" matches "0.26.0", see normalize_version).
-    Skipped for MULTIPLE_KEY, when no app version is pinned for the
-    component, and when the row records no app version at all (the
-    "pinned but not tracked" finding already covers that)."""
+def _check_primary_row_without_basename(
+    ref: ComponentRef, rows: list[dict], state: ChartState, findings: dict[str, list[str]], primary_basename: str | None
+) -> None:
+    """Compares a primary row with a blank image_basename (never seen by check_images' per-basename
+    pass) against actual_app_version, like _record_image_result does. Only for the component's single
+    blank row when no other row claims primary_basename, and only when that row records an app
+    version; a leading "v" is ignored. Skipped for MULTIPLE_KEY."""
     if ref.component == MULTIPLE_KEY:
         return
     blank_rows = [row for row in rows if not split_basenames(row["image_basename"])]
@@ -557,11 +550,10 @@ def _check_primary_row_without_basename(ref, rows, state, findings, primary_base
     if primary_basename is not None and any(primary_basename in split_basenames(r["image_basename"]) for r in rows):
         return
     actual = actual_app_version(state.values, ref.scope_key, ref.component, state.chart_dir, ref.dep)
-    if not actual:
-        return
     row = blank_rows[0]
-    recorded = row["target_version_app"] if is_verifiable_target(row["target_version_app"]) else row["source_version_app"]
-    if not is_verifiable_target(recorded):
+    target = row["target_version_app"]
+    recorded = target if is_verifiable_target(target) else row["source_version_app"]
+    if not actual or not is_verifiable_target(recorded):
         return
     if normalize_version(actual) == normalize_version(recorded):
         actual = recorded
@@ -614,8 +606,8 @@ def check_images(ref, rows, state, findings):
                 # pinned under a sibling scope instead (e.g. keycloak-
                 # config-cli lives under top-level "keycloak", not
                 # "keycloak-operator").
-                pins = _unscoped_fallback_pins(ref, state, basename, findings)
-                if pins is False:
+                pins, ambiguous = _unscoped_fallback_pins(ref, state, basename, findings)
+                if ambiguous:
                     continue
             if pins is None:
                 findings["missing_from_chart"].append(
