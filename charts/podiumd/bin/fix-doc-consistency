@@ -156,13 +156,10 @@ from lib.gitutil import baseline_ref_candidates
 from lib.gitutil import find_repo_root
 from lib.gitutil import git_show_yaml
 from lib.gitutil import resolve_git_ref
+from lib.image.baseline_refresh import refresh_images_baseline
 from lib.image.docs import add_missing_changes_sections
 from lib.image.docs import add_missing_sidecar_rows
-from lib.image.docs import regenerate_images_baseline_manifest
 from lib.image.docs import update_stale_app_version_headings
-from lib.render_scope import lint_args_for
-from lib.render_scope import render_chart
-from lib.render_scope import rendered_chart_paths
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
@@ -897,44 +894,6 @@ def _fix_values_deltas(state, upgrade_path, values_deltas_path):
         values_deltas_path.write_text(collapsed_text, encoding="utf-8")
 
 
-def _regenerate_images_baseline(target_deps, target_values):
-    """Regenerates images-baseline.yaml, rendering the chart first to
-    also catch images defined only in a vendored sub-chart's default."""
-    print()
-    print("=== Regenerating images-baseline.yaml ===")
-    # Rendered with ci/lint-values.yaml (same convention every other
-    # render-based check in this codebase already uses) — a bare
-    # `values.yaml` render fails outright: several sub-charts declare
-    # required fields (JSON-schema "minLength", etc.) only ever
-    # satisfied by that CI overlay, which a real deploy always supplies
-    # via its own environment-specific values anyway.
-    render_result = render_chart(CHART_YAML.parent, lint_args_for(CHART_YAML.parent))
-    if render_result.returncode != 0:
-        print(
-            "  error: helm template failed to render — can't check for images defined only "
-            "in a vendored sub-chart's own default values.yaml (see check_subchart_image_"
-            "visibility); fix the render first"
-        )
-        print(render_result.stderr)
-        sys.exit(1)
-    rendered_paths = rendered_chart_paths(render_result.stdout)
-
-    written, skipped, changed = regenerate_images_baseline_manifest(
-        CHART_YAML.parent, target_deps, target_values, IMAGES_DIR / "images-baseline.yaml", rendered_paths
-    )
-    if changed:
-        print(f"  wrote {written} entr{'y' if written == 1 else 'ies'}")
-    else:
-        print(f"  unchanged ({written} entr{'y' if written == 1 else 'ies'})")
-    if skipped:
-        print(
-            f"  could not resolve a full url/digest for {len(skipped)} repositor{'y' if len(skipped) == 1 else 'ies'} "
-            f"— review by hand:"
-        )
-        for repo in skipped:
-            print(f"    {repo}")
-
-
 def main():
     """CLI entry point: rebases every upgrade-path doc and the images
     manifest onto release-baseline.yaml's own upgrade_docs baseline (see
@@ -971,7 +930,9 @@ def main():
         for name, lines in review_notes:
             print(f"  {name}: line(s) {', '.join(map(str, lines))}")
 
-    _regenerate_images_baseline(state.target_deps, state.target_values)
+    refresh_images_baseline(
+        CHART_YAML.parent, state.target_deps, state.target_values, IMAGES_DIR / "images-baseline.yaml"
+    )
 
     print()
     print("Done.")

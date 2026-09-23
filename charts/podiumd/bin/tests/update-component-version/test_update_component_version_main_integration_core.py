@@ -201,6 +201,27 @@ def test_main_re_vendors_after_writing_chart_yaml(ucv, tmp_path, monkeypatch, bl
     assert calls_before_last_ensure > fix_helm_doc_index
 
 
+def test_main_refreshes_images_baseline_after_re_vendoring(ucv, tmp_path, monkeypatch):
+    """images-baseline.yaml follows the bump: regenerated last, from the
+    bumped Chart.yaml/values.yaml, after the re-vendor its render needs."""
+    setup_repo(tmp_path, monkeypatch, ucv)
+    mock_verify_passes(monkeypatch, ucv)
+    mock_registry_passes(monkeypatch, ucv, "b")
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
+    order = []
+    monkeypatch.setattr(ucv, "ensure_vendored_dependencies", lambda chart_dir: order.append("ensure"))
+    monkeypatch.setattr(ucv, "refresh_images_baseline", lambda *args: order.append(("refresh", *args)))
+
+    ucv.main()
+
+    assert order[-2] == "ensure"
+    _step, chart_dir, deps, values, images_baseline_path = order[-1]
+    assert chart_dir == tmp_path
+    assert images_baseline_path == tmp_path / "docs" / "images" / "images-baseline.yaml"
+    assert [str(d["version"]) for d in deps] == ["1.0.297"]
+    assert values["zac"]["image"]["tag"].startswith("5.4.3@sha256:")
+
+
 def setup_native_component_repo(tmp_path, monkeypatch, ucv):
     """frankgateway (see lib.chart.NATIVE_COMPONENTS): a real component
     with its own top-level values.yaml key and image, but no Chart.yaml

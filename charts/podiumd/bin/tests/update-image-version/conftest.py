@@ -78,3 +78,13 @@ def stub_ensure_vendored_dependencies(uiv, monkeypatch):
     default; a test exercising the guard itself puts the real one back
     via its own monkeypatch.setattr, same as any other autouse default."""
     monkeypatch.setattr(uiv, "ensure_vendored_dependencies", lambda chart_dir: None)
+
+
+@pytest.fixture(autouse=True)
+def stub_refresh_images_baseline(uiv, monkeypatch):
+    """main() ends with lib.image.baseline_refresh.refresh_images_baseline,
+    which renders the chart with real helm. Recorded instead: returns the
+    list of (chart_dir, deps, values, images_baseline_path) calls."""
+    calls = []
+    monkeypatch.setattr(uiv, "refresh_images_baseline", lambda *args: calls.append(args))
+    return calls

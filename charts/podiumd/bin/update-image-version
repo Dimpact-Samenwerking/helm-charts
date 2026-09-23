@@ -36,8 +36,9 @@ section, values-deltas, images-<target>.yaml):
     per distinct repository. Convention confirmed against docs/
     _UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md (curl/nginx-unprivileged/
     busybox each got exactly this treatment).
-Finally runs fix-helm-doc so README.md's values-reference
-table doesn't go stale in the same commit.
+Then runs fix-helm-doc so README.md's values-reference
+table doesn't go stale in the same commit, and finally regenerates
+images-baseline.yaml (lib.image.baseline_refresh).
 
 Refuses to touch values.yaml unless the new version verifiably exists
 upstream for the matched repository first — a bad version name fails
@@ -107,6 +108,7 @@ from lib.component_docs.values_delta_sections import insert_values_delta_section
 from lib.component_docs.values_delta_sections import remove_values_delta_section
 from lib.component_docs.values_delta_sections import values_delta_section_heading
 from lib.dependencies import ensure_vendored_dependencies
+from lib.image.baseline_refresh import refresh_images_baseline
 from lib.image.docs import ImageBump
 from lib.image.docs import make_image_changes_section
 from lib.image.docs import remove_image_manifest_entry
@@ -789,8 +791,9 @@ def main():
     scope, bumps every matching values.yaml tag pin to <new-version>
     (re-resolving digests against the registry), updates the matching
     upgrade docs for the current target if they exist, and regenerates
-    README.md (fix-helm-doc). A no-op (already at that version everywhere)
-    prints a message and returns without touching anything."""
+    README.md (fix-helm-doc) and images-baseline.yaml. A no-op (already
+    at that version everywhere) prints a message and returns without
+    touching anything."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)
@@ -823,6 +826,8 @@ def main():
     print()
     print("=== Regenerating README.md (fix-helm-doc) ===")
     run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
+
+    refresh_images_baseline(CHART_DIR, deps, load_yaml(VALUES_YAML) or {}, IMAGES_DIR / "images-baseline.yaml")
 
     print()
     print("Done. Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
