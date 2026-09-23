@@ -3,17 +3,19 @@ read/write (upgrade_docs_baseline, release_table_baseline,
 write_release_baselines) and the two plain YAML readers
 (load_yaml/chart_version) every other lib.chart.* module shares."""
 
+from pathlib import Path
+
 import yaml
 
 
-def load_yaml(path):
+def load_yaml(path: Path):
     """Plain yaml.safe_load of `path`'s own text — the one shared reader
     every other lib.chart.* module uses rather than re-opening/re-parsing
     a YAML file itself."""
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-def chart_version(chart_yaml_path):
+def chart_version(chart_yaml_path: Path):
     """The "version:" field of a Chart.yaml at `chart_yaml_path`, coerced
     to str (YAML would otherwise parse a bare "4.9" as a float, silently
     dropping a trailing zero like "4.90")."""
@@ -23,7 +25,7 @@ def chart_version(chart_yaml_path):
 RELEASE_BASELINES_FILE_NAME = "etc/release-baseline.yaml"
 
 
-def _release_baselines(chart_dir):
+def _release_baselines(chart_dir: Path):
     """The parsed contents of chart_dir/etc/release-baseline.yaml — upgrade_
     docs (the incremental baseline _UPGRADE_PATHS/*.md and docs/images/
     images-<target>.yaml are written against) and release_table (the
@@ -39,7 +41,7 @@ def _release_baselines(chart_dir):
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
-def upgrade_docs_baseline(chart_dir):
+def upgrade_docs_baseline(chart_dir: Path):
     """The incremental baseline _UPGRADE_PATHS/*.md and docs/images/
     images-<target>.yaml are written against — the immediately
     preceding release, advanced on every release cycle (see
@@ -48,7 +50,7 @@ def upgrade_docs_baseline(chart_dir):
     return _release_baselines(chart_dir).get("upgrade_docs")
 
 
-def release_table_baseline(chart_dir):
+def release_table_baseline(chart_dir: Path):
     """The cumulative baseline release-table.csv (the Confluence
     release-notes export) was last generated against — advanced only on
     a minor version bump (see create-podiumd-version), left untouched by
@@ -57,7 +59,7 @@ def release_table_baseline(chart_dir):
     return _release_baselines(chart_dir).get("release_table")
 
 
-def write_release_baselines(chart_dir, upgrade_docs=None, release_table=None):
+def write_release_baselines(chart_dir: Path, upgrade_docs: str | None = None, release_table: str | None = None):
     """Read-modify-write chart_dir/etc/release-baseline.yaml, updating only
     whichever of upgrade_docs/release_table is given (None leaves that
     key untouched, whatever it already was) — the single write path

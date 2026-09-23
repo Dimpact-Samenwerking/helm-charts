@@ -307,7 +307,7 @@ def _remove_entry_updates(manifest, path_update, values_key):
     for path in path_update.paths:
         target_path = values_tree_path_for(values_key, path)
         entry, entry_idx, index = find_matching_images_entry(manifest.entries, manifest.entry_line_indices, target_path)
-        if entry is None:
+        if entry is None or index is None:
             continue
         new_app_version, digest = path_update.new_tags[path].split("@", 1)
         _rewrite_entry_scalars(manifest.lines, entry_idx, new_app_version, digest)

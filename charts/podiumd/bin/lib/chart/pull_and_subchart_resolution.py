@@ -29,7 +29,7 @@ from lib.registry import registry_tag_exists
 # A BOM breaks YAML tooling that doesn't expect one. Shared by
 # verify-podiumd (detects and reports it — a verify script never writes
 # to a tracked file) and fix-utf8-bom (the fixer).
-def resolved_digest_pin(values, path, tag, sibling_fields):
+def resolved_digest_pin(values: dict, path: tuple[str, ...], tag: str, sibling_fields: dict):
     """`tag`'s own "@sha256:<hex>" suffix if it already has one, else —
     for a path registered in `sibling_fields` (lib.settings.
     digest_pinning_exceptions(chart_dir), or an equivalent {path:
@@ -60,7 +60,7 @@ def resolved_digest_pin(values, path, tag, sibling_fields):
     return f"{tag}@{digest}" if digest.startswith("sha256:") else f"{tag}@sha256:{digest}"
 
 
-def chart_ref(dep):
+def chart_ref(dep: dict):
     """Return (ref, extra_repo_url_or_None) for `helm pull`, or (None, None)
     for a local path repository ("file://...") that must already be
     vendored — it has no remote to pull from."""
@@ -77,7 +77,7 @@ def chart_ref(dep):
     raise SystemExit(msg)
 
 
-def local_chart_dir(chart_dir, dep):
+def local_chart_dir(chart_dir: Path, dep: dict):
     """The directory a "file://..." dependency's own repository actually
     points at, resolved relative to chart_dir (Helm's own convention for
     local path dependencies) — None for any other repository scheme.
@@ -101,7 +101,7 @@ def require_local_chart_dir(local_dir: Path, dep: dict) -> None:
         raise SystemExit(msg)
 
 
-def pull_chart(dep, version, dest):
+def pull_chart(dep: dict, version: str, dest: Path):
     """Pull a chart version via helm. Returns (ok, stderr)."""
     ref, repo_url = chart_ref(dep)
     if ref is None:
@@ -115,7 +115,7 @@ def pull_chart(dep, version, dest):
     return result.returncode == 0, result.stderr.strip()
 
 
-def pulled_chart_dir(tmpdir):
+def pulled_chart_dir(tmpdir: Path):
     """The single chart directory `helm pull --untar` produced under tmpdir."""
     chart_dirs = [p for p in Path(tmpdir).iterdir() if p.is_dir()]
     if not chart_dirs:
@@ -124,7 +124,7 @@ def pulled_chart_dir(tmpdir):
     return chart_dirs[0]
 
 
-def pull_chart_values(dep, version):
+def pull_chart_values(dep: dict, version: str):
     """Pull a chart version into a throwaway temp dir and return its own
     values.yaml (parsed), cleaning up afterward. Raises SystemExit if the
     pull fails."""
@@ -140,7 +140,7 @@ def pull_chart_values(dep, version):
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def verify_chart_version(chart_dir, dep, version):
+def verify_chart_version(chart_dir: Path, dep: dict, version: str):
     """The chart-existence check verify-component-version owns: resolve
     `version` of `dep` via resolve_chart_values (preferring an already-
     vendored charts/<name>-<version>.tgz over a fresh `helm pull` — see
@@ -173,7 +173,7 @@ def native_component_values(chart_dir: Path, name: str) -> dict:
     return values.get(name) or {}
 
 
-def check_image_versions(values, image_paths, app_version):
+def check_image_versions(values: dict, image_paths: list[str], app_version: str):
     """[{"path", "repository", "host", "repo_path", "exists", "digest"},
     ...] for every path in `image_paths` (see image_paths_for) that has a
     "repository:" in `values` (a pulled chart's own values.yaml — see
@@ -223,7 +223,7 @@ def print_image_version_results(results: list[dict], app_version: str) -> bool:
     return all(r["exists"] for r in results)
 
 
-def subchart_values(chart_dir, dep, version=None):
+def subchart_values(chart_dir: Path, dep: dict, version: str | None = None):
     """A vendored dependency's own values.yaml (parsed), read straight out
     of its .tgz under chart_dir/charts/ at `version` (default: dep
     ["version"], i.e. the currently-pinned version) — the same file Helm
@@ -234,7 +234,7 @@ def subchart_values(chart_dir, dep, version=None):
     return None if raw is None else (yaml.safe_load(raw) or {})
 
 
-def subchart_app_version(chart_dir, dep, version=None):
+def subchart_app_version(chart_dir: Path, dep: dict, version=None):
     """A vendored dependency's own Chart.yaml "appVersion" field — the
     real app version a subchart's own template falls back to via Helm's
     own "{{ .Values.<x>.tag | default .Chart.AppVersion }}" convention,
@@ -252,7 +252,7 @@ def subchart_app_version(chart_dir, dep, version=None):
     return None if raw is None else (yaml.safe_load(raw) or {}).get("appVersion")
 
 
-def subchart_dependencies(chart_dir, dep, version=None):
+def subchart_dependencies(chart_dir: Path, dep: dict, version=None):
     """`dep`'s own vendored Chart.yaml "dependencies" list (parsed, same
     shape as a top-level chart's own chart_yaml.get("dependencies", [])
     — each entry's own "name"/"alias"/... as declared there) — read
@@ -265,7 +265,7 @@ def subchart_dependencies(chart_dir, dep, version=None):
     return [] if raw is None else ((yaml.safe_load(raw) or {}).get("dependencies") or [])
 
 
-def resolve_subchart_default(chart_dir, dep, chart_name, path):
+def resolve_subchart_default(chart_dir: Path, dep: dict, chart_name: str, path: tuple[str, ...]):
     """(chart_tree_path, version) for `path` (a lib.upgradedoc.
     find_image_tag_paths result — usually from its own include_null_
     tags=True mode — over `dep`'s own vendored default values.yaml).
@@ -314,7 +314,7 @@ def resolve_subchart_default(chart_dir, dep, chart_name, path):
     return f"{base_path}/charts/{nested_key}", version
 
 
-def resolve_chart_values(chart_dir, dep, version, *, allow_pull=True):
+def resolve_chart_values(chart_dir: Path, dep: dict, version: str, *, allow_pull: bool = True):
     """(values, source, error) for `dep` at `version` — preferring an
     already-vendored charts/<name>-<version>.tgz (source "vendored", via
     subchart_values, no network) and only falling back to a fresh `helm
@@ -344,7 +344,9 @@ def resolve_chart_values(chart_dir, dep, version, *, allow_pull=True):
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def primary_image_repositories(chart_dir, dep, own_values, version=None, *, allow_pull=True):
+def primary_image_repositories(
+    chart_dir: Path | None, dep: dict, own_values: dict, version=None, *, allow_pull: bool = True
+):
     """({path: repository_or_None, ...}, error_or_None) for every one of
     dep's own primary image path(s) (see image_paths_for(dep["name"])) —
     THE single place "what repository does this component's primary
@@ -390,7 +392,7 @@ def primary_image_repositories(chart_dir, dep, own_values, version=None, *, allo
     return results, error
 
 
-def global_image_paths(values):
+def global_image_paths(values: dict):
     """[(path, tag), ...] for every entry directly under "global.images."
     — the shared base-image anchors (nginx/curl/busybox — see the
     values.yaml comment "Shared image references, reused via YAML

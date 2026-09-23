@@ -349,6 +349,8 @@ def _heading_replacement(block, resolution, inputs, canonical_path_to_name):
     row_name, resolved, old_app, expected_bare_name = found
 
     expected_app_heading = component_version_cell(old_app, resolved["target_app"])
+    if expected_app_heading is None:
+        return None  # no app version on either side to write into the heading
     without_chart_clause = re.sub(r"\(chart[^)]*\)", "", heading)
     current_name = header_name_segment(heading)
     # The name is corrected ONLY when it's precisely the bare,

@@ -4,6 +4,7 @@ walking a values tree for every image-tag/version path a
 dependency or native component actually pins."""
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
 from lib.chart.pull_and_subchart_resolution import subchart_app_version
@@ -16,7 +17,9 @@ from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import words_of
 
 
-def actual_app_version(values, values_key, component=None, chart_dir=None, dep=None):
+def actual_app_version(
+    values: dict, values_key: str, component: str | None = None, chart_dir: Path | None = None, dep: dict | None = None
+):
     """The app version currently pinned for a component — tries each of
     lib.chart.image_paths_for(component)'s own dotted path(s) in turn:
     the plain "<key>.image.tag" shape for the common case
@@ -163,7 +166,7 @@ def resolve_baseline_component_versions(query):
     return old_app, old_chart
 
 
-def find_image_tag_paths(node, path=(), *, include_null_tags=False):
+def find_image_tag_paths(node, path: tuple = (), *, include_null_tags: bool = False):
     """Yield (path, tag) for every "<key>: {tag: ...}" block anywhere in a
     values tree, where <key> is "image" or ends with "Image" (e.g.
     "initImage", alongside "image" in the very same job, for a component
@@ -228,7 +231,7 @@ def find_image_tag_paths(node, path=(), *, include_null_tags=False):
             yield from find_image_tag_paths(item, (*path, str(i)), include_null_tags=include_null_tags)
 
 
-def find_component_version_tags(values, deps):
+def find_component_version_tags(values: dict, deps: list):
     """(path, value) for every lib.chart.component_version_paths()- or
     lib.settings.component_resolution_version_path_nested_subcharts-
     registered bare tag/version field that's actually pinned in `values`
@@ -254,7 +257,7 @@ def find_component_version_tags(values, deps):
                 yield tuple(values_key.split(".")) + tuple(rel.split(".")), value
 
 
-def find_all_image_and_version_paths(values, deps):
+def find_all_image_and_version_paths(values: dict, deps: list):
     """find_image_tag_paths(values) plus find_component_version_tags(values,
     deps) — every image tag AND registered bare-version pin in one
     combined [(path, value), ...] list. Use this (not find_image_tag_
@@ -265,7 +268,7 @@ def find_all_image_and_version_paths(values, deps):
     return list(find_image_tag_paths(values)) + list(find_component_version_tags(values, deps))
 
 
-def resolve_entry_path(entry_name, paths):
+def resolve_entry_path(entry_name: str, paths):
     """Match an images-manifest entry name (e.g. "zgw-office-addin-frontend")
     to a values-tree path (e.g. ("zgw-office-addin", "frontend")) by comparing
     word-split, concatenated path segments — no hardcoded name list.
@@ -306,7 +309,7 @@ def resolve_entry_path(entry_name, paths):
     return best_path
 
 
-def resolve_entry_image_path(entry, paths, repo_map=None):
+def resolve_entry_image_path(entry: dict, paths, repo_map: dict | None = None):
     """Match an images-manifest entry (the full {"name", "url", ...}
     mapping) to a values-tree path — an exact repo_map lookup first
     (see lib.chart.repository_path_map: under the current strip-

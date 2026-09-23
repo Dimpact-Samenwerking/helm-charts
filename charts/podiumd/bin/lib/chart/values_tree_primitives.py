@@ -8,6 +8,7 @@ on-disk templates/ tree)."""
 import re
 
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -25,7 +26,7 @@ UTF8_BOM = b"\xef\xbb\xbf"
 # component_image_paths/image_paths_for below resolve them.
 
 
-def get_path(node, dotted_path):
+def get_path(node: object, dotted_path: str) -> Any:
     """The value at `dotted_path` (e.g. "openzaak.image.tag") inside the
     parsed values-tree `node`, or None if any segment is missing or a
     non-dict is encountered before the path is fully consumed."""
@@ -36,7 +37,7 @@ def get_path(node, dotted_path):
     return node
 
 
-def replace_scalar_value(line, new_value):
+def replace_scalar_value(line: str, new_value: str):
     """Replace a "key: <value>" line's scalar value, preserving indent, key,
     quote style, any "&anchor" tag (e.g. "tag: &keycloakImageVersion
     "26.7.2""), and any trailing comment. Used to bump a version/tag pin in
@@ -87,7 +88,7 @@ def dep_for_values_key(deps: list[dict], values_key: str) -> dict | None:
     return next((dep for dep in deps if values_key_of(dep) == values_key), None)
 
 
-def find_dependency(deps, name_or_alias):
+def find_dependency(deps: list, name_or_alias: str):
     """The Chart.yaml dependency entry matching this name or alias, or None
     if there isn't one — pure lookup, no I/O; callers load `deps` themselves
     (usually `chart_yaml["dependencies"]`) and decide how to report a miss.
@@ -117,7 +118,7 @@ def require_dependency(chart_yaml: Path, name_or_alias: str) -> dict:
     return dep
 
 
-def own_template_files_referencing(chart_dir, key):
+def own_template_files_referencing(chart_dir: Path, key: str):
     """Sorted paths (relative to chart_dir) of every file under podiumd's
     OWN templates/ that contains a literal ".Values.<key>" reference —
     deterministic text search, the same convention lib.checks.
@@ -144,7 +145,7 @@ def own_template_files_referencing(chart_dir, key):
     ]
 
 
-def resolve_values_path_source(chart_dir, deps, path):
+def resolve_values_path_source(chart_dir: Path, deps: list, path: tuple[str, ...]):
     """A short, human-readable description of WHERE a values-tree
     `path`'s own top-level key actually comes from — the real Chart.yaml
     dependency chart+version it belongs to (matching alias or name, via
@@ -168,7 +169,7 @@ def resolve_values_path_source(chart_dir, deps, path):
     return "local: no referencing template found"
 
 
-def find_app_versions(values, values_key, image_paths):
+def find_app_versions(values: dict | None, values_key: str, image_paths: list[str]):
     """[(image_path, tag), ...] for every image_paths entry (see
     image_paths_for) that has an explicit tag override under
     values[values_key] — empty if the component relies entirely on its
@@ -186,7 +187,7 @@ def find_app_versions(values, values_key, image_paths):
     return versions
 
 
-def version_of(tag):
+def version_of(tag: str):
     """The version half of a tag string, dropping any trailing
     "@sha256:<digest>" suffix — a bare, non-digest-pinned tag is returned
     unchanged."""
@@ -196,7 +197,7 @@ def version_of(tag):
 KEY_LINE_RE = re.compile(r"^(?P<indent>\s*)(?P<key>[\w.\-]+):(?:\s|$)")
 
 
-def dotted_key_path(lines, line_index):
+def dotted_key_path(lines: list[str], line_index: int):
     """The dotted path of keys enclosing lines[line_index] (inclusive),
     reconstructed purely from indentation — e.g. "openzaak.image.tag" for
     a "tag:" line nested under "openzaak: > image:". A plain-text
@@ -216,7 +217,7 @@ def dotted_key_path(lines, line_index):
     return ".".join(key for _, key in stack)
 
 
-def strip_registry_host(url):
+def strip_registry_host(url: str):
     """Drop the leading registry host from an image url, keep the rest —
     the same rule as scripts/mirror-strip-registry.py's own
     strip_registry (this chart's images-manifest naming convention, see
@@ -234,7 +235,7 @@ def strip_registry_host(url):
     return url
 
 
-def find_images(node, path=""):
+def find_images(node, path: str = ""):
     """Recursively walk a parsed values.yaml tree, yielding (path, repository,
     tag) for every dict that has both a "repository" and a "tag" key."""
     images = []

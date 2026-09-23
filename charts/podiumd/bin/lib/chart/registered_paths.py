@@ -16,7 +16,7 @@ from lib.settings import component_resolution_native_components
 from lib.settings import component_resolution_version_paths
 
 
-def component_image_paths(chart_dir=None):
+def component_image_paths(chart_dir: Path | None = None):
     """Self-resolving wrapper around lib.settings.component_resolution_
     image_paths — same "callable from anywhere with no chart_dir
     ceremony" property as chart_version_lockstep_components above (see
@@ -28,7 +28,7 @@ def component_image_paths(chart_dir=None):
     return component_resolution_image_paths(chart_dir)
 
 
-def image_paths_for(component, chart_dir=None):
+def image_paths_for(component: str, chart_dir: Path | None = None):
     """component's own registered image path(s) (component_image_paths),
     or component_resolution_default_image_paths' generic ["image"] guess
     for anything unregistered. Self-resolving the same way component_
@@ -58,7 +58,7 @@ def image_paths_for(component, chart_dir=None):
 # version_paths_for below resolve it.
 
 
-def component_version_paths(chart_dir=None):
+def component_version_paths(chart_dir: Path | None = None):
     """Self-resolving wrapper around lib.settings.component_resolution_
     version_paths — same whole-dict shape as component_image_paths above,
     needed for the exact same reason (lib.checks.lockstep.find_lockstep_
@@ -67,7 +67,7 @@ def component_version_paths(chart_dir=None):
     return component_resolution_version_paths(chart_dir)
 
 
-def version_paths_for(component, chart_dir=None):
+def version_paths_for(component: str, chart_dir: Path | None = None):
     """component's own registered bare-version path(s) (component_version_
     paths), or [] for anything unregistered — no generic fallback exists
     for this one (unlike image_paths_for's default_image_paths), since
@@ -93,7 +93,7 @@ def version_paths_for(component, chart_dir=None):
 # resolves it.
 
 
-def native_components(chart_dir=None):
+def native_components(chart_dir: Path | None = None):
     """Self-resolving wrapper around lib.settings.component_resolution_
     native_components — same shape as chart_version_lockstep_components
     below."""
@@ -143,7 +143,7 @@ def resolve_native_component(chart_dir: Path, name: str) -> str:
 # chart_version_lockstep_components below resolves it.
 
 
-def chart_version_lockstep_components(chart_dir=None):
+def chart_version_lockstep_components(chart_dir: Path | None = None):
     """Self-resolving wrapper around lib.settings.component_resolution_
     chart_version_lockstep_components — lib/chart.py's own convenience
     functions have always been callable from anywhere with no chart_dir
@@ -170,7 +170,7 @@ def chart_version_lockstep_components(chart_dir=None):
 # parameter rather than reading a module constant of its own.
 
 
-def _is_dependency_primary_rel_path(dep, rel_path, chart_dir=None):
+def _is_dependency_primary_rel_path(dep: dict, rel_path: str, chart_dir: Path | None = None):
     """rel_path (path[1:], dotted) is one of dep's own PRIMARY image/
     version fields — image_paths_for's "image: {tag}" shape first, else
     (same fallback lib.upgradedoc.actual_app_version already uses for
@@ -187,7 +187,7 @@ def _is_dependency_primary_rel_path(dep, rel_path, chart_dir=None):
     )
 
 
-def is_primary_image_path(path, deps, chart_dir=None):
+def is_primary_image_path(path: tuple | None, deps: list, chart_dir: Path | None = None):
     """True when path is one of a Chart.yaml dependency's own PRIMARY
     image/version field(s) — see _is_dependency_primary_rel_path (image_
     paths_for's "image: {tag}" shape, or version_paths_for's own bare-

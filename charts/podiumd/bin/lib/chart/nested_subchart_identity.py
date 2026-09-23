@@ -13,7 +13,7 @@ from lib.settings import component_resolution_version_path_nested_subcharts
 from lib.settings import component_resolution_version_repository_paths
 
 
-def version_repository_path_for(component, chart_dir):
+def version_repository_path_for(component: str, chart_dir: Path | None):
     """The registered version_paths_for-shaped field settings.yaml's own
     component_resolution.version_repository_paths maps `component` to (see
     lib.settings.component_resolution_version_repository_paths), or None
@@ -33,7 +33,7 @@ def version_repository_path_for(component, chart_dir):
 # own 4 chart_dir-bearing call sites (and its same chart_dir=None
 # tolerance — see that function's own docstring), so it's an ordinary
 # required parameter too.
-def nested_subchart_name_for(component, rel_path, chart_dir):
+def nested_subchart_name_for(component: str, rel_path: str, chart_dir: Path | None):
     """The nested sub-subchart name registered for `component`'s
     `rel_path` (a relative version_paths_for-shaped field) in settings.
     yaml's own component_resolution.version_path_nested_subcharts, or
@@ -44,7 +44,7 @@ def nested_subchart_name_for(component, rel_path, chart_dir):
     return component_resolution_version_path_nested_subcharts(chart_dir).get(component, {}).get(rel_path)
 
 
-def nested_subchart_registered_paths(component, chart_dir=None):
+def nested_subchart_registered_paths(component: str, chart_dir: Path | None = None):
     """Every relative version_paths_for-shaped field settings.
     yaml's own component_resolution.version_path_nested_subcharts
     registers a nested sub-subchart for, whether or not component_
@@ -71,7 +71,7 @@ def nested_subchart_registered_paths(component, chart_dir=None):
 DOCUMENTED_IMAGE_RE = re.compile(r"^#\s*image:\s*([^\s:@]+)", re.MULTILINE)
 
 
-def nested_subchart_raw_text(chart_dir, dep, nested_chart_name, filename, version=None):
+def nested_subchart_raw_text(chart_dir: Path, dep: dict, nested_chart_name: str, filename: str, version=None):
     """Raw text of a file inside a NESTED sub-subchart bundled within
     dep's own vendored .tgz (e.g. eck-stack's own "charts/
     eck-elasticsearch/values.yaml") — same vendored-.tgz-only lookup
@@ -87,7 +87,7 @@ def nested_subchart_raw_text(chart_dir, dep, nested_chart_name, filename, versio
         return None
 
 
-def nested_subchart_documented_image_repository(chart_dir, dep, nested_chart_name, version=None):
+def nested_subchart_documented_image_repository(chart_dir: Path, dep: dict, nested_chart_name: str, version=None):
     """The repository half of a nested sub-subchart's own commented-out
     "# image: <repo>[:<tag>][@sha256:...]" default — the FIRST such
     comment in its own values.yaml, always right under its own
@@ -105,7 +105,7 @@ def nested_subchart_documented_image_repository(chart_dir, dep, nested_chart_nam
     return m.group(1) if m else None
 
 
-def documented_repository_for_path(chart_dir, deps, path):
+def documented_repository_for_path(chart_dir: Path | None, deps: list, path: tuple[str, ...]):
     """The FULL, unstripped repository a COMPONENT_VERSION_PATH_NESTED_
     SUBCHARTS-registered path resolves to (e.g. "docker.elastic.co/
     elasticsearch/elasticsearch") via nested_subchart_documented_image_
