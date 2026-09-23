@@ -49,6 +49,7 @@ from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.values_tree_primitives import find_images
 from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import same_name
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 from lib.dependencies import ensure_vendored_dependencies
@@ -206,7 +207,7 @@ def resolution_note(values_lines, key, basename):
         return None
     except SystemExit:
         pass
-    if key != MULTIPLE_KEY:
+    if not same_name(key, MULTIPLE_KEY):
         try:
             resolve_scoped_matches(values_lines, MULTIPLE_KEY, basename)
             return f"use {MULTIPLE_KEY} {basename}"

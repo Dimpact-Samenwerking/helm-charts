@@ -10,6 +10,9 @@ release-baseline.yaml baselines (upgrade_docs, release_table)."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 
@@ -31,6 +34,9 @@ def repo(tmp_path):
     git("config", "user.name", "Test", cwd=tmp_path)
     chart_dir = tmp_path / "charts" / "podiumd"
     chart_dir.mkdir(parents=True)
+    (chart_dir / "Chart.yaml").write_text(
+        "dependencies:\n  - name: zaakafhandelcomponent\n    alias: zac\n", encoding="utf-8"
+    )
     write_zac_values(chart_dir, "5.0.2", "a" * 64)
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "baseline", cwd=tmp_path)
@@ -76,6 +82,18 @@ def test_main_shows_both_baselines(sibv, repo, monkeypatch, capsys):
     assert "=== release_table baseline ===" in out
     assert out.count(f"ghcr.io/infonl/zaakafhandelcomponent: 5.0.2  (sha256:{'a' * 64})") == 2
     assert "5.4.3" not in out  # must read the BASELINE tag's content, not HEAD
+
+
+def test_main_accepts_the_dependency_name_as_key(
+    sibv: ModuleType, repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """<key> resolves like update-/verify-image-version's (resolve_key_
+    scope): the Chart.yaml name "zaakafhandelcomponent" finds alias
+    "zac"'s values.yaml block."""
+    write_baselines(repo, upgrade_docs="4.8.5")
+    set_argv_and_repo(sibv, monkeypatch, repo, "zaakafhandelcomponent", "zaakafhandelcomponent")
+    sibv.main()
+    assert f"ghcr.io/infonl/zaakafhandelcomponent: 5.0.2  (sha256:{'a' * 64})" in capsys.readouterr().out
 
 
 def test_main_no_pin_at_baseline_is_noted_not_fatal(sibv, repo, monkeypatch, capsys):
