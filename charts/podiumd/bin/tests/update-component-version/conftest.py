@@ -81,14 +81,14 @@ def stub_ensure_vendored_dependencies(ucv, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def stub_refresh_images_baseline(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch) -> list[tuple[object, ...]]:
-    """main() ends with lib.image.baseline_refresh.refresh_images_baseline,
-    which renders the chart with real helm. Recorded instead: returns the
-    list of (chart_dir, deps, values, images_baseline_path) calls."""
-    calls: list[tuple[object, ...]] = []
+def stub_run_fix_doc_consistency(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """main() ends with run_fix_doc_consistency, which runs the real
+    fix-doc-consistency script on the real chart. Recorded instead:
+    returns one "fix-doc" item per call."""
+    calls: list[str] = []
 
-    def record(*args: object) -> None:
-        calls.append(args)
+    def record() -> None:
+        calls.append("fix-doc")
 
-    monkeypatch.setattr(ucv, "refresh_images_baseline", record)
+    monkeypatch.setattr(ucv, "run_fix_doc_consistency", record)
     return calls

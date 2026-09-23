@@ -86,40 +86,35 @@ def registry_has_b_digest(_host: str, _repo: str, _tag: str) -> tuple[bool, str]
     return True, "sha256:" + "b" * 64
 
 
-def test_main_refreshes_images_baseline_with_the_new_pin(
+def test_main_ends_with_fix_doc_consistency(
     uiv: ModuleType,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    stub_refresh_images_baseline: list[tuple[object, ...]],
+    stub_run_fix_doc_consistency: list[str],
 ) -> None:
-    """images-baseline.yaml follows the bump, regenerated from the
-    values.yaml just written."""
+    """A bump ends with one fix-doc-consistency run."""
     monkeypatch.setattr(uiv, "VALUES_YAML", pabc_values(tmp_path, "1.1.1"))
     monkeypatch.setattr(image_version, "registry_tag_exists", registry_has_b_digest)
     monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
 
     uiv.main()
 
-    [(chart_dir, _deps, values, images_baseline_path)] = stub_refresh_images_baseline
-    assert chart_dir == tmp_path
-    assert images_baseline_path == tmp_path / "docs" / "images" / "images-baseline.yaml"
-    assert isinstance(values, dict)
-    assert values["pabc"]["image"]["tag"] == f"1.1.2@sha256:{'b' * 64}"
+    assert stub_run_fix_doc_consistency == ["fix-doc"]
 
 
-def test_main_no_op_leaves_images_baseline_alone(
+def test_main_no_op_skips_fix_doc_consistency(
     uiv: ModuleType,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    stub_refresh_images_baseline: list[tuple[object, ...]],
+    stub_run_fix_doc_consistency: list[str],
 ) -> None:
-    """Nothing bumped, nothing to regenerate."""
+    """Nothing bumped, nothing to fix."""
     monkeypatch.setattr(uiv, "VALUES_YAML", pabc_values(tmp_path, "1.1.2"))
     monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
 
     uiv.main()
 
-    assert not stub_refresh_images_baseline
+    assert not stub_run_fix_doc_consistency
 
 
 def test_main_reports_noop_when_already_at_target(uiv, tmp_path, monkeypatch, capsys):

@@ -114,6 +114,8 @@ from lib.image.baseline_refresh import refresh_images_baseline
 from lib.image.docs import add_missing_changes_sections
 from lib.image.docs import add_missing_sidecar_rows
 from lib.image.docs import update_stale_app_version_headings
+from lib.image.manifest_entry_pins import sync_entry_pins
+from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
@@ -554,6 +556,20 @@ def _fix_upgrade_doc(state, upgrade_path, actual_changed_keys):
         upgrade_path.write_text(collapsed_text, encoding="utf-8")
 
 
+def _sync_images_manifest_entry_pins(images_path: Path, state: RebaseState) -> None:
+    """Sets each entry's version/digest to the tag values.yaml pins."""
+    text = images_path.read_text(encoding="utf-8")
+    new_text, synced = sync_entry_pins(
+        text, CHART_YAML.parent, state.target_deps, state.target_values, digest_pinning_exceptions(CHART_YAML.parent)
+    )
+    if synced:
+        images_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Syncing entry version/digest in {images_path.name} with values.yaml ===")
+        for name in synced:
+            print(f"  {name}")
+
+
 def _correct_images_manifest_entries(images_path, state, repo_map):
     """Corrects images-manifest entry comments (source -> target
     version)."""
@@ -727,6 +743,7 @@ def _fix_images_manifest_content(state, images_path):
         CHART_YAML.parent, state.target_deps, state.target_values, target_paths
     )
 
+    _sync_images_manifest_entry_pins(images_path, state)
     _correct_images_manifest_entries(images_path, state, repo_map)
     _correct_images_manifest_urls(images_path, state, repo_map)
     _add_missing_images_manifest_entries(images_path, state)

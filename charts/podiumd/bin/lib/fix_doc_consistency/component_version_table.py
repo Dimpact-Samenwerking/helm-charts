@@ -100,17 +100,10 @@ def _new_dependency_row_update(lines, row, resolved, resolution):
         if cells[2] != new_chart_cell:
             cells[2] = new_chart_cell
             row_changed = True
-    elif resolved["kind"] == "native" and cells[2] != "-":
-        # A native_components component (see lib.chart.native_components)
-        # never has a chart to verify against at all — unlike a
-        # sidecar's own "-" (trusted correct from the moment
-        # add_missing_sidecar_rows first writes it), this one CAN start
-        # out wrong (real case: frankgateway's own row wrongly showed a
-        # real-looking chart version after a mistaken Chart.yaml
-        # dependency was briefly added) and nothing else ever corrects
-        # it back, since the two `actual_target_chart is not None`
-        # branches here and in _existing_row_update both always skip a
-        # native row's chart cell entirely.
+    elif cells[2] != "-":
+        # A native component or a sidecar has no chart of its own
+        # (resolve_component_row's target_chart is None), so its chart
+        # cell is "-", the value check_docs_consistency expects.
         cells[2] = "-"
         row_changed = True
 
@@ -163,12 +156,8 @@ def _existing_row_update(lines, row, resolved):
         if cells[2] != new_chart_cell:
             cells[2] = new_chart_cell
             row_changed = True
-    elif resolved["kind"] == "native" and cells[2] != "-":
-        # See the identical branch in _new_dependency_row_update — same
-        # forced correction, needed here too since a native component's
-        # own baseline CAN independently resolve (both app versions
-        # found — frankgateway's real case) while its chart cell still
-        # wrongly shows a real-looking version.
+    elif actual_target_chart is None and cells[2] != "-":
+        # See the identical branch in _new_dependency_row_update.
         cells[2] = "-"
         row_changed = True
 
@@ -198,10 +187,8 @@ def fix_component_version_table(text, resolution):
     leading word (e.g. "redis-operator - redis" silently corrected against
     the real "redis-operator" dependency's own actual chart/app version,
     which happened here before this guard existed). Its Helm-chart cell is
-    never rewritten (stays whatever it already says — "-", same convention
-    add_missing_sidecar_rows itself writes — since a sidecar has no Helm
-    chart version of its own to verify against, same as
-    lib.docs_consistency's own row check). `resolution` is a
+    set to "-", same as add_missing_sidecar_rows writes, since a sidecar
+    has no Helm chart version of its own. `resolution` is a
     ResolutionContext. Returns (new_text, changed_rows, unmatched_names,
     unresolved_names)."""
     lines = text.splitlines(keepends=True)

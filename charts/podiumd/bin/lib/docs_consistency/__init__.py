@@ -11,12 +11,8 @@ import re
 
 from dataclasses import dataclass
 
-from lib.chart.pull_and_subchart_resolution import global_image_paths
-from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
-from lib.chart.repo_and_path_resolution import paths_by_repository
-from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.values_tree_primitives import version_of
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import resolve_component_own_version_change
@@ -32,10 +28,11 @@ from lib.docs_consistency.markdown_format import check_doc_title
 from lib.docs_consistency.pointer_consistency import check_pointer_consistency
 from lib.docs_consistency.values_diff import ValuesDeltaInputs
 from lib.docs_consistency.values_diff import check_values_deltas_content
+from lib.image.manifest_entry_pins import current_image_paths
+from lib.image.manifest_entry_pins import entry_pin
+from lib.image.manifest_entry_pins import image_repo_map
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
-from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
@@ -285,16 +282,13 @@ def _resolve_image_paths(chart_dir, deps, values, baseline_ref, baseline_values)
     """current/baseline image-tag-path maps plus the shared-image
     repository-group representative map — bundled since every
     downstream check that compares "the image at this path" needs all
-    three, and none of them differ in how they're derived (find_image_
-    tag_paths + global_image_paths, gated on baseline_ref the same way
+    three, and none of them differ in how they're derived (lib.image.
+    manifest_entry_pins, gated on baseline_ref the same way
     check_docs_consistency's own baseline_deps/baseline_values default
     to []/{} when there's no baseline at all)."""
-    current_paths = dict(find_image_tag_paths(values))
-    current_paths.update(global_image_paths(values))
-    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_ref else {}
-    baseline_paths.update(global_image_paths(baseline_values) if baseline_ref else [])
-    repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys()) if chart_dir is not None else {}
-    repo_map = {repo: repo_group_representative(paths, deps) for repo, paths in repo_groups.items()}
+    current_paths = current_image_paths(values)
+    baseline_paths = current_image_paths(baseline_values) if baseline_ref else {}
+    repo_map = image_repo_map(chart_dir, deps, values, current_paths) if chart_dir is not None else {}
     return current_paths, baseline_paths, repo_map
 
 
@@ -523,7 +517,7 @@ def _check_missing_component_rows(ctx, scan, rows_result):
 
 
 def _check_row_and_heading_order(ctx, scan):
-    """"Component versions" table rows and "## Changes" headings should
+    """ "Component versions" table rows and "## Changes" headings should
     both follow values.yaml's own component order (see find_out_of_
     order_names) — checked here together since both use the same key_
     order/canonical_names, just against a different name list. Returns
@@ -711,7 +705,7 @@ def _check_images_manifest_entry(ctx, scan, entry, findings):
     name = entry.get("name")
     if not name:
         return
-    path = resolve_entry_image_path(entry, ctx.image_paths.current.keys(), scan.repo_map)
+    path, actual_tag = entry_pin(entry, ctx.current.values, ctx.image_paths.current, scan.repo_map, scan.sibling_fields)
     if not path:
         print(f'  ({scan.images_path.name}: entry "{name}" — no matching image in values.yaml, skipped)')
         return
@@ -721,10 +715,6 @@ def _check_images_manifest_entry(ctx, scan, entry, findings):
         findings.mismatches.append(f'{name}: entry in {scan.images_path.name} is missing "version" or "digest"')
         return
     expected_tag = f"{version}@{digest}"
-    actual_tag = (
-        resolved_digest_pin(ctx.current.values, path, ctx.image_paths.current[path], scan.sibling_fields)
-        or ctx.image_paths.current[path]
-    )
     if actual_tag != expected_tag:
         findings.mismatches.append(
             f'{name}: values.yaml tag is "{actual_tag}", {scan.images_path.name} says "{expected_tag}"'
