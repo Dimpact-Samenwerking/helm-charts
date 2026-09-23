@@ -54,14 +54,14 @@ def fake_render_chart(rendered=RENDERED, returncode=0):
 
 
 @pytest.fixture(autouse=True)
-def _default_render(libkubeconformcheck, monkeypatch):
+def _default_render(monkeypatch):
     """check_kubeconform now gets its render via lib.render_scope.render_
     chart(chart_dir, extra_args), not a run([...]) call of its own —
     default every test in this file to the standard RENDERED fixture
     text; a test needing different rendered content (or a render
     failure) overrides this via its own monkeypatch.setattr(
-    libkubeconformcheck, "render_chart", ...) call."""
-    monkeypatch.setattr(libkubeconformcheck, "render_chart", fake_render_chart(RENDERED))
+    "lib.render_scope.render_chart", ...) call."""
+    monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart(RENDERED))
 
 
 def sequenced_run(own_resources, vendored_resources_by_chart=None, kc_returncode=1):
@@ -364,7 +364,7 @@ def test_check_kubeconform_missing_binary_fails(vp, tmp_path, monkeypatch):
 
 def test_check_kubeconform_render_failure_fails(vp, libkubeconformcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
-    monkeypatch.setattr(libkubeconformcheck, "render_chart", fake_render_chart("", returncode=1))
+    monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart("", returncode=1))
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is False
     assert "failed to render" in detail

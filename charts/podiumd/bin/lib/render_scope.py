@@ -14,6 +14,8 @@ checks.digest_pinning) and list-podiumd-images."""
 import re
 
 from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
 
 import yaml
 
@@ -383,3 +385,43 @@ def print_grouped_findings(findings, key_fn, item_fn, label_fn, items_label="lin
         print(f"      {items_label}:")
         for f in group:
             print(f"        {item_fn(f)}")
+
+
+@dataclass
+class VendorBucketScan:
+    """A completed render + tool pass over the chart, as check_kubeconform
+    and check_shellcheck report it: the rendered-line lookup (locations),
+    the friendly-vendor map (for the report's label text), and the
+    findings split into own / vendored-friendly / vendored-other."""
+
+    locations: object
+    vendor_map: dict
+    own_real: list
+    vendored_friendly: list
+    vendored_other: list
+
+
+@dataclass
+class RenderedDocs:
+    """The rendered chart split for a render + tool check: the
+    rendered-line lookup (see build_resource_locations) and the
+    (source, text) docs (see split_rendered_by_source)."""
+
+    locations: object
+    docs: list
+
+
+def render_chart_docs(chart_dir: Path, extra_args: list[str]) -> tuple[RenderedDocs | None, str | None]:
+    """(RenderedDocs, None) for the rendered chart, or (None, error) if
+    helm template fails."""
+    result = render_chart(chart_dir, extra_args)
+    if result.returncode != 0:
+        return None, "helm template failed to render"
+    return RenderedDocs(build_resource_locations(result.stdout), split_rendered_by_source(result.stdout)), None
+
+
+def scan_outcome(own_real: list, vendored_friendly: list, vendored_other: list) -> tuple[bool, str]:
+    """(passed, detail) for a render + tool check: it passes only without
+    own findings; vendored findings are reported, never failing."""
+    detail = f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, {len(vendored_other)} other-vendor"
+    return not own_real, detail
