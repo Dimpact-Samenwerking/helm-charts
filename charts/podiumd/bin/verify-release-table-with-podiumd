@@ -136,7 +136,14 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import release_table_baseline
 from lib.dependencies import require_vendored_dependencies
+from lib.release_baseline import resolve_baseline_chart_state
+from lib.release_table_verification import ChartState
+from lib.release_table_verification import compare
 
+# isort: off
+# Fenced from import sorting: isort and ruff's isort rules attach these
+# comment lines to different imports.
+#
 # basenames_under_scope_any_tag isn't used by this script's own code
 # below -- kept imported only so the tests/ suite's `vrt` fixture (which
 # loads this whole script as a module) can still reach it as
@@ -149,14 +156,12 @@ from lib.image.version import basenames_under_scope_any_tag  # noqa: F401
 # monkeypatched by tests to fake subchart-fallback image resolution).
 # pylint: disable-next=unused-import
 from lib.chart.pull_and_subchart_resolution import primary_image_repositories  # noqa: F401
-from lib.release_baseline import resolve_baseline_chart_state
-from lib.release_table_verification import ChartState
-from lib.release_table_verification import compare
 
 # is_primary_image: same test-only re-export reason as
 # basenames_under_scope_any_tag above (vrt.is_primary_image).
 # pylint: disable-next=unused-import
 from lib.release_table_verification import is_primary_image  # noqa: F401
+# isort: on
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"

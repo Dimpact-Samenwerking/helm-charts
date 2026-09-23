@@ -3,6 +3,7 @@ mentioned in its own values-deltas.md section — used by
 lib.docs_consistency.check_docs_consistency."""
 
 import re
+
 from dataclasses import dataclass
 
 from lib.component_docs.values_delta_sections import find_values_delta_section

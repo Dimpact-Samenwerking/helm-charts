@@ -3,6 +3,7 @@ verification/repair, split out of that script for pylint's too-many-
 lines check."""
 
 import re
+
 from dataclasses import dataclass
 
 import yaml

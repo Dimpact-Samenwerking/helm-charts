@@ -3,6 +3,7 @@ values-deltas heading app-version repair, split out of that script for
 pylint's too-many-lines check — the last of its 6 planned groups."""
 
 import re
+
 from dataclasses import dataclass
 
 from lib.chart.historical_baselines import historical_app_version_for_path

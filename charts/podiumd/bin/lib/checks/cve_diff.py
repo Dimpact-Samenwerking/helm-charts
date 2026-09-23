@@ -102,8 +102,8 @@ import urllib.error
 from collections import Counter
 from dataclasses import dataclass
 
-from lib.checks.cve import CacheSession
 from lib.checks.cve import SEVERITY_ORDER
+from lib.checks.cve import CacheSession
 from lib.checks.cve import ScanTarget
 from lib.checks.cve import bucket_of
 from lib.checks.cve import classify_by_key

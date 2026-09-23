@@ -82,7 +82,6 @@ select = [
 ]
 ignore = [
     "COM812", # Conflicts when used with the formatter
-    "I001", # This rule conflicts with isort, disabled
     "ISC001", # Rule may cause conflicts when used with the formatter, disable is recommended by ruff
     "T201", # 'print' statement found, sometimes these are deliberate
     "UP038", # deprecated: https://github.com/astral-sh/ruff/issues/18727
@@ -96,6 +95,14 @@ fixable = ["ALL"]
 unfixable = []
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.isort]
+# Mirror [tool.isort] below, so `ruff check --select I --fix` and `isort`
+# produce the same import layout. Without these, ruff's own isort defaults
+# merge single-line imports ("from x import a, b") and drop the blank line
+# between "import x" and "from x import y" lines.
+force-single-line = true
+lines-between-types = 1
 
 [tool.ruff.lint.flake8-bandit]
 check-typed-exception = true  # Enable additional checks for try-except-pass
@@ -207,8 +214,10 @@ module-rgx = "^(([a-z_][a-z0-9_-]*)|(__.*__))$"
 max-line-length = 120
 
 [tool.isort]
-# Configured to be compatible with 'ruff format'
-#   not 100% compatible with ruff import optimization ('ruff check --select I --fix'), use isort only
+# Configured to be compatible with 'ruff format', and mirrored by
+# [tool.ruff.lint.isort] above so ruff's own import sorting agrees. The two
+# still attach comment lines between imports differently -- fence such
+# blocks with "# isort: off" / "# isort: on" (both tools honor it).
 line_length = 120
 multi_line_output = 3
 lines_between_types = 1

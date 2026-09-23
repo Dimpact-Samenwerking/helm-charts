@@ -17,6 +17,7 @@ the former flat lib/component_docs.py, now the lib.component_docs
 package."""
 
 import re
+
 from dataclasses import dataclass
 
 from lib.chart.registered_paths import native_components

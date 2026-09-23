@@ -8,6 +8,7 @@ helpers (subchart_template_text, _dependency_for_pin, subchart_
 default_repository, subchart_needs_vendoring)."""
 
 import tarfile
+
 from dataclasses import dataclass
 
 from lib.chart.nested_subchart_identity import nested_subchart_documented_image_repository

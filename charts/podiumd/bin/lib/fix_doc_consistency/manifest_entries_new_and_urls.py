@@ -3,6 +3,7 @@ entry backfill (the biggest single function in the whole script), split
 out for pylint's too-many-lines check."""
 
 import re
+
 from dataclasses import dataclass
 
 import yaml
