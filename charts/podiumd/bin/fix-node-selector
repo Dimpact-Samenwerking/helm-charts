@@ -42,7 +42,7 @@ CONTAINERS_RE = re.compile(r"^(?P<indent>[ ]*)containers:[ \t]*$", re.MULTILINE)
 NODE_SELECTOR_BLOCK = "{indent}nodeSelector:\n{indent}  kubernetes.azure.com/mode: user\n"
 
 
-def split_docs_with_offsets(text):
+def split_docs_with_offsets(text: str):
     """Same split lib.checks.node_selector.scan_missing_node_selector uses
     (DOC_SPLIT_RE), but keeping each doc's own (start, end) char offset
     into `text` so a fix can be spliced back at the right place."""
@@ -52,7 +52,7 @@ def split_docs_with_offsets(text):
     return [(text[s:e], s) for s, e in zip(starts, ends, strict=False)]
 
 
-def find_fixes(text):
+def find_fixes(text: str):
     """Returns (fixes, unresolved) for one file's text:
     - fixes: list of (insert_at, new_text, kind, name) — insert_at is an
       absolute offset into `text`, new_text the nodeSelector block to
@@ -80,7 +80,7 @@ def find_fixes(text):
     return fixes, unresolved
 
 
-def apply_fixes(text, fixes):
+def apply_fixes(text: str, fixes: list):
     """Splices every fix into text, in reverse offset order so an earlier
     insertion's position isn't shifted by a later one applied first."""
     for insert_at, new_text, _kind, _name in sorted(fixes, key=lambda f: f[0], reverse=True):

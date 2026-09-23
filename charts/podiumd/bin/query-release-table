@@ -45,7 +45,7 @@ TARGET_VERSION_COLUMNS = ("target_version_app", "target_version_helm")
 TARGET_TO_SOURCE_COLUMN = {"target_version_app": "source_version_app", "target_version_helm": "source_version_helm"}
 
 
-def load_rows(path):
+def load_rows(path: Path):
     """The release-table.csv at `path`, parsed as a list of dict rows
     (csv.DictReader) — see export-confluence-release-table's own
     CSV_HEADER for the column set."""
@@ -53,7 +53,7 @@ def load_rows(path):
         return list(csv.DictReader(f))
 
 
-def matching_rows(rows, column, text):
+def matching_rows(rows: list, column: str, text: str):
     """The rows whose `column` value contains `text` as a
     case-insensitive substring — the plain single-column match every
     query but "component" uses directly (component_matches layers its own
@@ -62,7 +62,7 @@ def matching_rows(rows, column, text):
     return [row for row in rows if needle in row[column].lower()]
 
 
-def component_matches(rows, text):
+def component_matches(rows: list, text: str):
     """The row(s) a "component" query for `text` should treat as
     matches: rows whose own "component" or "alias" column (both set by
     export-confluence-release-table — see its component_and_alias)
@@ -84,7 +84,7 @@ def component_matches(rows, text):
     return combined or matching_rows(rows, "name", text)
 
 
-def used_by_rows_for(rows, matches):
+def used_by_rows_for(rows: list, matches: list):
     """Every row in `rows` (excluding `matches` themselves) whose
     non-empty "used_by" value relates to one of `matches`' own "name" or
     "alias" values, so that a Technische-section row comes back
@@ -111,7 +111,7 @@ def used_by_rows_for(rows, matches):
     return result
 
 
-def display_value(row, column):
+def display_value(row: dict, column: str):
     """`row[column]` unchanged, except a target version column shows
     "UNCHANGED" instead of the raw value when either there's no target
     value at all (empty cell), or the target equals its own source
@@ -124,7 +124,7 @@ def display_value(row, column):
     return value
 
 
-def print_table(rows):
+def print_table(rows: list):
     """Prints `rows` as a whitespace-aligned table: name/component/alias/
     image_basename plus the four version columns (see display_value for
     how a target column renders as "UNCHANGED"), with each column's width

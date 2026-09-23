@@ -51,7 +51,7 @@ from lib.chart.values_tree_primitives import require_dependency
 from lib.cli import positional_args
 
 
-def find_dependency(name_or_alias):
+def find_dependency(name_or_alias: str):
     """Looks up `name_or_alias` among podiumd's own Chart.yaml dependencies
     (matching either the dependency's name or its alias) and raises
     SystemExit with a clear error if there's no match."""

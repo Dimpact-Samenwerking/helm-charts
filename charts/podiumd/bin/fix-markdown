@@ -34,7 +34,7 @@ from lib.procutil import run
 from lib.settings import quality_gates_markdown_disabled_rules
 
 
-def run_fix(pymarkdown, files, disabled_rules):
+def run_fix(pymarkdown: str, files: list[Path], disabled_rules: str):
     """Runs `pymarkdown fix` against files (writes in place) and returns
     the list of paths pymarkdown itself reported as "Fixed: <path>".
     `disabled_rules` is the configured quality_gates.markdown_disabled_
@@ -52,7 +52,7 @@ def run_fix(pymarkdown, files, disabled_rules):
     return [Path(line[len("Fixed: ") :].strip()) for line in output.splitlines() if line.startswith("Fixed: ")]
 
 
-def dry_run_fix(pymarkdown, files, chart_dir, disabled_rules):
+def dry_run_fix(pymarkdown: str, files: list[Path], chart_dir: Path, disabled_rules: str):
     """Copies every file into a throwaway tmpdir (preserving its path
     relative to chart_dir), runs the real fix there, and reports which
     ones would change — the real files are never touched."""

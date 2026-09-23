@@ -102,14 +102,14 @@ from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
-def find_dependency(name_or_alias):
+def find_dependency(name_or_alias: str):
     """Chart.yaml dependency matching name_or_alias (name or alias — see
     lib.chart.values_tree_primitives.find_dependency); exits instead of
     returning None."""
     return require_dependency(CHART_YAML, name_or_alias)
 
 
-def _check_and_print_image_versions(values_for_check, image_paths, app_version):
+def _check_and_print_image_versions(values_for_check: dict, image_paths: list[str], app_version: str):
     """check_image_versions, printing a FOUND/MISSING line per path and
     exiting 1 if any don't exist upstream. Returns results keyed by path
     — shared by both verify_component_version branches below."""
@@ -121,14 +121,20 @@ def _check_and_print_image_versions(values_for_check, image_paths, app_version):
     return {r["path"]: r for r in image_results}
 
 
-def verify_component_version(dep, image_paths, app_version, chart_version, component_values=None):
+def verify_component_version(
+    dep: dict | None,
+    image_paths: list[str],
+    app_version: str,
+    chart_version: str | None,
+    component_values: dict | None = None,
+):
     """Resolve chart_version's own values.yaml and check image_paths
     resolve to existing app image versions upstream — the single upfront
     gate before any file is touched. Returns results keyed by path; exits
     1 if the chart version or an image version doesn't exist. `dep is
     None` means native_components — component_values is checked directly
     instead of pulling a chart."""
-    if dep is None:
+    if dep is None or chart_version is None:
         print(
             "No Chart.yaml dependency for this component — resolving image repositories "
             "directly from values.yaml (see lib.chart.native_components)"
@@ -151,7 +157,7 @@ def verify_component_version(dep, image_paths, app_version, chart_version, compo
     return _check_and_print_image_versions(upstream_values, image_paths, app_version)
 
 
-def update_chart_yaml(chart_name, new_chart_version):
+def update_chart_yaml(chart_name: str, new_chart_version: str):
     """Rewrite the "version:" line under Chart.yaml's "- name: chart_name"
     dependency entry. Returns (old_line, new_line), each stripped; raises
     SystemExit if the entry or its version line can't be found."""
@@ -179,7 +185,7 @@ def update_chart_yaml(chart_name, new_chart_version):
     return old_line.strip(), lines[version_line].strip()
 
 
-def update_values_yaml(values_key, image_paths, new_tags_by_path):
+def update_values_yaml(values_key: str, image_paths: list[str], new_tags_by_path: dict):
     """Rewrite each "<values_key>.<path>.tag" line to new_tags_by_path[
     path]. Returns (dotted_path, old_line, new_line) tuples, each
     stripped; raises SystemExit if any dotted path can't be found."""
@@ -205,26 +211,26 @@ def current_chart_version():
     return _chart_version(CHART_YAML)
 
 
-def images_manifest_path(target):
+def images_manifest_path(target: str):
     """images-<target>.yaml path, scoped to this script's own IMAGES_DIR
     (see lib.component_docs.baseline_doc_stubs.images_manifest_path)."""
     return _images_manifest_path(IMAGES_DIR, target)
 
 
-def baseline_doc_paths(upgrade_docs_baseline, target):
+def baseline_doc_paths(upgrade_docs_baseline: str | None, target: str):
     """Upgrade-path doc paths for `target`, scoped to this script's own
     DOC_DIR (see lib.component_docs.baseline_doc_stubs.baseline_doc_paths
     for what upgrade_docs_baseline selects between)."""
     return _baseline_doc_paths(DOC_DIR, upgrade_docs_baseline, target)
 
 
-def load_baseline_values(upgrade_docs_baseline):
+def load_baseline_values(upgrade_docs_baseline: str):
     """Parsed values.yaml content as of upgrade_docs_baseline, scoped to
     this script's own VALUES_YAML."""
     return _load_baseline_values(VALUES_YAML, upgrade_docs_baseline)
 
 
-def load_baseline_state(upgrade_docs_baseline):
+def load_baseline_state(upgrade_docs_baseline: str):
     """Combined Chart.yaml + values.yaml state as of upgrade_docs_baseline,
     scoped to this script's own CHART_YAML/VALUES_YAML."""
     return _load_baseline_state(CHART_YAML, VALUES_YAML, upgrade_docs_baseline)
@@ -249,7 +255,7 @@ class ComponentResolution:
     values_key: str
 
 
-def _group_getattr(groups, name):
+def _group_getattr(groups: tuple, name: str):
     """Look up `name` on each of `groups` in turn — shared __getattr__
     body below, so grouping fields into nested dataclasses (for too-many-
     instance-attributes) doesn't force ctx.app_version-style access to
@@ -272,7 +278,7 @@ class BumpContext:
     values: dict
     image_paths: list
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         return _group_getattr((self.versions, self.resolution), name)
 
 
@@ -326,7 +332,7 @@ class BaselineComparison:
     doc_paths: DocPaths
     snapshot: BaselineSnapshot
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         return _group_getattr((self.doc_paths, self.snapshot), name)
 
 
@@ -355,7 +361,7 @@ def _load_split_tag_sha_paths():
     }
 
 
-def _resolve_bump_context(component, app_version, chart_version):
+def _resolve_bump_context(component: str, app_version: str, chart_version: str):
     """Resolve a BumpContext: whether chart_version is "native" (a
     lib.chart.native_components component), and from that dep/chart_name/
     values_key/image_paths. Exits if "native" is passed for a component
@@ -427,7 +433,7 @@ def _compute_paths_to_update(ctx):
     return paths_to_update, old_app_by_path
 
 
-def _classify_paths_to_update(ctx, paths_to_update, split_tag_sha_paths):
+def _classify_paths_to_update(ctx, paths_to_update: list[str], split_tag_sha_paths: dict):
     """Split paths_to_update three ways: an explicit split tag/sha pin, a
     path with its own "repository:" (see _write_delegated_tags), or a
     sub-chart-default fallback (see _write_fallback_tags)."""
@@ -441,7 +447,7 @@ def _classify_paths_to_update(ctx, paths_to_update, split_tag_sha_paths):
     return TagUpdatePlan(split_paths, delegated_paths, fallback_paths)
 
 
-def _write_split_tag_sha_pins(ctx, split_paths, split_tag_sha_paths, acc):
+def _write_split_tag_sha_pins(ctx, split_paths: list, split_tag_sha_paths: dict, acc):
     """Write the split "tag:"/"<sibling_field>:" pin pairs (see the comment
     above _load_split_tag_sha_paths and lib.chart.values_tag_sha_lines)
     for split_paths, updating acc.new_tags_by_path/acc.repos in place."""
@@ -486,7 +492,7 @@ def _write_split_tag_sha_pin(
     )
 
 
-def _write_delegated_tags(ctx, delegated_paths, acc):
+def _write_delegated_tags(ctx, delegated_paths: list, acc):
     """Delegate delegated_paths to lib.image.version.update_image_version,
     keyed by each path's own real repository basename (not necessarily
     this component's own name) so a shared image is updated everywhere
@@ -513,7 +519,7 @@ def _write_delegated_tags(ctx, delegated_paths, acc):
         acc.new_tags_by_path[path] = f"{own_change['new_version']}@{own_change['new_digest']}"
 
 
-def _write_fallback_tags(ctx, fallback_paths, upstream_images, acc):
+def _write_fallback_tags(ctx, fallback_paths: list, upstream_images: dict, acc):
     """For fallback_paths (sub-chart default repository), write the digest
     upstream_images already resolved straight into values.yaml. Updates
     acc.new_tags_by_path/acc.repos in place."""
@@ -537,7 +543,7 @@ def _write_fallback_tags(ctx, fallback_paths, upstream_images, acc):
         print(f"    {new_v}")
 
 
-def _update_image_tags(ctx, paths_to_update, split_tag_sha_paths, upstream_images):
+def _update_image_tags(ctx, paths_to_update: list, split_tag_sha_paths: dict, upstream_images: dict):
     """Dispatch paths_to_update to whichever of the three tag-update
     strategies each one needs (see _classify_paths_to_update), writing
     values.yaml as needed. Returns (new_tags_by_path, repos)."""
@@ -551,7 +557,7 @@ def _update_image_tags(ctx, paths_to_update, split_tag_sha_paths, upstream_image
     return acc.new_tags_by_path, acc.repos
 
 
-def _resolve_against_baseline(ctx, baseline_deps, baseline_values, friendly):
+def _resolve_against_baseline(ctx, baseline_deps: list, baseline_values: dict | None, friendly: str):
     """When baseline_deps resolved to a real git ref: whether `friendly` is
     back at its baseline version, and old_app/old_chart resolved against
     it (see resolve_baseline_component_versions). Returns (old_app,
@@ -580,7 +586,7 @@ def _resolve_against_baseline(ctx, baseline_deps, baseline_values, friendly):
     return old_app, old_chart, reset_to_baseline
 
 
-def _resolve_baseline_comparison(ctx, target, old_app_by_path):
+def _resolve_baseline_comparison(ctx, target: str, old_app_by_path: dict):
     """Compare against the TRUE release upgrade_docs_baseline (git-
     resolved), not "whatever this script last left on disk" — the only
     way a component bumped more than once in one cycle still documents as
@@ -609,7 +615,7 @@ def _resolve_baseline_comparison(ctx, target, old_app_by_path):
     )
 
 
-def _update_upgrade_doc_section(ctx, comparison, target, paths_to_update):
+def _update_upgrade_doc_section(ctx, comparison, target: str, paths_to_update: list):
     """Rewrite (or explain skipping) the upgrade-path doc's Component-
     versions table row and Changes section for this component."""
     friendly = ctx.values_key
@@ -628,7 +634,7 @@ def _update_upgrade_doc_section(ctx, comparison, target, paths_to_update):
     rewrite_upgrade_doc(comparison.upgrade_path, friendly, change, section, ordering)
 
 
-def _update_values_deltas_change(ctx, comparison, friendly, text, section_removed):
+def _update_values_deltas_change(ctx, comparison, friendly: str, text: str, *, section_removed: bool):
     """Non-reset branch of _update_values_deltas_section: describes
     added/removed/renamed values.yaml keys for this component since its
     baseline, writing a section if any."""
@@ -686,7 +692,7 @@ def _update_values_deltas_section(ctx, comparison):
     text = comparison.values_deltas_path.read_text(encoding="utf-8")
     text, section_removed = remove_values_delta_section(text, friendly, ctx.deps)
     if not comparison.reset_to_baseline:
-        _update_values_deltas_change(ctx, comparison, friendly, text, section_removed)
+        _update_values_deltas_change(ctx, comparison, friendly, text, section_removed=section_removed)
         return
     comparison.values_deltas_path.write_text(text, encoding="utf-8")
     print()
@@ -728,7 +734,7 @@ def _write_images_manifest_updates(ctx, comparison, manifest_target, path_update
         print(f"  updated entry '{name}'")
 
 
-def _update_images_manifest_section(ctx, comparison, paths_to_update, tags):
+def _update_images_manifest_section(ctx, comparison, paths_to_update: list, tags: tuple):
     """Rewrite (or explain skipping) docs/images/images-<target>.yaml's
     entries and 'changes:' list for this component. `tags` is the
     (new_tags_by_path, repos) pair _update_image_tags returned."""

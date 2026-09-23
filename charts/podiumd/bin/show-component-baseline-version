@@ -41,7 +41,7 @@ from lib.chart.repo_and_path_resolution import component_state_at_baseline
 from lib.cli import positional_args
 
 
-def show_at_baseline(chart_dir, label, baseline, component):
+def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, component: str):
     """Prints this component's state at `baseline` (labeled `label`,
     "upgrade_docs" or "release_table") — see lib.baseline_report.
     show_baseline_section for the shared "skip if None / print the
@@ -49,7 +49,7 @@ def show_at_baseline(chart_dir, label, baseline, component):
     resolve-and-print body for. Returns True if the component's state
     was actually shown."""
 
-    def resolve(baseline_value):
+    def resolve(baseline_value: str):
         ref, dep, values_key, image_paths, app_versions, error = component_state_at_baseline(
             chart_dir, "charts/podiumd", baseline_value, component
         )

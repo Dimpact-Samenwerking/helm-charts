@@ -399,13 +399,13 @@ from lib.settings import render_report_top_n_largest_templates_shown
 DEFAULT_CHART_DIR = SCRIPT_DIR.parent
 
 
-def log(title):
+def log(title: str):
     """Prints a "=== title ===" section header, used to separate each
     checklist step's (and the final summary's) output in the run."""
     print(f"\n=== {title} ===")
 
 
-def die(message):
+def die(message: str):
     """Hard-stop for setup/precondition failures that happen before any
     checklist step begins (not part of the PASS/FAIL summary)."""
     print(f"FAIL: {message}", file=sys.stderr)
@@ -431,7 +431,7 @@ def resolve_chart_dir():
     return chart_dir
 
 
-def check_utf8_format(chart_dir):
+def check_utf8_format(chart_dir: Path):
     """True (with an "OK" message) if chart_dir's values.yaml has no
     UTF-8 BOM in its leading bytes; False with a fix-utf8-bom pointer
     otherwise — see the UTF8_BOM constant. This step only detects the
@@ -444,7 +444,7 @@ def check_utf8_format(chart_dir):
     return True, "no BOM"
 
 
-def check_release_baseline(chart_dir):
+def check_release_baseline(chart_dir: Path):
     """Verifies both release-baseline.yaml baselines (upgrade_docs,
     release_table) resolve to a real release — catches a baseline
     recorded before its podiumd-<version> tag/branch existed, or one
@@ -480,7 +480,7 @@ def check_release_baseline(chart_dir):
     return True, ", ".join(resolved)
 
 
-def check_lint(chart_dir, extra_args):
+def check_lint(chart_dir: Path, extra_args: list):
     """Runs `helm lint` against chart_dir with extra_args (see
     lint_args_for — the shared ci/lint-values.yaml overrides every
     render/lint/check step here uses), printing its combined
@@ -501,7 +501,7 @@ def check_lint(chart_dir, extra_args):
     return True, detail
 
 
-def check_render(chart_dir, extra_args):
+def check_render(chart_dir: Path, extra_args: list):
     """Renders chart_dir via render_chart (with extra_args — see
     lint_args_for), then reports the rendered manifest count. Returns
     (ok, detail): False if rendering fails outright (reporting
@@ -525,7 +525,7 @@ def check_render(chart_dir, extra_args):
     return True, detail
 
 
-def print_summary(results, overall_ok):
+def print_summary(results: list, *, overall_ok: bool):
     """Prints the final PASS/FAIL/SKIP table for every step in `results`
     (name, ok, detail triples — ok=None renders as SKIP), followed by one
     closing line depending on overall_ok."""
@@ -648,7 +648,7 @@ STEP_PREREQUISITES = {
 }
 
 
-def prerequisites_for(step_name):
+def prerequisites_for(step_name: str):
     """Transitive closure of STEP_PREREQUISITES for step_name. Currently
     only one level deep, but resolved as a closure rather than a single
     lookup so a future chained prerequisite doesn't silently go missing —
@@ -695,7 +695,7 @@ class StepRunner:
     results: list = field(default_factory=list)
     failed_or_blocked: set = field(default_factory=set)
 
-    def run(self, name, title, func, *fargs):
+    def run(self, name: str, title: str, func, *fargs):
         """Runs one step: prints title, honors skipped_steps/a blocked
         prerequisite (see failed_or_blocked), else calls func(*fargs) and
         records (name, ok, detail) into results."""
@@ -756,7 +756,7 @@ def _parse_cli_args():
 
     valid_flags = {flag for flag, _ in SKIPPABLE_STEPS}
 
-    def parse_step_list(raw, option_name):
+    def parse_step_list(raw: str | None, option_name: str):
         if not raw:
             return []
         flags = [f for f in raw.split(",") if f]
@@ -786,7 +786,7 @@ def _parse_cli_args():
     return args, skipped_steps, skip_flags, include_flags
 
 
-def _run_all_steps(runner, chart_dir, args):
+def _run_all_steps(runner, chart_dir: Path, args):
     """Runs every step in SKIPPABLE_STEPS' fixed order via runner.run (see
     StepRunner), same order --help's step list documents. Split out of
     main() purely to keep main() itself short; this is still one linear,
@@ -897,7 +897,7 @@ def _run_all_steps(runner, chart_dir, args):
     )
 
 
-def _ensure_vendored_dependencies_if_skipped(chart_dir, skipped_steps):
+def _ensure_vendored_dependencies_if_skipped(chart_dir: Path, skipped_steps: set):
     """--skip=dependencies (e.g. to skip its repo config + `helm
     dependency list` check while iterating) still runs every step that
     needs it, against whatever charts/*.tgz + Chart.lock happen to be on

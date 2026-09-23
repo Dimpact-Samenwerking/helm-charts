@@ -76,7 +76,7 @@ from lib.release_table_verification import is_primary_image  # noqa: F401
 RELEASE_TABLE_CSV = CHART_DIR / "etc" / "release-table.csv"
 
 
-def load_release_table(path):
+def load_release_table(path: Path):
     """The release-table.csv at `path`, parsed as a list of dict rows
     (csv.DictReader) — one row per (component, section) pair the way
     export-confluence-release-table writes it; see its own CSV_HEADER for
@@ -93,7 +93,7 @@ SECTIONS = [
 ]
 
 
-def print_report(findings, unresolved):
+def print_report(findings: dict, unresolved: list):
     """Prints every non-empty findings[key] section (in SECTIONS' order,
     items sorted), plus a "Skipped" block for `unresolved` rows (see
     compare — a release-table.csv row whose component couldn't be
@@ -121,7 +121,7 @@ def print_report(findings, unresolved):
     return any_findings
 
 
-def _resolve_baseline_state(chart_dir):
+def _resolve_baseline_state(chart_dir: Path):
     """The release_table baseline's own ChartState (see main()), or None
     with a WARNING already printed — either because release-baseline.yaml
     has no release_table key set yet, or that ref couldn't be resolved
