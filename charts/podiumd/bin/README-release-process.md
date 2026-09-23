@@ -5,6 +5,7 @@
   - [Required external tools](#required-external-tools)
   - [Debian setup](#debian-setup)
   - [macOS setup](#macos-setup)
+  - [Vendored sub-charts](#vendored-sub-charts)
 - [Process steps](#process-steps)
   - [Start a new release](#start-a-new-release)
   - [When release is rebased on a different baseline](#when-release-is-rebased-on-a-different-baseline)
@@ -65,6 +66,30 @@ brew install --cask docker   # or: brew install colima docker && colima start
 python3 -m venv .venv
 .venv/bin/pip install -r charts/podiumd/bin/requirements.txt
 ```
+
+### Vendored sub-charts
+
+`charts/podiumd/charts/*.tgz` and `charts/podiumd/Chart.lock` are gitignored. When
+`Chart.yaml` moves on (branch switch, pull, `update-component-version`), they stay at
+the old versions until someone re-vendors them. A stale state makes `helm template`
+fail with a sub-chart schema error that never mentions the real cause.
+
+Every script that renders the chart or reads its vendored `.tgz` files checks this
+first, locally and in milliseconds (`lib.dependencies.require_vendored_dependencies`).
+When the state is stale it stops with the dependencies that are wrong and the fix:
+
+```text
+error: charts/podiumd/charts/ and Chart.lock do not match Chart.yaml (stale or missing sub-charts):
+  - kiss-chart: Chart.yaml wants 3.1.1, charts/ has 3.0.0
+Run: helm dependency update charts/podiumd
+```
+
+Checked by: `fix-doc-consistency`, `list-podiumd-images`, `render-podiumd`,
+`update-component-version`, `update-image-version`, `verify-helm-secret-size`
+(against its own `--chart`), `verify-podiumd-dead-values` and
+`verify-release-table-with-podiumd` (not with `--baseline-only`).
+`verify-podiumd` and `fix-image-digests` re-vendor a stale state themselves, so they
+are never blocked; `verify-podiumd --skip=dependencies` does check first.
 
 ## Process steps
 

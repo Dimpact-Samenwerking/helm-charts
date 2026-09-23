@@ -13,14 +13,24 @@ exit — that's a policy call each caller makes for itself. verify-podiumd
 still dies on failure (same as before, just one level up); set-image-
 digests.py instead warns and carries on with whatever it could already
 resolve, since a failed re-vendor there means only its subchart-default
-fallback stays degraded, not that the whole run is meaningless."""
+fallback stays degraded, not that the whole run is meaningless.
 
+vendored_dependency_problems/require_vendored_dependencies are the
+read-only side of the same concern: a purely local "is charts/ + Chart.lock
+still what Chart.yaml asks for?" check, and the fail-fast guard every
+script that renders the chart or reads its vendored .tgz calls first (see
+require_vendored_dependencies for why that one does exit)."""
+
+import contextlib
 import shutil
 import sys
 import time
 
+from pathlib import Path
+
 import yaml
 
+from lib.checks.vendored_tgz import TGZ_NAME_RE
 from lib.procutil import run
 from lib.settings import dependency_fetch_retry_attempts
 from lib.settings import dependency_fetch_retry_backoff_seconds
@@ -30,7 +40,7 @@ from lib.settings import helm_repos_urls_by_alias
 def _dependency_key(dep, required_repos):
     """(name, version, repository) — the identity a dependency's own
     Chart.lock entry and its current Chart.yaml entry must agree on for
-    _vendored_state_matches_chart_yaml to trust the lock file at all.
+    vendored_state_matches_chart_yaml to trust the lock file at all.
 
     str() on version: Chart.yaml can write a bare-looking version
     ("version: 26") that YAML parses as an int, while Chart.lock always
@@ -44,7 +54,7 @@ def _dependency_key(dep, required_repos):
     forms directly would treat every single alias-referenced dependency
     as "changed" even when nothing has (real bug this fixes: caught live
     against the actual chart, where 17 of 25 dependencies use an alias
-    and _vendored_state_matches_chart_yaml never once returned True as a
+    and vendored_state_matches_chart_yaml never once returned True as a
     result). A repository Chart.yaml already writes as a plain URL/oci://
     reference (no dependency here uses an alias Helm itself doesn't also
     resolve identically) passes through unchanged."""
@@ -54,7 +64,115 @@ def _dependency_key(dep, required_repos):
     return dep.get("name"), str(dep.get("version")), repo
 
 
-def _vendored_state_matches_chart_yaml(chart_dir):
+def _lock_problems(chart_dir, chart_deps):
+    """Every way chart_dir/Chart.lock disagrees with Chart.yaml's current
+    `chart_deps` — [] when the lock lists exactly the same (name, version,
+    repository) triples (see _dependency_key). One entry per affected
+    dependency, naming both sides where it can, e.g. "kiss-chart:
+    Chart.yaml wants 3.1.1, Chart.lock has 3.0.0"."""
+    lock_path = chart_dir / "Chart.lock"
+    if not lock_path.is_file():
+        return ["Chart.lock is missing"]
+    try:
+        lock = yaml.safe_load(lock_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return ["Chart.lock is not valid YAML"]
+
+    required_repos = helm_repos_urls_by_alias(chart_dir)
+    lock_deps = lock.get("dependencies") or []
+    wanted = {_dependency_key(d, required_repos) for d in chart_deps}
+    locked = {_dependency_key(d, required_repos) for d in lock_deps}
+
+    problems = [_describe_lock_mismatch(key, locked) for key in sorted(wanted - locked)]
+    wanted_names = {k[0] for k in wanted}
+    problems.extend(
+        f"{name}: in Chart.lock ({version}) but no longer in Chart.yaml"
+        for name, version, _repo in sorted(locked - wanted)
+        if name not in wanted_names
+    )
+    if not problems and len(lock_deps) != len(chart_deps):
+        problems.append(f"Chart.lock lists {len(lock_deps)} dependencies, Chart.yaml {len(chart_deps)}")
+    return problems
+
+
+def _describe_lock_mismatch(wanted_key, locked):
+    """One _lock_problems entry for a Chart.yaml (name, version,
+    repository) triple Chart.lock doesn't have: a different repository
+    for the same version, a different version, or no entry at all."""
+    name, version, repo = wanted_key
+    same_name = sorted(k for k in locked if k[0] == name)
+    same_version_repos = sorted({k[2] for k in same_name if k[1] == version})
+    if same_version_repos:
+        return f"{name}: Chart.yaml wants repository {repo}, Chart.lock has {', '.join(same_version_repos)}"
+    if same_name:
+        return f"{name}: Chart.yaml wants {version}, Chart.lock has {', '.join(k[1] for k in same_name)}"
+    return f"{name}: missing from Chart.lock"
+
+
+def _tgz_problems(chart_dir, chart_deps):
+    """One entry per Chart.yaml dependency whose charts/<name>-<version>.tgz
+    isn't vendored, naming whatever other version of it charts/ has
+    instead (parsed with lib.checks.vendored_tgz.TGZ_NAME_RE, the same
+    <name>-<version>.tgz split that check already uses)."""
+    charts_dir = chart_dir / "charts"
+    vendored = {}
+    if charts_dir.is_dir():
+        for path in charts_dir.glob("*.tgz"):
+            match = TGZ_NAME_RE.match(path.name)
+            if match:
+                vendored.setdefault(match["name"], []).append(match["version"])
+
+    problems = []
+    for name, version in sorted({(d.get("name"), str(d.get("version"))) for d in chart_deps}):
+        if (charts_dir / f"{name}-{version}.tgz").is_file():
+            continue
+        others = sorted(vendored.get(name, []))
+        if others:
+            problems.append(f"{name}: Chart.yaml wants {version}, charts/ has {', '.join(others)}")
+        else:
+            problems.append(f"{name}: charts/{name}-{version}.tgz is missing")
+    return problems
+
+
+def _dependency_state(chart_dir):
+    """(chart_deps, problems): Chart.yaml's current dependency list, plus
+    every reason the vendored state (Chart.lock + charts/*.tgz) doesn't
+    match it — see vendored_dependency_problems. The one shared
+    implementation behind both vendored_dependency_problems and
+    vendored_state_matches_chart_yaml, so the two can never disagree about
+    what "in sync" means."""
+    chart_yaml_path = chart_dir / "Chart.yaml"
+    if not chart_yaml_path.is_file():
+        return [], ["Chart.yaml is missing"]
+    try:
+        chart_yaml = yaml.safe_load(chart_yaml_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return [], ["Chart.yaml is not valid YAML"]
+    chart_deps = chart_yaml.get("dependencies") or []
+    if not chart_deps:
+        return [], []
+    return chart_deps, _lock_problems(chart_dir, chart_deps) + _tgz_problems(chart_dir, chart_deps)
+
+
+def vendored_dependency_problems(chart_dir):
+    """Every reason chart_dir's vendored state doesn't match its CURRENT
+    Chart.yaml: Chart.lock missing, unparseable, or listing a different
+    (name, version, repository) set (see _dependency_key), and any
+    dependency whose own charts/<name>-<version>.tgz isn't on disk. []
+    when everything lines up, or when Chart.yaml has no dependencies at
+    all (nothing to vendor). Purely local — no helm call, no network.
+
+    Both files are gitignored, so a branch switch or pull that moves
+    Chart.yaml on leaves them silently stale; a later `helm template`
+    then fails with a sub-chart schema error that never mentions the
+    real cause, and every vendored-.tgz-only lookup (lib.chart.
+    subchart_values & co.) silently returns None instead. See
+    require_vendored_dependencies for the scripts' own fail-fast guard
+    built on this."""
+    return _dependency_state(chart_dir)[1]
+
+
+def vendored_state_matches_chart_yaml(chart_dir):
     """True when Chart.lock's own dependency list already exactly matches
     Chart.yaml's CURRENT one (same (name, version, repository) triples,
     order-independent — see _dependency_key) AND every one of those
@@ -71,29 +189,42 @@ def _vendored_state_matches_chart_yaml(chart_dir):
 
     False (never raises) for any reason the lock can't be trusted as-is:
     missing, unparseable, a different dependency set/version/repository,
-    or a dependency missing its own vendored .tgz — check_dependencies'
-    own full rebuild-from-scratch path is the safe fallback for every
-    one of those, exactly as if this check didn't exist at all."""
-    lock_path = chart_dir / "Chart.lock"
-    if not lock_path.is_file():
-        return False
-    try:
-        lock = yaml.safe_load(lock_path.read_text(encoding="utf-8")) or {}
-        chart_yaml = yaml.safe_load((chart_dir / "Chart.yaml").read_text(encoding="utf-8")) or {}
-    except yaml.YAMLError:
-        return False
+    a dependency missing its own vendored .tgz (see vendored_dependency_
+    problems for the itemized list), or a Chart.yaml with no dependencies
+    at all — check_dependencies' own full rebuild-from-scratch path is
+    the safe fallback for every one of those, exactly as if this check
+    didn't exist at all."""
+    chart_deps, problems = _dependency_state(chart_dir)
+    return bool(chart_deps) and not problems
 
-    required_repos = helm_repos_urls_by_alias(chart_dir)
-    lock_deps = lock.get("dependencies") or []
-    chart_deps = chart_yaml.get("dependencies") or []
-    if not chart_deps or len(lock_deps) != len(chart_deps):
-        return False
-    if {_dependency_key(d, required_repos) for d in lock_deps} != {
-        _dependency_key(d, required_repos) for d in chart_deps
-    }:
-        return False
 
-    return all((chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz").is_file() for dep in chart_deps)
+def require_vendored_dependencies(chart_dir):
+    """Fail-fast guard for scripts that render chart_dir or read its
+    vendored charts/*.tgz / Chart.lock: raises SystemExit (exit 1, the
+    message on stderr) naming every stale or missing dependency and the
+    `helm dependency update` command that fixes it, instead of letting a
+    later render fail on an unrelated-looking sub-chart schema error.
+
+    The module's one exit-deciding function, on purpose: it is only ever
+    called from a script's own main(), never from another lib function,
+    so the "should this process exit?" policy still belongs to each
+    script — this just keeps the message and exit code identical across
+    all of them. Scripts that repair the state themselves (verify-
+    podiumd's "Dependencies" step, fix-image-digests) don't call it
+    before that repair."""
+    problems = vendored_dependency_problems(chart_dir)
+    if not problems:
+        return
+    shown = chart_dir
+    with contextlib.suppress(ValueError):
+        shown = chart_dir.resolve().relative_to(Path.cwd())
+    details = "\n".join(f"  - {problem}" for problem in problems)
+    message = (
+        f"error: {shown}/charts/ and Chart.lock do not match Chart.yaml (stale or missing sub-charts):\n"
+        f"{details}\n"
+        f"Run: helm dependency update {shown}"
+    )
+    raise SystemExit(message)
 
 
 def ensure_repos_configured(chart_dir):
@@ -126,7 +257,7 @@ def check_dependencies(chart_dir):
     """Confirms every Chart.yaml dependency actually resolved and bundled
     into chart_dir/charts/ — skipping the (always slow — Helm re-fetches
     every single dependency unconditionally, never just the changed ones;
-    see _vendored_state_matches_chart_yaml's own docstring) `helm
+    see vendored_state_matches_chart_yaml's own docstring) `helm
     dependency update` entirely when Chart.lock already proves the
     on-disk vendored state matches Chart.yaml's current dependencies
     exactly. Otherwise rebuilds chart_dir/charts/ from scratch (rm -rf +
@@ -151,7 +282,7 @@ def check_dependencies(chart_dir):
     docstring flushes before a live-streamed child) so an earlier, still-
     buffered print from this process can't end up appearing AFTER output
     the child already wrote straight to the same fd."""
-    if _vendored_state_matches_chart_yaml(chart_dir):
+    if vendored_state_matches_chart_yaml(chart_dir):
         print(
             "Chart.lock already matches Chart.yaml and every dependency is vendored — skipping helm dependency update"
         )

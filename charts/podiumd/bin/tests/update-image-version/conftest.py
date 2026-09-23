@@ -68,3 +68,13 @@ def stub_fix_helm_doc(uiv, monkeypatch):
         return real_run(cmd, *args, **kwargs)
 
     monkeypatch.setattr(subprocess, "run", fake_run)
+
+
+@pytest.fixture(autouse=True)
+def stub_require_vendored_dependencies(uiv, monkeypatch):
+    """main() now calls lib.dependencies.require_vendored_dependencies
+    first, but every main()-level test here runs against a fake chart
+    directory with no vendored sub-charts at all. Stubbed to a no-op by
+    default; a test exercising the guard itself puts the real one back
+    via its own monkeypatch.setattr, same as any other autouse default."""
+    monkeypatch.setattr(uiv, "require_vendored_dependencies", lambda chart_dir: None)
