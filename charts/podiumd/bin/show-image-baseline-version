@@ -44,7 +44,7 @@ from lib.image.version import resolve_scoped_matches
 from lib.release_baseline import resolve_baseline_values
 
 
-def show_at_baseline(chart_dir, label, baseline, key, basename):
+def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, key: str, basename: str):
     """Prints <key> <basename>'s resolved pin(s) at `baseline` (labeled
     `label`, "upgrade_docs" or "release_table") — see lib.baseline_
     report.show_baseline_section for the shared "skip if None / print
@@ -57,7 +57,7 @@ def show_at_baseline(chart_dir, label, baseline, key, basename):
     all) — never a separate git_show_text call of its own. Returns True
     if the image's state was actually shown."""
 
-    def resolve(baseline_value):
+    def resolve(baseline_value: str):
         ref, _baseline_values, baseline_lines, error = resolve_baseline_values(chart_dir, baseline_value)
         if error:
             return f"error: {error}"

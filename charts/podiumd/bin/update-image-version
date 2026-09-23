@@ -97,7 +97,7 @@ from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
-def group_changes_by_component(changes, values_lines_before_write):
+def group_changes_by_component(changes: list, values_lines_before_write: list[str]):
     """{values_key: {"paths": [dotted image path, ...], "old_app_by_path",
     "repos", "new_tags_by_path"}} for every distinct top-level component a
     basename bump's changes touch, plus [(full dotted "...tag" path,
@@ -165,7 +165,7 @@ class _SingleComponentDocContext:
     baseline: _BaselineResolution
 
 
-def _single_component_baseline_resolution(bump, chart_name, chart_version_str):
+def _single_component_baseline_resolution(bump, chart_name: str, chart_version_str: str):
     """Compare against the TRUE release upgrade_docs_baseline
     (git-resolved), not "whatever this script itself last left on disk"
     -- see update-component-version's own main() for why (a component
@@ -214,7 +214,7 @@ def _single_component_baseline_resolution(bump, chart_name, chart_version_str):
     )
 
 
-def _update_single_component_upgrade_doc(upgrade_path, context, bump):
+def _update_single_component_upgrade_doc(upgrade_path: Path | None, context, bump):
     if upgrade_path is None:
         print_missing_upgrade_doc(context.baseline.upgrade_docs_baseline, context.target)
         return
@@ -228,7 +228,9 @@ def _update_single_component_upgrade_doc(upgrade_path, context, bump):
     rewrite_upgrade_doc(upgrade_path, context.friendly, context.change, section, context.ordering)
 
 
-def _update_single_component_values_deltas(values_deltas_path, context, bump, upgrade_path_exists):
+def _update_single_component_values_deltas(
+    values_deltas_path: Path | None, context, bump, *, upgrade_path_exists: bool
+):
     if values_deltas_path is None:
         if upgrade_path_exists:
             print()
@@ -331,7 +333,7 @@ def _update_single_component_images_manifest(context, bump):
         print(f"  updated entry '{name}'")
 
 
-def update_docs_single_component(new_version, bump, ordering, target):
+def update_docs_single_component(new_version: str, bump, ordering, target: str):
     """The exact update-component-version doc-update flow (see that
     script's own main() for the version this was factored out of),
     applied to a bump of a dependency's own primary image — old_chart/
@@ -348,7 +350,9 @@ def update_docs_single_component(new_version, bump, ordering, target):
 
     upgrade_path, values_deltas_path = baseline_doc_paths(DOC_DIR, baseline.upgrade_docs_baseline, target)
     _update_single_component_upgrade_doc(upgrade_path, context, bump)
-    _update_single_component_values_deltas(values_deltas_path, context, bump, upgrade_path is not None)
+    _update_single_component_values_deltas(
+        values_deltas_path, context, bump, upgrade_path_exists=upgrade_path is not None
+    )
     _update_single_component_images_manifest(context, bump)
 
 
@@ -397,7 +401,7 @@ class _SharedImageDocContext:
     baseline: _SharedImageBaselineResolution
 
 
-def _shared_image_baseline_resolution(new_version, bump):
+def _shared_image_baseline_resolution(new_version: str, bump):
     """Compare against the TRUE release upgrade_docs_baseline
     (git-resolved) rather than "whatever's on disk right before this run"
     -- same reasoning as update_docs_single_component/update-component-
@@ -448,7 +452,7 @@ def _shared_image_baseline_resolution(new_version, bump):
     return _SharedImageBaselineResolution(upgrade_docs_baseline, old_version, reset_to_baseline, pinned)
 
 
-def _update_shared_image_upgrade_doc(upgrade_path, context, bump):
+def _update_shared_image_upgrade_doc(upgrade_path: Path | None, context, bump):
     if upgrade_path is None:
         print_missing_upgrade_doc(context.baseline.upgrade_docs_baseline, context.target)
         return
@@ -463,7 +467,7 @@ def _update_shared_image_upgrade_doc(upgrade_path, context, bump):
     rewrite_upgrade_doc(upgrade_path, bump.name, context.change, section, context.ordering)
 
 
-def _update_shared_image_values_deltas(values_deltas_path, context, bump, upgrade_path_exists):
+def _update_shared_image_values_deltas(values_deltas_path: Path | None, context, bump, *, upgrade_path_exists: bool):
     # A shared image's own basename bump never touches any values.yaml
     # SCHEMA — there's no per-component subtree to diff, unlike a real
     # dependency's own key (see lib.component_docs.sync_values_delta_
@@ -496,7 +500,7 @@ def _update_shared_image_values_deltas(values_deltas_path, context, bump, upgrad
         write_removed_values_delta_section(values_deltas_path, text, bump.name)
 
 
-def _update_shared_image_manifest_entry(images_path, repository, c, context, bump):
+def _update_shared_image_manifest_entry(images_path: Path, repository: str, c: dict, context, bump):
     _host, repo_path = parse_repo(repository)
     if context.baseline.reset_to_baseline:
         changes_action, entry_updated = remove_image_manifest_entry(
@@ -537,7 +541,7 @@ def _update_shared_image_images_manifest(context, bump):
         _update_shared_image_manifest_entry(images_path, repository, c, context, bump)
 
 
-def update_docs_shared_image(new_version, target, bump, ordering):
+def update_docs_shared_image(new_version: str, target: str, bump, ordering):
     """The 4.8.1-to-4.8.2-upgrade.md convention for an image that is not
     a dependency's own primary image (a shared global image, a sidecar,
     or a native component's image): a table row keyed by bump.name
@@ -553,7 +557,7 @@ def update_docs_shared_image(new_version, target, bump, ordering):
 
     upgrade_path, values_deltas_path = baseline_doc_paths(DOC_DIR, baseline.upgrade_docs_baseline, target)
     _update_shared_image_upgrade_doc(upgrade_path, context, bump)
-    _update_shared_image_values_deltas(values_deltas_path, context, bump, upgrade_path is not None)
+    _update_shared_image_values_deltas(values_deltas_path, context, bump, upgrade_path_exists=upgrade_path is not None)
     _update_shared_image_images_manifest(context, bump)
 
 
@@ -570,7 +574,7 @@ def _ordering_and_row_name(
     return ordering, doc_row_name(CHART_DIR, deps, values, bumped_path, all_paths)
 
 
-def update_docs(basename, new_version, changes, values_lines_before_write):
+def update_docs(basename: str, new_version: str, changes: list, values_lines_before_write: list[str]):
     """Updates the current target's upgrade docs for this run's `changes`
     (all under one values.yaml key/scope — see the module docstring for
     why). The doc row name comes from doc_row_name, the same name

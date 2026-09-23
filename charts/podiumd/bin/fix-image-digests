@@ -54,7 +54,7 @@ FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
 
 
-def _resolve_pin_repositories(pins, chart_dir, lines, deps):
+def _resolve_pin_repositories(pins: list, chart_dir: Path, lines: list[str], deps: list):
     """Resolves each pin's "repository:" in place via its vendored
     subchart default (see lib.chart.subchart_default_repository) and
     returns the pins still left unresolved after that. If any of those
@@ -88,7 +88,7 @@ def _resolve_pin_repositories(pins, chart_dir, lines, deps):
     return [p for p in pins if not p["repository"]]
 
 
-def _fetch_live_digest(host, repo_path, version):
+def _fetch_live_digest(host: str, repo_path: str, version: str):
     """Live registry digest for one host/repo_path/version. Retries once
     on a transient fetch error (URLError/OSError) before giving up.
     Returns (digest, error) — error is either the retried fetch
@@ -105,7 +105,7 @@ def _fetch_live_digest(host, repo_path, version):
     return digest, error
 
 
-def _check_target(repository, version, group, values_path):
+def _check_target(repository: str, version: str, group: list, values_path: Path):
     """Live-digest check for one (repository, version) target (`group` is
     its list of matching pins). Returns (stale_entry, fetch_error_entry),
     each None unless applicable — stale_entry is (repository, version,
@@ -127,7 +127,7 @@ def _check_target(repository, version, group, values_path):
     return None, None
 
 
-def _group_pins_by_target(pins):
+def _group_pins_by_target(pins: list):
     """(repository, version) -> [pin, ...] grouping for every pin with a
     resolved repository, so a repository:tag shared by several values.yaml
     pins is only checked against the registry once (see _check_target)."""
@@ -138,7 +138,7 @@ def _group_pins_by_target(pins):
     return targets
 
 
-def find_stale_digests(lines, values_path):
+def find_stale_digests(lines: list[str], values_path: Path):
     """Return (stale, unresolved, fetch_errors). stale is a list of
     (repository, version, old_digest, new_digest, [line, ...], sliding) —
     see _check_target. unresolved pins are handled by _resolve_pin_
@@ -166,7 +166,7 @@ def find_stale_digests(lines, values_path):
     return stale, unresolved, fetch_errors
 
 
-def _parse_args(argv):
+def _parse_args(argv: list):
     """Parses fix-image-digests' own CLI args: -h/--help, --dry-run, and
     an optional <key> <basename> scoping pair. Exits 0 after printing
     help, or 1 on a malformed positional-arg count. Returns (dry_run,
@@ -183,7 +183,7 @@ def _parse_args(argv):
     return dry_run, key, basename
 
 
-def _report_unresolved_and_errors(unresolved, fetch_errors):
+def _report_unresolved_and_errors(unresolved: list, fetch_errors: list):
     """Prints fix-image-digests' own unresolved-pin and fetch-error report
     sections, when present."""
     if unresolved:
@@ -197,7 +197,7 @@ def _report_unresolved_and_errors(unresolved, fetch_errors):
             print(f"  {repository}:{version}  {error}  (values.yaml:{', '.join(map(str, pin_lines))})")
 
 
-def _apply_stale_digests(text, to_update, dry_run):
+def _apply_stale_digests(text: str, to_update: list, *, dry_run: bool):
     """Prints fix-image-digests' own stale-digest report and, unless
     dry_run, returns `text` with every old digest replaced by its new one
     (byte-identical otherwise) — returns `text` unchanged when dry_run,
@@ -266,7 +266,7 @@ def main():
             print("\nNo stale digests found — nothing to do.")
         sys.exit(1 if fetch_errors else 0)
 
-    text = _apply_stale_digests(text, to_update, dry_run)
+    text = _apply_stale_digests(text, to_update, dry_run=dry_run)
 
     if not dry_run:
         VALUES_PATH.write_text(text, encoding="utf-8")

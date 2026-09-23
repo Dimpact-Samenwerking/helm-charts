@@ -32,7 +32,7 @@ from lib.checks.helm_docs import check_helm_docs
 from lib.procutil import run
 
 
-def build_cmd(dry_run):
+def build_cmd(*, dry_run: bool):
     """Builds the helm-docs argv for CHART_DIR, adding --dry-run when
     `dry_run` is True and --template-files when a README.md.gotmpl template
     exists alongside the chart."""

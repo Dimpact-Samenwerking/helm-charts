@@ -111,7 +111,7 @@ class ColumnWidths:
     version: int
 
 
-def pull_chart(dep, dest):
+def pull_chart(dep: dict, dest: Path):
     """Thin wrapper around lib.chart.pull_and_subchart_resolution.pull_chart
     that pulls `dep` at its own pinned version into `dest`, raising
     SystemExit with a clear message on failure instead of returning an
@@ -122,7 +122,7 @@ def pull_chart(dep, dest):
         raise SystemExit(msg)
 
 
-def safe_extract_tgz(tgz_path, dest):
+def safe_extract_tgz(tgz_path: Path, dest: Path):
     """Extract a vendored .tgz, rejecting any member that would land outside dest.
 
     tarfile.extractall() has no member-path-containment check on this Python
@@ -143,7 +143,7 @@ def safe_extract_tgz(tgz_path, dest):
         tf.extractall(dest)  # nosec B202  # noqa: S202
 
 
-def load_chart(dep, tmproot, refresh):
+def load_chart(dep: dict, tmproot: Path, *, refresh: bool):
     """Returns (chart_yaml, values) for `dep`'s own sub-chart source: read
     straight from its source directory for a local "file://" dependency
     (--refresh is meaningless there, see comment below); otherwise
@@ -174,7 +174,7 @@ def load_chart(dep, tmproot, refresh):
     return chart_yaml, values or {}
 
 
-def deep_merge(base, override):
+def deep_merge(base: str | int | dict | None, override):
     """Recursively merges `override` onto `base` the way Helm merges a
     parent chart's values.yaml overrides onto a sub-chart's own defaults:
     dict values are merged key by key, and any other type (including a
@@ -189,7 +189,7 @@ def deep_merge(base, override):
     return override if override is not None else base
 
 
-def resolution_note(values_lines, key, basename):
+def resolution_note(values_lines: list, key: str, basename: str):
     """None if <key> <basename> is real, resolvable input for update-
     image-version/verify-image-version/show-image-baseline-version (see
     lib.image.version.resolve_scoped_matches) — otherwise a short hint
@@ -217,7 +217,7 @@ def _resolves(values_lines: list[str], key: str, basename: str) -> bool:
     return True
 
 
-def _sorted_image_entries(rows):
+def _sorted_image_entries(rows: list):
     """rows: [(key, path, repo, tag, disabled), ...] -> ImageEntry list,
     sorted the way print_image_lines prints them (by key, then path)."""
     entries = [
@@ -228,7 +228,7 @@ def _sorted_image_entries(rows):
     return entries
 
 
-def _column_widths(entries):
+def _column_widths(entries: list):
     return ColumnWidths(
         key=max(len(e.key) for e in entries),
         basename=max(len(e.basename) for e in entries),
@@ -236,7 +236,7 @@ def _column_widths(entries):
     )
 
 
-def _print_image_entry(entry, values_lines, widths):
+def _print_image_entry(entry, values_lines: list, widths):
     """Prints one entry's two lines (see print_image_lines): a short,
     column-aligned "<key> <basename> <version> (path: ...)" line — <key>
     <basename> <version> is exactly the copy/paste-able input for
@@ -259,7 +259,7 @@ def _print_image_entry(entry, values_lines, widths):
     print(f"      {entry.repo}:{entry.tag}")
 
 
-def print_image_lines(rows, values_lines):
+def print_image_lines(rows: list, values_lines: list):
     """rows: [(key, path, repo, tag, disabled), ...] — `disabled` is True
     when this row's own chart-tree path (see lib.render_scope.
     rendered_chart_paths and row_chart_tree_path below) never actually
@@ -274,7 +274,7 @@ def print_image_lines(rows, values_lines):
         _print_image_entry(entry, values_lines, widths)
 
 
-def row_chart_tree_path(chart_dir, dep, first_segment):
+def row_chart_tree_path(chart_dir: Path, dep: dict, first_segment: str):
     """The chart-tree path (see lib.render_scope.rendered_chart_paths)
     that actually OWNS a row nested under `dep`'s own scope at
     `first_segment` (the row's own dep-relative path's first segment,
@@ -302,7 +302,7 @@ def row_chart_tree_path(chart_dir, dep, first_segment):
     return f"{base}/charts/{nested.get('alias') or nested['name']}"
 
 
-def component_version_rows(dep, key, merged, ctx):
+def component_version_rows(dep: dict, key: str, merged: dict, ctx):
     """Extra (key, path, repo, tag, disabled) rows for `dep`'s own settings.
     yaml component_resolution.version_paths/version_path_nested_
     subcharts-registered bare version fields — the ONE image shape find_images'
@@ -393,7 +393,7 @@ def _compute_rendered_paths():
     return rendered_chart_paths(render_result.stdout)
 
 
-def _top_level_image_rows(root_values, dep_keys):
+def _top_level_image_rows(root_values: dict, dep_keys: set[str]):
     """(key, path, repo, tag, disabled) rows for podiumd's own top-level
     values not tied to any dependency (e.g. global.images.*) — never
     disabled, since a top-level value isn't gated by any chart-tree
@@ -405,7 +405,7 @@ def _top_level_image_rows(root_values, dep_keys):
     return rows
 
 
-def _print_dependency_header(dep, ctx):
+def _print_dependency_header(dep: dict, ctx):
     """Prints the "=== <key> (<name> <version>) [disabled] ===" header
     line and returns `key` (dep's own values-key: alias if it declares
     one, else its real name)."""
@@ -417,7 +417,7 @@ def _print_dependency_header(dep, ctx):
     return key
 
 
-def _merged_image_rows(dep, key, merged, ctx):
+def _merged_image_rows(dep: dict, key: str, merged: dict, ctx):
     """(key, path, repo, tag, disabled) rows for `dep`'s own effective
     image set: every find_images-shaped reference in `merged` (chart
     defaults + podiumd's own overrides), plus any component_version_
@@ -434,7 +434,7 @@ def _merged_image_rows(dep, key, merged, ctx):
     return rows
 
 
-def _print_dependency_images(dep, tmproot, refresh, ctx, values_lines):
+def _print_dependency_images(dep: dict, tmproot: Path, ctx, values_lines: list[str], *, refresh: bool):
     """Prints one Chart.yaml dependency's "=== <key> (<name> <version>)
     ===" section: its own appVersion/sub-chart dependencies, then every
     resolved image reference (chart defaults merged with podiumd's own
@@ -442,7 +442,7 @@ def _print_dependency_images(dep, tmproot, refresh, ctx, values_lines):
     key = _print_dependency_header(dep, ctx)
 
     try:
-        chart_yaml, defaults = load_chart(dep, tmproot, refresh)
+        chart_yaml, defaults = load_chart(dep, tmproot, refresh=refresh)
     except SystemExit as e:
         print(f"  {e}\n")
         return
@@ -493,7 +493,7 @@ def main():
             print()
 
         for dep in ctx.deps:
-            _print_dependency_images(dep, tmproot, refresh, ctx, values_lines)
+            _print_dependency_images(dep, tmproot, ctx, values_lines, refresh=refresh)
     finally:
         shutil.rmtree(tmproot, ignore_errors=True)
 

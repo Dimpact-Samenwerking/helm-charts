@@ -52,7 +52,7 @@ from lib.cli import positional_args
 from lib.image.version import image_basename
 
 
-def find_dependency(name_or_alias):
+def find_dependency(name_or_alias: str):
     """Looks up `name_or_alias` among podiumd's own Chart.yaml dependencies
     (matching either the dependency's name or its alias) and raises
     SystemExit with a clear error if there's no match — this script only
@@ -65,7 +65,7 @@ def find_dependency(name_or_alias):
     return dep
 
 
-def _print_image_references(values_yaml, key):
+def _print_image_references(values_yaml: dict, key: str):
     """Prints every image reference in `values_yaml` — each as the "<key>
     <basename> <version>  (path: ...)" line plus an indented "<repo>:<tag>"
     line (see module docstring for why that shape matters), column-aligned
@@ -85,7 +85,7 @@ def _print_image_references(values_yaml, key):
         print(f"      {repo}:{tag}")
 
 
-def report_chart(chart_dir, requested_version, key):
+def report_chart(chart_dir: Path, requested_version: str, key: str):
     """Prints `chart_dir`'s Chart.yaml/values.yaml contents: chart name,
     version and appVersion, its own sub-chart dependencies, and every image
     reference found in values.yaml (see _print_image_references). Warns to

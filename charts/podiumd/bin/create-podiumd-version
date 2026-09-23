@@ -58,7 +58,7 @@ def current_chart_version():
     return chart_version(CHART_YAML)
 
 
-def version_tuple(v):
+def version_tuple(v: str):
     """`v` (a plain "MAJOR.MINOR.PATCH" string) as an (int, int, int)
     tuple, for the arithmetic comparison bump_kind needs — callers are
     responsible for validating the shape first (see CHART_VERSION_RE in
@@ -67,7 +67,7 @@ def version_tuple(v):
     return tuple(int(part) for part in v.split("."))
 
 
-def bump_kind(baseline, target):
+def bump_kind(baseline: str, target: str):
     """ "patch", "minor", or None (not a valid single-increment jump —
     covers a same-or-lower target, a skipped version, and any
     major-version change, which is out of scope for this tool
@@ -81,7 +81,7 @@ def bump_kind(baseline, target):
     return None
 
 
-def update_chart_version(new_version):
+def update_chart_version(new_version: str):
     """Bump Chart.yaml's top-level "version:" and "appVersion:" (this
     repo's own chart always keeps the two in lockstep — see git history of
     every prior release bump) to new_version. Returns the field names
