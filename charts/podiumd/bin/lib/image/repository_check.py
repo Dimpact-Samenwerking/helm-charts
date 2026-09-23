@@ -92,7 +92,7 @@ def _path_has_repository(path, values, dep, ctx):
     return isinstance(sub_repo, str) and bool(sub_repo)
 
 
-def find_images_without_repository(chart_dir, allow_pull=False):
+def find_images_without_repository(chart_dir, *, allow_pull=False):
     """[path, ...] (each as find_image_tag_paths' own tuple form, sorted)
     for every image-tag block whose repository can't be resolved at all.
     A path rooted at a real Chart.yaml dependency's own values-tree key

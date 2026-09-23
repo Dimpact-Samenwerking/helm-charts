@@ -335,7 +335,7 @@ def resolve_subchart_default(chart_dir, dep, chart_name, path):
     return f"{base_path}/charts/{nested_key}", version
 
 
-def resolve_chart_values(chart_dir, dep, version, allow_pull=True):
+def resolve_chart_values(chart_dir, dep, version, *, allow_pull=True):
     """(values, source, error) for `dep` at `version` — preferring an
     already-vendored charts/<name>-<version>.tgz (source "vendored", via
     subchart_values, no network) and only falling back to a fresh `helm
@@ -365,7 +365,7 @@ def resolve_chart_values(chart_dir, dep, version, allow_pull=True):
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def primary_image_repositories(chart_dir, dep, own_values, version=None, allow_pull=True):
+def primary_image_repositories(chart_dir, dep, own_values, version=None, *, allow_pull=True):
     """({path: repository_or_None, ...}, error_or_None) for every one of
     dep's own primary image path(s) (see image_paths_for(dep["name"])) —
     THE single place "what repository does this component's primary

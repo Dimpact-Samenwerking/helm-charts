@@ -34,7 +34,7 @@ def ks_object(kind, name, checks):
     return {"object_name": f"{kind}/apps/v1//{name}", "checks": checks}
 
 
-def resource_check(grade, comments=None, skipped=False):
+def resource_check(grade, comments=None, *, skipped=False):
     return {
         "check": {"id": "container-resources", "name": "Container Resources"},
         "grade": grade,

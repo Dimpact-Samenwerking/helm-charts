@@ -615,7 +615,7 @@ def _cve_summary_detail(buckets, images, stats):
     )
 
 
-def check_cves(chart_dir, extra_args, detail=False):
+def check_cves(chart_dir, extra_args, *, detail=False):
     """Entry point for the "CVE scan" step (see module docstring for the
     full design). Renders the chart to classify every unique digest-pinned
     image as own/partner-vendor/other-vendor, scans each one with trivy

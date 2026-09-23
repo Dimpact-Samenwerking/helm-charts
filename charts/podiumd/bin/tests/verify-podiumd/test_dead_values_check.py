@@ -280,7 +280,7 @@ def test_check_dead_values_baseline_render_failure_is_skipped_not_failed(libdead
 # --- per-subchart scoped rendering + full-chart confirmation safety net ---
 
 
-def fake_run_scoped(call_log=None, full_reads_dead=False):
+def fake_run_scoped(call_log=None, *, full_reads_dead=False):
     """Models "zac" as a real vendored dependency: a SCOPED render
     (chart_name == "zac", the dependency's own release name) sees its
     overlay's keys flat (no "zac:" nesting — exactly what _resolve_scope

@@ -210,7 +210,7 @@ def _process_manifest_entry(index, entry, context, setup, state):
         return
     state.fixed_comment_versions[comment_idx] = (actual_baseline, actual_target)
 
-    new_spec = image_manifest_version_text(actual_baseline, actual_target, digest_only_change)
+    new_spec = image_manifest_version_text(actual_baseline, actual_target, digest_only_change=digest_only_change)
     new_comment_line = replace_version_spec(setup.lines[comment_idx], new_spec)
     if new_comment_line != setup.lines[comment_idx]:
         setup.lines[comment_idx] = new_comment_line

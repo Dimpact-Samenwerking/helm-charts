@@ -163,7 +163,7 @@ def resolve_baseline_component_versions(query):
     return old_app, old_chart
 
 
-def find_image_tag_paths(node, path=(), include_null_tags=False):
+def find_image_tag_paths(node, path=(), *, include_null_tags=False):
     """Yield (path, tag) for every "<key>: {tag: ...}" block anywhere in a
     values tree, where <key> is "image" or ends with "Image" (e.g.
     "initImage", alongside "image" in the very same job, for a component
@@ -222,10 +222,10 @@ def find_image_tag_paths(node, path=(), include_null_tags=False):
         for key, value in node.items():
             if key == "image" or key.endswith("Image"):
                 continue
-            yield from find_image_tag_paths(value, (*path, str(key)), include_null_tags)
+            yield from find_image_tag_paths(value, (*path, str(key)), include_null_tags=include_null_tags)
     elif isinstance(node, list):
         for i, item in enumerate(node):
-            yield from find_image_tag_paths(item, (*path, str(i)), include_null_tags)
+            yield from find_image_tag_paths(item, (*path, str(i)), include_null_tags=include_null_tags)
 
 
 def find_component_version_tags(values, deps):
