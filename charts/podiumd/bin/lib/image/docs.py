@@ -38,18 +38,6 @@ from lib.chart.values_tree_primitives import version_of
 from lib.checks.digest_pinning import find_unresolved_subchart_images
 from lib.component_docs.changes_section import ComponentIdentity
 from lib.component_docs.changes_section import OrderingContext
-
-# ComponentState/DocContext aren't used by this module's own code below --
-# kept imported only so the tests/ suite's `libimagedocs` fixture (which
-# imports this whole module) can still reach them as
-# libimagedocs.ComponentState/libimagedocs.DocContext (add_missing_sidecar_
-# rows/update_stale_app_version_headings take one of each as a caller-
-# constructed argument).
-# pylint: disable-next=unused-import
-from lib.component_docs.changes_section import ComponentState  # noqa: F401
-
-# pylint: disable-next=unused-import
-from lib.component_docs.changes_section import DocContext  # noqa: F401
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import dep_for_values_key
 from lib.component_docs.changes_section import insert_changes_section
@@ -80,6 +68,21 @@ from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
 from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
+
+# isort: off
+# ComponentState/DocContext aren't used by this module's own code below --
+# kept imported only so the tests/ suite's `libimagedocs` fixture (which
+# imports this whole module) can still reach them as
+# libimagedocs.ComponentState/libimagedocs.DocContext (add_missing_sidecar_
+# rows/update_stale_app_version_headings take one of each as a caller-
+# constructed argument). Fenced from import sorting: isort and ruff's
+# isort rules attach these comment lines to different imports.
+# pylint: disable-next=unused-import
+from lib.component_docs.changes_section import ComponentState  # noqa: F401
+
+# pylint: disable-next=unused-import
+from lib.component_docs.changes_section import DocContext  # noqa: F401
+# isort: on
 
 
 def make_image_changes_section(basename, target, old_version, new_version, pinned):

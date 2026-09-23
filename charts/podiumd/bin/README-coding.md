@@ -63,6 +63,11 @@ The extensionless top-level scripts need to be passed explicitly — ruff only
 auto-discovers `*.py` files via a bare `.`, the same file-discovery gap
 `pylint`/`vulture` below have always had.
 
+Import order is part of `ruff check` (rule `I001`). `[tool.ruff.lint.isort]` mirrors
+`[tool.isort]`, so `ruff check --select I --fix` and `isort` give the same result — use
+either. Both attach comment lines between imports differently, so fence such a block
+with `# isort: off` / `# isort: on` (both tools honor it).
+
 **Always review `ruff check --fix`'s own diff by hand before trusting it** —
 it's usually safe, but it has produced real regressions in this codebase before:
 a mechanical `if`/`elif` merge that collapsed a readable 3-branch condition into

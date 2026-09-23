@@ -3,6 +3,7 @@ the sort/out-of-order-detection built on that grouping -- entries
 sharing one dependency/sidecar group move and stay together."""
 
 import re
+
 from dataclasses import dataclass
 
 import yaml

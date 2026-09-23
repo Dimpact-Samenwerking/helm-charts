@@ -76,6 +76,7 @@ Example:
 """
 
 import sys
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -91,45 +92,38 @@ from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.chart.repo_and_path_resolution import (
-    canonical_sidecar_row_names,
-    paths_by_repository,
-    repo_group_representative,
-)
-from lib.component_docs.baseline_doc_stubs import (
-    IMAGES_STUB_TEMPLATE,
-    STANDARD_SUFFIXES,
-    STUB_TEMPLATES,
-    existing_doc_baselines,
-)
+from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
+from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.component_docs.baseline_doc_stubs import IMAGES_STUB_TEMPLATE
+from lib.component_docs.baseline_doc_stubs import STANDARD_SUFFIXES
+from lib.component_docs.baseline_doc_stubs import STUB_TEMPLATES
+from lib.component_docs.baseline_doc_stubs import existing_doc_baselines
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import OrderingContext
-from lib.component_docs.changes_section import add_missing_component_rows, strip_stale_upgrade_placeholders
+from lib.component_docs.changes_section import add_missing_component_rows
+from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import renumber_images_manifest_changes_items
-from lib.component_docs.values_delta_sections import (
-    ValuesDeltaBaseline,
-    ValuesDeltaOrdering,
-    prune_empty_values_delta_sections,
-    strip_stale_values_deltas_todo_stub,
-    sync_values_delta_sections,
-)
+from lib.component_docs.values_delta_sections import ValuesDeltaBaseline
+from lib.component_docs.values_delta_sections import ValuesDeltaOrdering
+from lib.component_docs.values_delta_sections import prune_empty_values_delta_sections
+from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
+from lib.component_docs.values_delta_sections import sync_values_delta_sections
 from lib.dependencies import require_vendored_dependencies
-from lib.fix_doc_consistency.baseline_and_images_manifest_handling import (
-    extract_images_baseline,
-    update_images_manifest_baseline,
-    update_sibling_doc_refs,
-)
-from lib.fix_doc_consistency.component_version_table import (
-    fix_changes_heading_app_versions,
-    fix_component_version_table,
-    fix_values_delta_heading_app_versions,
-)
-from lib.fix_doc_consistency.manifest_changes_items import (
-    dedupe_images_manifest_changes_items,
-    sort_images_manifest_changes_items,
-)
+from lib.fix_doc_consistency.baseline_and_images_manifest_handling import extract_images_baseline
+from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_images_manifest_baseline
+from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_sibling_doc_refs
+from lib.fix_doc_consistency.component_version_table import fix_changes_heading_app_versions
+from lib.fix_doc_consistency.component_version_table import fix_component_version_table
+from lib.fix_doc_consistency.component_version_table import fix_values_delta_heading_app_versions
+from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifest_changes_items
+from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
 
+# isort: off
+# Fenced from import sorting (through "isort: on" below): isort and ruff's
+# isort rules attach these comments to different imports.
+#
 # resolve_entry_version below is test-only, see cdb.resolve_entry_version
 # in tests/fix-doc-consistency -- pylint attributes unused-import to the
 # "from" line of a multi-import statement, not the unused name's own line.
@@ -156,30 +150,38 @@ from lib.fix_doc_consistency.text_helpers_and_repo_rename import (  # pylint: di
     update_component_versions_heading,
     update_title_line,
 )
-from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
-from lib.image.docs import (
-    add_missing_changes_sections,
-    add_missing_sidecar_rows,
-    regenerate_images_baseline_manifest,
-    update_stale_app_version_headings,
-)
-from lib.render_scope import lint_args_for, render_chart, rendered_chart_paths
-from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths, find_image_tag_paths
-from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
-from lib.upgradedoc.images_manifest_ordering import (
-    ManifestSortContext,
-    images_manifest_display_name_positions,
-    images_manifest_entry_positions,
-    sort_images_manifest_entries,
-)
-from lib.upgradedoc.resolve_component_row import ResolutionContext
-from lib.upgradedoc.sorting_and_ordering import sort_changes_blocks, sort_upgrade_doc_rows, sort_values_delta_sections
 
+# isort: on
+from lib.gitutil import baseline_ref_candidates
+from lib.gitutil import find_repo_root
+from lib.gitutil import git_show_yaml
+from lib.gitutil import resolve_git_ref
+from lib.image.docs import add_missing_changes_sections
+from lib.image.docs import add_missing_sidecar_rows
+from lib.image.docs import regenerate_images_baseline_manifest
+from lib.image.docs import update_stale_app_version_headings
+from lib.render_scope import lint_args_for
+from lib.render_scope import render_chart
+from lib.render_scope import rendered_chart_paths
+from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
+from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
+from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
+from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
+from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_positions
+from lib.upgradedoc.images_manifest_ordering import sort_images_manifest_entries
+from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.upgradedoc.sorting_and_ordering import sort_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import sort_upgrade_doc_rows
+from lib.upgradedoc.sorting_and_ordering import sort_values_delta_sections
+
+# isort: off
 # canonical_version_cell below is test-only, see cdb.canonical_version_cell
-# in tests/fix-doc-consistency.
+# in tests/fix-doc-consistency. Fenced from import sorting, same reason as above.
 from lib.upgradedoc.version_cells_and_key_changes import (  # pylint: disable=unused-import
     canonical_version_cell,  # noqa: F401
 )
+# isort: on
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"

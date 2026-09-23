@@ -7,6 +7,7 @@ to resolve a plain (non-component) Changes item to its own manifest
 entry."""
 
 import re
+
 from dataclasses import dataclass
 
 import yaml

@@ -4,6 +4,7 @@ to lib.component_docs.changes_section's table row / "## Changes" section.
 Shared by update-component-version and update-image-version."""
 
 import re
+
 from dataclasses import dataclass
 
 import yaml

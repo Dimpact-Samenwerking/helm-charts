@@ -4,6 +4,7 @@ for one dependency/native-component/sidecar, resolving its actual
 app version from values.yaml/Chart.yaml/vendored subcharts."""
 
 import re
+
 from dataclasses import dataclass
 
 from lib.chart.historical_baselines import BaselineLookup

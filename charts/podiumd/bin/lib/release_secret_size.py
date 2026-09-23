@@ -89,9 +89,9 @@ from lib.chart.release_baseline_basics import load_yaml
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
 from lib.render_scope import render_chart
-from lib.settings import render_report_default_output_file_name
 from lib.settings import release_secret_kubernetes_limit_bytes
 from lib.settings import release_secret_warn_at_fraction_of_limit
+from lib.settings import render_report_default_output_file_name
 
 
 def b64(data):
