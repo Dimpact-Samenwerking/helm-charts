@@ -99,8 +99,9 @@ Checked by: `fix-doc-consistency`, `list-podiumd-images`, `render-podiumd`,
 `update-component-version`, `update-image-version`, `verify-helm-secret-size`
 (against its own `--chart`), `verify-podiumd-dead-values` and
 `verify-release-table-with-podiumd` (not with `--baseline-only`).
-`verify-podiumd`'s "Dependencies" step and `fix-image-digests` re-vendor the same way
-as a step of their own; `verify-podiumd --skip=dependencies` still re-vendors first
+`update-component-version` also re-vendors as its last step, right after it bumps
+`Chart.yaml`, so the next script starts in sync. `verify-podiumd`'s "Dependencies"
+step and `fix-image-digests` re-vendor the same way as a step of their own; `verify-podiumd --skip=dependencies` still re-vendors first
 when a step that needs the sub-charts runs.
 
 ## Process steps
