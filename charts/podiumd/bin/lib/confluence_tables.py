@@ -35,7 +35,7 @@ from typing import Any
 PAGE_ID_RE = re.compile(r"/pages/(\d+)")
 
 
-def page_id_from_url(url):
+def page_id_from_url(url: str):
     """The numeric content ID from a Confluence page URL — either the
     modern "/pages/<id>/<title-slug>" form or the older
     "?pageId=<id>" query-param form."""
@@ -49,7 +49,7 @@ def page_id_from_url(url):
     raise SystemExit(msg)
 
 
-def api_base_url(url):
+def api_base_url(url: str):
     """The REST API root for this Confluence site. Cloud sites serve the
     wiki under "/wiki" (API root ".../wiki/rest/api"); Server/DC sites
     serve it at the domain root (API root ".../rest/api")."""
@@ -59,7 +59,7 @@ def api_base_url(url):
     return f"{parsed.scheme}://{parsed.netloc}{api_path}"
 
 
-def fetch_page_html(url, user, token, urlopen=urllib.request.urlopen):
+def fetch_page_html(url: str, user: str, token: str, urlopen=urllib.request.urlopen):
     """The page's raw storage-format body (body.storage.value) via the
     Confluence REST API — see the module docstring for why storage, not
     the rendered view. `urlopen` is overridable for tests."""
@@ -133,7 +133,7 @@ class _TableExtractor(HTMLParser):
         self._nested_depth = 0
         self._heading = _HeadingState()
 
-    def handle_starttag(self, tag, attrs):
+    def handle_starttag(self, tag: str, attrs: list):
         if self._cell is not None:
             if tag == "table":
                 self._nested_depth += 1
@@ -144,7 +144,7 @@ class _TableExtractor(HTMLParser):
             self._heading.tag = tag
             self._heading.text = []
             return
-        attrs = dict(attrs)
+        attr_map = dict(attrs)
         if tag == "table":
             self._table_stack.append([])
         elif tag == "tr" and self._table_stack:
@@ -152,13 +152,13 @@ class _TableExtractor(HTMLParser):
         elif tag in ("td", "th") and self._row is not None:
             self._cell = {
                 "tag": tag,
-                "colspan": _positive_int(attrs.get("colspan"), 1),
-                "rowspan": _positive_int(attrs.get("rowspan"), 1),
+                "colspan": _positive_int(attr_map.get("colspan"), 1),
+                "rowspan": _positive_int(attr_map.get("rowspan"), 1),
                 "text": [],
             }
             self._nested_depth = 0
 
-    def handle_endtag(self, tag):
+    def handle_endtag(self, tag: str):
         if self._cell is not None:
             if tag == "table" and self._nested_depth > 0:
                 self._nested_depth -= 1
@@ -181,14 +181,16 @@ class _TableExtractor(HTMLParser):
                 self._table_stack[-1].append(self._row)
             self._row = None
 
-    def handle_data(self, data):
+    def handle_data(self, data: str):
         if self._cell is not None:
             self._cell["text"].append(data)
         elif self._heading.tag is not None:
             self._heading.text.append(data)
 
 
-def _positive_int(value, default):
+def _positive_int(value: str | None, default: int):
+    if value is None:
+        return default
     try:
         parsed = int(value)
     except (TypeError, ValueError):
@@ -196,7 +198,7 @@ def _positive_int(value, default):
     return parsed if parsed > 0 else default
 
 
-def extract_tables(html_text):
+def extract_tables(html_text: str):
     """One (heading, rows) pair per <table> found in `html_text`, in
     document order — rows are unexpanded cell dicts (see _TableExtractor);
     heading is the text of the nearest preceding h1-h6, or None if the
@@ -207,7 +209,7 @@ def extract_tables(html_text):
     return list(zip(parser.table_headings, parser.tables, strict=True))
 
 
-def tables_under_headings(tables, headings):
+def tables_under_headings(tables: list, headings: list[str]):
     """The (heading, rows) pairs from extract_tables() whose heading
     case-insensitively matches one of `headings` (whitespace-normalized
     exact match, not substring — headings are titles, not free text)."""
@@ -215,7 +217,7 @@ def tables_under_headings(tables, headings):
     return [(heading, rows) for heading, rows in tables if heading and _normalize(heading) in wanted]
 
 
-def expand_grid(rows):
+def expand_grid(rows: list):
     """A table's rows (unexpanded cell dicts) as a plain 2D grid of
     strings, with every colspan/rowspan expanded so each covered cell
     repeats the spanning cell's text and every row ends up the same
@@ -256,7 +258,7 @@ def expand_grid(rows):
     return grid
 
 
-def leading_header_row_count(rows):
+def leading_header_row_count(rows: list):
     """How many rows, starting from the top, contain at least one <th> —
     stops at the first row with none. 0 if the table uses no <th> at all
     (some Confluence tables render header cells as plain bold <td>s)."""
@@ -268,7 +270,7 @@ def leading_header_row_count(rows):
     return count
 
 
-def fallback_header_row_count(grid):
+def fallback_header_row_count(grid: list):
     """A guess at the header block for a table with no <th> at all (see
     leading_header_row_count): however many leading rows have an empty
     first column. True of every observed component-versions table, where
@@ -283,7 +285,7 @@ def fallback_header_row_count(grid):
     return count
 
 
-def effective_header_row_count(rows, grid):
+def effective_header_row_count(rows: list, grid: list):
     """leading_header_row_count(rows) when the table uses <th> at all;
     otherwise fallback_header_row_count(grid); always at least 1, since a
     table needs at least one header row to match columns against."""
@@ -293,7 +295,7 @@ def effective_header_row_count(rows, grid):
     return count or 1
 
 
-def header_paths(grid, header_row_count):
+def header_paths(grid: list, header_row_count: int):
     """For every column, the stack of distinct header texts above it (top
     row first) — e.g. ["Versie 4.8", "App"] for a column under a
     colspan=2 "Versie 4.8" cell and its own "App" sub-header, or just
@@ -313,7 +315,7 @@ def header_paths(grid, header_row_count):
     return paths
 
 
-def _normalize(text):
+def _normalize(text: str):
     """Lowercased, whitespace-collapsed, hyphens removed — the real
     podiumd page spells it "Ontwikkel-partij", and stripping the hyphen
     (rather than trying to special-case that one header) keeps the match
@@ -322,7 +324,7 @@ def _normalize(text):
     return " ".join(text.lower().replace("-", "").split())
 
 
-def find_column(paths, contains_all, candidates=None):
+def find_column(paths: list, contains_all: list[str], candidates: list[int] | None = None):
     """Index of the first column (among `candidates`, default: every
     column) whose header path contains every one of `contains_all` as a
     case-insensitive substring of the joined path text, or None if no
@@ -336,7 +338,7 @@ def find_column(paths, contains_all, candidates=None):
     return None
 
 
-def find_versie_groups(paths):
+def find_versie_groups(paths: list):
     """Ordered list of (label, [column_indices]) for every distinct
     top-level header group whose own label starts with "Versie" (case-
     insensitive) — e.g. "Versie 4.8"/"Versie 4.9" today, but the version
@@ -390,7 +392,7 @@ def find_versie_groups(paths):
 REQUIRED_RELEASE_COLUMNS = ["source_app", "target_app"]
 
 
-def select_release_columns(paths):
+def select_release_columns(paths: list):
     """{"first": 0, "vendor": <idx-or-None>, "used_by": <idx-or-None>,
     "source_app": ..., "source_helm": <idx-or-None>, "target_app": ...,
     "target_helm": <idx-or-None>} — "vendor" is matched against the
@@ -443,7 +445,7 @@ def select_release_columns(paths):
     return columns
 
 
-def missing_required_release_columns(columns):
+def missing_required_release_columns(columns: dict):
     """Which of select_release_columns()'s REQUIRED columns (source/
     target App — not "first", not the optional "vendor"/"used_by"/
     "source_helm"/"target_helm") came back unresolved (None)."""
@@ -471,7 +473,7 @@ SEMVER_RE = re.compile(
 )
 
 
-def is_semver_compatible(version):
+def is_semver_compatible(version: str):
     """True if `version` matches MAJOR[.MINOR[.PATCH]] (see SEMVER_RE) —
     e.g. "1.27.4", "9.10.1-slim", "3.14-slim", "3.20", "v.1.25.4", or a
     bare discrete version number like "104", but not "5.4.3 5.4.4" (two
@@ -482,7 +484,7 @@ def is_semver_compatible(version):
 MAJOR_MINOR_RE = re.compile(r"(\d+)\.(\d+)")
 
 
-def major_minor(text):
+def major_minor(text: str):
     """The "MAJOR.MINOR" prefix found anywhere in `text` (the patch
     component and anything else — a "Versie " label prefix, a "-rc1"
     suffix — ignored) — e.g. "4.9" from "4.9.0", "Versie 4.9", or

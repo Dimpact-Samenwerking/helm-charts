@@ -32,6 +32,8 @@ bare count isn't."""
 import difflib
 import shutil
 
+from pathlib import Path
+
 from lib.procutil import run
 from lib.settings import helm_doc_max_diff_lines_shown
 
@@ -40,7 +42,7 @@ TEMPLATE_FILENAME = "README.md.gotmpl"
 FIX_COMMAND = "fix-helm-doc"
 
 
-def check_helm_docs(chart_dir):
+def check_helm_docs(chart_dir: Path):
     """Regenerate README.md via `helm-docs --dry-run` (see module
     docstring) and diff it against the real file. Fails outright if
     helm-docs isn't installed or README.md doesn't exist yet — no

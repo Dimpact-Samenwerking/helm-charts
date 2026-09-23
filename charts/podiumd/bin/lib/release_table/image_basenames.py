@@ -2,6 +2,8 @@
 supporting helpers, split out of that script for pylint's too-many-lines
 check."""
 
+from pathlib import Path
+
 from lib.chart.release_baseline_basics import load_yaml
 from lib.image.version import basenames_under_scope
 from lib.image.version import basenames_under_scope_any_tag
@@ -12,7 +14,7 @@ from lib.release_table.component_resolution import global_image_keys
 from lib.release_table.component_resolution import match_one
 
 
-def resolve_image_basenames(rows, chart_dir):
+def resolve_image_basenames(rows: list, chart_dir: Path):
     """A comma-joined image_basename string per row in `rows` (same
     order, same shape as extract_release_rows' own output — [section,
     vendor, used_by, name, component, alias, ...versions]) — the actual
@@ -67,7 +69,7 @@ def resolve_image_basenames(rows, chart_dir):
     return result
 
 
-def _by_component_row_indices(rows):
+def _by_component_row_indices(rows: list):
     """component -> {"alias": ..., "indices": [...]} grouping resolve_
     image_basenames' own per-component pass — a MULTIPLE/UNKNOWN/blank-
     component row is never grouped here, only handled by _assign_
@@ -81,7 +83,7 @@ def _by_component_row_indices(rows):
     return by_component
 
 
-def _available_basenames_for_component(lines, scope_keys):
+def _available_basenames_for_component(lines: list[str], scope_keys: list[str]):
     """basename -> pins available under scope_keys: the digest-required
     scan (basenames_under_scope) first, then, before concluding a
     basename genuinely isn't resolvable, falling back per-basename to
@@ -113,7 +115,7 @@ def _available_basenames_for_component(lines, scope_keys):
     return available
 
 
-def _assign_component_basenames(rows, result, info, available):
+def _assign_component_basenames(rows: list, result: list[str], info: dict, available: dict):
     """Claims `available` basenames into `result` for one component's
     own row indices (info["indices"]) — a primary (used_by-blank) row
     gets first refusal, but ONLY at an EXACT match against its own name
@@ -157,7 +159,7 @@ def _assign_component_basenames(rows, result, info, available):
             result[i] = basenames
 
 
-def _assign_multiple_row_basenames(rows, result, global_keys, global_images):
+def _assign_multiple_row_basenames(rows: list, result: list[str], global_keys: list, global_images: dict):
     """Resolves every MULTIPLE-component row's own basename
     independently, via which global.images key it actually matches (see
     global_image_keys) — never through any component's own scope, since

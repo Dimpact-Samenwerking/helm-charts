@@ -24,6 +24,7 @@ import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
+from pathlib import Path
 
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import values_key_of
@@ -41,7 +42,7 @@ from lib.settings import repo_access_never_probe_host_suffixes
 from lib.settings import repo_access_request_timeout_seconds
 
 
-def is_denylisted_host(host, denylisted_host_suffixes):
+def is_denylisted_host(host: str, denylisted_host_suffixes: tuple[str, ...]):
     """True when `host` ends with one of `denylisted_host_suffixes` (see
     repo_access.never_probe_host_suffixes in lib.settings) — a host a
     Chart.yaml dependency or values.yaml image is never allowed to
@@ -64,14 +65,14 @@ def is_denylisted_host(host, denylisted_host_suffixes):
 DEP_NAME_RE = re.compile(r'^\s*-\s*name:\s*"?([\w.\-]+)"?\s*(?:#.*)?$')
 
 
-def _dependency_line_numbers(chart_yaml_text):
+def _dependency_line_numbers(chart_yaml_text: str):
     """name -> 1-indexed line number of its "- name: <name>" entry."""
     return {
         m.group(1): i + 1 for i, line in enumerate(chart_yaml_text.splitlines()) for m in [DEP_NAME_RE.match(line)] if m
     }
 
 
-def dependency_repos(chart_dir):
+def dependency_repos(chart_dir: Path):
     """(name, line, kind, target) for every Chart.yaml dependency that
     needs network access to resolve — kind "http" (target is the repo's
     base URL, an "@alias" already resolved via
@@ -105,7 +106,7 @@ def dependency_repos(chart_dir):
     return repos
 
 
-def image_repos(values_path):
+def image_repos(values_path: Path):
     """(lines, target) grouped by unique (host, repo_path, version) — for
     every digest-pinned image in values.yaml whose repository resolves
     WITHOUT the vendored subchart-default fallback
@@ -125,7 +126,7 @@ def image_repos(values_path):
     return list(grouped.items())
 
 
-def _check_http_repo(url, timeout_seconds):
+def _check_http_repo(url: str, timeout_seconds: int):
     """A classic Helm repo (added via `helm repo add`) publishes its whole
     catalog as index.yaml at its root — fetching just that (typically a few
     hundred KB at most) proves reachability/auth without pulling a single
@@ -144,7 +145,7 @@ def _check_http_repo(url, timeout_seconds):
     return True, None
 
 
-def _check_registry_repo(chart_dir, host, repo_path, version, timeout_seconds):
+def _check_registry_repo(chart_dir: Path, host: str, repo_path: str, version: str, timeout_seconds: int):
     """Same manifest-existence check check_image_digests uses for a live
     image — an OCI-based Helm chart is just another tagged artifact on the
     same registry API a container image is, so a missing/unauthorized/
@@ -165,11 +166,11 @@ def _check_registry_repo(chart_dir, host, repo_path, version, timeout_seconds):
     return True, None
 
 
-def _host_of(test_kind, target):
+def _host_of(test_kind: str, target: str | tuple[str, ...]):
     """The hostname a given entry would actually be checked against —
     target is a bare URL string for "http", or a (host, repo_path,
     version) tuple for "registry" (see check_repo_access's entries)."""
-    if test_kind == "http":
+    if test_kind == "http" and isinstance(target, str):
         return urllib.parse.urlparse(target).hostname or ""
     return target[0]
 
@@ -186,7 +187,7 @@ class ProbeConfig:
     timeout_seconds: float
 
 
-def _build_entries(chart_deps, img_targets):
+def _build_entries(chart_deps: list, img_targets: list):
     """(kind, description, test_kind, target) for every unique repo/image
     check_repo_access needs to probe — Chart.yaml dependencies grouped by
     (kind, target) so everything sharing one repo (e.g. every
@@ -219,7 +220,7 @@ def _build_entries(chart_deps, img_targets):
     return entries
 
 
-def _probe_entry(config, entry):
+def _probe_entry(config, entry: tuple):
     """Probes one repo/image entry — denylist check, cache hit, or a real
     reachability check — printing its own result line same as
     check_repo_access always has. Returns ("denied", kind, description,
@@ -263,7 +264,7 @@ def _probe_entry(config, entry):
     return ("ok",)
 
 
-def _format_result(checked, total_refs, failures, denied):
+def _format_result(checked: int, total_refs: int, failures: list, denied: list):
     """Final (ok, message) check_repo_access returns — a combined message
     covering both unreachable/unauthorized entries and denylisted-host
     entries, or a plain success count when neither happened."""
@@ -283,7 +284,7 @@ def _format_result(checked, total_refs, failures, denied):
     return False, " | ".join(parts)
 
 
-def check_repo_access(chart_dir):
+def check_repo_access(chart_dir: Path):
     """Fails if any repo a Chart.yaml dependency needs, or any registry a
     values.yaml digest pin needs, is unreachable or unauthorized — before
     "Dependencies"/"Image digests" spend real time (and, for Dependencies,

@@ -36,6 +36,7 @@ real access change is still caught again soon."""
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from pathlib import Path
 
 from lib.json_cache import cache_file
 from lib.json_cache import load_json_cache
@@ -44,7 +45,7 @@ from lib.json_cache import save_json_cache
 CACHE_FILENAME = "repo-access-cache.json"
 
 
-def cache_path(chart_dir):
+def cache_path(chart_dir: Path):
     """<repo-root>/.cache/repo-access-cache.json — a personal, gitignored,
     per-checkout cache (same as lib.image.upgrade_cache's own). Rooted at
     the repo root (not chart_dir) so root .gitignore's plain /.cache/
@@ -53,20 +54,20 @@ def cache_path(chart_dir):
     return cache_file(chart_dir, CACHE_FILENAME)
 
 
-def load_cache(chart_dir):
+def load_cache(chart_dir: Path):
     """The parsed contents of cache_path(chart_dir), or {} if the file
     doesn't exist yet or can't be parsed (corrupt/truncated) — never
     raises, so a broken cache just behaves like a cold one."""
     return load_json_cache(cache_path(chart_dir))
 
 
-def save_cache(chart_dir, cache):
+def save_cache(chart_dir: Path, cache: dict):
     """Persist `cache` to cache_path(chart_dir) as pretty-printed,
     key-sorted JSON, creating the .cache directory first if needed."""
     save_json_cache(cache_path(chart_dir), cache)
 
 
-def cache_key(test_kind, target):
+def cache_key(test_kind: str, target: str | tuple[str, ...]):
     """A stable string key for one check_repo_access entry — test_kind is
     "http" (target a bare URL string) or "registry" (target a (host,
     repo_path, version) tuple)."""
@@ -76,7 +77,7 @@ def cache_key(test_kind, target):
     return f"registry:{host}/{repo_path}:{version}"
 
 
-def cache_entry_is_fresh(entry, ttl_minutes):
+def cache_entry_is_fresh(entry: dict, ttl_minutes: int):
     """True when `entry` was checked within the last `ttl_minutes`
     minutes (see repo_access.cache_ttl_minutes in lib.settings —
     deliberately short: long enough to skip a network round trip on a

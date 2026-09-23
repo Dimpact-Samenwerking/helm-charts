@@ -182,6 +182,7 @@ import tempfile
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -198,7 +199,7 @@ from lib.render_scope import CHART_NAME
 DEAD_VALUES_MAX_WORKERS = os.cpu_count() or 4
 
 
-def flatten_leaves(node, path=()):
+def flatten_leaves(node, path: tuple = ()):
     """(path tuple, value) for every leaf under node — a dict is only a
     leaf itself when empty (nothing to descend into); a list is always
     treated as one leaf (its own elements are never individually
@@ -212,7 +213,7 @@ def flatten_leaves(node, path=()):
         yield path, node
 
 
-def _candidate_leaves(node, path, exempt_full_paths: AbstractSet = frozenset()):
+def _candidate_leaves(node: str | dict, path: tuple, exempt_full_paths: AbstractSet = frozenset()):
     """flatten_leaves(node, path), minus a value that's already null
     (nulling a null is a no-op — nothing to learn) and any path in
     exempt_full_paths (see _condition_leaf_paths — a dependency's own
@@ -227,7 +228,7 @@ def _candidate_leaves(node, path, exempt_full_paths: AbstractSet = frozenset()):
         yield leaf_path
 
 
-def candidate_leaf_paths(values, exempt_full_paths: AbstractSet = frozenset()):
+def candidate_leaf_paths(values: dict, exempt_full_paths: AbstractSet = frozenset()):
     """Every path _candidate_leaves finds in podiumd's own values.yaml
     worth null-testing — the full, flat list (used for the "N checked"
     count; the actual search walks the same candidates hierarchically,
@@ -235,7 +236,7 @@ def candidate_leaf_paths(values, exempt_full_paths: AbstractSet = frozenset()):
     return list(_candidate_leaves(values, (), exempt_full_paths))
 
 
-def _condition_leaf_paths(chart_dir):
+def _condition_leaf_paths(chart_dir: Path):
     """Every Chart.yaml dependency's own "condition:" as a full leaf-path
     tuple (e.g. ("eck-operator", "enabled")) — the exact same set
     _enable_overlay forces true. Excluded from every scope's candidate
@@ -264,14 +265,14 @@ def _condition_leaf_paths(chart_dir):
     return paths
 
 
-def _set_null(tree, path):
+def _set_null(tree: dict, path: tuple[str, ...]):
     node = tree
     for key in path[:-1]:
         node = node.setdefault(key, {})
     node[path[-1]] = None
 
 
-def _deep_merge(base, overlay):
+def _deep_merge(base: dict, overlay: dict):
     for key, value in overlay.items():
         if isinstance(value, dict) and isinstance(base.get(key), dict):
             _deep_merge(base[key], value)
@@ -279,7 +280,7 @@ def _deep_merge(base, overlay):
             base[key] = value
 
 
-def _load_merged_values(chart_dir, extra_args):
+def _load_merged_values(chart_dir: Path, extra_args: list):
     """Python-side equivalent of what -f-layering `helm template` does to
     values.yaml: values.yaml deep-merged with every "-f <file>" in
     extra_args, in order. Needed only for building a sub-chart-scoped
@@ -295,12 +296,12 @@ def _load_merged_values(chart_dir, extra_args):
     return merged
 
 
-def _dependency_by_key(chart_dir):
+def _dependency_by_key(chart_dir: Path):
     chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
     return {values_key_of(dep): dep for dep in chart_yaml.get("dependencies", [])}
 
 
-def _coalesced_values(chart_dir, merged_values, dep_by_key):
+def _coalesced_values(chart_dir: Path, merged_values: dict, dep_by_key: dict):
     """merged_values, but with each Chart.yaml dependency's OWN default
     values.yaml (from its vendored .tgz — see lib.chart.subchart_values)
     merged in UNDER podiumd's own override for that key — replicating
@@ -327,7 +328,7 @@ def _coalesced_values(chart_dir, merged_values, dep_by_key):
     return coalesced
 
 
-def _enable_overlay(chart_dir):
+def _enable_overlay(chart_dir: Path):
     """A nested dict setting every Chart.yaml dependency's own
     "condition:" path to True — e.g. {"openbao": {"enabled": True}} —
     read straight from dependencies[].condition, never a name-based
@@ -346,18 +347,18 @@ def _enable_overlay(chart_dir):
     return overlay
 
 
-def _set_true(tree, path):
+def _set_true(tree: dict, path: tuple[str, ...]):
     node = tree
     for key in path[:-1]:
         node = node.setdefault(key, {})
     node[path[-1]] = True
 
 
-def _parsed_docs(rendered_text):
+def _parsed_docs(rendered_text: str):
     return [doc for doc in yaml.safe_load_all(rendered_text) if doc is not None]
 
 
-def _helm_template(chart_name, chart_path, extra_args, overlay_path):
+def _helm_template(chart_name: str, chart_path: Path, extra_args: list, overlay_path: Path):
     """The raw `helm template` subprocess result — every other render
     helper here derives its own return value from this; the raw result
     (with its stderr) is only needed where a caller must diagnose, or
@@ -367,7 +368,7 @@ def _helm_template(chart_name, chart_path, extra_args, overlay_path):
     return run(args, capture_output=True, text=True)
 
 
-def _render(chart_name, chart_path, extra_args, overlay_path):
+def _render(chart_name: str, chart_path: Path, extra_args: list, overlay_path: Path):
     """Parsed multi-doc render (see _parsed_docs) of `chart_name` at
     `chart_path` (the full podiumd chart dir, or one vendored sub-chart's
     own .tgz — see _resolve_scope) with extra_args plus an extra "-f
@@ -379,7 +380,7 @@ def _render(chart_name, chart_path, extra_args, overlay_path):
     return _parsed_docs(result.stdout)
 
 
-def _with_overlay_file(overlay, render_fn):
+def _with_overlay_file(overlay: dict, render_fn):
     """Dump `overlay` to a throwaway temp file and call
     render_fn(overlay_path) — the file is always cleaned up, even if
     render_fn raises."""
@@ -392,7 +393,7 @@ def _with_overlay_file(overlay, render_fn):
         overlay_path.unlink()
 
 
-def _render_with_null_overrides(scope, relative_paths):
+def _render_with_null_overrides(scope: dict, relative_paths: list):
     """Render `scope` with every one of relative_paths (leaf paths
     relative to whatever values `scope["chart_path"]` itself sees as its
     own top-level values — see _resolve_scope's "strip" for how a
@@ -427,7 +428,7 @@ _EXECUTION_ERROR_PATH_RE = re.compile(r"execution error at \(([^)]+)\):")
 _TOP_LEVEL_CHART_PATH_RE = re.compile(r"charts/([A-Za-z0-9_.\-]+)/")
 
 
-def _error_chart_names(stderr):
+def _error_chart_names(stderr: str):
     names = set(_SCHEMA_ERROR_CHART_RE.findall(stderr))
     for path in _EXECUTION_ERROR_PATH_RE.findall(stderr):
         chart_match = _TOP_LEVEL_CHART_PATH_RE.search(path)
@@ -436,7 +437,7 @@ def _error_chart_names(stderr):
     return names
 
 
-def _make_full_scope(chart_dir, extra_args, enable_overlay):
+def _make_full_scope(chart_dir: Path, extra_args: list, enable_overlay: dict):
     """The whole-podiumd-chart scope — the always-safe fallback for a key
     neither other scope could handle, and the always-authoritative scope
     _confirm_against_full_chart re-verifies every scoped candidate
@@ -471,7 +472,7 @@ def _make_full_scope(chart_dir, extra_args, enable_overlay):
         result = _with_overlay_file(
             overlay, lambda overlay_path: _helm_template(CHART_NAME, chart_dir, extra_args, overlay_path)
         )
-        scope = {
+        scope: dict[str, Any] = {
             "chart_name": CHART_NAME,
             "chart_path": chart_dir,
             "extra_args": extra_args,
@@ -499,7 +500,7 @@ def _make_full_scope(chart_dir, extra_args, enable_overlay):
             dropped.append(name)
 
 
-def _own_template_subchart_refs(chart_dir):
+def _own_template_subchart_refs(chart_dir: Path):
     """The set of Chart.yaml dependency alias-or-name values podiumd's
     OWN templates/*.yaml reference via ".Subcharts.<name>" — Helm's
     mechanism for a parent template to reach into a dependency's own
@@ -534,7 +535,7 @@ def _own_template_subchart_refs(chart_dir):
 _MISSING_TEMPLATE_RE = re.compile(r'no template "([A-Za-z0-9_-]+)\.[A-Za-z0-9_.-]*" associated')
 
 
-def _build_own_scope_chart(chart_dir, chart_yaml, kept_deps):
+def _build_own_scope_chart(chart_dir: Path, chart_yaml: dict, kept_deps: list):
     """A fresh temp copy of chart_dir with "charts/" excluded and
     Chart.yaml's "dependencies:" replaced by kept_deps (their own .tgz's
     copied back in) — the actual chart directory _make_own_scope tries
@@ -555,7 +556,7 @@ def _build_own_scope_chart(chart_dir, chart_yaml, kept_deps):
     return temp_dir
 
 
-def _make_own_scope(chart_dir, coalesced_values):
+def _make_own_scope(chart_dir: Path, coalesced_values: dict):
     """Render podiumd's OWN templates/ alone — a temp copy of the whole
     chart directory with "charts/" (the vendored .tgz's) excluded, and
     Chart.yaml's own "dependencies:" list stripped down to just whatever
@@ -642,7 +643,7 @@ class ScopeResolutionContext:
     full_scope: dict
 
 
-def _resolve_scope(context, key):
+def _resolve_scope(context, key: str):
     """The fast, sub-chart-scoped render for `key` if one can be built
     (see this module's docstring) and its own baseline render actually
     succeeds; context.own_scope (see _make_own_scope) if `key` matches no
@@ -668,7 +669,7 @@ def _resolve_scope(context, key):
     if "global" in context.merged_values:
         base_overlay["global"] = context.merged_values["global"]
 
-    scope = {
+    scope: dict[str, Any] = {
         "chart_name": dep["name"],
         "chart_path": tgz_path,
         "extra_args": [],
@@ -681,7 +682,7 @@ def _resolve_scope(context, key):
     return scope
 
 
-def _pending_subtrees(frontier, exempt_full_paths):
+def _pending_subtrees(frontier: list, exempt_full_paths: set | frozenset):
     """(scope, path, node, leaf_paths) for every frontier entry that still
     has at least one leaf worth testing this level — see
     _run_dead_value_search."""
@@ -693,7 +694,7 @@ def _pending_subtrees(frontier, exempt_full_paths):
     return pending
 
 
-def _submit_level(executor, pending):
+def _submit_level(executor, pending: list):
     return {
         executor.submit(_render_with_null_overrides, scope, [p[scope["strip"] :] for p in leaf_paths]): (
             scope,
@@ -705,7 +706,7 @@ def _submit_level(executor, pending):
     }
 
 
-def _collect_level_results(futures, found):
+def _collect_level_results(futures: dict, found: list):
     """next_frontier (subtrees whose combined render differed from
     baseline and need recursing into, one level deeper) and how many
     leaves this level resolved (dead, found via `found.extend`, or
@@ -725,7 +726,9 @@ def _collect_level_results(futures, found):
     return next_frontier, resolved
 
 
-def _run_dead_value_search(executor, roots, total=None, exempt_full_paths=frozenset()):
+def _run_dead_value_search(
+    executor, roots: list, total: int | None = None, exempt_full_paths: set | frozenset = frozenset()
+):
     """(scope, full_path) for every candidate "looks dead within its own
     scope" leaf found by walking `roots` (a [(scope, path, node), ...]
     list, one entry per subtree to search) top-down — see this module's
@@ -759,7 +762,7 @@ def _run_dead_value_search(executor, roots, total=None, exempt_full_paths=frozen
     return found
 
 
-def _tree_from_paths(paths):
+def _tree_from_paths(paths: list):
     """A nested dict whose leaves are exactly `paths` (each set to a
     non-null placeholder — _candidate_leaves only cares that it isn't
     None) — lets _run_dead_value_search's own top-down walk be reused to
@@ -775,7 +778,7 @@ def _tree_from_paths(paths):
     return tree
 
 
-def _confirm_against_full_chart(executor, full_scope, candidates):
+def _confirm_against_full_chart(executor, full_scope: dict, candidates: list):
     """Re-verify every candidate that was found via some OTHER (scoped)
     scope against the real, authoritative full-chart render — a scoped
     render only ever narrows the search, never makes the final call (see
@@ -788,7 +791,7 @@ def _confirm_against_full_chart(executor, full_scope, candidates):
     return [path for _scope, path in _run_dead_value_search(executor, roots, len(candidates))]
 
 
-def _build_scan_context(chart_dir, extra_args, full_scope):
+def _build_scan_context(chart_dir: Path, extra_args: list, full_scope: dict):
     """The ScopeResolutionContext every _resolve_scope call in this run
     shares — split out of check_dead_values purely to keep its own local
     count down."""
@@ -814,7 +817,7 @@ def _build_scan_context(chart_dir, extra_args, full_scope):
     )
 
 
-def _resolve_all_scopes(executor, context, values):
+def _resolve_all_scopes(executor, context, values: dict):
     """(scope, (key,), node) for every top-level values.yaml key,
     resolved concurrently via _resolve_scope."""
     scope_futures = {executor.submit(_resolve_scope, context, key): key for key in values}
@@ -825,14 +828,14 @@ def _resolve_all_scopes(executor, context, values):
     return roots
 
 
-def _print_scope_summary(roots, context):
+def _print_scope_summary(roots: list, context):
     scoped_n = sum(1 for scope, _, _ in roots if scope is not context.full_scope and scope is not context.own_scope)
     own_n = sum(1 for scope, _, _ in roots if scope is context.own_scope)
     full_n = sum(1 for scope, _, _ in roots if scope is context.full_scope)
     print(f"  {scoped_n} sub-chart-scoped, {own_n} own-templates-scoped, {full_n} full-chart-scoped", flush=True)
 
 
-def _search_and_confirm(executor, roots, total, condition_paths, full_scope):
+def _search_and_confirm(executor, roots: list, total: int, condition_paths: set, full_scope: dict):
     print("Searching top-down for dead leaves...", flush=True)
     found = _run_dead_value_search(executor, roots, total, condition_paths)
     confirmed = [path for scope, path in found if scope is full_scope]
@@ -842,7 +845,7 @@ def _search_and_confirm(executor, roots, total, condition_paths, full_scope):
     return confirmed + _confirm_against_full_chart(executor, full_scope, to_confirm)
 
 
-def check_dead_values(chart_dir, extra_args):
+def check_dead_values(chart_dir: Path, extra_args: list):
     """Entry point for the dead-values sweep (see module docstring for the
     full design): null-tests every values.yaml leaf top-down, per-subchart
     scoped where possible, confirming any scoped-render candidate against

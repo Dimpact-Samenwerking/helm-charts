@@ -7,7 +7,7 @@ plus every image path it declares, vs. a single <key> <basename> image
 pin) — see show_baseline_section's own docstring."""
 
 
-def show_baseline_section(label, baseline, resolve):
+def show_baseline_section(label: str, baseline: str | None, resolve):
     """Prints "=== {label} baseline ===" (label: "upgrade_docs" or
     "release_table"), then one of three things:
       - `baseline` is None: a one-line "release-baseline.yaml has no

@@ -33,7 +33,7 @@ CHART_NAME = "podiumd"
 OWN_TEMPLATES_PREFIX = "podiumd/templates/"
 
 
-def lint_args_for(chart_dir):
+def lint_args_for(chart_dir: Path):
     """The extra `helm template`/`helm lint` args needed to render chart_dir
     with its own ci/lint-values.yaml overrides, e.g. ["-f", ".../ci/
     lint-values.yaml"] — every render/lint/check command in this toolchain
@@ -50,7 +50,7 @@ def lint_args_for(chart_dir):
 _render_cache = {}
 
 
-def render_chart(chart_dir, extra_args):
+def render_chart(chart_dir: Path, extra_args: list):
     """Run `helm template <CHART_NAME> <chart_dir> <extra_args>`. Returns
     the raw subprocess result; every caller decides for itself what a
     non-zero returncode means and how to report it.
@@ -89,7 +89,7 @@ def render_chart(chart_dir, extra_args):
     return result
 
 
-def report_largest_templates(rendered_text, top_n):
+def report_largest_templates(rendered_text: str, top_n: int):
     """Print the top_n templates in `rendered_text` (a full `helm template`
     render) by rendered line count, attributed via each "# Source: <path>"
     annotation — a diagnostic aid for spotting which template is bloating
@@ -126,7 +126,7 @@ def report_largest_templates(rendered_text, top_n):
 CHART_TREE_PATH_RE = re.compile(r"([A-Za-z0-9_./\-]+)/templates/")
 
 
-def chart_tree_paths(text):
+def chart_tree_paths(text: str):
     """Every distinct chart_tree_path match in `text` (a full render, or
     an error-output blob with one or more embedded "<tree>/templates/
     ..." paths) — in match order, duplicates included; callers reduce
@@ -135,7 +135,7 @@ def chart_tree_paths(text):
     return CHART_TREE_PATH_RE.findall(text)
 
 
-def report_errors_by_subchart(error_text):
+def report_errors_by_subchart(error_text: str):
     """Print a per-sub-chart count of `error_text`'s embedded "<tree>/
     templates/..." paths (see chart_tree_paths), grouped by leaf chart
     name — lets a caller facing a wall of validator errors see at a
@@ -149,7 +149,7 @@ def report_errors_by_subchart(error_text):
         print(f"  {chart}: {n}")
 
 
-def chart_name_from_source(source):
+def chart_name_from_source(source: str | None):
     """The leaf chart name at the end of `source`'s embedded "<tree>/
     templates/..." path (see CHART_TREE_PATH_RE/chart_tree_paths) — e.g.
     "eck-operator" out of ".../charts/openinwoner/charts/eck-operator/
@@ -160,7 +160,7 @@ def chart_name_from_source(source):
     return m.group(1).rsplit("/", 1)[-1] if m else (source or "(unknown source)")
 
 
-def rendered_chart_paths(rendered_text):
+def rendered_chart_paths(rendered_text: str):
     """Every distinct chart-tree directory that either produced at least
     one rendered resource of its OWN in `rendered_text` (a full `helm
     template` render), or has at least one rendered DESCENDANT — e.g.
@@ -219,7 +219,7 @@ def rendered_chart_paths(rendered_text):
     return paths | ancestors
 
 
-def resolve_dependency_repo(repository, required_repos):
+def resolve_dependency_repo(repository: str, required_repos: dict):
     """`repository` (a Chart.yaml dependency's `repository:` field), with
     an "@alias" resolved to its real URL via `required_repos` (see
     lib.settings.helm_repos_urls_by_alias) — anything else (a plain
@@ -230,7 +230,7 @@ def resolve_dependency_repo(repository, required_repos):
     return repository
 
 
-def friendly_vendor_charts(chart_dir):
+def friendly_vendor_charts(chart_dir: Path):
     """Chart name -> vendor label, for every Chart.yaml dependency whose
     (resolved) repository matches a vendor_classification.keywords entry
     (see lib.settings.vendor_classification_keywords — vendored sub-charts
@@ -283,7 +283,7 @@ def friendly_vendor_charts(chart_dir):
     return mapping
 
 
-def build_line_sources(rendered_text):
+def build_line_sources(rendered_text: str):
     """Map each 1-based line number in a full `helm template` render to the
     most recent preceding "# Source: <path>" comment, so a yamllint finding
     (which only knows line numbers) can be attributed back to the template
@@ -304,7 +304,7 @@ def build_line_sources(rendered_text):
 SOURCE_DOC_SPLIT_RE = re.compile(r"(?m)^---\n(?=# Source: )")
 
 
-def split_rendered_by_source(rendered_text):
+def split_rendered_by_source(rendered_text: str):
     """Split a full `helm template` render into (source, doc_text) pairs,
     one per "# Source: <path>" block — each doc_text keeps its own leading
     "---\\n# Source: ...\\n" header, so any subset of the pairs can be
@@ -320,7 +320,7 @@ def split_rendered_by_source(rendered_text):
     return result
 
 
-def build_resource_locations(rendered_text):
+def build_resource_locations(rendered_text: str):
     """Map (kind, namespace, name) -> the 1-based line number where that
     resource's manifest begins (the line right after its own "# Source:"
     comment) in the full multi-document `helm template` render — a
@@ -355,7 +355,7 @@ def build_resource_locations(rendered_text):
     return locations
 
 
-def resource_line(locations, kind, name, namespace=None):
+def resource_line(locations: dict, kind: str, name: str | None, namespace: str | None = None):
     """Look up a resource's rendered-line hint from build_resource_locations's
     map. With namespace known (kube-score's own object_name gives one),
     matches exactly. Without it (kubeconform's JSON has no namespace
@@ -369,7 +369,7 @@ def resource_line(locations, kind, name, namespace=None):
     return candidates.pop() if len(candidates) == 1 else None
 
 
-def print_grouped_findings(findings, key_fn, item_fn, label_fn, items_label="line(s)"):
+def print_grouped_findings(findings: list, key_fn, item_fn, label_fn, items_label: str = "line(s)"):
     """Shared grouping printer for check_yamllint/check_kubeconform/
     check_shellcheck/check_kube_score: the same root cause (e.g. a
     duplicated label key) typically shows up once per resource, not once

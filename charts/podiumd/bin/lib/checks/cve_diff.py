@@ -101,6 +101,7 @@ import urllib.error
 
 from collections import Counter
 from dataclasses import dataclass
+from pathlib import Path
 
 from lib.checks.cve import SEVERITY_ORDER
 from lib.checks.cve import CacheSession
@@ -132,11 +133,11 @@ from lib.settings import cve_scan_cache_ttl_days
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
 
 
-def _vuln_key(v):
+def _vuln_key(v: dict):
     return (v["VulnerabilityID"], v["PkgName"])
 
 
-def diff_vulns(current_vulns, proposed_vulns):
+def diff_vulns(current_vulns: list, proposed_vulns: list):
     """(closed, introduced) — lists of vuln dicts (same shape lib.
     checks.cve.run_trivy returns) present in exactly one side, keyed by
     the exact (VulnerabilityID, PkgName) pair. An EXACT set difference,
@@ -149,7 +150,7 @@ def diff_vulns(current_vulns, proposed_vulns):
     return closed, introduced
 
 
-def _bare_digest(digest_ref):
+def _bare_digest(digest_ref: str):
     """ "sha256:<hex>" -> "<hex>" — lib.checks.cve.cache_key expects the
     bare hex digest (it prepends "sha256:" itself), but every digest this
     module gets handed back (find_sliding_pins, registry_tag_exists) has
@@ -158,7 +159,7 @@ def _bare_digest(digest_ref):
     return digest_ref.removeprefix(prefix)
 
 
-def gather_candidates(chart_dir):
+def gather_candidates(chart_dir: Path):
     """[{"kind", "repository", "version", "current_ref", "current_digest",
     "proposed_label", "proposed_ref", "proposed_digest"}] — see this
     module's own docstring for exactly what each of the two candidate
@@ -234,7 +235,7 @@ class DiffContext:
     package_cve_list_threshold: int
 
 
-def _scan_current(context, candidate):
+def _scan_current(context, candidate: dict):
     """The CURRENT side of one candidate — always cache-eligible, its
     pinned digest is already known from values.yaml, a free hit whenever
     check_cves already scanned this exact digest (both route through the
@@ -249,7 +250,7 @@ def _scan_current(context, candidate):
     return vulns
 
 
-def _scan_proposed(context, candidate):
+def _scan_proposed(context, candidate: dict):
     """The PROPOSED side of one candidate. A "sliding digest" candidate
     already carries its own resolved digest (see gather_candidates) — no
     extra call needed, straight to scan_cached. An "upgrade" candidate's
@@ -280,12 +281,14 @@ def _scan_proposed(context, candidate):
     return vulns
 
 
-def _severity_counts(vulns):
+def _severity_counts(vulns: list):
     counts = Counter(v["Severity"] for v in vulns)
     return ", ".join(f"{counts[s]} {severity_label(s)}" for s in SEVERITY_ORDER if counts.get(s))
 
 
-def _print_direction(label, vulns, detail, high_severities, package_cve_list_threshold):
+def _print_direction(
+    label: str, vulns: list, *, detail: bool, high_severities: set[str], package_cve_list_threshold: int
+):
     if not vulns:
         print(f"  {label}: none")
         return
@@ -296,22 +299,36 @@ def _print_direction(label, vulns, detail, high_severities, package_cve_list_thr
             print_package_line(pkg, vulns_for_pkg, package_cve_list_threshold)
 
 
-def _print_candidate_header(i, total, candidate):
+def _print_candidate_header(i: int, total: int, candidate: dict):
     print(
         f"[{i}/{total}] {candidate['repository']}: {candidate['version']} -> "
         f"{candidate['proposed_label']}  [{candidate['kind']}]"
     )
 
 
-def print_candidate_result(closed, introduced, detail, high_severities, package_cve_list_threshold):
+def print_candidate_result(
+    closed: list, introduced: list, *, detail: bool, high_severities: set[str], package_cve_list_threshold: int
+):
     """Print one candidate's "closed"/"introduced" CVE-diff lines (see
     _print_direction) followed by a blank separator line."""
-    _print_direction("closed", closed, detail, high_severities, package_cve_list_threshold)
-    _print_direction("introduced", introduced, detail, high_severities, package_cve_list_threshold)
+    _print_direction(
+        "closed",
+        closed,
+        detail=detail,
+        high_severities=high_severities,
+        package_cve_list_threshold=package_cve_list_threshold,
+    )
+    _print_direction(
+        "introduced",
+        introduced,
+        detail=detail,
+        high_severities=high_severities,
+        package_cve_list_threshold=package_cve_list_threshold,
+    )
     print()
 
 
-def classify_candidates(chart_dir, extra_args, candidates, values_lines):
+def classify_candidates(chart_dir: Path, extra_args: list, candidates: list, values_lines: list[str]):
     """Attach "bucket" ("own"|"partner"|"other") to each candidate dict in
     place, via the exact same own/partner/other classification lib.
     checks.cve/lib.image.upgrade_check already use for a currently-pinned
@@ -337,7 +354,7 @@ def classify_candidates(chart_dir, extra_args, candidates, values_lines):
         candidate["bucket"] = bucket_of(label)
 
 
-def _process_bucket(context, title, bucket_candidates):
+def _process_bucket(context, title: str, bucket_candidates: list):
     """Scan and print one bucket's candidates under its own "--- <title>
     ---" header (skipped entirely when the bucket is empty, via the same
     lib.checks.cve.print_bucket_header idiom print_bucket_report itself
@@ -365,12 +382,16 @@ def _process_bucket(context, title, bucket_candidates):
         total_closed += len(closed)
         total_introduced += len(introduced)
         print_candidate_result(
-            closed, introduced, context.detail, context.high_severities, context.package_cve_list_threshold
+            closed,
+            introduced,
+            detail=context.detail,
+            high_severities=context.high_severities,
+            package_cve_list_threshold=context.package_cve_list_threshold,
         )
     return total_closed, total_introduced
 
 
-def _partition_by_bucket(candidates):
+def _partition_by_bucket(candidates: list):
     """[(bucket_key, title, candidates-in-that-bucket)] for the three
     report buckets, own/partner/other, in print order — see
     _process_all_buckets/_build_detail_message, which both iterate this
@@ -379,7 +400,7 @@ def _partition_by_bucket(candidates):
     return [(key, title, [c for c in candidates if c["bucket"] == key]) for key, title in titles]
 
 
-def _build_diff_context(chart_dir, detail):
+def _build_diff_context(chart_dir: Path, *, detail: bool):
     """The DiffContext every _process_bucket/_scan_current/_scan_proposed
     call in one check_cve_diff run shares — split out purely to keep
     check_cve_diff's own local count down."""
@@ -395,13 +416,13 @@ def _build_diff_context(chart_dir, detail):
     )
 
 
-def _process_all_buckets(context, buckets):
+def _process_all_buckets(context, buckets: list):
     """{bucket_key: (closed, introduced)} — runs _process_bucket for each
     (bucket_key, title, candidates) triple from _partition_by_bucket."""
     return {key: _process_bucket(context, title, bucket_candidates) for key, title, bucket_candidates in buckets}
 
 
-def _build_detail_message(buckets, totals, scan_errors):
+def _build_detail_message(buckets: list, totals: dict, scan_errors: list):
     """check_cve_diff's own detail string: per-bucket candidate/closed/
     introduced counts (own/partner-vendor/other-vendor, in that order)
     plus the scan error count."""
@@ -413,7 +434,7 @@ def _build_detail_message(buckets, totals, scan_errors):
     return ", ".join(parts) + f"; {len(scan_errors)} scan error(s)"
 
 
-def check_cve_diff(chart_dir, extra_args, *, detail=False):
+def check_cve_diff(chart_dir: Path, extra_args: list, *, detail: bool = False):
     """Entry point for the "CVE diff" step (see module docstring for the
     full design): gathers every upgrade-available/sliding-digest
     candidate (gather_candidates), classifies each into the own/partner/
@@ -436,7 +457,7 @@ def check_cve_diff(chart_dir, extra_args, *, detail=False):
 
     print(f"Diffing CVEs for {len(candidates)} upgrade/slide candidate(s) (current vs proposed, via trivy)...")
 
-    context = _build_diff_context(chart_dir, detail)
+    context = _build_diff_context(chart_dir, detail=detail)
     totals = _process_all_buckets(context, buckets)
     save_cache(chart_dir, context.cache.new_cache)
 

@@ -54,6 +54,8 @@ subchart_image_visibility for a third."""
 
 import re
 
+from pathlib import Path
+
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolve_subchart_default
 from lib.chart.pull_and_subchart_resolution import subchart_values
@@ -85,7 +87,7 @@ DIGEST_SUFFIX_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
 # pinning below.
 
 
-def _deps_from_chart_yaml(chart_dir):
+def _deps_from_chart_yaml(chart_dir: Path):
     """Chart.yaml's own "dependencies" list, read fresh (chart_dir is all
     this module has handy) — [] if Chart.yaml doesn't exist yet, same
     "nothing to fall back to" tolerance paths_by_repository's own
@@ -95,7 +97,7 @@ def _deps_from_chart_yaml(chart_dir):
     return (chart_yaml or {}).get("dependencies", [])
 
 
-def _repository_groups(chart_dir, values, deps):
+def _repository_groups(chart_dir: Path, values: dict, deps: list):
     """{stripped_repo: [path, ...]} for every image/version path in the
     chart — built from the exact same full path enumeration lib.image.
     docs.regenerate_images_baseline_manifest already uses for
@@ -112,7 +114,7 @@ def _repository_groups(chart_dir, values, deps):
     return paths_by_repository(chart_dir, deps, values, all_paths.keys())
 
 
-def _path_chart_tree_path(chart_dir, deps, path):
+def _path_chart_tree_path(chart_dir: Path, deps: list, path: tuple[str, ...]):
     """The chart-tree path (see lib.render_scope.rendered_chart_paths)
     that would need to have rendered for `path` to be a genuinely LIVE
     consumer — reuses lib.chart.resolve_subchart_default's own
@@ -131,7 +133,7 @@ def _path_chart_tree_path(chart_dir, deps, path):
     return chart_tree_path
 
 
-def _live_repository_groups(chart_dir, deps, values, rendered_paths):
+def _live_repository_groups(chart_dir: Path, deps: list, values: dict, rendered_paths: set[str]):
     """_repository_groups(...), with every consuming path whose own
     chart-tree path never actually rendered filtered out entirely —
     both from the count AND from the printed list, never just one or
@@ -156,7 +158,7 @@ def _live_repository_groups(chart_dir, deps, values, rendered_paths):
     return live
 
 
-def _global_image_usage(values, repo_groups):
+def _global_image_usage(values: dict, repo_groups: dict):
     """{def_path: [consumer_path, ...]} for every global.images.*
     registered entry (see lib.chart.global_image_paths — the deliberate
     "this is meant to be shared" mechanism: nginx, curl, busybox, redis
@@ -176,7 +178,7 @@ def _global_image_usage(values, repo_groups):
     return usage
 
 
-def _non_global_shared_repo_groups(values, repo_groups, global_usage):
+def _non_global_shared_repo_groups(values: dict, repo_groups: dict, global_usage: dict):
     """repo_groups, minus every repository a global.images.* entry
     already claims (see _global_image_usage — those are reported
     separately, split into failing/report-only by real consumer count)
@@ -193,13 +195,13 @@ def _non_global_shared_repo_groups(values, repo_groups, global_usage):
     return {repo: paths for repo, paths in repo_groups.items() if repo not in claimed and len(paths) > 1}
 
 
-def _print_path_list(chart_dir, deps, paths):
+def _print_path_list(chart_dir: Path, deps: list, paths: list):
     for path in sorted(paths):
         source = resolve_values_path_source(chart_dir, deps, path)
         print(f"    {'.'.join(path)}  [{source}]")
 
 
-def _print_shared_image_usage(chart_dir, deps, values, repo_groups, global_usage):
+def _print_shared_image_usage(chart_dir: Path, deps: list, values: dict, repo_groups: dict, global_usage: dict):
     """Prints up to three sections, in order, after check_shared_image_
     usage's own render:
     1. FAILING — a global.images.* entry with 0 or 1 real consumer(s):
@@ -268,7 +270,7 @@ def _print_shared_image_usage(chart_dir, deps, values, repo_groups, global_usage
     return underused
 
 
-def check_digest_pinning(chart_dir):
+def check_digest_pinning(chart_dir: Path):
     """Fast, filesystem-only check that every image tag in values.yaml
     (per find_image_tag_paths) is digest-pinned (has a trailing
     "@sha256:<64 hex chars>"), unless its path is listed in
@@ -302,7 +304,7 @@ def check_digest_pinning(chart_dir):
     return False, f"{len(missing)}/{len(images)} image(s) not digest-pinned"
 
 
-def check_shared_image_usage(chart_dir, extra_args):
+def check_shared_image_usage(chart_dir: Path, extra_args: list):
     """A SEPARATE, render-based check (unlike check_digest_pinning
     above, which is a fast, filesystem-only scan): every values.yaml
     repository shared across 2+ paths, with the full list of paths
@@ -364,7 +366,7 @@ def check_shared_image_usage(chart_dir, extra_args):
     return True, "every global.images.* entry has 2+ real consumers"
 
 
-def find_unresolved_subchart_images(chart_dir, deps, own_values, rendered_paths):
+def find_unresolved_subchart_images(chart_dir: Path, deps: list, own_values: dict, rendered_paths: set):
     """(scope_key, subpath, tag, already_pinned) for every "<key>: {tag:
     ...}" block ("image", or an "...Image"-suffixed sibling — see
     lib.upgradedoc.find_image_tag_paths) found in a vendored dependency's
@@ -436,7 +438,7 @@ def find_unresolved_subchart_images(chart_dir, deps, own_values, rendered_paths)
     return findings
 
 
-def _findings_for_dependency(chart_dir, dep, own_values, rendered_paths):
+def _findings_for_dependency(chart_dir: Path, dep: dict, own_values: dict, rendered_paths: set):
     """find_unresolved_subchart_images's own per-dependency body, split out
     purely to keep that function's own local count down — one dependency's
     worth of (scope_key, subpath, tag, already_pinned) findings, using the
@@ -470,7 +472,7 @@ def _findings_for_dependency(chart_dir, dep, own_values, rendered_paths):
     return findings
 
 
-def _print_subchart_image_finding(chart_dir, deps, finding):
+def _print_subchart_image_finding(chart_dir: Path, deps: list, finding: tuple):
     """Prints one finding (scope_key, subpath, tag, pinned) — the same
     4-tuple shape find_unresolved_subchart_images returns, taken here as
     one value instead of 4 separate params purely to stay under pylint's
@@ -492,7 +494,7 @@ def _print_subchart_image_finding(chart_dir, deps, finding):
     print(f"  {own_image_tag_path}: {tag!r} ({marker} in the sub-chart's own default)  [{source}]")
 
 
-def check_subchart_image_visibility(chart_dir, extra_args):
+def check_subchart_image_visibility(chart_dir: Path, extra_args: list):
     """Lists every image find_unresolved_subchart_images() finds, so a
     NEW one introduced by a dependency bump doesn't silently stay
     invisible to the pinning discipline the rest of this chart follows.

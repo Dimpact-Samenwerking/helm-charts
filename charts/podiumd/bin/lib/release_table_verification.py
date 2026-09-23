@@ -109,14 +109,14 @@ class Observed:
     source_label: str
 
 
-def split_basenames(value):
+def split_basenames(value: str):
     """A CSV "basenames" cell (comma-separated, e.g. for a MULTIPLE_KEY
     row) split into its individual basenames, stripped of surrounding
     whitespace with blank entries dropped."""
     return [b.strip() for b in value.split(",") if b.strip()]
 
 
-def is_verifiable_target(target):
+def is_verifiable_target(target: str):
     """False for a blank or "UNKNOWN" target column value — nothing to
     compare against (blank means "no planned change", see query-release-
     table.py's own UNCHANGED display logic; "UNKNOWN" means export-
@@ -125,7 +125,7 @@ def is_verifiable_target(target):
     return bool(target) and target != "UNKNOWN"
 
 
-def report_mismatch(findings, tag, row, label, observed):
+def report_mismatch(findings, tag: str, row: dict, label: str, observed):
     """Appends a "release-table target != actual" line to
     findings["mismatches"] for `row`, formatted as "[tag] name (label):
     release-table target <target> != <actual_source> <actual>" (see
@@ -150,7 +150,7 @@ GENERIC_TABLE_HINT = "whichever table fits (Product/Common Ground/Overige/Techni
 TECHNISCHE_TABLE_HINT = '"Technische component versies"'
 
 
-def confluence_table_hint(rows, component):
+def confluence_table_hint(rows: list, component: str):
     """Which Confluence table (e.g. '"Technische component versies"') a
     "missing from release-table.csv" finding should actually be added
     to — read off the "section" column (see export-confluence-release-
@@ -168,7 +168,7 @@ def confluence_table_hint(rows, component):
     return GENERIC_TABLE_HINT
 
 
-def is_primary_image(component, lines, pin, chart_dir=None):
+def is_primary_image(component: str, lines: list[str], pin: dict, chart_dir: Path | None = None):
     """True if `pin` (one of basenames_under_scope_any_tag()'s own pins, with its
     own "line") sits at one of `component`'s own primary application
     image path(s) — see lib.chart.image_paths_for / settings.yaml's
@@ -242,7 +242,7 @@ def primary_image_basename(ref, state):
     return next(iter(resolved)) if len(resolved) == 1 else None
 
 
-def find_primary_row(ref, state, rows):
+def find_primary_row(ref, state, rows: list):
     """The one row in `rows` whose own image_basename column claims
     `ref.component`'s own primary application image basename (see
     primary_image_basename) — the ONLY row a chart's own Helm version
@@ -259,7 +259,7 @@ def find_primary_row(ref, state, rows):
     return None
 
 
-def chart_version_ever_tracked(rows):
+def chart_version_ever_tracked(rows: list):
     """True if ANY of `rows` has ever recorded a Helm chart version for
     this component — either a verifiable target_version_helm (a bump is
     planned, or was already made and is just waiting for the next
@@ -272,7 +272,7 @@ def chart_version_ever_tracked(rows):
     return any(is_verifiable_target(row["target_version_helm"]) or row["source_version_helm"] for row in rows)
 
 
-def row_app_version(row):
+def row_app_version(row: dict):
     """The already-known app version for `row` — its own target if a
     bump is planned/verifiable (see is_verifiable_target), else its own
     previously-recorded source — the value missing_chart_version_hint
@@ -284,7 +284,7 @@ def row_app_version(row):
     return target if is_verifiable_target(target) else row["source_version_app"]
 
 
-def missing_chart_version_hint(ref, state, rows):
+def missing_chart_version_hint(ref, state, rows: list):
     """Second line for a "[CHART] ... never recorded a Helm chart
     version" finding — naming the SPECIFIC row this chart's own version
     belongs next to (see find_primary_row), not just whichever table
@@ -331,7 +331,7 @@ def missing_chart_version_hint(ref, state, rows):
     return f'Confluence: fill in the Helm version cell on "{name}" ({where}) with {chart_version}'
 
 
-def check_chart_version(ref, rows, state, findings):
+def check_chart_version(ref, rows: list, state, findings):
     """The TARGET-side counterpart to check_chart_version_source: for every
     release-table.csv row belonging to `ref.dep`, compares its verifiable
     target_version_helm against ref.dep["version"] (Chart.yaml's actual
@@ -372,7 +372,7 @@ def check_chart_version(ref, rows, state, findings):
         )
 
 
-def check_chart_version_source(dep, rows, baseline_deps, findings, *, strict_presence=False):
+def check_chart_version_source(dep: dict, rows: list, baseline_deps: list, findings, *, strict_presence: bool = False):
     """The SOURCE-side sibling of check_chart_version: for every row with
     a verifiable source_version_helm (see is_verifiable_target — never
     just "blank, no prior value recorded yet"), compares it against
@@ -431,7 +431,7 @@ def check_chart_version_source(dep, rows, baseline_deps, findings, *, strict_pre
         )
 
 
-def missing_image_hint(rows, ref, basename, versions, primary):
+def missing_image_hint(rows: list, ref, basename: str, versions: set[str], *, primary: bool):
     """Second line for an "[IMAGE] ... not tracked" finding: which
     Confluence table to add a row to, and what that row needs to say so
     export-confluence-release-table's own resolve_image_basenames/
@@ -482,7 +482,7 @@ def missing_image_hint(rows, ref, basename, versions, primary):
     return f"Confluence: add row to {where} — {what}, App version (currently) {version_text}"
 
 
-def _record_image_result(ref, row, basename, actual, findings):
+def _record_image_result(ref, row: dict, basename: str, actual: str, findings):
     """Per-basename comparison once `actual` has resolved to exactly one
     version (see check_images) — split out so the row/basename double
     loop above it never nests deeper than a plain "for/for/if" itself."""
@@ -517,7 +517,7 @@ def _record_image_result(ref, row, basename, actual, findings):
     )
 
 
-def check_images(ref, rows, state, findings):
+def check_images(ref, rows: list, state, findings):
     """The TARGET-side counterpart to check_images_source: resolves every
     basename release-table.csv's rows for `ref.component` list under
     `ref.scope_key` (via basenames_under_scope_any_tag, falling back to
@@ -581,14 +581,14 @@ def check_images(ref, rows, state, findings):
         if basename not in csv_basenames:
             versions = {p["version"] for p in pins}
             primary = ref.component != MULTIPLE_KEY and basename == primary_basename
-            hint = missing_image_hint(rows, ref, basename, versions, primary)
+            hint = missing_image_hint(rows, ref, basename, versions, primary=primary)
             findings["missing_from_release_table"].append(
                 f"[IMAGE] '{ref.scope_key}' image '{basename}' is pinned in values.yaml but not tracked "
                 f"in release-table.csv\n      {hint}"
             )
 
 
-def _check_image_source_pin(ref, row, basename, resolve_at_baseline, findings):
+def _check_image_source_pin(ref, row: dict, basename: str, resolve_at_baseline, findings):
     """Per-basename comparison against the release_table baseline (see
     check_images_source) — split out so the row/basename double loop
     above it stays flat, and its own several intermediate names (the
@@ -628,7 +628,7 @@ def _check_image_source_pin(ref, row, basename, resolve_at_baseline, findings):
     )
 
 
-def _row_needs_source_check(row, strict_presence):
+def _row_needs_source_check(row: dict, *, strict_presence: bool):
     """True if check_images_source should compare this row's own
     basenames against the release_table baseline at all — a verifiable
     source_version_app always does; a blank one only does under
@@ -638,7 +638,7 @@ def _row_needs_source_check(row, strict_presence):
     return is_verifiable_target(source) or (strict_presence and source == "")
 
 
-def check_images_source(ref, rows, comparison, findings, *, strict_presence=False):
+def check_images_source(ref, rows: list, comparison, findings, *, strict_presence: bool = False):
     """The SOURCE-side sibling of check_images — mirrors its own two-tier
     resolution (basenames_under_scope, falling back to a plain find_
     matches search) exactly, but against `comparison.baseline` (see
@@ -734,7 +734,7 @@ def check_images_source(ref, rows, comparison, findings, *, strict_presence=Fals
         basenames = split_basenames(row["image_basename"])
         if not basenames:
             continue
-        if not _row_needs_source_check(row, strict_presence):
+        if not _row_needs_source_check(row, strict_presence=strict_presence):
             continue
 
         for basename in basenames:
@@ -756,7 +756,7 @@ class _BaselineSourceResolver:
         )
         self._subchart_repos_state = None  # lazily filled: (repos, error) from primary_image_repositories
 
-    def resolve_subchart_source(self, basename):
+    def resolve_subchart_source(self, basename: str):
         """(version, None) from the subchart-default fallback, (None, error)
         when it can't be verified, (None, None) when it doesn't apply."""
         baseline = self.comparison.baseline
@@ -798,7 +798,7 @@ class _BaselineSourceResolver:
             and strip_registry_host(p["repository"]) == strip_registry_host(current_repo)
         ]
 
-    def resolve_at_baseline(self, basename):
+    def resolve_at_baseline(self, basename: str):
         """The full tier resolution for `basename` at the release_table
         baseline, shared by both the verifiable-source comparison and the
         strict_presence blank-source check (so the two can never drift
@@ -844,7 +844,7 @@ class _BaselineSourceResolver:
         return ("absent",)
 
 
-def _check_dependency(dep, rows_by_component, comparison, findings, baseline_only):
+def _check_dependency(dep: dict, rows_by_component, comparison, findings, *, baseline_only: bool):
     """One comparison.current.deps entry's own release-table.csv row(s) —
     the Chart.yaml-dependency-backed half of compare()'s own
     per-component dispatch, split out so compare() itself only ever
@@ -872,7 +872,7 @@ def _check_dependency(dep, rows_by_component, comparison, findings, baseline_onl
         check_images_source(ref, rows_for_component, comparison, findings, strict_presence=baseline_only)
 
 
-def _check_unmatched_component(component, rows_for_component, comparison, findings, baseline_only):
+def _check_unmatched_component(component: str, rows_for_component: list, comparison, findings, *, baseline_only: bool):
     """One rows_by_component entry compare() itself couldn't match to any
     Chart.yaml dependency (see _check_dependency) — either a bare
     top-level values.yaml key with no separate chart (e.g.
@@ -896,7 +896,7 @@ def _check_unmatched_component(component, rows_for_component, comparison, findin
         )
 
 
-def compare(rows, state, baseline=None, *, baseline_only=False):
+def compare(rows: list, state, baseline=None, *, baseline_only: bool = False):
     """{"mismatches", "ambiguous", "missing_from_release_table",
     "missing_from_chart"}: str -> [str, ...], plus the separate list of
     rows whose component export-confluence-release-table never
@@ -959,10 +959,10 @@ def compare(rows, state, baseline=None, *, baseline_only=False):
 
     checked_components = {dep["name"] for dep in state.deps}
     for dep in state.deps:
-        _check_dependency(dep, rows_by_component, comparison, findings, baseline_only)
+        _check_dependency(dep, rows_by_component, comparison, findings, baseline_only=baseline_only)
 
     for component, rows_for_component in rows_by_component.items():
         if component not in checked_components:
-            _check_unmatched_component(component, rows_for_component, comparison, findings, baseline_only)
+            _check_unmatched_component(component, rows_for_component, comparison, findings, baseline_only=baseline_only)
 
     return dict(findings), unresolved

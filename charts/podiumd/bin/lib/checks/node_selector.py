@@ -35,6 +35,8 @@ way, so crediting it here was never a risk to begin with."""
 
 import re
 
+from pathlib import Path
+
 WORKLOAD_KIND_RE = re.compile(r"^kind:\s*(Deployment|StatefulSet|DaemonSet|Job|CronJob)\s*$", re.MULTILINE)
 NAME_RE = re.compile(r"^\s*name:\s*(.+)$", re.MULTILINE)
 NODE_SELECTOR_RE = re.compile(r"\bnodeSelector\s*:")
@@ -45,7 +47,7 @@ DEFINE_BLOCK_RE = re.compile(
 INCLUDE_CALL_RE = re.compile(r'include\s+"(?P<name>[^"]+)"')
 
 
-def _referenced_define_bodies(doc, define_bodies):
+def _referenced_define_bodies(doc: str, define_bodies: dict):
     """[body, ...] for every same-file `{{ define "X" }}...{{ end }}` block
     (define_bodies, keyed by name — see DEFINE_BLOCK_RE) this doc chunk's
     own text calls via a plain `include "X"` — see module docstring for
@@ -74,7 +76,7 @@ def missing_node_selector(doc: str, define_bodies: dict[str, str]) -> tuple[str,
     return kind_m.group(1), (name_m.group(1).strip() if name_m else "(unknown name)")
 
 
-def scan_missing_node_selector(templates_dir):
+def scan_missing_node_selector(templates_dir: Path):
     """Returns a list of (path, kind, name) for every workload resource in
     templates/*.yaml with no nodeSelector field anywhere in its document
     (including, per _referenced_define_bodies, any same-file `define`
@@ -92,7 +94,7 @@ def scan_missing_node_selector(templates_dir):
     return findings
 
 
-def check_node_selector(chart_dir):
+def check_node_selector(chart_dir: Path):
     """Fails if scan_missing_node_selector finds any own-templates
     workload with no nodeSelector field anywhere in its document (per the
     AKS-Blue "all app workloads need nodeSelector" convention — see module

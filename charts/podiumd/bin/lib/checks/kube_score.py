@@ -9,6 +9,7 @@ import shutil
 
 from collections import Counter
 from dataclasses import dataclass
+from pathlib import Path
 
 from lib.procutil import run
 from lib.render_scope import OWN_TEMPLATES_PREFIX
@@ -21,7 +22,7 @@ from lib.render_scope import scan_outcome
 from lib.settings import quality_gates_kube_score_check_id
 
 
-def run_kube_score(yaml_text):
+def run_kube_score(yaml_text: str):
     """Score a YAML stream with kube-score, returning the parsed list of
     scored objects (kube-score's own JSON schema — each a dict with
     object_name/checks/...) — or None if kube-score's own output couldn't
@@ -40,7 +41,7 @@ def run_kube_score(yaml_text):
     return data or []
 
 
-def extract_resource_findings(kube_score_objects, check_id):
+def extract_resource_findings(kube_score_objects: list, check_id: str):
     """From a kube-score run's scored objects, pull every non-skipped,
     below-full-grade `check_id` finding as (object_name, container,
     summary) — object_name is kube-score's own "Kind/apiVersion/
@@ -59,7 +60,7 @@ def extract_resource_findings(kube_score_objects, check_id):
     return findings
 
 
-def parse_kube_score_object_name(object_name):
+def parse_kube_score_object_name(object_name: str):
     """kube-score's own "Kind/apiVersion/namespace/name" identifier ->
     (kind, namespace, name), or (None, None, None) if it doesn't have that
     shape at all. apiVersion itself can contain a "/" (e.g. "batch/v1"),
@@ -73,7 +74,7 @@ def parse_kube_score_object_name(object_name):
     return parts[0], parts[-2], parts[-1]
 
 
-def _kube_score_line_suffix(object_name, locations):
+def _kube_score_line_suffix(object_name: str, locations: dict):
     kind, namespace, name = parse_kube_score_object_name(object_name)
     if not kind:
         return ""
@@ -94,7 +95,7 @@ class KubeScoreResult:
     vendored_other: list
 
 
-def _score_vendored_charts(docs, check_id, vendor_map):
+def _score_vendored_charts(docs: list, check_id: str, vendor_map: dict):
     """Runs kube-score separately per vendored sub-chart (kube-score's own
     JSON carries no per-resource source info, so each sub-chart's docs are
     scored on their own — see check_kube_score's docstring), splitting
@@ -117,7 +118,7 @@ def _score_vendored_charts(docs, check_id, vendor_map):
     return vendored_partner, vendored_other, None
 
 
-def _score_rendered_chart(chart_dir, extra_args, check_id):
+def _score_rendered_chart(chart_dir: Path, extra_args: list, check_id: str):
     """Renders the chart, scores its own templates and every vendored
     sub-chart's templates (see _score_vendored_charts) with kube-score, and
     bundles the result into a KubeScoreResult. Returns (None, error) on any
@@ -188,7 +189,7 @@ def _print_kube_score_findings(scored):
         print("OK: no kube-score container-resources findings in the rendered chart")
 
 
-def check_kube_score(chart_dir, extra_args):
+def check_kube_score(chart_dir: Path, extra_args: list):
     """Checks that every container in the rendered chart declares CPU/
     memory requests AND limits — this repo's own documented convention
     (.github/copilot-instructions.md's "Resource Requests and Limits"),

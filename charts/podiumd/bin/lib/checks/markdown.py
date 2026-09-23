@@ -67,7 +67,7 @@ MARKDOWN_FINDING_RE = re.compile(
 UPGRADE_PATH_DOC_RE = re.compile(r"^(?P<baseline>\d+\.\d+\.\d+)-to-(?P<target>\d+\.\d+\.\d+)-.+\.md$")
 
 
-def find_markdown_files(chart_dir):
+def find_markdown_files(chart_dir: Path):
     """Every *.md file under chart_dir, excluding:
     - chart_dir/charts/ — a vendored sub-chart's own docs, if ever
       extracted from its .tgz, aren't ours to fix.
@@ -98,7 +98,7 @@ def find_markdown_files(chart_dir):
     current_target = chart_version(chart_dir / "Chart.yaml")
     current_baseline = read_upgrade_docs_baseline(chart_dir)
 
-    def in_scope(p):
+    def in_scope(p: Path):
         if vendored in p.parents or bin_dir in p.parents or p == readme:
             return False
         if upgrade_paths_dir in p.parents:
@@ -113,7 +113,7 @@ def find_markdown_files(chart_dir):
     return sorted(p for p in chart_dir.rglob("*.md") if in_scope(p))
 
 
-def find_pymarkdown(chart_dir):
+def find_pymarkdown(chart_dir: Path):
     """<repo-root>/.venv/bin/pymarkdown (the documented setup path — see
     README-release-process.md#setup) if it exists, else whatever's on
     PATH (a global/differently-managed install), else None."""
@@ -125,14 +125,14 @@ def find_pymarkdown(chart_dir):
     return shutil.which("pymarkdown")
 
 
-def _relative_path(path_str, base_dir):
+def _relative_path(path_str: str, base_dir: Path):
     try:
         return str(Path(path_str).relative_to(base_dir))
     except ValueError:
         return path_str
 
 
-def check_markdown(chart_dir):
+def check_markdown(chart_dir: Path):
     """Lints every *.md file under chart_dir with pymarkdown, MD013
     (line-length) and MD014 (commands-show-output) disabled (see module
     docstring). Fails whenever any finding is reported, same as a missing

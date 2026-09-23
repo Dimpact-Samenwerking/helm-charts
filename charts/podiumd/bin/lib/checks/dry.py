@@ -5,12 +5,14 @@ call a human should make, not something to gate a build on."""
 
 import difflib
 
+from pathlib import Path
+
 from lib.settings import dry_check_high_similarity_threshold
 from lib.settings import dry_check_min_significant_lines
 from lib.settings import dry_check_similarity_threshold
 
 
-def _significant_template_lines(path):
+def _significant_template_lines(path: Path):
     """A template's lines with blanks and full-line comments dropped, so
     similarity scoring isn't skewed by incidental whitespace or comment
     wording differences between two otherwise-identical templates."""
@@ -23,7 +25,7 @@ def _significant_template_lines(path):
     return lines
 
 
-def find_similar_template_pairs(templates_dir, similarity_threshold, min_significant_lines):
+def find_similar_template_pairs(templates_dir: Path, similarity_threshold: float, min_significant_lines: int):
     """Pairwise-compare every templates/*.yaml file and flag pairs that are
     structurally very similar — the shape of duplication podiumd.storagePVC
     was factored out of (9 files, identical except for the literal
@@ -44,7 +46,7 @@ def find_similar_template_pairs(templates_dir, similarity_threshold, min_signifi
     return findings, len(candidates)
 
 
-def check_dry(chart_dir):
+def check_dry(chart_dir: Path):
     """Report-only: never fails. Flags templates/*.yaml file pairs that look
     like copy-paste duplication and suggests whether deduping (a shared
     named template in _helpers.tpl, parameterized like podiumd.storagePVC)
