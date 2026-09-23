@@ -14,8 +14,10 @@ checks.digest_pinning) and list-podiumd-images."""
 import re
 
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -420,8 +422,57 @@ def render_chart_docs(chart_dir: Path, extra_args: list[str]) -> tuple[RenderedD
     return RenderedDocs(build_resource_locations(result.stdout), split_rendered_by_source(result.stdout)), None
 
 
+def scan_rendered_chart(
+    chart_dir: Path,
+    extra_args: list[str],
+    own_findings: Callable[[list[tuple[str, str]]], tuple[list[Any] | None, str | None]],
+    vendored_findings: Callable[
+        [list[tuple[str, str]], dict[str, str]], tuple[list[Any] | None, list[Any] | None, str | None]
+    ],
+) -> tuple[VendorBucketScan | None, str | None]:
+    """Render the chart and run one tool over it, as check_kubeconform and
+    check_shellcheck do. own_findings(own_docs) returns (own_real, error);
+    vendored_findings(vendored_docs, vendor_map) returns
+    (vendored_friendly, vendored_other, error). Returns (VendorBucketScan,
+    None), or (None, error) on the first render or tool failure."""
+    rendered, error = render_chart_docs(chart_dir, extra_args)
+    if rendered is None:
+        return None, error
+    own_docs = [(s, t) for s, t in rendered.docs if s.startswith(OWN_TEMPLATES_PREFIX)]
+    vendored_docs = [(s, t) for s, t in rendered.docs if not s.startswith(OWN_TEMPLATES_PREFIX)]
+    own_real, error = own_findings(own_docs)
+    if own_real is None:
+        return None, error
+    vendor_map = friendly_vendor_charts(chart_dir)
+    vendored_friendly, vendored_other, error = vendored_findings(vendored_docs, vendor_map)
+    if vendored_friendly is None or vendored_other is None:
+        return None, error
+    return VendorBucketScan(rendered.locations, vendor_map, own_real, vendored_friendly, vendored_other), None
+
+
 def scan_outcome(own_real: list, vendored_friendly: list, vendored_other: list) -> tuple[bool, str]:
     """(passed, detail) for a render + tool check: it passes only without
     own findings; vendored findings are reported, never failing."""
     detail = f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, {len(vendored_other)} other-vendor"
     return not own_real, detail
+
+
+def print_own_findings_heading(tool: str, count: int) -> None:
+    """The heading above a render + tool check's own-template findings."""
+    print(f"Found {count} real {tool} issue(s) in this chart's own templates (not cosmetic — these fail the check):")
+
+
+def print_partner_findings_heading(tool: str, count: int) -> None:
+    """The heading above a render + tool check's partner-vendored findings."""
+    print(
+        f"Found {count} {tool} issue(s) in partner-maintained vendored sub-chart(s) "
+        f"(reported for visibility, never a failure):"
+    )
+
+
+def print_other_vendor_summary(tool: str, count: int, chart_count: int) -> None:
+    """The one-line summary of a render + tool check's other-vendor findings."""
+    print(
+        f"{count} {tool} finding(s) across {chart_count} other vendored sub-chart(s) "
+        f"(outside this repo's scope, not shown, never a failure)"
+    )

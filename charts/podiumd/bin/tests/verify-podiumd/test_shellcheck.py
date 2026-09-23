@@ -30,7 +30,7 @@ def sc_result(comments, returncode=1):
 
 
 def no_friendly_vendors(libshellcheckcheck, monkeypatch):
-    monkeypatch.setattr(libshellcheckcheck, "friendly_vendor_charts", lambda chart_dir: {})
+    monkeypatch.setattr("lib.render_scope.friendly_vendor_charts", lambda chart_dir: {})
 
 
 RENDERED = (
@@ -427,7 +427,7 @@ def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(
     finding, which only ever gets an aggregate count — but must still
     never fail."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
-    monkeypatch.setattr(libshellcheckcheck, "friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
+    monkeypatch.setattr("lib.render_scope.friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
     monkeypatch.setattr(
         libshellcheckcheck,
         "run",
