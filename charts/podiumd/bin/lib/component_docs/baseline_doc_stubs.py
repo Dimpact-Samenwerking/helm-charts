@@ -198,7 +198,7 @@ def load_baseline_values(values_path, upgrade_docs_baseline):
 
 def load_baseline_state(
     # kept for signature compat, see docstring below
-    chart_yaml_path,  # pylint: disable=unused-argument
+    chart_yaml_path,  # pylint: disable=unused-argument  # noqa: ARG001
     values_path,
     upgrade_docs_baseline,
 ):

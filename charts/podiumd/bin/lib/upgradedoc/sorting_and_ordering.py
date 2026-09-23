@@ -5,6 +5,8 @@ order machinery all three sorts are built on."""
 
 import re
 
+from itertools import pairwise
+
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
@@ -188,7 +190,7 @@ def find_out_of_order_names(names, deps, key_order, canonical_names=None, values
     # names[1:] is deliberately one element shorter than names -- this pairs
     # each name with its immediate successor (len(names) - 1 pairs), not a
     # same-length zip -- strict=True would raise on every real call.
-    for a, b in zip(names, names[1:], strict=False):
+    for a, b in pairwise(names):
         if component_order_key(b, deps, key_order, canonical_names, values) < component_order_key(
             a, deps, key_order, canonical_names, values
         ):

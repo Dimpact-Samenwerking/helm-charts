@@ -24,7 +24,7 @@ def test_words_of_splits_on_non_alnum(libupgradedocbasics):
 
 
 @pytest.mark.parametrize(
-    "cell,expected",
+    ("cell", "expected"),
     [
         ("5.0.2 → 5.4.3", "5.4.3"),
         ("5.0.2 -> 5.4.3", "5.4.3"),
@@ -38,7 +38,7 @@ def test_extract_target_version(libupgradedocbasics, cell, expected):
 
 
 @pytest.mark.parametrize(
-    "cell,expected",
+    ("cell", "expected"),
     [
         ("5.0.2 → 5.4.3", "5.0.2"),
         ("5.0.2 -> 5.4.3", "5.0.2"),

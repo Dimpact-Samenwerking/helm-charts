@@ -180,9 +180,9 @@ class _TableExtractor(HTMLParser):
 def _positive_int(value, default):
     try:
         parsed = int(value)
-        return parsed if parsed > 0 else default
     except (TypeError, ValueError):
         return default
+    return parsed if parsed > 0 else default
 
 
 def extract_tables(html_text):

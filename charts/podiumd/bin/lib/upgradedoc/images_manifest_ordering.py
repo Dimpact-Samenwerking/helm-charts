@@ -5,6 +5,7 @@ sharing one dependency/sidecar group move and stay together."""
 import re
 
 from dataclasses import dataclass
+from itertools import pairwise
 
 import yaml
 
@@ -383,7 +384,7 @@ def find_images_manifest_out_of_order_names(manifest, resolution, key_order, val
     # groups[1:] is deliberately one element shorter than groups -- same
     # adjacent-pairs shape as find_out_of_order_names' own zip(names,
     # names[1:]) above -- not a same-length zip.
-    for (_, path_a, name_a), (_, path_b, name_b) in zip(groups, groups[1:], strict=False):
+    for (_, path_a, name_a), (_, path_b, name_b) in pairwise(groups):
         if images_manifest_entry_order_key(
             path_b, resolution.deps, key_order, values
         ) < images_manifest_entry_order_key(path_a, resolution.deps, key_order, values):

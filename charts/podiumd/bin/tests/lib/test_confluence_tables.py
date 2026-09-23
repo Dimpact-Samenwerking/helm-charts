@@ -126,7 +126,7 @@ def test_fetch_page_html_missing_body_storage_raises(libconfluencetables):
     def fake_urlopen(request):
         return FakeResponse({"body": {}})
 
-    with pytest.raises(SystemExit, match="no body.storage.value"):
+    with pytest.raises(SystemExit, match=r"no body\.storage\.value"):
         libconfluencetables.fetch_page_html(
             "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
             "kees@info.nl",

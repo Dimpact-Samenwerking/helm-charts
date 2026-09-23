@@ -793,8 +793,10 @@ def check_images_source(ref, rows, comparison, findings, *, strict_presence=Fals
             if len(versions) > 1:
                 return (
                     "ambiguous",
-                    f"'{basename}' under '{ref.scope_key}' is pinned at {len(versions)} different versions at "
-                    f"the release_table baseline ({', '.join(sorted(versions))}) -- can't compare",
+                    (
+                        f"'{basename}' under '{ref.scope_key}' is pinned at {len(versions)} different versions at "
+                        f"the release_table baseline ({', '.join(sorted(versions))}) -- can't compare"
+                    ),
                 )
             return ("found", next(iter(versions)), "values.yaml")
 
@@ -802,10 +804,12 @@ def check_images_source(ref, rows, comparison, findings, *, strict_presence=Fals
         if subchart_error:
             return (
                 "ambiguous",
-                f"'{basename}' under '{ref.scope_key}' relies entirely on its vendored subchart's own default "
-                f"repository at the release_table baseline (no override in values.yaml there), but its "
-                f"historical chart version {baseline_dep['version']} couldn't be resolved to verify: "
-                f"{subchart_error}",
+                (
+                    f"'{basename}' under '{ref.scope_key}' relies entirely on its vendored subchart's own default "
+                    f"repository at the release_table baseline (no override in values.yaml there), but its "
+                    f"historical chart version {baseline_dep['version']} couldn't be resolved to verify: "
+                    f"{subchart_error}"
+                ),
             )
         if subchart_actual is not None:
             return ("found", subchart_actual, "subchart-default values.yaml")
