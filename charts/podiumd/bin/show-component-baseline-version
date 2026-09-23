@@ -53,7 +53,7 @@ def show_at_baseline(chart_dir, label, baseline, component):
         ref, dep, values_key, image_paths, app_versions, error = component_state_at_baseline(
             chart_dir, "charts/podiumd", baseline_value, component
         )
-        if error:
+        if error or image_paths is None:
             return f"error: {error}"
 
         if dep is None:

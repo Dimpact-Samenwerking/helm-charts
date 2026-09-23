@@ -110,7 +110,7 @@ class DocsCheckContext:
     chart_dir: object
     current: object
     baseline: object
-    baseline_ref: str
+    baseline_ref: str | None
     doc_query: DocQuery
     image_paths: ImagePaths
     actual_changed_keys: set

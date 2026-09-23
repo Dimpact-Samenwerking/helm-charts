@@ -134,7 +134,7 @@ def _score_rendered_chart(chart_dir, extra_args, check_id):
 
     vendor_map = friendly_vendor_charts(chart_dir)
     vendored_partner, vendored_other, error = _score_vendored_charts(docs, check_id, vendor_map)
-    if error:
+    if vendored_partner is None or vendored_other is None:
         return None, error
 
     return KubeScoreResult(locations, own_real, vendored_partner, vendored_other), None

@@ -560,7 +560,7 @@ def _confirm_pinned_digest_still_resolvable(ctx, acc):
     digest_ref = f"sha256:{ctx.pinned_digest}"
     result, digest_error = _call_with_retry(lambda: registry_tag_exists(host, repo_path, digest_ref))
 
-    if digest_error:
+    if result is None:
         acc.digest_check_errors.append((repository, version, digest_error, ctx.lines_str))
         print(
             f"  [FETCH-ERR] {host}/{repo_path}@{digest_ref}  {digest_error}  (while "

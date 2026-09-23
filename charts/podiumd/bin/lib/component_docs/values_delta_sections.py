@@ -143,7 +143,7 @@ class ValuesDeltaOrdering:
 
     deps: list
     values: dict
-    canonical_names: dict = None
+    canonical_names: dict | None = None
 
 
 @dataclass

@@ -6,6 +6,7 @@ app version from values.yaml/Chart.yaml/vendored subcharts."""
 import re
 
 from dataclasses import dataclass
+from typing import Any
 
 from lib.chart.historical_baselines import BaselineLookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
@@ -41,7 +42,7 @@ class ResolutionContext:
     chart_dir: object
     target: ComponentState
     baseline: ComponentState
-    upgrade_docs_baseline: str = None
+    upgrade_docs_baseline: str | None = None
 
 
 def changes_heading_has_app_version(heading):
@@ -92,9 +93,9 @@ class RowMatch:
     three not None (see resolve_component_row's own docstring for the
     canonical_names/deps precedence rules that decide which)."""
 
-    sidecar_path: tuple
-    dep: dict
-    native_key: str
+    sidecar_path: tuple | None
+    dep: dict | None
+    native_key: str | None
 
 
 def _match_row(row_name, chart_dir, canonical_names, deps):
@@ -112,7 +113,7 @@ def _match_row(row_name, chart_dir, canonical_names, deps):
     return RowMatch(sidecar_path, dep, native_key)
 
 
-def _target_result(chart_dir, values, match):
+def _target_result(chart_dir, values, match) -> dict[str, Any]:
     """The "kind"/"dep"/"sidecar_path"/values-and-chart-key/target_chart/
     target_app fields of resolve_component_row's result dict — the
     target-side resolution, independent of any baseline comparison."""

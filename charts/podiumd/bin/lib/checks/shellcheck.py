@@ -177,7 +177,7 @@ def _vendored_shellcheck_findings(
     vendored_friendly, vendored_other = [], []
     for entry in extract_shell_scripts(vendored_docs, shell_names):
         chart, findings, error = _vendored_script_result(entry, failing_levels)
-        if error:
+        if findings is None:
             return None, None, error
         (vendored_friendly if chart in vendor_map else vendored_other).extend(findings)
     return vendored_friendly, vendored_other, None

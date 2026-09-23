@@ -83,7 +83,7 @@ class BaselineComponentQuery:
     both real callers (update-image-version, update-component-version)
     build all seven the same way, just from differently-named locals."""
 
-    baseline_values: dict
+    baseline_values: dict | None
     baseline_dep: dict | None
     values_key: str
     image_path: str
