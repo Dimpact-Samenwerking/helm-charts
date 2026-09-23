@@ -96,11 +96,13 @@ from datetime import timezone
 
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import values_key_of
-from lib.gitutil import find_repo_root
 from lib.image.digests import unique_digest_pin_targets
 from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
 from lib.image.upgrade_cache import cache_key as upgrade_cache_key
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
+from lib.json_cache import cache_file
+from lib.json_cache import load_json_cache
+from lib.json_cache import save_json_cache
 from lib.procutil import run
 from lib.registry import parse_repo
 from lib.render_scope import OWN_TEMPLATES_PREFIX
@@ -157,29 +159,20 @@ def cache_path(chart_dir):
     the repo root (not chart_dir) so root .gitignore's plain /.cache/
     entry covers it without a chart-specific rule. Falls back to chart_dir
     itself if it isn't inside a git checkout."""
-    root = find_repo_root(chart_dir) or chart_dir
-    return root / ".cache" / CACHE_FILENAME
+    return cache_file(chart_dir, CACHE_FILENAME)
 
 
 def load_cache(chart_dir):
     """The parsed contents of cache_path(chart_dir), or {} if the file
     doesn't exist yet or can't be parsed (corrupt/truncated) — never
     raises, so a broken cache just behaves like a cold one."""
-    path = cache_path(chart_dir)
-    if not path.is_file():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
+    return load_json_cache(cache_path(chart_dir))
 
 
 def save_cache(chart_dir, cache):
     """Persist `cache` to cache_path(chart_dir) as pretty-printed,
     key-sorted JSON, creating the .cache directory first if needed."""
-    path = cache_path(chart_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
+    save_json_cache(cache_path(chart_dir), cache)
 
 
 def open_cache_session(chart_dir):
