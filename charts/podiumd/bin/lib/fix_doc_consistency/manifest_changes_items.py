@@ -11,7 +11,7 @@ from lib.docs_consistency.images_manifest_format import match_changes_item_to_en
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 
 
-def _renumbered_changes_block(chunks):
+def _renumbered_changes_block(chunks: list):
     """Renumbers a list of "# Changes:" item chunks (each chunk the item's
     own raw lines, already in their final relative order) to match their
     position in `chunks` (1-based), returning the concatenated new block
@@ -26,7 +26,7 @@ def _renumbered_changes_block(chunks):
     return new_block
 
 
-def _deduped_item_chunks(lines, spans: list[tuple[int, int]]):
+def _deduped_item_chunks(lines: list[str], spans: list[tuple[int, int]]):
     """Each item's FULL text (its own first line's "rest" plus any wrapped
     continuation lines) compared verbatim -- the first occurrence of a
     given text wins, every later exact repeat is dropped. Returns
@@ -46,7 +46,7 @@ def _deduped_item_chunks(lines, spans: list[tuple[int, int]]):
     return keep_chunks, removed
 
 
-def _update_changes_header_count(lines, header_idx, total):
+def _update_changes_header_count(lines: list[str], header_idx: int, total: int):
     """Updates the "# Changes:" header's own leading count word (e.g.
     "three changes:") to match `total`, mutating lines[header_idx]."""
     count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
@@ -55,7 +55,7 @@ def _update_changes_header_count(lines, header_idx, total):
     lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
 
 
-def dedupe_images_manifest_changes_items(lines):
+def dedupe_images_manifest_changes_items(lines: list[str]):
     """Remove an exact-duplicate item from the images-manifest's own "#
     Changes:" numbered list — the real bug a multi-image "lockstep"
     component (zgw-office-addin's frontend + backend, eck-stack's
@@ -94,7 +94,9 @@ def dedupe_images_manifest_changes_items(lines):
     return removed
 
 
-def _resolved_changes_items(lines, item_bounds, entries, entry_positions, display_name_positions):
+def _resolved_changes_items(
+    lines: list[str], item_bounds: list, entries: list, entry_positions: dict, display_name_positions: dict | None
+):
     """Resolves each item's own sort key: exact display-name match first
     (see match_changes_item_display_name/display_name_positions), falling
     back to match_changes_item_to_entry's fuzzy basename-in-text search
@@ -107,7 +109,7 @@ def _resolved_changes_items(lines, item_bounds, entries, entry_positions, displa
     for start, end in item_bounds:
         rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
         display_name = match_changes_item_display_name(rest, display_name_positions or {})
-        if display_name is not None:
+        if display_name is not None and display_name_positions:
             position = display_name_positions[display_name]
         else:
             entry = match_changes_item_to_entry(rest, entries)
@@ -116,7 +118,9 @@ def _resolved_changes_items(lines, item_bounds, entries, entry_positions, displa
     return items
 
 
-def sort_images_manifest_changes_items(lines, entries, entry_positions, display_name_positions=None):
+def sort_images_manifest_changes_items(
+    lines: list[str], entries: list, entry_positions: dict, display_name_positions: dict | None = None
+):
     """Reorder the images-manifest's own "# Changes:" numbered item list
     (see _find_images_manifest_changes_header) to MIRROR the entry
     list's own final order (entry_positions — see lib.upgradedoc.

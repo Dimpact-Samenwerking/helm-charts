@@ -12,14 +12,14 @@ BASELINE_LINE_RE = re.compile(r"(?P<prefix>Baseline:\s*podiumd\s+)(?P<baseline>\
 VS_LINE_RE_TMPL = r"(?P<prefix>podiumd\s+{target}\s+vs\s+)(?P<baseline>\d+\.\d+\.\d+)"
 
 
-def extract_images_baseline(text):
+def extract_images_baseline(text: str):
     """The version named on the "Baseline: podiumd X" line, or None if the
     manifest doesn't have one (malformed/legacy header)."""
     m = BASELINE_LINE_RE.search(text)
     return m.group("baseline") if m else None
 
 
-def update_sibling_doc_refs(text, target, new_baseline):
+def update_sibling_doc_refs(text: str, target: str, new_baseline: str):
     """Rewrite any "<some-baseline>-to-<target>-<suffix>.md" reference
     (whatever baseline it currently names) to the new baseline — these docs
     were just renamed. Used both on the per-suffix docs themselves (a
@@ -38,7 +38,7 @@ def update_sibling_doc_refs(text, target, new_baseline):
     return new_text, new_text != text
 
 
-def update_images_manifest_baseline(text, target, new_baseline):
+def update_images_manifest_baseline(text: str, target: str, new_baseline: str):
     """Rewrite the "Baseline: podiumd X" and "podiumd <target> vs X" lines
     to the new baseline, whatever X currently is. Returns (new_text, changed)."""
     text, n1 = BASELINE_LINE_RE.subn(rf"\g<prefix>{new_baseline}", text)

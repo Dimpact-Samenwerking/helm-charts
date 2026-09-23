@@ -82,7 +82,7 @@ class _ManifestFixState:
     fixed_comment_versions: dict
 
 
-def resolve_entry_version(entry, paths, repo_map=None):
+def resolve_entry_version(entry: dict, paths: dict, repo_map: dict | None = None):
     """The app version pinned at the values-tree path this images-manifest
     entry resolves to, or None if it can't be resolved (no matching
     path, or that path has no version, e.g. the component didn't exist yet)."""
@@ -91,7 +91,7 @@ def resolve_entry_version(entry, paths, repo_map=None):
     return tag.split("@")[0] if tag else None
 
 
-def _manifest_entries_setup(text, context):
+def _manifest_entries_setup(text: str, context):
     """None when text isn't parsable/isn't a list — the "nothing to do,
     hand caller-visible text back unchanged" case fix_images_manifest_
     entries itself used to return early for."""
@@ -123,7 +123,7 @@ def _manifest_entries_setup(text, context):
     # None-safe handling.
     sibling_fields = digest_pinning_exceptions(context.chart_dir) if context.chart_dir is not None else {}
 
-    def same_group(entry_a, entry_b):
+    def same_group(entry_a: dict, entry_b: dict):
         return images_manifest_entries_share_group(entry_a, entry_b, current_paths, context.repo_map)
 
     return _ManifestEntriesSetup(
@@ -137,7 +137,7 @@ def _manifest_entries_setup(text, context):
     )
 
 
-def _fallback_actual_baseline(context, setup, path):
+def _fallback_actual_baseline(context, setup, path: tuple[str, ...]):
     """Two-tier fallback used only when no direct baseline_paths match
     exists (see fix_images_manifest_entries' own docstring): whether
     this same repository already lives somewhere else in
@@ -157,7 +157,9 @@ def _fallback_actual_baseline(context, setup, path):
     )
 
 
-def _manifest_entry_digest_only_change(context, setup, path, actual_baseline, actual_target):
+def _manifest_entry_digest_only_change(
+    context, setup, path: tuple[str, ...], actual_baseline: str | None, actual_target: str
+):
     """Whether this entry is a same-version, changed-digest re-pin (see
     find_images_manifest_list_diff's own digest-comparison branch,
     which this mirrors)."""
@@ -173,7 +175,7 @@ def _manifest_entry_digest_only_change(context, setup, path, actual_baseline, ac
     return current_digest.split("@", 1)[1] != baseline_digest.split("@", 1)[1]
 
 
-def _process_manifest_entry(index, entry, context, setup, state):
+def _process_manifest_entry(index: int, entry: dict, context, setup, state):
     """Resolves and, if needed, rewrites the one images-manifest entry
     at `entries[index]` — appending to state.changed_entries/
     unresolved_names/fixed_comment_versions in place, same shared-
@@ -217,7 +219,7 @@ def _process_manifest_entry(index, entry, context, setup, state):
         state.changed_entries.append((name, actual_baseline, actual_target))
 
 
-def fix_images_manifest_entries(text, context):
+def fix_images_manifest_entries(text: str, context):
     """Rewrite each images-manifest entry's preceding comment to state the
     actual source (baseline) and target versions for the image at its
     matched values-tree path. An entry is only rewritten when both ends are

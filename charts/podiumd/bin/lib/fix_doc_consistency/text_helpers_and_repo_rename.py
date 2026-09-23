@@ -5,6 +5,8 @@ derived paths."""
 
 import re
 
+from pathlib import Path
+
 from lib.procutil import run
 
 TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"
@@ -14,13 +16,13 @@ HEADING_LINE_RE = re.compile(r"^#{1,6}\s")
 FENCE_LINE_RE = re.compile(r"^\s*```")
 
 
-def find_collisions(by_suffix):
+def find_collisions(by_suffix: dict):
     """suffix -> [(baseline, path), ...] for every suffix with more than one
     source file — these would collide on the same rename destination."""
     return {suffix: entries for suffix, entries in by_suffix.items() if len(entries) > 1}
 
 
-def git_mv(src, dst):
+def git_mv(src: Path, dst: Path):
     """`git mv src dst` (run from src's own directory), raising SystemExit
     with git's own stderr on failure — the actual rename step behind
     fix-doc-consistency's baseline-mismatch renames, so history/blame
@@ -31,7 +33,7 @@ def git_mv(src, dst):
         raise SystemExit(msg)
 
 
-def update_title_line(text, old_baseline, target, new_baseline):
+def update_title_line(text: str, old_baseline: str, target: str, new_baseline: str):
     """Replace "<old_baseline> → <target>" (or "->") on the title line
     (line 1) only. Returns (new_text, changed)."""
     lines = text.splitlines(keepends=True)
@@ -45,7 +47,7 @@ def update_title_line(text, old_baseline, target, new_baseline):
     return "".join(lines), True
 
 
-def update_component_versions_heading(text, old_baseline, target, new_baseline):
+def update_component_versions_heading(text: str, old_baseline: str, target: str, new_baseline: str):
     """Replace a "Component versions (<target> vs <old_baseline>)" heading
     anywhere in the body, if present. Returns (new_text, changed)."""
     pattern = re.compile(COMPONENT_VERSIONS_RE_TMPL.format(baseline=re.escape(old_baseline), target=re.escape(target)))
@@ -53,7 +55,7 @@ def update_component_versions_heading(text, old_baseline, target, new_baseline):
     return new_text, count > 0
 
 
-def join_and(parts):
+def join_and(parts: list[str]):
     """ "a" | "a and b" | "a, b, and c" — natural-language join for a
     per-doc summary line combining however many of its own independent
     fixes actually fired this run (stub-TODO removal, stale sibling-doc
@@ -67,13 +69,13 @@ def join_and(parts):
     return ", ".join(parts[:-1]) + f", and {parts[-1]}"
 
 
-def remaining_mentions(text, old_baseline):
+def remaining_mentions(text: str, old_baseline: str):
     """Line numbers (1-indexed) where old_baseline still appears, for a
     manual-review reminder — every match, not just ones already handled."""
     return [i + 1 for i, line in enumerate(text.splitlines()) if old_baseline in line]
 
 
-def ensure_blank_lines_around_headings(text):
+def ensure_blank_lines_around_headings(text: str):
     """Insert a missing blank line directly above and/or below every real
     "#"-heading line (pymarkdown's MD022, headings-surrounded-by-blank-
     lines) — the companion collapse_multiple_blank_lines below never
@@ -113,7 +115,7 @@ def ensure_blank_lines_around_headings(text):
     return "".join(result)
 
 
-def collapse_multiple_blank_lines(text):
+def collapse_multiple_blank_lines(text: str):
     """First inserts any blank line MISSING around a heading (see ensure_
     blank_lines_around_headings), then collapses any run of 2+
     consecutive blank lines down to exactly one (pymarkdown's MD012,
