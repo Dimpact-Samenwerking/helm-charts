@@ -3,36 +3,69 @@
 # Images new or changed in podiumd 4.9.2 vs 4.9.1.
 #
 # Changes:
-#   1. nginx-unprivileged 1.31.5 (digest changed).
-#   2. postgres 16-alpine -> 16.15-alpine.
-#   3. openformulieren 3.5.6 -> 3.5.8 (bugfix release).
-#   4. eck-operator 3.5.0 (new).
-#   5. kiss 3.1.1 -> 3.1.3 (incl. kiss-elastic-sync).
-#   6. zac - solr 9.10.1-slim (digest changed).
-#   7. clamav 1.5.4 (digest changed).
-#   8. ita 3.3.0 -> 3.3.2 (web en poller).
+#   1. nginx-unprivileged 1.31.5 -> 1.31.6.
+#   2. busybox 1.38.0-glibc (digest changed).
+#   3. postgres 16-alpine -> 16.15-alpine.
+#   4. keycloak-operator - python 3.14.7-slim (digest changed).
+#   5. redis-operator - redis v8.6.6 -> v8.10.1 (chart 0.26.1, unchanged).
+#   6. redis-operator - k8s 1.36.2 -> 1.37.0 (chart 0.26.1, unchanged).
+#   7. openformulieren 3.5.6 -> 3.5.8 (bugfix release).
+#   8. referentielijsten 0.7.3 -> 0.7.4 (chart 0.1.1 -> 0.2.0).
+#   9. eck-operator 3.5.0 (new).
+#   10. kiss 3.1.1 -> 3.1.3 (incl. kiss-elastic-sync).
+#   11. zac - solr 9.10.1-slim (digest changed).
+#   12. clamav 1.5.4 (digest changed).
+#   13. ita 3.3.0 -> 3.3.2 (web en poller).
 #
 # See docs/_UPGRADE_PATHS/4.9.1-to-4.9.2-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-# nginx-unprivileged 1.31.5 (digest changed)
+# nginx-unprivileged 1.31.5 -> 1.31.6
 - name: nginxinc/nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
-  version: "1.31.5"
-  digest: "sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"
+  version: "1.31.6"
+  digest: "sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"
+# busybox 1.38.0-glibc (digest changed)
+- name: library/busybox
+  url: docker.io/library/busybox
+  version: "1.38.0-glibc"
+  digest: "sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"
 # postgres 16-alpine -> 16.15-alpine
 - name: library/postgres
   url: docker.io/library/postgres
   version: "16.15-alpine"
-  digest: "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+  digest: "sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"
+
+#   sidecar: keycloak-operator - python 3.14.7-slim (digest changed)
+- name: library/python
+  url: docker.io/library/python
+  version: "3.14.7-slim"
+  digest: "sha256:caaf356f40667c496d405780745b9ac25771c189a51dfcc42430d531ea09f8a2"
+
+#   sidecar: redis-operator - redis v8.6.6 -> v8.10.1
+- name: opstree/redis
+  url: quay.io/opstree/redis
+  version: "v8.10.1"
+  digest: "sha256:d3ef5a7f11eb501034b6612b842c864e1946088c52c04b29a22f38b1fe37c99b"
+#   sidecar: redis-operator - k8s 1.36.2 -> 1.37.0
+- name: alpine/k8s
+  url: docker.io/alpine/k8s
+  version: "1.37.0"
+  digest: "sha256:b421c2e9419edb98db39b6ab641669f4db7bb2acf354f22450c6b7e7176d1ff4"
 
 # Applicaties
 - name: openformulieren/open-forms
   url: docker.io/openformulieren/open-forms
   version: "3.5.8"
   digest: "sha256:1050b6dd1554ff6f620390870fbb2056157d792e75b9fe6e965371a2ae84f41a"
+
+# referentielijsten 0.7.3 -> 0.7.4
+- name: maykinmedia/referentielijsten-api
+  url: docker.io/maykinmedia/referentielijsten-api
+  version: "0.7.4"
+  digest: "sha256:5501b48fe9b988a72adba14308748e6b5928f851ec66d108bab2fe625eb831a3"
 
 # eck-operator 3.5.0 (new)
 - name: eck/eck-operator
@@ -55,13 +88,13 @@
 - name: library/solr
   url: docker.io/library/solr
   version: "9.10.1-slim"
-  digest: "sha256:0a931f52cfd9a9afd6d958d246e64115648099c788e41a01adad9f09e6f73594"
+  digest: "sha256:92a1ceccbde539cb067c05b134069250a8aa4446a62a9ada4111e4dde2b3ea26"
 
 # clamav 1.5.4 (digest changed)
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.5.4"
-  digest: "sha256:9cb27d7660bdf66e9878c832cb433dd8aa152cfbe16f3c2c0084c80b04ae22b4"
+  digest: "sha256:0e31ce089574268aefa0b543767d66b70240ab51ed49eec53e07f18d5629d817"
 
 # ita 3.3.0 -> 3.3.2
 - name: interne-taak-afhandeling/internetaakafhandeling.web
