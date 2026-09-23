@@ -16,6 +16,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "verify-podiumd-dead-values"
 def vpdv():
     loader = SourceFileLoader("verify_podiumd_dead_values", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("verify_podiumd_dead_values", SCRIPT_PATH, loader=loader)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

@@ -19,6 +19,7 @@ SCRIPT_PATH = SCRIPTS_DIR / "fix-helm-doc"
 def upr():
     loader = SourceFileLoader("fix_helm_doc", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("fix_helm_doc", SCRIPT_PATH, loader=loader)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

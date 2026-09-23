@@ -16,6 +16,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "verify-helm-secret-size"
 def vhss():
     loader = SourceFileLoader("verify_helm_secret_size", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("verify_helm_secret_size", SCRIPT_PATH, loader=loader)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

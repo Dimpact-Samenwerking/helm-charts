@@ -18,6 +18,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "list-podiumd-images"
 def _module():
     loader = SourceFileLoader("list_podiumd_images", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("list_podiumd_images", SCRIPT_PATH, loader=loader)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

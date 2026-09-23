@@ -16,6 +16,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "verify-release-table-with-p
 def vrt():
     loader = SourceFileLoader("verify_release_table_with_podiumd", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("verify_release_table_with_podiumd", SCRIPT_PATH, loader=loader)
+    assert spec is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

@@ -8,11 +8,20 @@ import json
 import subprocess
 import urllib.error
 
+from email.message import Message
 from io import BytesIO
 
 import pytest
 
 # --- parse_repo ---
+
+
+def _headers(values: dict[str, str]) -> Message:
+    """An HTTPError headers object holding values."""
+    headers = Message()
+    for key, value in values.items():
+        headers[key] = value
+    return headers
 
 
 def test_parse_repo_bare_docker_hub_official_image(libregistry):
@@ -88,7 +97,7 @@ def test_registry_tag_exists_fetches_token_for_docker_hub(libregistry, monkeypat
 
 def test_registry_tag_exists_404_returns_false(libregistry, monkeypatch):
     def fake_urlopen(req):
-        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, BytesIO(b""))
+        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", Message(), BytesIO(b""))
 
     monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
     exists, digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "nonexistent")
@@ -98,7 +107,7 @@ def test_registry_tag_exists_404_returns_false(libregistry, monkeypatch):
 
 def test_registry_tag_exists_reraises_non_404_error(libregistry, monkeypatch):
     def fake_urlopen(req):
-        raise urllib.error.HTTPError(req.full_url, 500, "Server Error", {}, BytesIO(b""))
+        raise urllib.error.HTTPError(req.full_url, 500, "Server Error", Message(), BytesIO(b""))
 
     monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
     with pytest.raises(urllib.error.HTTPError):
@@ -149,11 +158,13 @@ def test_registry_tag_exists_discovers_token_via_bearer_challenge(libregistry, m
             url,
             401,
             "Unauthorized",
-            {
-                "WWW-Authenticate": 'Bearer realm="https://docker-auth.elastic.co/auth",'
-                'service="token-service",'
-                'scope="repository:integrations/crawler:pull"'
-            },
+            _headers(
+                {
+                    "WWW-Authenticate": 'Bearer realm="https://docker-auth.elastic.co/auth",'
+                    'service="token-service",'
+                    'scope="repository:integrations/crawler:pull"'
+                }
+            ),
             BytesIO(b""),
         )
 
@@ -170,7 +181,7 @@ def test_registry_tag_exists_401_without_challenge_reraises(libregistry, monkeyp
     must propagate unchanged, not loop or crash."""
 
     def fake_urlopen(req):
-        raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", {}, BytesIO(b""))
+        raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", Message(), BytesIO(b""))
 
     monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
     with pytest.raises(urllib.error.HTTPError) as exc_info:
@@ -206,7 +217,7 @@ def test_registry_tag_exists_falls_back_to_get_on_405(libregistry, monkeypatch):
     def fake_urlopen(req):
         calls.append(req.get_method())
         if req.get_method() == "HEAD":
-            raise urllib.error.HTTPError(req.full_url, 405, "Method Not Allowed", {}, BytesIO(b""))
+            raise urllib.error.HTTPError(req.full_url, 405, "Method Not Allowed", Message(), BytesIO(b""))
         return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
 
     monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
@@ -224,7 +235,7 @@ def test_registry_tag_exists_404_on_head_returns_false_without_get_fallback(libr
 
     def fake_urlopen(req):
         assert req.get_method() == "HEAD"
-        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, BytesIO(b""))
+        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", Message(), BytesIO(b""))
 
     monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
     exists, digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "nonexistent")
@@ -239,7 +250,7 @@ def test_registry_tag_exists_500_on_head_reraises_without_get_fallback(libregist
 
     def fake_urlopen(req):
         assert req.get_method() == "HEAD"
-        raise urllib.error.HTTPError(req.full_url, 500, "Server Error", {}, BytesIO(b""))
+        raise urllib.error.HTTPError(req.full_url, 500, "Server Error", Message(), BytesIO(b""))
 
     monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
     with pytest.raises(urllib.error.HTTPError) as exc_info:
@@ -265,11 +276,13 @@ def test_registry_tag_exists_head_method_threaded_through_bearer_challenge_retry
             url,
             401,
             "Unauthorized",
-            {
-                "WWW-Authenticate": 'Bearer realm="https://docker-auth.elastic.co/auth",'
-                'service="token-service",'
-                'scope="repository:integrations/crawler:pull"'
-            },
+            _headers(
+                {
+                    "WWW-Authenticate": 'Bearer realm="https://docker-auth.elastic.co/auth",'
+                    'service="token-service",'
+                    'scope="repository:integrations/crawler:pull"'
+                }
+            ),
             BytesIO(b""),
         )
 
@@ -432,7 +445,9 @@ def test_list_tags_discovers_token_via_bearer_challenge(libregistry, monkeypatch
             url,
             401,
             "Unauthorized",
-            {"WWW-Authenticate": 'Bearer realm="https://docker-auth.elastic.co/auth",service="token-service"'},
+            _headers(
+                {"WWW-Authenticate": 'Bearer realm="https://docker-auth.elastic.co/auth",service="token-service"'}
+            ),
             BytesIO(b""),
         )
 
