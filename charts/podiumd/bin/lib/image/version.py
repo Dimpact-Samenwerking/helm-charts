@@ -134,7 +134,7 @@ def repository_for_basename_in_scope(lines, scope_key, basename):
     confirming they name the same real repository (see check_images_
     source)."""
     scoped = basenames_under_scope_any_tag(lines, scope_key).get(basename)
-    pins = scoped if scoped else find_matches_any_tag(lines, basename)
+    pins = scoped or find_matches_any_tag(lines, basename)
     if not pins:
         return None
     repos = {p["repository"] for p in pins if p["repository"]}

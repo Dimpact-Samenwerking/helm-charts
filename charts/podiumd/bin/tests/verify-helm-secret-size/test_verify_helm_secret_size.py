@@ -225,7 +225,9 @@ def test_main_exits_one_and_warns_at_threshold(vhss, monkeypatch, tmp_path, caps
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
     monkeypatch.setattr(vhss, "build_release", lambda *a, **kw: ({}, "4.9.1", []))
     monkeypatch.setattr(
-        vhss, "encoded_secret_size", lambda release, secret_limit: SecretSizeEstimate(1000, 500, 950000, 0.95, secret_limit)
+        vhss,
+        "encoded_secret_size",
+        lambda release, secret_limit: SecretSizeEstimate(1000, 500, 950000, 0.95, secret_limit),
     )
     monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path)])
 
@@ -242,7 +244,9 @@ def test_main_passes_under_threshold_does_not_exit(vhss, monkeypatch, tmp_path):
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
     monkeypatch.setattr(vhss, "build_release", lambda *a, **kw: ({}, "4.9.1", []))
     monkeypatch.setattr(
-        vhss, "encoded_secret_size", lambda release, secret_limit: SecretSizeEstimate(1000, 500, 100, 0.0001, secret_limit)
+        vhss,
+        "encoded_secret_size",
+        lambda release, secret_limit: SecretSizeEstimate(1000, 500, 100, 0.0001, secret_limit),
     )
     monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path)])
 

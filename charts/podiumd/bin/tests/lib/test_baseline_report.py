@@ -23,7 +23,7 @@ def test_show_baseline_section_calls_resolve_with_the_baseline_value(libbaseline
 
     def resolve(baseline):
         received.append(baseline)
-        return None
+        return
 
     libbaselinereport.show_baseline_section("upgrade_docs", "4.8.5", resolve)
     assert received == ["4.8.5"]
@@ -32,7 +32,7 @@ def test_show_baseline_section_calls_resolve_with_the_baseline_value(libbaseline
 def test_show_baseline_section_success_returns_true_and_prints_no_error_line(libbaselinereport, capsys):
     def resolve(baseline):
         print("  Component: zac")
-        return None
+        return
 
     result = libbaselinereport.show_baseline_section("upgrade_docs", "4.8.5", resolve)
     assert result is True

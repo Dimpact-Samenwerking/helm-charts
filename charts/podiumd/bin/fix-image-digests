@@ -179,7 +179,7 @@ def _parse_args(argv):
     if len(positional) not in (0, 2):
         print(f"error: expected either no target, or <key> <basename> — got: {', '.join(positional)}")
         sys.exit(1)
-    key, basename = positional if positional else (None, None)
+    key, basename = positional or (None, None)
     return dry_run, key, basename
 
 

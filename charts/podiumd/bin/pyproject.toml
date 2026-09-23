@@ -84,7 +84,6 @@ ignore = [
     "COM812", # Conflicts when used with the formatter
     "ISC001", # Rule may cause conflicts when used with the formatter, disable is recommended by ruff
     "T201", # 'print' statement found, sometimes these are deliberate
-    "UP038", # deprecated: https://github.com/astral-sh/ruff/issues/18727
     "EXE001", # shebang permission mismatch between host and Docker container
     "E501", # line-too-long: pylint's job now (C0301), avoid flagging the same line twice
     "ERA001", # commented-out-code: all current hits are explanatory prose (e.g. a rendered-
