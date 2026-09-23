@@ -176,6 +176,31 @@ def test_main_invokes_fix_helm_doc(ucv, tmp_path, monkeypatch, block_real_subpro
     assert any(str(ucv.FIX_HELM_DOC_SCRIPT) in cmd for cmd in calls)
 
 
+def test_main_re_vendors_after_writing_chart_yaml(ucv, tmp_path, monkeypatch, block_real_subprocess_calls):
+    """The Chart.yaml bump leaves charts/ + Chart.lock stale; main() must
+    re-vendor as its last step (after fix-helm-doc), against the new
+    Chart.yaml, so the next script starts from an in-sync state."""
+    calls = block_real_subprocess_calls
+    chart_yaml, _values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    mock_verify_passes(monkeypatch, ucv)
+    mock_registry_passes(monkeypatch, ucv, "b")
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
+    ensured = []
+
+    def record_ensure(chart_dir):
+        ensured.append((len(calls), "version: 1.0.297" in chart_yaml.read_text(encoding="utf-8")))
+
+    monkeypatch.setattr(ucv, "ensure_vendored_dependencies", record_ensure)
+
+    ucv.main()
+
+    fix_helm_doc_index = next(i for i, cmd in enumerate(calls) if str(ucv.FIX_HELM_DOC_SCRIPT) in cmd)
+    assert len(ensured) == 2
+    calls_before_last_ensure, chart_yaml_bumped = ensured[-1]
+    assert chart_yaml_bumped
+    assert calls_before_last_ensure > fix_helm_doc_index
+
+
 def setup_native_component_repo(tmp_path, monkeypatch, ucv):
     """frankgateway (see lib.chart.NATIVE_COMPONENTS): a real component
     with its own top-level values.yaml key and image, but no Chart.yaml

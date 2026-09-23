@@ -7,8 +7,10 @@ either file if that verification fails; whichever version is already at
 the requested value is left untouched (not an error). Also updates the
 docs for the current podiumd target version (upgrade-path doc, values-
 deltas doc, docs/images/images-<target>.yaml — see lib.component_docs),
-using release-baseline.yaml's upgrade_docs key as the baseline, and runs
-fix-helm-doc to keep README.md in sync.
+using release-baseline.yaml's upgrade_docs key as the baseline, runs
+fix-helm-doc to keep README.md in sync, and finally re-vendors the bumped
+sub-chart (lib.dependencies.ensure_vendored_dependencies) so charts/ and
+Chart.lock match the new Chart.yaml.
 
 Usage:
     update-component-version <component> <app-version> <chart-version>
@@ -272,9 +274,7 @@ def write_tag_and_sha(lines, location, write):
     a sibling line if none exists. Either line is skipped instead, with a
     printed note, if it's a bare YAML alias reference. Mutates `lines`."""
     tag_line_index, tag_indent, sibling_line_index = location
-    sibling_value = (
-        f"sha256:{write.new_digest_hex}" if write.sibling_field == "digest" else write.new_digest_hex
-    )
+    sibling_value = f"sha256:{write.new_digest_hex}" if write.sibling_field == "digest" else write.new_digest_hex
     if is_alias_reference_line(lines[tag_line_index]):
         print(f"  {write.label}.tag: *alias reference — inherits from its own anchor, not written directly")
     else:
@@ -730,9 +730,7 @@ def _resolve_baseline_comparison(ctx, target, old_app_by_path):
         baseline_deps, baseline_values = load_baseline_state(upgrade_docs_baseline)
     reset_to_baseline = False
     if baseline_deps is not None:
-        old_app, old_chart, reset_to_baseline = _resolve_against_baseline(
-            ctx, baseline_deps, baseline_values, friendly
-        )
+        old_app, old_chart, reset_to_baseline = _resolve_against_baseline(ctx, baseline_deps, baseline_values, friendly)
 
     return BaselineComparison(
         old_app,
@@ -895,8 +893,7 @@ def _report_missing_manifest_entries(ctx, missing_entries, old_app_by_path):
         # convention) — never printed as-is for "url:", which needs the
         # real, fully host-qualified value.
         full_repo = (
-            full_repository_for_path(CHART_DIR, ctx.deps, ctx.values, (ctx.values_key, *tuple(path.split("."))))
-            or repo
+            full_repository_for_path(CHART_DIR, ctx.deps, ctx.values, (ctx.values_key, *tuple(path.split(".")))) or repo
         )
         print(f"    # {friendly} — {old_app_by_path.get(path) or '(none)'} -> {new_app_version}")
         print("    - name: <ACR-mirror-name>")
@@ -961,8 +958,9 @@ def _update_images_manifest_section(ctx, comparison, paths_to_update, tags, old_
 
 def main():
     """CLI entry point: verifies requested versions exist upstream before
-    writing anything, then updates Chart.yaml/values.yaml and refreshes
-    the docs. See the module docstring for the full argument contract."""
+    writing anything, then updates Chart.yaml/values.yaml, refreshes the
+    docs and re-vendors the bumped sub-chart. See the module docstring
+    for the full argument contract."""
     component, app_version, chart_version = _parse_cli_args()
     ensure_vendored_dependencies(CHART_DIR)
     split_tag_sha_paths = _load_split_tag_sha_paths()
@@ -994,6 +992,11 @@ def main():
     print()
     print("=== Regenerating README.md (fix-helm-doc) ===")
     run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
+
+    # Last: the doc steps above only read a vendored .tgz whose version didn't change.
+    print()
+    print("=== Re-vendoring changed sub-charts ===")
+    ensure_vendored_dependencies(CHART_DIR)
 
     print()
     print("Done. Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
