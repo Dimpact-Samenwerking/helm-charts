@@ -7,6 +7,7 @@ of the former test_chart.py (see the other test_chart_*.py files for the
 rest)."""
 
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 import yaml
@@ -27,6 +28,25 @@ def test_find_dependency_by_alias(libchartvaluestreeprimitives):
 def test_find_dependency_not_found_returns_none(libchartvaluestreeprimitives):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
     assert libchartvaluestreeprimitives.find_dependency(deps, "totally-unknown") is None
+
+
+def test_find_dependency_ignores_case(libchartvaluestreeprimitives: ModuleType) -> None:
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
+    assert libchartvaluestreeprimitives.find_dependency(deps, "ZAC") is deps[0]
+    assert libchartvaluestreeprimitives.find_dependency(deps, "ZaakAfhandelComponent") is deps[0]
+
+
+def test_find_dependency_exact_match_wins_over_case_insensitive_one(libchartvaluestreeprimitives: ModuleType) -> None:
+    deps = [{"name": "Zac"}, {"name": "zac"}]
+    assert libchartvaluestreeprimitives.find_dependency(deps, "zac") is deps[1]
+
+
+def test_find_dependency_exits_when_case_insensitive_match_is_ambiguous(
+    libchartvaluestreeprimitives: ModuleType,
+) -> None:
+    deps = [{"name": "Zac"}, {"name": "zAC"}]
+    with pytest.raises(SystemExit, match="more than one dependency"):
+        libchartvaluestreeprimitives.find_dependency(deps, "zac")
 
 
 # --- find_app_versions ---

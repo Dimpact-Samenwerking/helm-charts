@@ -64,14 +64,28 @@ def replace_scalar_value(line, new_value):
     return f"{m.group('indent')}{m.group('key')} {anchor}{quote}{new_value}{quote}{comment}\n"
 
 
+def same_name(a: str, b: str) -> bool:
+    """True if two component or image names match, ignoring case."""
+    return a.casefold() == b.casefold()
+
+
 def find_dependency(deps, name_or_alias):
     """The Chart.yaml dependency entry matching this name or alias, or None
     if there isn't one — pure lookup, no I/O; callers load `deps` themselves
-    (usually `chart_yaml["dependencies"]`) and decide how to report a miss."""
+    (usually `chart_yaml["dependencies"]`) and decide how to report a miss.
+    An exact match wins; otherwise the match ignores case. Exits when
+    more than one dependency matches ignoring case."""
     for dep in deps:
-        if dep["name"] == name_or_alias or dep.get("alias") == name_or_alias:
+        if name_or_alias in (dep["name"], dep.get("alias")):
             return dep
-    return None
+    matches = [
+        dep for dep in deps if same_name(dep["name"], name_or_alias) or same_name(dep.get("alias") or "", name_or_alias)
+    ]
+    if len(matches) > 1:
+        names = ", ".join(dep.get("alias") or dep["name"] for dep in matches)
+        msg = f"error: '{name_or_alias}' matches more than one dependency ignoring case: {names}"
+        raise SystemExit(msg)
+    return matches[0] if matches else None
 
 
 def own_template_files_referencing(chart_dir, key):

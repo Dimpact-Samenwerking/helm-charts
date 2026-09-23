@@ -13,6 +13,7 @@ zgw-office-addin bumps two distinctly-named images, frontend + backend)."""
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.chart.values_tree_primitives import same_name
 from lib.image.digests import scan_digest_pins
 from lib.image.digests import scan_version_pins
 from lib.registry import parse_repo
@@ -34,7 +35,9 @@ def find_matches(lines, basename):
     no explicit text in values.yaml to derive a basename from at all. A
     caller updating one of those resolves its repository another way and
     writes it directly, rather than through this basename search."""
-    return [p for p in scan_digest_pins(lines) if p["repository"] and image_basename(p["repository"]) == basename]
+    return [
+        p for p in scan_digest_pins(lines) if p["repository"] and same_name(image_basename(p["repository"]), basename)
+    ]
 
 
 def find_matches_any_tag(lines, basename):
@@ -48,7 +51,9 @@ def find_matches_any_tag(lines, basename):
     required) unchanged, since a WRITE or a real digest-pinning
     verification must never treat a bare tag as if it were already
     correctly pinned."""
-    return [p for p in scan_version_pins(lines) if p["repository"] and image_basename(p["repository"]) == basename]
+    return [
+        p for p in scan_version_pins(lines) if p["repository"] and same_name(image_basename(p["repository"]), basename)
+    ]
 
 
 def basenames_under_scope(lines, scope_key):
@@ -169,8 +174,8 @@ def resolve_key_scope(key, deps):
     scoped_matches' own "no image pin ... found under" error, just under
     whatever raw string was actually typed — the right failure either
     way."""
-    if key == MULTIPLE_KEY:
-        return key
+    if same_name(key, MULTIPLE_KEY):
+        return MULTIPLE_KEY
     dep = find_dependency(deps, key)
     return (dep.get("alias") or dep["name"]) if dep is not None else key
 
@@ -183,10 +188,10 @@ def find_matches_in_scope(lines, scope_key, basename):
     confused for each other."""
     matches = []
     for pin in scan_digest_pins(lines):
-        if not pin["repository"] or image_basename(pin["repository"]) != basename:
+        if not pin["repository"] or not same_name(image_basename(pin["repository"]), basename):
             continue
         path = dotted_key_path(lines, pin["line"] - 1).split(".")
-        if path[0] != scope_key:
+        if not same_name(path[0], scope_key):
             continue
         matches.append(pin)
     return matches
@@ -204,7 +209,7 @@ def resolve_scoped_matches(lines, key, basename):
     isn't unique under this scope — e.g. two unrelated repositories
     happen to share a last path segment) — <key> <basename> must
     identify exactly one image, never a guess."""
-    scope_key = GLOBAL_IMAGES_SCOPE if key == MULTIPLE_KEY else key
+    scope_key = GLOBAL_IMAGES_SCOPE if same_name(key, MULTIPLE_KEY) else key
     matches = find_matches_in_scope(lines, scope_key, basename)
     if not matches:
         raise SystemExit(f"error: no image pin with basename '{basename}' found under '{key}'")
