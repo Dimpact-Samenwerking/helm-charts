@@ -42,6 +42,7 @@ from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import insert_changes_section
 from lib.component_docs.changes_section import make_changes_section
+from lib.component_docs.changes_section import remove_changes_block
 from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.changes_section import update_component_table
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
@@ -402,14 +403,7 @@ def _remove_changes_block_by_exact_heading(text, heading):
     (new_text, removed)."""
     blocks = parse_upgrade_doc_changes_blocks(text)
     block = next((b for b in blocks if b["heading"] == heading), None)
-    if block is None:
-        return text, False
-    lines = text.splitlines(keepends=True)
-    start, end = block["start"], block["end"]
-    while end < len(lines) and not lines[end].strip():
-        end += 1
-    del lines[start:end]
-    return "".join(lines), True
+    return remove_changes_block(text, block)
 
 
 @dataclass

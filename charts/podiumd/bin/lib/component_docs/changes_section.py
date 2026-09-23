@@ -36,6 +36,7 @@ from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.consistency_checks import resolve_component_identity
+from lib.upgradedoc.sorting_and_ordering import changes_section_bounds
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
@@ -368,28 +369,6 @@ def _strip_bare_changes_todo(lines, changes_idx, end_bound):
     return changes_idx + 1
 
 
-def _changes_section_bounds(lines):
-    """(changes_idx, section_end) for the "## Changes" heading in
-    `lines` — changes_idx is None (with section_end == len(lines)) if
-    the heading doesn't exist yet at all; otherwise section_end is the
-    index of the next "## " heading after it, or len(lines) if "##
-    Changes" is the last section in the doc. Split out of insert_
-    changes_section purely to keep its own local-variable count down."""
-    changes_idx = None
-    for i, line in enumerate(lines):
-        if line.strip() == "## Changes":
-            changes_idx = i
-            break
-    if changes_idx is None:
-        return None, len(lines)
-    section_end = len(lines)
-    for i in range(changes_idx + 1, len(lines)):
-        if re.match(r"^##\s+\S", lines[i]):
-            section_end = i
-            break
-    return changes_idx, section_end
-
-
 def _insert_index_for_empty_changes_section(lines, changes_idx, section_end):
     """insert_at for insert_changes_section's own "no ### blocks yet"
     branch: strips BOTH of upgrade.md's own stub placeholders first (see
@@ -403,7 +382,7 @@ def _insert_index_for_empty_changes_section(lines, changes_idx, section_end):
         # Line indices shifted -- recompute rather than patch by a
         # guessed amount (the standalone-placeholder removal may take
         # one line or two, depending on its own neighbors).
-        changes_idx, section_end = _changes_section_bounds(lines)
+        changes_idx, section_end = changes_section_bounds(lines)
     return _strip_bare_changes_todo(lines, changes_idx, section_end)
 
 
@@ -455,7 +434,7 @@ def insert_changes_section(text, section_text, friendly, ordering):
     was ever cleared the moment the first real "### ..." block landed)."""
     blocks = parse_upgrade_doc_changes_blocks(text)
     lines = text.splitlines(keepends=True)
-    changes_idx, section_end = _changes_section_bounds(lines)
+    changes_idx, section_end = changes_section_bounds(lines)
     if changes_idx is None:
         if text and not text.endswith("\n\n"):
             text = text.rstrip("\n") + "\n\n"
@@ -515,7 +494,7 @@ def strip_stale_upgrade_placeholders(text):
         changed = True
         blocks = parse_upgrade_doc_changes_blocks("".join(lines))  # indices shifted -- recompute
 
-    changes_idx, _ = _changes_section_bounds(lines)
+    changes_idx, _ = changes_section_bounds(lines)
     if changes_idx is not None and blocks:
         first_block_start = blocks[0]["start"]
         new_end = _strip_bare_changes_todo(lines, changes_idx, first_block_start)
@@ -525,6 +504,21 @@ def strip_stale_upgrade_placeholders(text):
 
     if not changed:
         return text, False
+    return "".join(lines), True
+
+
+def remove_changes_block(text: str, block: dict | None) -> tuple[str, bool]:
+    """Delete `block` (one parse_upgrade_doc_changes_blocks entry) from
+    text, with its trailing blank line(s) so removal doesn't leave a
+    double gap. Returns (new_text, removed); (text, False) if block is
+    None."""
+    if block is None:
+        return text, False
+    lines = text.splitlines(keepends=True)
+    start, end = block["start"], block["end"]
+    while end < len(lines) and not lines[end].strip():
+        end += 1
+    del lines[start:end]
     return "".join(lines), True
 
 
@@ -546,14 +540,7 @@ def remove_changes_section(text: str, friendly: str, ordering: OrderingContext) 
         (b for b in blocks if ident and changes_heading_identities(b["heading"], deps, canonical_names) == {ident}),
         None,
     )
-    if block is None:
-        return text, False
-    lines = text.splitlines(keepends=True)
-    start, end = block["start"], block["end"]
-    while end < len(lines) and not lines[end].strip():
-        end += 1
-    del lines[start:end]
-    return "".join(lines), True
+    return remove_changes_block(text, block)
 
 
 def resolve_component_own_version_change(key, target_state, baseline_state, chart_dir, upgrade_docs_baseline=None):
