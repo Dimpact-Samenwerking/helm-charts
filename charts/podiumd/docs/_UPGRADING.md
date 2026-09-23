@@ -22,9 +22,14 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 
 | You are on | Read, in this order |
 |---|---|
-| 4.8.2 | [`4.8.2-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md) |
-| 4.8.1 | [`4.8.1-to-4.8.2-upgrade.md`](_UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md) → then the 4.9.0 guide |
-| 4.7.8 | [`4.7.8-to-4.8.0-upgrade.md`](_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md) → then continue up the path |
+| 4.8.6 | [`4.8.6-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.6-to-4.9.0-upgrade.md) |
+| 4.8.5 | [`4.8.5-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md) — or, if you are taking the Keycloak security patch first, [`4.8.5-to-4.8.6-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.8.6-upgrade.md) → then the 4.8.6 guide |
+| 4.8.4 | [`4.8.4-to-4.8.5-upgrade.md`](_UPGRADE_PATHS/4.8.4-to-4.8.5-upgrade.md) |
+| 4.8.3 | [`4.8.3-to-4.8.4-upgrade.md`](_UPGRADE_PATHS/4.8.3-to-4.8.4-upgrade.md) |
+| 4.8.2 | [`4.8.2-to-4.8.3-upgrade.md`](_UPGRADE_PATHS/4.8.2-to-4.8.3-upgrade.md) |
+| 4.8.1 | [`4.8.1-to-4.8.2-upgrade.md`](_UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md) |
+| 4.8.0 | [`4.8.0-to-4.8.1-upgrade.md`](_UPGRADE_PATHS/4.8.0-to-4.8.1-upgrade.md) |
+| 4.7.8 | [`4.7.8-to-4.8.0-upgrade.md`](_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md) |
 | 4.7.7 | [`4.7.7-to-4.7.8-upgrade.md`](_UPGRADE_PATHS/4.7.7-to-4.7.8-upgrade.md) → then the 4.8.0 guide |
 | 4.7.6 | [`4.7.6-to-4.7.7-upgrade.md`](_UPGRADE_PATHS/4.7.6-to-4.7.7-upgrade.md) → [`4.7.7-to-4.7.8-upgrade.md`](_UPGRADE_PATHS/4.7.7-to-4.7.8-upgrade.md) → then the 4.8.0 guide |
 | 4.7.0 – 4.7.5 | [`4.6.8-to-4.7.6-upgrade.md`](_UPGRADE_PATHS/4.6.8-to-4.7.6-upgrade.md) (start at your version) → then the 4.7.7 and 4.7.8 patch guides → the 4.8.0 guide |
@@ -74,18 +79,66 @@ carried (and 4.7.0 inherited). It is **not part of any official upgrade** and
 Always pin `openinwoner.image.tag` to a stable version. If you see `2.1.2-rc1`
 anywhere in an environment values file, fix it.
 
+## ⚠️ Open Zaak `TRIGGER` privilege — grant it before deploying 4.9.0
+
+Open Zaak 1.29.0 (PodiumD **4.9.0**) is the first release whose migrations
+create a database **trigger**. If the `TRIGGER` privilege has been revoked on
+the Open Zaak tables — as it is in any environment that ran a
+privilege-hardening pass — migration `documenten.0037` aborts with
+`permission denied`, the deploy fails and the pod restart-loops. Being the
+owner of the table or the database does **not** help: an explicit revoke wins
+over ownership.
+
+The migration runs automatically on pod startup, so **this has to be fixed in
+the database before `helm upgrade`**, not after. Check, substituting the role
+from `openzaak.settings.database.username`:
+
+```sql
+SELECT count(*) AS tables_without_trigger_privilege
+FROM information_schema.tables t
+WHERE t.table_schema = 'public'
+  AND t.table_type = 'BASE TABLE'
+  AND NOT has_table_privilege('<openzaak_db_user>',
+                              format('%I.%I', t.table_schema, t.table_name),
+                              'TRIGGER');
+```
+
+If it is not `0`:
+
+```sql
+GRANT TRIGGER ON ALL TABLES IN SCHEMA public TO "<openzaak_db_user>";
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT TRIGGER ON TABLES TO "<openzaak_db_user>";
+```
+
+The same applies to every other component database that has had `TRIGGER`
+revoked — each one fails the first time one of its own migrations creates a
+trigger. Details, and recovery after a failed deploy:
+[`apps/openzaak/openzaak-known-issues.md`](apps/openzaak/openzaak-known-issues.md)
+and the [4.9.0 upgrade guide](_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md).
+
 ---
 
-# For chart maintainers
+## For chart maintainers
 
 Everything below is about **producing** releases (guides, manifests, pins) —
 not needed when deploying one.
 
-## Official upgrade path
+### Official upgrade path
 
+```text
+4.5.15 ─▶ 4.5.16 ─▶ 4.6.4 ─▶ 4.6.8 ─▶ 4.7.3 ─▶ 4.7.4 ─▶ 4.7.5 ─▶ 4.7.6 ─▶ 4.7.7 ─▶ 4.7.8 ─▶ 4.8.0 ─▶ 4.8.1 ─▶ 4.8.2 ─▶ 4.8.3 ─▶ 4.8.4 ─▶ 4.8.5 ─▶ 4.9.0
+                                                                                                                                         ╰▶ 4.8.6 ─▶ 4.9.0   (optional Keycloak security patch)
 ```
-4.5.15 ─▶ 4.5.16 ─▶ 4.6.4 ─▶ 4.6.8 ─▶ 4.7.3 ─▶ 4.7.4 ─▶ 4.7.5 ─▶ 4.7.6 ─▶ 4.7.7 ─▶ 4.7.8 ─▶ 4.8.0
-```
+
+**4.8.6** is an optional side step off 4.8.5: a Keycloak-only security
+patch (26.6.4 → 26.7.2, 23 CVEs, adfinis operator chart 1.12.1 → 1.13.0)
+for environments that needed it before 4.9.0 was ready. Both routes land on
+4.9.0. Note that 4.9.0 branched from 4.8.5 and kept the operator on 1.12.1 /
+26.6.4, so 4.8.6 → 4.9.0 **downgrades the operator** while the Keycloak
+server image stays on 26.7.2 — see
+[`4.8.6-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.6-to-4.9.0-upgrade.md).
 
 Each hop has exactly **one** upgrade guide and a matching image manifest (the
 ACR-mirror set for that hop):
@@ -99,6 +152,14 @@ ACR-mirror set for that hop):
 | 4.7.6 → 4.7.7   | [`4.7.6-to-4.7.7-upgrade.md`](_UPGRADE_PATHS/4.7.6-to-4.7.7-upgrade.md)   | [`images/images-4.7.7.yaml`](images/images-4.7.7.yaml) |
 | 4.7.7 → 4.7.8   | [`4.7.7-to-4.7.8-upgrade.md`](_UPGRADE_PATHS/4.7.7-to-4.7.8-upgrade.md)   | — (no image changes) |
 | 4.7.8 → 4.8.0   | [`4.7.8-to-4.8.0-upgrade.md`](_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md)   | [`images/images-4.8.0.yaml`](images/images-4.8.0.yaml) |
+| 4.8.0 → 4.8.1   | [`4.8.0-to-4.8.1-upgrade.md`](_UPGRADE_PATHS/4.8.0-to-4.8.1-upgrade.md)   | — (no image changes; packaging-only, adds `.helmignore`) |
+| 4.8.1 → 4.8.2   | [`4.8.1-to-4.8.2-upgrade.md`](_UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md)   | [`images/images-4.8.2.yaml`](images/images-4.8.2.yaml) |
+| 4.8.2 → 4.8.3   | [`4.8.2-to-4.8.3-upgrade.md`](_UPGRADE_PATHS/4.8.2-to-4.8.3-upgrade.md)   | — (no image changes) |
+| 4.8.3 → 4.8.4   | [`4.8.3-to-4.8.4-upgrade.md`](_UPGRADE_PATHS/4.8.3-to-4.8.4-upgrade.md)   | [`images/images-4.8.4.yaml`](images/images-4.8.4.yaml) |
+| 4.8.4 → 4.8.5   | [`4.8.4-to-4.8.5-upgrade.md`](_UPGRADE_PATHS/4.8.4-to-4.8.5-upgrade.md)   | [`images/images-4.8.5.yaml`](images/images-4.8.5.yaml) |
+| 4.8.5 → 4.9.0   | [`4.8.5-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md)   | [`images/images-4.9.0.yaml`](images/images-4.9.0.yaml) |
+| 4.8.5 → 4.8.6   | [`4.8.5-to-4.8.6-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.8.6-upgrade.md)   | [`images/images-4.8.6.yaml`](images/images-4.8.6.yaml) |
+| 4.8.6 → 4.9.0   | [`4.8.6-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.6-to-4.9.0-upgrade.md)   | [`images/images-4.9.0.yaml`](images/images-4.9.0.yaml) |
 
 > The 4.6.4 → 4.6.8 and 4.6.8 → 4.7.6 guides are **consolidated**: each folds
 > several intermediate releases into one document so an operator reads one
@@ -112,9 +173,9 @@ ACR-mirror set for that hop):
 > guides. `images-4.8.0.yaml` is cumulative from 4.7.6, so it also covers
 > environments that skipped the 4.7.7 mirror update.
 
-## What each hop requires
+### What each hop requires
 
-For every release you upgrade **to**, four things must exist and agree:
+For every release you upgrade **to**, five things must exist and agree:
 
 1. **`Chart.yaml`** — `version` and `appVersion` bumped to the new release.
 2. **`values.yaml`** — image pins (`tag` + `digest`) for every new/changed image.
@@ -123,11 +184,16 @@ For every release you upgrade **to**, four things must exist and agree:
 4. **`images/images-<new>.yaml`** — the ACR-mirror set: every image new or
    changed in the release, each with a fetched `sha256:` digest (build it with
    `/images-manifest <new>`).
+5. **`images/images-baseline.yaml`** — the single complete strip-registry
+   manifest. It does **not** auto-update from step 4's per-release delta file;
+   add the matching entry by hand for every image touched in step 4, keeping
+   the previous version as a history row below it (easy to forget since it's
+   a separate file from the one `/images-manifest` writes).
 
-A hop is "ready" only when all four are present and consistent
+A hop is "ready" only when all five are present and consistent
 (`/verify-image-digests`, `/helm-dupecheck`, `/helm-lint`).
 
-### Image manifests are cumulative on the official path
+#### Image manifests are cumulative on the official path
 
 Image manifests are normally a **delta** vs the immediately preceding release.
 But the official path **skips** intermediate releases (e.g. 4.6.4 → 4.6.8 jumps
@@ -142,7 +208,7 @@ previous stepping stone**:
   bump; 4.7.8 added no images), so it also covers environments coming from
   4.7.6 or 4.7.7.
 
-## Intermediate / reference guides (NOT the official path)
+### Intermediate / reference guides (NOT the official path)
 
 These are kept for reference but are **not** stepping stones — do not build the
 official path out of them:
@@ -164,7 +230,7 @@ official path out of them:
 The 4.7.x granular notes are intentionally retained for now; once the 4.7/4.8 line
 closes they can be retired in favour of the consolidated guides.
 
-## Adding a new release
+### Adding a new release
 
 1. Bump `charts/podiumd/Chart.yaml` (`version` + `appVersion`) and pin images in
    `charts/podiumd/values.yaml`.

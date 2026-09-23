@@ -5,6 +5,17 @@ on:
     branches:
       - main
       - release/*
+    # Documentation-only merges must not spin up a release job. Such a run is
+    # a no-op today — chart-releaser has skip_existing: true and finds every
+    # chart version already published — but it is still a release pipeline
+    # firing for a README typo. GitHub skips the run only when *every* changed
+    # file matches, so a merge carrying both a chart bump and docs releases as
+    # normal. `.github/workflows/**` is ignored too, so this file can be
+    # edited without triggering a run of itself.
+    paths-ignore:
+      - '**/docs/**'
+      - '**/*.md'
+      - '.github/workflows/**'
 
 jobs:
   release:
@@ -38,7 +49,6 @@ jobs:
           helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
           helm repo add opstree https://ot-container-kit.github.io/helm-charts/
           helm repo add worth-nl https://worth-nl.github.io/helm-charts
-          helm repo add apisix https://charts.apiseven.com
           helm repo add openbao https://openbao.github.io/openbao-helm
 
       - name: Run chart-releaser

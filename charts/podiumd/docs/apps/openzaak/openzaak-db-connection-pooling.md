@@ -5,7 +5,7 @@
 > ⚠️ **Partially experimental** — this document proposes two independent sets of changes with different stability statuses:
 >
 > - **uWSGI settings** (`processes`, `threads`, `maxRequests`) — **not experimental**. These are standard uWSGI configuration knobs, fully supported and carry no caveats in the Open Zaak chart or documentation.
-> - **DB connection pooling** (`dbPool.enabled: true`) — **explicitly experimental**. Open Zaak marks this as *not recommended for production use*. See: https://open-api-framework.readthedocs.io/en/latest/connection_pooling.html
+> - **DB connection pooling** (`dbPool.enabled: true`) — **explicitly experimental**. Open Zaak marks this as *not recommended for production use*. See: <https://open-api-framework.readthedocs.io/en/latest/connection_pooling.html>
 >
 > The uWSGI settings can be applied independently and safely. The pooling settings should only be applied after testing in a non-production environment and verifying stability under load — or once the Open Zaak team lifts the experimental label.
 
@@ -61,7 +61,7 @@ openzaak:
 
 This is the configuration recommended by the Open Zaak/open-api-framework documentation as the most useful pattern:
 
-```
+```text
 DB_POOL_MIN_SIZE (4) = DB_POOL_MAX_SIZE (4) < UWSGI_THREADS (4)
 ```
 
@@ -102,10 +102,12 @@ The total connection count is the same, but the pool gives more control over lif
 ## Before applying
 
 ### uWSGI settings (safe to apply now)
+
 - [ ] Verify `processes` and `threads` align with the pod's CPU request (250m supports 2 processes comfortably)
 - [ ] Apply to acceptance environment and monitor pod memory over time with `maxRequests` recycling
 
 ### DB connection pooling (apply only when no longer experimental)
+
 - [ ] Check whether the Open Zaak team has lifted the "experimental" label in a newer release
 - [ ] Test on an acceptance/OTAP environment first
 - [ ] Monitor with `SELECT count(*) FROM pg_stat_activity WHERE datname = 'openzaak'` before and after

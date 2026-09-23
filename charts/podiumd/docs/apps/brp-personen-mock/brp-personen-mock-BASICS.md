@@ -21,10 +21,15 @@ production.
 - Image: `ghcr.io/brp-api/personen-mock:2.7.0-202606230850` (an ASP.NET Core
   service; the ConfigMap sets `ASPNETCORE_ENVIRONMENT=Release` and
   `ASPNETCORE_URLS=http://+:5010`).
-- **Not part of the podiumd umbrella chart.** It is its own chart in this repo,
-  `charts/brp-personen-mock/` (chart version 1.2.9, appVersion 2.7.0), deployed
-  as a **separate Helm release alongside podiumd** — usually into the same
-  `podiumd` namespace so consumers can reach it by short service name.
+- It is its own chart in this repo, `charts/brp-personen-mock/` (chart version
+  1.2.9, appVersion 2.7.0), but is now vendored as a **dependency of the
+  podiumd umbrella chart** (`Chart.yaml`, alias `brppersonenmock`, condition
+  `brppersonenmock.enabled`). Since the umbrella `values.yaml` has no
+  top-level `brppersonenmock:` override, the Helm dependency condition
+  defaults to **enabled** — `helm template` on the umbrella chart renders it
+  by default, with no separate `helm install` step needed. Set
+  `brppersonenmock.enabled: false` per environment to turn it off (e.g. in
+  production).
 - Runtime components: a single Deployment `brp-personen-mock` (1 replica,
   hard-coded in the template), a ClusterIP Service `brp-personen-mock` on port
   5010, a ConfigMap and a ServiceAccount. No probes, no PDB, no ingress
@@ -81,28 +86,22 @@ production sizing applies because the mock is never deployed to production.
 
 ## Integrating BRP Personen Mock as a new app
 
-1. **Decide the namespace.** Install into the same namespace as the podiumd
-   release (normally `podiumd`) so consuming apps can use the short service
-   name `brp-personen-mock`.
-2. **Install as a separate Helm release** (it is not enabled via the podiumd
-   umbrella values):
-
-   ```bash
-   helm upgrade --install brp-personen-mock charts/brp-personen-mock/ \
-     --namespace podiumd
-   ```
-
-   The defaults need no overrides; pin a different image via `image.tag` only
-   if a newer mock build is required.
-3. **Point the consuming apps at the mock** in the environment's podiumd
+1. **Nothing to enable.** It renders as part of the podiumd umbrella chart by
+   default (`brppersonenmock.enabled` has no override, so the Helm dependency
+   condition defaults to true) in the same namespace as the rest of podiumd,
+   so consuming apps can use the short service name `brp-personen-mock`. Set
+   `brppersonenmock.enabled: false` for environments that must not run it
+   (e.g. production). Pin a different image via `brppersonenmock.image.tag`
+   only if a newer mock build is required.
+2. **Point the consuming apps at the mock** in the environment's podiumd
    values, e.g.:
    - KISS: `kiss.settings.haalCentraal.baseUrl: http://brp-personen-mock:5010/haalcentraal/api/brp/` (any non-empty `apiKey` — the mock does not check it).
    - ZAC: `zac.brpApi.url: http://brp-personen-mock:5010/haalcentraal/api/brp` (dummy `apiKey.value`).
    - Open Inwoner: configure the Haal Centraal BRP service URL to the mock
      service and set `openinwoner.settings.brpVersion` as required.
-4. **No DNS, HTTPRoute, Keycloak client or Open Zaak registration** is needed —
+3. **No DNS, HTTPRoute, Keycloak client or Open Zaak registration** is needed —
    the mock is cluster-internal and unauthenticated.
-5. **Verify**: pod `brp-personen-mock` Running in the namespace, and a test
+4. **Verify**: pod `brp-personen-mock` Running in the namespace, and a test
    query returns a fictitious person:
 
    ```bash
@@ -113,7 +112,7 @@ production sizing applies because the mock is never deployed to production.
        -d '{"type":"RaadpleegMetBurgerservicenummer","burgerservicenummer":["999993653"],"fields":["burgerservicenummer","naam"]}'
    ```
 
-6. **Never deploy to production.** Production environments must connect the
+5. **Never deploy to production.** Production environments must connect the
    consuming apps to a real BRP/Haal Centraal provider (directly or via
    api-proxy) instead.
 

@@ -15,8 +15,8 @@ the ZGW APIs. It ships as the umbrella sub-chart `wearefrank/zaakbrug` and is
 |------|-------|
 | Chart key | `zaakbrug` |
 | Enabled by default | `false` |
-| Sub-chart | `wearefrank/zaakbrug` `2.3.27` (Frank!Framework `ff-common`) |
-| Application image | `wearefrank/zaakbrug:1.26.14` (mirror to `acrprodmgmt.azurecr.io` for prod) |
+| Sub-chart | `wearefrank/zaakbrug` `2.3.32` (Frank!Framework `ff-common`) |
+| Application image | `wearefrank/zaakbrug:1.26.18` (mirror to `acrprodmgmt.azurecr.io` for prod) |
 | Namespace / workload | `podiumd` / Deployment `podiumd-zaakbrug` |
 | Service | `podiumd-zaakbrug:80` → container port `8080` |
 | JVM heap | `Xms=Xmx=4G` (`zaakbrug.frank.memory.{minimum,maximum}`) |
@@ -103,7 +103,7 @@ zaakbrug:
   image:
     registry: acrprodmgmt.azurecr.io   # or docker.io/wearefrank for the public image
     repository: zaakbrug
-    tag: "1.26.14"
+    tag: "1.26.18"
   resources:
     requests: { cpu: 250m, memory: 5Gi }
     limits:   { cpu: "2",  memory: 6Gi }
@@ -204,9 +204,15 @@ ZAAKBRUG_ZAKEN_API_JWT_PASSWORD: $(zaakbrug-zaken-api-jwt-password)
 
 The umbrella chart renders ConfigMap `zaakbrug-oauth-role-mapping` (the files
 `oauth-role-mapping.properties` and `RoutingProfiles.json`, **both required by
-Frank at startup**). The upstream `wearefrank/zaakbrug` chart has **no
-`extraVolumes`/`extraVolumeMounts` support**, so this ConfigMap must be mounted
-into the Deployment by a post-deploy `kubectl patch`:
+Frank at startup**). `oauth-role-mapping.properties` is **not** in the image and
+can only come from this ConfigMap; `RoutingProfiles.json` has shipped in the
+image as a zero-byte file since 1.26.15
+([wearefrank/zaakbrug#683](https://github.com/wearefrank/zaakbrug/pull/683)), so
+mounting it is a byte-identical no-op that is kept only to keep the patch
+symmetrical. The upstream `wearefrank/zaakbrug` chart still has **no
+`extraVolumes`/`extraVolumeMounts` support** (checked against chart `2.3.32`),
+so this ConfigMap must be mounted into the Deployment by a post-deploy
+`kubectl patch`:
 
 ```bash
 kubectl -n podiumd patch deployment podiumd-zaakbrug --type strategic --patch '
@@ -230,7 +236,7 @@ kubectl -n podiumd rollout status deployment podiumd-zaakbrug --timeout=5m
 > `extraVolumes`/`extraVolumeMounts`, move the mount into the values block and
 > drop both this patch step and the crash-loop it works around. Track this as a
 > follow-up with wearefrank and remove the workaround at the chart upgrade.
-
+>
 > **Deploy without `helm --wait`/`--atomic`** while the patch workaround is in
 > place. With `--wait`/`--atomic` helm blocks on (or rolls back) the
 > un-mounted, crash-looping pod before the patch can run. Deploy the release,
@@ -326,7 +332,7 @@ In the Keycloak admin console for the `podiumd` realm:
 
 1. **Clients → `zaakbrug` → Roles** — confirm `administrators` / `zaakbrug_admin`
    / `dataadmin` exist (seeded by the realm import, step 6).
-2. **Users → _<user>_ → Role mapping → Assign role** — filter by the `zaakbrug`
+2. **Users → _\<user>_ → Role mapping → Assign role** — filter by the `zaakbrug`
    client and assign the appropriate client role (directly, or via a group /
    composite realm role your gemeente already uses).
 3. The user opens `https://<env>-zaakbrug.<gemeente-domain>/iaf/gui`, is
@@ -363,7 +369,7 @@ Reproduce/confirm:
 
 ### `wrong type for value; expected bool; got string`
 
-```
+```text
 template: podiumd/charts/zaakbrug/charts/ff-common/templates/_configmap.context.yaml:
 executing "ff-common.configmap.context.tpl" at <false>: wrong type for value; expected bool; got string
 ```
@@ -373,10 +379,11 @@ boolean `ssl: true` (step 3b).
 
 ### Pod CrashLoopBackOff immediately after deploy
 
-The `oauth-role-mapping.properties` / `RoutingProfiles.json` files are not
-present at `/opt/frank/resources/` — the post-deploy mount patch (step 5c) has
-not been applied. Frank requires both at startup once OAuth is enabled. Apply
-the patch; the pod recovers.
+`oauth-role-mapping.properties` is not present at `/opt/frank/resources/` — the
+post-deploy mount patch (step 5c) has not been applied. Frank requires it at
+startup once OAuth is enabled, and it is the one of the two mounted files the
+image does **not** ship (`RoutingProfiles.json` has been bundled since 1.26.15).
+Apply the patch; the pod recovers.
 
 ### helm reports the deploy as "failed" but the pod is up
 

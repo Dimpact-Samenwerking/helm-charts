@@ -7,6 +7,7 @@ The API proxy (nginx-based) supports URL rewriting in response bodies from exter
 ## Use Case
 
 When the BAG API (or other external APIs) returns responses containing URLs like:
+
 ```json
 {
   "_links": {
@@ -18,6 +19,7 @@ When the BAG API (or other external APIs) returns responses containing URLs like
 ```
 
 You want clients to use the internal proxy URL instead:
+
 ```json
 {
   "_links": {
@@ -67,6 +69,7 @@ apiproxy:
 ## How It Works
 
 The nginx `sub_filter` module:
+
 1. Intercepts responses from the external API
 2. Searches for the `targetUrl` in the response body
 3. Replaces all occurrences with `internalUrl`
@@ -157,6 +160,7 @@ However, the current Helm template only supports one replacement per location. F
 ### Compressed Responses
 
 If responses are still compressed:
+
 - Check if `proxy_set_header Accept-Encoding "";` is present in nginx config
 - Some backends ignore this header - might need to add `proxy_buffering on;`
 

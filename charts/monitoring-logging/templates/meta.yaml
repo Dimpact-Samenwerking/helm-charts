@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.grafana.dashboardsConfigMaps.meta }}
+data:
+  meta.json: |-
+{{ tpl (.Files.Get "dashboards/meta.json") . | indent 4 }}

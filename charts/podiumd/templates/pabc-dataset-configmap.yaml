@@ -1,0 +1,19 @@
+{{- if and .Values.pabc.enabled .Values.pabc.datasetConfigMap.enabled }}
+# PABC authorisation dataset. Consumed by a one-shot seed job running the
+# pabc-migrations image with JSON_DATASET_PATH (preferred), or by the chart's
+# own migrations job via pabc.migrations.dataSetPath. The migration service
+# loads this file inside a transaction and REPLACES all applications,
+# application roles, functional roles, domains, entity types and mappings
+# each time it runs with a dataset — so wiring it into the per-upgrade
+# migrations job wipes PABC UI edits on every deploy.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pabc-dataset
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pabc
+data:
+  dataset.json: |-
+{{ .Files.Get "files/pabc-dataset.json" | indent 4 }}
+{{- end }}

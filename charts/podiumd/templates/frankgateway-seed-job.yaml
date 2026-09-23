@@ -1,0 +1,131 @@
+{{- if .Values.frankgateway.enabled }}
+{{- /*
+  Frank!Gateway — the seed hook: one ConfigMap + Job per enabled instance.
+
+  Everything the instance needs in etcd before it can serve — its client
+  certificates from OpenBao, its routes, the prometheus global rule and the
+  data-plane certificate — is PUT idempotently
+  through the Admin API by seed.sh (podiumd.frankgateway.seedScript).
+  Post-install/post-upgrade, so it runs after the gateway is (re)deployed; PUTs
+  overwrite, so re-runs are safe.
+
+  Routes come from values ONLY: `frankgateway.instances.<class>.routes` is a
+  map of route id -> Admin API route body, and the chart ships none. Each body
+  is rendered to its own ConfigMap key so the Job's log names the id it
+  applied. Routes made in the dashboard are left alone unless `seed.prune` is
+  on, and then only the ones carrying `labels.managed-by: iac` are removed.
+*/ -}}
+{{- $root := . }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if and $fg.enabled $fg.seed.enabled }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+{{- $routes := $fg.routes | default dict }}
+{{- $certs := $fg.clientCertificates | default dict }}
+{{- $sslSync := and $fg.tls.enabled $fg.tls.sslSync.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-seed
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-seed
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+data:
+  seed.sh: |
+{{ include "podiumd.frankgateway.seedScript" (dict "root" $root "instance" $fg "name" $name) | indent 4 }}
+{{- range $id := keys $routes | sortAlpha }}
+  route-{{ $id }}.json: |-
+{{ index $routes $id | toPrettyJson | indent 4 }}
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}-seed
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-seed
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ $fg.seed.job.backoffLimit }}
+  # Keep the Job around briefly after success so the per-route result log stays
+  # readable; the next deploy replaces it (before-hook-creation).
+  ttlSecondsAfterFinished: {{ $fg.seed.job.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.labels" $root | nindent 8 }}
+        app.kubernetes.io/component: frankgateway-seed
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: seed
+          image: {{ include "podiumd.image" $fg.seed.job.image }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-admin-credentials
+                  key: admin
+            {{- include "podiumd.frankgateway.openbaoEnv" (dict "root" $root "instance" $fg) | nindent 12 }}
+          command: ["sh", "/seed/seed.sh"]
+          volumeMounts:
+            - name: seed
+              mountPath: /seed
+              readOnly: true
+            {{- if $certs }}
+            - name: client-cert-sync
+              mountPath: /scripts/client-cert-sync
+              readOnly: true
+            {{- end }}
+            {{- if $sslSync }}
+            - name: ssl-sync
+              mountPath: /scripts/ssl-sync
+              readOnly: true
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+      volumes:
+        - name: seed
+          configMap:
+            name: {{ $name }}-seed
+        {{- if $certs }}
+        - name: client-cert-sync
+          configMap:
+            name: {{ $name }}-client-cert-sync
+        {{- end }}
+        {{- if $sslSync }}
+        - name: ssl-sync
+          configMap:
+            name: {{ $name }}-ssl-sync
+        - name: tls
+          secret:
+            secretName: {{ include "podiumd.frankgateway.tlsSecretName" (dict "instance" $fg "name" $name) }}
+            optional: true
+        {{- end }}
+      {{- with $fg.seed.job.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

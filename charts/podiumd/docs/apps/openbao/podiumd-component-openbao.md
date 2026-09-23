@@ -48,7 +48,7 @@ Values to set: `openbao.enabled=true`, `openbao.database.host`, `openbao.configu
 
 ## 1. Architecture at a glance
 
-```
+```text
                  ┌──────────────── Keycloak (podiumd realm) ────────────────┐
                  │  OIDC client "openbao"  ·  group "vault-uploaders"        │
                  │  clientRole openbao:uploaders                             │
@@ -322,7 +322,7 @@ The `openbao-config` Job then makes the vault usable, idempotently:
 > lands with the `default` policy and can do nothing. Earlier chart versions
 > granted `token_policies=uploader` to every login — re-running the config Job
 > clears that grant (the OIDC-role write is a full replace).
-
+>
 > **Related, but separable:** this branch also makes `accessTokenLifespan`
 > configurable. Per-app `su-<app>` admin users are **not** chart-rendered; for
 > test environments create them with `scripts/create-su-users.sh` (run locally
@@ -392,15 +392,19 @@ are placeholders and **must** be overridden per environment.
    schema Job creates the tables; the server starts sealed/uninitialised; the
    `openbao-config` Job self-skips (no bootstrap token yet).
 4. **Initialise + unseal (one-time, manual):**
+
    ```bash
    kubectl -n <ns> exec -it <release>-openbao-0 -- bao operator init
    # store the unseal key shares + root token in Azure Key Vault (openbao-root-token-<env>)
    kubectl -n <ns> exec -it <release>-openbao-0 -- bao operator unseal <key-share>   # x quorum, per pod
    ```
+
 5. **Mint + seed the config token:**
+
    ```bash
    NAMESPACE=<ns> ./charts/podiumd/scripts/openbao-mint-config-token.sh
    ```
+
    Writes the scoped `podiumd-config-job` policy, mints an orphan periodic
    token (default period `768h` = 32 days; every config-Job run renews it), and
    seeds it into `Secret/openbao-bootstrap-token` (key `token`). Do **not**

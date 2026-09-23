@@ -6,7 +6,7 @@
 
 `openarchiefbeheer-config` Job fails with `BackoffLimitExceeded`. Pod logs:
 
-```
+```text
 Validating requirements...
 Invalid configuration settings for step "Configuration for admin login via OpenID Connect":
     1 validation error for ConfigSettingsSourceOidc_db_config_admin_auth
@@ -67,7 +67,7 @@ Do **not** add `oidc_use_pkce` to OAB `configuration.data`. The current `migrate
 
 Then redeploy. The `openarchiefbeheer-config` Job runs `setup_configuration` and validates cleanly:
 
-```
+```text
 Validating requirements...
 Valid configuration settings found for all steps.
 

@@ -18,9 +18,9 @@ Upstream: [maykinmedia/open-zaak](https://github.com/open-zaak/open-zaak) — th
 reference implementation of the VNG "API's voor Zaakgericht Werken" standards.
 It serves five ZGW APIs: **Zaken**, **Documenten**, **Catalogi**, **Besluiten**
 and **Autorisaties**. Image: `openzaak/open-zaak`, chart-pinned tag
-`1.27.3@sha256:b27327...` (`openzaak.image.tag` in
-`charts/podiumd/values.yaml`, lines 501–718). Deployed via the vendored Maykin
-`openzaak` subchart with `nameOverride`/`fullnameOverride: openzaak`.
+`1.29.3@sha256:<digest>` (see `docs/images/images-4.8.6.yaml`)
+(`openzaak.image.tag` in `charts/podiumd/values.yaml`). Deployed via the vendored Maykin `openzaak` subchart with
+`nameOverride`/`fullnameOverride: openzaak`.
 
 Runtime components:
 

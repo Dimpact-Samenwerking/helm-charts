@@ -5,10 +5,12 @@ This guide explains how to migrate from the Bitnami Keycloak chart to the Hostze
 ## Overview
 
 The PodiumD Helm chart is transitioning from:
+
 - **Old**: Bitnami Keycloak chart (with Infinispan dependency)
 - **New**: Hostzero Keycloak Operator (manages Keycloak instances via CRDs)
 
 **Benefits of Keycloak Operator:**
+
 - GitOps-friendly configuration via Custom Resources
 - Automatic secret synchronization
 - Drift detection
@@ -20,11 +22,13 @@ The PodiumD Helm chart is transitioning from:
 ⚠️ **Important**: This migration involves downtime but does **NOT** affect realm configurations or user data stored in the database.
 
 **What this migration does:**
+
 - Removes old Keycloak and Infinispan Kubernetes resources (pods, services, PVCs)
 - Installs the Keycloak Operator
 - Creates new Keycloak instances managed by the operator
 
 **What remains intact:**
+
 - ✅ **Realm configurations** (stored in PostgreSQL database)
 - ✅ **User data** (stored in PostgreSQL database)
 - ✅ **Client configurations** (stored in PostgreSQL database)
@@ -33,6 +37,7 @@ The PodiumD Helm chart is transitioning from:
 The new Keycloak instance will connect to the **same PostgreSQL database** and will automatically have access to all existing realms, users, and configurations.
 
 **Required:**
+
 1. **Ensure database backups are in place** (assume regular backups are already configured)
 2. **Verify database connection details** for the new Keycloak instance
 3. **Plan for downtime** during the migration window
@@ -60,6 +65,7 @@ chmod +x scripts/cleanup-keycloak-infinispan.sh
 ```
 
 The script will remove:
+
 - Keycloak StatefulSets, Services, ConfigMaps, and Secrets
 - Infinispan (ispn) StatefulSets, Services, ConfigMaps, Secrets, and PVCs
 
@@ -121,12 +127,14 @@ kubectl logs -n <namespace> -l app=keycloak --tail=100
 ⚠️ **Note**: The Bitnami Keycloak chart included automatic realm import functionality via the `keycloak.extraStartupArgs` parameter. This functionality is **not yet implemented** in the keycloak-operator configuration.
 
 **Current status:**
+
 - Realm import will be implemented in a future release
 - For now, manage realm configurations manually through the Keycloak Admin Console or via the Keycloak API
 - Existing realms in the database will continue to work without any changes
 
 **Workaround for new realms:**
 If you need to import realm configurations, you can do so manually:
+
 ```bash
 kubectl exec -n <namespace> <keycloak-pod> -- /opt/keycloak/bin/kc.sh import --file /path/to/realm.json
 ```
@@ -146,12 +154,14 @@ The keycloak-operator typically creates services following its own naming conven
 If issues arise during migration:
 
 1. **Disable keycloak-operator:**
+
    ```yaml
    keycloak-operator:
      enabled: false
    ```
 
 2. **Re-enable legacy charts:**
+
    ```yaml
    keycloak:
      enabled: true
@@ -160,6 +170,7 @@ If issues arise during migration:
    ```
 
 3. **Redeploy:**
+
    ```bash
    helm upgrade --install podiumd . -f values.yaml -n <namespace>
    ```
@@ -171,6 +182,7 @@ If issues arise during migration:
 ### Operator not creating resources
 
 Check operator logs:
+
 ```bash
 kubectl logs -n <namespace> -l app.kubernetes.io/name=keycloak-operator
 ```
@@ -178,6 +190,7 @@ kubectl logs -n <namespace> -l app.kubernetes.io/name=keycloak-operator
 ### Database connection issues
 
 Verify database credentials and connectivity:
+
 ```bash
 kubectl get secret keycloak-db-secret -n <namespace> -o yaml
 ```
@@ -185,6 +198,7 @@ kubectl get secret keycloak-db-secret -n <namespace> -o yaml
 ### Service not accessible
 
 Check Keycloak CR status:
+
 ```bash
 kubectl get keycloak -n <namespace> -o yaml
 ```

@@ -6,13 +6,13 @@ The Redis HA setup uses the [OT-CONTAINER-KIT redis-operator](https://github.com
 
 ## Known Bug: redis-operator 0.24.0 — empty pod name crash loop
 
-**Affects:** `redis-operator` v0.24.0 (latest release as of April 2026)
+**Affects:** `redis-operator` v0.24.0 and earlier.
 
-**Upstream fix:** [PR #1720](https://github.com/OT-CONTAINER-KIT/redis-operator/pull/1720) — merged 2026-03-26, **not yet released**
+**Upstream fix:** [PR #1720](https://github.com/OT-CONTAINER-KIT/redis-operator/pull/1720) — merged 2026-03-26, **released in `0.25.0`** (2026-05-13) and confirmed still present in `0.26.1`, the version currently pinned in `Chart.yaml`.
 
 **Symptoms:** The operator logs repeat every ~60 seconds:
 
-```
+```text
 "Error in getting Redis pod IP"
 "error":"resource name may not be empty"
 stacktrace: getRedisServerIP @ internal/k8sutils/redis.go:50
@@ -40,6 +40,7 @@ stacktrace: getRedisServerIP @ internal/k8sutils/redis.go:50
 4. If they differ — applies `redis-role=master` to the CR master pod and `redis-role=slave` to the others
 
 Unlike the previous one-shot Job, the CronJob:
+
 - Always reconciles from the CR — no early-exit based on an existing label
 - Runs continuously, so label drift is corrected within 2 minutes
 - Uses `backoffLimit: 0` and `restartPolicy: Never` — a failed run is discarded; the next scheduled run retries
@@ -58,6 +59,7 @@ Before 4.6.4 a Helm post-install/post-upgrade Job handled labelling. It had two 
 - All Redis-dependent apps failed to start
 
 **Manual recovery applied (2026-04-17):**
+
 ```bash
 MASTER_IP=$(kubectl get pod redis-ha-0 -n podiumd -o jsonpath='{.status.podIP}')
 kubectl exec -n podiumd redis-ha-1 -c redis-ha -- redis-cli REPLICAOF $MASTER_IP 6379
@@ -71,6 +73,11 @@ kubectl label pod redis-ha-2 -n podiumd redis-role=slave --overwrite
 
 ## Upgrade path
 
-Once OT-CONTAINER-KIT releases a version containing PR #1720, bump the `redis-operator` subchart to that version. At that point the label-master CronJob can be disabled (`redis-operator.redis-ha.labelMasterCronJob.enabled: false`) as the operator will correctly self-heal after simultaneous pod restarts.
+The `redis-operator` subchart has carried PR #1720 since `0.25.0` (see above) — the chart is now on `0.26.1`, so this is no longer pending. The label-master CronJob is a **candidate for removal**
+(`redis-operator.redis-ha.labelMasterCronJob.enabled: false`), but this has not been verified in
+practice yet: before disabling it, confirm in a test environment that the operator self-heals
+correctly after a simultaneous pod restart of all three `redis-ha` pods (e.g. during a Helm upgrade
+that touches the StatefulSet). Once verified, disable the CronJob and remove this doc's "Known Bug"
+framing (fold the historical context into a changelog note instead).
 
-Track: https://github.com/OT-CONTAINER-KIT/redis-operator/releases
+Track: [https://github.com/OT-CONTAINER-KIT/redis-operator/releases](https://github.com/OT-CONTAINER-KIT/redis-operator/releases)

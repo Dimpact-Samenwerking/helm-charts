@@ -27,6 +27,13 @@ data:
     eventsExpiration: 2592000
     offlineSessionMaxLifespanEnabled: true
     offlineSessionMaxLifespan: 7776000
+    # Disable offline_access (persistent refresh-token) grants realm-wide — see
+    # keycloak-podiumd-realm-config.yaml for the rationale and
+    # docs/apps/keycloak/keycloak-security-updates.md § "Offline Access Disabled".
+    defaultOptionalClientScopes: &defaultOptionalClientScopes
+      - address
+      - phone
+      - microprofile-jwt
     ssoSessionMaxLifespan: 36000
     ssoSessionIdleTimeout: 1800
     passwordPolicy: "length(14) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)"
@@ -44,6 +51,7 @@ data:
       # a stray redirect-URI addition can't turn this public client into an
       # authorization-code-interception target.
       - clientId: admin-cli
+        optionalClientScopes: *defaultOptionalClientScopes
         standardFlowEnabled: false
         implicitFlowEnabled: false
         directAccessGrantsEnabled: true

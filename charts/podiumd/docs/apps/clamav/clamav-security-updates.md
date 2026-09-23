@@ -14,6 +14,7 @@ policy or egress firewall rules for ClamAV to keep its virus database current.
 | `database.clamav.net` | HTTPS (TCP 443) | Primary download mirror — resolves to a CDN, actual files downloaded are `daily.cvd`, `main.cvd`, `bytecode.cvd` |
 
 **How it works:**
+
 1. Freshclam resolves `current.cvd.clamav.net` as a DNS TXT record to get the current version numbers
 2. If a newer version is available, it downloads the updated `.cvd` (or `.cdiff` patch) files from `https://database.clamav.net/`
 3. Each downloaded file is tested before replacing the live database
@@ -96,6 +97,7 @@ across pod restarts, and freshclam only downloads incremental updates (`Scripted
 | [CVE-2026-20031](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2026-20031) | 🔴 Critical | 1.4.4 | HTML parser error handling bug — DoS condition (present since 1.1.0) |
 
 Additional fixes in 1.4.3 and 1.4.4:
+
 - Fixed use-after-free in Xz/lzma decompression module
 - Fixed crash when scanning TIFF files
 - Fixed crash on invalid pointer alignment on some platforms
@@ -113,6 +115,7 @@ Additional fixes in 1.4.3 and 1.4.4:
 | **New version** | 3.7.1 (appVersion 1.4.3) |
 
 Notable chart changes between 3.2.0 and 3.7.1:
+
 - Workload now supports `kind: StatefulSet / Deployment / DaemonSet` (was always StatefulSet)
 - Added `topologySpreadConstraints`, `updateStrategy`, `extraArgs`
 - Added optional Prometheus metrics sidecar (`metrics.enabled`)
@@ -125,6 +128,7 @@ Notable chart changes between 3.2.0 and 3.7.1:
 ### Net result
 
 After this update:
+
 - Freshclam starts correctly on pod initialisation and downloads current virus definitions
 - Virus database is persisted to a 2Gi PVC and only incrementally updated on restart
 - All three CVEs are patched in the running image
@@ -247,4 +251,3 @@ available as long as more than 1 is running.
   is set if `replicaCount: 1` to prevent upgrade deadlocks.
 - The PDB setting lives in environment-specific values files (e.g. `temp-ontw-dim1.yaml`) if different
   environments require different availability guarantees. The base `values.yaml` leaves it disabled.
-

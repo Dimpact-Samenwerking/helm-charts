@@ -16,11 +16,11 @@ small operator pod.
 
 - Upstream project: [Keycloak](https://www.keycloak.org/) — open source
   identity and access management (SSO, OIDC, SAML, identity brokering).
-- Image: `quay.io/keycloak/keycloak:26.6.3` (digest-pinned in
+- Image: `quay.io/keycloak/keycloak:26.6.4` (digest-pinned in
   `keycloak.image.tag`).
 - Operator-managed: the chart does not deploy Keycloak directly. The
-  `keycloak-operator` subchart (Adfinis wrapper chart 1.12.0 around the official
-  operator, image `quay.io/keycloak/keycloak-operator:26.6.3`) runs the operator,
+  `keycloak-operator` subchart (Adfinis wrapper chart 1.12.1 around the official
+  operator, image `quay.io/keycloak/keycloak-operator:26.6.4`) runs the operator,
   and the umbrella chart renders a **Keycloak CR**
   (`templates/keycloak-cr.yaml`, `k8s.keycloak.org/v2beta1`) with
   `instances: 2`. The operator reconciles that CR into the actual StatefulSet.
@@ -177,8 +177,7 @@ deploying Keycloak again. Standing up Keycloak in a fresh environment:
    `<env>-keycloak-admin.dimpact.nl` at the public gateway and have the
    environment deployment create `hr-keycloak-nginx` /
    `hr-keycloak-admin-nginx` targeting `keycloak-service:8080`.
-5. Optional: configure Entra ID brokering (`keycloak.config.identityProviders`
-   + mappers) and per-client secrets/oidcUrls under `keycloak.config.clients`.
+5. Optional: configure Entra ID brokering (`keycloak.config.identityProviders` + mappers) and per-client secrets/oidcUrls under `keycloak.config.clients`.
 6. Verify: both pods pass `/health/ready` (port 9000), all four jobs
    Completed, admin console reachable on the admin hostname, `podiumd` realm
    present with the expected clients, and a dependent app (e.g. Open Zaak)

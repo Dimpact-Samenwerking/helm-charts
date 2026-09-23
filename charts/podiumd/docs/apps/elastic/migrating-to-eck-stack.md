@@ -73,6 +73,7 @@ a separate step with snapshot/restore.
 ## 3. Impact on municipal helm values
 
 ### KISS
+
 - Remove the `kisselastic:` block. Replace it with `kiss-eck:` (eck-stack) and a
   root-level `eck-operator:` block. See `values.yaml` for the defaults.
 - nodeSets, resources and crawler settings are now set per environment under
@@ -82,6 +83,7 @@ a separate step with snapshot/restore.
 - The `contact` tag still drives KISS (`kiss-eck` has `tags: [kiss-eck, contact]`).
 
 ### OIP (openinwoner)
+
 - No new dependency needed. OIP already provides `eck-elasticsearch` via the
   `openinwoner` subchart.
 - Make sure `openinwoner.eck-operator.enabled: false` stays set, so OIP uses the
@@ -90,6 +92,7 @@ a separate step with snapshot/restore.
   (per environment).
 
 ### Central operator
+
 - `eck-operator.enabled: true` and `eck-operator.managedNamespaces: [podiumd]`
   (or the namespace where PodiumD runs). The operator must cover the namespace of
   both `kiss` and `openinwoner-elasticsearch`.
@@ -114,8 +117,10 @@ an environment already runs a standalone `elastic-operator` Helm release
 The operator is stateless (the data lives in the Elasticsearch StatefulSet/PVCs),
 so the choice above does not affect the data.
 
+```text
 <details>
 <summary>Optional (advanced): have the umbrella adopt the standalone operator</summary>
+```
 
 If you want the umbrella operator to take over the existing operator resources
 (`eck-operator.enabled: true` while a standalone release is running), first strip
@@ -204,8 +209,10 @@ surfaces on a later rollout. After fixing the CRDs, delete the operator pod
 once to skip the remaining backoff:
 `kubectl delete pod elastic-operator-0 -n podiumd`.
 
+```text
 <details>
 <summary>Installers without cluster-scope RBAC: manual CRD apply</summary>
+```
 
 Set `eck-operator.installCRDs: false` and apply the CRDs manually before the
 upgrade (cluster-admin, repeat on every operator version bump). The CRDs are
@@ -265,6 +272,7 @@ kubectl get pod elastic-operator-0 -n $NS \
 ```
 
 ### Validation test result
+
 With a realistic data baseline (475 documents: `search-kennisbank` +
 `search-vac`), the chart swap was tested: StatefulSet `kiss-es-default` kept its
 UID (not rebuilt), the PVCs remained, ES stayed `green` and all 475 documents

@@ -1,0 +1,21 @@
+{{- if .Values.grafana.dashboardsConfigMaps.frankgateway }}
+{{- /*
+  Frank!Gateway (APISIX) Grafana dashboard.
+
+  Previously carried per-environment in the deploy repo, which meant every
+  municipality that turned the gateway on had to copy the JSON. Shipping it here
+  puts it alongside the ServiceMonitor that produces the metrics it reads.
+
+  The "Traffic class" variable filters on the instance_name label, which the
+  podiumd chart emits only once the gateway is split into inway/outway/internal.
+  Its All value is a ".*" regex, which also matches series that have no such
+  label, so the dashboard works unchanged on single-instance deployments.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.grafana.dashboardsConfigMaps.frankgateway }}
+data:
+  frankgateway.json: |-
+{{ .Files.Get "dashboards/frankgateway.json" | indent 4 }}
+{{- end }}

@@ -1,33 +1,12 @@
 # Open Zaak — known issues and configuration traps
 
-## 0. PodiumD 4.7.0 stays on Open Zaak helm chart 1.13.1 (not 1.14.0)
-
-### Decision
-
-PodiumD 4.7.0 keeps the Open Zaak **helm chart pinned at `1.13.1`** even though Maykin published `1.14.0` upstream. Only the application image tag is bumped to `1.27.1` (via `openzaak.image.tag` in `values.yaml`).
-
-### Why
-
-The Open Zaak helm chart `1.14.0` was not yet released at the point the gemeente deploys for this release cycle started. To avoid a mid-rollout chart bump (which would change the values surface and force every gemeente file to be re-validated), PodiumD 4.7.0 pins the previous chart `1.13.1` and rides the new app version `1.27.1` through the existing chart machinery.
-
-### Implication
-
-- `Chart.yaml` keeps `openzaak.version: 1.13.1`.
-- Component changelog entries that read "Open Zaak helm chart 1.14.0" are aspirational — that bump is deferred to a later PodiumD release.
-- The application-level changelog for Open Zaak `1.27.1` (archiving / `gerelateerdeZaken` / 500-error fixes) does apply, since the app image tag is updated.
-- No values changes are required from gemeentes for the Open Zaak helm chart in this release.
-
-### Follow-up
-
-Bump `openzaak.version` to `1.14.0` in a subsequent PodiumD release once the deploy window allows revisiting the values surface.
-
 ## 1. Startup failure: duplicate key on `admin_index_appgroup.slug`
 
 ### Symptom
 
 After upgrading to PodiumD 4.6.2, `openzaak` pods fail to become ready. The pod starts but never passes its readiness probe. Application logs show:
 
-```
+```text
 django.db.utils.IntegrityError: duplicate key value violates unique constraint "admin_index_appgroup_slug_key"
 DETAIL:  Key (slug)=(accounts) already exists.
 ```
@@ -105,3 +84,97 @@ When openzaak pods are not ready, the following components also fail their healt
 ### See also
 
 - [`openzaak-db-connection-pooling.md`](openzaak-db-connection-pooling.md) — separate proposal for uWSGI tuning + experimental psycopg3 connection pooling.
+
+## 2. Migration failure: `permission denied` creating a trigger (1.29.3)
+
+### Symptom
+
+The `openzaak` pod fails to start after an upgrade to app version 1.29.3. The
+migration step aborts and the pod restarts in a loop. The logs show a
+`ProgrammingError` on the `documenten` migration:
+
+```text
+django.db.utils.ProgrammingError: permission denied for table <table>
+```
+
+raised while `documenten.0037` runs `CREATE TRIGGER`. `<table>` is whichever
+Open Zaak table the migration reached first.
+
+### Root cause
+
+Migration `documenten.0037` (new in 1.29.0) is the first Open Zaak migration
+that creates a database **trigger**. Creating a trigger needs the `TRIGGER`
+privilege on the target table.
+
+Being the **owner** of the database — or even of the table — is not enough
+when the privilege has been explicitly revoked: PostgreSQL records the
+revocation in the table's ACL, and ownership does not override it. On
+`ontw-dim1`, `TRIGGER` had been revoked on **106 of 129** tables as part of an
+earlier hardening pass, so the migration could not run.
+
+No earlier Open Zaak migration created a trigger, which is why this never
+surfaced before 1.29.3.
+
+### Affected versions
+
+- Open Zaak 1.29.0 and later (PodiumD 4.9.0 and later)
+- Only environments whose Open Zaak database has had `TRIGGER` revoked — a
+  database created with default privileges is unaffected
+
+### Prerequisite — grant `TRIGGER` *before* the Helm deploy
+
+This must be fixed in the database **before** `helm upgrade` runs. The
+migration runs automatically on pod startup, so there is no window in which to
+repair it afterwards without a failed rollout and a restart.
+
+Check first, against the Open Zaak database, substituting the database role
+that Open Zaak connects as (`openzaak.settings.database.username` in the gemeente
+`podiumd.yml`):
+
+```sql
+SELECT count(*) AS tables_without_trigger_privilege
+FROM information_schema.tables t
+WHERE t.table_schema = 'public'
+  AND t.table_type = 'BASE TABLE'
+  AND NOT has_table_privilege('<openzaak_db_user>',
+                              format('%I.%I', t.table_schema, t.table_name),
+                              'TRIGGER');
+```
+
+A non-zero count means the deploy will fail. Grant the privilege on the
+existing tables, and set the default for tables created by future migrations:
+
+```sql
+GRANT TRIGGER ON ALL TABLES IN SCHEMA public TO "<openzaak_db_user>";
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT TRIGGER ON TABLES TO "<openzaak_db_user>";
+```
+
+Re-run the check; it must return `0`. Then deploy.
+
+`ALTER DEFAULT PRIVILEGES` applies only to tables created by the role that
+issues it, so run it as the role that owns the schema (the same role the
+migrations run as).
+
+### Recovery if the deploy already failed
+
+The failure is not destructive — the migration is transactional and rolls
+back. Apply the grants above, then restart the deployment so the migration
+runs again:
+
+```bash
+kubectl rollout restart -n podiumd --context <cluster> deploy/openzaak
+```
+
+### Applies to the other component databases too
+
+Only the Open Zaak database was repaired on `ontw-dim1`. Any component
+database that has had `TRIGGER` revoked will hit the same failure the first
+time one of its migrations creates a trigger. If your environment applied a
+privilege-hardening pass, run the check query above against every component
+database before upgrading.
+
+### See also
+
+- [`../../_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md`](../../_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md) — the 4.9.0 upgrade guide, which carries this as a pre-deploy step.

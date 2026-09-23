@@ -34,7 +34,8 @@ This document describes how metrics and tracing are configured across the podium
 The Maykin Django apps do **not** expose a direct Prometheus scrape endpoint. Metrics are pushed via OTLP to a collector, which forwards to Prometheus.
 
 Shared collector endpoint:
-```
+
+```text
 http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
 ```
 
@@ -61,7 +62,7 @@ Enabling `values-enable-observability.yaml` introduces two additional exporter s
 | Exporter | Component | Original URL |
 |---|---|---|
 | redis_exporter | `redis-operator.redis-ha` sidecar on every redis-ha pod | `quay.io/opstree/redis-exporter:v1.82.0` |
-| clamav_exporter | `clamav` sidecar | `docker.io/sergeymakinen/clamav_exporter:v2.1.2` |
+| clamav_exporter | `clamav` sidecar | `docker.io/sergeymakinen/clamav_exporter:v2.1.8` |
 
 ```yaml
 redis-operator:
@@ -356,6 +357,7 @@ elasticsearch-exporter:
 ```
 
 Kibana does not have a widely-used standalone exporter. Options:
+
 - Use Elastic Stack monitoring features (beats-based, writes to a monitoring cluster)
 - Query Kibana's own `/api/stats` endpoint via a custom scrape job
 

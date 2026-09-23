@@ -64,6 +64,18 @@ data:
     eventsExpiration: 2592000
     offlineSessionMaxLifespanEnabled: true
     offlineSessionMaxLifespan: 7776000
+    # Disable offline_access (persistent refresh-token) grants realm-wide. This
+    # realm serves browser-based admin/beheer sessions and service accounts only
+    # — no client needs a refresh token that keeps working after the user is no
+    # longer logged in. Governs scopes for clients created after this change; the
+    # &defaultOptionalClientScopes anchor is also referenced as
+    # `optionalClientScopes: *defaultOptionalClientScopes` on every client below,
+    # to strip offline_access from clients that already exist. See
+    # docs/apps/keycloak/keycloak-security-updates.md § "Offline Access Disabled".
+    defaultOptionalClientScopes: &defaultOptionalClientScopes
+      - address
+      - phone
+      - microprofile-jwt
     ssoSessionMaxLifespan: 36000
     ssoSessionIdleTimeout: 1800
     accessTokenLifespan: {{ .Values.keycloak.config.accessTokenLifespan | default 60 }}
@@ -174,23 +186,28 @@ data:
     clients:
       # Disable built-in self-service portal — all accounts are admin-provisioned.
       - clientId: account-console
+        optionalClientScopes: *defaultOptionalClientScopes
         enabled: false
       - clientId: account
+        optionalClientScopes: *defaultOptionalClientScopes
         enabled: false
       # admin-cli is unused in this realm (no bootstrap/ROPC flow relies on it here,
       # unlike the master realm — see keycloak-master-realm-config.yaml). Disable the
       # browser-redirect flows for the same reason: close off the unused
       # authorization-code-interception surface on this public client.
       - clientId: admin-cli
+        optionalClientScopes: *defaultOptionalClientScopes
         standardFlowEnabled: false
         implicitFlowEnabled: false
         directAccessGrantsEnabled: true
       - clientId: openzaak
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Zaak
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.openzaak.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.openzaak.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -226,11 +243,13 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openzaak"
       - clientId: abc
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Archiefbeheer
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.openarchiefbeheer.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.openarchiefbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -266,8 +285,12 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "abc"
       - clientId: monitoring
+        optionalClientScopes: *defaultOptionalClientScopes
         name: {{ .Values.keycloak.config.clients.monitoring.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.monitoring.enabled }}
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
         secret: $(KC_SECRET_MONITORING)
         clientAuthenticatorType: client-secret
         redirectUris:
@@ -298,6 +321,7 @@ data:
             config:
               role: "monitoring.viewer"
       - clientId: datamigratie
+        optionalClientScopes: *defaultOptionalClientScopes
         name: {{ .Values.keycloak.config.clients.datamigratie.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.datamigratie.enabled }}
         secret: $(KC_SECRET_DATAMIGRATIE)
@@ -330,6 +354,7 @@ data:
               role: "DMT-Functioneel-Beheerder"
 {{- if .Values.zaakbrug.enabled }}
       - clientId: zaakbrug
+        optionalClientScopes: *defaultOptionalClientScopes
         name: {{ .Values.keycloak.config.clients.zaakbrug.name | quote }}
         enabled: {{ .Values.keycloak.config.clients.zaakbrug.enabled }}
         secret: $(KC_SECRET_ZAAKBRUG)
@@ -361,11 +386,13 @@ data:
               usermodel.clientRoleMapping.clientId: "zaakbrug"
 {{- end }}
       - clientId: opennotificaties
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Notificaties
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.opennotificaties.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.opennotificaties.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -401,11 +428,13 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "opennotificaties"
       - clientId: objecten
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Objecten
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.objecten.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.objecten.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -441,11 +470,13 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "objecten"
       - clientId: openklant
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Klant
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.openklant.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.openklant.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -481,11 +512,13 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openklant"
       - clientId: openformulieren
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Formulieren
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.openformulieren.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.openformulieren.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -521,11 +554,13 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openformulieren"
       - clientId: openinwoner
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Inwoner
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.openinwoner.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.openinwoner.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -561,11 +596,13 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openinwoner"
       - clientId: referentielijsten
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Referentielijsten
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.referentielijsten.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.referentielijsten.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -601,11 +638,13 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "referentielijsten"
       - clientId: openbeheer
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Open Beheer
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.openbeheer.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.openbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -641,6 +680,7 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openbeheer"
       - clientId: openbao
+        optionalClientScopes: *defaultOptionalClientScopes
         name: OpenBao
         enabled: true
         clientAuthenticatorType: client-secret
@@ -680,11 +720,13 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openbao"
       - clientId: kiss
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Kiss
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.kiss.settings.oidc.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
@@ -717,11 +759,13 @@ data:
               claim.name: samaccountname
               jsonType.label: String
       - clientId: {{ .Values.zac.auth.clientId }}
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Zaakafhandelcomponent
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.zac.auth.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
@@ -755,14 +799,14 @@ data:
               access.token.claim: "true"
               claim.name: "group_membership"
       - clientId: {{ .Values.zac.keycloak.adminClient.id }}
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Zaakafhandelcomponent Admin Client
         enabled: true
         clientAuthenticatorType: client-secret
         secret: $(KC_SECRET_ZAC_ADMIN)
-        redirectUris:
-          - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
-        webOrigins:
-          - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
         serviceAccountsEnabled: true
         protocolMappers:
           - name: "Client Host"
@@ -799,11 +843,13 @@ data:
               claim.name: "client_id"
               jsonType.label: "String"
       - clientId: ita
+        optionalClientScopes: *defaultOptionalClientScopes
         name: Interne Taak Afhandeling
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.ita.web.oidc.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.ita.web.oidc.frontendUrl | trimSuffix "/" }}/*"
@@ -839,11 +885,13 @@ data:
               claim.name: "samaccountname"
               jsonType.label: "String"
       - clientId: {{ .Values.pabc.settings.oidc.clientId }}
+        optionalClientScopes: *defaultOptionalClientScopes
         name: PABC OIDC Client
         enabled: true
         clientAuthenticatorType: client-secret
 {{- if .Values.pabc.settings.oidc.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
+        attributes:
+          pkce.code.challenge.method: S256
 {{- end }}
         redirectUris:
           - "{{ .Values.pabc.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
@@ -867,6 +915,7 @@ data:
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "pabc"
       - clientId: {{ .Values.pabc.settings.keycloakAdmin.clientId }}
+        optionalClientScopes: *defaultOptionalClientScopes
         name: PABC Keycloak Admin REST API client
         enabled: true
         clientAuthenticatorType: client-secret
@@ -878,13 +927,20 @@ data:
         standardFlowEnabled: false
         implicitFlowEnabled: false
         directAccessGrantsEnabled: false
-{{- if and .Values.frankgateway.enabled .Values.frankgateway.dashboard.enabled .Values.frankgateway.dashboard.auth.enabled }}
-      - clientId: frankgateway-dashboard
-        name: Frank!Gateway Dashboard
+{{- if .Values.frankgateway.enabled }}
+{{- /* One dashboard client per enabled gateway instance: apisix-dashboard binds
+       a single etcd prefix, so a split deployment runs one dashboard per traffic
+       class, each on its own hostname and therefore its own redirect URI. */ -}}
+{{- range $fgKey, $fgOverride := .Values.frankgateway.instances }}
+{{- $fgInst := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $fgKey "override" $fgOverride) | fromYaml }}
+{{- if and $fgInst.enabled $fgInst.dashboard.enabled $fgInst.dashboard.auth.enabled }}
+      - clientId: {{ include "podiumd.frankgateway.oidcClientId" (dict "key" $fgKey) }}
+        optionalClientScopes: *defaultOptionalClientScopes
+        name: Frank!Gateway Dashboard ({{ $fgKey }})
         description: OIDC client used by oauth2-proxy in front of the Frank!Gateway (APISIX) dashboard to authenticate operator browser sessions.
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: $(KC_SECRET_FRANKGATEWAY_DASHBOARD)
+        secret: $(KC_SECRET_FRANKGATEWAY_DASHBOARD_{{ $fgKey | upper | replace "-" "_" }})
         # Standard authorization-code flow for the dashboard browser session.
         standardFlowEnabled: true
         directAccessGrantsEnabled: false
@@ -895,7 +951,7 @@ data:
         # dashboard in-cluster. dashboard.auth.hostname is required when the SSO
         # chain is enabled, so this is non-empty whenever this block is rendered.
         redirectUris:
-          - "https://{{ .Values.frankgateway.dashboard.auth.hostname }}/oauth2/callback"
+          - "https://{{ $fgInst.dashboard.auth.hostname }}/oauth2/callback"
           - "http://localhost:8080/oauth2/callback"
         webOrigins:
           - "+"
@@ -923,6 +979,8 @@ data:
               access.token.claim: "true"
               claim.name: "groups"
               full.path: "false"
+{{- end }}
+{{- end }}
 {{- end }}
     clientScopes:
       - name: roles
@@ -992,6 +1050,34 @@ data:
             - "view-realm"
           account:
             - "view-groups"
+{{- /* Frank!Gateway dashboard operators, placed in the fg-admins group (or a
+       per-instance override of dashboard.auth.adminGroup). keycloak-config-cli
+       fully manages the group memberships of users listed in the import — the
+       values comment on adminGroupMembers tells operators to use dedicated
+       accounts for exactly that reason. A listed user that does not exist yet
+       is created enabled, without credentials, and cannot log in until a
+       password is set in the admin console. */}}
+{{- if .Values.frankgateway.enabled }}
+{{- $fgMembers := dict }}
+{{- range $fgKey, $fgOverride := .Values.frankgateway.instances }}
+{{- $fgInst := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $fgKey "override" $fgOverride) | fromYaml }}
+{{- if and $fgInst.enabled $fgInst.dashboard.enabled $fgInst.dashboard.auth.enabled $fgInst.dashboard.auth.adminGroup }}
+{{- range $u := ($fgInst.dashboard.auth.adminGroupMembers | default list) }}
+{{- $paths := get $fgMembers $u | default dict }}
+{{- $_ := set $paths (printf "/%s" $fgInst.dashboard.auth.adminGroup) true }}
+{{- $_ := set $fgMembers $u $paths }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- range $u := keys $fgMembers | sortAlpha }}
+      - username: {{ $u | quote }}
+        enabled: "true"
+        groups:
+{{- range $p := keys (get $fgMembers $u) | sortAlpha }}
+          - {{ $p | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
     smtpServer:
       starttls: {{ .Values.keycloak.config.smtp.starttls }}
       port: {{ .Values.keycloak.config.smtp.port }}
@@ -1033,6 +1119,7 @@ data:
           - name: {{ .Values.openbao.configuration.uploadersRole | quote }}
         kiss:
           - name: Redacteur
+          - name: Beheerder
           - name: Klantcontactmedewerker
           - name: Kennisbank
         zac:
@@ -1054,8 +1141,27 @@ data:
           - name: dataadmin
 {{- end }}
     {{- end }}
-    {{- if not .Values.keycloak.config.skipGroups }}
+{{- /* Frank!Gateway dashboard operator group(s), collected here because they
+       must render even under skipGroups: true (the default). skipGroups
+       exists to keep the import's hands off gemeente-managed ZAC/KISS groups;
+       fg-admins is chart-owned — oauth2-proxy hard-requires membership of it
+       (dashboard.auth.adminGroup), so an import that skipped it would lock
+       every operator out of a dashboard the same values file enables.
+       Distinct names are collected because adminGroup is per-instance
+       overridable; the default yields one group shared by all classes. */}}
+{{- $fgAdminGroups := dict }}
+{{- if .Values.frankgateway.enabled }}
+{{- range $fgKey, $fgOverride := .Values.frankgateway.instances }}
+{{- $fgInst := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $fgKey "override" $fgOverride) | fromYaml }}
+{{- if and $fgInst.enabled $fgInst.dashboard.enabled $fgInst.dashboard.auth.enabled $fgInst.dashboard.auth.adminGroup }}
+{{- $_ := set $fgAdminGroups $fgInst.dashboard.auth.adminGroup true }}
+{{- end }}
+{{- end }}
+{{- end }}
+    {{- if or (not .Values.keycloak.config.skipGroups) $fgAdminGroups }}
     groups:
+    {{- end }}
+    {{- if not .Values.keycloak.config.skipGroups }}
       - name: administrators
         path: /administrators
         attributes:
@@ -1164,6 +1270,15 @@ data:
           openbao:
             - {{ .Values.openbao.configuration.uploadersRole | quote }}
     {{- end }}
+{{- /* Frank!Gateway dashboard operators — outside the skipGroups guard on
+       purpose, see the collection comment above the groups: key. */}}
+{{- range $g := keys $fgAdminGroups | sortAlpha }}
+      - name: {{ $g | quote }}
+        path: "/{{ $g }}"
+        attributes:
+          description:
+            - "Frank!Gateway dashboard operators"
+{{- end }}
 {{- with .Values.keycloak.config.realmIdentityProviders }}
     {{- toYaml . | nindent 4 }}
 {{- end }}

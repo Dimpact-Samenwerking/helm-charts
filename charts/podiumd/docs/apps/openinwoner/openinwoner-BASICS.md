@@ -7,7 +7,7 @@ Open Inwoner ("Mijn omgeving") is the citizen self-service portal of PodiumD. Re
 ## What it is
 
 - Upstream project: [Open Inwoner Platform (OIP)](https://github.com/maykinmedia/open-inwoner) by Maykin Media (Django application).
-- Image: `maykinmedia/open-inwoner`, chart default tag `2.3.1` (`openinwoner.image.tag`).
+- Image: `maykinmedia/open-inwoner`, chart default tag `2.4.2` (`openinwoner.image.tag`).
 - Role in PodiumD: public-facing citizen portal ("Mijn omgeving") — shows zaken from Open Zaak, messages/contactmomenten via Open Klant, personal data via BRP (haal-centraal), and company data via KvK.
 - Runtime components:
   - `openinwoner` web deployment (2 replicas) with an `nginx` sidecar container
@@ -52,6 +52,11 @@ Open Inwoner ("Mijn omgeving") is the citizen self-service portal of PodiumD. Re
 - **KvK**: company data lookup for eHerkenning users (configured in the app/admin).
 - **SMTP**: outgoing mail, `settings.email` (port 587, TLS).
 - **OTel**: disabled by default (`settings.otel.disabled: true`); the `values-enable-observability.yaml` overlay enables it.
+- **ClamAV** (file-upload virus scanning): off by default, opt-in via
+  `openinwoner.clamavConfigJob.enabled: true` — upstream's declarative
+  `site_config:` step doesn't manage these fields, so a dedicated Job seeds
+  them instead; see `docs/apps/clamav/clamav-BASICS.md` and
+  `docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md`.
 
 ## CPU and memory
 

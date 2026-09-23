@@ -3,6 +3,7 @@ This repository contains Helm charts for:
 
 - [brp mock](./charts/brp-personen-mock/)
 - [kiss](./charts/kiss/README.md)
+- [mi data (MI exports)](./charts/mi-data/docs/mi-exports.md)
 - [podiumd](./charts/podiumd/README.md)
 - [podiumd monitoring and logging](./charts/monitoring-logging/README.md)
 - [vng referentielijsten](./charts/vngreferentielijsten/README.md)
