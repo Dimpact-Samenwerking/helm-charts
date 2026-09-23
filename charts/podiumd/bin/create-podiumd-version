@@ -1,66 +1,25 @@
 #!/usr/bin/env python3
 """
-Open a new podiumd release cycle: bump charts/podiumd/Chart.yaml's own
-version/appVersion to the target named by the current branch, record the
-outgoing version in charts/podiumd/etc/release-baseline.yaml's upgrade_docs
-key (and, on a minor bump only, its release_table key too — see below),
-then scaffold the upgrade-path docs for the outgoing version as the new
-upgrade_docs baseline (runs create-doc-version, which only ever creates
-— see that script for why this never risks rebasing docs that should
-have been created fresh).
+Start a new podiumd release cycle on a feature/podiumd-<X.Y.Z> branch.
 
-Reads everything from repo state — no arguments:
-  - baseline: the chart's current version (Chart.yaml's "version:", before
-    this script touches it) — the release being left behind.
-  - target: parsed from the current branch name, which must be exactly
-    "feature/podiumd-<MAJOR.MINOR.PATCH>" (this repo's branching
-    convention — see README.md#branching-strategy).
+Takes the target version from the branch name and the outgoing version
+from Chart.yaml's version. Then:
+  - sets Chart.yaml version and appVersion to the target
+  - writes the outgoing version to charts/podiumd/etc/release-
+    baseline.yaml as upgrade_docs; on a minor bump also as release_table
+  - runs create-doc-version to create the upgrade docs
 
-The baseline -> target jump must be EXACTLY one of:
-  - a single patch increment (same major.minor, patch+1) — only
-    upgrade_docs is advanced to the outgoing baseline; release_table is
-    left untouched (still whatever it already was), and
-  - a single minor increment (same major, minor+1, patch 0) — BOTH
-    upgrade_docs and release_table are advanced to the outgoing baseline
-    (a minor bump is treated as "a real, Confluence-documented milestone
-    just shipped").
-A major-version change is out of scope for this tool entirely and
-refused the same as any other invalid jump (a skipped version, or a
-same-or-lower target).
-
-Refuses to run if:
-  - the branch name doesn't match that shape,
-  - the baseline -> target jump isn't a single patch or minor increment
-    as described above, or
-  - either baseline this run would end up recording — upgrade_docs (the
-    outgoing version, always) and release_table (the outgoing version on
-    a minor bump, or whatever's already recorded on a patch bump) —
-    doesn't resolve to an actual podiumd-<version> tag or
-    feature/podiumd-<version> branch (same check as
-    change-podiumd-baseline, via lib.gitutil.resolve_baseline_ref). On a
-    patch bump this also means: refuses if release_table isn't already
-    recorded at all — there's no "absent is fine" leniency here, since
-    release-baseline.yaml is meant to always carry both keys once it
-    exists.
+The jump must be one patch step (4.9.0 -> 4.9.1) or one minor step
+(4.9.1 -> 4.10.0). Fails when the branch name has another shape, the
+jump is anything else, or a baseline to record has no podiumd-<version>
+tag or feature/podiumd-<version> branch.
 
 Usage:
     create-podiumd-version
 
 Example:
-    # on branch feature/podiumd-4.9.1, with Chart.yaml at version: 4.9.0
-    # and release-baseline.yaml already recording release_table: "4.8.5"
-    create-podiumd-version
-        # bumps Chart.yaml's version/appVersion 4.9.0 -> 4.9.1 (a patch
-        # increment), writes upgrade_docs: "4.9.0" (release_table stays
-        # "4.8.5"), then runs create-doc-version (which picks that same
-        # "4.9.0" back up from release-baseline.yaml)
-
-    # on branch feature/podiumd-4.10.0, with Chart.yaml at version: 4.9.1
-    create-podiumd-version
-        # bumps Chart.yaml's version/appVersion 4.9.1 -> 4.10.0 (a minor
-        # increment), writes BOTH upgrade_docs and release_table to
-        # "4.9.1", then runs create-doc-version (which picks that same
-        # "4.9.1" back up from release-baseline.yaml)
+    # on feature/podiumd-4.9.1, Chart.yaml at 4.9.0
+    create-podiumd-version    # Chart.yaml -> 4.9.1, upgrade_docs 4.9.0
 """
 
 import re
@@ -149,8 +108,7 @@ def main():
     version as release-baseline.yaml's new upgrade_docs baseline (and, on
     a minor bump, its new release_table baseline too), then scaffolds the
     upgrade-path docs for that outgoing version by running
-    create-doc-version. See this script's own module docstring for the
-    full refusal conditions and worked examples."""
+    create-doc-version. See --help for the refusal conditions."""
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)
@@ -188,6 +146,8 @@ def main():
         )
         sys.exit(1)
 
+    # A minor bump marks a Confluence-documented release, so release_table
+    # moves with it; a patch bump keeps the recorded one.
     new_release_table = baseline if kind == "minor" else read_release_table_baseline(CHART_DIR)
 
     resolved_refs = {}

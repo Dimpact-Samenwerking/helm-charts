@@ -1,78 +1,32 @@
 #!/usr/bin/env python3
 """
-Rebase every docs/_UPGRADE_PATHS/<baseline>-to-<target>-*.md doc (and
-docs/images/images-<target>.yaml) for the current chart's target
-version — charts/podiumd/Chart.yaml's own "version:" — onto
-charts/podiumd/etc/release-baseline.yaml's own upgrade_docs baseline,
-e.g. renaming "4.8.2-to-4.9.0-upgrade.md" to "4.8.3-to-4.9.0-upgrade.md"
-once upgrade_docs reads "4.8.3", updating titles/headings and any
-sibling-doc cross-reference (any "<X>-to-<target>-*.md" mention,
-wherever it appears in the text — this chart supports exactly one
-upgrade path per target, so every such reference always means the
-current baseline). A doc already
-at the target baseline is checked for a stale sibling reference too
-(a scar from an earlier, incomplete rebase this doc's own baseline
-already moved past) even though nothing else about it changes. Also
-correcting the
-"Component versions" table and images-manifest entries against
-Chart.yaml/values.yaml, ADDING a new table row + matching "### ..."
-Changes section for a component that changed vs the baseline but has no
-row at all yet (see add_missing_component_rows — the same "component ...
-changed vs ... but has no row" gap verify-podiumd's own doc-consistency
-check reports), and likewise for a sidecar/shared image whose OWN row is
-missing even though its owning dependency's row already exists (see
-lib.image.docs.add_missing_sidecar_rows — the "sidecar/shared image ...
-changed vs ... but has no row" gap, e.g. a nested init-container image
-bumped alongside its parent component but never given its own
-"<component> - <basename>" row), reordering the table's rows and the
-"## Changes" section's "### ..." blocks to match values.yaml's own
-top-level component order. Also ADDING a brand new "## <name> ..."
-section to the values-deltas doc for a component that changed but has
-no section of its own yet (see lib.component_docs.sync_values_delta_
-sections — the "component ... changed vs ... but has no section" gap),
-and appending any "- Key `...` was added/removed" lines for NESTED
-schema changes to whichever section (new or already existing) covers
-that component, reordering the doc's own "## ..." sections the same way
-(see sort_values_delta_sections). Any of the three standard docs that
-don't already exist under ANY baseline for this target are created as
-TODO stubs instead (nothing to rebase) — see create-doc-version for a
-script that ONLY ever does that, refusing outright if docs already
-exist under some other baseline (this script owns rebasing those on
-purpose; that one refuses to touch them). See fix_component_version_
-table, add_missing_component_rows, add_missing_sidecar_rows, sync_
-values_delta_sections, fix_images_manifest_entries, and add_missing_
-images_manifest_entries for exactly what gets rewritten/added vs. just
-reported for manual review. A
-missing images-manifest entry IS auto-added now (its own "# ... — <old>
--> <new>" comment and version/digest all mechanically derivable from
-values.yaml's own already-pinned tag) — but with "name:"/"url:" both set
-to the same resolved repository string rather than the curated ACR
-mirror slug docs/images/acr-mirror-naming.md documents, which has no
-reliable mechanical formula and stays a human's job to correct by hand
-afterward. A sidecar row's own values-delta mention is still never
-auto-added — no mechanically-derivable placeholder exists for prose
-explaining WHY a change happened, unlike a manifest entry's own fields.
+Rebase and repair the upgrade docs of the current target version.
 
-Never takes the baseline as an argument — always release-baseline.
-yaml's own upgrade_docs key, so change-podiumd-baseline only has to
-write that key (which it does right before calling this script) for
-this to pick it up; that's also the only sanctioned way to actually
-change what baseline this script rebases onto, see that script for
-the usual "rebase onto a different baseline" workflow. This script
-itself never writes release-baseline.yaml. Errors if the file or key
-doesn't exist yet — run create-podiumd-version (new release cycle) or
-change-podiumd-baseline <baseline> (existing cycle) first. Also
-runnable standalone, to repair the current baseline's docs in place
-without rebasing (e.g. after a manual values.yaml edit).
+Reads the target from Chart.yaml "version:" and the baseline from
+etc/release-baseline.yaml "upgrade_docs". Renames every
+docs/_UPGRADE_PATHS/<old>-to-<target>-*.md to the baseline and fixes
+titles, headings and cross-references. Creates missing docs as TODO stubs.
+
+Also repairs the content against Chart.yaml and values.yaml:
+  - upgrade doc: component version table and "## Changes" sections,
+    adding missing rows and sorting them in values.yaml order
+  - values-deltas doc: adds missing component sections and nested key
+    added/removed lines
+  - docs/images/images-<target>.yaml: fixes entries and adds missing ones;
+    review the "name:"/"url:" of added entries by hand (ACR mirror name)
+  - docs/images/images-baseline.yaml: regenerated
+Issues it cannot fix are printed for manual review.
+
+Run change-podiumd-baseline to change the baseline; this script never
+writes release-baseline.yaml. Exits 1 when that file or key is missing.
 
 Usage:
     fix-doc-consistency
 
 Example:
     fix-doc-consistency
-        # if Chart.yaml's version is 4.9.0 and release-baseline.yaml's
-        # upgrade_docs is "4.8.3", renames *-to-4.9.0-*.md accordingly
-        # and repairs their content against Chart.yaml/values.yaml
+        # target 4.9.0, upgrade_docs "4.8.3": renames *-to-4.9.0-*.md
+        # to 4.8.3-to-4.9.0-*.md and repairs their content
 """
 
 import sys

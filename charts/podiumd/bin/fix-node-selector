@@ -1,27 +1,18 @@
 #!/usr/bin/env python3
 """
-Insert `nodeSelector: kubernetes.azure.com/mode: user` into every
-Deployment/StatefulSet/DaemonSet/Job/CronJob in this chart's OWN
-templates/*.yaml that's missing one — verify-podiumd's "Node selector"
-step only detects and reports this (per .github/copilot-instructions.md's
-AKS-Blue convention); this script is the fixer.
+Add a missing `nodeSelector: kubernetes.azure.com/mode: user` to the
+chart's own workloads.
 
-Anchors the insertion on that document's own `containers:` key (always a
-required sibling of nodeSelector in the pod spec, regardless of how deep
-a particular kind nests it — e.g. CronJob's spec.jobTemplate.spec.
-template.spec.containers vs. Deployment's spec.template.spec.containers)
-rather than modeling each kind's full spec path, and matches its exact
-indentation — the same best-effort textual approach
-lib.checks.node_selector's own detection already uses (Go template syntax
-breaks a real YAML parser, so this can't be a structural rewrite either).
-
-A document with no `containers:` key at all (so no reliable anchor to
-insert next to) is left untouched and reported for manual review instead
-of guessed at.
+Fixes what verify-podiumd's "Node selector" step reports: every
+Deployment, StatefulSet, DaemonSet, Job and CronJob in templates/*.yaml
+needs one. A document without a `containers:` key is left unchanged and
+reported for manual review.
 
 Usage:
-    fix-node-selector             # insert nodeSelector where missing
-    fix-node-selector --dry-run   # report only, no write
+    fix-node-selector [--dry-run]
+
+Options:
+    --dry-run   report only, write nothing
 """
 
 import re
@@ -42,6 +33,9 @@ from lib.checks.node_selector import WORKLOAD_KIND_RE
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 
+# The insert anchors on `containers:`, a required sibling of nodeSelector
+# at any nesting depth (Deployment vs CronJob), and is textual because Go
+# template syntax breaks a YAML parser.
 # Spaces only — matches this chart's own indentation convention (see real
 # templates); doesn't match "initContainers:" since "init" isn't part of
 # the indent group.

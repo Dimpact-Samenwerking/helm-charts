@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Query charts/podiumd/etc/release-table.csv (see export-confluence-release-table)
-for rows whose "section", "vendor", or "component" column contains a given
-piece of text, and print each match's name, component, alias,
-image_basename, and four version columns as an aligned table — plus a
-second table of tooling rows
-whose "used_by" relates back to a match (see component_matches and
-used_by_rows_for for exactly how "component" and "used by" are resolved).
+Search etc/release-table.csv and print the matching components.
+
+Prints, as an aligned table, each row whose <column> contains <text>:
+name, component, alias, image_basename and the four version columns.
+A second table lists the tooling rows whose "used_by" names a match.
+Create the CSV with export-confluence-release-table.
 
 Usage:
     query-release-table <column> <text>
 
-    <column>  one of: section, vendor, component
-    <text>    matched as a case-insensitive substring against that column
-              (e.g. "zac" matches component "zaakafhandelcomponent"; "open"
-              matches both "Open Zaak" and "Open Formulieren")
+Arguments:
+    <column>  section, vendor or component
+    <text>    case-insensitive substring; "zac" matches component
+              "zaakafhandelcomponent", "open" matches both "Open Zaak"
+              and "Open Formulieren"
 
 Examples:
     query-release-table component zac

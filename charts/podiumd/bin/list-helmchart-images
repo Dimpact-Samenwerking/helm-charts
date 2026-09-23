@@ -1,38 +1,27 @@
 #!/usr/bin/env python3
 """
-List every container image (repository + tag) and every sub-chart dependency
-declared by a podiumd dependency chart, at a given chart version.
+List the images and sub-chart dependencies of one podiumd dependency
+chart at a given version.
 
-Each image is printed as two lines. The first is short: "<key> <basename>
-<version>  (path: ...)" — <key> <basename> <version> is the same
-argument order update-image-version/verify-image-version/show-image-
-baseline-version take, so it doubles as the exact arguments to hand one
-of those scripts; <key> is this dependency's own name/alias (the same
-one <chart-name-or-alias> above resolved to). The second, indented line
-has the full "<repo>:<tag>". Unlike list-podiumd-images, there's no
-check that <key> <basename> is already a literal pin in podiumd's OWN
-values.yaml — this reads a chart version straight from its own source
-(pulled fresh, or local), typically BEFORE it's been integrated into
-podiumd at all, so <key> <basename> here is what you'd use once you've
-added the override, not necessarily something that resolves yet.
+Pulls the chart (a file:// dependency is read from its source directory).
+Each image prints as "<key> <basename> <version>  (path: ...)", the
+argument order update-image-version and verify-image-version take,
+followed by an indented "<repo>:<tag>" line.
 
 Usage:
     list-helmchart-images <chart-name-or-alias> <chart-version>
 
+Arguments:
+    <chart-name-or-alias>   Chart.yaml dependency name or alias
+    <chart-version>         chart version to inspect (for a file://
+                            dependency only checked against the source)
+
 Examples:
     list-helmchart-images zac 1.0.297
-    list-helmchart-images zaakafhandelcomponent 1.0.297
     list-helmchart-images zgw-office-addin 0.0.92
     list-helmchart-images mi-data 1.0.0
-        # mi-data (and any other "file://" local-path dependency) is read
-        # straight from its own source directory instead of being pulled —
-        # `helm pull` has no way to fetch a local relative path at all, and
-        # a local dependency only ever has ONE real version: whatever's
-        # currently checked out there. <chart-version> is still required
-        # for a consistent CLI, but only used to warn if it doesn't match.
 
-Requires the Helm repositories to already be added (see /helm-repos or
-charts/podiumd/scripts/add-helm-repos.sh) and the `helm` CLI on PATH.
+Requires: helm on PATH, with the podiumd Helm repositories added.
 """
 
 import shutil

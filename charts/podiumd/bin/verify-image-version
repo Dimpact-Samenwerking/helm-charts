@@ -1,37 +1,28 @@
 #!/usr/bin/env python3
 """
-Verify that a new image tag actually exists (published) for a
-values.yaml image pin, BEFORE writing it — a non-existent tag breaks the
-pull at deploy time rather than at edit time. Same <key> <basename>
-<new-version> shape as update-image-version's own arguments: this is
-that bump's pre-flight check, run by hand before committing to it.
+Check that an image version exists upstream before pinning it.
 
-<key> is either a Chart.yaml dependency (its own "name" OR "alias",
-whichever you'd naturally reach for — e.g. "kiss-chart" or "kiss" both
-work, see lib.image.version.resolve_key_scope) or the literal "MULTIPLE"
-— the same convention release-table.csv itself uses (see export-
-confluence-release-table's component_and_alias) for a base image shared
-across several unrelated components via values.yaml's global.images
-anchor block. <key> <basename> together must resolve to exactly one
-real image pin under that scope — see lib.image.version.resolve_scoped_
-matches, the same resolution update-image-version's own <key> <basename>
-uses. Reads
-straight from the CURRENT values.yaml/Chart.yaml, never pulls a chart:
-unlike verify-component-version, no chart-version bump is involved here
-at all — see that script instead when the Helm chart version is changing
-too.
+Resolves <key> <basename> to exactly one image pin in the current
+values.yaml and checks that <image-version> exists in its registry.
+Writes nothing. Pre-flight check for update-image-version; when the
+Helm chart version changes too, use verify-component-version.
 
 Usage:
     verify-image-version <key> <basename> <image-version>
+
+Arguments:
+    <key>            Chart.yaml dependency name or alias, or "MULTIPLE"
+                     for a base image shared via values.yaml global.images
+    <basename>       last "/" segment of the image repository
+    <image-version>  tag to check
 
 Examples:
     verify-image-version zac zaakafhandelcomponent 5.4.4
     verify-image-version keycloak-operator python 3.15.7-slim
     verify-image-version MULTIPLE curl 8.22.0
 
-Exit code is non-zero if <key> <basename> doesn't resolve uniquely, or if
-<image-version> does not exist yet upstream — safe to use as a gate
-before bumping values.yaml.
+Exits non-zero when <key> <basename> does not match exactly one pin, or
+when <image-version> does not exist.
 """
 
 import sys

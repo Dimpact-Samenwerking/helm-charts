@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 """
-Exports the podiumd release-changes table(s) from a Confluence page into
-charts/podiumd/etc/release-table.csv, including a "component"/"alias" per
-row resolved against charts/podiumd/Chart.yaml and values.yaml (see
-component_and_alias).
+Export the release component tables of a Confluence page to a CSV file.
 
-Auth: HTTP Basic with your Atlassian email + a *classic* API token (the
-"scoped" kind doesn't work here). To create one: click your profile
-icon -> Account settings -> Security -> scroll to API tokens -> set a
-decent expiration date, then copy the generated token right away and
-store it somewhere secure (shown once). Prefer --token-file or
-CONFLUENCE_API_TOKEN over --token, which leaks into shell history.
+Writes charts/podiumd/etc/release-table.csv, one row per component, with
+its component name and alias resolved against Chart.yaml and values.yaml.
 
-Usage:
-    export-confluence-release-table --url <page-url> --user <email> --token-file <path>
-    export-confluence-release-table --url <page-url> --user <email>
-        # prompts for the token, or reads CONFLUENCE_API_TOKEN if set
+Authentication: your Atlassian email plus a classic API token (a scoped
+token does not work). Create one under profile icon > Account settings >
+Security > API tokens; it is shown once. The token is read from
+--token-file, CONFLUENCE_API_TOKEN or a prompt; --token also works but
+ends up in shell history.
+
+Examples:
+    export-confluence-release-table --url <page-url> --user <email> \\
+        --token-file ~/.confluence-token
+    export-confluence-release-table --recompute-basenames
 """
 
 import argparse
@@ -151,21 +150,19 @@ def parse_args():
     parser.add_argument("--user", help="Atlassian account email (required unless --recompute-basenames)")
     parser.add_argument("--token", help="API token (prefer --token-file or CONFLUENCE_API_TOKEN instead)")
     parser.add_argument("--token-file", help="path to a file containing just the API token")
-    parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help=f"CSV output path (default: {DEFAULT_OUTPUT})")
+    parser.add_argument(
+        "--output", default=str(DEFAULT_OUTPUT), help="CSV output path (default: charts/podiumd/etc/release-table.csv)"
+    )
     parser.add_argument(
         "--heading",
         action="append",
-        help=f"only use table(s) directly under this heading (repeatable; default: {', '.join(DEFAULT_HEADINGS)})",
+        help=f"only use the table(s) under this heading; repeatable (default: {', '.join(DEFAULT_HEADINGS)})",
     )
     parser.add_argument(
         "--recompute-basenames",
         action="store_true",
-        help="Recompute ONLY the image_basename column of the CSV already at "
-        "--output, from the rows it already has — no Confluence fetch, no "
-        "--url/--user needed. Goes through the exact same resolve_image_"
-        "basenames real exports use, against chart_dir's CURRENT values.yaml, "
-        "so a values.yaml-only change can be picked up without needing "
-        "Confluence credentials at all. Every other column is left untouched.",
+        help="only recompute the image_basename column of the existing --output CSV "
+        "from the current values.yaml; no Confluence access needed",
     )
     args = parser.parse_args()
     if not args.recompute_basenames and not (args.url and args.user):

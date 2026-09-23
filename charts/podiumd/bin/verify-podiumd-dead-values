@@ -1,31 +1,21 @@
 #!/usr/bin/env python3
 """
-Null-tests every values.yaml leaf against the maximal-baseline render to
-find "dead code" — a value no template (own or vendored sub-chart) ever
-actually reads — see lib.checks.dead_values's own module docstring for
-the full top-down/per-subchart-scoping/safety-net design.
+Find values.yaml keys that no template reads.
 
-Deliberately NOT one of verify-podiumd's own pipeline steps: a full run
-against the real chart takes on the order of 10-40+ minutes (measured:
-~40 minutes on the real chart, almost all of it the safety net's
-full-chart confirmation pass re-verifying every scoped-render "looks
-dead" candidate) — far too slow for every verify-podiumd invocation.
-Run this on its own, occasionally (e.g. after a values.yaml
-reorganization, or when auditing for cleanup), not as part of the
-regular pre-commit loop.
+Renders the chart with each values.yaml leaf removed in turn and reports
+the leaves whose removal changes nothing, for podiumd's own templates and
+all vendored sub-charts. Writes nothing; progress is printed as it runs.
+
+Slow: 10 to 40+ minutes on the real chart. Run it occasionally, for
+example after reorganizing values.yaml, not as part of verify-podiumd.
 
 Usage:
     verify-podiumd-dead-values
 
-Prints its own findings as it goes (phase transitions, one line per
-search level — see lib.checks.dead_values.check_dead_values) so a run
-left going in the background shows real progress rather than sitting
-silent for the bulk of that time.
+Example:
+    nohup verify-podiumd-dead-values > dead-values.log 2>&1 &
 
-Exit code is always 0 — report-only, same as when this was a
-verify-podiumd step (see lib.checks.dead_values.check_dead_values's own
-docstring for why: a candidate's own removal is always a human call,
-not something this scan decides on its own).
+Requires helm on PATH. Report only: exits 0 whatever it finds.
 """
 
 import shutil
@@ -74,6 +64,7 @@ def main():
         flush=True,
     )
 
+    # Not a verify-podiumd step: far too slow for every run.
     extra_args = lint_args_for(CHART_DIR)
     ok, detail = check_dead_values(CHART_DIR, extra_args)
 
