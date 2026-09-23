@@ -25,6 +25,11 @@ from lib.settings import vendor_classification_keywords
 
 CHART_NAME = "podiumd"
 
+# render-podiumd's default output file, written into the chart root. Only
+# the name lives here so lib.release_secret_size can exclude that same
+# file from its estimate without duplicating the literal.
+RENDERED_OUTPUT_NAME = "rendered-helm.yaml"
+
 OWN_TEMPLATES_PREFIX = "podiumd/templates/"
 
 
