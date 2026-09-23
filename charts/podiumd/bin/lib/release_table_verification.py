@@ -516,6 +516,26 @@ def _record_image_result(ref, row, basename, actual, findings):
     )
 
 
+def _unscoped_fallback_pins(ref, state, basename, findings):
+    """check_images' unscoped find_matches_any_tag fallback for a basename
+    not pinned under ref.scope_key: the pins, None when nothing matches, or
+    False (after recording an "ambiguous" finding) when the matches span
+    more than one distinct repository — the same "redis" collision
+    check_images_source guards against on the baseline side."""
+    pins = find_matches_any_tag(state.lines, basename) or None
+    if pins is None:
+        return None
+    repos = {strip_registry_host(p["repository"]) for p in pins if p["repository"]}
+    if len(repos) > 1:
+        findings["ambiguous"].append(
+            f"[IMAGE] '{basename}' matches {len(repos)} different repositories outside "
+            f"'{ref.scope_key}' own scope ({', '.join(sorted(repos))}) -- can't tell which one "
+            f"this row means"
+        )
+        return False
+    return pins
+
+
 def check_images(ref, rows, state, findings):
     """The TARGET-side counterpart to check_images_source: resolves every
     basename release-table.csv's rows for `ref.component` list under
@@ -561,16 +581,9 @@ def check_images(ref, rows, state, findings):
                 # pinned under a sibling scope instead (e.g. keycloak-
                 # config-cli lives under top-level "keycloak", not
                 # "keycloak-operator").
-                pins = find_matches_any_tag(state.lines, basename) or None
-                if pins is not None:
-                    repos = {strip_registry_host(p["repository"]) for p in pins if p["repository"]}
-                    if len(repos) > 1:
-                        findings["ambiguous"].append(
-                            f"[IMAGE] '{basename}' matches {len(repos)} different repositories outside "
-                            f"'{ref.scope_key}' own scope ({', '.join(sorted(repos))}) -- can't tell which one "
-                            f"this row means"
-                        )
-                        continue
+                pins = _unscoped_fallback_pins(ref, state, basename, findings)
+                if pins is False:
+                    continue
             if pins is None:
                 findings["missing_from_chart"].append(
                     f"[IMAGE] release-table image '{basename}' for component '{ref.component}' "

@@ -578,9 +578,11 @@ def _entry_comment_issues(name, lines, resolved, entry_line_indices, baseline_pa
 
     if len(resolved.entries) != len(entry_line_indices):
         return [
-            f"{name}: found {len(resolved.entries)} manifest entries but "
-            f'{len(entry_line_indices)} lines matched by "^-\\s*name:" -- cannot '
-            f"reliably match entries to their preceding comments"
+            (
+                f"{name}: found {len(resolved.entries)} manifest entries but "
+                f'{len(entry_line_indices)} lines matched by "^-\\s*name:" -- cannot '
+                f"reliably match entries to their preceding comments"
+            )
         ]
     issues = []
     for index, (entry, _line_idx) in enumerate(zip(resolved.entries, entry_line_indices, strict=True)):

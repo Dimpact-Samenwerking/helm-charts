@@ -115,7 +115,8 @@ def sequenced_run(own_objects, vendored_objects_by_chart=None, ks_returncode=1):
             return ks_result(own_objects, returncode=ks_returncode)
         index = calls["n"] - 2
         if index >= len(chart_calls):
-            raise AssertionError(f"unexpected extra kube-score call #{calls['n']} (expected {1 + len(chart_calls)})")
+            msg = f"unexpected extra kube-score call #{calls['n']} (expected {1 + len(chart_calls)})"
+            raise AssertionError(msg)
         return ks_result(vendored_objects_by_chart[chart_calls[index]], returncode=ks_returncode)
 
     return run
