@@ -4,11 +4,11 @@ sub-subchart\'s own vendored files (raw text / documented image
 repository) for a path settings.yaml registers this way."""
 
 import re
-import tarfile
 
 from pathlib import Path
 
 from lib.chart.values_tree_primitives import values_key_of
+from lib.chart.vendored_files import vendored_chart_file
 from lib.settings import component_resolution_version_path_nested_subcharts
 from lib.settings import component_resolution_version_repository_paths
 
@@ -78,17 +78,12 @@ def nested_subchart_raw_text(chart_dir, dep, nested_chart_name, filename, versio
     subchart_values uses for a top-level dependency's own file, one
     directory level deeper. None if that exact version isn't vendored,
     or the nested chart/file doesn't exist inside it at that path."""
-    version = version or dep["version"]
-    tgz_path = chart_dir / "charts" / f"{dep['name']}-{version}.tgz"
-    if not tgz_path.is_file():
+    raw = vendored_chart_file(chart_dir, dep, f"charts/{nested_chart_name}/{filename}", version)
+    if raw is None:
         return None
     try:
-        with tarfile.open(tgz_path) as tar:
-            member = tar.extractfile(f"{dep['name']}/charts/{nested_chart_name}/{filename}")
-            if member is None:
-                return None
-            return member.read().decode("utf-8")
-    except (KeyError, tarfile.TarError, UnicodeDecodeError):
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
         return None
 
 
