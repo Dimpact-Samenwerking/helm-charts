@@ -18,7 +18,6 @@ docs/
 ci/
 scripts/
 bin/
-release-table.csv
-release-baseline
+etc/
 # Local render output of bin/render-podiumd (gitignored, ~1.4M)
 rendered-helm.yaml
