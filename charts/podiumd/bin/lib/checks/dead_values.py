@@ -179,6 +179,7 @@ import re
 import shutil
 import tempfile
 
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -211,7 +212,7 @@ def flatten_leaves(node, path=()):
         yield path, node
 
 
-def _candidate_leaves(node, path, exempt_full_paths=frozenset()):
+def _candidate_leaves(node, path, exempt_full_paths: AbstractSet = frozenset()):
     """flatten_leaves(node, path), minus a value that's already null
     (nulling a null is a no-op — nothing to learn) and any path in
     exempt_full_paths (see _condition_leaf_paths — a dependency's own
@@ -226,7 +227,7 @@ def _candidate_leaves(node, path, exempt_full_paths=frozenset()):
         yield leaf_path
 
 
-def candidate_leaf_paths(values, exempt_full_paths=frozenset()):
+def candidate_leaf_paths(values, exempt_full_paths: AbstractSet = frozenset()):
     """Every path _candidate_leaves finds in podiumd's own values.yaml
     worth null-testing — the full, flat list (used for the "N checked"
     count; the actual search walks the same candidates hierarchically,

@@ -230,7 +230,9 @@ def _uncovered_entry_display_names(entries, entry_positions, resolution, covered
         if not isinstance(entry, dict) or entry.get("name") not in entry_positions:
             continue
         path = resolve_entry_image_path(entry, resolution.current_paths.keys(), resolution.repo_map)
-        display_name = path_display_name(path, resolution.deps, resolution.canonical_names) if path else None
+        if not path:
+            continue
+        display_name = path_display_name(path, resolution.deps, resolution.canonical_names)
         if display_name is None or display_name in seen or display_name == ".".join(path):
             continue
         seen.add(display_name)

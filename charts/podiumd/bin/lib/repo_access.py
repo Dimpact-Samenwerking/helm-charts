@@ -181,7 +181,7 @@ class ProbeConfig:
     settings."""
 
     chart_dir: object
-    denylisted_host_suffixes: list
+    denylisted_host_suffixes: tuple
     cache_ttl_minutes: float
     timeout_seconds: float
 
@@ -252,7 +252,8 @@ def _probe_entry(config, entry):
     if test_kind == "http":
         ok, error = _check_http_repo(target, config.timeout_seconds)
     else:
-        ok, error = _check_registry_repo(config.chart_dir, *target, config.timeout_seconds)
+        host, repo_path, version = target
+        ok, error = _check_registry_repo(config.chart_dir, host, repo_path, version, config.timeout_seconds)
     print(f"  [{'OK' if ok else 'FAIL'}] {kind:5}  {description}" + (f"  — {error}" if error else ""))
     if not ok:
         return "failure", kind, description, error

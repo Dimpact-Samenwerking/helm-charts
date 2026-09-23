@@ -142,12 +142,12 @@ class _BaselineResolution:
     component_versions' own docstring for why a blank baseline app
     version can't just be re-derived independently per phase)."""
 
-    upgrade_docs_baseline: str
-    old_app: str
-    old_chart_str: str
+    upgrade_docs_baseline: str | None
+    old_app: str | None
+    old_chart_str: str | None
     reset_to_baseline: bool
-    baseline_deps: list = None
-    baseline_values: dict = None
+    baseline_deps: list | None = None
+    baseline_values: dict | None = None
 
 
 @dataclass
@@ -375,8 +375,8 @@ class _SharedImageBaselineResolution:
     baseline_values itself resolved at all). `pinned` here may already be
     the baseline-normalized rewrite of the bump's own raw pinned list."""
 
-    upgrade_docs_baseline: str
-    old_version: str
+    upgrade_docs_baseline: str | None
+    old_version: str | None
     reset_to_baseline: bool
     pinned: list
 

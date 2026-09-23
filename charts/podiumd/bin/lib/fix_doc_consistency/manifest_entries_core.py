@@ -36,8 +36,8 @@ class ManifestEntriesContext:
     deps: list
     target_values: dict
     baseline_values: dict
-    repo_map: dict = None
-    upgrade_docs_baseline: str = None
+    repo_map: dict | None = None
+    upgrade_docs_baseline: str | None = None
 
 
 @dataclass

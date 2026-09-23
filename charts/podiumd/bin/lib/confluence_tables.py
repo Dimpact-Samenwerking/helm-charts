@@ -30,6 +30,7 @@ import urllib.request
 from dataclasses import dataclass
 from dataclasses import field
 from html.parser import HTMLParser
+from typing import Any
 
 PAGE_ID_RE = re.compile(r"/pages/(\d+)")
 
@@ -128,7 +129,7 @@ class _TableExtractor(HTMLParser):
         self.table_headings = []
         self._table_stack = []
         self._row = None
-        self._cell = None
+        self._cell: dict[str, Any] | None = None
         self._nested_depth = 0
         self._heading = _HeadingState()
 

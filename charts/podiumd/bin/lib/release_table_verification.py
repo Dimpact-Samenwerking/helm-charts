@@ -92,7 +92,7 @@ class Comparison:
     check_images_source's own docstring)."""
 
     current: ChartState
-    baseline: ChartState
+    baseline: ChartState | None
 
 
 @dataclass
@@ -828,7 +828,7 @@ class _BaselineSourceResolver:
             return ("found", next(iter(versions)), "values.yaml")
 
         subchart_actual, subchart_error = self.resolve_subchart_source(basename)
-        if subchart_error:
+        if subchart_error and self.baseline_dep is not None:
             return (
                 "ambiguous",
                 (

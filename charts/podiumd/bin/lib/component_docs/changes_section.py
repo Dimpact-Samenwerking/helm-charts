@@ -64,10 +64,10 @@ class VersionChange:
     resolved at all (also rendered as "new") -- same conventions
     throughout this module."""
 
-    old_app: str = None
-    new_app: str = None
-    old_chart: str = None
-    new_chart: str = None
+    old_app: str | None = None
+    new_app: str | None = None
+    old_chart: str | None = None
+    new_chart: str | None = None
 
 
 @dataclass
@@ -80,8 +80,8 @@ class OrderingContext:
     values.yaml position instead of always last)."""
 
     deps: list
-    values: dict
-    canonical_names: dict = None
+    values: dict | None
+    canonical_names: dict | None = None
 
 
 @dataclass
@@ -106,7 +106,7 @@ class ComponentState:
     side, compared against each other, and never mix a target dep with
     a baseline value or vice versa by construction."""
 
-    deps: list
+    deps: list | None
     values: dict
 
 
@@ -120,7 +120,7 @@ class DocContext:
 
     chart_dir: object
     target: str
-    upgrade_docs_baseline: str = None
+    upgrade_docs_baseline: str | None = None
 
 
 def find_component_row(rows, friendly):

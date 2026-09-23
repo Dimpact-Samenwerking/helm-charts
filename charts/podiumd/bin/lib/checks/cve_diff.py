@@ -230,7 +230,7 @@ class DiffContext:
     scan_errors: list
     detail: bool
     ttl_days: int
-    high_severities: list
+    high_severities: set
     package_cve_list_threshold: int
 
 

@@ -285,7 +285,11 @@ def check_digest_pinning(chart_dir):
     images = list(find_image_tag_paths(values))
     exceptions = digest_pinning_exceptions(chart_dir)
 
-    missing = [(path, tag) for path, tag in images if path not in exceptions and not DIGEST_SUFFIX_RE.search(tag)]
+    missing = [
+        (path, tag)
+        for path, tag in images
+        if tag is not None and path not in exceptions and not DIGEST_SUFFIX_RE.search(tag)
+    ]
 
     if not missing:
         print(f"OK: all {len(images)} image tag(s) in values.yaml are digest-pinned ({len(exceptions)} exempt)")

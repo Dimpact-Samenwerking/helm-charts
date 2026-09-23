@@ -126,7 +126,7 @@ def resolve_header_row_count(rows, grid):
         columns = select_release_columns(header_paths(grid, count))
         if missing_required_release_columns(columns):
             continue
-        if best_count is None:
+        if best_columns is None:
             best_count, best_columns = count, columns
             continue
         if any(

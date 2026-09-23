@@ -54,7 +54,7 @@ class UrlFixContext:
     chart_dir: object
     deps: list
     target_values: dict
-    repo_map: dict = None
+    repo_map: dict | None = None
 
 
 @dataclass
@@ -70,7 +70,7 @@ class MissingEntriesContext:
     target_values: dict
     baseline_values: dict
     allow_pull: bool = False
-    upgrade_docs_baseline: str = None
+    upgrade_docs_baseline: str | None = None
 
 
 @dataclass

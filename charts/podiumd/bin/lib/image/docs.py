@@ -680,7 +680,7 @@ def update_image_manifest(images_path, bump, ordering=None):
     sits earlier). Omit `ordering` entirely only where no real ordering
     context is available at all — falls back to appending at the end,
     same as before, never crashes."""
-    ordering = ordering or OrderingContext((), None)
+    ordering = ordering or OrderingContext([], None)
     original_text = images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 

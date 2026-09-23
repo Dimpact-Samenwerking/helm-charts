@@ -139,7 +139,7 @@ class ScanTarget:
     cache_key only ever needs repository+digest, never the full ref."""
 
     repository: str
-    digest: str
+    digest: str | None
     ref: str
 
 
@@ -411,7 +411,7 @@ class CveScanSettings:
     values, resolved once up front and threaded through every helper
     below that needs any subset of them."""
 
-    high_severities: list
+    high_severities: set
     package_cve_list_threshold: int
     cve_cache_ttl_days: int
     upgrade_cache_ttl_days: int
@@ -440,7 +440,7 @@ class ReportSettings:
     positional-only params through every call site is pure repetition."""
 
     detail_level: str
-    high_severities: list
+    high_severities: set
     package_cve_list_threshold: int
 
 

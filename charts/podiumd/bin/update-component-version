@@ -300,8 +300,8 @@ class DocPaths:
     """Upgrade-path doc's resolved path pair, grouped for
     BaselineComparison."""
 
-    upgrade_path: Path
-    values_deltas_path: Path
+    upgrade_path: Path | None
+    values_deltas_path: Path | None
 
 
 @dataclass
@@ -309,9 +309,9 @@ class BaselineSnapshot:
     """Baseline's resolved git ref and, when resolvable, its Chart.yaml/
     values.yaml content — grouped for BaselineComparison."""
 
-    upgrade_docs_baseline: str
-    baseline_deps: list
-    baseline_values: dict
+    upgrade_docs_baseline: str | None
+    baseline_deps: list | None
+    baseline_values: dict | None
 
 
 @dataclass
@@ -320,8 +320,8 @@ class BaselineComparison:
     _resolve_baseline_comparison. Grouped into small dataclasses for
     too-many-instance-attributes (see _group_getattr)."""
 
-    old_app: str
-    old_chart: str
+    old_app: str | None
+    old_chart: str | None
     reset_to_baseline: bool
     doc_paths: DocPaths
     snapshot: BaselineSnapshot
