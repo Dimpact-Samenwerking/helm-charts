@@ -66,6 +66,51 @@ def test_main_updates_matching_pin(uiv, tmp_path, monkeypatch, capsys):
     assert f"1.1.2@sha256:{'b' * 64}" in values_path.read_text(encoding="utf-8")
 
 
+def test_main_refreshes_images_baseline_with_the_new_pin(uiv, tmp_path, monkeypatch, stub_refresh_images_baseline):
+    """images-baseline.yaml follows the bump, regenerated from the
+    values.yaml just written."""
+    values_path = write_values(
+        tmp_path,
+        (
+            "pabc:\n"
+            "  image:\n"
+            "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
+            f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
+        ),
+    )
+    monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
+    import lib.image.version as image_version
+
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
+
+    uiv.main()
+
+    [(chart_dir, _deps, values, images_baseline_path)] = stub_refresh_images_baseline
+    assert chart_dir == tmp_path
+    assert images_baseline_path == tmp_path / "docs" / "images" / "images-baseline.yaml"
+    assert values["pabc"]["image"]["tag"] == f"1.1.2@sha256:{'b' * 64}"
+
+
+def test_main_no_op_leaves_images_baseline_alone(uiv, tmp_path, monkeypatch, stub_refresh_images_baseline):
+    """Nothing bumped, nothing to regenerate."""
+    values_path = write_values(
+        tmp_path,
+        (
+            "pabc:\n"
+            "  image:\n"
+            "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
+            f'    tag: "1.1.2@sha256:{"a" * 64}"\n'
+        ),
+    )
+    monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
+    monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
+
+    uiv.main()
+
+    assert not stub_refresh_images_baseline
+
+
 def test_main_reports_noop_when_already_at_target(uiv, tmp_path, monkeypatch, capsys):
     values_path = write_values(
         tmp_path,

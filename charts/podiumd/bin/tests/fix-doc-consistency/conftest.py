@@ -68,10 +68,15 @@ def stub_render_chart(cdb, monkeypatch):
     same as this render-gate's behavior before it existed): a test that
     specifically wants to exercise the new subchart-default augmentation
     overrides this via its own monkeypatch.setattr, same convention
-    stub_registry_tag_exists above already uses — patched on cdb's own
-    module globals (where main() actually calls it from)."""
+    stub_registry_tag_exists above already uses — patched on lib.image.
+    baseline_refresh's own module globals (where main()'s
+    refresh_images_baseline actually calls it from)."""
+    from lib.image import baseline_refresh
+
     monkeypatch.setattr(
-        cdb, "render_chart", lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="", stderr="")
+        baseline_refresh,
+        "render_chart",
+        lambda chart_dir, extra_args: SimpleNamespace(returncode=0, stdout="", stderr=""),
     )
 
 
