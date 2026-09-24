@@ -15,7 +15,10 @@ Usage:
 Example:
     nohup verify-podiumd-dead-values > dead-values.log 2>&1 &
 
-Requires helm on PATH. Report only: exits 0 whatever it finds.
+Requires helm on PATH.
+
+Exit code: 1 when helm is not installed; otherwise 0, whatever the scan
+finds (report only).
 """
 
 import shutil
@@ -38,9 +41,10 @@ from lib.render_scope import lint_args_for
 
 def main():
     """CLI entry point: runs the (slow, 10-40+ minute) dead-values scan
-    against the real podiumd chart and prints its findings. Always exits 0
-    — this is report-only, since deciding to actually remove a "dead"
-    value is a human call (see lib.checks.dead_values.check_dead_values)."""
+    against the real podiumd chart and prints its findings. Exits 1 when
+    helm is missing, else with check_dead_values' verdict, which is
+    report-only and always OK: deciding to remove a "dead" value is a
+    human call (see lib.checks.dead_values.check_dead_values)."""
     positional_args(__doc__, 0)
 
     if shutil.which("helm") is None:
