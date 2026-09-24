@@ -57,6 +57,7 @@ from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
+from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
@@ -465,10 +466,21 @@ def _check_row_baseline_versions(
             f'{values_key} ("{row["name"]}") source chart: {row_ctx.baseline_ref} has '
             f'"{baseline_chart_actual}", {row_ctx.doc_path.name} says "{row["chart_source"]}"'
         )
-    if baseline_app_actual and normalize_version(row["app_source"]) != normalize_version(baseline_app_actual):
+    if baseline_app_actual:
+        expected_app_source, baseline_app_label = baseline_app_actual, f'"{baseline_app_actual}"'
+    elif actual_app:
+        # The dependency line existed at the baseline ref, its app
+        # version didn't: fix-doc-consistency writes component_version_
+        # cell(None, target), "<target> (new)", whose source is the
+        # target itself — a stale "<old> → <target>" cell is flagged.
+        expected_app_source = extract_source_version(component_version_cell(None, actual_app))
+        baseline_app_label = "no app version (new)"
+    else:
+        return
+    if normalize_version(row["app_source"]) != normalize_version(expected_app_source):
         result.mismatches.append(
             f'{values_key} ("{row["name"]}") source app: {row_ctx.baseline_ref} has '
-            f'"{baseline_app_actual}", {row_ctx.doc_path.name} says "{row["app_source"] or "-"}"'
+            f'{baseline_app_label}, {row_ctx.doc_path.name} says "{row["app_source"] or "-"}"'
         )
 
 
