@@ -115,6 +115,12 @@ git history). `pyproject.toml`'s own `[tool.vulture]` comment documents the
 handful of individually-confirmed false positives this scoped invocation
 still produces (`ignore_names`) and exactly why each one is safe to ignore.
 
+**TypedDict keys.** A TypedDict field the code only reads by string key
+(`row["app"]`) looks unused to vulture. `run_python_checks` therefore
+generates a whitelist of every field declared in a TypedDict class in `lib/`
+and the scripts and passes it to vulture, so the command above reports those
+fields; use `./run_python_checks` for the real result.
+
 A genuinely new finding here means: either it really is dead code (delete
 it), or it's a new false positive of the same two shapes above — in which
 case add it to `ignore_names` with the same kind of explanation, don't just
