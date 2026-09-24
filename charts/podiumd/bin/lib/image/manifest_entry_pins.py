@@ -15,6 +15,7 @@ from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import try_parse_images_manifest
+from lib.settings import DigestPinningException
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.yaml_types import YamlMapping
@@ -42,7 +43,7 @@ def entry_pin(
     values: YamlMapping,
     paths: dict[tuple[str, ...], str | None],
     repo_map: dict[str, tuple[str, ...]],
-    sibling_fields: dict[tuple[str, ...], dict[str, str]],
+    sibling_fields: dict[tuple[str, ...], DigestPinningException],
 ) -> tuple[tuple[str, ...] | None, str | None]:
     """(path, tag) for an images-manifest entry: its values-tree path
     and the tag pinned there, with the digest from a sibling field when
@@ -85,7 +86,7 @@ def sync_entry_pins(
     chart_dir: Path,
     deps: list[ChartDependency],
     values: YamlMapping,
-    sibling_fields: dict[tuple[str, ...], dict[str, str]],
+    sibling_fields: dict[tuple[str, ...], DigestPinningException],
 ) -> tuple[str, list[str]]:
     """Rewrites the version:/digest: of every entry in `text` whose pin
     differs from entry_pin. Entries whose pin has no digest are left
