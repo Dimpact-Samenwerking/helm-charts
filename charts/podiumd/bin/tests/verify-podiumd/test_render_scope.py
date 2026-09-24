@@ -4,7 +4,10 @@ chart_name_from_source (tested in test_helm_helpers.py/test_yamllint.py)
 now build on too, confirming the refactor didn't change either of
 THEIR existing behavior."""
 
+from pathlib import Path
 from types import ModuleType
+
+import pytest
 
 # --- rendered_chart_paths ---
 
@@ -75,6 +78,37 @@ def test_rendered_chart_paths_deduplicates(librenderscope: ModuleType):
         "---\n# Source: podiumd/charts/zac/templates/b.yaml\nkind: Y\n"
     )
     assert librenderscope.rendered_chart_paths(rendered) == {"podiumd/charts/zac"}
+
+
+def test_rendered_chart_paths_ignores_chart_paths_outside_source_lines(librenderscope: ModuleType):
+    """A chart-tree-shaped string inside a rendered resource (not on a
+    "# Source:" line) must not count as a live chart path."""
+    rendered = (
+        "---\n# Source: podiumd/charts/zac/templates/cm.yaml\n"
+        "kind: ConfigMap\ndata:\n  note: podiumd/charts/openbao/templates/x.yaml\n"
+    )
+    assert librenderscope.rendered_chart_paths(rendered) == {"podiumd/charts/zac"}
+
+
+# --- friendly_vendor_charts ---
+
+
+def test_friendly_vendor_charts_matches_mixed_case_keyword(
+    librenderscope: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    """A vendor keyword written in mixed case still matches the lowercased
+    repository."""
+    monkeypatch.setattr(librenderscope, "helm_repos_urls_by_alias", lambda chart_dir: {})
+    monkeypatch.setattr(librenderscope, "vendor_classification_keywords", lambda chart_dir: {"InfoNL": "Info(NL)"})
+    monkeypatch.setattr(librenderscope, "vendor_classification_chart_overrides", lambda chart_dir: {})
+    monkeypatch.setattr(
+        librenderscope,
+        "load_chart_dependencies",
+        lambda path: [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "repository": "https://infonl.github.io/charts"}
+        ],
+    )
+    assert librenderscope.friendly_vendor_charts(tmp_path) == {"zac": "Info(NL)"}
 
 
 # --- chart_tree_paths (shared primitive) ---

@@ -216,7 +216,8 @@ def rendered_chart_paths(rendered_text: str) -> set[str]:
     owning dependency (or nested dependency — see lib.chart.
     resolve_subchart_default) genuinely renders right now, instead of
     just being vendored on disk."""
-    paths = set(chart_tree_paths(rendered_text))
+    source_lines = "\n".join(line for line in rendered_text.splitlines() if line.startswith("# Source: "))
+    paths = set(chart_tree_paths(source_lines))
     ancestors: set[str] = set()
     for path in paths:
         segments = path.split("/charts/")
@@ -282,7 +283,7 @@ def friendly_vendor_charts(chart_dir: Path) -> dict[str, str]:
             mapping[chart_name] = "Local"
             continue
         for keyword, vendor in keywords.items():
-            if keyword in repo.lower():
+            if keyword.lower() in repo.lower():
                 mapping[chart_name] = vendor
                 break
     return mapping
