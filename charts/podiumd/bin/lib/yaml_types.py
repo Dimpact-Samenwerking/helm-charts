@@ -98,3 +98,14 @@ def parse_yaml_mapping(text: str, source: str) -> YamlMapping:
 def load_yaml_mapping(path: Path) -> YamlMapping:
     """parse_yaml_mapping of the file at `path`."""
     return parse_yaml_mapping(path.read_text(encoding="utf-8"), str(path))
+
+
+def scalar_text(value: YamlValue) -> str | None:
+    """`value` as the text Helm renders for a scalar: a string as it is, a
+    number through str() (an unquoted `tag: 1.5`); None for null, a
+    boolean, a date, a list or a mapping."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return str(value)
+    return None

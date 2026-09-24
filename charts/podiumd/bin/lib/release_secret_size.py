@@ -85,13 +85,13 @@ from pathlib import PurePosixPath
 
 import yaml
 
-from lib.chart.release_baseline_basics import load_yaml
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
 from lib.render_scope import render_chart
 from lib.settings import release_secret_kubernetes_limit_bytes
 from lib.settings import release_secret_warn_at_fraction_of_limit
 from lib.settings import render_report_default_output_file_name
+from lib.yaml_types import load_yaml_mapping
 
 
 def b64(data: bytes):
@@ -415,7 +415,7 @@ def check_release_secret_size(chart_dir: Path, extra_args: list):
         return False, "helm template failed to render"
 
     values_path = values_file_from_extra_args(extra_args)
-    values_override = load_yaml(values_path) if values_path else None
+    values_override = load_yaml_mapping(values_path) if values_path else None
 
     release, version, warnings = build_release(chart_dir, values_override, result.stdout, CHART_NAME, CHART_NAME)
     for warning in warnings:

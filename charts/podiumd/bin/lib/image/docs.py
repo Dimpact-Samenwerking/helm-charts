@@ -35,8 +35,8 @@ from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.values_tree_primitives import dep_for_values_key
-from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import version_of
 from lib.checks.digest_pinning import find_unresolved_subchart_images
 from lib.component_docs.changes_section import ComponentIdentity
@@ -536,7 +536,7 @@ def resolve_basename_baseline_version(baseline_values: YamlMapping | None, full_
     by group_changes_by_component."""
     versions = set()
     for dotted_path, _old_version in full_paths:
-        tag = get_path(baseline_values, dotted_path)
+        tag = text_at(baseline_values, dotted_path)
         if not isinstance(tag, str) or not tag:
             return None
         versions.add(tag.split("@", 1)[0])

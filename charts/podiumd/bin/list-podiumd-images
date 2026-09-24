@@ -53,11 +53,10 @@ from lib.chart.pull_and_subchart_resolution import pulled_chart_dir
 from lib.chart.pull_and_subchart_resolution import require_local_chart_dir
 from lib.chart.pull_and_subchart_resolution import subchart_dependencies
 from lib.chart.registered_paths import version_paths_for
-from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.values_tree_primitives import find_images
-from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import same_name
+from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 from lib.dependencies import ensure_vendored_dependencies
@@ -69,6 +68,7 @@ from lib.render_scope import lint_args_for
 from lib.render_scope import render_chart
 from lib.render_scope import rendered_chart_paths
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
 
 VENDORED_DIR = CHART_DIR / "charts"
 
@@ -175,7 +175,7 @@ def load_chart(dep: ChartDependency, tmproot: Path, *, refresh: bool):
 
     chart_yaml = load_chart_yaml(chart_dir / "Chart.yaml")
     values_path = chart_dir / "values.yaml"
-    values = load_yaml(values_path) if values_path.exists() else {}
+    values = load_yaml_mapping(values_path) if values_path.exists() else {}
     return chart_yaml, values or {}
 
 
@@ -366,7 +366,7 @@ def component_version_rows(dep: ChartDependency, key: str, merged: YamlMapping, 
         set(version_paths_for(dep["name"], CHART_DIR)) | set(nested_subchart_registered_paths(dep["name"], CHART_DIR))
     )
     for rel in rels:
-        tag = get_path(merged, rel)
+        tag = text_at(merged, rel)
         if not (isinstance(tag, str) and tag):
             continue
         path = (key, *tuple(rel.split(".")))
@@ -486,7 +486,7 @@ def main():
     ensure_vendored_dependencies(VENDORED_DIR.parent)
 
     deps = load_chart_dependencies(CHART_YAML)
-    root_values = load_yaml(VALUES_YAML) or {}
+    root_values = load_yaml_mapping(VALUES_YAML)
     dep_keys = {values_key_of(dep) for dep in deps}
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
     ctx = ChartContext(deps=deps, root_values=root_values, rendered_paths=_compute_rendered_paths())

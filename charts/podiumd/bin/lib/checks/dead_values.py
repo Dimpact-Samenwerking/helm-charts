@@ -194,11 +194,11 @@ from lib.chart.chart_yaml import chart_dependencies
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.chart_yaml import load_chart_yaml
 from lib.chart.pull_and_subchart_resolution import subchart_values
-from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import values_key_of
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
 
 # Every render this module issues is an independent `helm template`
 # subprocess (its own temp overlay file, no shared state) competing for
@@ -296,10 +296,10 @@ def _load_merged_values(chart_dir: Path, extra_args: list):
     Helm's own -f layering can't do standalone; every other render in
     this module hands extra_args straight to helm as-is, same as every
     other check."""
-    merged = copy.deepcopy(load_yaml(chart_dir / "values.yaml") or {})
+    merged = copy.deepcopy(load_yaml_mapping(chart_dir / "values.yaml"))
     for i, arg in enumerate(extra_args):
         if arg == "-f":
-            _deep_merge(merged, load_yaml(Path(extra_args[i + 1])) or {})
+            _deep_merge(merged, load_yaml_mapping(Path(extra_args[i + 1])))
     return merged
 
 
@@ -873,7 +873,7 @@ def check_dead_values(chart_dir: Path, extra_args: list):
     script (see module docstring's "human call" caveat). Returns "skipped
     — baseline render failed" without scanning anything if even the
     maximal baseline render itself doesn't succeed."""
-    values = load_yaml(chart_dir / "values.yaml") or {}
+    values = load_yaml_mapping(chart_dir / "values.yaml")
     condition_paths = _condition_leaf_paths(chart_dir)
     total = len(candidate_leaf_paths(values, condition_paths))
 

@@ -13,6 +13,8 @@ from typing import Any
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import YamlValue
+from lib.yaml_types import scalar_text
 
 UTF8_BOM = b"\xef\xbb\xbf"
 
@@ -28,7 +30,7 @@ UTF8_BOM = b"\xef\xbb\xbf"
 # component_image_paths/image_paths_for below resolve them.
 
 
-def get_path(node: object, dotted_path: str) -> Any:
+def get_path(node: YamlValue, dotted_path: str) -> YamlValue:
     """The value at `dotted_path` (e.g. "openzaak.image.tag") inside the
     parsed values-tree `node`, or None if any segment is missing or a
     non-dict is encountered before the path is fully consumed."""
@@ -37,6 +39,20 @@ def get_path(node: object, dotted_path: str) -> Any:
             return None
         node = node.get(key)
     return node
+
+
+def text_at(node: YamlValue, dotted_path: str) -> str | None:
+    """get_path, as the scalar text Helm renders there (see scalar_text):
+    None when the value is missing or not a string or number."""
+    return scalar_text(get_path(node, dotted_path))
+
+
+def mapping_at(node: YamlValue, dotted_path: str) -> YamlMapping:
+    """get_path, when the value there is a mapping; {} when it is missing
+    or not a mapping (e.g. an empty "global:" key, which YAML reads as
+    None)."""
+    value = get_path(node, dotted_path)
+    return value if isinstance(value, dict) else {}
 
 
 def replace_scalar_value(line: str, new_value: str):
@@ -183,7 +199,7 @@ def find_app_versions(values: YamlMapping | None, values_key: str, image_paths: 
     base = values.get(values_key, {}) if isinstance(values, dict) else {}
     versions = []
     for path in image_paths:
-        tag = get_path(base, f"{path}.tag")
+        tag = text_at(base, f"{path}.tag")
         if tag:
             versions.append((path, tag))
     return versions

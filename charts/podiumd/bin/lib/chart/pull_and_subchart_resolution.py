@@ -14,20 +14,22 @@ import tempfile
 
 from pathlib import Path
 
-import yaml
-
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import parse_chart_app_version
 from lib.chart.chart_yaml import parse_chart_dependencies
 from lib.chart.nested_subchart_identity import nested_subchart_raw_text
 from lib.chart.registered_paths import image_paths_for
-from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import mapping_at
+from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.vendored_files import vendored_chart_file
 from lib.procutil import run
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
+from lib.yaml_types import parse_yaml_mapping
+from lib.yaml_types import scalar_text
 
 
 # A BOM breaks YAML tooling that doesn't expect one. Shared by
@@ -58,7 +60,7 @@ def resolved_digest_pin(values: YamlMapping | None, path: tuple[str, ...], tag: 
     sibling_field = sibling_fields.get(path, {}).get("sibling_field")
     if sibling_field is None:
         return None
-    digest = get_path(values, ".".join(path) + f".{sibling_field}")
+    digest = text_at(values, ".".join(path) + f".{sibling_field}")
     if not isinstance(digest, str) or not digest:
         return None
     return f"{tag}@{digest}" if digest.startswith("sha256:") else f"{tag}@sha256:{digest}"
@@ -143,7 +145,7 @@ def pull_chart_values(dep: ChartDependency, version: str):
             msg = f"error: could not pull {dep['name']} {version}: {stderr}"
             raise SystemExit(msg)
         chart_dir = pulled_chart_dir(tmpdir)
-        return yaml.safe_load((chart_dir / "values.yaml").read_text()) or {}
+        return load_yaml_mapping(chart_dir / "values.yaml")
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -172,13 +174,12 @@ def verify_chart_version(chart_dir: Path, dep: ChartDependency, version: str):
     return values
 
 
-def native_component_values(chart_dir: Path, name: str) -> dict:
+def native_component_values(chart_dir: Path, name: str) -> YamlMapping:
     """The values.yaml block of native component `name` (see lib.chart.
     registered_paths.native_components): the counterpart of verify_chart_
     version's pulled values for a component that has no chart. {} when
     values.yaml has no such block."""
-    values = yaml.safe_load((chart_dir / "values.yaml").read_text(encoding="utf-8")) or {}
-    return values.get(name) or {}
+    return mapping_at(load_yaml_mapping(chart_dir / "values.yaml"), name)
 
 
 def check_image_versions(values: YamlMapping, image_paths: list[str], app_version: str):
@@ -201,7 +202,7 @@ def check_image_versions(values: YamlMapping, image_paths: list[str], app_versio
     repos = [
         (path, repo)
         for path in image_paths
-        for repo in [get_path(values, f"{path}.repository")]
+        for repo in [text_at(values, f"{path}.repository")]
         if isinstance(repo, str) and repo
     ]
     if not repos:
@@ -239,7 +240,7 @@ def subchart_values(chart_dir: Path, dep: ChartDependency, version: str | None =
     exact version isn't vendored (not pulled yet, or a different version
     is) or the .tgz doesn't have the expected layout."""
     raw = vendored_chart_file(chart_dir, dep, "values.yaml", version)
-    return None if raw is None else (yaml.safe_load(raw) or {})
+    return None if raw is None else parse_yaml_mapping(raw.decode("utf-8"), f"{dep['name']} values.yaml")
 
 
 def subchart_app_version(chart_dir: Path, dep: ChartDependency, version: str | None = None):
@@ -346,7 +347,7 @@ def resolve_chart_values(chart_dir: Path, dep: ChartDependency, version: str, *,
         if not ok:
             return None, None, stderr
         pulled_dir = pulled_chart_dir(tmpdir)
-        return yaml.safe_load((pulled_dir / "values.yaml").read_text(encoding="utf-8")) or {}, "pulled", None
+        return load_yaml_mapping(pulled_dir / "values.yaml"), "pulled", None
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -388,7 +389,7 @@ def primary_image_repositories(
     results = {}
     subchart_state = None  # lazily filled on first path that needs it: (values_or_None, error_or_None)
     for path in image_paths_for(dep["name"], chart_dir):
-        repo = get_path(own_values, f"{values_key}.{path}.repository")
+        repo = text_at(own_values, f"{values_key}.{path}.repository")
         if isinstance(repo, str) and repo:
             results[path] = repo
             continue
@@ -399,12 +400,12 @@ def primary_image_repositories(
                 values, _source, err = resolve_chart_values(chart_dir, dep, version, allow_pull=allow_pull)
                 subchart_state = (values, err)
         values, err = subchart_state
-        results[path] = get_path(values, f"{path}.repository") if values is not None else None
+        results[path] = text_at(values, f"{path}.repository") if values is not None else None
     error = subchart_state[1] if subchart_state is not None else None
     return results, error
 
 
-def global_image_paths(values: YamlMapping):
+def global_image_paths(values: YamlMapping) -> list[tuple[tuple[str, ...], str]]:
     """[(path, tag), ...] for every entry directly under "global.images."
     — the shared base-image anchors (nginx/curl/busybox — see the
     values.yaml comment "Shared image references, reused via YAML
@@ -422,11 +423,8 @@ def global_image_paths(values: YamlMapping):
     itself as a candidate — the one true source every aliasing usage
     site actually points at — alongside those usage sites, not just
     the sites on their own."""
-    images = get_path(values, "global.images")
-    if not isinstance(images, dict):
-        return []
     return [
-        (("global", "images", name), block["tag"])
-        for name, block in images.items()
-        if isinstance(block, dict) and block.get("tag")
+        (("global", "images", name), tag)
+        for name, block in mapping_at(values, "global.images").items()
+        if isinstance(block, dict) and (tag := scalar_text(block.get("tag")))
     ]

@@ -43,7 +43,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import VALUES_YAML
-from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import release_table_baseline
 from lib.dependencies import ensure_vendored_dependencies
 from lib.release_baseline import resolve_baseline_chart_state
@@ -72,6 +71,7 @@ from lib.chart.pull_and_subchart_resolution import primary_image_repositories  #
 # pylint: disable-next=unused-import
 from lib.release_table_verification import is_primary_image  # noqa: F401
 from lib.chart.chart_yaml import load_chart_dependencies
+from lib.yaml_types import load_yaml_mapping
 # isort: on
 
 RELEASE_TABLE_CSV = CHART_DIR / "etc" / "release-table.csv"
@@ -171,7 +171,7 @@ def main():
     rows = load_release_table(RELEASE_TABLE_CSV)
 
     deps = load_chart_dependencies(CHART_YAML) if CHART_YAML.is_file() else []
-    values = load_yaml(VALUES_YAML) if VALUES_YAML.is_file() else {}
+    values = load_yaml_mapping(VALUES_YAML) if VALUES_YAML.is_file() else {}
     lines = VALUES_YAML.read_text(encoding="utf-8").splitlines() if VALUES_YAML.is_file() else []
 
     # None on ANY failure here — see compare()'s own docstring for why

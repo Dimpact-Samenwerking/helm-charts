@@ -61,13 +61,13 @@ from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolve_subchart_default
 from lib.chart.pull_and_subchart_resolution import subchart_values
-from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import subchart_template_text
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import resolve_values_path_source
 from lib.chart.values_tree_primitives import strip_registry_host
+from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.render_scope import CHART_NAME
 from lib.render_scope import render_chart
@@ -76,6 +76,7 @@ from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
 
 # "@sha256:<64 hex chars>" at the end of a tag value — the same shape
 # lib.image.digests.DIGEST_PIN_RE requires, checked here as a suffix
@@ -175,7 +176,7 @@ def _global_image_usage(values: YamlMapping, repo_groups: dict):
     setting the value directly at that one site)."""
     usage = {}
     for def_path, _tag in global_image_paths(values):
-        repo = get_path(values, ".".join(def_path) + ".repository")
+        repo = text_at(values, ".".join(def_path) + ".repository")
         stripped = strip_registry_host(repo) if isinstance(repo, str) and repo else None
         consumers = [p for p in repo_groups.get(stripped, []) if p != def_path] if stripped else []
         usage[def_path] = consumers
@@ -193,7 +194,7 @@ def _non_global_shared_repo_groups(values: YamlMapping, repo_groups: dict, globa
     failure, only ever informational, regardless of consumer count."""
     claimed = set()
     for def_path in global_usage:
-        repo = get_path(values, ".".join(def_path) + ".repository")
+        repo = text_at(values, ".".join(def_path) + ".repository")
         if isinstance(repo, str) and repo:
             claimed.add(strip_registry_host(repo))
     return {repo: paths for repo, paths in repo_groups.items() if repo not in claimed and len(paths) > 1}
@@ -289,15 +290,11 @@ def check_digest_pinning(chart_dir: Path):
         print("OK: no values.yaml found — nothing to check")
         return True, "0 pin(s), 0 unpinned"
 
-    values = load_yaml(values_path) or {}
+    values = load_yaml_mapping(values_path)
     images = list(find_image_tag_paths(values))
     exceptions = digest_pinning_exceptions(chart_dir)
 
-    missing = [
-        (path, tag)
-        for path, tag in images
-        if tag is not None and path not in exceptions and not DIGEST_SUFFIX_RE.search(tag)
-    ]
+    missing = [(path, tag) for path, tag in images if path not in exceptions and not DIGEST_SUFFIX_RE.search(tag)]
 
     if not missing:
         print(f"OK: all {len(images)} image tag(s) in values.yaml are digest-pinned ({len(exceptions)} exempt)")
@@ -360,7 +357,7 @@ def check_shared_image_usage(chart_dir: Path, extra_args: list):
         return False, "helm template failed to render"
     rendered_paths = rendered_chart_paths(result.stdout)
 
-    values = load_yaml(values_path) or {}
+    values = load_yaml_mapping(values_path)
     deps = _deps_from_chart_yaml(chart_dir)
     repo_groups = _live_repository_groups(chart_dir, deps, values, rendered_paths)
     global_usage = _global_image_usage(values, repo_groups)
@@ -533,7 +530,7 @@ def check_subchart_image_visibility(chart_dir: Path, extra_args: list):
         return False, "helm template failed to render"
     rendered_paths = rendered_chart_paths(result.stdout)
 
-    own_values = load_yaml(chart_dir / "values.yaml") or {}
+    own_values = load_yaml_mapping(chart_dir / "values.yaml")
     deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     findings = find_unresolved_subchart_images(chart_dir, deps, own_values, rendered_paths)
     floating = [f for f in findings if not f[3]]

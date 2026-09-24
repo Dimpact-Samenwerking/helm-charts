@@ -28,12 +28,11 @@ failure semantics differ."""
 
 from pathlib import Path
 
-import yaml
-
 from lib.chart.chart_yaml import parse_chart_dependencies
 from lib.gitutil import find_repo_root
 from lib.gitutil import git_show_text
 from lib.gitutil import resolve_baseline_ref
+from lib.yaml_types import parse_yaml_mapping
 
 
 def resolve_baseline_chart_state(chart_dir: Path, baseline: str):
@@ -96,7 +95,7 @@ def resolve_baseline_chart_state(chart_dir: Path, baseline: str):
     baseline_deps = parse_chart_dependencies(chart_yaml_text, f"{baseline_ref}:{rel_chart_dir}/Chart.yaml")
 
     values_text = git_show_text(repo_root, baseline_ref, f"{rel_chart_dir}/values.yaml") or ""
-    baseline_values = yaml.safe_load(values_text) or {}
+    baseline_values = parse_yaml_mapping(values_text, f"{baseline_ref}:{rel_chart_dir}/values.yaml")
     baseline_lines = values_text.splitlines()
 
     return baseline_ref, baseline_deps, baseline_values, baseline_lines, None
@@ -139,7 +138,7 @@ def resolve_baseline_values(chart_dir: Path, baseline: str):
     values_text = git_show_text(repo_root, baseline_ref, f"{rel_chart_dir}/values.yaml")
     if values_text is None:
         return None, {}, [], f"could not read {rel_chart_dir}/values.yaml at {baseline_ref}"
-    baseline_values = yaml.safe_load(values_text) or {}
+    baseline_values = parse_yaml_mapping(values_text, f"{baseline_ref}:{rel_chart_dir}/values.yaml")
     baseline_lines = values_text.splitlines()
 
     return baseline_ref, baseline_values, baseline_lines, None

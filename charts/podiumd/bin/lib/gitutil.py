@@ -5,9 +5,9 @@ import re
 
 from pathlib import Path
 
-import yaml
-
 from lib.procutil import run
+from lib.yaml_types import YamlMapping
+from lib.yaml_types import parse_yaml_mapping
 
 
 def find_repo_root(start_path: Path):
@@ -75,10 +75,10 @@ def git_show_text(repo_root: Path, ref: str, relpath: str):
     return result.stdout
 
 
-def git_show_yaml(repo_root: Path, ref: str, relpath: str):
-    """git_show_text, parsed as YAML — for a caller that needs relpath's
-    structured contents as they were at ref (e.g. a historical
-    values.yaml or Chart.yaml), not its raw text. None if the file didn't
-    exist at that ref."""
+def git_show_yaml(repo_root: Path, ref: str, relpath: str) -> YamlMapping | None:
+    """git_show_text, parsed as a YAML mapping (see parse_yaml_mapping) —
+    for a caller that needs relpath's structured contents as they were
+    at ref (e.g. a historical values.yaml), not its raw text. None if the
+    file didn't exist at that ref."""
     text = git_show_text(repo_root, ref, relpath)
-    return yaml.safe_load(text) if text is not None else None
+    return parse_yaml_mapping(text, f"{ref}:{relpath}") if text is not None else None

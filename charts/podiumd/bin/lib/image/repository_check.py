@@ -35,11 +35,11 @@ from lib.chart.nested_subchart_identity import nested_subchart_documented_image_
 from lib.chart.nested_subchart_identity import nested_subchart_name_for
 from lib.chart.nested_subchart_identity import version_repository_path_for
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
-from lib.chart.release_baseline_basics import load_yaml
-from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
 
 
 @dataclass
@@ -63,7 +63,7 @@ def _path_has_repository(
     rules (own override, sibling repository field, documented nested
     subchart, then vendored subchart default) — see that function's
     docstring for why each fallback exists."""
-    own_repo = get_path(values, ".".join(path) + ".repository")
+    own_repo = text_at(values, ".".join(path) + ".repository")
     if isinstance(own_repo, str) and own_repo:
         return True
 
@@ -75,7 +75,7 @@ def _path_has_repository(
 
     sibling_rel = version_repository_path_for(dep["name"], ctx.chart_dir)
     if sibling_rel:
-        sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
+        sibling_repo = text_at(values, f"{path[0]}.{sibling_rel}")
         if isinstance(sibling_repo, str) and sibling_repo:
             return True
 
@@ -94,7 +94,7 @@ def _path_has_repository(
         sub_values, _source, _err = resolve_chart_values(ctx.chart_dir, dep, dep["version"], allow_pull=ctx.allow_pull)
         ctx.subchart_cache[dep["name"]] = sub_values
     sub_values = ctx.subchart_cache[dep["name"]]
-    sub_repo = get_path(sub_values, ".".join(path[1:]) + ".repository") if sub_values is not None else None
+    sub_repo = text_at(sub_values, ".".join(path[1:]) + ".repository") if sub_values is not None else None
     return isinstance(sub_repo, str) and bool(sub_repo)
 
 
@@ -120,7 +120,7 @@ def find_images_without_repository(chart_dir: Path, *, allow_pull: bool = False)
     repository of its own — confirmed live against the real chart, 9 of
     the first 10 findings this way were exactly this false positive)."""
     deps = load_chart_dependencies(chart_dir / "Chart.yaml")
-    values = load_yaml(chart_dir / "values.yaml") or {}
+    values = load_yaml_mapping(chart_dir / "values.yaml")
     by_values_key = {values_key_of(dep): dep for dep in deps}
     ctx = _RepositoryResolutionContext(chart_dir, allow_pull)
 

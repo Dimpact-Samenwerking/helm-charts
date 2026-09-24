@@ -26,8 +26,8 @@ from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_app_versions
 from lib.chart.values_tree_primitives import find_dependency
-from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import strip_registry_host
+from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.registry import parse_repo
 from lib.release_baseline import resolve_baseline_chart_state
@@ -255,7 +255,7 @@ def _grouped_repository_for_path(
     the tier order) — podiumd's own explicit override checked first,
     regardless of whether `dep` is even known; every other tier needs a
     real `dep` to resolve anything at all."""
-    own_repo = get_path(values, ".".join(path) + ".repository")
+    own_repo = text_at(values, ".".join(path) + ".repository")
     if isinstance(own_repo, str) and own_repo:
         return strip_registry_host(own_repo)
     if dep is None:
@@ -272,7 +272,7 @@ def _grouped_repository_from_dependency(
     override at `path` itself."""
     sibling_rel = version_repository_path_for(dep["name"], state.chart_dir)
     if sibling_rel:
-        sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
+        sibling_repo = text_at(values, f"{path[0]}.{sibling_rel}")
         if isinstance(sibling_repo, str) and sibling_repo:
             return strip_registry_host(sibling_repo)
 
@@ -283,7 +283,7 @@ def _grouped_repository_from_dependency(
     sub_values = _cached_subchart_values(dep, state)
     if sub_values is None:
         return None
-    repo = get_path(sub_values, ".".join(path[1:]) + ".repository")
+    repo = text_at(sub_values, ".".join(path[1:]) + ".repository")
     return strip_registry_host(repo) if isinstance(repo, str) and repo else None
 
 
@@ -414,10 +414,10 @@ def _full_repo_from_own_override(values: YamlMapping | None, path: tuple[str, ..
     tier (see that function's own docstring for the registry-sibling /
     Docker-Hub-inference rules), or None when there's no own override
     at `path` at all."""
-    own_repo = get_path(values, ".".join(path) + ".repository")
+    own_repo = text_at(values, ".".join(path) + ".repository")
     if not (isinstance(own_repo, str) and own_repo):
         return None
-    registry = get_path(values, ".".join(path) + ".registry")
+    registry = text_at(values, ".".join(path) + ".registry")
     if isinstance(registry, str) and registry:
         registry_head = registry.partition("/")[0]
         if "." in registry_head or ":" in registry_head or registry_head == "localhost":
@@ -435,7 +435,7 @@ def _full_repo_from_dependency(
     override at `path` itself."""
     sibling_rel = version_repository_path_for(dep["name"], chart_dir)
     if sibling_rel:
-        sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
+        sibling_repo = text_at(values, f"{path[0]}.{sibling_rel}")
         if isinstance(sibling_repo, str) and sibling_repo:
             return _formatted_repo(sibling_repo)
 
@@ -451,7 +451,7 @@ def _full_repo_from_dependency(
     sub_values, _source, _err = resolve_chart_values(chart_dir, dep, dep["version"], allow_pull=allow_pull)
     if sub_values is None:
         return None
-    repo = get_path(sub_values, ".".join(path[1:]) + ".repository")
+    repo = text_at(sub_values, ".".join(path[1:]) + ".repository")
     return _formatted_repo(repo) if isinstance(repo, str) and repo else None
 
 
@@ -543,7 +543,7 @@ def canonical_sidecar_row_names(
         if row_name is not None:
             names[row_name] = path
     for path in global_paths:
-        repo = get_path(values, ".".join(path) + ".repository")
+        repo = text_at(values, ".".join(path) + ".repository")
         if isinstance(repo, str) and repo:
             names[strip_registry_host(repo).rsplit("/", 1)[-1]] = path
     return names
@@ -614,7 +614,7 @@ def _global_repository_set(values: YamlMapping, global_paths: list):
     same version bump two separate canonical names)."""
     global_repos = set()
     for path in global_paths:
-        repo = get_path(values, ".".join(path) + ".repository")
+        repo = text_at(values, ".".join(path) + ".repository")
         if isinstance(repo, str) and repo:
             global_repos.add(strip_registry_host(repo))
     return global_repos
@@ -704,7 +704,7 @@ def subchart_default_repository(
     values = cache[dep["name"]]
     if values is None:
         return None
-    return get_path(values, f"{subpath}.repository")
+    return text_at(values, f"{subpath}.repository")
 
 
 def subchart_needs_vendoring(chart_dir: Path, lines: list[str], pin_line: int, deps: list[ChartDependency]):

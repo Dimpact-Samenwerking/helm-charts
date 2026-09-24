@@ -4,8 +4,11 @@ walking a values tree for every image-tag/version path a
 dependency or native component actually pins."""
 
 from collections.abc import Collection
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
+from typing import overload
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
@@ -14,10 +17,13 @@ from lib.chart.registered_paths import component_image_paths
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import version_paths_for
 from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import words_of
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import YamlValue
+from lib.yaml_types import scalar_text
 
 
 def actual_app_version(
@@ -75,11 +81,11 @@ def actual_app_version(
     distinct alias, so the registry lookup still finds it."""
     resolved_component = component or values_key
     for path in image_paths_for(resolved_component, chart_dir):
-        tag = get_path(values, f"{values_key}.{path}.tag")
+        tag = text_at(values, f"{values_key}.{path}.tag")
         if tag:
             return tag.split("@")[0]
     for path in version_paths_for(resolved_component, chart_dir):
-        version = get_path(values, f"{values_key}.{path}")
+        version = text_at(values, f"{values_key}.{path}")
         if isinstance(version, str) and version:
             return version.split("@")[0]
     if chart_dir is not None and dep is not None and resolved_component in component_image_paths(chart_dir):
@@ -154,7 +160,7 @@ def resolve_baseline_component_versions(query: BaselineComponentQuery):
     and moved. None outright when baseline_dep is None (no Chart.yaml
     dependency at the baseline at all)."""
     raw_old_chart = str(query.baseline_dep["version"]) if query.baseline_dep is not None else None
-    baseline_tag = get_path(query.baseline_values, f"{query.values_key}.{query.image_path}.tag") or ""
+    baseline_tag = text_at(query.baseline_values, f"{query.values_key}.{query.image_path}.tag") or ""
     old_app = baseline_tag.split("@", 1)[0] or None
     if (
         old_app is None
@@ -173,7 +179,25 @@ def resolve_baseline_component_versions(query: BaselineComponentQuery):
     return old_app, old_chart
 
 
-def find_image_tag_paths(node: object, path: tuple = (), *, include_null_tags: bool = False):
+# A path into a values tree, one key (or list index, as a string) per level.
+ImagePath = tuple[str, ...]
+
+
+@overload
+def find_image_tag_paths(
+    node: YamlValue, path: ImagePath = (), *, include_null_tags: Literal[False] = False
+) -> Iterator[tuple[ImagePath, str]]: ...
+
+
+@overload
+def find_image_tag_paths(
+    node: YamlValue, path: ImagePath = (), *, include_null_tags: bool
+) -> Iterator[tuple[ImagePath, str | None]]: ...
+
+
+def find_image_tag_paths(
+    node: YamlValue, path: ImagePath = (), *, include_null_tags: bool = False
+) -> Iterator[tuple[ImagePath, str | None]]:
     """Yield (path, tag) for every "<key>: {tag: ...}" block anywhere in a
     values tree, where <key> is "image" or ends with "Image" (e.g.
     "initImage", alongside "image" in the very same job, for a component
@@ -225,8 +249,9 @@ def find_image_tag_paths(node: object, path: tuple = (), *, include_null_tags: b
         for key, value in node.items():
             if (key == "image" or key.endswith("Image")) and isinstance(value, dict):
                 tag = value.get("tag")
-                if tag:
-                    yield (*path, key), tag
+                tag_text = scalar_text(tag)
+                if tag_text:
+                    yield (*path, key), tag_text
                 elif include_null_tags and tag is None and value.get("repository"):
                     yield (*path, key), None
         for key, value in node.items():
@@ -238,7 +263,7 @@ def find_image_tag_paths(node: object, path: tuple = (), *, include_null_tags: b
             yield from find_image_tag_paths(item, (*path, str(i)), include_null_tags=include_null_tags)
 
 
-def find_component_version_tags(values: YamlMapping, deps: list[ChartDependency]):
+def find_component_version_tags(values: YamlMapping, deps: list[ChartDependency]) -> Iterator[tuple[ImagePath, str]]:
     """(path, value) for every lib.chart.component_version_paths()- or
     lib.settings.component_resolution_version_path_nested_subcharts-
     registered bare tag/version field that's actually pinned in `values`
@@ -264,7 +289,7 @@ def find_component_version_tags(values: YamlMapping, deps: list[ChartDependency]
                 yield tuple(values_key.split(".")) + tuple(rel.split(".")), value
 
 
-def find_all_image_and_version_paths(values: YamlMapping, deps: list[ChartDependency]):
+def find_all_image_and_version_paths(values: YamlMapping, deps: list[ChartDependency]) -> list[tuple[ImagePath, str]]:
     """find_image_tag_paths(values) plus find_component_version_tags(values,
     deps) — every image tag AND registered bare-version pin in one
     combined [(path, value), ...] list. Use this (not find_image_tag_
