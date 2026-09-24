@@ -26,6 +26,7 @@ Examples:
 Re-render the chart (verify-podiumd) before committing.
 """
 
+import copy
 import re
 import sys
 
@@ -59,7 +60,9 @@ from lib.chart.values_tag_sha_lines import find_child_key_line
 from lib.chart.values_tag_sha_lines import locate_dotted_key_line
 from lib.chart.values_tag_sha_lines import locate_tag_and_sha
 from lib.chart.values_tag_sha_lines import write_tag_and_sha
+from lib.chart.values_tree_primitives import deep_merge
 from lib.chart.values_tree_primitives import dep_for_values_key
+from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import require_dependency
 from lib.chart.values_tree_primitives import text_at
@@ -136,7 +139,10 @@ def verify_component_version(
     gate before any file is touched. Returns results keyed by path; exits
     1 if the chart version or an image version doesn't exist. `dep is
     None` means native_components — component_values is checked directly
-    instead of pulling a chart."""
+    instead of pulling a chart. Otherwise component_values (podiumd's own
+    values for this component) is deep-merged over the pulled chart's
+    values, so a "repository:" podiumd overrides is the one checked, as
+    the tag writers below write against it."""
     if dep is None or chart_version is None:
         print(
             "No Chart.yaml dependency for this component — resolving image repositories "
@@ -156,8 +162,10 @@ def verify_component_version(
         print("FAIL: chart version does not exist — refusing to change any files")
         sys.exit(1)
 
+    values_for_check = copy.deepcopy(upstream_values)
+    deep_merge(values_for_check, component_values or {})
     print(f"\nChecking app version {app_version!r} for {values_key_of(dep)}:")
-    return _check_and_print_image_versions(upstream_values, image_paths, app_version)
+    return _check_and_print_image_versions(values_for_check, image_paths, app_version)
 
 
 def update_chart_yaml(chart_name: str, new_chart_version: str):
@@ -404,17 +412,13 @@ def _verify_versions(ctx: BumpContext):
     """Run verify_component_version (the single upfront gate before any
     file is touched), then print the chart-version status line. Returns
     (upstream_images, chart_unchanged)."""
-    if ctx.no_chart:
-        component_values = ctx.values.get(ctx.values_key)
-        upstream_images = verify_component_version(
-            None,
-            ctx.image_paths,
-            ctx.app_version,
-            None,
-            component_values=component_values if isinstance(component_values, dict) else {},
-        )
-    else:
-        upstream_images = verify_component_version(ctx.dep, ctx.image_paths, ctx.app_version, ctx.chart_version)
+    upstream_images = verify_component_version(
+        None if ctx.no_chart else ctx.dep,
+        ctx.image_paths,
+        ctx.app_version,
+        None if ctx.no_chart else ctx.chart_version,
+        component_values=mapping_at(ctx.values, ctx.values_key),
+    )
 
     print()
     chart_unchanged = True if ctx.no_chart else str(ctx.dep["version"]) == str(ctx.chart_version)

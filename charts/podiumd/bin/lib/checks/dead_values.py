@@ -65,7 +65,7 @@ Cost control has two independent halves:
    disk, this renders THAT sub-chart alone (`helm template <name> <its
    .tgz>`) instead of the full umbrella chart, with a `-f` overlay built
    from podiumd's own merged values (values.yaml + ci/lint-values.yaml,
-   replicated in Python via _load_merged_values/_deep_merge — Helm's own
+   replicated in Python via _load_merged_values/deep_merge — Helm's own
    -f layering can't slice a subset of an already-merged tree, which is
    what a scoped render needs) sliced down to just that key's own
    subtree plus "global" (which Helm always propagates into every
@@ -196,6 +196,7 @@ from lib.chart.chart_yaml import chart_dependencies
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.chart_yaml import load_chart_yaml
 from lib.chart.pull_and_subchart_resolution import subchart_values
+from lib.chart.values_tree_primitives import deep_merge
 from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.procutil import run
@@ -320,15 +321,6 @@ def _set_path(tree: YamlMapping, path: LeafPath, value: YamlValue):
     node[path[-1]] = value
 
 
-def _deep_merge(base: YamlMapping, overlay: YamlMapping):
-    for key, value in overlay.items():
-        sub = base.get(key)
-        if isinstance(value, dict) and isinstance(sub, dict):
-            _deep_merge(sub, value)
-        else:
-            base[key] = value
-
-
 def _load_merged_values(chart_dir: Path, extra_args: list[str]) -> YamlMapping:
     """Python-side equivalent of what -f-layering `helm template` does to
     values.yaml: values.yaml deep-merged with every "-f <file>" in
@@ -341,7 +333,7 @@ def _load_merged_values(chart_dir: Path, extra_args: list[str]) -> YamlMapping:
     merged = copy.deepcopy(load_yaml_mapping(chart_dir / "values.yaml"))
     for i, arg in enumerate(extra_args):
         if arg == "-f":
-            _deep_merge(merged, load_yaml_mapping(Path(extra_args[i + 1])))
+            deep_merge(merged, load_yaml_mapping(Path(extra_args[i + 1])))
     return merged
 
 
@@ -371,7 +363,7 @@ def _coalesced_values(chart_dir: Path, merged_values: YamlMapping, dep_by_key: d
         if defaults is None:
             continue
         with_defaults = copy.deepcopy(defaults)
-        _deep_merge(with_defaults, mapping_at(coalesced, key))
+        deep_merge(with_defaults, mapping_at(coalesced, key))
         coalesced[key] = with_defaults
     return coalesced
 
@@ -864,7 +856,7 @@ def _build_scan_context(chart_dir: Path, extra_args: list[str], full_scope: Rend
     # without breaking the full-chart render (see _make_full_scope) —
     # reusing it keeps _make_own_scope's own baseline from hitting the
     # exact same, already-known-bad forced-enable independently.
-    _deep_merge(merged_values, full_scope["base_overlay"])
+    deep_merge(merged_values, full_scope["base_overlay"])
     dep_by_key = _dependency_by_key(chart_dir)
 
     own_scope = _make_own_scope(chart_dir, _coalesced_values(chart_dir, merged_values, dep_by_key))

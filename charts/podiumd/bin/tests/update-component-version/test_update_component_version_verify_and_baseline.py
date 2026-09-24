@@ -98,6 +98,38 @@ def test_verify_component_version_exits_when_image_does_not_exist(ucv: ModuleTyp
         ucv.verify_component_version(dep, ["image"], "9.9.9", "1.12.0")
 
 
+def _checked_repositories(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch, component_values):
+    """Runs verify_component_version against a faked pulled chart whose
+    image.repository is maykinmedia/open-forms, returning the repository
+    check_image_versions was asked to check."""
+    dep = {"name": "openforms", "alias": "openformulieren", "version": "1.11.0", "repository": "@maykinmedia"}
+    upstream = {"image": {"repository": "maykinmedia/open-forms", "tag": "3.5.5"}}
+    monkeypatch.setattr(
+        ucv, "resolve_chart_values", lambda chart_dir, dep_arg, version, allow_pull=True: (upstream, "pulled", None)
+    )
+    checked = []
+
+    def fake_check(values, image_paths, app_version):
+        repo = values["image"]["repository"]
+        checked.append(repo)
+        return [{"path": "image", "repository": repo, "host": "x", "repo_path": repo, "exists": True, "digest": None}]
+
+    monkeypatch.setattr(ucv, "check_image_versions", fake_check)
+    ucv.verify_component_version(dep, ["image"], "3.5.6", "1.12.0", component_values=component_values)
+    assert upstream == {"image": {"repository": "maykinmedia/open-forms", "tag": "3.5.5"}}, "pulled values mutated"
+    return checked
+
+
+def test_verify_component_version_checks_podiumd_repository_override(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    component_values = {"image": {"repository": "acr.example.io/open-forms", "tag": "3.5.5"}}
+    assert _checked_repositories(ucv, monkeypatch, component_values) == ["acr.example.io/open-forms"]
+
+
+def test_verify_component_version_falls_back_to_upstream_repository(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    component_values = {"image": {"tag": "3.5.5"}}
+    assert _checked_repositories(ucv, monkeypatch, component_values) == ["maykinmedia/open-forms"]
+
+
 # --- baseline_doc_paths ---
 
 

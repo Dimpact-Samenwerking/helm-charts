@@ -54,6 +54,18 @@ def mapping_at(node: YamlValue, dotted_path: str) -> YamlMapping:
     return value if isinstance(value, dict) else {}
 
 
+def deep_merge(base: YamlMapping, overlay: YamlMapping):
+    """Merge overlay into base in place, the way Helm layers values: a
+    mapping in both is merged key by key, any other overlay value
+    replaces base's."""
+    for key, value in overlay.items():
+        sub = base.get(key)
+        if isinstance(value, dict) and isinstance(sub, dict):
+            deep_merge(sub, value)
+        else:
+            base[key] = value
+
+
 def replace_scalar_value(line: str, new_value: str) -> str:
     """Replace a "key: <value>" line's scalar value, preserving indent, key,
     quote style, any "&anchor" tag (e.g. "tag: &keycloakImageVersion
