@@ -27,6 +27,10 @@ Always run before committing changes to `charts/podiumd/`:
 
 This runs BOM check + duplicate key detection + helm lint in one step.
 
+## Markdown
+
+Every `*.md` file you create or edit must pass `/markdown-lint` before it is committed: 0 findings for docs under `charts/podiumd/`, no new findings elsewhere. `verify-podiumd`'s markdown step fails on any finding, with the same pymarkdown rules. Write it correctly the first time: a language on every fenced block, blank lines around headings, lists and fences, no trailing spaces, no inline HTML, and in upgrade guides only component version changes as a level-3 section under "Changes".
+
 ## Available slash commands
 
 | Command | Purpose |
@@ -35,6 +39,7 @@ This runs BOM check + duplicate key detection + helm lint in one step.
 | `/helm-render` | Render a single template |
 | `/helm-render-all` | Render all templates |
 | `/helm-precommit` | BOM check + dup-key check + lint (run before every commit) |
+| `/markdown-lint` | Lint and fix changed `*.md` files with the `verify-podiumd` markdown rules (run after writing any Markdown) |
 | `/helm-deps` | Update Helm dependencies |
 | `/helm-repos` | Add all required Helm repositories |
 | `/helm-fetch-updates` | Check for upstream component updates |

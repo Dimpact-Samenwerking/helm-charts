@@ -165,6 +165,10 @@ pwsh charts/podiumd/scripts/check-duplicate-keys.ps1 -Staged
 
 List-item hits (`value:`, `mountPath:`) = false positives, ignore.
 
+### Markdown
+
+Every `*.md` file under `charts/podiumd/` (except the helm-docs-generated `README.md`, `bin/`, vendored charts and past releases' upgrade docs) must pass pymarkdown with `verify-podiumd`'s settings before commit, with 0 findings: `pymarkdown -d md013,md014 -s 'plugins.md024.siblings_only=$!True' scan <files>`. Other Markdown gets no new findings. Write it correctly from the start: a language on every fenced block, blank lines around headings/lists/fences, no trailing spaces, no inline HTML (`<br/>`), no trailing punctuation in headings. In `docs/_UPGRADE_PATHS/*-upgrade.md`, only component version changes go as level-3 sections under "Changes" (each with a Component versions row); other changes get their own level-2 section. Claude Code: `/markdown-lint`.
+
 ### Git Workflow
 Never commit or push automatically. Always wait for explicit user approval before `git commit` or `git push`.
 
