@@ -123,6 +123,32 @@ def test_fix_images_manifest_entry_urls_leaves_correct_url_untouched(cdb, images
     assert new_text == text
 
 
+def test_fix_images_manifest_entry_urls_reports_url_line_with_trailing_text(cdb, images_manifest_chart_dir):
+    """Regression test: a "url:" line with text after the url (here a YAML
+    comment) is found as the entry's url line but has no single url
+    value. It used to crash with AttributeError; it is now reported as
+    unresolved and left as it is."""
+    text = (
+        "# zac 5.0.2 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent  # primary image\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    target_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}}
+    }
+
+    repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image")}
+    new_text, changed, unresolved = cdb.fix_images_manifest_entry_urls(
+        text, images_manifest_chart_dir, deps, target_values, repo_map
+    )
+    assert changed == []
+    assert unresolved == ["infonl/zaakafhandelcomponent"]
+    assert new_text == text
+
+
 def test_fix_images_manifest_entry_urls_reports_unresolvable_entry(cdb, tmp_path):
     write(tmp_path / "Chart.yaml", yaml.safe_dump({"dependencies": []}))
     write(tmp_path / "values.yaml", yaml.safe_dump({}))

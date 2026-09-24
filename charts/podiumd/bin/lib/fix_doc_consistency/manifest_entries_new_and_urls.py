@@ -158,7 +158,10 @@ def _entry_url_status(entry: dict, line_idx: int, lines: list[str], current_path
     if url_idx is None:
         return "unresolved", name
 
-    current_url = re.match(r"^\s*url:\s*(\S+)\s*$", lines[url_idx]).group(1)
+    url_m = re.match(r"^\s*url:\s*(\S+)\s*$", lines[url_idx])
+    if url_m is None:
+        return "unresolved", name  # text after the url: no single value to compare
+    current_url = url_m.group(1)
     if current_url == full_repo:
         return "unchanged", None
     lines[url_idx] = replace_scalar_value(lines[url_idx], full_repo)

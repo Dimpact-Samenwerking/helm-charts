@@ -298,6 +298,9 @@ def _run_with_retries(chart_dir: Path, cmd: list[str], label: str, out: TextIO, 
             delay = retry_backoff_seconds[attempt - 1]
             print(f"{label} failed (attempt {attempt}/{retry_attempts}), retrying in {delay}s...", file=out)
             time.sleep(delay)
+    if result is None:
+        msg = f"error: settings.yaml dependency_fetch.retry_attempts must be at least 1, got {retry_attempts}"
+        raise SystemExit(msg)
     return result
 
 
