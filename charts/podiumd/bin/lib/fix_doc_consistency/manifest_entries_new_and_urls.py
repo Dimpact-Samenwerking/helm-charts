@@ -54,7 +54,7 @@ class UrlFixContext:
     entry helper need all four together."""
 
     chart_dir: Path
-    deps: list
+    deps: list[ChartDependency]
     target_values: dict
     repo_map: dict | None = None
 
@@ -68,7 +68,7 @@ class MissingEntriesContext:
     together."""
 
     chart_dir: Path
-    deps: list
+    deps: list[ChartDependency]
     target_values: dict
     baseline_values: dict | None
     allow_pull: bool = False

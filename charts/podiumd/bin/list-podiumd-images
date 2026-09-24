@@ -81,7 +81,7 @@ class ChartContext:
     component_version_rows, so bundled here rather than threaded through
     as three separate arguments each."""
 
-    deps: list
+    deps: list[ChartDependency]
     root_values: dict
     rendered_paths: set
 

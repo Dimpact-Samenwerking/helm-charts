@@ -147,7 +147,7 @@ class ValuesDeltaOrdering:
     exact same instance rather than re-assembling it from separate
     target_deps/target_values/canonical_names locals."""
 
-    deps: list
+    deps: list[ChartDependency]
     values: dict | None
     canonical_names: dict | None = None
 
@@ -159,7 +159,7 @@ class ValuesDeltaBaseline:
     a NEW section's own old_app/old_chart (a key already covered by an
     existing section never needs the baseline at all)."""
 
-    deps: list | None
+    deps: list[ChartDependency] | None
     values: dict | None
 
 

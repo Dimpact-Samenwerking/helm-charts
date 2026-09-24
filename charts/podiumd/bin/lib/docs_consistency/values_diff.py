@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.component_docs.values_delta_sections import find_values_delta_section
 from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys
 from lib.upgradedoc.grouped_comments_and_changes_block import pair_renames
@@ -22,7 +23,7 @@ class ValuesDeltaInputs:
 
     baseline_values: dict | None
     values: dict | None
-    deps: list
+    deps: list[ChartDependency]
     canonical_names: dict | None = None
 
 

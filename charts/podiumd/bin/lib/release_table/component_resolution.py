@@ -6,6 +6,7 @@ import re
 
 from collections.abc import Callable
 from collections.abc import Collection
+from collections.abc import Sequence
 from pathlib import Path
 
 from lib.chart.chart_yaml import load_chart_dependencies
@@ -54,7 +55,12 @@ def _related(a: str, b: str):
     return word_contains(a, b) or word_contains(b, a)
 
 
-def chart_dependencies(chart_dir: Path):
+# (dependency name, alias or "") for one Chart.yaml dependency, or
+# (values.yaml key, "") for an orphan top-level key.
+DependencyNames = tuple[str, str]
+
+
+def chart_dependencies(chart_dir: Path) -> list[DependencyNames]:
     """[(dependency_name, alias_or_empty), ...], in Chart.yaml order,
     for every chart_dir/Chart.yaml dependency — e.g.
     [("internetaakafhandeling", "ita"), ("openzaak", ""), ...]. [] if
@@ -65,7 +71,7 @@ def chart_dependencies(chart_dir: Path):
     return [(dep["name"], dep.get("alias", "")) for dep in load_chart_dependencies(chart_yaml_path)]
 
 
-def orphan_values_yaml_keys(chart_dir: Path, dependencies: list):
+def orphan_values_yaml_keys(chart_dir: Path, dependencies: Sequence[DependencyNames]):
     """[(key, ""), ...] for every top-level key of chart_dir/values.yaml
     that isn't already a Chart.yaml dependency's own name or alias (see
     `dependencies`, from chart_dependencies) — e.g. "frankgateway", a
@@ -117,7 +123,7 @@ def global_image_keys(chart_dir: Path):
 MatchTier = Callable[[str, str, str | None], bool]
 
 
-def _tier_matches(candidates: list[str], dependencies: list | tuple, predicate: MatchTier):
+def _tier_matches(candidates: list[str], dependencies: Sequence[DependencyNames], predicate: MatchTier):
     """{dependency_name: alias} for every dependency in `dependencies`
     where `predicate(candidate, dependency_name, alias)` holds for at
     least one of `candidates` — every distinct dependency that matches
@@ -159,7 +165,9 @@ _EXACT_TIERS = _MATCH_TIERS[:2]
 _RELATION_TIERS = _MATCH_TIERS[2:]
 
 
-def _resolve_against(candidates: list[str], dependencies: list | tuple, tiers: list[MatchTier] | None = None):
+def _resolve_against(
+    candidates: list[str], dependencies: Sequence[DependencyNames], tiers: list[MatchTier] | None = None
+):
     """(dependency_name, alias) from the first tier in `tiers` (default
     _MATCH_TIERS) with exactly one distinct match against `dependencies`,
     ("MULTIPLE", "MULTIPLE") from the first tier with more than one, or
@@ -175,7 +183,10 @@ def _resolve_against(candidates: list[str], dependencies: list | tuple, tiers: l
 
 
 def component_and_alias(
-    name: str, dependencies: list, orphan_keys: list | tuple = (), global_image_key_names: list | tuple = ()
+    name: str,
+    dependencies: Sequence[DependencyNames],
+    orphan_keys: list | tuple = (),
+    global_image_key_names: list | tuple = (),
 ):
     """(component, alias) for `name` (the CSV "name" column value),
     resolved against `dependencies` (see chart_dependencies) by trying

@@ -170,7 +170,7 @@ class BaselineLookup:
     than re-derived per path/per call)."""
 
     chart_dir: Path | None
-    deps: list
+    deps: list[ChartDependency]
     target_values: dict
     baseline_values: dict | None
     baseline_paths: dict

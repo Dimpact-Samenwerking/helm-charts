@@ -81,7 +81,7 @@ class OrderingContext:
     bare "global" shared-image row/section insert at its own real
     values.yaml position instead of always last)."""
 
-    deps: list
+    deps: list[ChartDependency]
     values: dict | None
     canonical_names: dict | None = None
 
@@ -108,7 +108,7 @@ class ComponentState:
     side, compared against each other, and never mix a target dep with
     a baseline value or vice versa by construction."""
 
-    deps: list
+    deps: list[ChartDependency]
     values: dict
 
 
@@ -118,7 +118,7 @@ class BaselineState:
     when no baseline was resolved: baseline comparisons are then skipped
     (see lib.upgradedoc.resolve_component_row)."""
 
-    deps: list | None
+    deps: list[ChartDependency] | None
     values: dict | None
 
 

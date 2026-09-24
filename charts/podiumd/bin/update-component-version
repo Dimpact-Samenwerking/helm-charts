@@ -276,7 +276,7 @@ class BumpContext:
 
     versions: TargetVersions
     resolution: ComponentResolution
-    deps: list
+    deps: list[ChartDependency]
     values: dict
     image_paths: list
 

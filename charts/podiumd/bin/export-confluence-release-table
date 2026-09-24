@@ -45,6 +45,7 @@ from lib.confluence_tables import major_minor
 from lib.confluence_tables import missing_required_release_columns
 from lib.confluence_tables import select_release_columns
 from lib.confluence_tables import tables_under_headings
+from lib.release_table.component_resolution import DependencyNames
 from lib.release_table.component_resolution import chart_dependencies
 from lib.release_table.component_resolution import component_and_alias
 from lib.release_table.component_resolution import global_image_keys
@@ -364,7 +365,7 @@ class ComponentResolutionContext:
     from_data_row so every row in every table resolves against the
     exact same values (never re-derived per-row/per-table)."""
 
-    dependencies: list
+    dependencies: list[DependencyNames]
     orphan_keys: list
     global_keys: list
 
