@@ -15,6 +15,7 @@ from typing import TypedDict
 from typing import TypeVar
 
 from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.repo_and_path_resolution import SubchartValuesCache
 from lib.chart.repo_and_path_resolution import subchart_default_repository
 from lib.registry import UNVERIFIABLE_HOSTS
 from lib.registry import is_sliding_tag
@@ -292,7 +293,7 @@ def unique_digest_pin_targets(values_lines: list[str]) -> dict[tuple[str, str], 
     return targets
 
 
-def resolve_pin_targets(chart_dir: Path):
+def resolve_pin_targets(chart_dir: Path) -> tuple[list[DigestPin], dict[tuple[str, str], list[DigestPin]]]:
     """pins (repository resolved via resolve_pin_repo, falling back to
     the vendored subchart's own default via subchart_default_repository
     when values.yaml has no active "repository:" of its own — the
@@ -308,12 +309,12 @@ def resolve_pin_targets(chart_dir: Path):
 
     chart_yaml_path = chart_dir / "Chart.yaml"
     deps = load_chart_dependencies(chart_yaml_path) if chart_yaml_path.is_file() else []
-    subchart_cache = {}
+    subchart_cache: SubchartValuesCache = {}
     for p in pins:
         if not p["repository"]:
             p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
 
-    targets = {}
+    targets: dict[tuple[str, str], list[DigestPin]] = {}
     for p in pins:
         if p["repository"]:
             targets.setdefault((p["repository"], p["version"]), []).append(p)
@@ -489,6 +490,16 @@ class PinCheckContext:
     loc: PinLocation
 
 
+# (repository, version, pinned_digest, upstream_digest, lines) of a pin
+# whose upstream digest differs.
+DigestMismatch = tuple[str, str, str, str, str]
+# (repository, version, error, lines) of a pin whose lookup failed.
+PinFailure = tuple[str, str, str | None, str]
+# (repository, version, pinned_digest, lines) of a pin whose digest is
+# gone upstream.
+GonePin = tuple[str, str, str, str]
+
+
 @dataclass
 class DigestCheckAccumulator:
     """matched count + one list per outcome kind, mutated in place by
@@ -496,12 +507,12 @@ class DigestCheckAccumulator:
     back afterward for the summary prints and the final detail string."""
 
     matched: int
-    mismatches: list
-    sliding_mismatches: list
-    fetch_errors: list
-    unverifiable: list
-    digest_gone: list
-    digest_check_errors: list
+    mismatches: list[DigestMismatch]
+    sliding_mismatches: list[DigestMismatch]
+    fetch_errors: list[PinFailure]
+    unverifiable: list[PinFailure]
+    digest_gone: list[GonePin]
+    digest_check_errors: list[PinFailure]
 
 
 ResultT = TypeVar("ResultT")
@@ -524,7 +535,9 @@ def _call_with_retry(fn: Callable[[], ResultT]) -> tuple[ResultT | None, str | N
     return (result, None) if error is None else (None, error)
 
 
-def _build_pin_context(chart_dir: Path, values_path: Path, repository: str, version: str, group: list):
+def _build_pin_context(
+    chart_dir: Path, values_path: Path, repository: str, version: str, group: list[DigestPin]
+) -> PinCheckContext:
     """Resolve host/repo_path and the shared pinned_digest/lines_str for
     one (repository, version) target's pin group, bundled into the
     context every per-pin helper below needs."""
@@ -649,7 +662,7 @@ def _print_unresolved_pins(unresolved: list[DigestPin]):
     print()
 
 
-def _print_unverifiable_pins(unverifiable: list):
+def _print_unverifiable_pins(unverifiable: list[PinFailure]) -> None:
     """Every pin on a host lib.registry.UNVERIFIABLE_HOSTS excuses, or
     whose manifest carried no digest header — not counted as a failure."""
     if not unverifiable:
@@ -712,7 +725,7 @@ def _print_drifted_pins(drifted: dict[str, RepeatedPin]):
 
 def _build_digest_check_result(
     acc: DigestCheckAccumulator,
-    targets: dict,
+    targets: dict[tuple[str, str], list[DigestPin]],
     duplicates: dict[str, RepeatedPin],
     drifted: dict[str, RepeatedPin],
     inconsistent: dict[str, RepeatedPin],

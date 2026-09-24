@@ -19,10 +19,10 @@ IMAGE_LINE_RE = re.compile(r"^\s*image:\s*(.+)$")
 HELPER_CALL_RE = re.compile(r'include\s+"podiumd\.image"')
 
 
-def scan_image_references(templates_dir: Path):
+def scan_image_references(templates_dir: Path) -> list[tuple[Path, int, str]]:
     """Returns a list of (path, line_no, value) for every `image:` line in
     templates/*.yaml whose value doesn't call the podiumd.image helper."""
-    findings = []
+    findings: list[tuple[Path, int, str]] = []
     for path in sorted(templates_dir.rglob("*.yaml")):
         if not path.is_file():
             continue

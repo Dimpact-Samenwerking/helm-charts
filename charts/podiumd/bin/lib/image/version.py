@@ -40,14 +40,24 @@ class PinUpdate(TypedDict):
     new_digest: str
 
 
-def image_basename(repository: str):
+class ScopedPin(TypedDict):
+    """A DigestPin find_matches_in_scope matched, so its repository is
+    known."""
+
+    line: int
+    version: str
+    digest: str
+    repository: str
+
+
+def image_basename(repository: str) -> str:
     """The last "/"-separated segment of a repository string — "pabc-api"
     for "ghcr.io/platform-autorisatie-beheer-component/pabc-api", "curl"
     for "curlimages/curl"."""
     return repository.rstrip("/").rsplit("/", 1)[-1]
 
 
-def find_matches(lines: list[str], basename: str):
+def find_matches(lines: list[str], basename: str) -> list[DigestPin]:
     """Every scan_digest_pins() pin whose resolved repository has this
     basename. A pin with no resolvable repository (relies on a vendored
     sub-chart's own default — e.g. openzaak/openformulieren, see
@@ -60,7 +70,7 @@ def find_matches(lines: list[str], basename: str):
     ]
 
 
-def find_matches_any_tag(lines: list, basename: str):
+def find_matches_any_tag(lines: list[str], basename: str) -> list[VersionPin]:
     """The SAME search find_matches does, but over scan_version_pins
     instead of scan_digest_pins — matches a bare (non-digest-pinned) tag
     too, not just a digest-pinned one. Exists EXCLUSIVELY for verify-
@@ -76,7 +86,7 @@ def find_matches_any_tag(lines: list, basename: str):
     ]
 
 
-def basenames_under_scope(lines: list[str], scope_key: str):
+def basenames_under_scope(lines: list[str], scope_key: str) -> dict[str, list[DigestPin]]:
     """{basename: [pin, ...]} for every literal digest pin (see
     scan_digest_pins) whose values.yaml path starts with scope_key and
     ends in "...tag" — i.e. every image actually pinned somewhere inside
@@ -88,7 +98,7 @@ def basenames_under_scope(lines: list[str], scope_key: str):
     return _group_by_basename_in_scope(lines, scan_digest_pins(lines), scope_key)
 
 
-def basenames_under_scope_any_tag(lines: list, scope_key: str):
+def basenames_under_scope_any_tag(lines: list[str], scope_key: str) -> dict[str, list[VersionPin]]:
     """The SAME grouping basenames_under_scope does, but over scan_
     version_pins instead of scan_digest_pins — see find_matches_any_tag's
     own docstring for why, and when this one (vs. the digest-required
@@ -117,7 +127,7 @@ def _group_by_basename_in_scope(lines: list[str], pins: list[PinT], scope_key: s
     """{basename: [pin, ...]} for the `pins` whose values.yaml path is
     under top-level `scope_key` (ignoring case, like find_matches_in_
     scope) and ends in "...tag"."""
-    result = {}
+    result: dict[str, list[PinT]] = {}
     for pin in pins:
         if not pin["repository"]:
             continue
@@ -128,7 +138,7 @@ def _group_by_basename_in_scope(lines: list[str], pins: list[PinT], scope_key: s
     return result
 
 
-def repository_for_basename_in_scope(lines: list, scope_key: str, basename: str):
+def repository_for_basename_in_scope(lines: list[str], scope_key: str, basename: str) -> str | None:
     """The single real repository <scope_key>.<basename> resolves to in
     THIS chart state (these `lines`) — basenames_under_scope_any_tag's
     own scoped result when it has one (authoritative: this basename
@@ -175,7 +185,7 @@ MULTIPLE_KEY = "MULTIPLE"
 GLOBAL_IMAGES_SCOPE = "global"
 
 
-def resolve_key_scope(key: str, deps: list[ChartDependency]):
+def resolve_key_scope(key: str, deps: list[ChartDependency]) -> str:
     """<key> as given on the CLI, translated to the literal top-level
     values.yaml key resolve_scoped_matches/find_matches_in_scope actually
     scan for — accepting EITHER a Chart.yaml dependency's own "name" or
@@ -202,24 +212,27 @@ def resolve_key_scope(key: str, deps: list[ChartDependency]):
     return values_key_of(dep) if dep is not None else key
 
 
-def find_matches_in_scope(lines: list, scope_key: str, basename: str):
+def find_matches_in_scope(lines: list[str], scope_key: str, basename: str) -> list[ScopedPin]:
     """Every scan_digest_pins() pin whose values.yaml path starts with
     scope_key AND whose resolved repository has this basename — the same
     search as find_matches, but scoped to one top-level component so the
     same basename pinned under two unrelated components can't be
     confused for each other."""
-    matches = []
+    matches: list[ScopedPin] = []
     for pin in scan_digest_pins(lines):
-        if not pin["repository"] or not same_name(image_basename(pin["repository"]), basename):
+        repository = pin["repository"]
+        if not repository or not same_name(image_basename(repository), basename):
             continue
         path = dotted_key_path(lines, pin["line"] - 1).split(".")
         if not same_name(path[0], scope_key):
             continue
-        matches.append(pin)
+        matches.append(
+            {"line": pin["line"], "version": pin["version"], "digest": pin["digest"], "repository": repository}
+        )
     return matches
 
 
-def resolve_scoped_matches(lines: list, key: str, basename: str):
+def resolve_scoped_matches(lines: list[str], key: str, basename: str) -> list[ScopedPin]:
     """The pins <key> <basename> together identify, uniquely. <key> is
     either a literal top-level values.yaml key (a component), or the
     literal string "MULTIPLE" (see MULTIPLE_KEY above), translated to
@@ -263,7 +276,7 @@ def check_basename_version(lines: list[str], key: str, basename: str, new_versio
     matches = resolve_scoped_matches(lines, key, basename)
 
     results: list[TagCheck] = []
-    seen_repositories = set()
+    seen_repositories: set[str] = set()
     for m in matches:
         if m["repository"] in seen_repositories:
             continue
@@ -276,13 +289,13 @@ def check_basename_version(lines: list[str], key: str, basename: str, new_versio
     return results
 
 
-def _resolve_pending_digests(pending: list, new_version: str):
+def _resolve_pending_digests(pending: list[ScopedPin], new_version: str) -> dict[str, str]:
     """{repository: digest} for every distinct repository among `pending`
     (update_image_version's own not-yet-at-new_version matches),
     re-resolved against the registry for new_version. Raises SystemExit
     if new_version doesn't exist upstream for any of them — checked
     BEFORE update_image_version writes anything."""
-    digests = {}
+    digests: dict[str, str] = {}
     for m in pending:
         if m["repository"] in digests:
             continue
