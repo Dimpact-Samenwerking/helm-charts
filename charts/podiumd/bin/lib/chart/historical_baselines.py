@@ -17,6 +17,7 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.images_manifest import try_parse_images_manifest
 from lib.yaml_types import YamlMapping
 
@@ -66,11 +67,13 @@ def historical_images_manifest_paths(chart_dir: Path | None, at_or_before: str |
 def historical_app_version_for_repository(
     chart_dir: Path | None, repo: str, at_or_before: str | None = None, expected_url: str | None = None
 ) -> str | None:
-    """The most recent version this EXACT repository (already stripped,
-    see strip_registry_host) was pinned to in any of this chart's own
-    past images-<version>.yaml manifests (historical_images_manifest_
-    paths, most-recent-first) — or None if it never appears in any of
-    them. The correct replacement for the removed images-baseline.yaml
+    """The most recent version this EXACT repository (a group key, see
+    repository_group_key) was pinned to in any of this chart's own past
+    images-<version>.yaml manifests (historical_images_manifest_paths,
+    most-recent-first) — or None if it never appears in any of them. An
+    entry matches on its "name:" or on its "url:" giving the same group
+    key, so an older entry named "python" still matches
+    "library/python". The correct replacement for the removed images-baseline.yaml
     fallback: "was this image ever tracked by this project before, even
     though the Chart.yaml dependency/values.yaml block referencing it
     now is brand new" (real case: brppersonenmock, added in 4.9.0,
@@ -108,7 +111,8 @@ def historical_app_version_for_repository(
     exact comparison either way, never a heuristic."""
     for path in historical_images_manifest_paths(chart_dir, at_or_before):
         for entry in try_parse_images_manifest(path.read_text(encoding="utf-8")) or []:
-            if entry["name"] != repo:
+            url = entry.get("url")
+            if entry["name"] != repo and not (isinstance(url, str) and repository_group_key(url) == repo):
                 continue
             if expected_url is not None and entry.get("url") != expected_url:
                 continue

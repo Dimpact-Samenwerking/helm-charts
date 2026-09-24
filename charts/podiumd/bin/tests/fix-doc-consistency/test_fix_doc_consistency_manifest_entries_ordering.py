@@ -216,7 +216,7 @@ def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(
     assert skipped == []
     assert added == ["keycloak-operator - postgres"]
     entries = yaml.safe_load(new_text)
-    assert [e["name"] for e in entries] == ["openzaak/open-zaak", "postgres", "infonl/zaakafhandelcomponent"]
+    assert [e["name"] for e in entries] == ["openzaak/open-zaak", "library/postgres", "infonl/zaakafhandelcomponent"]
 
 
 def test_add_missing_images_manifest_entries_no_header_still_orders_body(
@@ -412,7 +412,7 @@ def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicat
     assert second_added == []
     assert second_backfilled == []
     assert second_text == first_text
-    assert second_text.count("- name: postgres") == 1
+    assert second_text.count("- name: library/postgres") == 1
     assert second_text.count("- name: openzaak/open-zaak") == 1
 
 

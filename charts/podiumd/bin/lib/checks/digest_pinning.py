@@ -62,11 +62,11 @@ from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolve_subchart_default
 from lib.chart.pull_and_subchart_resolution import subchart_values
 from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.repo_and_path_resolution import subchart_template_text
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import resolve_values_path_source
-from lib.chart.values_tree_primitives import strip_registry_host
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.render_scope import CHART_NAME
@@ -183,7 +183,7 @@ def _global_image_usage(values: YamlMapping, repo_groups: RepoGroups) -> dict[Va
     usage: dict[ValuesPath, list[ValuesPath]] = {}
     for def_path, _tag in global_image_paths(values):
         repo = text_at(values, ".".join(def_path) + ".repository")
-        stripped = strip_registry_host(repo) if isinstance(repo, str) and repo else None
+        stripped = repository_group_key(repo) if isinstance(repo, str) and repo else None
         consumers = [p for p in repo_groups.get(stripped, []) if p != def_path] if stripped else []
         usage[def_path] = consumers
     return usage
@@ -204,7 +204,7 @@ def _non_global_shared_repo_groups(
     for def_path in global_usage:
         repo = text_at(values, ".".join(def_path) + ".repository")
         if isinstance(repo, str) and repo:
-            claimed.add(strip_registry_host(repo))
+            claimed.add(repository_group_key(repo))
     return {repo: paths for repo, paths in repo_groups.items() if repo not in claimed and len(paths) > 1}
 
 

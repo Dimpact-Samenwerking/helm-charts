@@ -18,6 +18,7 @@ from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
@@ -681,6 +682,18 @@ def _structural_issues(
     return issues
 
 
+def _unmatched_entry_issue(name: str, entry_name: str, inputs: ListDiffInputs) -> str:
+    """The issue for an entry whose "name:" resolves to no values-tree
+    path — naming the expected "name:" when the entry's own "url:" does
+    resolve (lib.chart.repository_group_key), the case
+    fix-doc-consistency renames."""
+    url = next((e.get("url") for e in inputs.manifest.entries if e["name"] == entry_name), None)
+    expected = repository_group_key(url) if isinstance(url, str) else None
+    if expected is not None and expected in inputs.manifest.resolution.repo_map:
+        return f'{name}: entry "{entry_name}" should be named "{expected}" (its url minus the registry host)'
+    return f'{name}: entry "{entry_name}" is wrong or stale — not found in Chart.yaml or values.yaml'
+
+
 def _list_diff_issues(name: str, inputs: ListDiffInputs, context: ManifestCheckContext) -> list[str]:
     """The list-diff check (find_images_manifest_list_diff) — every
     changed image must have an entry, and every entry must correspond to
@@ -718,10 +731,7 @@ def _list_diff_issues(name: str, inputs: ListDiffInputs, context: ManifestCheckC
         f'{name}: entry "{entry_name}" is listed but its image did not change vs {context.upgrade_docs_baseline}'
         for entry_name in stale_entry_names
     )
-    issues.extend(
-        f'{name}: entry "{entry_name}" is wrong or stale — not found in Chart.yaml or values.yaml'
-        for entry_name in unmatched_entry_names
-    )
+    issues.extend(_unmatched_entry_issue(name, entry_name, inputs) for entry_name in unmatched_entry_names)
     return issues
 
 

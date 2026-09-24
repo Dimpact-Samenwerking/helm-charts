@@ -1026,3 +1026,35 @@ def test_delete_images_manifest_entry_last_entry_leaves_no_trailing_blank(
     text = "".join(lines)
     assert "zaakafhandelcomponent" not in text
     assert text.endswith('  version: "3.5.6"\n')
+
+
+# --- repository_group_key ---
+
+
+def test_repository_group_key_uses_the_docker_hub_library_namespace(libchartrepoandpathresolution: ModuleType):
+    """The images-manifest "name:" is the url minus its registry host, so
+    a bare official Docker Hub image gets its implicit "library/"."""
+    key = libchartrepoandpathresolution.repository_group_key
+    assert key("python") == "library/python"
+    assert key("docker.io/library/python") == "library/python"
+    assert key("wearefrank/zaakbrug") == "wearefrank/zaakbrug"
+    assert key("ghcr.io/infonl/zaakafhandelcomponent") == "infonl/zaakafhandelcomponent"
+    assert key("mcr.microsoft.com/azure-cli") == "azure-cli"
+
+
+def test_paths_by_repository_joins_a_namespace_only_registry_field(libchartrepoandpathresolution: ModuleType):
+    """zaakbrug's "registry: wearefrank" is a Docker Hub namespace, not a
+    host: the group key keeps it, same as full_repository_for_path's url."""
+    values = {
+        "zaakbrug": {"image": {"registry": "wearefrank", "repository": "zaakbrug", "tag": "1.26.18"}},
+        "mi": {"image": {"registry": "mcr.microsoft.com", "repository": "azure-cli", "tag": "2.0"}},
+        "keycloak-operator": {"initImage": {"registry": "", "repository": "python", "tag": "3.14"}},
+    }
+    groups = libchartrepoandpathresolution.paths_by_repository(
+        None, [], values, [("zaakbrug", "image"), ("mi", "image"), ("keycloak-operator", "initImage")]
+    )
+    assert groups == {
+        "wearefrank/zaakbrug": [("zaakbrug", "image")],
+        "azure-cli": [("mi", "image")],
+        "library/python": [("keycloak-operator", "initImage")],
+    }
