@@ -1162,6 +1162,14 @@ data:
           description: PodiumD Administrator
         - name: DMT-Functioneel-Beheerder
           description: Datamigratie Functioneel Beheerder
+        # PABC functional roles: ZAC sends the user's realm roles to PABC, so
+        # each functional role in files/pabc-dataset.json needs a realm role
+        # with the same name (attached to the group of that name below).
+        # Rendered from the dataset so the two cannot drift apart.
+{{- range $fr := (.Files.Get "files/pabc-dataset.json" | fromJson).functionalRoles }}
+        - name: {{ $fr.name | quote }}
+          description: {{ printf "PABC functionele rol %s" $fr.name | quote }}
+{{- end }}
       client:
         abc:
           - name: administrators
@@ -1241,6 +1249,7 @@ data:
             - "Administrators"
         realmRoles:
           - "podiumd-admin"
+          - "administrators"
         clientRoles:
           zac:
             - "recordmanager"
@@ -1285,6 +1294,8 @@ data:
         attributes:
           description:
             - "Behandelaars"
+        realmRoles:
+          - "behandelaars"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1295,6 +1306,8 @@ data:
         attributes:
           description:
             - "Coordinators"
+        realmRoles:
+          - "coordinators"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1306,6 +1319,8 @@ data:
         attributes:
           description:
             - "Recordmanagers"
+        realmRoles:
+          - "recordmanagers"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1318,6 +1333,8 @@ data:
         attributes:
           description:
             - "Beheerders"
+        realmRoles:
+          - "beheerders"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1331,10 +1348,27 @@ data:
         attributes:
           description:
             - "Raadplegers"
+        realmRoles:
+          - "raadplegers"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
             - "raadpleger"
+{{- /* A PABC functional role in files/pabc-dataset.json without a hand-written
+       group above (with its ZAC client roles) still gets a group carrying its
+       realm role, so the dataset alone decides which groups exist. */}}
+{{- $pabcRoleGroups := list "administrators" "behandelaars" "coordinators" "recordmanagers" "beheerders" "raadplegers" }}
+{{- range $fr := (.Files.Get "files/pabc-dataset.json" | fromJson).functionalRoles }}
+{{- if not (has $fr.name $pabcRoleGroups) }}
+      - name: {{ $fr.name | quote }}
+        path: "/{{ $fr.name }}"
+        attributes:
+          description:
+            - {{ printf "PABC functionele rol %s" $fr.name | quote }}
+        realmRoles:
+          - {{ $fr.name | quote }}
+{{- end }}
+{{- end }}
       - name: {{ .Values.openbao.configuration.uploadersGroup | quote }}
         path: "/{{ .Values.openbao.configuration.uploadersGroup }}"
         attributes:
