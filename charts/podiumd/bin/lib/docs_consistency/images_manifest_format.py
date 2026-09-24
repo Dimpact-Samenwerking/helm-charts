@@ -101,11 +101,11 @@ class ListDiffInputs:
     max-argument threshold."""
 
     manifest: ResolvedManifest
-    repo_groups: dict
-    baseline_paths: dict
+    repo_groups: dict[str, list[ImagePath]]
+    baseline_paths: dict[ImagePath, str]
 
 
-def match_changes_item_to_entry(item_name: str, entries: list[ManifestEntry]):
+def match_changes_item_to_entry(item_name: str, entries: list[ManifestEntry]) -> ManifestEntry | None:
     """Best-effort match of a Changes-block item's free-form name (e.g.
     "Python (ensurePodiumdAdminUser init image)") to one of this SAME
     images-manifest's own entries — for an item that isn't a component at
@@ -141,7 +141,7 @@ def match_changes_item_to_entry(item_name: str, entries: list[ManifestEntry]):
     )
 
 
-def _images_manifest_changes_items(lines: list[str]):
+def _images_manifest_changes_items(lines: list[str]) -> list[tuple[str, int, int]]:
     """[(rest, start, end), ...] for every "#   N. ..." item in the images-
     manifest's own "# Changes:" header list — `rest` is the item's own
     text (first line only, matching CHANGES_ITEM_RE's own "rest" group;
@@ -164,8 +164,8 @@ def _images_manifest_changes_items(lines: list[str]):
 
 
 def find_images_manifest_changes_items_out_of_order(
-    text: str, entries: list[ManifestEntry], entry_positions: dict, display_name_positions: dict
-):
+    text: str, entries: list[ManifestEntry], entry_positions: dict[str, int], display_name_positions: dict[str, int]
+) -> list[tuple[str, str]]:
     """[(item_a_text, item_b_text), ...] for every ADJACENT pair of "#
     Changes:" items whose relative order contradicts entry_positions/
     display_name_positions' own order (lib.upgradedoc.images_manifest_
@@ -195,7 +195,7 @@ def find_images_manifest_changes_items_out_of_order(
     if len(items) < 2:
         return []
 
-    keys = []
+    keys: list[int] = []
     for rest, _start, _end in items:
         display_name = match_changes_item_display_name(rest, display_name_positions)
         if display_name is not None:
@@ -208,8 +208,8 @@ def find_images_manifest_changes_items_out_of_order(
 
 
 def _covered_changes_display_names(
-    lines: list[str], entries: list[ManifestEntry], display_name_positions: dict, resolution: EntryResolution
-):
+    lines: list[str], entries: list[ManifestEntry], display_name_positions: dict[str, int], resolution: EntryResolution
+) -> set[str]:
     """The set of every images-manifest entry/group display name a "#
     Changes:" item in `lines` already resolves back to — the SAME two-
     tier match find_images_manifest_changes_items_out_of_order/fix-doc-
@@ -217,11 +217,11 @@ def _covered_changes_display_names(
     match_changes_item_display_name's exact prefix match first,
     match_changes_item_to_entry's fuzzy basename match as fallback."""
 
-    def entry_display_name(entry: ManifestEntry):
+    def entry_display_name(entry: ManifestEntry) -> str | None:
         path = resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo_map)
         return path_display_name(path, resolution.deps, resolution.canonical_names) if path else None
 
-    covered_names = set()
+    covered_names: set[str] = set()
     for rest, _start, _end in _images_manifest_changes_items(lines):
         display_name = match_changes_item_display_name(rest, display_name_positions)
         if display_name is not None:
@@ -235,14 +235,15 @@ def _covered_changes_display_names(
 
 
 def _uncovered_entry_display_names(
-    entries: list[ManifestEntry], entry_positions: dict, resolution: EntryResolution, covered_names: set
-):
+    entries: list[ManifestEntry], entry_positions: dict[str, int], resolution: EntryResolution, covered_names: set[str]
+) -> list[str]:
     """Display names of every entry GROUP (present in entry_positions)
     not already in `covered_names` — one display name per group, first
     entry only, skipping an entry whose display name is path_display_
     name's raw-dotted-path fallback (see find_images_manifest_entries_
     missing_changes_mention's own docstring for why)."""
-    missing, seen = [], set()
+    missing: list[str] = []
+    seen: set[str] = set()
     for entry in entries:
         if entry["name"] not in entry_positions:
             continue
@@ -260,7 +261,7 @@ def _uncovered_entry_display_names(
 
 def find_images_manifest_entries_missing_changes_mention(
     text: str, entries: list[ManifestEntry], context: ManifestSortContext
-):
+) -> list[str]:
     """Display names (lib.upgradedoc.path_display_name) of every images-
     manifest entry GROUP (lib.upgradedoc.images_manifest_entry_positions'
     own group-level position) that has no "# Changes:" item resolving
@@ -311,7 +312,7 @@ def find_images_manifest_entries_missing_changes_mention(
     return sorted(_uncovered_entry_display_names(entries, entry_positions, resolution, covered_names))
 
 
-def check_images_manifest_changes_numbering(images_path_name: str, text: str):
+def check_images_manifest_changes_numbering(images_path_name: str, text: str) -> list[str]:
     """The images-manifest's own "# Changes:" numbered item list must be
     a gapless 1..N sequence matching its own current top-to-bottom
     document order, and the header's own leading count word (if it has
@@ -331,7 +332,7 @@ def check_images_manifest_changes_numbering(images_path_name: str, text: str):
     if header_idx is None or not item_indices:
         return []
 
-    issues = []
+    issues: list[str] = []
     for slot, idx in enumerate(item_indices):
         expected = slot + 1
         actual = int(match_located_line(CHANGES_ITEM_RE, lines[idx]).group("num"))
@@ -357,7 +358,7 @@ def _baseline_and_vs_line_issues(name: str, text: str, context: ManifestCheckCon
     podiumd <version>" and "podiumd <target> vs <upgrade_docs_baseline>"
     — checked against context.podiumd_version/context.upgrade_docs_
     baseline."""
-    issues = []
+    issues: list[str] = []
     baseline_m = re.search(r"Baseline:\s*podiumd\s+([\w.\-]+)", text)
     if not baseline_m:
         issues.append(f'{name}: no "Baseline: podiumd <version>" line found')
@@ -386,7 +387,7 @@ def _baseline_and_vs_line_issues(name: str, text: str, context: ManifestCheckCon
     return issues
 
 
-def _manifest_resolution_context(context: ManifestCheckContext):
+def _manifest_resolution_context(context: ManifestCheckContext) -> tuple[dict[str, list[ImagePath]], EntryResolution]:
     """(repo_groups, resolution) — repo_groups (see paths_by_repository,
     needed only by the list-diff check) and an EntryResolution bundling
     deps/current_paths/repo_map/canonical_names, both derived from
@@ -414,7 +415,7 @@ def _manifest_resolution_context(context: ManifestCheckContext):
     return repo_groups, EntryResolution(context.deps, current_paths, repo_map, canonical_names)
 
 
-def _plain_image_entry_for_item(item_name: str, resolved: ResolvedManifest):
+def _plain_image_entry_for_item(item_name: str, resolved: ResolvedManifest) -> ManifestEntry | None:
     """The images-manifest entry a non-component Changes item resolves
     to — a KNOWN canonical sidecar name (see resolved.resolution.
     canonical_names) tried FIRST, resolved directly via its own real
@@ -446,7 +447,7 @@ def _changes_item_version_mismatches(
     a single Changes item claims that disagrees with the actual value —
     a cell is only ever checked when the item actually claims one AND
     the corresponding actual value is known."""
-    issues = []
+    issues: list[str] = []
     if item["app"] and actual_app and normalize_version(item["app"]) != normalize_version(actual_app):
         issues.append(f'{name}: Changes item "{item["name"]}" target app "{item["app"]}" != values.yaml "{actual_app}"')
     if item["chart"] and actual_chart and normalize_version(item["chart"]) != normalize_version(actual_chart):
@@ -462,8 +463,8 @@ def _changes_item_version_mismatches(
 
 
 def _changes_item_issues(
-    name: str, item: VersionRow, resolved: ResolvedManifest, context: ManifestCheckContext, invalid_names: set
-):
+    name: str, item: VersionRow, resolved: ResolvedManifest, context: ManifestCheckContext, invalid_names: set[str]
+) -> list[str]:
     """The issue(s) for a single "# Changes:" block item — wrong/stale
     (see find_wrong_or_duplicate_dependency_claims), unresolvable, or a
     version-cell mismatch against its resolved actual state."""
@@ -524,7 +525,7 @@ def _changes_block_item_issues(name: str, text: str, resolved: ResolvedManifest,
     )
     invalid_names = duplicate_names | wrong_fuzzy_names
 
-    issues = []
+    issues: list[str] = []
     for item in items:
         issues.extend(_changes_item_issues(name, item, resolved, context, invalid_names))
     return issues
@@ -536,7 +537,7 @@ def _entry_comment_version_mismatches(
     """The issue(s) for a single entry's own preceding comment — its
     target version cell vs. the entry's own actual version, and its
     source version cell vs. upgrade_docs_baseline's actual value."""
-    issues = []
+    issues: list[str] = []
     target = extract_target_version(comment)
     version = entry.get("version", "")  # present: check_images_manifest_format checked completeness first
     if target and normalize_version(target) != normalize_version(version):
@@ -566,12 +567,12 @@ def _entry_comment_issues(
     is missing, or whose target/source app version disagrees with the
     entry's own actual version / upgrade_docs_baseline's actual value."""
 
-    def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry):
+    def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
         return images_manifest_entries_share_group(
             entry_a, entry_b, resolved.resolution.current_paths, resolved.resolution.repo_map
         )
 
-    issues = []
+    issues: list[str] = []
     for index, (entry, _line_idx) in enumerate(zip(resolved.entries, entry_line_indices, strict=True)):
         comment = find_grouped_preceding_comment(lines, resolved.entries, entry_line_indices, index, same_group)
         if not comment:
@@ -593,7 +594,7 @@ def _sidecar_header_issues(name: str, parsed: ParsedManifest, resolution: EntryR
     (kiss-elastic-sync: 0.3.3 -> 3.0.0, sharing "# KISS — 2.2.4 ->
     3.0.0" purely because both happen to land on 3.0.0 this release)
     silently inherits a header that doesn't describe it at all."""
-    issues = []
+    issues: list[str] = []
     for entry_name, expected, problem in find_images_manifest_faulty_headers(parsed, resolution):
         if problem == "missing":
             issues.append(
@@ -613,7 +614,7 @@ def _out_of_order_entry_issues(
     that don't follow values.yaml's own top-level component order — the
     same rule find_out_of_order_names already enforces for -upgrade.md's
     own rows/Changes headings."""
-    issues = []
+    issues: list[str] = []
     for name_a, name_b in find_images_manifest_out_of_order_names(parsed, resolution, key_order, values):
         issues.append(
             f'{name}: entry "{name_b}" is listed right after "{name_a}", but '
@@ -624,13 +625,17 @@ def _out_of_order_entry_issues(
 
 
 def _changes_items_out_of_order_issues(
-    name: str, text: str, entries: list[ManifestEntry], entry_positions: dict, display_name_positions: dict
+    name: str,
+    text: str,
+    entries: list[ManifestEntry],
+    entry_positions: dict[str, int],
+    display_name_positions: dict[str, int],
 ):
     """One issue per adjacent pair of "# Changes:" items whose order
     contradicts the entry list's own final order — the two can silently
     disagree (entries correctly grouped/ordered, header list scrambled
     relative to them) with nothing else here to catch it."""
-    issues = []
+    issues: list[str] = []
     for item_a, item_b in find_images_manifest_changes_items_out_of_order(
         text, entries, entry_positions, display_name_positions
     ):
@@ -676,7 +681,7 @@ def _structural_issues(
     return issues
 
 
-def _list_diff_issues(name: str, inputs: ListDiffInputs, context: ManifestCheckContext):
+def _list_diff_issues(name: str, inputs: ListDiffInputs, context: ManifestCheckContext) -> list[str]:
     """The list-diff check (find_images_manifest_list_diff) — every
     changed image must have an entry, and every entry must correspond to
     a real change. Only called by check_images_manifest_format once
@@ -720,7 +725,7 @@ def _list_diff_issues(name: str, inputs: ListDiffInputs, context: ManifestCheckC
     return issues
 
 
-def check_images_manifest_format(images_path: Path, context: ManifestCheckContext):
+def check_images_manifest_format(images_path: Path, context: ManifestCheckContext) -> list[str]:
     """Existence + YAML-validity + header-comment-accuracy precheck for the
     images manifest, run BEFORE the entry-by-entry content checks — mirrors
     check_baseline_doc_set for the three markdown docs. Also checks the
