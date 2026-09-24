@@ -13,10 +13,12 @@ from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_ordering import header_name_segment
 from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
+from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import canonical_version_cell
@@ -38,7 +40,7 @@ class HeadingFixInputs:
     heading_marker: str
 
 
-def _dep_old_app_for_new_dependency(resolution: ResolutionContext, resolved: dict):
+def _dep_old_app_for_new_dependency(resolution: ResolutionContext, resolved: ResolvedRow):
     """The APP cell's own "old" version for a Chart.yaml dependency with
     NO baseline value at all (resolved["baseline_resolved"] is False,
     resolved["dep"] is not None, resolved["target_app"] is not None) —
@@ -66,7 +68,7 @@ def _dep_old_app_for_new_dependency(resolution: ResolutionContext, resolved: dic
     return old_app
 
 
-def _new_dependency_row_update(lines: list[str], row: dict, resolved: dict, resolution: ResolutionContext):
+def _new_dependency_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow, resolution: ResolutionContext):
     """The baseline_resolved=False row-rewrite mechanics for
     fix_component_version_table's own row loop — a genuinely brand-new
     component (or a sidecar whose current tag can't even be resolved,
@@ -115,7 +117,7 @@ def _new_dependency_row_update(lines: list[str], row: dict, resolved: dict, reso
     return (row["name"], cells[1], cells[2])
 
 
-def _existing_row_update(lines: list[str], row: dict, resolved: dict):
+def _existing_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow):
     """The baseline_resolved=True row-rewrite mechanics for
     fix_component_version_table's own row loop — a component that
     existed at both the baseline and target ref gets a real

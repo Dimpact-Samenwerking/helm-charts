@@ -4,9 +4,12 @@ dependency/native-component identities -- flags a heading that
 corresponds to no real row, or text claiming a dependency that
 doesn't exist, rather than ever guessing a match."""
 
+from collections.abc import Sequence
+
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
+from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
@@ -44,7 +47,7 @@ def resolve_component_identity(text: str, deps: list[ChartDependency], canonical
 
 
 def find_changes_row_correspondence_gaps(
-    rows: list, headings: list, deps: list[ChartDependency], canonical_names: dict
+    rows: Sequence[VersionRow], headings: list, deps: list[ChartDependency], canonical_names: dict
 ):
     """Cross-check the "Component versions" table against the "## Changes"
     section: every row naming a real component should have exactly one

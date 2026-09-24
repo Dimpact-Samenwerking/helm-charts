@@ -72,6 +72,43 @@ def test_update_component_table_adds_new_row(libcomponentdocschanges: ModuleType
     assert "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |" in new_text  # untouched
 
 
+def test_update_component_table_without_new_app_keeps_the_rows_app_cell(libcomponentdocschanges: ModuleType):
+    """Regression test: a change with no new app version made the app
+    cell None, and " | ".join() over the cells raised TypeError. The
+    row's app cell is now left as it is."""
+    text = (
+        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zac | 5.0.2 → 5.1.0 | 1.0.290 → 1.0.297 | - |\n"
+    )
+    new_text, action = libcomponentdocschanges.update_component_table(
+        text,
+        "zac",
+        libcomponentdocschanges.VersionChange(None, None, "1.0.290", "1.0.300"),
+        libcomponentdocschanges.OrderingContext(DEPS, VALUES),
+    )
+    assert action == "updated"
+    assert "| zac | 5.0.2 → 5.1.0 | 1.0.290 → 1.0.300 | - |" in new_text
+
+
+def test_update_component_table_new_row_without_app_version_writes_dash(libcomponentdocschanges: ModuleType):
+    """Regression test: a new row without an app version used to get the
+    literal text "None" in its app cell."""
+    text = (
+        COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
+    )
+    new_text, _action = libcomponentdocschanges.update_component_table(
+        text,
+        "openformulieren",
+        libcomponentdocschanges.VersionChange(None, None, "1.12.0", "1.12.0"),
+        libcomponentdocschanges.OrderingContext(DEPS, VALUES),
+    )
+    assert "None" not in new_text
+    assert "| openformulieren | - | 1.12.0 (unchanged) | - |" in new_text
+
+
 def test_update_component_table_new_row_not_absorbed_by_own_sidecar_rows(libcomponentdocschanges: ModuleType):
     """Regression test (real bug, real doc): when a dependency's own row
     doesn't exist yet but its sidecar rows already do (e.g. openbao,

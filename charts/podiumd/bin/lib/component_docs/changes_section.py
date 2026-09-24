@@ -44,6 +44,7 @@ from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import COMPONENT_VERSIONS_HEADING_RE
+from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
@@ -136,7 +137,7 @@ class DocContext:
     upgrade_docs_baseline: str | None = None
 
 
-def find_component_row(rows: list, friendly: str):
+def find_component_row(rows: list[TableRow], friendly: str):
     """The row whose Name names `friendly` (see text_names): at word
     boundaries, so "mi" never takes the "ensurePodiumdAdminUser" row,
     and a plain "openbao" never takes an "openbao - openbao-csi-provider"
@@ -144,7 +145,7 @@ def find_component_row(rows: list, friendly: str):
     return next((row for row in rows if text_names(row["name"], friendly)), None)
 
 
-def _new_row_insert_index(lines: list[str], rows: list, friendly: str, ordering: OrderingContext):
+def _new_row_insert_index(lines: list[str], rows: list[TableRow], friendly: str, ordering: OrderingContext):
     """Line index to insert a brand-new component row at, matching
     update_component_table's own ordering rules: in values.yaml's own
     top-level component order relative to the rows already there when
@@ -200,13 +201,16 @@ def update_component_table(text: str, friendly: str, change: VersionChange, orde
     if row is not None:
         old_line = lines[row["line_index"]]
         cells = [c.strip() for c in old_line.strip().strip("|").split("|")]
-        cells[1] = app_cell
-        cells[2] = chart_cell
+        # No new version for a cell: leave what the row already says.
+        if app_cell is not None:
+            cells[1] = app_cell
+        if chart_cell is not None:
+            cells[2] = chart_cell
         suffix = "\n" if old_line.endswith("\n") else ""
         lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
         return "".join(lines), "updated"
 
-    new_row_line = f"| {friendly} | {app_cell} | {chart_cell} | - |\n"
+    new_row_line = f"| {friendly} | {app_cell or '-'} | {chart_cell or '-'} | - |\n"
     insert_at = _new_row_insert_index(lines, rows, friendly, ordering)
     if insert_at is None:
         return text, None

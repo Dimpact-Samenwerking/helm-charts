@@ -69,6 +69,7 @@ from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
@@ -307,7 +308,7 @@ def add_missing_sidecar_rows(
     return text, added_names
 
 
-def build_changes_section_for_row(row: dict, ident: tuple, deps: list[ChartDependency], target: str):
+def build_changes_section_for_row(row: VersionRow, ident: tuple, deps: list[ChartDependency], target: str):
     """The "### ..." Changes section for a single table row + its already-
     resolved identity (see resolve_component_identity) — make_changes_
     section for a real Chart.yaml dependency, make_image_changes_section

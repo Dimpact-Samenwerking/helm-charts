@@ -49,6 +49,7 @@ from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_shar
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_positions
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import best_name_match
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
@@ -438,7 +439,7 @@ def _plain_image_entry_for_item(item_name: str, resolved: ResolvedManifest):
 
 
 def _changes_item_version_mismatches(
-    name: str, item: dict, actual_app: str | None, actual_chart: str | None, baseline_app: str | None
+    name: str, item: VersionRow, actual_app: str | None, actual_chart: str | None, baseline_app: str | None
 ):
     """One issue per version cell (target app, target chart, source app)
     a single Changes item claims that disagrees with the actual value —
@@ -460,7 +461,7 @@ def _changes_item_version_mismatches(
 
 
 def _changes_item_issues(
-    name: str, item: dict, resolved: ResolvedManifest, context: ManifestCheckContext, invalid_names: set
+    name: str, item: VersionRow, resolved: ResolvedManifest, context: ManifestCheckContext, invalid_names: set
 ):
     """The issue(s) for a single "# Changes:" block item — wrong/stale
     (see find_wrong_or_duplicate_dependency_claims), unresolvable, or a

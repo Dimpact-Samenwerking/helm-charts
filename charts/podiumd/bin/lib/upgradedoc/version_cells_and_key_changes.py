@@ -5,6 +5,8 @@ change_lines_by_key's values.yaml-schema-diff prose."""
 
 import re
 
+from typing import overload
+
 from lib.upgradedoc.grouped_comments_and_changes_block import VERSION_SPEC_RE
 from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys
 from lib.upgradedoc.grouped_comments_and_changes_block import pair_renames
@@ -90,13 +92,21 @@ def new_component_version_cell(actual_target: str):
     return f"{actual_target} {version_change_suffix(None, actual_target)}"
 
 
-def component_version_cell(old: str | None, new: str | None):
+@overload
+def component_version_cell(old: str | None, new: str) -> str: ...
+
+
+@overload
+def component_version_cell(old: str | None, new: str | None) -> str | None: ...
+
+
+def component_version_cell(old: str | None, new: str | None) -> str | None:
     """canonical_version_cell(old, new) when a baseline value exists;
     new_component_version_cell(new) when it doesn't AND `new` is a real
     version — never for the literal "-" not-applicable placeholder a
     sidecar row's own Helm-chart cell already legitimately uses (that's
     "no chart version of its own to compare", not "brand new"); bare
-    `new` otherwise (e.g. `new` itself unresolvable). The single place
+    `new` otherwise, and None when there is no `new` at all. The single place
     both update_component_table (a fresh row) and fix-doc-consistency's
     own fix_component_version_table (correcting an existing one) decide
     this cell's text, so the two can't drift on when "(new)" applies.
@@ -105,6 +115,8 @@ def component_version_cell(old: str | None, new: str | None):
     native_components — a component with no chart at all to compare)
     reuses this exact "-" placeholder path too: callers pass old=None,
     new="-" for it, same as any chart-less sidecar row."""
+    if new is None:
+        return None  # no target version: nothing to write
     if old:
         return canonical_version_cell(old, new)
     if new and new != "-":

@@ -9,6 +9,7 @@ function's own docstring for why podiumd needs two baselines now."""
 
 import re
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -43,12 +44,14 @@ from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_ga
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
 from lib.upgradedoc.sorting_and_ordering import find_out_of_order_names
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
@@ -373,7 +376,7 @@ def _doc_header_mismatches(doc_path: Path, ctx: DocsCheckContext):
     return mismatches
 
 
-def _record_row_identity(resolved: dict, result: ComponentRowsResult):
+def _record_row_identity(resolved: ResolvedRow, result: ComponentRowsResult):
     """Extracts one resolved row's own sidecar_path/values_key/top_
     level_key/actual_app and records the bookkeeping every later check
     (in this row, and in later phases via ComponentRowsResult) needs —
@@ -399,7 +402,7 @@ def _record_row_identity(resolved: dict, result: ComponentRowsResult):
 
 
 def _check_row_target_versions(
-    row: dict, row_ctx: RowContext, resolved: dict, values_key: str, result: ComponentRowsResult
+    row: VersionRow, row_ctx: RowContext, resolved: ResolvedRow, values_key: str, result: ComponentRowsResult
 ):
     """One row's own current chart/app-version cells vs. Chart.yaml/
     values.yaml reality."""
@@ -417,7 +420,7 @@ def _check_row_target_versions(
 
 
 def _check_row_baseline_versions(
-    row: dict, row_ctx: RowContext, resolved: dict, values_key: str, result: ComponentRowsResult
+    row: VersionRow, row_ctx: RowContext, resolved: ResolvedRow, values_key: str, result: ComponentRowsResult
 ):
     """One row's own source chart/app-version cells vs. row_ctx.
     baseline_ref reality — only called once row_ctx.baseline_ref is
@@ -458,7 +461,9 @@ def _check_row_baseline_versions(
         )
 
 
-def _check_component_rows(rows: list, row_ctx: RowContext, row_lookup: RowLookup, resolution: ResolutionContext):
+def _check_component_rows(
+    rows: Sequence[VersionRow], row_ctx: RowContext, row_lookup: RowLookup, resolution: ResolutionContext
+):
     """The per-row loop of the "Component versions" table section —
     resolves each row via resolve_component_row (shared with fix-doc-
     consistency's own row-rewriter, fix_component_version_table — see

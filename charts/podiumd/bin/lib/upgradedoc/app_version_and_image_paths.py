@@ -32,7 +32,7 @@ def actual_app_version(
     component: str | None = None,
     chart_dir: Path | None = None,
     dep: ChartDependency | None = None,
-):
+) -> str | None:
     """The app version currently pinned for a component — tries each of
     lib.chart.image_paths_for(component)'s own dotted path(s) in turn:
     the plain "<key>.image.tag" shape for the common case

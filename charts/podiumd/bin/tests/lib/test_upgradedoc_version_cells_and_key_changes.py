@@ -21,6 +21,13 @@ def test_new_component_version_cell(libupgradedocversioncells):
     assert libupgradedocversioncells.new_component_version_cell("2.15.0") == "2.15.0 (new)"
 
 
+def test_component_version_cell_without_target_is_none(libupgradedocversioncells):
+    """Regression test: an old version with no new one rendered as the
+    text "<old> → None"."""
+    assert libupgradedocversioncells.component_version_cell("5.0.2", None) is None
+    assert libupgradedocversioncells.component_version_cell(None, None) is None
+
+
 def test_component_version_cell_with_baseline_delegates_to_canonical(libupgradedocversioncells):
     assert libupgradedocversioncells.component_version_cell("5.0.2", "5.1.0") == "5.0.2 → 5.1.0"
     assert libupgradedocversioncells.component_version_cell("1.0.297", "1.0.297") == "1.0.297 (unchanged)"
