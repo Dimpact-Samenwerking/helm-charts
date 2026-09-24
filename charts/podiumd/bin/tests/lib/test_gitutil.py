@@ -4,6 +4,9 @@ hermetic temp git repo."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -13,7 +16,7 @@ def git(*args, cwd):
 
 
 @pytest.fixture
-def repo(tmp_path):
+def repo(tmp_path: Path):
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -31,12 +34,12 @@ def repo(tmp_path):
 # --- find_repo_root ---
 
 
-def test_find_repo_root_finds_toplevel(libgitutil, repo):
+def test_find_repo_root_finds_toplevel(libgitutil: ModuleType, repo):
     (repo / "sub").mkdir()
     assert libgitutil.find_repo_root(repo / "sub").resolve() == repo.resolve()
 
 
-def test_find_repo_root_none_outside_a_repo(libgitutil, tmp_path):
+def test_find_repo_root_none_outside_a_repo(libgitutil: ModuleType, tmp_path: Path):
     outside = tmp_path / "not-a-repo"
     outside.mkdir()
     assert libgitutil.find_repo_root(outside) is None
@@ -45,12 +48,12 @@ def test_find_repo_root_none_outside_a_repo(libgitutil, tmp_path):
 # --- current_branch ---
 
 
-def test_current_branch_reads_branch_name(libgitutil, repo):
+def test_current_branch_reads_branch_name(libgitutil: ModuleType, repo):
     git("checkout", "-q", "-b", "feature/podiumd-4.10.0", cwd=repo)
     assert libgitutil.current_branch(repo) == "feature/podiumd-4.10.0"
 
 
-def test_current_branch_empty_on_detached_head(libgitutil, repo):
+def test_current_branch_empty_on_detached_head(libgitutil: ModuleType, repo):
     head_sha = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
     ).stdout.strip()
@@ -61,7 +64,7 @@ def test_current_branch_empty_on_detached_head(libgitutil, repo):
 # --- baseline_ref_candidates ---
 
 
-def test_baseline_ref_candidates_bare_version(libgitutil):
+def test_baseline_ref_candidates_bare_version(libgitutil: ModuleType):
     assert libgitutil.baseline_ref_candidates("4.8.5") == [
         "podiumd-4.8.5",
         "origin/feature/podiumd-4.8.5",
@@ -69,7 +72,7 @@ def test_baseline_ref_candidates_bare_version(libgitutil):
     ]
 
 
-def test_baseline_ref_candidates_explicit_ref(libgitutil):
+def test_baseline_ref_candidates_explicit_ref(libgitutil: ModuleType):
     assert libgitutil.baseline_ref_candidates("origin/some-branch") == ["origin/some-branch"]
     assert libgitutil.baseline_ref_candidates("abc1234") == ["abc1234"]
 
@@ -77,24 +80,24 @@ def test_baseline_ref_candidates_explicit_ref(libgitutil):
 # --- resolve_git_ref ---
 
 
-def test_resolve_git_ref_finds_tag(libgitutil, repo):
+def test_resolve_git_ref_finds_tag(libgitutil: ModuleType, repo):
     assert libgitutil.resolve_git_ref(repo, ["nonexistent", "podiumd-4.8.5"]) == "podiumd-4.8.5"
 
 
-def test_resolve_git_ref_none_when_nothing_resolves(libgitutil, repo):
+def test_resolve_git_ref_none_when_nothing_resolves(libgitutil: ModuleType, repo):
     assert libgitutil.resolve_git_ref(repo, ["nope-1", "nope-2"]) is None
 
 
 # --- resolve_baseline_ref ---
 
 
-def test_resolve_baseline_ref_resolves_the_tag(libgitutil, repo):
+def test_resolve_baseline_ref_resolves_the_tag(libgitutil: ModuleType, repo):
     ref, error = libgitutil.resolve_baseline_ref(repo, "4.8.5")
     assert ref == "podiumd-4.8.5"
     assert error is None
 
 
-def test_resolve_baseline_ref_error_names_every_candidate_tried(libgitutil, repo):
+def test_resolve_baseline_ref_error_names_every_candidate_tried(libgitutil: ModuleType, repo):
     ref, error = libgitutil.resolve_baseline_ref(repo, "9.9.9")
     assert ref is None
     assert error == (
@@ -106,12 +109,12 @@ def test_resolve_baseline_ref_error_names_every_candidate_tried(libgitutil, repo
 # --- git_show_yaml ---
 
 
-def test_git_show_yaml_reads_historical_content(libgitutil, repo):
+def test_git_show_yaml_reads_historical_content(libgitutil: ModuleType, repo):
     data = libgitutil.git_show_yaml(repo, "podiumd-4.8.5", "values.yaml")
     assert data["zac"]["image"]["tag"] == "5.0.2"
     data_head = libgitutil.git_show_yaml(repo, "HEAD", "values.yaml")
     assert data_head["zac"]["image"]["tag"] == "5.1.0"
 
 
-def test_git_show_yaml_none_for_missing_file(libgitutil, repo):
+def test_git_show_yaml_none_for_missing_file(libgitutil: ModuleType, repo):
     assert libgitutil.git_show_yaml(repo, "HEAD", "does-not-exist.yaml") is None

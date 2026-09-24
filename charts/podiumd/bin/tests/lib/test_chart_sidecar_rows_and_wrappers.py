@@ -13,6 +13,7 @@ import tarfile
 from pathlib import Path
 from types import ModuleType
 
+import pytest
 import yaml
 
 
@@ -56,7 +57,7 @@ def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None,
 # --- canonical_sidecar_row_names ---
 
 
-def test_canonical_sidecar_row_names_dependency_sidecar(tmp_path, libchartrepoandpathresolution):
+def test_canonical_sidecar_row_names_dependency_sidecar(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
     dep = {"name": "redis-operator", "alias": "", "version": "0.26.0"}
     values = {"redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis"}}}}
     paths = [("redis-operator", "redis-ha", "image")]
@@ -66,7 +67,9 @@ def test_canonical_sidecar_row_names_dependency_sidecar(tmp_path, libchartrepoan
     assert names == {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
 
-def test_canonical_sidecar_row_names_native_component_sidecar(tmp_path, libchartrepoandpathresolution):
+def test_canonical_sidecar_row_names_native_component_sidecar(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
     """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
     dependency at all — deps is empty on purpose — but it's still the
     real owner of its own nested sidecar images, the same as a real
@@ -80,7 +83,7 @@ def test_canonical_sidecar_row_names_native_component_sidecar(tmp_path, libchart
 
 
 def test_canonical_sidecar_row_names_excludes_native_components_own_primary_image(
-    tmp_path, libchartrepoandpathresolution
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
     """Same exclusion as a real dependency's own primary image — frankgateway's
     OWN top-level image is not a sidecar of itself."""
@@ -92,7 +95,9 @@ def test_canonical_sidecar_row_names_excludes_native_components_own_primary_imag
     assert names == {}
 
 
-def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(tmp_path, libchartrepoandpathresolution):
+def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
     """The dependency's own registered primary image (image_paths_for) is
     NOT a sidecar — match_dependency already covers it by the
     dependency's plain name/alias, so it must not show up here too."""
@@ -106,7 +111,7 @@ def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(tmp_
 
 
 def test_canonical_sidecar_row_names_self_referential_basename_falls_back_to_path_segment(
-    tmp_path, libchartrepoandpathresolution
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
     """A nested image whose OWN repository basename happens to equal the
     parent dependency's own values key (real case: keycloak-operator.
@@ -129,7 +134,7 @@ def test_canonical_sidecar_row_names_self_referential_basename_falls_back_to_pat
 
 
 def test_canonical_sidecar_row_names_self_referential_basename_no_fallback_segment_is_excluded(
-    tmp_path, libchartrepoandpathresolution
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
     """When the self-referential path has nothing but the top-level key
     and the final image key itself (no distinct segment in between to
@@ -144,7 +149,7 @@ def test_canonical_sidecar_row_names_self_referential_basename_no_fallback_segme
     assert names == {}
 
 
-def test_canonical_sidecar_row_names_global_shared_image(tmp_path, libchartrepoandpathresolution):
+def test_canonical_sidecar_row_names_global_shared_image(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
     """A "global"-rooted image has no single owning dependency at all —
     the canonical name is bare "<basename>" (update-image-version's
     MULTIPLE_KEY convention), never "<values_key> - <basename>"."""
@@ -157,7 +162,7 @@ def test_canonical_sidecar_row_names_global_shared_image(tmp_path, libchartrepoa
 
 
 def test_canonical_sidecar_row_names_excludes_sidecar_sharing_a_global_repository(
-    tmp_path, libchartrepoandpathresolution
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
     """Real bug: zac's own nginx sidecar and frankgateway's own nginx
     sidecar both alias the exact same global.images.nginx anchor — each
@@ -188,7 +193,9 @@ def test_canonical_sidecar_row_names_excludes_sidecar_sharing_a_global_repositor
     assert names == {"nginx-unprivileged": ("global", "images", "nginx")}
 
 
-def test_canonical_sidecar_row_names_multiple_sidecars_stay_distinct(tmp_path, libchartrepoandpathresolution):
+def test_canonical_sidecar_row_names_multiple_sidecars_stay_distinct(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
     values = {
         "redis-operator": {
             "redis-ha": {"image": {"repository": "quay.io/opstree/redis"}},
@@ -209,7 +216,9 @@ def test_canonical_sidecar_row_names_multiple_sidecars_stay_distinct(tmp_path, l
 # --- subchart_template_text ---
 
 
-def test_subchart_template_text_concatenates_all_template_files(tmp_path, libchartrepoandpathresolution):
+def test_subchart_template_text_concatenates_all_template_files(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
     make_tgz(
         tmp_path / "charts",
         "pabc",
@@ -226,12 +235,14 @@ def test_subchart_template_text_concatenates_all_template_files(tmp_path, libcha
     assert "kind: Service" in text
 
 
-def test_subchart_template_text_missing_tgz_returns_none(tmp_path, libchartrepoandpathresolution):
+def test_subchart_template_text_missing_tgz_returns_none(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
     dep = {"name": "pabc", "version": "1.1.1"}
     assert libchartrepoandpathresolution.subchart_template_text(tmp_path, dep) is None
 
 
-def test_subchart_template_text_no_templates_dir_returns_none(tmp_path, libchartrepoandpathresolution):
+def test_subchart_template_text_no_templates_dir_returns_none(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
     """A .tgz with only values.yaml (no templates/ at all — the shape
     make_tgz produces when `templates` is omitted) is "can't tell", not
     an empty-but-valid haystack — callers must be able to distinguish the
@@ -244,7 +255,7 @@ def test_subchart_template_text_no_templates_dir_returns_none(tmp_path, libchart
 # --- subchart_default_repository ---
 
 
-def test_subchart_default_repository_resolves_via_alias(tmp_path, libchartrepoandpathresolution):
+def test_subchart_default_repository_resolves_via_alias(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
     """openformulieren is a values.yaml/Chart.yaml alias for the openforms
     subchart — the .tgz and its internal values.yaml are keyed by the
     real chart name, not the alias."""
@@ -261,7 +272,7 @@ def test_subchart_default_repository_resolves_via_alias(tmp_path, libchartrepoan
     )
 
 
-def test_subchart_default_repository_nested_subpath(tmp_path, libchartrepoandpathresolution):
+def test_subchart_default_repository_nested_subpath(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
     make_tgz(
         tmp_path / "charts",
         "zgw-office-addin",
@@ -280,17 +291,23 @@ def test_subchart_default_repository_nested_subpath(tmp_path, libchartrepoandpat
     assert libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 4, deps) == "example/frontend"
 
 
-def test_subchart_default_repository_unknown_component_returns_none(tmp_path, libchartrepoandpathresolution):
+def test_subchart_default_repository_unknown_component_returns_none(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
     lines = ["a:", "  image:", '    tag: "1.0.0@sha256:aaaa"']
     assert libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 3, []) is None
 
 
-def test_subchart_default_repository_too_shallow_path_returns_none(tmp_path, libchartrepoandpathresolution):
+def test_subchart_default_repository_too_shallow_path_returns_none(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
     lines = ['tag: "1.0.0@sha256:aaaa"']
     assert libchartrepoandpathresolution.subchart_default_repository(tmp_path, lines, 1, [{"name": "a"}]) is None
 
 
-def test_subchart_default_repository_subchart_has_no_repository_at_path(tmp_path, libchartrepoandpathresolution):
+def test_subchart_default_repository_subchart_has_no_repository_at_path(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {}})
     deps = [{"name": "openzaak", "version": "1.14.2"}]
     lines = ["openzaak:", "  image:", '    tag: "1.27.4@sha256:aaaa"']
@@ -298,7 +315,10 @@ def test_subchart_default_repository_subchart_has_no_repository_at_path(tmp_path
 
 
 def test_subchart_default_repository_caches_across_calls(
-    tmp_path, monkeypatch, libchartpullandsubchartresolution, libchartrepoandpathresolution
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libchartpullandsubchartresolution: ModuleType,
+    libchartrepoandpathresolution: ModuleType,
 ):
     make_tgz(
         tmp_path / "charts",
@@ -341,7 +361,7 @@ def test_subchart_default_repository_caches_across_calls(
 # --- chart_version_lockstep_components (self-resolving wrapper) ---
 
 
-def test_chart_version_lockstep_components_self_resolves_against_real_chart_dir(libchartregisteredpaths):
+def test_chart_version_lockstep_components_self_resolves_against_real_chart_dir(libchartregisteredpaths: ModuleType):
     """Called with no override, resolves chart_dir from lib/chart.py's own
     on-disk location (parents[2]) and reads the REAL etc/settings.yaml --
     proves the self-resolving default actually works end to end, not just
@@ -351,7 +371,7 @@ def test_chart_version_lockstep_components_self_resolves_against_real_chart_dir(
     )
 
 
-def test_chart_version_lockstep_components_explicit_override(libchartregisteredpaths, tmp_path):
+def test_chart_version_lockstep_components_explicit_override(libchartregisteredpaths: ModuleType, tmp_path: Path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         'component_resolution:\n  chart_version_lockstep_components: ["only-this-one"]\n',
@@ -363,14 +383,14 @@ def test_chart_version_lockstep_components_explicit_override(libchartregisteredp
 # --- version_repository_path_for / nested_subchart_name_for / nested_subchart_registered_paths ---
 
 
-def test_version_repository_path_for_default(libchartnestedsubchartidentity, tmp_path):
+def test_version_repository_path_for_default(libchartnestedsubchartidentity: ModuleType, tmp_path: Path):
     assert libchartnestedsubchartidentity.version_repository_path_for("redis-operator", tmp_path) == (
         "redisOperator.imageName"
     )
     assert libchartnestedsubchartidentity.version_repository_path_for("unregistered", tmp_path) is None
 
 
-def test_version_repository_path_for_explicit_override(libchartnestedsubchartidentity, tmp_path):
+def test_version_repository_path_for_explicit_override(libchartnestedsubchartidentity: ModuleType, tmp_path: Path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         'component_resolution:\n  version_repository_paths:\n    foo-op: "fooOperator.imageName"\n',
@@ -380,14 +400,14 @@ def test_version_repository_path_for_explicit_override(libchartnestedsubchartide
     assert libchartnestedsubchartidentity.version_repository_path_for("redis-operator", tmp_path) is None
 
 
-def test_version_repository_path_for_none_chart_dir_returns_none(libchartnestedsubchartidentity):
+def test_version_repository_path_for_none_chart_dir_returns_none(libchartnestedsubchartidentity: ModuleType):
     """Some of its own call sites (e.g. full_repository_for_path) are
     themselves reachable with chart_dir=None -- must degrade gracefully,
     never crash a report-only check."""
     assert libchartnestedsubchartidentity.version_repository_path_for("redis-operator", None) is None
 
 
-def test_nested_subchart_name_for_default(libchartnestedsubchartidentity, tmp_path):
+def test_nested_subchart_name_for_default(libchartnestedsubchartidentity: ModuleType, tmp_path: Path):
     assert (
         libchartnestedsubchartidentity.nested_subchart_name_for("eck-stack", "eck-elasticsearch.version", tmp_path)
         == "eck-elasticsearch"
@@ -397,7 +417,7 @@ def test_nested_subchart_name_for_default(libchartnestedsubchartidentity, tmp_pa
     )
 
 
-def test_nested_subchart_name_for_explicit_override(libchartnestedsubchartidentity, tmp_path):
+def test_nested_subchart_name_for_explicit_override(libchartnestedsubchartidentity: ModuleType, tmp_path: Path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         "component_resolution:\n"
@@ -413,13 +433,15 @@ def test_nested_subchart_name_for_explicit_override(libchartnestedsubchartidenti
     assert libchartnestedsubchartidentity.nested_subchart_name_for("eck-stack", "eck-kibana.version", tmp_path) is None
 
 
-def test_nested_subchart_name_for_none_chart_dir_returns_none(libchartnestedsubchartidentity):
+def test_nested_subchart_name_for_none_chart_dir_returns_none(libchartnestedsubchartidentity: ModuleType):
     assert (
         libchartnestedsubchartidentity.nested_subchart_name_for("eck-stack", "eck-elasticsearch.version", None) is None
     )
 
 
-def test_nested_subchart_registered_paths_self_resolves_against_real_chart_dir(libchartnestedsubchartidentity):
+def test_nested_subchart_registered_paths_self_resolves_against_real_chart_dir(
+    libchartnestedsubchartidentity: ModuleType,
+):
     """Called with no override, resolves chart_dir the same self-resolving
     way chart_version_lockstep_components does -- proves the default
     works end to end against the REAL etc/settings.yaml, not just a
@@ -430,7 +452,7 @@ def test_nested_subchart_registered_paths_self_resolves_against_real_chart_dir(l
     assert libchartnestedsubchartidentity.nested_subchart_registered_paths("unregistered") == []
 
 
-def test_nested_subchart_registered_paths_explicit_override(libchartnestedsubchartidentity, tmp_path):
+def test_nested_subchart_registered_paths_explicit_override(libchartnestedsubchartidentity: ModuleType, tmp_path: Path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         "component_resolution:\n"
@@ -447,7 +469,7 @@ def test_nested_subchart_registered_paths_explicit_override(libchartnestedsubcha
 # --- component_image_paths / image_paths_for (self-resolving wrappers) ---
 
 
-def test_component_image_paths_self_resolves_against_real_chart_dir(libchartregisteredpaths):
+def test_component_image_paths_self_resolves_against_real_chart_dir(libchartregisteredpaths: ModuleType):
     """Called with no override, resolves chart_dir from lib/chart.py's own
     on-disk location (parents[2]) and reads the REAL etc/settings.yaml --
     proves the self-resolving default actually works end to end, not just
@@ -462,7 +484,7 @@ def test_component_image_paths_self_resolves_against_real_chart_dir(libchartregi
     }
 
 
-def test_component_image_paths_explicit_override(libchartregisteredpaths, tmp_path):
+def test_component_image_paths_explicit_override(libchartregisteredpaths: ModuleType, tmp_path: Path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         'component_resolution:\n  image_paths:\n    only-this-one: ["image"]\n',
@@ -471,7 +493,7 @@ def test_component_image_paths_explicit_override(libchartregisteredpaths, tmp_pa
     assert libchartregisteredpaths.component_image_paths(tmp_path) == {"only-this-one": ["image"]}
 
 
-def test_image_paths_for_self_resolves_against_real_chart_dir(libchartregisteredpaths):
+def test_image_paths_for_self_resolves_against_real_chart_dir(libchartregisteredpaths: ModuleType):
     """Same self-resolving proof as component_image_paths above, but
     through the per-component accessor -- both a registered component and
     the unregistered-default fallback."""
@@ -479,7 +501,7 @@ def test_image_paths_for_self_resolves_against_real_chart_dir(libchartregistered
     assert libchartregisteredpaths.image_paths_for("zac") == ["image"]
 
 
-def test_image_paths_for_explicit_override(libchartregisteredpaths, tmp_path):
+def test_image_paths_for_explicit_override(libchartregisteredpaths: ModuleType, tmp_path: Path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         "component_resolution:\n"
@@ -495,7 +517,7 @@ def test_image_paths_for_explicit_override(libchartregisteredpaths, tmp_path):
 # --- component_version_paths / version_paths_for (self-resolving wrappers) ---
 
 
-def test_component_version_paths_self_resolves_against_real_chart_dir(libchartregisteredpaths):
+def test_component_version_paths_self_resolves_against_real_chart_dir(libchartregisteredpaths: ModuleType):
     """Same self-resolving proof as component_image_paths, for the bare-
     version-field registry."""
     assert libchartregisteredpaths.component_version_paths() == {
@@ -504,7 +526,7 @@ def test_component_version_paths_self_resolves_against_real_chart_dir(libchartre
     }
 
 
-def test_component_version_paths_explicit_override(libchartregisteredpaths, tmp_path):
+def test_component_version_paths_explicit_override(libchartregisteredpaths: ModuleType, tmp_path: Path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         'component_resolution:\n  version_paths:\n    only-this-one: ["some.version"]\n',
@@ -513,12 +535,12 @@ def test_component_version_paths_explicit_override(libchartregisteredpaths, tmp_
     assert libchartregisteredpaths.component_version_paths(tmp_path) == {"only-this-one": ["some.version"]}
 
 
-def test_version_paths_for_self_resolves_against_real_chart_dir(libchartregisteredpaths):
+def test_version_paths_for_self_resolves_against_real_chart_dir(libchartregisteredpaths: ModuleType):
     assert libchartregisteredpaths.version_paths_for("eck-stack") == ["eck-elasticsearch.version", "eck-kibana.version"]
     assert libchartregisteredpaths.version_paths_for("unregistered") == []
 
 
-def test_version_paths_for_explicit_override(libchartregisteredpaths, tmp_path):
+def test_version_paths_for_explicit_override(libchartregisteredpaths: ModuleType, tmp_path: Path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "settings.yaml").write_text(
         'component_resolution:\n  version_paths:\n    only-this-one: ["some.version"]\n',

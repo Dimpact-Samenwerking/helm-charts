@@ -7,6 +7,7 @@ import importlib.util
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -15,7 +16,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "list-podiumd-images"
 
 
 @pytest.fixture(scope="session")
-def _module():
+def _module() -> ModuleType:
     loader = SourceFileLoader("list_podiumd_images", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("list_podiumd_images", SCRIPT_PATH, loader=loader)
     assert spec is not None
@@ -41,7 +42,7 @@ class _AllChartTreePaths:
 
 
 @pytest.fixture(autouse=True)
-def stub_render_chart(_module, monkeypatch):
+def stub_render_chart(_module: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """main()'s own new render_chart() call (feeding the render-gate
     that replaced the old condition-only is_enabled()) would otherwise
     invoke a REAL `helm template` against whatever CHART_YAML/
@@ -59,7 +60,7 @@ def stub_render_chart(_module, monkeypatch):
 
 
 @pytest.fixture
-def lpi(_module, tmp_path, monkeypatch):
+def lpi(_module: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     vendored_dir = tmp_path / "charts"
     vendored_dir.mkdir()
     monkeypatch.setattr(_module, "CHART_YAML", tmp_path / "Chart.yaml")
@@ -69,7 +70,7 @@ def lpi(_module, tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def stub_ensure_vendored_dependencies(_module, monkeypatch):
+def stub_ensure_vendored_dependencies(_module: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """main() now calls lib.dependencies.ensure_vendored_dependencies
     first, but every main()-level test here runs against a fake chart
     directory with no vendored sub-charts at all. Stubbed to a no-op by

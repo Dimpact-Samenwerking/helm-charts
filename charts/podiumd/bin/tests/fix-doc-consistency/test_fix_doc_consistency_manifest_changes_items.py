@@ -2,6 +2,10 @@
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
 import yaml
 
 
@@ -13,7 +17,7 @@ def write(path, text):
     path.write_text(text, encoding="utf-8")
 
 
-def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
+def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, new_baseline, target="4.9.0"):
     monkeypatch.setattr("sys.argv", ["fix-doc-consistency"])
     monkeypatch.setattr(cdb, "read_upgrade_docs_baseline", lambda chart_dir: new_baseline)
     monkeypatch.setattr(cdb, "DOC_DIR", doc_dir)
@@ -26,7 +30,7 @@ def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
 # --- dedupe_images_manifest_changes_items ---
 
 
-def test_dedupe_images_manifest_changes_items_removes_exact_repeat_and_renumbers(cdb):
+def test_dedupe_images_manifest_changes_items_removes_exact_repeat_and_renumbers(cdb: ModuleType):
     """Real symptom: a lockstep component's TWO missing_paths each got
     their own identical header item on an earlier (buggy) run — the
     second, exact-duplicate "ita 3.2.0 -> 3.3.0." item is dropped, and
@@ -48,7 +52,7 @@ def test_dedupe_images_manifest_changes_items_removes_exact_repeat_and_renumbers
     assert len(lines) == 5
 
 
-def test_dedupe_images_manifest_changes_items_updates_header_count_word(cdb):
+def test_dedupe_images_manifest_changes_items_updates_header_count_word(cdb: ModuleType):
     lines = [
         "# Four changes:\n",
         "#   1. openzaak 1.27.4 -> 1.29.3.\n",
@@ -61,7 +65,7 @@ def test_dedupe_images_manifest_changes_items_updates_header_count_word(cdb):
     assert lines[0] == "# Three changes:\n"
 
 
-def test_dedupe_images_manifest_changes_items_continuation_line_travels_with_kept_item(cdb):
+def test_dedupe_images_manifest_changes_items_continuation_line_travels_with_kept_item(cdb: ModuleType):
     """A wrapped continuation line is part of the item's own compared
     text, and moves/stays with whichever occurrence of that item is
     kept — never left orphaned or duplicated on its own."""
@@ -83,7 +87,7 @@ def test_dedupe_images_manifest_changes_items_continuation_line_travels_with_kep
     ]
 
 
-def test_dedupe_images_manifest_changes_items_no_duplicates_is_a_noop(cdb):
+def test_dedupe_images_manifest_changes_items_no_duplicates_is_a_noop(cdb: ModuleType):
     lines = [
         "# Changes:\n",
         "#   1. openzaak 1.27.4 -> 1.29.3.\n",
@@ -95,7 +99,7 @@ def test_dedupe_images_manifest_changes_items_no_duplicates_is_a_noop(cdb):
     assert lines == original
 
 
-def test_dedupe_images_manifest_changes_items_no_header_returns_empty(cdb):
+def test_dedupe_images_manifest_changes_items_no_header_returns_empty(cdb: ModuleType):
     lines = ["- name: opstree/redis-operator\n", '  version: "0.26.0"\n']
     assert cdb.dedupe_images_manifest_changes_items(lines) == []
 
@@ -114,7 +118,7 @@ CHANGES_ITEMS_ENTRIES = [
 CHANGES_ITEMS_POSITIONS = {"opstree/redis-operator": 0, "infonl/zac": 1}
 
 
-def test_sort_images_manifest_changes_items_reorders_and_renumbers(cdb):
+def test_sort_images_manifest_changes_items_reorders_and_renumbers(cdb: ModuleType):
     lines = [
         "# Baseline: podiumd 4.8.5.\n",
         "#\n",
@@ -129,7 +133,7 @@ def test_sort_images_manifest_changes_items_reorders_and_renumbers(cdb):
     assert lines[4] == "#   2. zac 5.0.2 -> 5.4.4.\n"
 
 
-def test_sort_images_manifest_changes_items_display_name_exact_match_takes_priority(cdb):
+def test_sort_images_manifest_changes_items_display_name_exact_match_takes_priority(cdb: ModuleType):
     """Real bug: "kiss" (a dependency's own bare alias) shares no word
     at all with its own image's repository basename ("kiss-frontend"),
     so match_changes_item_to_entry's fuzzy basename-in-text search could
@@ -166,7 +170,7 @@ def test_sort_images_manifest_changes_items_display_name_exact_match_takes_prior
     assert lines[3] == "#   3. redis-operator 0.25.0 -> 0.26.0.\n"
 
 
-def test_sort_images_manifest_changes_items_display_name_prefers_longest_match(cdb):
+def test_sort_images_manifest_changes_items_display_name_prefers_longest_match(cdb: ModuleType):
     """ "keycloak-operator" is itself a valid, shorter prefix of
     "keycloak-operator - postgres 16 -> 16.15." — the longer, more
     specific display name must win, not the primary's own shorter one."""
@@ -184,7 +188,7 @@ def test_sort_images_manifest_changes_items_display_name_prefers_longest_match(c
     assert lines[2] == "#   2. keycloak-operator - postgres 16 -> 16.15.\n"
 
 
-def test_sort_images_manifest_changes_items_no_display_name_positions_falls_back_to_fuzzy(cdb):
+def test_sort_images_manifest_changes_items_no_display_name_positions_falls_back_to_fuzzy(cdb: ModuleType):
     """Omitting display_name_positions (the default) behaves exactly as
     before — the existing fuzzy match_changes_item_to_entry path, fully
     unaffected."""
@@ -198,7 +202,7 @@ def test_sort_images_manifest_changes_items_no_display_name_positions_falls_back
     assert moved == [("redis-operator 0.25.0 -> 0.26.0.", 2, 1), ("zac 5.0.2 -> 5.4.4.", 1, 2)]
 
 
-def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(cdb):
+def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(cdb: ModuleType):
     """A wrapped continuation line (2+ spaces after "#") stays attached
     to its own item when that item moves — never split off or left
     behind at its old position."""
@@ -216,7 +220,7 @@ def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(
     assert lines[3] == "#   2. zac 5.0.2 -> 5.4.4.\n"
 
 
-def test_sort_images_manifest_changes_items_unresolved_item_sorts_last(cdb):
+def test_sort_images_manifest_changes_items_unresolved_item_sorts_last(cdb: ModuleType):
     """An item that doesn't resolve to any of this manifest's own
     entries (free-form prose — see lib.docs_consistency.match_changes_
     item_to_entry) sorts after every real one — never dragged around by
@@ -234,7 +238,7 @@ def test_sort_images_manifest_changes_items_unresolved_item_sorts_last(cdb):
     assert lines[3] == "#   3. Totally Unknown Thing 1.0.0 -> 2.0.0.\n"
 
 
-def test_sort_images_manifest_changes_items_mirrors_entry_order_not_fuzzy_dependency_match(cdb):
+def test_sort_images_manifest_changes_items_mirrors_entry_order_not_fuzzy_dependency_match(cdb: ModuleType):
     """The real bug this redesign fixes: an item's own free-form prose
     mentioning an unrelated dependency's name only incidentally (here,
     "keycloak-operator" inside a parenthetical aside about "keycloak
@@ -258,7 +262,7 @@ def test_sort_images_manifest_changes_items_mirrors_entry_order_not_fuzzy_depend
     assert lines[2].startswith("#   2. Keycloak app image")
 
 
-def test_sort_images_manifest_changes_items_already_ordered_reports_nothing(cdb):
+def test_sort_images_manifest_changes_items_already_ordered_reports_nothing(cdb: ModuleType):
     lines = [
         "# Changes:\n",
         "#   1. redis-operator 0.25.0 -> 0.26.0.\n",
@@ -271,13 +275,15 @@ def test_sort_images_manifest_changes_items_already_ordered_reports_nothing(cdb)
     assert lines == original
 
 
-def test_sort_images_manifest_changes_items_no_header_is_a_noop(cdb):
+def test_sort_images_manifest_changes_items_no_header_is_a_noop(cdb: ModuleType):
     lines = ["- name: opstree/redis-operator\n", '  version: "0.26.0"\n']
     moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
     assert moved == []
 
 
-def test_main_reorders_images_manifest_to_match_values_yaml(cdb, tmp_path, monkeypatch, capsys):
+def test_main_reorders_images_manifest_to_match_values_yaml(
+    cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """images-4.9.0.yaml lists zac before redis-operator, but values.yaml
     (via sort_keys=False — see repo_with_out_of_order_doc's own comment
     on why the dict's own insertion order matters) lists redis-operator

@@ -9,8 +9,13 @@ version lives in lib.image.version, which resolves `registry_tag_exists`
 via ITS OWN globals — see lib.image.version's import — so tests patch
 that module directly, same as tests/lib/test_image_version.py does)."""
 
+from pathlib import Path
+from types import ModuleType
 
-def write_values(tmp_path, text):
+import pytest
+
+
+def write_values(tmp_path: Path, text):
     path = tmp_path / "values.yaml"
     path.write_text(text, encoding="utf-8")
     return path
@@ -31,7 +36,9 @@ def write_doc(doc_dir, name, text):
     (doc_dir / name).write_text(text, encoding="utf-8")
 
 
-def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, tmp_path, monkeypatch, capsys):
+def test_main_shared_image_creates_pseudo_component_row_and_changes_block(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """curl, shared via values.yaml's global.images anchor block and
     aliased into two unrelated components -- gets its own table row
     (Helm chart column "-") and a "### curl ..." Changes block, matching
@@ -112,7 +119,9 @@ def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, t
     assert "updated entry for curlimages/curl" in out
 
 
-def test_main_shared_image_sorts_at_its_real_values_yaml_position_not_last(uiv, tmp_path, monkeypatch):
+def test_main_shared_image_sorts_at_its_real_values_yaml_position_not_last(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test (real bug, real doc): a MULTIPLE/shared-image bump
     (curl, global.images-anchored) used to always land at the very END of
     both the table and the "## Changes" section — canonical_names (which
@@ -170,7 +179,9 @@ def test_main_shared_image_sorts_at_its_real_values_yaml_position_not_last(uiv, 
     assert upgrade.index("### curl") < upgrade.index("### keycloak-operator")
 
 
-def test_main_shared_image_insertion_gets_blank_line_when_preceding_content_has_none(uiv, tmp_path, monkeypatch):
+def test_main_shared_image_insertion_gets_blank_line_when_preceding_content_has_none(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test (real bug, real doc): insert_changes_section used
     to assume a blank line already separated the insertion point from
     whatever precedes it — true only by accident. Real case: aaa-dep's

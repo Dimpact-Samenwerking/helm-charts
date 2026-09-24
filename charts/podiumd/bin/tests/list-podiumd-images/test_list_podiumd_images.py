@@ -10,6 +10,7 @@ tests/lib/test_chart.py — and reads its own source directory instead."""
 import subprocess
 import tarfile
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -26,7 +27,7 @@ def write_pulled_chart(dest, name, chart_yaml, values_yaml):
     (chart_dir / "values.yaml").write_text(yaml.safe_dump(values_yaml))
 
 
-def make_vendored_tgz(vendored_dir, tmp_path, name, version, chart_yaml, values_yaml, raw_files=None):
+def make_vendored_tgz(vendored_dir, tmp_path: Path, name, version, chart_yaml, values_yaml, raw_files=None):
     """`raw_files`, if given (a {path relative to the chart root: text}
     dict, e.g. "charts/eck-elasticsearch/values.yaml") — writes each
     verbatim, in addition to Chart.yaml/values.yaml — for a nested
@@ -141,7 +142,7 @@ def test_resolution_note_unresolvable_pair_reports_generic_reason(lpi):
 # --- print_image_lines ---
 
 
-def test_print_image_lines_leads_with_key_basename_version_and_path(lpi, capsys):
+def test_print_image_lines_leads_with_key_basename_version_and_path(lpi, capsys: pytest.CaptureFixture[str]):
     lines = [
         "pabc:",
         "  image:",
@@ -155,13 +156,13 @@ def test_print_image_lines_leads_with_key_basename_version_and_path(lpi, capsys)
     assert detail_line.strip() == f"ghcr.io/x/pabc-api:1.1.1@sha256:{'a' * 64}"
 
 
-def test_print_image_lines_appends_note_when_not_resolvable(lpi, capsys):
+def test_print_image_lines_appends_note_when_not_resolvable(lpi, capsys: pytest.CaptureFixture[str]):
     lpi.print_image_lines([("openbeheer", "image", "maykinmedia/open-beheer", "0.9.0", False)], [])
     out = capsys.readouterr().out
     assert "unresolvable" in out
 
 
-def test_print_image_lines_appends_disabled_hint_for_a_never_rendered_row(lpi, capsys):
+def test_print_image_lines_appends_disabled_hint_for_a_never_rendered_row(lpi, capsys: pytest.CaptureFixture[str]):
     """A row whose own chart-tree path never rendered (e.g. a Maykin
     chart's own bundled bitnami/redis, globally disabled via podiumd's
     top-level "tags: {redis: false}") is labeled "disabled" — no longer
@@ -173,7 +174,7 @@ def test_print_image_lines_appends_disabled_hint_for_a_never_rendered_row(lpi, c
     assert "disabled; unresolvable" in first_line
 
 
-def test_print_image_lines_puts_note_on_first_line_not_the_detail_line(lpi, capsys):
+def test_print_image_lines_puts_note_on_first_line_not_the_detail_line(lpi, capsys: pytest.CaptureFixture[str]):
     """The note is exactly what decides whether <key> <basename> (the
     first line) is usable -- it belongs there, not on the second,
     repo:tag detail line."""
@@ -262,7 +263,7 @@ def test_component_version_rows_uses_merged_tree_not_just_podiumd_overrides(lpi)
     ]
 
 
-def test_component_version_rows_resolves_eck_stack_nested_subchart_images(lpi, tmp_path):
+def test_component_version_rows_resolves_eck_stack_nested_subchart_images(lpi, tmp_path: Path):
     """eck-stack's own eck-elasticsearch/eck-kibana/eck-enterprise-search
     fields are bare CRD "version:" scalars with no repository sibling
     anywhere in podiumd's own values.yaml at all — the real repository
@@ -374,7 +375,7 @@ def test_row_chart_tree_path_defaults_to_the_dependency_own_top_level_path(lpi):
     assert lpi.row_chart_tree_path(lpi.VENDORED_DIR.parent, dep, "redis") == "podiumd/charts/openzaak"
 
 
-def test_row_chart_tree_path_resolves_a_nested_chart_yaml_dependency(lpi, tmp_path):
+def test_row_chart_tree_path_resolves_a_nested_chart_yaml_dependency(lpi, tmp_path: Path):
     """openzaak's own bundled bitnami/redis (a real, separate Chart.yaml
     dependency OF openzaak itself, tagged "redis" in openzaak's own
     Chart.yaml "tags:" list) must resolve to ITS OWN nested chart-tree
@@ -400,7 +401,7 @@ def test_row_chart_tree_path_resolves_a_nested_chart_yaml_dependency(lpi, tmp_pa
 # --- load_chart ---
 
 
-def test_load_chart_uses_vendored_tgz_without_network(lpi, tmp_path, monkeypatch):
+def test_load_chart_uses_vendored_tgz_without_network(lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     dep = {"name": "zaakafhandelcomponent", "version": "1.0.297", "repository": "@zac"}
     make_vendored_tgz(
         lpi.VENDORED_DIR,
@@ -424,7 +425,7 @@ def test_load_chart_uses_vendored_tgz_without_network(lpi, tmp_path, monkeypatch
     assert values["image"]["repository"] == "ghcr.io/infonl/zaakafhandelcomponent"
 
 
-def test_load_chart_refresh_flag_bypasses_vendored_tgz(lpi, tmp_path, monkeypatch):
+def test_load_chart_refresh_flag_bypasses_vendored_tgz(lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     dep = {"name": "zaakafhandelcomponent", "version": "1.0.297", "repository": "@zac"}
     make_vendored_tgz(
         lpi.VENDORED_DIR,
@@ -450,7 +451,7 @@ def test_load_chart_refresh_flag_bypasses_vendored_tgz(lpi, tmp_path, monkeypatc
     assert chart_yaml["appVersion"] == "FROM-PULL"
 
 
-def test_load_chart_falls_back_to_pull_when_not_vendored(lpi, tmp_path, monkeypatch):
+def test_load_chart_falls_back_to_pull_when_not_vendored(lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     dep = {"name": "zaakafhandelcomponent", "version": "1.0.297", "repository": "@zac"}
 
     def fake_pull_chart(dep, dest):
@@ -464,7 +465,7 @@ def test_load_chart_falls_back_to_pull_when_not_vendored(lpi, tmp_path, monkeypa
     assert values == {}
 
 
-def test_load_chart_raises_if_nothing_produced(lpi, tmp_path, monkeypatch):
+def test_load_chart_raises_if_nothing_produced(lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     dep = {"name": "zaakafhandelcomponent", "version": "1.0.297", "repository": "@zac"}
     monkeypatch.setattr(lpi, "pull_chart", lambda dep, dest: None)
     tmproot = tmp_path / "tmproot"
@@ -473,7 +474,7 @@ def test_load_chart_raises_if_nothing_produced(lpi, tmp_path, monkeypatch):
         lpi.load_chart(dep, tmproot, refresh=False)
 
 
-def test_load_chart_reads_local_source_for_file_dependency(lpi, tmp_path, monkeypatch):
+def test_load_chart_reads_local_source_for_file_dependency(lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """A "file://" dependency has no remote to pull from and no vendored
     .tgz shape to extract — read straight from its own source directory
     instead, regardless of --refresh (there's nothing to refresh: reading
@@ -499,7 +500,7 @@ def test_load_chart_reads_local_source_for_file_dependency(lpi, tmp_path, monkey
     assert values["image"]["repository"] == "azure-cli"
 
 
-def test_load_chart_local_dependency_missing_directory_raises(lpi, tmp_path, monkeypatch):
+def test_load_chart_local_dependency_missing_directory_raises(lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     dep = {"name": "mi-data", "version": "1.0.0", "repository": "file://../mi-data"}
     monkeypatch.setattr(lpi, "local_chart_dir", lambda podiumd_dir, d: tmp_path / "does-not-exist")
     tmproot = tmp_path / "tmproot"
@@ -511,13 +512,13 @@ def test_load_chart_local_dependency_missing_directory_raises(lpi, tmp_path, mon
 # --- pull_chart ---
 
 
-def test_pull_chart_local_repository_raises_without_subprocess(lpi, tmp_path):
+def test_pull_chart_local_repository_raises_without_subprocess(lpi, tmp_path: Path):
     dep = {"name": "mi-data", "version": "1.0.0", "repository": "file://../mi-data"}
     with pytest.raises(SystemExit, match="not fetchable remotely"):
         lpi.pull_chart(dep, tmp_path)
 
 
-def test_pull_chart_https_repo_adds_repo_flag(lpi, tmp_path, monkeypatch):
+def test_pull_chart_https_repo_adds_repo_flag(lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     captured = {}
 
     def fake_run(cmd, **kw):
@@ -531,7 +532,7 @@ def test_pull_chart_https_repo_adds_repo_flag(lpi, tmp_path, monkeypatch):
     assert "https://wearefrank.github.io/charts" in captured["cmd"]
 
 
-def test_pull_chart_alias_repo_has_no_repo_flag(lpi, tmp_path, monkeypatch):
+def test_pull_chart_alias_repo_has_no_repo_flag(lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     captured = {}
 
     def fake_run(cmd, **kw):
@@ -544,7 +545,7 @@ def test_pull_chart_alias_repo_has_no_repo_flag(lpi, tmp_path, monkeypatch):
     assert "--repo" not in captured["cmd"]
 
 
-def test_pull_chart_failure_raises(lpi, tmp_path, monkeypatch):
+def test_pull_chart_failure_raises(lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: SimpleNamespace(returncode=1, stdout="", stderr="boom"))
     dep = {"name": "zaakafhandelcomponent", "version": "9.9.9", "repository": "@zac"}
     with pytest.raises(SystemExit, match="helm pull failed"):
@@ -554,12 +555,14 @@ def test_pull_chart_failure_raises(lpi, tmp_path, monkeypatch):
 # --- main() ---
 
 
-def run_main(lpi, monkeypatch, argv=()):
+def run_main(lpi, monkeypatch: pytest.MonkeyPatch, argv=()):
     monkeypatch.setattr("sys.argv", ["list-podiumd-images", *argv])
     lpi.main()
 
 
-def test_main_full_offline_flow(lpi, tmp_path, monkeypatch, capsys):
+def test_main_full_offline_flow(
+    lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     lpi.CHART_YAML.write_text(
         yaml.safe_dump(
             {
@@ -631,7 +634,9 @@ def test_main_full_offline_flow(lpi, tmp_path, monkeypatch, capsys):
     assert "=== openbeheer (openbeheer 0.1.3)  [disabled] ===" in out
 
 
-def test_main_nested_tags_disabled_sidecar_is_labeled_disabled_not_dropped(lpi, tmp_path, monkeypatch, capsys):
+def test_main_nested_tags_disabled_sidecar_is_labeled_disabled_not_dropped(
+    lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """The real bug this task fixes: a Maykin-style chart bundles its own
     bitnami/redis as a SEPARATE nested Chart.yaml dependency of its own,
     globally disabled via podiumd's own top-level "tags: {redis: false}"
@@ -677,7 +682,7 @@ def test_main_nested_tags_disabled_sidecar_is_labeled_disabled_not_dropped(lpi, 
     assert "disabled" in redis_line
 
 
-def test_main_render_failure_raises(lpi, monkeypatch):
+def test_main_render_failure_raises(lpi, monkeypatch: pytest.MonkeyPatch):
     lpi.CHART_YAML.write_text(yaml.safe_dump({"dependencies": []}))
     lpi.VALUES_YAML.write_text("{}\n")
     monkeypatch.setattr(
@@ -687,7 +692,7 @@ def test_main_render_failure_raises(lpi, monkeypatch):
         run_main(lpi, monkeypatch)
 
 
-def test_main_refresh_flag_forces_pull(lpi, tmp_path, monkeypatch):
+def test_main_refresh_flag_forces_pull(lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     lpi.CHART_YAML.write_text(
         yaml.safe_dump(
             {
@@ -719,15 +724,19 @@ def test_main_refresh_flag_forces_pull(lpi, tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_main_help_flag_prints_usage_and_exits_zero(lpi, monkeypatch, capsys, flag):
+def test_main_help_flag_prints_usage_and_exits_zero(
+    lpi, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
+):
     monkeypatch.setattr("sys.argv", ["list-podiumd-images", flag])
     with pytest.raises(SystemExit) as exc_info:
         lpi.main()
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == lpi.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{lpi.__doc__}\n"
 
 
-def test_main_reports_and_continues_on_load_failure(lpi, monkeypatch, capsys):
+def test_main_reports_and_continues_on_load_failure(
+    lpi, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     lpi.CHART_YAML.write_text(
         yaml.safe_dump(
             {
@@ -744,7 +753,9 @@ def test_main_reports_and_continues_on_load_failure(lpi, monkeypatch, capsys):
     assert "does not exist" in out
 
 
-def test_main_includes_component_version_path_images(lpi, tmp_path, monkeypatch, capsys):
+def test_main_includes_component_version_path_images(
+    lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """Regression test for the real gap (confirmed empirically against
     the real chart): redis-operator's own controller image (split
     imageName:/imageTag: fields) and eck-stack's own eck-elasticsearch/

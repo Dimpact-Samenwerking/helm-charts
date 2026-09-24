@@ -4,6 +4,9 @@ core/split-tag/allow-pull/global-image scenarios."""
 import io
 import tarfile
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -40,7 +43,7 @@ def make_tgz(charts_dir, name, version, values, raw_files=None):
 # --- fix_images_manifest_entry_urls ---
 
 
-def test_fix_images_manifest_entry_urls_restores_stripped_host(cdb, tmp_path):
+def test_fix_images_manifest_entry_urls_restores_stripped_host(cdb: ModuleType, tmp_path: Path):
     """Regression test (real bug, real doc): a historical (now-
     superseded) reordering commit silently stripped the registry host
     off several "url:" fields while moving their own entry blocks —
@@ -101,7 +104,7 @@ def test_fix_images_manifest_entry_urls_restores_stripped_host(cdb, tmp_path):
     assert "url: otel/opentelemetry-collector-contrib\n" not in new_text
 
 
-def test_fix_images_manifest_entry_urls_leaves_correct_url_untouched(cdb, images_manifest_chart_dir):
+def test_fix_images_manifest_entry_urls_leaves_correct_url_untouched(cdb: ModuleType, images_manifest_chart_dir):
     text = (
         "# zac 5.0.2 -> 5.1.0\n"
         "- name: infonl/zaakafhandelcomponent\n"
@@ -123,7 +126,7 @@ def test_fix_images_manifest_entry_urls_leaves_correct_url_untouched(cdb, images
     assert new_text == text
 
 
-def test_fix_images_manifest_entry_urls_reports_url_line_with_trailing_text(cdb, images_manifest_chart_dir):
+def test_fix_images_manifest_entry_urls_reports_url_line_with_trailing_text(cdb: ModuleType, images_manifest_chart_dir):
     """Regression test: a "url:" line with text after the url (here a YAML
     comment) is found as the entry's url line but has no single url
     value. It used to crash with AttributeError; it is now reported as
@@ -149,7 +152,7 @@ def test_fix_images_manifest_entry_urls_reports_url_line_with_trailing_text(cdb,
     assert new_text == text
 
 
-def test_fix_images_manifest_entry_urls_reports_unresolvable_entry(cdb, tmp_path):
+def test_fix_images_manifest_entry_urls_reports_unresolvable_entry(cdb: ModuleType, tmp_path: Path):
     write(tmp_path / "Chart.yaml", yaml.safe_dump({"dependencies": []}))
     write(tmp_path / "values.yaml", yaml.safe_dump({}))
     text = '- name: totally-unknown\n  url: example.com/totally-unknown\n  version: "1.0.0"\n'
@@ -164,7 +167,7 @@ def test_fix_images_manifest_entry_urls_reports_unresolvable_entry(cdb, tmp_path
 
 
 @pytest.fixture
-def images_manifest_chart_dir(tmp_path):
+def images_manifest_chart_dir(tmp_path: Path):
     """A real Chart.yaml + values.yaml on disk (needed by
     lib.image.repository_check.find_images_without_repository, which
     reads them itself rather than taking already-loaded dicts) — zac's
@@ -192,7 +195,7 @@ def images_manifest_chart_dir(tmp_path):
     return tmp_path
 
 
-def test_add_missing_images_manifest_entries_appends_new_entry(cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_appends_new_entry(cdb: ModuleType, images_manifest_chart_dir):
     text = "# Baseline: podiumd 4.8.5.\n"
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
     target_values = {
@@ -221,7 +224,9 @@ def test_add_missing_images_manifest_entries_appends_new_entry(cdb, images_manif
     assert 'digest: "sha256:aaaa"' in new_text
 
 
-def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(
+    cdb: ModuleType, images_manifest_chart_dir
+):
     """Regression test (real bug, real doc): a genuinely brand-new image
     (no baseline value at all, and no historical images-<version>.yaml
     manifest ever records it either) used to fall back to `old_version =
@@ -258,7 +263,7 @@ def test_add_missing_images_manifest_entries_genuinely_new_image_renders_new(cdb
     assert "(digest changed)" not in new_text
 
 
-def test_add_missing_images_manifest_entries_moved_repository_gets_real_transition(cdb, tmp_path):
+def test_add_missing_images_manifest_entries_moved_repository_gets_real_transition(cdb: ModuleType, tmp_path: Path):
     """Real case (podiumd 4.9.1): the postgres consolidation (see
     lib.chart.baseline_tag_for_sidecar_path) — global.images.postgres
     never existed in baseline_values, but the same "postgres" repository
@@ -311,7 +316,9 @@ def test_add_missing_images_manifest_entries_moved_repository_gets_real_transiti
     assert "(new)" not in new_text
 
 
-def test_add_missing_images_manifest_entries_catches_same_version_changed_digest(cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_catches_same_version_changed_digest(
+    cdb: ModuleType, images_manifest_chart_dir
+):
     """Regression test (real bug, real doc, clamav-shaped): a same-
     version, changed-digest re-pin is correctly DETECTED by lib.
     upgradedoc.find_images_manifest_list_diff (see its own docstring),
@@ -352,7 +359,9 @@ def test_add_missing_images_manifest_entries_catches_same_version_changed_digest
     assert "clamav 1.5.4 -> 1.5.4" not in new_text
 
 
-def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_qualified(cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_qualified(
+    cdb: ModuleType, images_manifest_chart_dir
+):
     """Regression test: "name:" is the curated ACR mirror slug's own
     starting point — the same STRIPPED repo_map key docs/images/
     acr-mirror-naming.md documents, still a human's job to fix
@@ -382,7 +391,9 @@ def test_add_missing_images_manifest_entries_name_is_stripped_url_is_fully_quali
     assert "url: ghcr.io/infonl/zaakafhandelcomponent" in new_text
 
 
-def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wording(cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wording(
+    cdb: ModuleType, images_manifest_chart_dir
+):
     """A genuine version bump (old_version != new_version) still renders
     the normal "<old> -> <new>" arrow form — the "(digest changed)"
     wording is ONLY for the same-version case, never a substitute for a
@@ -408,7 +419,9 @@ def test_add_missing_images_manifest_entries_real_version_bump_keeps_arrow_wordi
     assert "digest changed" not in new_text
 
 
-def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_io_host(cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_io_host(
+    cdb: ModuleType, images_manifest_chart_dir
+):
     """Regression test: a Docker-Hub-hosted image's own "repository:"
     conventionally omits the host entirely (e.g. "curlimages/curl") —
     the entry's "url:" must still come out fully host-qualified
@@ -431,7 +444,9 @@ def test_add_missing_images_manifest_entries_docker_hub_repository_gets_docker_i
     assert "url: docker.io/curlimages/curl" in new_text
 
 
-def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_url(cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_url(
+    cdb: ModuleType, images_manifest_chart_dir
+):
     """Regression test (mi's own real "azure-cli" case): a component
     whose registry host lives in a SEPARATE sibling "registry:" key
     (Azure Container Registry's own convention) rather than embedded in
@@ -459,7 +474,9 @@ def test_add_missing_images_manifest_entries_separate_registry_key_is_used_for_u
     assert "url: mcr.microsoft.com/azure-cli" in new_text
 
 
-def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(
+    cdb: ModuleType, images_manifest_chart_dir
+):
     text = (
         "# zac — 5.0.2 -> 5.1.0\n"
         "- name: infonl/zaakafhandelcomponent\n"
@@ -489,7 +506,7 @@ def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(c
     assert new_text == text
 
 
-def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb: ModuleType, images_manifest_chart_dir):
     """A path whose current tag has no "@sha256:..." at all can't
     produce a valid entry (digest is a required field) — reported as
     skipped, not silently dropped or written incomplete."""
@@ -522,7 +539,9 @@ def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb, im
     assert new_text == text
 
 
-def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_resolves(cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_resolves(
+    cdb: ModuleType, images_manifest_chart_dir
+):
     """Regression test (real bug, real chart): eck-operator's own image
     pin uses a split "tag:"/"digest:" convention (not the usual embedded
     "tag: <ver>@sha256:<digest>"). Before lib.chart.SPLIT_TAG_SHA_PATHS
@@ -565,7 +584,7 @@ def test_add_missing_images_manifest_entries_eck_operator_split_digest_field_res
 
 
 @pytest.fixture
-def eck_stack_chart_dir(tmp_path):
+def eck_stack_chart_dir(tmp_path: Path):
     """eck-stack's own bare "version:" CRD fields (see COMPONENT_
     VERSION_PATH_NESTED_SUBCHARTS) never carry a digest anywhere in
     values.yaml at all — the real case documented_repository_for_path/
@@ -604,7 +623,7 @@ def eck_stack_chart_dir(tmp_path):
 
 
 def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_registry(
-    cdb, eck_stack_chart_dir, monkeypatch
+    cdb: ModuleType, eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
 ):
     """Real feature: the repository resolves fine (via the vendored
     subchart's own documented example), but resolved_digest_pin alone
@@ -644,7 +663,7 @@ def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_regi
 
 
 def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_network(
-    cdb, eck_stack_chart_dir, monkeypatch
+    cdb: ModuleType, eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
 ):
     """Default allow_pull=False must never call the registry at all —
     left exactly as before: skipped, no network access attempted."""
@@ -674,7 +693,7 @@ def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_netw
 
 
 def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skips(
-    cdb, eck_stack_chart_dir, monkeypatch
+    cdb: ModuleType, eck_stack_chart_dir, monkeypatch: pytest.MonkeyPatch
 ):
     """The registry genuinely has no such tag (exists=False) — still
     reported as skipped, not a crash or a bad/partial entry."""
@@ -700,7 +719,7 @@ def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skip
 
 
 @pytest.fixture
-def keycloak_operator_chart_dir(tmp_path):
+def keycloak_operator_chart_dir(tmp_path: Path):
     """keycloak-operator's own primary image (operator.config.keycloakImage)
     uses the adfinis chart's own split "tag:"/"sha:" convention — its
     "tag:" alone never carries "@sha256:...", the real case
@@ -734,7 +753,9 @@ def keycloak_operator_chart_dir(tmp_path):
     return tmp_path
 
 
-def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(cdb, keycloak_operator_chart_dir):
+def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(
+    cdb: ModuleType, keycloak_operator_chart_dir
+):
     """Real bug: keycloak-operator's own primary image was silently
     SKIPPED entirely (treated the same as "no digest pinned yet") since
     its "tag:" never embeds "@sha256:..." — the digest lives in the
@@ -779,7 +800,7 @@ def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(cd
 
 
 def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still_skipped(
-    cdb, keycloak_operator_chart_dir
+    cdb: ModuleType, keycloak_operator_chart_dir
 ):
     """No podiumd override for the sibling "sha:" field at all (inherits
     the vendored subchart's own default, not visible from values.yaml) —
@@ -826,7 +847,7 @@ def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still
 
 
 @pytest.fixture
-def global_image_chart_dir(tmp_path):
+def global_image_chart_dir(tmp_path: Path):
     """apiproxy's own real shape: an orphan top-level block (no Chart.yaml
     dependency of its own) whose SOLE image aliases the shared
     global.images.nginx anchor — the same YAML-anchored value, not a
@@ -846,7 +867,9 @@ def global_image_chart_dir(tmp_path):
     return tmp_path
 
 
-def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per_alias(cdb, global_image_chart_dir):
+def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per_alias(
+    cdb: ModuleType, global_image_chart_dir
+):
     """Real feature: a shared global.images.* anchor gets exactly ONE
     entry, named via its own bare basename and positioned under
     "global" 's own values.yaml order — never a separate entry for
@@ -884,7 +907,9 @@ def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per
     assert "apiproxy" not in new_text
 
 
-def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repository(cdb, images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repository(
+    cdb: ModuleType, images_manifest_chart_dir
+):
     """kiss.adapter.image's own real-world case: no own override AND no
     vendored subchart default — not a real, referenceable image, so
     never auto-added (matches lib.image.repository_check.

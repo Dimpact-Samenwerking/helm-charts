@@ -6,6 +6,9 @@ files in this directory)."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -18,7 +21,7 @@ def write(path, text):
     path.write_text(text, encoding="utf-8")
 
 
-def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
+def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, new_baseline, target="4.9.0"):
     monkeypatch.setattr("sys.argv", ["fix-doc-consistency"])
     monkeypatch.setattr(cdb, "read_upgrade_docs_baseline", lambda chart_dir: new_baseline)
     monkeypatch.setattr(cdb, "DOC_DIR", doc_dir)
@@ -31,7 +34,7 @@ def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
 # --- current_chart_version ---
 
 
-def test_current_chart_version_reads_chart_yaml(cdb, tmp_path, monkeypatch):
+def test_current_chart_version_reads_chart_yaml(cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     chart_yaml = tmp_path / "Chart.yaml"
     chart_yaml.write_text("version: 4.9.0\nname: podiumd\n", encoding="utf-8")
     monkeypatch.setattr(cdb, "CHART_YAML", chart_yaml)
@@ -41,16 +44,16 @@ def test_current_chart_version_reads_chart_yaml(cdb, tmp_path, monkeypatch):
 # --- extract_images_baseline / update_sibling_doc_refs / update_images_manifest_baseline ---
 
 
-def test_extract_images_baseline_finds_version(cdb):
+def test_extract_images_baseline_finds_version(cdb: ModuleType):
     text = "# Baseline: podiumd 4.8.2. Re-verify before release.\n"
     assert cdb.extract_images_baseline(text) == "4.8.2"
 
 
-def test_extract_images_baseline_none_when_absent(cdb):
+def test_extract_images_baseline_none_when_absent(cdb: ModuleType):
     assert cdb.extract_images_baseline("no header here\n") is None
 
 
-def test_update_sibling_doc_refs_rewrites_whatever_baseline_is_named(cdb):
+def test_update_sibling_doc_refs_rewrites_whatever_baseline_is_named(cdb: ModuleType):
     text = "See docs/_UPGRADE_PATHS/4.8.3-to-4.9.0-upgrade.md for details.\n"
     new_text, changed = cdb.update_sibling_doc_refs(text, "4.9.0", "4.8.5")
     assert changed is True
@@ -58,14 +61,14 @@ def test_update_sibling_doc_refs_rewrites_whatever_baseline_is_named(cdb):
     assert "4.8.3" not in new_text
 
 
-def test_update_sibling_doc_refs_ignores_other_targets(cdb):
+def test_update_sibling_doc_refs_ignores_other_targets(cdb: ModuleType):
     text = "See docs/_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md for an older hop.\n"
     new_text, changed = cdb.update_sibling_doc_refs(text, "4.9.0", "4.8.5")
     assert changed is False
     assert new_text == text
 
 
-def test_update_sibling_doc_refs_already_correct_reference_is_not_reported_changed(cdb):
+def test_update_sibling_doc_refs_already_correct_reference_is_not_reported_changed(cdb: ModuleType):
     """Regression test: a doc mentioning "<new_baseline>-to-<target>-*.md"
     (nothing stale left — the reference already names the current
     baseline) still MATCHES the pattern, but subn's own replacement
@@ -82,7 +85,7 @@ def test_update_sibling_doc_refs_already_correct_reference_is_not_reported_chang
     assert new_text == text
 
 
-def test_update_images_manifest_baseline_rewrites_both_lines(cdb):
+def test_update_images_manifest_baseline_rewrites_both_lines(cdb: ModuleType):
     text = (
         "# Baseline: podiumd 4.8.2 (main @ abc1234). Re-verify before release.\n"
         "#\n"
@@ -94,7 +97,7 @@ def test_update_images_manifest_baseline_rewrites_both_lines(cdb):
     assert "podiumd 4.9.0 vs 4.8.5" in new_text
 
 
-def test_update_images_manifest_baseline_no_match_returns_unchanged(cdb):
+def test_update_images_manifest_baseline_no_match_returns_unchanged(cdb: ModuleType):
     text = "no baseline lines here\n"
     new_text, changed = cdb.update_images_manifest_baseline(text, "4.9.0", "4.8.5")
     assert changed is False
@@ -104,7 +107,7 @@ def test_update_images_manifest_baseline_no_match_returns_unchanged(cdb):
 # --- main() integration: images-<target>.yaml handling ---
 
 
-def test_main_creates_images_manifest_when_missing(cdb, repo, monkeypatch):
+def test_main_creates_images_manifest_when_missing(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
     cdb.main()
 
@@ -117,7 +120,7 @@ def test_main_creates_images_manifest_when_missing(cdb, repo, monkeypatch):
     assert text.strip().endswith("[]")
 
 
-def test_main_bumps_existing_images_manifest(cdb, repo, monkeypatch):
+def test_main_bumps_existing_images_manifest(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     images_path = repo.parent / "images" / "images-4.9.0.yaml"
     write(
         images_path,
@@ -141,7 +144,9 @@ def test_main_bumps_existing_images_manifest(cdb, repo, monkeypatch):
     assert "- name: zac" in text  # entries untouched
 
 
-def test_main_images_manifest_already_at_baseline_is_noop(cdb, repo, monkeypatch, capsys):
+def test_main_images_manifest_already_at_baseline_is_noop(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     images_path = repo.parent / "images" / "images-4.9.0.yaml"
     original = "# Baseline: podiumd 4.8.2 (main @ abc1234). Re-verify before release.\n"
     write(images_path, original)
@@ -153,7 +158,9 @@ def test_main_images_manifest_already_at_baseline_is_noop(cdb, repo, monkeypatch
     assert "images-4.9.0.yaml: already baseline 4.8.2 — unchanged" in out
 
 
-def test_main_images_baseline_manifest_second_run_reports_unchanged(cdb, repo, monkeypatch, capsys):
+def test_main_images_baseline_manifest_second_run_reports_unchanged(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """Regression test: regenerate_images_baseline_manifest used to
     unconditionally rewrite (and report on) images-baseline.yaml every
     single run, even when nothing about the chart actually changed —
@@ -184,7 +191,9 @@ def test_main_images_baseline_manifest_second_run_reports_unchanged(cdb, repo, m
 # --- main() integration: end-to-end component-version-table correction ---
 
 
-def test_main_corrects_stale_table_using_real_baseline_tag(cdb, repo_with_baseline_tag, monkeypatch, capsys):
+def test_main_corrects_stale_table_using_real_baseline_tag(
+    cdb: ModuleType, repo_with_baseline_tag, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     set_argv_and_dir(cdb, monkeypatch, repo_with_baseline_tag, "4.8.5")
     cdb.main()
 
@@ -198,7 +207,7 @@ def test_main_corrects_stale_table_using_real_baseline_tag(cdb, repo_with_baseli
 
 
 @pytest.fixture
-def repo_with_mi_shaped_stale_docs(tmp_path):
+def repo_with_mi_shaped_stale_docs(tmp_path: Path):
     """The real mi bug, reproduced synthetically: a Chart.yaml dependency
     ("mi-data", alias "mi") that already existed at the baseline ref
     (condition-gated, disabled by default) but had NO "image:" block
@@ -288,7 +297,7 @@ def repo_with_mi_shaped_stale_docs(tmp_path):
 
 
 def test_main_corrects_mi_shaped_stale_name_and_new_dependency_wording_everywhere(
-    cdb, repo_with_mi_shaped_stale_docs, monkeypatch
+    cdb: ModuleType, repo_with_mi_shaped_stale_docs, monkeypatch: pytest.MonkeyPatch
 ):
     """One fix-doc-consistency run corrects all three surfaces to the
     SAME name ("mi-data (MI-data exports)", the row's own — see

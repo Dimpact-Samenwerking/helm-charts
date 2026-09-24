@@ -2,6 +2,8 @@
 No real helm-docs/git invocation happens in these tests — `run` is
 monkeypatched, and CHART_DIR points at a disposable tmp_path chart dir."""
 
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -11,7 +13,7 @@ def result(returncode=0, stdout="", stderr=""):
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
-def make_chart_dir(tmp_path, *, gotmpl=False):
+def make_chart_dir(tmp_path: Path, *, gotmpl=False):
     (tmp_path / "Chart.yaml").write_text("name: podiumd\nversion: 4.9.0\n", encoding="utf-8")
     (tmp_path / "values.yaml").write_text("foo: bar\n", encoding="utf-8")
     (tmp_path / "README.md").write_text("# podiumd\n", encoding="utf-8")
@@ -21,7 +23,9 @@ def make_chart_dir(tmp_path, *, gotmpl=False):
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_main_help_flag_works_even_when_helm_docs_is_not_installed(upr, tmp_path, monkeypatch, capsys, flag):
+def test_main_help_flag_works_even_when_helm_docs_is_not_installed(
+    upr: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
+):
     """--help must never require helm-docs to be on PATH — it's checked
     for by the caller wanting to actually run this, not someone just
     asking what the script does."""
@@ -32,10 +36,10 @@ def test_main_help_flag_works_even_when_helm_docs_is_not_installed(upr, tmp_path
     with pytest.raises(SystemExit) as exc_info:
         upr.main()
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == upr.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{upr.__doc__}\n"
 
 
-def test_helm_docs_not_installed_fails(upr, tmp_path, monkeypatch):
+def test_helm_docs_not_installed_fails(upr: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path))
     monkeypatch.setattr(upr.shutil, "which", lambda name: None)
     monkeypatch.setattr(upr.sys, "argv", ["fix-helm-doc"])
@@ -45,7 +49,7 @@ def test_helm_docs_not_installed_fails(upr, tmp_path, monkeypatch):
     assert exc_info.value.code == 1
 
 
-def test_dry_run_passes_when_in_sync(upr, tmp_path, monkeypatch):
+def test_dry_run_passes_when_in_sync(upr: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path))
     monkeypatch.setattr(upr.shutil, "which", lambda name: "/usr/bin/helm-docs")
     monkeypatch.setattr(upr, "check_helm_docs", lambda chart_dir: (True, "in sync"))
@@ -56,7 +60,7 @@ def test_dry_run_passes_when_in_sync(upr, tmp_path, monkeypatch):
     assert exc_info.value.code == 0
 
 
-def test_dry_run_fails_on_drift_without_writing(upr, tmp_path, monkeypatch):
+def test_dry_run_fails_on_drift_without_writing(upr: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     chart_dir = make_chart_dir(tmp_path)
     original = (chart_dir / "README.md").read_text(encoding="utf-8")
     monkeypatch.setattr(upr, "CHART_DIR", chart_dir)
@@ -76,7 +80,9 @@ def test_dry_run_fails_on_drift_without_writing(upr, tmp_path, monkeypatch):
     assert (chart_dir / "README.md").read_text(encoding="utf-8") == original
 
 
-def test_real_run_helm_docs_failure_fails(upr, tmp_path, monkeypatch, capsys):
+def test_real_run_helm_docs_failure_fails(
+    upr: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path))
     monkeypatch.setattr(upr.shutil, "which", lambda name: "/usr/bin/helm-docs")
     monkeypatch.setattr(upr, "run", lambda cmd, **kw: result(returncode=1, stderr="boom"))
@@ -90,7 +96,9 @@ def test_real_run_helm_docs_failure_fails(upr, tmp_path, monkeypatch, capsys):
     assert "boom" in err
 
 
-def test_real_run_reports_no_changes(upr, tmp_path, monkeypatch, capsys):
+def test_real_run_reports_no_changes(
+    upr: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_chart_dir(tmp_path)
     readme_content = (chart_dir / "README.md").read_text(encoding="utf-8")
     monkeypatch.setattr(upr, "CHART_DIR", chart_dir)
@@ -114,7 +122,9 @@ def test_real_run_reports_no_changes(upr, tmp_path, monkeypatch, capsys):
     assert "--dry-run" in calls[0]
 
 
-def test_real_run_reports_diff_when_changed(upr, tmp_path, monkeypatch, capsys):
+def test_real_run_reports_diff_when_changed(
+    upr: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path))
     monkeypatch.setattr(upr.shutil, "which", lambda name: "/usr/bin/helm-docs")
 
@@ -133,7 +143,7 @@ def test_real_run_reports_diff_when_changed(upr, tmp_path, monkeypatch, capsys):
     assert "README.md regenerated — review the diff above and stage it yourself before committing" in out
 
 
-def test_command_omits_template_files_without_gotmpl(upr, tmp_path, monkeypatch):
+def test_command_omits_template_files_without_gotmpl(upr: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path, gotmpl=False))
     monkeypatch.setattr(upr.shutil, "which", lambda name: "/usr/bin/helm-docs")
     captured = []
@@ -150,7 +160,7 @@ def test_command_omits_template_files_without_gotmpl(upr, tmp_path, monkeypatch)
     assert "--template-files" not in captured[0]
 
 
-def test_command_includes_template_files_with_gotmpl(upr, tmp_path, monkeypatch):
+def test_command_includes_template_files_with_gotmpl(upr: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path, gotmpl=True))
     monkeypatch.setattr(upr.shutil, "which", lambda name: "/usr/bin/helm-docs")
     captured = []

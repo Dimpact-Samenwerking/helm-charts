@@ -6,6 +6,7 @@ import sys
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -27,17 +28,17 @@ def _load_module():
 
 
 @pytest.fixture(scope="session")
-def rp():
+def rp() -> ModuleType:
     return _load_module()
 
 
 @pytest.fixture(scope="session")
-def librenderscope():
+def librenderscope() -> ModuleType:
     return render_scope
 
 
 @pytest.fixture(autouse=True)
-def stub_ensure_vendored_dependencies(rp, monkeypatch):
+def stub_ensure_vendored_dependencies(rp: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """main() now calls lib.dependencies.ensure_vendored_dependencies
     first, but every main()-level test here runs against a fake chart
     directory with no vendored sub-charts at all. Stubbed to a no-op by

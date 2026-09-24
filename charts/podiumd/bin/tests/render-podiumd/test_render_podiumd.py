@@ -7,6 +7,7 @@ mocked out via rp.render_chart directly (same level test_misc.py's
 happens in these tests."""
 
 from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -24,7 +25,9 @@ def fake_render_chart(returncode=0, stdout="", stderr=""):
 # --- -h/--help and argument validation ---
 
 
-def test_help_flag_prints_docstring_and_exits_0(rp, monkeypatch, capsys):
+def test_help_flag_prints_docstring_and_exits_0(
+    rp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", "--help"])
     with pytest.raises(SystemExit) as exc_info:
         rp.main()
@@ -35,7 +38,9 @@ def test_help_flag_prints_docstring_and_exits_0(rp, monkeypatch, capsys):
 # --- default output path (no output-file given) ---
 
 
-def test_no_args_writes_to_default_output(rp, tmp_path, monkeypatch, capsys):
+def test_no_args_writes_to_default_output(
+    rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """No output-file at all must fall back to DEFAULT_OUTPUT
     (charts/podiumd/rendered-helm.yaml) rather than erroring — this is
     now the common "just render it" case."""
@@ -55,7 +60,7 @@ def test_no_args_writes_to_default_output(rp, tmp_path, monkeypatch, capsys):
 # --- default extra_args (no extra CLI args given) ---
 
 
-def test_no_extra_args_uses_lint_args_for_default(rp, tmp_path, monkeypatch):
+def test_no_extra_args_uses_lint_args_for_default(rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     output_path = tmp_path / "out.yaml"
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(output_path)])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: ["-f", "ci/lint-values.yaml"])
@@ -73,7 +78,9 @@ def test_no_extra_args_uses_lint_args_for_default(rp, tmp_path, monkeypatch):
     assert captured["extra_args"] == ["-f", "ci/lint-values.yaml"]
 
 
-def test_no_extra_args_announces_default_ci_values(rp, tmp_path, monkeypatch, capsys):
+def test_no_extra_args_announces_default_ci_values(
+    rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """A schema/render failure from a custom-args run (see the override test
     below) must never be mistaken for the standard verify-podiumd check
     failing — this printed line is what tells the two apart, so it must
@@ -92,7 +99,7 @@ def test_no_extra_args_announces_default_ci_values(rp, tmp_path, monkeypatch, ca
 # --- explicit extra CLI args override the default entirely ---
 
 
-def test_extra_cli_args_override_default_lint_args(rp, tmp_path, monkeypatch):
+def test_extra_cli_args_override_default_lint_args(rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     output_path = tmp_path / "out.yaml"
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(output_path), "-s", "templates/frankgateway.yaml"])
 
@@ -115,7 +122,9 @@ def test_extra_cli_args_override_default_lint_args(rp, tmp_path, monkeypatch):
     assert captured["extra_args"] == ["-s", "templates/frankgateway.yaml"]
 
 
-def test_extra_cli_args_announce_custom_render_not_default(rp, tmp_path, monkeypatch, capsys):
+def test_extra_cli_args_announce_custom_render_not_default(
+    rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     output_path = tmp_path / "out.yaml"
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(output_path), "-s", "templates/frankgateway.yaml"])
     monkeypatch.setattr(rp, "render_chart", fake_render_chart(0, "---\n# Source: a.yaml\nkind: Foo\n"))
@@ -131,7 +140,9 @@ def test_extra_cli_args_announce_custom_render_not_default(rp, tmp_path, monkeyp
 # --- success: writes the rendered output and reports a doc count ---
 
 
-def test_success_writes_rendered_output_to_file(rp, tmp_path, monkeypatch, capsys):
+def test_success_writes_rendered_output_to_file(
+    rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     output_path = tmp_path / "out.yaml"
     rendered = (
         "---\n# Source: podiumd/templates/a.yaml\nkind: Foo\n---\n# Source: podiumd/templates/b.yaml\nkind: Bar\n"
@@ -151,7 +162,9 @@ def test_success_writes_rendered_output_to_file(rp, tmp_path, monkeypatch, capsy
 # --- failure: helm template fails, nothing written, exits 1 ---
 
 
-def test_failure_does_not_write_file_and_exits_1(rp, tmp_path, monkeypatch, capsys):
+def test_failure_does_not_write_file_and_exits_1(
+    rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     output_path = tmp_path / "out.yaml"
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(output_path)])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: [])
@@ -172,7 +185,9 @@ def test_failure_does_not_write_file_and_exits_1(rp, tmp_path, monkeypatch, caps
 # --- --stdout: rendered YAML on stdout, every other message on stderr ---
 
 
-def test_stdout_flag_writes_rendered_yaml_to_stdout(rp, monkeypatch, capsys):
+def test_stdout_flag_writes_rendered_yaml_to_stdout(
+    rp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     rendered = "---\n# Source: a.yaml\nkind: Foo\n"
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", "--stdout"])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: [])
@@ -184,7 +199,9 @@ def test_stdout_flag_writes_rendered_yaml_to_stdout(rp, monkeypatch, capsys):
     assert captured.out == rendered  # stdout is PURE rendered YAML, nothing else
 
 
-def test_stdout_flag_puts_status_and_summary_on_stderr(rp, monkeypatch, capsys):
+def test_stdout_flag_puts_status_and_summary_on_stderr(
+    rp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     rendered = (
         "---\n# Source: podiumd/templates/a.yaml\nkind: Foo\n---\n# Source: podiumd/templates/b.yaml\nkind: Bar\n"
     )
@@ -201,7 +218,9 @@ def test_stdout_flag_puts_status_and_summary_on_stderr(rp, monkeypatch, capsys):
     assert "Largest rendered templates" in captured.err  # report_largest_templates, redirected
 
 
-def test_stdout_flag_with_extra_args(rp, monkeypatch, capsys):
+def test_stdout_flag_with_extra_args(
+    rp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     rendered = "---\n# Source: a.yaml\nkind: Foo\n"
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", "--stdout", "-s", "templates/frankgateway.yaml"])
 
@@ -225,7 +244,9 @@ def test_stdout_flag_with_extra_args(rp, monkeypatch, capsys):
     assert capsys.readouterr().out == rendered
 
 
-def test_stdout_flag_failure_puts_everything_on_stderr_and_writes_nothing(rp, monkeypatch, capsys):
+def test_stdout_flag_failure_puts_everything_on_stderr_and_writes_nothing(
+    rp: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", "--stdout"])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: [])
     monkeypatch.setattr(
@@ -245,7 +266,9 @@ def test_stdout_flag_failure_puts_everything_on_stderr_and_writes_nothing(rp, mo
 # --- stale vendored sub-charts guard ---
 
 
-def test_stale_vendored_dependencies_re_vendored_before_rendering(rp, tmp_path, monkeypatch):
+def test_stale_vendored_dependencies_re_vendored_before_rendering(
+    rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Chart.yaml wants kiss-chart 3.1.1 but charts/ still has 3.0.0: the
     guard must re-vendor it BEFORE render_chart runs (which would
     otherwise fail on an unrelated-looking kiss-chart schema error), so

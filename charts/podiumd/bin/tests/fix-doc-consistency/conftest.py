@@ -6,6 +6,7 @@ import subprocess
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -25,7 +26,7 @@ def write(path, text):
 
 
 @pytest.fixture(scope="session")
-def cdb():
+def cdb() -> ModuleType:
     loader = SourceFileLoader("fix_doc_consistency", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("fix_doc_consistency", SCRIPT_PATH, loader=loader)
     assert spec is not None
@@ -35,7 +36,7 @@ def cdb():
 
 
 @pytest.fixture(autouse=True)
-def stub_registry_tag_exists(cdb, monkeypatch):
+def stub_registry_tag_exists(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """cdb.main()'s own final step (lib.image.docs.regenerate_images_
     baseline_manifest) resolves a live registry digest for any pin whose
     tag has no embedded "@sha256:..." of its own — most test fixtures
@@ -58,7 +59,7 @@ def stub_registry_tag_exists(cdb, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def stub_render_chart(monkeypatch):
+def stub_render_chart(monkeypatch: pytest.MonkeyPatch):
     """cdb.main()'s own new render_chart() call (feeding regenerate_
     images_baseline_manifest's own render-gate for subchart-default-only
     images — see lib.checks.digest_pinning.find_unresolved_subchart_
@@ -82,7 +83,7 @@ def stub_render_chart(monkeypatch):
 
 
 @pytest.fixture
-def repo(tmp_path):
+def repo(tmp_path: Path):
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -113,7 +114,7 @@ def repo(tmp_path):
 
 
 @pytest.fixture
-def repo_with_baseline_tag(tmp_path):
+def repo_with_baseline_tag(tmp_path: Path):
     """A repo whose git history has a real "podiumd-4.8.5" tag at an older
     ZAC version, so load_baseline_state can resolve it for real."""
     git("init", "-q", cwd=tmp_path)
@@ -163,7 +164,7 @@ def repo_with_baseline_tag(tmp_path):
 
 
 @pytest.fixture
-def repo_with_undocumented_component_bumps(tmp_path):
+def repo_with_undocumented_component_bumps(tmp_path: Path):
     """Three dependencies changed between the baseline tag and HEAD but
     none of them ever got a row in the upgrade doc's "Component
     versions" table at all — the real gap add_missing_component_rows
@@ -262,7 +263,7 @@ def repo_with_undocumented_component_bumps(tmp_path):
 
 
 @pytest.fixture
-def repo_with_undocumented_sidecar_bump(tmp_path):
+def repo_with_undocumented_sidecar_bump(tmp_path: Path):
     """redis-operator's own row already exists (unchanged, correct) —
     add_missing_component_rows has nothing to do at the top level. Its
     nested redis-ha sidecar image DID change vs baseline, but has no row
@@ -336,7 +337,7 @@ def repo_with_undocumented_sidecar_bump(tmp_path):
 
 
 @pytest.fixture(autouse=True)
-def stub_ensure_vendored_dependencies(cdb, monkeypatch):
+def stub_ensure_vendored_dependencies(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """main() now calls lib.dependencies.ensure_vendored_dependencies
     first, but every main()-level test here runs against a fake chart
     directory with no vendored sub-charts at all. Stubbed to a no-op by

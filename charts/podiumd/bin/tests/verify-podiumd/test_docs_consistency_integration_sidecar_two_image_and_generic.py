@@ -8,6 +8,11 @@ own multi-sidecar/job cases plus the generic chart-only/no-schema-diff cases."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+
 CHART_YAML = """\
 apiVersion: v2
 name: podiumd
@@ -77,7 +82,9 @@ REDIS_TWO_IMAGES_VALUES_TMPL = (
 )
 
 
-def test_unchanged_sidecar_with_no_row_is_not_flagged(vp, tmp_path, capsys):
+def test_unchanged_sidecar_with_no_row_is_not_flagged(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     """Only the sidecar image that actually CHANGED vs baseline gets
     flagged as missing a row — a sibling sidecar with no row of its own
     but an UNCHANGED tag is correctly left alone, same "only report a
@@ -130,7 +137,9 @@ def test_unchanged_sidecar_with_no_row_is_not_flagged(vp, tmp_path, capsys):
     assert "redis-operator - redis-exporter" not in out
 
 
-def test_new_sidecar_row_known_in_historical_images_manifest_is_not_a_warning(vp, tmp_path, capsys):
+def test_new_sidecar_row_known_in_historical_images_manifest_is_not_a_warning(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     """Regression test: redis-operator's own "k8s" sidecar is added as a
     brand-new nested path this release (baseline has nothing for it at
     all), but its repository already appears, byte-for-byte at the same
@@ -207,7 +216,7 @@ JOB_TWO_IMAGES_VALUES_TMPL = (
 )
 
 
-def test_sidecar_app_version_resolved_from_its_own_trailing_image_key(vp, tmp_path):
+def test_sidecar_app_version_resolved_from_its_own_trailing_image_key(vp: ModuleType, tmp_path: Path):
     """A sidecar whose trailing values-tree key is NOT literally "image"
     (e.g. "initImage", sitting right next to a sibling "image" key in the
     very same job) must be compared against ITS OWN tag — not a hardcoded
@@ -237,7 +246,9 @@ def test_sidecar_app_version_resolved_from_its_own_trailing_image_key(vp, tmp_pa
     assert ok is True, detail
 
 
-def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_dependency(vp, tmp_path, capsys):
+def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_dependency(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     """A row shaped like the canonical "<values_key> - <basename>" sidecar
     form, but whose repository can't be resolved at all (no own override,
     no vendored subchart default — e.g. commented out, PodiumD Adapter's
@@ -320,7 +331,9 @@ def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_depende
     assert 'redis-operator ("redis-operator - ghost")' not in out
 
 
-def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, capsys):
+def test_chart_only_component_with_no_app_image_is_not_flagged(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """A component genuinely without an app image of its own (not in
     lib.chart.COMPONENT_IMAGE_PATHS, and no plain "image" key either)
     must never trigger a target-app mismatch — actual_app_version can't
@@ -341,7 +354,7 @@ def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, c
     assert "target app" not in out
 
 
-def test_component_changed_with_no_key_diffs_needs_no_values_deltas_mention(vp, chart_repo):
+def test_component_changed_with_no_key_diffs_needs_no_values_deltas_mention(vp: ModuleType, chart_repo):
     """When a component's app/chart bump doesn't touch any values.yaml
     schema (no keys added/removed/renamed), it needs no mention in
     values-deltas.md at all — that transition is already covered by

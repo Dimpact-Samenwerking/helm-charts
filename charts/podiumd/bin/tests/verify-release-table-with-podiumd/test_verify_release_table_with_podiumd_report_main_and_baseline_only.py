@@ -11,6 +11,7 @@ sibling test_verify_release_table_with_podiumd_*.py files for the rest of
 that suite."""
 
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -57,7 +58,7 @@ CLAMAV_BASELINE_VALUES = {"clamav": {"image": {"tag": "1.5.2"}}}
 # --- print_report(): output is sorted per category ---
 
 
-def test_print_report_sorts_findings_within_each_section(vrt, capsys):
+def test_print_report_sorts_findings_within_each_section(vrt: ModuleType, capsys: pytest.CaptureFixture[str]):
     findings = {
         "mismatches": [
             "[IMAGE] Zulu (zulu): release-table target 1 != values.yaml 2",
@@ -72,7 +73,7 @@ def test_print_report_sorts_findings_within_each_section(vrt, capsys):
     ]
 
 
-def test_print_report_sorts_unresolved_rows_by_name(vrt, capsys):
+def test_print_report_sorts_unresolved_rows_by_name(vrt: ModuleType, capsys: pytest.CaptureFixture[str]):
     unresolved = [csv_row("Zulu", "UNKNOWN"), csv_row("Alpha", ""), csv_row("Mike", "UNKNOWN")]
     vrt.print_report({}, unresolved)
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip().startswith("- '")]
@@ -86,21 +87,25 @@ def test_print_report_sorts_unresolved_rows_by_name(vrt, capsys):
 # --- main() ---
 
 
-def run_main(vrt, monkeypatch, argv):
+def run_main(vrt: ModuleType, monkeypatch: pytest.MonkeyPatch, argv):
     monkeypatch.setattr("sys.argv", ["verify-release-table-with-podiumd", *argv])
     with pytest.raises(SystemExit) as exc_info:
         vrt.main()
     return exc_info.value.code
 
 
-def test_main_missing_release_table_csv_fails(vrt, tmp_path, monkeypatch, capsys):
+def test_main_missing_release_table_csv_fails(
+    vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr(vrt, "RELEASE_TABLE_CSV", tmp_path / "release-table.csv")
     code = run_main(vrt, monkeypatch, [])
     assert code == 1
     assert "not found" in capsys.readouterr().out
 
 
-def test_main_exits_zero_when_everything_matches(vrt, tmp_path, monkeypatch, capsys):
+def test_main_exits_zero_when_everything_matches(
+    vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     import csv as csv_module
 
     chart_yaml = tmp_path / "Chart.yaml"
@@ -135,7 +140,9 @@ def test_main_exits_zero_when_everything_matches(vrt, tmp_path, monkeypatch, cap
     assert "OK: release-table.csv matches" in capsys.readouterr().out
 
 
-def test_main_exits_one_when_mismatch_found(vrt, tmp_path, monkeypatch, capsys):
+def test_main_exits_one_when_mismatch_found(
+    vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     import csv as csv_module
 
     chart_yaml = tmp_path / "Chart.yaml"
@@ -172,19 +179,21 @@ def test_main_exits_one_when_mismatch_found(vrt, tmp_path, monkeypatch, capsys):
     assert "1.0.297 != Chart.yaml 1.0.298" in out
 
 
-def test_main_requires_no_arguments(vrt, monkeypatch):
+def test_main_requires_no_arguments(vrt: ModuleType, monkeypatch: pytest.MonkeyPatch):
     code = run_main(vrt, monkeypatch, ["extra-arg"])
     assert code == 1
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_main_help_flag_prints_usage_and_exits_zero(vrt, monkeypatch, capsys, flag):
+def test_main_help_flag_prints_usage_and_exits_zero(
+    vrt: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
+):
     code = run_main(vrt, monkeypatch, [flag])
     assert code == 0
-    assert capsys.readouterr().out == vrt.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{vrt.__doc__}\n"
 
 
-def test_main_rejects_unknown_flag(vrt, monkeypatch):
+def test_main_rejects_unknown_flag(vrt: ModuleType, monkeypatch: pytest.MonkeyPatch):
     code = run_main(vrt, monkeypatch, ["--nonsense"])
     assert code == 1
 
@@ -199,7 +208,7 @@ def test_main_rejects_unknown_flag(vrt, monkeypatch):
 # entirely. See module docstring.
 
 
-def test_compare_baseline_only_skips_target_side_checks(vrt):
+def test_compare_baseline_only_skips_target_side_checks(vrt: ModuleType):
     """Real target-side mismatches (both [CHART] and [IMAGE]) exist here —
     proven by the second, non-baseline_only call below — but must never
     appear when baseline_only=True; only the source side is checked, and
@@ -236,7 +245,7 @@ def test_compare_baseline_only_skips_target_side_checks(vrt):
     assert any("[CHART]" in m and "target 1.0.297 != Chart.yaml 1.0.298" in m for m in findings_normal["mismatches"])
 
 
-def test_compare_chart_version_source_blank_but_justified_no_finding(vrt):
+def test_compare_chart_version_source_blank_but_justified_no_finding(vrt: ModuleType):
     """A blank source_version_helm IS justified here: the dependency
     genuinely didn't exist at the release_table baseline yet -- must stay
     silent under --baseline-only too, not just by default."""
@@ -248,7 +257,7 @@ def test_compare_chart_version_source_blank_but_justified_no_finding(vrt):
     assert findings == {}
 
 
-def test_compare_chart_version_source_blank_but_unjustified_reports_presence_finding(vrt):
+def test_compare_chart_version_source_blank_but_unjustified_reports_presence_finding(vrt: ModuleType):
     """The dependency DID already exist at the release_table baseline --
     the blank source_version_helm was never justified, only ever
     checked under --baseline-only (strict_presence)."""
@@ -267,7 +276,7 @@ def test_compare_chart_version_source_blank_but_unjustified_reports_presence_fin
     )
 
 
-def test_compare_chart_version_source_presence_finding_fires_once_per_dependency_not_per_sidecar_row(vrt):
+def test_compare_chart_version_source_presence_finding_fires_once_per_dependency_not_per_sidecar_row(vrt: ModuleType):
     """Real bug caught live against the actual chart: a Helm chart
     version only ever belongs on ONE of a dependency's own rows (its
     primary row -- structurally, a sidecar row's own source_version_helm
@@ -302,7 +311,7 @@ def test_compare_chart_version_source_presence_finding_fires_once_per_dependency
     assert "zaakafhandelcomponent" in presence_findings[0]
 
 
-def test_compare_chart_version_source_blank_unjustified_case_silent_by_default(vrt):
+def test_compare_chart_version_source_blank_unjustified_case_silent_by_default(vrt: ModuleType):
     """Same fixture as the presence finding above, but WITHOUT
     baseline_only -- default behavior is completely unaffected: the blank
     source is silently skipped even though the dependency demonstrably
@@ -316,7 +325,7 @@ def test_compare_chart_version_source_blank_unjustified_case_silent_by_default(v
     assert findings == {}
 
 
-def test_compare_image_source_blank_but_justified_no_finding(vrt):
+def test_compare_image_source_blank_but_justified_no_finding(vrt: ModuleType):
     """The image genuinely wasn't pinned anywhere at the release_table
     baseline (baseline_lines is empty, and the dependency itself didn't
     exist at baseline either, so the subchart-default fallback has
@@ -341,7 +350,7 @@ def test_compare_image_source_blank_but_justified_no_finding(vrt):
     assert findings == {}
 
 
-def test_compare_image_source_blank_but_unjustified_reports_presence_finding_scoped_tier(vrt):
+def test_compare_image_source_blank_but_unjustified_reports_presence_finding_scoped_tier(vrt: ModuleType):
     """The image DID already exist at the release_table baseline (found
     via the plain scoped scan, the common tier) -- the blank
     source_version_app was never justified."""
@@ -369,7 +378,7 @@ def test_compare_image_source_blank_but_unjustified_reports_presence_finding_sco
     )
 
 
-def test_compare_image_source_blank_unjustified_case_silent_by_default(vrt):
+def test_compare_image_source_blank_unjustified_case_silent_by_default(vrt: ModuleType):
     """Same fixture as the scoped-tier presence finding above (plus a
     matching target_app, so the EXISTING target-side "app version never
     recorded" check -- an orthogonal, already-covered gap -- doesn't
@@ -396,7 +405,9 @@ def test_compare_image_source_blank_unjustified_case_silent_by_default(vrt):
     assert findings == {}
 
 
-def test_compare_image_source_blank_but_unjustified_reports_presence_finding_subchart_fallback_tier(vrt, monkeypatch):
+def test_compare_image_source_blank_but_unjustified_reports_presence_finding_subchart_fallback_tier(
+    vrt: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
     """Same real-world gap as test_compare_image_source_falls_back_to_
     vendored_subchart_default, but for the blank-source presence check:
     the image only resolves at baseline via the subchart-default
@@ -426,7 +437,7 @@ def test_compare_image_source_blank_but_unjustified_reports_presence_finding_sub
     )
 
 
-def test_compare_baseline_only_image_source_ambiguous_stays_ambiguous_not_a_presence_finding(vrt):
+def test_compare_baseline_only_image_source_ambiguous_stays_ambiguous_not_a_presence_finding(vrt: ModuleType):
     """An ambiguous baseline pin (more than one distinct version) is
     "can't verify", not "confirmed present" -- must never be reported as
     a -PRESENCE finding, even under strict_presence."""
@@ -463,7 +474,9 @@ def test_compare_baseline_only_image_source_ambiguous_stays_ambiguous_not_a_pres
     assert any("pinned at 2 different versions" in m for m in findings["ambiguous"])
 
 
-def test_main_baseline_only_end_to_end(vrt, tmp_path, monkeypatch, capsys):
+def test_main_baseline_only_end_to_end(
+    vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """Full CLI path: target-side mismatches that would otherwise fire
     (a wrong Chart.yaml version, a wrong app version) never appear under
     --baseline-only; the blank-source presence check does."""
@@ -519,7 +532,9 @@ def test_main_baseline_only_end_to_end(vrt, tmp_path, monkeypatch, capsys):
     assert "already existed at the release_table baseline (version 1.0.290)" in out
 
 
-def test_main_baseline_only_errors_when_baseline_cannot_be_resolved(vrt, tmp_path, monkeypatch, capsys):
+def test_main_baseline_only_errors_when_baseline_cannot_be_resolved(
+    vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """--baseline-only has nothing left to check at all if the
     release_table baseline itself can't be resolved -- must error out
     loudly (exit 1) rather than silently reporting "OK"."""
@@ -548,7 +563,9 @@ def test_main_baseline_only_errors_when_baseline_cannot_be_resolved(vrt, tmp_pat
     assert "nothing to check" in out
 
 
-def test_main_plain_invocation_still_reports_ok_when_baseline_unresolvable(vrt, tmp_path, monkeypatch, capsys):
+def test_main_plain_invocation_still_reports_ok_when_baseline_unresolvable(
+    vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """The new hard-error is scoped to --baseline-only only -- a plain
     invocation with an unresolvable baseline keeps warning-and-continuing
     exactly as before (see test_main_unresolvable_release_table_baseline_
@@ -582,7 +599,9 @@ def test_main_plain_invocation_still_reports_ok_when_baseline_unresolvable(vrt, 
 
 
 @pytest.mark.parametrize(("argv", "expect_guard"), [([], True), (["--baseline-only"], False)])
-def test_main_guards_vendored_dependencies_unless_baseline_only(vrt, tmp_path, monkeypatch, argv, expect_guard):
+def test_main_guards_vendored_dependencies_unless_baseline_only(
+    vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, argv, expect_guard
+):
     """The target-side checks read this checkout's own charts/*.tgz, so a
     normal run checks them first; --baseline-only skips every target-side
     check, so it must not be blocked by a stale charts/. The missing

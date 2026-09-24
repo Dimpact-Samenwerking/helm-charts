@@ -15,7 +15,7 @@ import pytest
 from lib.image import version as image_version
 
 
-def write_values(tmp_path, text):
+def write_values(tmp_path: Path, text):
     path = tmp_path / "values.yaml"
     path.write_text(text, encoding="utf-8")
     return path
@@ -32,7 +32,9 @@ def write_chart_yaml(chart_dir, deps):
     (chart_dir / "Chart.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def test_help_flag_prints_docstring_and_exits_zero(uiv, monkeypatch, capsys):
+def test_help_flag_prints_docstring_and_exits_zero(
+    uiv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr("sys.argv", ["update-image-version", "--help"])
     with pytest.raises(SystemExit) as exc_info:
         uiv.main()
@@ -40,7 +42,9 @@ def test_help_flag_prints_docstring_and_exits_zero(uiv, monkeypatch, capsys):
     assert "Bump every values.yaml image tag pin" in capsys.readouterr().out
 
 
-def test_wrong_arg_count_prints_docstring_and_exits_one(uiv, monkeypatch, capsys):
+def test_wrong_arg_count_prints_docstring_and_exits_one(
+    uiv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr("sys.argv", ["update-image-version", "only-one-arg"])
     with pytest.raises(SystemExit) as exc_info:
         uiv.main()
@@ -48,7 +52,9 @@ def test_wrong_arg_count_prints_docstring_and_exits_one(uiv, monkeypatch, capsys
     assert "Usage:" in capsys.readouterr().out
 
 
-def test_main_updates_matching_pin(uiv, tmp_path, monkeypatch, capsys):
+def test_main_updates_matching_pin(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     values_path = write_values(
         tmp_path,
         (
@@ -117,7 +123,9 @@ def test_main_no_op_skips_fix_doc_consistency(
     assert not stub_run_fix_doc_consistency
 
 
-def test_main_reports_noop_when_already_at_target(uiv, tmp_path, monkeypatch, capsys):
+def test_main_reports_noop_when_already_at_target(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     values_path = write_values(
         tmp_path,
         (
@@ -135,7 +143,9 @@ def test_main_reports_noop_when_already_at_target(uiv, tmp_path, monkeypatch, ca
     assert "nothing to do" in capsys.readouterr().out
 
 
-def test_main_resolves_given_component_key_and_basename(uiv, tmp_path, monkeypatch, capsys):
+def test_main_resolves_given_component_key_and_basename(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """<key> "openklant" scopes the search to that component's own
     values.yaml subtree, where <basename> "open-klant" is pinned."""
     write_chart_yaml(tmp_path, [("openklant", None)])
@@ -153,7 +163,7 @@ def test_main_resolves_given_component_key_and_basename(uiv, tmp_path, monkeypat
     assert f"2.15.1@sha256:{'b' * 64}" in values_path.read_text(encoding="utf-8")
 
 
-def test_main_accepts_dependency_name_not_just_alias(uiv, tmp_path, monkeypatch):
+def test_main_accepts_dependency_name_not_just_alias(uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Regression test (real bug, confirmed live against the real chart):
     <key> used to only accept whichever string happens to literally BE
     the values.yaml top-level key — the alias, when a dependency has one
@@ -177,7 +187,9 @@ def test_main_accepts_dependency_name_not_just_alias(uiv, tmp_path, monkeypatch)
     assert f"5.4.4@sha256:{'b' * 64}" in values_path.read_text(encoding="utf-8")
 
 
-def test_main_raises_when_basename_not_unique_under_key(uiv, tmp_path, monkeypatch, capsys):
+def test_main_raises_when_basename_not_unique_under_key(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """Two DISTINCT repositories sharing a basename under the same <key>
     can't be identified uniquely (see lib.image.version.
     resolve_scoped_matches) -- an error, never a guess."""
@@ -201,7 +213,9 @@ def test_main_raises_when_basename_not_unique_under_key(uiv, tmp_path, monkeypat
         uiv.main()
 
 
-def test_main_exits_on_no_match(uiv, tmp_path, monkeypatch, capsys):
+def test_main_exits_on_no_match(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     values_path = write_values(
         tmp_path, 'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:' + "a" * 64 + '"\n'
     )

@@ -11,7 +11,9 @@ sibling test_verify_release_table_with_podiumd_*.py files for the rest of
 that suite."""
 
 from pathlib import Path
+from types import ModuleType
 
+import pytest
 import yaml
 
 
@@ -70,7 +72,7 @@ def keycloak_lines(tag="26.7.2"):
     return values_lines(KEYCLOAK_BLOCK.format(tag=tag))
 
 
-def test_compare_checks_keycloak_anchor_decorated_image(vrt):
+def test_compare_checks_keycloak_anchor_decorated_image(vrt: ModuleType):
     """keycloak-operator's own actual Keycloak SERVER image lives as a
     split "tag:"/"sha:" field pair, each defined via its own per-scalar
     YAML anchor (aliased by a sibling "keycloak.image" block elsewhere in
@@ -86,7 +88,7 @@ def test_compare_checks_keycloak_anchor_decorated_image(vrt):
     assert "missing_from_chart" not in findings
 
 
-def test_compare_keycloak_anchor_decorated_image_matching_passes(vrt):
+def test_compare_keycloak_anchor_decorated_image_matching_passes(vrt: ModuleType):
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
     rows = [
         csv_row("Keycloak", "keycloak-operator", image_basename="keycloak", source_helm="1.12.1", target_app="26.7.2")
@@ -95,7 +97,7 @@ def test_compare_keycloak_anchor_decorated_image_matching_passes(vrt):
     assert findings == {}
 
 
-def test_compare_finds_basename_pinned_under_a_sibling_scope(vrt):
+def test_compare_finds_basename_pinned_under_a_sibling_scope(vrt: ModuleType):
     """keycloak-config-cli lives under top-level "keycloak" (a values.yaml
     sibling block, separate from keycloak-operator's own scope) — a
     basename is a real repository identity, not a values.yaml path, so it
@@ -118,7 +120,7 @@ def test_compare_finds_basename_pinned_under_a_sibling_scope(vrt):
     assert "missing_from_chart" not in findings
 
 
-def test_compare_sibling_scope_basename_matching_passes(vrt):
+def test_compare_sibling_scope_basename_matching_passes(vrt: ModuleType):
     keycloak_config_cli_block = (
         "keycloak:\n"
         "  keycloakConfigCli:\n"
@@ -140,7 +142,7 @@ def test_compare_sibling_scope_basename_matching_passes(vrt):
     assert findings == {}
 
 
-def test_compare_image_source_sibling_scope_basename_still_matches(vrt):
+def test_compare_image_source_sibling_scope_basename_still_matches(vrt: ModuleType):
     """The EXISTING working case (keycloak-config-cli, a real image
     pinned under a SIBLING scope — see test_compare_finds_basename_
     pinned_under_a_sibling_scope) must still resolve correctly once the
@@ -184,7 +186,7 @@ def test_compare_image_source_sibling_scope_basename_still_matches(vrt):
     assert findings == {}
 
 
-def test_compare_image_source_rejects_stripped_name_collision(vrt):
+def test_compare_image_source_rejects_stripped_name_collision(vrt: ModuleType):
     """Regression test: the same real redis/redis-operator basename
     collision fixed twice already today (lib.chart.historical_app_
     version_for_repository/find_images_manifest_list_diff, commits
@@ -234,7 +236,7 @@ def test_compare_image_source_rejects_stripped_name_collision(vrt):
 # gracefully on failure).
 
 
-def test_compare_image_source_falls_back_to_vendored_subchart_default(vrt, monkeypatch):
+def test_compare_image_source_falls_back_to_vendored_subchart_default(vrt: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """Regression test: the vendored-subchart-default fallback resolves a
     real, comparable baseline version instead of reporting "wasn't pinned
     anywhere" — the matching source_app must be accepted as OK."""
@@ -265,7 +267,9 @@ def test_compare_image_source_falls_back_to_vendored_subchart_default(vrt, monke
     assert findings == {}
 
 
-def test_compare_image_source_vendored_subchart_default_still_catches_mismatch(vrt, monkeypatch):
+def test_compare_image_source_vendored_subchart_default_still_catches_mismatch(
+    vrt: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
     """The mirror-image case: the vendored-subchart-default fallback DOES
     resolve a real baseline version, and it genuinely disagrees with
     release-table.csv's own claimed source — still reported, just via a
@@ -302,7 +306,9 @@ def test_compare_image_source_vendored_subchart_default_still_catches_mismatch(v
     assert not any("wasn't pinned anywhere" in m for m in findings.get("mismatches", []))
 
 
-def test_compare_image_source_vendored_subchart_default_resolution_failure_is_reported_honestly(vrt, monkeypatch):
+def test_compare_image_source_vendored_subchart_default_resolution_failure_is_reported_honestly(
+    vrt: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
     """A pull failure (no network, or the historical chart version
     genuinely no longer exists) must never be silently forced into
     "wasn't pinned anywhere" (actively wrong: something WAS pinned, this
@@ -355,7 +361,7 @@ def test_compare_image_source_vendored_subchart_default_resolution_failure_is_re
 OMC_BLOCK = 'omc:\n  image:\n    # repository: docker.io/worthnl/notifynl-omc\n    tag: "1.17.19"\n'
 
 
-def test_compare_omc_image_matches_via_ordinary_basename_path(vrt):
+def test_compare_omc_image_matches_via_ordinary_basename_path(vrt: ModuleType):
     """omc's row now round-trips through the completely standard
     basename-matching path check_images already applies to every other
     component — no special-casing at all, just a real, non-blank
@@ -375,7 +381,7 @@ def test_compare_omc_image_matches_via_ordinary_basename_path(vrt):
     assert findings == {}
 
 
-def test_compare_omc_image_mismatch_via_ordinary_basename_path(vrt):
+def test_compare_omc_image_mismatch_via_ordinary_basename_path(vrt: ModuleType):
     """Same ordinary path, but the target version genuinely disagrees
     with what's actually pinned — must still be caught as a real
     [IMAGE] mismatch, exactly like any other component's row."""
@@ -394,7 +400,7 @@ def test_compare_omc_image_mismatch_via_ordinary_basename_path(vrt):
     assert any("[IMAGE]" in m and "target 1.17.20 != values.yaml 1.17.19" in m for m in findings["mismatches"])
 
 
-def test_compare_omc_image_source_matches_via_ordinary_basename_path(vrt):
+def test_compare_omc_image_source_matches_via_ordinary_basename_path(vrt: ModuleType):
     """The baseline/source-side sibling (check_images_source) — omc's
     row round-trips there too, with no special-casing needed."""
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
@@ -417,7 +423,7 @@ def test_compare_omc_image_source_matches_via_ordinary_basename_path(vrt):
     assert findings == {}
 
 
-def test_compare_omc_image_source_mismatch_via_ordinary_basename_path(vrt):
+def test_compare_omc_image_source_mismatch_via_ordinary_basename_path(vrt: ModuleType):
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
     baseline_deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.0"}]
     rows = [
@@ -434,7 +440,7 @@ def test_compare_omc_image_source_mismatch_via_ordinary_basename_path(vrt):
     )
 
 
-def test_compare_omc_still_catches_genuinely_untracked_sibling_basename(vrt):
+def test_compare_omc_still_catches_genuinely_untracked_sibling_basename(vrt: ModuleType):
     """Negative case: a DIFFERENT, genuinely-untracked basename under
     the same component's own scope must still be reported as missing —
     unaffected by omc's own row now having a real, non-blank

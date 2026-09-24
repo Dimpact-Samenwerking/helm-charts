@@ -2,25 +2,27 @@
 bugs found (and fixed) during development: resolve_entry_path picking the
 wrong sibling path via naive longest-substring matching."""
 
+from types import ModuleType
+
 from dep_helpers import make_dep
 
 
-def test_match_dependency_by_name(libupgradedocbasics):
+def test_match_dependency_by_name(libupgradedocbasics: ModuleType):
     deps = [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")]
     assert libupgradedocbasics.match_dependency("ZAC (Zaakafhandelcomponent)", deps) == deps[0]
 
 
-def test_match_dependency_by_alias(libupgradedocbasics):
+def test_match_dependency_by_alias(libupgradedocbasics: ModuleType):
     deps = [make_dep("zgw-office-addin", "0.0.92")]
     assert libupgradedocbasics.match_dependency("ZGW Office Add-in (frontend + backend)", deps) == deps[0]
 
 
-def test_match_dependency_no_match_returns_none(libupgradedocbasics):
+def test_match_dependency_no_match_returns_none(libupgradedocbasics: ModuleType):
     deps = [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")]
     assert libupgradedocbasics.match_dependency("Totally Fictitious Component", deps) is None
 
 
-def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedocbasics):
+def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedocbasics: ModuleType):
     """ "mi" (mi-data's own alias) is a literal substring of
     "ensurePodiumdAdminUser" (inside "ad-mi-n") — a raw normalize_name(text)
     containment check would wrongly match it; word-boundary-aligned
@@ -29,7 +31,7 @@ def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedocbasic
     assert libupgradedocbasics.match_dependency("Python (ensurePodiumdAdminUser init image)", deps) is None
 
 
-def test_match_dependency_prefers_longer_more_specific_match(libupgradedocbasics):
+def test_match_dependency_prefers_longer_more_specific_match(libupgradedocbasics: ModuleType):
     deps = [
         make_dep("zac", "1.0.297"),
         make_dep("zac-extended-thing", "1.0.0", alias="zacx"),
@@ -39,12 +41,12 @@ def test_match_dependency_prefers_longer_more_specific_match(libupgradedocbasics
     assert libupgradedocbasics.match_dependency("ZAC", deps)["name"] == "zac"
 
 
-def test_resolve_entry_path_exact_match(libupgradedocappversion):
+def test_resolve_entry_path_exact_match(libupgradedocappversion: ModuleType):
     paths = [("zac",), ("zac", "opa")]
     assert libupgradedocappversion.resolve_entry_path("opa", paths) == ("zac", "opa")
 
 
-def test_resolve_entry_path_multi_word_entry(libupgradedocappversion):
+def test_resolve_entry_path_multi_word_entry(libupgradedocappversion: ModuleType):
     paths = [("zgw-office-addin", "frontend"), ("zgw-office-addin", "backend")]
     assert libupgradedocappversion.resolve_entry_path("zgw-office-addin-frontend", paths) == (
         "zgw-office-addin",
@@ -56,7 +58,7 @@ def test_resolve_entry_path_multi_word_entry(libupgradedocappversion):
     )
 
 
-def test_resolve_entry_path_disambiguates_sibling_paths_by_last_word(libupgradedocappversion):
+def test_resolve_entry_path_disambiguates_sibling_paths_by_last_word(libupgradedocappversion: ModuleType):
     """Regression test: zac-solr must resolve to zac.solr-operator.solr, not
     zac.solr-operator.zookeeper-operator.zookeeper, even though both paths
     start with the same "zac"+"solr"+"operator" prefix. Naive
@@ -69,10 +71,10 @@ def test_resolve_entry_path_disambiguates_sibling_paths_by_last_word(libupgraded
     assert libupgradedocappversion.resolve_entry_path("zac-solr", paths) == ("zac", "solr-operator", "solr")
 
 
-def test_resolve_entry_path_no_match_returns_none(libupgradedocappversion):
+def test_resolve_entry_path_no_match_returns_none(libupgradedocappversion: ModuleType):
     paths = [("zac", "opa")]
     assert libupgradedocappversion.resolve_entry_path("totally-unrelated", paths) is None
 
 
-def test_resolve_entry_path_empty_entry_name(libupgradedocappversion):
+def test_resolve_entry_path_empty_entry_name(libupgradedocappversion: ModuleType):
     assert libupgradedocappversion.resolve_entry_path("", [("zac",)]) is None

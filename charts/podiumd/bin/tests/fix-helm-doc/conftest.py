@@ -6,6 +6,7 @@ import sys
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -16,7 +17,7 @@ SCRIPT_PATH = SCRIPTS_DIR / "fix-helm-doc"
 
 
 @pytest.fixture(scope="session")
-def upr():
+def upr() -> ModuleType:
     loader = SourceFileLoader("fix_helm_doc", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("fix_helm_doc", SCRIPT_PATH, loader=loader)
     assert spec is not None

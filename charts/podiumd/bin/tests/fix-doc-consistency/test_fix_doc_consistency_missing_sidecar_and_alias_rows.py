@@ -3,6 +3,9 @@ sections, plus the short-alias row-collision regression."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -15,7 +18,7 @@ def write(path, text):
     path.write_text(text, encoding="utf-8")
 
 
-def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
+def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, new_baseline, target="4.9.0"):
     monkeypatch.setattr("sys.argv", ["fix-doc-consistency"])
     monkeypatch.setattr(cdb, "read_upgrade_docs_baseline", lambda chart_dir: new_baseline)
     monkeypatch.setattr(cdb, "DOC_DIR", doc_dir)
@@ -26,7 +29,7 @@ def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
 
 
 @pytest.fixture
-def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path):
+def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path: Path):
     """redis-operator's own "k8s" sidecar is added as a brand-new nested
     path this release (baseline_values has nothing for it at all), but
     it's pinned to an image version+digest that's ALREADY recorded, at
@@ -104,7 +107,7 @@ def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path):
 
 
 def test_main_new_sidecar_row_annotated_unchanged_when_known_in_historical_manifest(
-    cdb, repo_with_new_sidecar_pinned_to_a_known_mirrored_image, monkeypatch
+    cdb: ModuleType, repo_with_new_sidecar_pinned_to_a_known_mirrored_image, monkeypatch: pytest.MonkeyPatch
 ):
     """The SAME fallback, applied to add_missing_sidecar_rows: redis-
     operator's own "k8s" sidecar path is brand new (baseline_values has
@@ -120,7 +123,10 @@ def test_main_new_sidecar_row_annotated_unchanged_when_known_in_historical_manif
 
 
 def test_main_adds_missing_changes_section_for_an_existing_dependency_row(
-    cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys
+    cdb: ModuleType,
+    repo_with_undocumented_sidecar_bump,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """ZAC's own table row already existed (unchanged, correct) but had
     no "### ..." Changes section of its own at all — add_missing_
@@ -138,7 +144,9 @@ def test_main_adds_missing_changes_section_for_an_existing_dependency_row(
     assert "ZAC (Zaakafhandelcomponent)" in out
 
 
-def test_main_adds_todo_stub_section_when_row_has_no_app_version(cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
+def test_main_adds_todo_stub_section_when_row_has_no_app_version(
+    cdb: ModuleType, repo_with_undocumented_sidecar_bump, monkeypatch: pytest.MonkeyPatch
+):
     """redis-operator's own row app cell is "-" (nothing recorded there
     to build real prose from) — a short TODO-stub section is added
     instead of guessing, the same fallback add_missing_component_rows
@@ -151,7 +159,9 @@ def test_main_adds_todo_stub_section_when_row_has_no_app_version(cdb, repo_with_
     assert "TODO: describe this component's changes" in upgrade
 
 
-def test_main_updates_a_changes_heading_missing_its_app_version(cdb, tmp_path, monkeypatch):
+def test_main_updates_a_changes_heading_missing_its_app_version(
+    cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test: the real openbao case — a "### ..." heading
     written back when actual_app_version couldn't resolve anything yet
     (chart-only, add_missing_component_rows' own TODO-stub shape) is
@@ -233,7 +243,10 @@ def test_main_updates_a_changes_heading_missing_its_app_version(cdb, tmp_path, m
 
 
 def test_main_adds_sections_for_both_rows_named_by_a_two_component_heading(
-    cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys
+    cdb: ModuleType,
+    repo_with_undocumented_sidecar_bump,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A "### ..." heading naming two components at once (real case:
     "### ECK Operator 3.4.0 -> 3.5.0 + ECK Stack (kiss-eck) 0.19.0 ->
@@ -267,7 +280,9 @@ def test_main_adds_sections_for_both_rows_named_by_a_two_component_heading(
     assert "redis-operator" in out
 
 
-def test_main_adds_version_pin_bullet_for_a_version_paths_component(cdb, tmp_path, monkeypatch):
+def test_main_adds_version_pin_bullet_for_a_version_paths_component(
+    cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """The section add_missing_changes_sections adds for a component
     registered in component_resolution.version_paths (e.g. eck-stack's
     bare "...version:" fields, the ECK operator's own CRD convention)
@@ -351,7 +366,9 @@ def test_main_adds_version_pin_bullet_for_a_version_paths_component(cdb, tmp_pat
     assert "Image tag pin `redis-operator" not in upgrade
 
 
-def test_main_does_not_duplicate_an_existing_sidecar_row(cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
+def test_main_does_not_duplicate_an_existing_sidecar_row(
+    cdb: ModuleType, repo_with_undocumented_sidecar_bump, monkeypatch: pytest.MonkeyPatch
+):
     doc_dir = repo_with_undocumented_sidecar_bump
     doc = doc_dir / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(
@@ -376,7 +393,9 @@ def test_main_does_not_duplicate_an_existing_sidecar_row(cdb, repo_with_undocume
     assert "### redis-operator - redis 8.6.2 → 8.6.6" in upgrade
 
 
-def test_main_leaves_unchanged_sidecar_with_no_row_alone(cdb, tmp_path, monkeypatch, capsys):
+def test_main_leaves_unchanged_sidecar_with_no_row_alone(
+    cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """A sidecar whose tag never changed vs baseline must never get a
     row added just because it happens to have no row yet — only a real
     gap (tag actually changed) is worth documenting."""
@@ -430,7 +449,7 @@ def test_main_leaves_unchanged_sidecar_with_no_row_alone(cdb, tmp_path, monkeypa
 
 
 @pytest.fixture
-def repo_with_short_alias_collision_risk(tmp_path):
+def repo_with_short_alias_collision_risk(tmp_path: Path):
     """Regression fixture: "mi" is a real Chart.yaml dependency alias
     short enough to be a literal mid-word substring of an unrelated
     EXISTING row's own Name — "ensurePodiumdAdminUser" contains "mi"
@@ -474,7 +493,9 @@ def repo_with_short_alias_collision_risk(tmp_path):
     return doc_dir
 
 
-def test_main_short_alias_does_not_corrupt_unrelated_row(cdb, repo_with_short_alias_collision_risk, monkeypatch):
+def test_main_short_alias_does_not_corrupt_unrelated_row(
+    cdb: ModuleType, repo_with_short_alias_collision_risk, monkeypatch: pytest.MonkeyPatch
+):
     set_argv_and_dir(cdb, monkeypatch, repo_with_short_alias_collision_risk, "4.8.5")
     cdb.main()
 

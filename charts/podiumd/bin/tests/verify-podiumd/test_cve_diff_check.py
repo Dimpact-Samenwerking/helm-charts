@@ -35,6 +35,8 @@ import urllib.error
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -69,7 +71,7 @@ def write_values_yaml(chart_dir, text):
     (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
 
 
-def make_chart_dir(tmp_path, values, chart_yaml=MINIMAL_CHART_YAML):
+def make_chart_dir(tmp_path: Path, values, chart_yaml=MINIMAL_CHART_YAML):
     write_chart_yaml(tmp_path, chart_yaml)
     write_values_yaml(tmp_path, values)
     return tmp_path
@@ -109,14 +111,14 @@ def fake_render_chart(rendered="", returncode=1):
 
 
 @pytest.fixture(autouse=True)
-def _default_render(libcvediffcheck, monkeypatch):
+def _default_render(libcvediffcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(libcvediffcheck, "render_chart", fake_render_chart())
 
 
 # --- diff_vulns ---
 
 
-def test_diff_vulns_exact_set_difference_per_severity(libcvediffcheck):
+def test_diff_vulns_exact_set_difference_per_severity(libcvediffcheck: ModuleType):
     current = [vuln("CRITICAL", "CVE-1", "openssl"), vuln("HIGH", "CVE-2", "libxml2")]
     proposed = [vuln("HIGH", "CVE-2", "libxml2"), vuln("MEDIUM", "CVE-3", "curl")]
 
@@ -126,7 +128,7 @@ def test_diff_vulns_exact_set_difference_per_severity(libcvediffcheck):
     assert introduced == [vuln("MEDIUM", "CVE-3", "curl")]
 
 
-def test_diff_vulns_never_collapses_into_a_naive_net_count(libcvediffcheck):
+def test_diff_vulns_never_collapses_into_a_naive_net_count(libcvediffcheck: ModuleType):
     """5 closed + 3 introduced must stay two distinct lists, never a
     misleading "net -2"."""
     current = [vuln("HIGH", f"CVE-{i}", "pkg") for i in range(5)]
@@ -142,7 +144,11 @@ def test_diff_vulns_never_collapses_into_a_naive_net_count(libcvediffcheck):
 
 
 def test_upgrade_candidate_reports_correct_closed_and_introduced(
-    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+    libcvediffcheck: ModuleType,
+    libcvecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     write_values_yaml(
         tmp_path,
@@ -177,7 +183,9 @@ zac:
     assert "introduced: 1 MEDIUM" in out
 
 
-def test_upgrade_candidate_current_ref_is_the_plain_pinned_tag(libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
+def test_upgrade_candidate_current_ref_is_the_plain_pinned_tag(
+    libcvediffcheck: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Unlike the sliding-digest case below, an "upgrade" candidate's own
     current side is the bare pinned tag -- its digest hasn't drifted, so
     there's nothing to pin more precisely against."""
@@ -207,7 +215,9 @@ zac:
     assert "ghcr.io/infonl/zac:1.1.0" in calls
 
 
-def test_stale_upgrade_cache_entry_is_not_a_candidate(libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
+def test_stale_upgrade_cache_entry_is_not_a_candidate(
+    libcvediffcheck: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     write_values_yaml(
         tmp_path,
         f"""\
@@ -238,7 +248,11 @@ zac:
 
 
 def test_sliding_candidate_uses_pinned_digest_not_bare_tag_for_current_side(
-    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+    libcvediffcheck: ModuleType,
+    libcvecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """The tag alone would now resolve to the NEW upstream digest, not
     what's actually pinned in values.yaml -- current_ref MUST be
@@ -279,7 +293,9 @@ openzaak:
 # --- check_cve_diff: caching the PROPOSED side ---
 
 
-def test_sliding_candidate_proposed_side_caches_across_runs(libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
+def test_sliding_candidate_proposed_side_caches_across_runs(
+    libcvediffcheck: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """A sliding candidate's own proposed digest is already known (see
     gather_candidates' own "proposed_digest" field) -- no registry call
     is needed to make it cache-eligible, and a second run reuses the
@@ -315,7 +331,7 @@ openzaak:
 
 
 def test_upgrade_candidate_proposed_side_resolves_digest_then_caches_across_runs(
-    libcvediffcheck, libcvecheck, tmp_path, monkeypatch
+    libcvediffcheck: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """An "upgrade" candidate's own proposed side is a bare tag -- its
     digest is resolved via ONE registry_tag_exists manifest lookup
@@ -363,7 +379,11 @@ zac:
 
 
 def test_upgrade_candidate_resolve_failure_falls_back_to_uncached_scan(
-    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+    libcvediffcheck: ModuleType,
+    libcvecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A network error while resolving the proposed tag's digest must
     never abort the candidate or count as a scan error -- it just falls
@@ -406,7 +426,11 @@ zac:
 
 
 def test_cache_hit_and_fresh_scan_are_both_reported_per_side(
-    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+    libcvediffcheck: ModuleType,
+    libcvecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """The current side hits a pre-populated cache entry; the proposed
     side doesn't -- the printed output must say so explicitly, per side
@@ -455,7 +479,13 @@ zac:
 # --- check_cve_diff: no flagged candidate at all ---
 
 
-def test_no_flagged_upgrade_or_slide_never_scans_anything(libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
+def test_no_flagged_upgrade_or_slide_never_scans_anything(
+    libcvediffcheck: ModuleType,
+    libcvecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     write_values_yaml(
         tmp_path,
         f"""\
@@ -487,7 +517,13 @@ zac:
 # --- detail mode (--detail-cve-diff) ---
 
 
-def test_default_report_is_terse_counts_only(libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
+def test_default_report_is_terse_counts_only(
+    libcvediffcheck: ModuleType,
+    libcvecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     write_values_yaml(
         tmp_path,
         f"""\
@@ -520,7 +556,11 @@ zac:
 
 
 def test_detail_flag_itemizes_high_severity_vulnerability_id_and_package(
-    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+    libcvediffcheck: ModuleType,
+    libcvecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     write_values_yaml(
         tmp_path,
@@ -553,7 +593,13 @@ zac:
     assert "CVE-1" in out
 
 
-def test_detail_flag_never_itemizes_medium_low_unknown(libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys):
+def test_detail_flag_never_itemizes_medium_low_unknown(
+    libcvediffcheck: ModuleType,
+    libcvecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """Same convention as check_cves' own --detail-cve-check: only
     CRITICAL/HIGH ever get itemized, regardless of the flag."""
     write_values_yaml(
@@ -590,7 +636,9 @@ zac:
 # --- open_cache_session (shared with check_cves, see lib.checks.cve) ---
 
 
-def test_check_cve_diff_routes_through_open_cache_session(libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
+def test_check_cve_diff_routes_through_open_cache_session(
+    libcvediffcheck: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     write_values_yaml(
         tmp_path,
         f"""\
@@ -624,7 +672,9 @@ zac:
 # --- gather_candidates ---
 
 
-def test_gather_candidates_combines_both_sources(libcvediffcheck, tmp_path, monkeypatch):
+def test_gather_candidates_combines_both_sources(
+    libcvediffcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     write_values_yaml(
         tmp_path,
         f"""\
@@ -662,7 +712,9 @@ redis-thing:
     assert by_kind["upgrade"]["proposed_digest"] is None
 
 
-def test_gather_candidates_attaches_the_values_yaml_line_for_both_kinds(libcvediffcheck, tmp_path, monkeypatch):
+def test_gather_candidates_attaches_the_values_yaml_line_for_both_kinds(
+    libcvediffcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """classify_candidates' own classify_by_key fallback needs the
     values.yaml source line for each candidate -- the "upgrade" loop
     already unpacks it from targets.items(); the "sliding digest" loop
@@ -784,7 +836,9 @@ def _bucket_upgrade_cache():
     }
 
 
-def _setup_bucket_scenario(libcvediffcheck, libcvecheck, tmp_path, monkeypatch, vulns_by_ref):
+def _setup_bucket_scenario(
+    libcvediffcheck: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, vulns_by_ref
+):
     make_chart_dir(tmp_path, BUCKET_VALUES_YAML, BUCKET_CHART_YAML)
     monkeypatch.setattr(libcvediffcheck, "render_chart", fake_render_chart(BUCKET_RENDERED, returncode=0))
     monkeypatch.setattr(libcvediffcheck, "load_upgrade_cache", lambda chart_dir: _bucket_upgrade_cache())
@@ -794,7 +848,11 @@ def _setup_bucket_scenario(libcvediffcheck, libcvecheck, tmp_path, monkeypatch, 
 
 
 def test_check_cve_diff_splits_own_partner_other_in_order_with_correct_content(
-    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+    libcvediffcheck: ModuleType,
+    libcvecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [vuln("CRITICAL", "CVE-OWN-1", "openssl")],
@@ -833,7 +891,11 @@ def test_check_cve_diff_splits_own_partner_other_in_order_with_correct_content(
 
 
 def test_check_cve_diff_bucket_with_no_candidates_prints_no_header(
-    libcvediffcheck, libcvecheck, tmp_path, monkeypatch, capsys
+    libcvediffcheck: ModuleType,
+    libcvecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """Only own+partner have a flagged candidate here (redis-operator's
     own upgrade cache entry is missing, so it never becomes a candidate at
@@ -864,7 +926,9 @@ def test_check_cve_diff_bucket_with_no_candidates_prints_no_header(
     assert "--- Other-vendor images ---" not in out
 
 
-def test_check_cve_diff_summary_reports_correct_per_bucket_counts(libcvediffcheck, libcvecheck, tmp_path, monkeypatch):
+def test_check_cve_diff_summary_reports_correct_per_bucket_counts(
+    libcvediffcheck: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [vuln("CRITICAL", "CVE-OWN-1", "openssl")],
         "ghcr.io/infonl/zac:1.1.0": [],

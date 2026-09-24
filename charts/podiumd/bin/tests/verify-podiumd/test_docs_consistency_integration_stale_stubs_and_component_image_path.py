@@ -8,6 +8,9 @@ and the component-specific image path sections."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 CHART_YAML = """\
@@ -67,12 +70,12 @@ def values_yaml(app_version):
     )
 
 
-def test_fully_consistent_chart_passes_with_baseline(vp, chart_repo):
+def test_fully_consistent_chart_passes_with_baseline(vp: ModuleType, chart_repo):
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is True, detail
 
 
-def test_fully_consistent_chart_passes_without_baseline(vp, chart_repo):
+def test_fully_consistent_chart_passes_without_baseline(vp: ModuleType, chart_repo):
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline=None)
     assert ok is True, detail
 
@@ -82,7 +85,9 @@ def test_fully_consistent_chart_passes_without_baseline(vp, chart_repo):
 # gemeente_specific_placeholder) ---
 
 
-def test_stale_upgrade_placeholder_is_reported_as_a_finding(vp, chart_repo, capsys):
+def test_stale_upgrade_placeholder_is_reported_as_a_finding(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text() + "\n## Changes\n\nTODO\n\n### zac 5.0.2 → 5.4.3\n\nSome prose.\n")
 
@@ -93,7 +98,9 @@ def test_stale_upgrade_placeholder_is_reported_as_a_finding(vp, chart_repo, caps
     assert ('4.8.5-to-4.9.0-upgrade.md: still has a stale "TODO" placeholder stranded alongside real content') in out
 
 
-def test_bare_changes_todo_stub_with_no_real_block_is_not_flagged(vp, chart_repo, capsys):
+def test_bare_changes_todo_stub_with_no_real_block_is_not_flagged(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """A "## Changes" section that STILL only has the bare TODO (no real
     "### ..." block yet) is the correct, expected state -- must not be
     reported as a stale-placeholder finding, matching strip_stale_
@@ -111,7 +118,9 @@ def test_bare_changes_todo_stub_with_no_real_block_is_not_flagged(vp, chart_repo
     assert "still has a stale" not in out
 
 
-def test_stale_values_deltas_placeholder_is_reported_as_a_finding(vp, chart_repo, capsys):
+def test_stale_values_deltas_placeholder_is_reported_as_a_finding(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-values-deltas.md"
     doc.write_text(
         "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
@@ -130,7 +139,9 @@ def test_stale_values_deltas_placeholder_is_reported_as_a_finding(vp, chart_repo
     ) in out
 
 
-def test_stale_gemeente_specific_placeholder_is_reported_as_a_finding(vp, chart_repo, capsys):
+def test_stale_gemeente_specific_placeholder_is_reported_as_a_finding(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """Check-only finding -- nothing auto-fixes this one (see lib.
     component_docs.has_stale_gemeente_specific_placeholder's own
     docstring for why)."""
@@ -152,7 +163,9 @@ def test_stale_gemeente_specific_placeholder_is_reported_as_a_finding(vp, chart_
     ) in out
 
 
-def test_bare_gemeente_specific_stub_with_no_real_section_is_not_flagged(vp, chart_repo, capsys):
+def test_bare_gemeente_specific_stub_with_no_real_section_is_not_flagged(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-gemeente-specific.md"
     doc.write_text("# Gemeente-specific notes — PodiumD 4.8.5 → 4.9.0\n\n_None recorded yet._\n")
 
@@ -161,7 +174,7 @@ def test_bare_gemeente_specific_stub_with_no_real_section_is_not_flagged(vp, cha
     assert ok is True, detail
 
 
-def test_no_matching_docs_is_a_soft_pass(vp, tmp_path):
+def test_no_matching_docs_is_a_soft_pass(vp: ModuleType, tmp_path: Path):
     chart_dir = tmp_path / "charts" / "podiumd"
     (chart_dir / "docs" / "_UPGRADE_PATHS").mkdir(parents=True)
     (chart_dir / "docs" / "images").mkdir(parents=True)
@@ -172,7 +185,9 @@ def test_no_matching_docs_is_a_soft_pass(vp, tmp_path):
     assert "skipped" in detail
 
 
-def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(vp, chart_repo, capsys):
+def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """A row that matches neither a Chart.yaml dependency nor a
     canonical sidecar/shared-image name (see
     lib.chart.canonical_sidecar_row_names) is a real, reportable
@@ -193,7 +208,7 @@ def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(vp, chart_repo, 
     ) in out
 
 
-def test_duplicate_row_names_are_reported(vp, chart_repo, capsys):
+def test_duplicate_row_names_are_reported(vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]):
     """Two rows with the literal same name are always wrong, whatever
     they resolve to — a leftover/typo'd duplicate."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
@@ -209,7 +224,9 @@ def test_duplicate_row_names_are_reported(vp, chart_repo, capsys):
     ) in out
 
 
-def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(vp, chart_repo, capsys):
+def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """A row that only fuzzy-matches a real dependency (e.g. the real-
     world "Kiss Elasticsearch" row fuzzy-matching "kiss") must be
     flagged as wrong once ANOTHER row exactly names that same
@@ -231,7 +248,7 @@ def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(vp, chart_repo
     assert 'doc row "zac" ' not in out
 
 
-def test_wrong_target_version_in_doc_is_caught(vp, chart_repo):
+def test_wrong_target_version_in_doc_is_caught(vp: ModuleType, chart_repo):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(UPGRADE_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.9.9"))
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
@@ -239,7 +256,7 @@ def test_wrong_target_version_in_doc_is_caught(vp, chart_repo):
     assert "mismatch" in detail
 
 
-def test_wrong_source_version_vs_baseline_is_caught(vp, chart_repo):
+def test_wrong_source_version_vs_baseline_is_caught(vp: ModuleType, chart_repo):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(UPGRADE_DOC.format(baseline="4.8.5", app_source="9.9.9", app_target="5.4.3"))
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
@@ -247,12 +264,14 @@ def test_wrong_source_version_vs_baseline_is_caught(vp, chart_repo):
     assert "mismatch" in detail
 
 
-def test_unresolvable_baseline_is_caught(vp, chart_repo):
+def test_unresolvable_baseline_is_caught(vp: ModuleType, chart_repo):
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="9.9.9")
     assert ok is False
 
 
-def test_undocumented_new_component_is_caught_everywhere(vp, chart_repo, capsys):
+def test_undocumented_new_component_is_caught_everywhere(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """A component added to Chart.yaml + values.yaml after the baseline, but
     never added to any doc, must be flagged as missing from the upgrade.md
     table, from values-deltas.md, and from the images manifest — not
@@ -276,7 +295,9 @@ def test_undocumented_new_component_is_caught_everywhere(vp, chart_repo, capsys)
     assert "openformulieren" in out and "changed vs 4.8.5 but has no entry" in out
 
 
-def test_component_with_only_a_new_sidecar_of_its_own_is_not_flagged_missing_a_row(vp, tmp_path, capsys):
+def test_component_with_only_a_new_sidecar_of_its_own_is_not_flagged_missing_a_row(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     """Regression test: zac gaining a brand-new sidecar of its own
     (opentelemetry-collector-contrib) with its OWN app+chart both
     unchanged must NOT be flagged "changed vs baseline but has no
@@ -338,7 +359,9 @@ def test_component_with_only_a_new_sidecar_of_its_own_is_not_flagged_missing_a_r
     assert 'component "zac" changed vs 4.8.5 but has no row' not in out
 
 
-def test_images_manifest_entry_with_no_real_change_is_caught(vp, chart_repo, capsys):
+def test_images_manifest_entry_with_no_real_change_is_caught(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """The images manifest must list the EXACT set of changed images —
     an entry that doesn't resolve to any real values-tree image at all
     (typo'd or stale name) is flagged with the same "wrong or stale —
@@ -365,7 +388,9 @@ def test_images_manifest_entry_with_no_real_change_is_caught(vp, chart_repo, cap
     assert ('entry "does-not-exist" is wrong or stale — not found in Chart.yaml or values.yaml') in out
 
 
-def test_images_manifest_entry_missing_version_or_digest_is_reported_not_crashed(vp, chart_repo, capsys):
+def test_images_manifest_entry_missing_version_or_digest_is_reported_not_crashed(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """With no bare-version baseline, check_images_manifest_format's key
     precheck never runs, so the entry loop is what first touches
     entry["version"]/entry["digest"] — a manifest entry missing one must
@@ -379,7 +404,9 @@ def test_images_manifest_entry_missing_version_or_digest_is_reported_not_crashed
     assert 'zac: entry in images-4.9.0.yaml is missing "version" or "digest"' in out
 
 
-def test_images_manifest_missing_changes_header_entirely_is_caught(vp, chart_repo, capsys):
+def test_images_manifest_missing_changes_header_entirely_is_caught(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """Regression test (real bug, real doc): a manifest with real entries
     but no "# Changes:" header anywhere at all (see lib.component_docs.
     ensure_images_manifest_changes_header's own docstring — real case:
@@ -403,7 +430,9 @@ def test_images_manifest_missing_changes_header_entirely_is_caught(vp, chart_rep
     ) in out
 
 
-def test_images_manifest_format_issue_does_not_swallow_other_mismatches(vp, chart_repo, capsys):
+def test_images_manifest_format_issue_does_not_swallow_other_mismatches(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """A format problem in images-<target>.yaml (e.g. a stale header
     comment) must not discard mismatches an earlier, completely unrelated
     check already found — like a component's own row going unmatched (see
@@ -425,7 +454,9 @@ def test_images_manifest_format_issue_does_not_swallow_other_mismatches(vp, char
     assert 'upgrade_docs_baseline line says "9.9.9", expected "4.8.5"' in out
 
 
-def test_stale_pointer_reference_does_not_block_every_other_check(vp, chart_repo, capsys):
+def test_stale_pointer_reference_does_not_block_every_other_check(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """A stale sibling-doc reference (a scar from an earlier, incomplete
     baseline rebase — the doc file itself was renamed, but an in-text
     link to its OLD name was never updated) used to make
@@ -490,7 +521,7 @@ def keycloak_values(tag):
 
 
 @pytest.fixture
-def keycloak_chart_repo(tmp_path):
+def keycloak_chart_repo(tmp_path: Path):
     """keycloak-operator's own real primary app image lives at the
     non-standard "operator.config.keycloakImage.tag" split-path
     convention, registered in lib.chart.COMPONENT_IMAGE_PATHS — the
@@ -523,7 +554,9 @@ def keycloak_chart_repo(tmp_path):
     return chart_dir
 
 
-def test_component_specific_image_path_mismatch_is_flagged_not_silently_skipped(vp, keycloak_chart_repo, capsys):
+def test_component_specific_image_path_mismatch_is_flagged_not_silently_skipped(
+    vp: ModuleType, keycloak_chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """The doc row pins app version "-" while values.yaml actually has
     "26.7.2" at keycloak-operator's own registered image path — this
     must surface as a normal target-app mismatch, not be silently

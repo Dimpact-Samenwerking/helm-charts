@@ -13,6 +13,8 @@ invocation happens in these tests."""
 
 import json
 
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -26,7 +28,7 @@ def kc_result(resources, returncode=1):
     )
 
 
-def no_friendly_vendors(libkubeconformcheck, monkeypatch):
+def no_friendly_vendors(libkubeconformcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("lib.render_scope.friendly_vendor_charts", lambda chart_dir: {})
 
 
@@ -54,7 +56,7 @@ def fake_render_chart(rendered=RENDERED, returncode=0):
 
 
 @pytest.fixture(autouse=True)
-def _default_render(monkeypatch):
+def _default_render(monkeypatch: pytest.MonkeyPatch):
     """check_kubeconform now gets its render via lib.render_scope.render_
     chart(chart_dir, extra_args), not a run([...]) call of its own —
     default every test in this file to the standard RENDERED fixture
@@ -88,7 +90,9 @@ def sequenced_run(own_resources, vendored_resources_by_chart=None, kc_returncode
 # --- run_kubeconform / schema cache ---
 
 
-def test_run_kubeconform_creates_cache_dir_and_passes_cache_flag(libkubeconformcheck, monkeypatch, tmp_path):
+def test_run_kubeconform_creates_cache_dir_and_passes_cache_flag(
+    libkubeconformcheck: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
     """kubeconform requires -cache's target directory to already exist (it
     errors out rather than creating it), so run_kubeconform must mkdir it
     before invoking the tool — and the flag itself must reach the actual
@@ -114,7 +118,7 @@ def test_run_kubeconform_creates_cache_dir_and_passes_cache_flag(libkubeconformc
 # --- split_rendered_by_source ---
 
 
-def test_split_rendered_by_source_separates_own_and_vendored(librenderscope):
+def test_split_rendered_by_source_separates_own_and_vendored(librenderscope: ModuleType):
     docs = librenderscope.split_rendered_by_source(RENDERED)
     assert [source for source, _ in docs] == [
         "podiumd/templates/frankgateway.yaml",
@@ -122,7 +126,7 @@ def test_split_rendered_by_source_separates_own_and_vendored(librenderscope):
     ]
 
 
-def test_split_rendered_by_source_keeps_doc_separator(librenderscope):
+def test_split_rendered_by_source_keeps_doc_separator(librenderscope: ModuleType):
     docs = librenderscope.split_rendered_by_source(RENDERED)
     _, text = docs[0]
     assert text.startswith("---\n# Source: podiumd/templates/frankgateway.yaml\n")
@@ -132,7 +136,9 @@ def test_split_rendered_by_source_keeps_doc_separator(librenderscope):
 # --- check_kubeconform ---
 
 
-def test_check_kubeconform_no_findings_passes(vp, libkubeconformcheck, tmp_path, monkeypatch):
+def test_check_kubeconform_no_findings_passes(
+    vp: ModuleType, libkubeconformcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
     monkeypatch.setattr(
@@ -150,7 +156,13 @@ def test_check_kubeconform_no_findings_passes(vp, libkubeconformcheck, tmp_path,
     assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
-def test_check_kubeconform_own_schema_violation_fails(vp, libkubeconformcheck, tmp_path, monkeypatch, capsys):
+def test_check_kubeconform_own_schema_violation_fails(
+    vp: ModuleType,
+    libkubeconformcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
     monkeypatch.setattr(
@@ -177,7 +189,13 @@ def test_check_kubeconform_own_schema_violation_fails(vp, libkubeconformcheck, t
     assert "badField" in out
 
 
-def test_check_kubeconform_own_finding_includes_rendered_line(vp, libkubeconformcheck, tmp_path, monkeypatch, capsys):
+def test_check_kubeconform_own_finding_includes_rendered_line(
+    vp: ModuleType,
+    libkubeconformcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """RENDERED's frankgateway Service has "metadata: name: frankgateway"
     starting at line 3 (right after its own "# Source:" comment on line
     2) — build_resource_locations/resource_line must resolve that and
@@ -200,7 +218,13 @@ def test_check_kubeconform_own_finding_includes_rendered_line(vp, libkubeconform
     assert "Service/frankgateway (rendered line 3)" in out
 
 
-def test_check_kubeconform_own_parse_error_fails(vp, libkubeconformcheck, tmp_path, monkeypatch, capsys):
+def test_check_kubeconform_own_parse_error_fails(
+    vp: ModuleType,
+    libkubeconformcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """A resource kubeconform's own YAML parser can't even load (e.g. the
     frankgateway duplicate-key bug) is statusError, not statusInvalid — must
     also fail, same as a schema violation."""
@@ -230,7 +254,9 @@ def test_check_kubeconform_own_parse_error_fails(vp, libkubeconformcheck, tmp_pa
     assert "ERROR" in out
 
 
-def test_check_kubeconform_skipped_crd_is_not_a_finding(vp, libkubeconformcheck, tmp_path, monkeypatch):
+def test_check_kubeconform_skipped_crd_is_not_a_finding(
+    vp: ModuleType, libkubeconformcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """statusSkipped (no known schema — expected for this chart's many
     CRDs: Keycloak, ECK, Redis, ...) must never count as a finding."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
@@ -249,7 +275,13 @@ def test_check_kubeconform_skipped_crd_is_not_a_finding(vp, libkubeconformcheck,
     assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
-def test_check_kubeconform_repeated_root_cause_is_grouped(vp, libkubeconformcheck, tmp_path, monkeypatch, capsys):
+def test_check_kubeconform_repeated_root_cause_is_grouped(
+    vp: ModuleType,
+    libkubeconformcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """Same shape as the real frankgateway bug: several resources hitting
     the identical parse error must print as one grouped line with an
     occurrence count, not one line per resource."""
@@ -285,7 +317,13 @@ def test_check_kubeconform_repeated_root_cause_is_grouped(vp, libkubeconformchec
     assert "Service/frankgateway-shim" in out and "Deployment/frankgateway" in out
 
 
-def test_check_kubeconform_other_vendor_finding_never_fails(vp, libkubeconformcheck, tmp_path, monkeypatch, capsys):
+def test_check_kubeconform_other_vendor_finding_never_fails(
+    vp: ModuleType,
+    libkubeconformcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
     monkeypatch.setattr(
@@ -317,7 +355,11 @@ def test_check_kubeconform_other_vendor_finding_never_fails(vp, libkubeconformch
 
 
 def test_check_kubeconform_friendly_vendor_finding_reported_per_item_never_fails(
-    vp, libkubeconformcheck, tmp_path, monkeypatch, capsys
+    vp: ModuleType,
+    libkubeconformcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A vendored sub-chart from a listed partner org gets its finding
     printed individually (attributed to the chart it came from, since
@@ -355,14 +397,16 @@ def test_check_kubeconform_friendly_vendor_finding_reported_per_item_never_fails
     assert "badField" in out  # per-item detail, not just a count
 
 
-def test_check_kubeconform_missing_binary_fails(vp, tmp_path, monkeypatch):
+def test_check_kubeconform_missing_binary_fails(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: None)
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is False
     assert "not installed" in detail
 
 
-def test_check_kubeconform_render_failure_fails(vp, libkubeconformcheck, tmp_path, monkeypatch):
+def test_check_kubeconform_render_failure_fails(
+    vp: ModuleType, libkubeconformcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart("", returncode=1))
     ok, detail = vp.check_kubeconform(tmp_path, [])
@@ -370,7 +414,9 @@ def test_check_kubeconform_render_failure_fails(vp, libkubeconformcheck, tmp_pat
     assert "failed to render" in detail
 
 
-def test_check_kubeconform_unparseable_own_output_fails(vp, libkubeconformcheck, tmp_path, monkeypatch):
+def test_check_kubeconform_unparseable_own_output_fails(
+    vp: ModuleType, libkubeconformcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
     no_friendly_vendors(libkubeconformcheck, monkeypatch)
 
@@ -383,7 +429,9 @@ def test_check_kubeconform_unparseable_own_output_fails(vp, libkubeconformcheck,
     assert "unparseable" in detail
 
 
-def test_check_kubeconform_unparseable_vendored_output_fails(vp, libkubeconformcheck, tmp_path, monkeypatch):
+def test_check_kubeconform_unparseable_vendored_output_fails(
+    vp: ModuleType, libkubeconformcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """The own-scope kubeconform call succeeds, but a vendored-chart call
     returns garbage — must still fail with a clear message, not silently
     swallow it as "0 vendored findings"."""

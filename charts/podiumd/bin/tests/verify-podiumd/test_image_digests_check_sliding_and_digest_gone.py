@@ -7,12 +7,14 @@ otherwise happen."""
 import urllib.error
 
 from email.message import Message
+from pathlib import Path
+from types import ModuleType
 
 import pytest
 
 
 @pytest.fixture(autouse=True)
-def _clear_tag_exists_cache(libimagedigests):
+def _clear_tag_exists_cache(libimagedigests: ModuleType):
     """cached_tag_exists' own in-process memoization (see its own
     docstring) lives in a module-level dict, and libimagedigests is a
     session-scoped fixture — without this, one test's cached (fake)
@@ -47,7 +49,13 @@ TWO_IMAGES_VALUES = (
 )
 
 
-def test_check_image_digests_sliding_drift_warns_but_passes(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+def test_check_image_digests_sliding_drift_warns_but_passes(
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """A tag known to slide drifting is routine, expected drift -- and,
     as long as the OLD pinned digest is still independently pullable
     (see the [DIGEST-GONE] check), no longer a failure at all -- just a
@@ -75,7 +83,13 @@ def test_check_image_digests_sliding_drift_warns_but_passes(vp, libimagedigests,
     assert "MISMATCH" not in out
 
 
-def test_check_image_digests_pinned_drift_still_fails(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+def test_check_image_digests_pinned_drift_still_fails(
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """A component's own release tag drifting is a real failure, even when
     a sliding tag ALSO drifted in the same run."""
     write_values(tmp_path, TWO_IMAGES_VALUES)
@@ -109,7 +123,9 @@ def test_check_image_digests_pinned_drift_still_fails(vp, libimagedigests, tmp_p
 # so no new registry-layer code is needed, just a second call.
 
 
-def test_check_image_digests_matched_pin_never_gets_a_second_call(vp, libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_matched_pin_never_gets_a_second_call(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """A matched pin's live digest already equals the pinned one -- it's
     trivially still there, so no second (digest-liveness) call is ever
     made for it."""
@@ -127,7 +143,11 @@ def test_check_image_digests_matched_pin_never_gets_a_second_call(vp, libimagedi
 
 
 def test_check_image_digests_sliding_with_digest_still_pullable_only_warns(
-    vp, libimagedigests, tmp_path, monkeypatch, capsys
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """The OLD pinned digest independently resolves upstream — the tag
     merely slid, nothing this repo actually deploys is at risk. Warns
@@ -155,7 +175,13 @@ def test_check_image_digests_sliding_with_digest_still_pullable_only_warns(
     assert "[DIGEST-GONE]" not in out
 
 
-def test_check_image_digests_sliding_with_digest_gone_fails(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+def test_check_image_digests_sliding_with_digest_gone_fails(
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """The tag slid AND the OLD digest this repo actually still pins has
     since been garbage-collected upstream — a real, hard failure: helm
     install/upgrade would fail outright right now, regardless of the
@@ -182,7 +208,13 @@ def test_check_image_digests_sliding_with_digest_gone_fails(vp, libimagedigests,
     assert f"sha256:{digest_a}" in out
 
 
-def test_check_image_digests_mismatch_with_digest_gone_fails(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+def test_check_image_digests_mismatch_with_digest_gone_fails(
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """A non-sliding MISMATCH whose old pinned digest is also gone —
     still just one failure category ([DIGEST-GONE]) added on top of the
     pre-existing [MISMATCH] failure, not a special case."""
@@ -204,7 +236,13 @@ def test_check_image_digests_mismatch_with_digest_gone_fails(vp, libimagedigests
     assert "[DIGEST-GONE]" in out
 
 
-def test_check_image_digests_fetch_error_with_digest_gone_fails(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+def test_check_image_digests_fetch_error_with_digest_gone_fails(
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """The tag check itself couldn't be confirmed (a genuine fetch error,
     not an UNVERIFIABLE_HOSTS one) — the old digest is STILL checked, and
     found gone here too."""
@@ -228,7 +266,11 @@ def test_check_image_digests_fetch_error_with_digest_gone_fails(vp, libimagedige
 
 
 def test_check_image_digests_unverifiable_host_skips_digest_liveness_check_entirely(
-    vp, libimagedigests, tmp_path, monkeypatch, capsys
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A host in UNVERIFIABLE_HOSTS is skipped for the SECOND call too —
     no point attempting what's already known to fail anonymously."""

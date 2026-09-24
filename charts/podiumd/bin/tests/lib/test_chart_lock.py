@@ -3,6 +3,9 @@
 real Helm 3.22 `helm dependency update` (file:// sub-charts, so no
 network), not computed by the code under test."""
 
+from pathlib import Path
+from types import ModuleType
+
 import yaml
 
 # Exercises every Go JSON quirk helm_lock_digest mirrors: omitempty
@@ -30,11 +33,11 @@ EDGE_CASE_LOCK_DEPS = [
 EDGE_CASE_HELM_DIGEST = "sha256:5dab970ee5d9a982f33fa6e5d4278e4a84784af13c7a219ca7cfeae539c9061b"
 
 
-def test_helm_lock_digest_matches_real_helm(libchartlock):
+def test_helm_lock_digest_matches_real_helm(libchartlock: ModuleType):
     assert libchartlock.helm_lock_digest(EDGE_CASE_CHART_DEPS, EDGE_CASE_LOCK_DEPS, {}) == EDGE_CASE_HELM_DIGEST
 
 
-def test_helm_lock_digest_ignores_map_key_order_in_import_values(libchartlock):
+def test_helm_lock_digest_ignores_map_key_order_in_import_values(libchartlock: ModuleType):
     """Go marshals a map with sorted keys, whatever order Chart.yaml wrote."""
     reordered = [
         {**EDGE_CASE_CHART_DEPS[0], "import-values": [{"parent": "zdata", "child": "exports.data"}, "simple"]},
@@ -43,7 +46,7 @@ def test_helm_lock_digest_ignores_map_key_order_in_import_values(libchartlock):
     assert libchartlock.helm_lock_digest(reordered, EDGE_CASE_LOCK_DEPS, {}) == EDGE_CASE_HELM_DIGEST
 
 
-def test_helm_lock_digest_resolves_alias_repository(libchartlock):
+def test_helm_lock_digest_resolves_alias_repository(libchartlock: ModuleType):
     """Helm hashes Chart.yaml's dependencies after resolving "@alias" to
     the repo URL, so an alias and the URL it stands for hash the same."""
     url = "https://maykinmedia.github.io/charts/"
@@ -55,7 +58,7 @@ def test_helm_lock_digest_resolves_alias_repository(libchartlock):
     )
 
 
-def test_lock_dependencies_keeps_order_and_resolves_alias(libchartlock):
+def test_lock_dependencies_keeps_order_and_resolves_alias(libchartlock: ModuleType):
     chart_deps = [
         {"name": "zac", "version": "1.0.297", "repository": "@zac", "alias": "zac", "condition": "zac.enabled"},
         {"name": "kiss-chart", "version": "3.1.1", "repository": "oci://ghcr.io/kiss"},
@@ -68,7 +71,7 @@ def test_lock_dependencies_keeps_order_and_resolves_alias(libchartlock):
     ]
 
 
-def test_write_chart_lock_matches_helm_digest_for_its_own_lock(libchartlock, tmp_path):
+def test_write_chart_lock_matches_helm_digest_for_its_own_lock(libchartlock: ModuleType, tmp_path: Path):
     """The real e2e case: sub-a bumped 1.2.3 -> 1.3.0 next to an unchanged
     sub-b; `helm dependency update` wrote this exact digest."""
     chart_deps = [

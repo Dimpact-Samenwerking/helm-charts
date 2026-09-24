@@ -4,6 +4,11 @@ access or real Confluence page is needed."""
 
 import csv
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+
 from lib.image.version import basenames_under_scope
 from lib.release_table.component_resolution import extra_scope_keys_by_component
 from lib.release_table.component_resolution import match_one
@@ -91,7 +96,9 @@ TECHNISCHE_TABLE_HTML = """
 # --- main() integration ---
 
 
-def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
+def test_main_writes_csv(
+    ecrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     output_path = tmp_path / "release-table.csv"
     monkeypatch.setattr(
         ecrt.sys,
@@ -136,7 +143,9 @@ def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
     assert '  line 3: "Open Zaak" (component)' in captured.err
 
 
-def test_main_passes_resolved_token_and_url_user_through(ecrt, tmp_path, monkeypatch):
+def test_main_passes_resolved_token_and_url_user_through(
+    ecrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     output_path = tmp_path / "out.csv"
     monkeypatch.setattr(
         ecrt.sys,
@@ -168,7 +177,7 @@ def test_main_passes_resolved_token_and_url_user_through(ecrt, tmp_path, monkeyp
     }
 
 
-def test_main_passes_custom_heading_flags_through(ecrt, tmp_path, monkeypatch):
+def test_main_passes_custom_heading_flags_through(ecrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     output_path = tmp_path / "out.csv"
     monkeypatch.setattr(
         ecrt.sys,
@@ -197,7 +206,7 @@ def test_main_passes_custom_heading_flags_through(ecrt, tmp_path, monkeypatch):
     assert rows[1][0] == "Technische"
 
 
-def test_main_writes_lf_line_endings(ecrt, tmp_path, monkeypatch):
+def test_main_writes_lf_line_endings(ecrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """csv's own "excel" dialect defaults to CRLF regardless of platform —
     every other file in this repo (and git) is LF, so a CRLF write would
     diff on every single re-export even when nothing actually changed."""
@@ -270,7 +279,7 @@ def test_match_one_no_relation_is_none():
     assert match_one("ITA Poller", {"internetaakafhandeling.poller"}) is None
 
 
-def test_basenames_under_scope_finds_nested_pins(tmp_path):
+def test_basenames_under_scope_finds_nested_pins(tmp_path: Path):
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -289,7 +298,7 @@ zac:
     assert set(available) == {"zaakafhandelcomponent", "solr-operator"}
 
 
-def test_basenames_under_scope_ignores_other_components(tmp_path):
+def test_basenames_under_scope_ignores_other_components(tmp_path: Path):
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -307,12 +316,12 @@ openzaak:
     assert set(basenames_under_scope(lines, "zac")) == {"zaakafhandelcomponent"}
 
 
-def test_resolve_image_basenames_missing_values_yaml_is_blank(ecrt, tmp_path):
+def test_resolve_image_basenames_missing_values_yaml_is_blank(ecrt: ModuleType, tmp_path: Path):
     rows = [["Product", "", "", "ZAC", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"]]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
 
 
-def test_resolve_image_basenames_technische_row_matches_its_own_image(ecrt, tmp_path):
+def test_resolve_image_basenames_technische_row_matches_its_own_image(ecrt: ModuleType, tmp_path: Path):
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -333,7 +342,7 @@ zac:
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["zaakafhandelcomponent", "solr-operator"]
 
 
-def test_resolve_image_basenames_role_named_row_resolves_via_bracket_hint(ecrt, tmp_path):
+def test_resolve_image_basenames_role_named_row_resolves_via_bracket_hint(ecrt: ModuleType, tmp_path: Path):
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -367,7 +376,7 @@ zac:
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["zaakafhandelcomponent", "k8s-kubectl"]
 
 
-def test_resolve_image_basenames_primary_row_gets_leftover_after_technische_claims(ecrt, tmp_path):
+def test_resolve_image_basenames_primary_row_gets_leftover_after_technische_claims(ecrt: ModuleType, tmp_path: Path):
     """Once every "used_by"-tagged sibling has claimed its own basename,
     whatever's left under that component's scope — here, just its own
     top-level image — goes to the primary (used_by-blank) row."""
@@ -392,7 +401,7 @@ zac:
     assert basenames[0] == "zaakafhandelcomponent"
 
 
-def test_resolve_image_basenames_primary_claims_its_own_name_before_siblings(ecrt, tmp_path):
+def test_resolve_image_basenames_primary_claims_its_own_name_before_siblings(ecrt: ModuleType, tmp_path: Path):
     """frankgateway's own default image is literally named "frank-gateway"
     (same as the component's own plain display name) — every sibling
     "Frank Gateway <Role>" row's name trivially CONTAINS that same
@@ -424,7 +433,7 @@ frankgateway:
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["frank-gateway", ""]
 
 
-def test_resolve_image_basenames_primary_row_first_refusal_is_exact_match_only(ecrt, tmp_path):
+def test_resolve_image_basenames_primary_row_first_refusal_is_exact_match_only(ecrt: ModuleType, tmp_path: Path):
     """redis-operator's own primary row name ("Redis Operator") merely
     CONTAINS basename "redis" as a substring ("redisoperator") — a much
     weaker signal than frankgateway's EXACT match. Letting primary claim
@@ -456,7 +465,7 @@ redis-operator:
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["", "redis", "redis-exporter"]
 
 
-def test_resolve_image_basenames_primary_row_gets_multiple_leftover_basenames(ecrt, tmp_path):
+def test_resolve_image_basenames_primary_row_gets_multiple_leftover_basenames(ecrt: ModuleType, tmp_path: Path):
     """A component with no Technische breakdown at all (e.g.
     zgw-office-addin, whose frontend and backend always move in
     lockstep and share one row/version) gets every leftover basename
@@ -480,7 +489,7 @@ zgw-office-addin:
     assert set(basenames[0].split(",")) == {"zgw-office-addin-frontend", "zgw-office-addin-backend"}
 
 
-def test_resolve_image_basenames_unresolvable_technische_row_is_blank(ecrt, tmp_path):
+def test_resolve_image_basenames_unresolvable_technische_row_is_blank(ecrt: ModuleType, tmp_path: Path):
     """ "ITA Poller" shares no text at all with the actual repository
     basename ("internetaakafhandeling.poller") — left blank rather than
     guessed."""
@@ -498,7 +507,7 @@ ita:
     assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
 
 
-def test_resolve_image_basenames_multiple_row_resolves_via_global_image_key(ecrt, tmp_path):
+def test_resolve_image_basenames_multiple_row_resolves_via_global_image_key(ecrt: ModuleType, tmp_path: Path):
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -513,19 +522,19 @@ global:
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["curl"]
 
 
-def test_resolve_image_basenames_multiple_row_no_repository_is_blank(ecrt, tmp_path):
+def test_resolve_image_basenames_multiple_row_no_repository_is_blank(ecrt: ModuleType, tmp_path: Path):
     write_values_yaml_raw(tmp_path, "global:\n  images:\n    curl: {}\n")
     rows = [["Overige", "", "", "curl", "MULTIPLE", "MULTIPLE", "1", "1", "1", "1"]]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
 
 
-def test_resolve_image_basenames_unknown_component_is_blank(ecrt, tmp_path):
+def test_resolve_image_basenames_unknown_component_is_blank(ecrt: ModuleType, tmp_path: Path):
     write_values_yaml_raw(tmp_path, "")
     rows = [["Technische", "", "", "python image", "UNKNOWN", "", "1", "1", "1", "1"]]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
 
 
-def test_resolve_image_basenames_finds_image_under_a_related_orphan_key(ecrt, tmp_path):
+def test_resolve_image_basenames_finds_image_under_a_related_orphan_key(ecrt: ModuleType, tmp_path: Path):
     """keycloak-operator's real app image lives under the separate
     "keycloak" values.yaml block (podiumd's own Keycloak instance
     config), not under "keycloak-operator" itself — an orphan key that
@@ -554,14 +563,14 @@ keycloak:
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["keycloak", "python"]
 
 
-def test_extra_scope_keys_by_component_ignores_multiple_and_unrelated_orphan_keys(tmp_path):
+def test_extra_scope_keys_by_component_ignores_multiple_and_unrelated_orphan_keys(tmp_path: Path):
     write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None), ("frankgateway", None)])
     write_values_yaml_raw(tmp_path, "keycloak: {}\nunrelated: {}\n")
     extra = extra_scope_keys_by_component(tmp_path)
     assert extra == {"keycloak-operator": ["keycloak"]}
 
 
-def test_extract_release_rows_end_to_end_populates_image_basename(ecrt, tmp_path):
+def test_extract_release_rows_end_to_end_populates_image_basename(ecrt: ModuleType, tmp_path: Path):
     """extract_release_rows itself, not just resolve_image_basenames in
     isolation, must insert the resolved basename at the right column."""
     write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
@@ -592,7 +601,9 @@ zac:
     ]
 
 
-def test_resolve_image_basenames_falls_back_to_any_tag_when_digest_required_scan_is_empty(ecrt, tmp_path):
+def test_resolve_image_basenames_falls_back_to_any_tag_when_digest_required_scan_is_empty(
+    ecrt: ModuleType, tmp_path: Path
+):
     """omc's real shape: its own image.tag has NO digest at all (its
     subchart can't handle one) — the digest-required basenames_under_
     scope finds nothing under "omc" at all, so resolve_image_basenames
@@ -611,7 +622,9 @@ omc:
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["notifynl-omc"]
 
 
-def test_resolve_image_basenames_any_tag_fallback_does_not_override_digest_scan_result(ecrt, tmp_path):
+def test_resolve_image_basenames_any_tag_fallback_does_not_override_digest_scan_result(
+    ecrt: ModuleType, tmp_path: Path
+):
     """A basename the digest-required scan already found is never
     replaced by the any_tag fallback (the fallback is strictly additive,
     per-basename — see test_resolve_image_basenames_any_tag_fallback_
@@ -632,7 +645,9 @@ zac:
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["zaakafhandelcomponent"]
 
 
-def test_resolve_image_basenames_any_tag_fallback_supplements_a_partially_digest_pinned_component(ecrt, tmp_path):
+def test_resolve_image_basenames_any_tag_fallback_supplements_a_partially_digest_pinned_component(
+    ecrt: ModuleType, tmp_path: Path
+):
     """Regression test (real bug, real chart): keycloak-operator's own
     operator.config.keycloakImage pins its digest as a separate sibling
     "sha:" field (never embedded in "tag:"), so the digest-required scan

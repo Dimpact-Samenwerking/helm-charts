@@ -1,5 +1,7 @@
 """resolve_entry_version, fix_images_manifest_entries — pure logic, no git repo needed."""
 
+from pathlib import Path
+from types import ModuleType
 
 # --- resolve_entry_version ---
 # replace_version_pair itself (no longer imported into this module — see
@@ -8,17 +10,17 @@
 # tests/lib/test_upgradedoc.py; no duplicate coverage needed here.
 
 
-def test_resolve_entry_version_finds_matching_path(cdb):
+def test_resolve_entry_version_finds_matching_path(cdb: ModuleType):
     paths = {("zac",): "5.1.0@sha256:aaaa", ("zgw-office-addin", "frontend"): "v0.9.352@sha256:bbbb"}
     assert cdb.resolve_entry_version({"name": "zac"}, paths) == "5.1.0"
     assert cdb.resolve_entry_version({"name": "zgw-office-addin-frontend"}, paths) == "v0.9.352"
 
 
-def test_resolve_entry_version_none_when_unresolvable(cdb):
+def test_resolve_entry_version_none_when_unresolvable(cdb: ModuleType):
     assert cdb.resolve_entry_version({"name": "totally-unknown"}, {}) is None
 
 
-def test_resolve_entry_version_uses_repo_map_for_strip_registry_names(cdb):
+def test_resolve_entry_version_uses_repo_map_for_strip_registry_names(cdb: ModuleType):
     """ "infonl/zaakafhandelcomponent" doesn't fuzzy-word-match the "zac"
     values key at all — repo_map is what makes a current-convention
     manifest name resolve."""
@@ -31,7 +33,7 @@ def test_resolve_entry_version_uses_repo_map_for_strip_registry_names(cdb):
 # --- fix_images_manifest_entries ---
 
 
-def test_fix_images_manifest_entries_corrects_stale_source(cdb):
+def test_fix_images_manifest_entries_corrects_stale_source(cdb: ModuleType):
     text = (
         "# ZAC — 5.0.1 -> 5.1.0\n"
         "- name: zac\n"
@@ -51,7 +53,7 @@ def test_fix_images_manifest_entries_corrects_stale_source(cdb):
     assert "5.0.1" not in new_text
 
 
-def test_fix_images_manifest_entries_leaves_correct_entry_untouched(cdb):
+def test_fix_images_manifest_entries_leaves_correct_entry_untouched(cdb: ModuleType):
     text = '# ZAC — 5.0.2 -> 5.1.0\n- name: zac\n  version: "5.1.0"\n'
     target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
@@ -63,7 +65,7 @@ def test_fix_images_manifest_entries_leaves_correct_entry_untouched(cdb):
     assert new_text == text
 
 
-def test_fix_images_manifest_entries_reports_missing_comment(cdb):
+def test_fix_images_manifest_entries_reports_missing_comment(cdb: ModuleType):
     text = '- name: zgw-office-addin-backend\n  version: "v0.9.352"\n'
     target_values = {"zgw-office-addin": {"backend": {"image": {"tag": "v0.9.352@sha256:aaaa"}}}}
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
@@ -74,7 +76,7 @@ def test_fix_images_manifest_entries_reports_missing_comment(cdb):
     assert new_text == text
 
 
-def test_fix_images_manifest_entries_reports_unresolvable_baseline(cdb):
+def test_fix_images_manifest_entries_reports_unresolvable_baseline(cdb: ModuleType):
     text = '# ZAC — 5.0.1 -> 5.1.0\n- name: zac\n  version: "5.1.0"\n'
     target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
     new_text, changed, unresolved = cdb.fix_images_manifest_entries(
@@ -85,7 +87,7 @@ def test_fix_images_manifest_entries_reports_unresolvable_baseline(cdb):
     assert new_text == text
 
 
-def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(cdb):
+def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(cdb: ModuleType):
     """ "infonl/zaakafhandelcomponent" (the current strip-registry manifest
     naming convention) doesn't fuzzy-word-match the values.yaml key
     ("zac") at all — without repo_map this entry would be unresolved."""
@@ -116,7 +118,7 @@ def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(c
     assert unresolved2 == ["infonl/zaakafhandelcomponent"]
 
 
-def test_fix_images_manifest_entries_fixes_shared_group_comment_via_either_entry(cdb):
+def test_fix_images_manifest_entries_fixes_shared_group_comment_via_either_entry(cdb: ModuleType):
     """zgw-office-addin's frontend + backend share one comment (backend has
     none of its own, separated by a blank line) — backend must be fixed via
     that shared comment, not reported as unresolved just because there's no
@@ -151,7 +153,7 @@ def test_fix_images_manifest_entries_fixes_shared_group_comment_via_either_entry
     assert "v0.9.300" not in new_text
 
 
-def test_fix_images_manifest_entries_corrects_stale_arrow_to_new(cdb):
+def test_fix_images_manifest_entries_corrects_stale_arrow_to_new(cdb: ModuleType):
     """Regression test (real bug, real doc): a path with NO baseline
     value at all used to always report the entry as unresolved and
     leave its comment untouched FOREVER — no verifier/fixer ever re-
@@ -195,7 +197,7 @@ def test_fix_images_manifest_entries_corrects_stale_arrow_to_new(cdb):
     assert "0.158.0 -> 0.158.0" not in new_text
 
 
-def test_fix_images_manifest_entries_finds_historical_baseline_for_new_path(cdb, tmp_path):
+def test_fix_images_manifest_entries_finds_historical_baseline_for_new_path(cdb: ModuleType, tmp_path: Path):
     """The historical-images-manifest fallback (same one resolve_
     component_row's own sidecar branch already uses) applies here too:
     a path with no CURRENT baseline value that nonetheless already
@@ -235,7 +237,7 @@ def test_fix_images_manifest_entries_finds_historical_baseline_for_new_path(cdb,
     assert new_text == text
 
 
-def test_fix_images_manifest_entries_corrects_moved_repository_comment(cdb, tmp_path):
+def test_fix_images_manifest_entries_corrects_moved_repository_comment(cdb: ModuleType, tmp_path: Path):
     """Real case (podiumd 4.9.1): the postgres consolidation (see
     lib.chart.baseline_tag_for_sidecar_path) — global.images.postgres
     never existed in baseline_values, but the same "postgres" repository
@@ -276,7 +278,7 @@ def test_fix_images_manifest_entries_corrects_moved_repository_comment(cdb, tmp_
     assert "(new)" not in new_text
 
 
-def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched(cdb):
+def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched(cdb: ModuleType):
     """A same-version, changed-digest re-pin already correctly annotated
     "(digest changed)" must survive re-verification unchanged — this
     function must actually independently confirm it (via resolved_

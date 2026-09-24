@@ -12,6 +12,9 @@ that suite."""
 import io
 import tarfile
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -105,7 +108,7 @@ def openbao_values(tag=""):
     return {"openbao": {"server": {"image": {"repository": "openbao/openbao", "tag": tag}}}}
 
 
-def run_main(vrt, monkeypatch, argv):
+def run_main(vrt: ModuleType, monkeypatch: pytest.MonkeyPatch, argv):
     monkeypatch.setattr("sys.argv", ["verify-release-table-with-podiumd", *argv])
     with pytest.raises(SystemExit) as exc_info:
         vrt.main()
@@ -115,7 +118,7 @@ def run_main(vrt, monkeypatch, argv):
 # --- compare(): version mismatches ---
 
 
-def test_compare_reports_chart_version_mismatch(vrt):
+def test_compare_reports_chart_version_mismatch(vrt: ModuleType):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [
         csv_row(
@@ -132,7 +135,7 @@ def test_compare_reports_chart_version_mismatch(vrt):
     assert unresolved == []
 
 
-def test_compare_reports_image_version_mismatch(vrt):
+def test_compare_reports_image_version_mismatch(vrt: ModuleType):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [
         csv_row(
@@ -148,7 +151,7 @@ def test_compare_reports_image_version_mismatch(vrt):
     assert any("target 5.4.4 != values.yaml 5.4.3" in m for m in findings["mismatches"])
 
 
-def test_compare_no_findings_when_everything_matches(vrt):
+def test_compare_no_findings_when_everything_matches(vrt: ModuleType):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [
         csv_row(
@@ -168,7 +171,7 @@ def test_compare_no_findings_when_everything_matches(vrt):
 # --- check_chart_version_source / check_images_source ---
 
 
-def test_compare_reports_chart_version_source_mismatch(vrt):
+def test_compare_reports_chart_version_source_mismatch(vrt: ModuleType):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
     rows = [
@@ -192,7 +195,7 @@ def test_compare_reports_chart_version_source_mismatch(vrt):
     assert unresolved == []
 
 
-def test_compare_reports_image_version_source_mismatch(vrt):
+def test_compare_reports_image_version_source_mismatch(vrt: ModuleType):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [
@@ -214,7 +217,7 @@ def test_compare_reports_image_version_source_mismatch(vrt):
     )
 
 
-def test_compare_reports_image_version_source_mismatch_bare_baseline_tag(vrt):
+def test_compare_reports_image_version_source_mismatch_bare_baseline_tag(vrt: ModuleType):
     """Real bug, real chart: podiumd-4.8.5 (this chart's own actual
     release_table baseline) pinned zaakbrug/pabc/ita with a BARE
     (non-digest-pinned) tag — invisible to the plain digest-required
@@ -242,7 +245,7 @@ def test_compare_reports_image_version_source_mismatch_bare_baseline_tag(vrt):
     assert not any("wasn't pinned anywhere" in m for m in findings.get("mismatches", []))
 
 
-def test_compare_source_checks_skipped_when_baseline_not_given(vrt):
+def test_compare_source_checks_skipped_when_baseline_not_given(vrt: ModuleType):
     """baseline_deps=None (the default) — never attempted at all, not
     'attempted and empty' — so a row with an otherwise-mismatching
     source is never flagged when no baseline was resolved."""
@@ -263,7 +266,7 @@ def test_compare_source_checks_skipped_when_baseline_not_given(vrt):
     assert not any("SOURCE" in m for m in findings.get("mismatches", []))
 
 
-def test_compare_new_dependency_at_baseline_with_blank_source_not_flagged(vrt):
+def test_compare_new_dependency_at_baseline_with_blank_source_not_flagged(vrt: ModuleType):
     """A brand-new Chart.yaml dependency this release (not in baseline_deps
     at all) with a BLANK source (nothing recorded yet, the normal case for
     something genuinely new) must NOT be flagged — only a row that
@@ -290,7 +293,7 @@ def test_compare_new_dependency_at_baseline_with_blank_source_not_flagged(vrt):
     assert not any("SOURCE" in m for m in findings.get("mismatches", []))
 
 
-def test_compare_new_dependency_at_baseline_with_real_source_is_flagged(vrt):
+def test_compare_new_dependency_at_baseline_with_real_source_is_flagged(vrt: ModuleType):
     """The mirror-image case: a row DOES claim a real source chart/app
     version for a dependency that genuinely didn't exist at the
     release_table baseline at all — that claim can't be right no matter
@@ -325,7 +328,9 @@ def test_compare_new_dependency_at_baseline_with_real_source_is_flagged(vrt):
     )
 
 
-def test_main_unresolvable_release_table_baseline_warns_and_keeps_target_checks(vrt, tmp_path, monkeypatch, capsys):
+def test_main_unresolvable_release_table_baseline_warns_and_keeps_target_checks(
+    vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """A baseline-resolution failure must never suppress the EXISTING
     target-checks — only the new source-checks are skipped, with exactly
     one clear warning, no crash."""
@@ -372,7 +377,7 @@ def test_main_unresolvable_release_table_baseline_warns_and_keeps_target_checks(
     assert "1.0.297 != Chart.yaml 1.0.298" in out
 
 
-def test_compare_reports_chart_version_never_tracked(vrt):
+def test_compare_reports_chart_version_never_tracked(vrt: ModuleType):
     """openbao's real-world case: its own Chart.yaml dependency has TWO
     rows in release-table.csv (its own "OpenBao" row, plus a sibling
     "OpenBao Schema Job (postgres)" row for a sidecar image), but
@@ -408,7 +413,7 @@ def test_compare_reports_chart_version_never_tracked(vrt):
     assert "postgres" not in hint
 
 
-def test_compare_chart_version_never_tracked_omits_app_version_when_unknown(vrt):
+def test_compare_chart_version_never_tracked_omits_app_version_when_unknown(vrt: ModuleType):
     """If the existing row's own App version isn't known yet either (no
     target, no source), the hint doesn't fabricate one -- it just leaves
     that part out rather than printing a blank or misleading value."""
@@ -420,7 +425,7 @@ def test_compare_chart_version_never_tracked_omits_app_version_when_unknown(vrt)
     assert "App version" not in hint
 
 
-def test_compare_chart_version_never_tracked_names_primary_row_on_other_table(vrt):
+def test_compare_chart_version_never_tracked_names_primary_row_on_other_table(vrt: ModuleType):
     """On a table that DOES have a Helm sub-column (anything but
     "Technische component versies"), the fix is just to fill in the
     existing cell on the component's own primary row -- named
@@ -443,7 +448,7 @@ def test_compare_chart_version_never_tracked_names_primary_row_on_other_table(vr
     ) in hint
 
 
-def test_compare_chart_version_never_tracked_no_primary_row_yet(vrt):
+def test_compare_chart_version_never_tracked_no_primary_row_yet(vrt: ModuleType):
     """Neither existing row claims the component's own primary basename
     yet (only a sidecar row exists so far) -- the hint must not guess
     which row to point at."""
@@ -459,7 +464,7 @@ def test_compare_chart_version_never_tracked_no_primary_row_yet(vrt):
     assert "none of the existing row(s) is this chart's own primary-image row yet" in hint
 
 
-def test_compare_chart_version_never_tracked_resolves_primary_via_vendored_subchart(vrt, tmp_path):
+def test_compare_chart_version_never_tracked_resolves_primary_via_vendored_subchart(vrt: ModuleType, tmp_path: Path):
     """openzaak-style: values.yaml pins a real digest for its own primary
     image but with NO "repository:" of its own at all -- relies entirely
     on the vendored openzaak subchart's own default repository. The plain
@@ -480,7 +485,7 @@ def test_compare_chart_version_never_tracked_resolves_primary_via_vendored_subch
 
 
 @pytest.mark.parametrize(("target_app", "target_helm"), [("", ""), ("UNKNOWN", "UNKNOWN")])
-def test_compare_skips_blank_or_unknown_targets(vrt, target_app, target_helm):
+def test_compare_skips_blank_or_unknown_targets(vrt: ModuleType, target_app, target_helm):
     """A blank/UNKNOWN target means "nothing planned to compare" (see
     query-release-table's own UNCHANGED display logic) — not a
     mismatch just because it differs textually from the actual version.
@@ -505,7 +510,7 @@ def test_compare_skips_blank_or_unknown_targets(vrt, target_app, target_helm):
     assert findings == {}
 
 
-def test_compare_blank_source_and_target_app_version_never_recorded_is_reported(vrt):
+def test_compare_blank_source_and_target_app_version_never_recorded_is_reported(vrt: ModuleType):
     """Regression test (real bug, confirmed live against the real chart
     and demonstrated by the user manually blanking mi-data's own
     target_version_app in release-table.csv): a row whose app version
@@ -530,7 +535,7 @@ def test_compare_blank_source_and_target_app_version_never_recorded_is_reported(
     assert "mismatches" not in findings
 
 
-def test_compare_blank_target_but_source_now_stale_is_reported(vrt):
+def test_compare_blank_target_but_source_now_stale_is_reported(vrt: ModuleType):
     """A row whose target_version_app is blank ("no planned change") but
     whose own previously-recorded SOURCE has since drifted from the real
     current values.yaml pin — release-table.csv's own "unchanged" claim
@@ -555,7 +560,7 @@ def test_compare_blank_target_but_source_now_stale_is_reported(vrt):
     assert "missing_from_release_table" not in findings
 
 
-def test_compare_blank_target_helm_but_source_now_stale_is_reported(vrt):
+def test_compare_blank_target_helm_but_source_now_stale_is_reported(vrt: ModuleType):
     """Same class of bug as the app-version case above, for the Helm
     chart version instead: target_version_helm blank ("no planned
     change") but source_version_helm has since drifted from Chart.

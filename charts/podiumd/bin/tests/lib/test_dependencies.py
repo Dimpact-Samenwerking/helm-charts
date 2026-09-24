@@ -5,6 +5,7 @@ libdependencies.run, so these tests need neither the binary installed nor
 network access."""
 
 from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -55,7 +56,7 @@ def write_matching_lock_state(chart_dir, deps):
 # --- ensure_repos_configured ---
 
 
-def test_ensure_repos_configured_success(libdependencies, tmp_path, monkeypatch):
+def test_ensure_repos_configured_success(libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         libdependencies, "helm_repos_urls_by_alias", lambda chart_dir: {"zac": "https://example.invalid/zac/"}
     )
@@ -65,7 +66,9 @@ def test_ensure_repos_configured_success(libdependencies, tmp_path, monkeypatch)
     assert msg == "repos configured"
 
 
-def test_ensure_repos_configured_repo_add_failure(libdependencies, tmp_path, monkeypatch):
+def test_ensure_repos_configured_repo_add_failure(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(
         libdependencies, "helm_repos_urls_by_alias", lambda chart_dir: {"zac": "https://example.invalid/zac/"}
     )
@@ -76,7 +79,9 @@ def test_ensure_repos_configured_repo_add_failure(libdependencies, tmp_path, mon
     assert "network unreachable" in msg
 
 
-def test_ensure_repos_configured_scopes_repo_update_to_required_repos(libdependencies, tmp_path, monkeypatch):
+def test_ensure_repos_configured_scopes_repo_update_to_required_repos(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """The final `helm repo update` must never be a blanket, argument-less
     call — that refreshes EVERY repo this machine has ever had `helm repo
     add`ed to it (measured live: 19 configured locally, only 9 actually
@@ -101,7 +106,9 @@ def test_ensure_repos_configured_scopes_repo_update_to_required_repos(libdepende
     assert update_call == ["helm", "repo", "update", "zac", "kiss"]
 
 
-def test_ensure_repos_configured_repo_update_failure(libdependencies, tmp_path, monkeypatch):
+def test_ensure_repos_configured_repo_update_failure(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(
         libdependencies, "helm_repos_urls_by_alias", lambda chart_dir: {"zac": "https://example.invalid/zac/"}
     )
@@ -120,7 +127,9 @@ def test_ensure_repos_configured_repo_update_failure(libdependencies, tmp_path, 
 # --- check_dependencies ---
 
 
-def test_check_dependencies_success(libdependencies, tmp_path, monkeypatch, capsys):
+def test_check_dependencies_success(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     dep_list_output = "NAME\tVERSION\tREPOSITORY\tSTATUS\na\t1.0\t@x\tok\nb\t2.0\t@x\tok\n"
 
     def sequenced_run(cmd, **kwargs):
@@ -145,7 +154,9 @@ def test_check_dependencies_success(libdependencies, tmp_path, monkeypatch, caps
     assert "Running helm dependency update (attempt 1/3)..." in capsys.readouterr().out
 
 
-def test_check_dependencies_update_failure(libdependencies, tmp_path, monkeypatch):
+def test_check_dependencies_update_failure(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(libdependencies, "run", fake_run(1, "", "network error"))
     monkeypatch.setattr(libdependencies.time, "sleep", lambda *_: None)
     ok, detail = libdependencies.check_dependencies(tmp_path)
@@ -154,7 +165,9 @@ def test_check_dependencies_update_failure(libdependencies, tmp_path, monkeypatc
     assert "after 3 attempt" in detail
 
 
-def test_check_dependencies_retries_then_succeeds(libdependencies, tmp_path, monkeypatch, capsys):
+def test_check_dependencies_retries_then_succeeds(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     dep_list_output = "NAME\tVERSION\tREPOSITORY\tSTATUS\na\t1.0\t@x\tok\n"
     calls = {"update": 0}
 
@@ -179,7 +192,9 @@ def test_check_dependencies_retries_then_succeeds(libdependencies, tmp_path, mon
     assert "Running helm dependency update (attempt 2/3)..." in out
 
 
-def test_check_dependencies_zero_retry_attempts_is_a_clear_error(libdependencies, tmp_path, monkeypatch):
+def test_check_dependencies_zero_retry_attempts_is_a_clear_error(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test: dependency_fetch.retry_attempts = 0 ran helm zero
     times and then crashed with AttributeError on the missing result. It
     now fails with an error that names the setting."""
@@ -189,7 +204,9 @@ def test_check_dependencies_zero_retry_attempts_is_a_clear_error(libdependencies
         libdependencies.check_dependencies(tmp_path)
 
 
-def test_check_dependencies_count_mismatch(libdependencies, tmp_path, monkeypatch):
+def test_check_dependencies_count_mismatch(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     (tmp_path / "charts").mkdir()
     # only one .tgz on disk but the dependency list reports two
 
@@ -204,7 +221,9 @@ def test_check_dependencies_count_mismatch(libdependencies, tmp_path, monkeypatc
     assert "expected 2 bundled" in detail
 
 
-def test_check_dependencies_bad_status_fails(libdependencies, tmp_path, monkeypatch):
+def test_check_dependencies_bad_status_fails(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     def sequenced_run(cmd, **kwargs):
         if cmd[2] == "update":
             return SimpleNamespace(returncode=0, stdout="", stderr="")
@@ -219,19 +238,19 @@ def test_check_dependencies_bad_status_fails(libdependencies, tmp_path, monkeypa
 # --- vendored_state_matches_chart_yaml / check_dependencies fast path ---
 
 
-def testvendored_state_matches_chart_yaml_true_when_everything_lines_up(libdependencies, tmp_path):
+def testvendored_state_matches_chart_yaml_true_when_everything_lines_up(libdependencies: ModuleType, tmp_path: Path):
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_matching_lock_state(tmp_path, deps)
     assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is True
 
 
-def testvendored_state_matches_chart_yaml_false_when_no_lock_file(libdependencies, tmp_path):
+def testvendored_state_matches_chart_yaml_false_when_no_lock_file(libdependencies: ModuleType, tmp_path: Path):
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
     assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
 
 
-def testvendored_state_matches_chart_yaml_false_when_version_bumped(libdependencies, tmp_path):
+def testvendored_state_matches_chart_yaml_false_when_version_bumped(libdependencies: ModuleType, tmp_path: Path):
     """Chart.lock still has the OLD version — Chart.yaml moved on since
     it was generated."""
     old = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
@@ -241,7 +260,9 @@ def testvendored_state_matches_chart_yaml_false_when_version_bumped(libdependenc
     assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
 
 
-def testvendored_state_matches_chart_yaml_false_when_dependency_count_differs(libdependencies, tmp_path):
+def testvendored_state_matches_chart_yaml_false_when_dependency_count_differs(
+    libdependencies: ModuleType, tmp_path: Path
+):
     """A dependency was added or removed in Chart.yaml since the lock was
     generated — real case this guards against: frankgateway briefly added
     then removed as a Chart.yaml dependency."""
@@ -252,7 +273,7 @@ def testvendored_state_matches_chart_yaml_false_when_dependency_count_differs(li
     assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
 
 
-def testvendored_state_matches_chart_yaml_false_when_tgz_missing(libdependencies, tmp_path):
+def testvendored_state_matches_chart_yaml_false_when_tgz_missing(libdependencies: ModuleType, tmp_path: Path):
     """Chart.lock and Chart.yaml agree, but the vendored .tgz itself is
     missing (or got lost — real case hit today: charts/*.tgz emptied by
     an unrelated interrupted run) — never trust the lock alone."""
@@ -262,7 +283,7 @@ def testvendored_state_matches_chart_yaml_false_when_tgz_missing(libdependencies
     assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
 
 
-def testvendored_state_matches_chart_yaml_int_version_normalized(libdependencies, tmp_path):
+def testvendored_state_matches_chart_yaml_int_version_normalized(libdependencies: ModuleType, tmp_path: Path):
     """A bare-looking version ("version: 26") parses as a YAML int, not a
     string — must still compare equal to Chart.lock's own quoted-string
     form of the same version."""
@@ -279,7 +300,9 @@ def testvendored_state_matches_chart_yaml_int_version_normalized(libdependencies
     assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is True
 
 
-def test_check_dependencies_skips_update_when_already_vendored(libdependencies, tmp_path, monkeypatch, capsys):
+def test_check_dependencies_skips_update_when_already_vendored(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_matching_lock_state(tmp_path, deps)
     dep_list_output = "NAME\tVERSION\tREPOSITORY\tSTATUS\nzac\t1.0.297\t@zac\tok\n"
@@ -298,7 +321,9 @@ def test_check_dependencies_skips_update_when_already_vendored(libdependencies, 
     assert "skipping helm dependency update" in out
 
 
-def test_check_dependencies_falls_back_to_full_update_when_fetch_fails(libdependencies, tmp_path, monkeypatch, capsys):
+def test_check_dependencies_falls_back_to_full_update_when_fetch_fails(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """A stale Chart.lock whose changed dependency can't be fetched on its
     own (here: `helm pull` "succeeds" without writing the .tgz) must
     never silently short-circuit — falls all the way back to the same
@@ -329,13 +354,13 @@ def test_check_dependencies_falls_back_to_full_update_when_fetch_fails(libdepend
 # --- vendored_dependency_problems / ensure_vendored_dependencies ---
 
 
-def test_vendored_dependency_problems_empty_when_in_sync(libdependencies, tmp_path):
+def test_vendored_dependency_problems_empty_when_in_sync(libdependencies: ModuleType, tmp_path: Path):
     deps = [{"name": "kiss-chart", "version": "3.1.1", "repository": "@kiss"}]
     write_matching_lock_state(tmp_path, deps)
     assert libdependencies.vendored_dependency_problems(tmp_path) == []
 
 
-def test_vendored_dependency_problems_empty_when_chart_has_no_dependencies(libdependencies, tmp_path):
+def test_vendored_dependency_problems_empty_when_chart_has_no_dependencies(libdependencies: ModuleType, tmp_path: Path):
     """Nothing to vendor at all — unlike vendored_state_matches_chart_yaml
     (which returns False here so check_dependencies still runs a real
     update), the guard has nothing to complain about."""
@@ -344,7 +369,7 @@ def test_vendored_dependency_problems_empty_when_chart_has_no_dependencies(libde
     assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
 
 
-def test_vendored_dependency_problems_names_wrong_tgz_version(libdependencies, tmp_path):
+def test_vendored_dependency_problems_names_wrong_tgz_version(libdependencies: ModuleType, tmp_path: Path):
     """The real incident: Chart.yaml moved to kiss-chart 3.1.1 (Chart.lock
     regenerated too), but charts/ still has the old 3.0.0 package."""
     deps = [{"name": "kiss-chart", "version": "3.1.1", "repository": "@kiss"}]
@@ -355,21 +380,21 @@ def test_vendored_dependency_problems_names_wrong_tgz_version(libdependencies, t
     ]
 
 
-def test_vendored_dependency_problems_tgz_missing_entirely(libdependencies, tmp_path):
+def test_vendored_dependency_problems_tgz_missing_entirely(libdependencies: ModuleType, tmp_path: Path):
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_matching_lock_state(tmp_path, deps)
     (tmp_path / "charts" / "zac-1.0.297.tgz").unlink()
     assert libdependencies.vendored_dependency_problems(tmp_path) == ["zac: charts/zac-1.0.297.tgz is missing"]
 
 
-def test_vendored_dependency_problems_lock_missing(libdependencies, tmp_path):
+def test_vendored_dependency_problems_lock_missing(libdependencies: ModuleType, tmp_path: Path):
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_matching_lock_state(tmp_path, deps)
     (tmp_path / "Chart.lock").unlink()
     assert libdependencies.vendored_dependency_problems(tmp_path) == ["Chart.lock is missing"]
 
 
-def test_vendored_dependency_problems_lock_disagrees_with_chart_yaml(libdependencies, tmp_path):
+def test_vendored_dependency_problems_lock_disagrees_with_chart_yaml(libdependencies: ModuleType, tmp_path: Path):
     """Chart.yaml bumped (and a dependency dropped) since Chart.lock and
     charts/ were last generated — every side of the drift is named."""
     old = [
@@ -386,14 +411,18 @@ def test_vendored_dependency_problems_lock_disagrees_with_chart_yaml(libdependen
     ]
 
 
-def test_ensure_vendored_dependencies_passes_when_in_sync(libdependencies, tmp_path, monkeypatch):
+def test_ensure_vendored_dependencies_passes_when_in_sync(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     write_matching_lock_state(tmp_path, deps)
     monkeypatch.setattr(libdependencies, "run", fail_on_any_helm_call)
     assert libdependencies.ensure_vendored_dependencies(tmp_path) is None
 
 
-def test_ensure_vendored_dependencies_re_vendors_a_stale_state(libdependencies, tmp_path, monkeypatch, capsys):
+def test_ensure_vendored_dependencies_re_vendors_a_stale_state(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """The referentielijsten case: Chart.yaml bumped, charts/ + Chart.lock
     still at the old version — the guard names the drift on stderr,
     fetches only that one dependency and lets the script carry on,
@@ -412,7 +441,9 @@ def test_ensure_vendored_dependencies_re_vendors_a_stale_state(libdependencies, 
     assert libdependencies.vendored_dependency_problems(tmp_path) == []
 
 
-def test_ensure_vendored_dependencies_exits_when_re_vendoring_fails(libdependencies, tmp_path, monkeypatch):
+def test_ensure_vendored_dependencies_exits_when_re_vendoring_fails(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     bump_zac(tmp_path)
     monkeypatch.setattr(libdependencies, "run", fake_run(1, "", "network unreachable"))
     monkeypatch.chdir(tmp_path.parent)
@@ -467,7 +498,9 @@ def pull_writes_tgz(chart_dir, calls=None):
     return _run
 
 
-def test_update_vendored_dependencies_fetches_only_what_changed(libdependencies, tmp_path, monkeypatch):
+def test_update_vendored_dependencies_fetches_only_what_changed(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     bump_zac(tmp_path)
     clamav_before = (tmp_path / "charts" / "clamav-3.7.2.tgz").stat().st_mtime_ns
     calls = []
@@ -492,7 +525,9 @@ def test_update_vendored_dependencies_fetches_only_what_changed(libdependencies,
     assert libdependencies.vendored_dependency_problems(tmp_path) == []
 
 
-def test_update_changed_dependencies_leaves_state_untouched_when_a_fetch_fails(libdependencies, tmp_path, monkeypatch):
+def test_update_changed_dependencies_leaves_state_untouched_when_a_fetch_fails(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     bump_zac(tmp_path)
     lock_before = (tmp_path / "Chart.lock").read_text(encoding="utf-8")
     monkeypatch.setattr(libdependencies, "run", fake_run(1, "", "404 not found"))
@@ -506,7 +541,9 @@ def test_update_changed_dependencies_leaves_state_untouched_when_a_fetch_fails(l
     assert (tmp_path / "Chart.lock").read_text(encoding="utf-8") == lock_before
 
 
-def test_update_changed_dependencies_drops_removed_dependency(libdependencies, tmp_path, monkeypatch):
+def test_update_changed_dependencies_drops_removed_dependency(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """A dependency removed from Chart.yaml: nothing to fetch, its .tgz
     goes and Chart.lock is rewritten."""
     bump_zac(tmp_path)
@@ -522,14 +559,18 @@ def test_update_changed_dependencies_drops_removed_dependency(libdependencies, t
     assert libdependencies.vendored_dependency_problems(tmp_path) == []
 
 
-def test_update_changed_dependencies_needs_a_lock_to_start_from(libdependencies, tmp_path, monkeypatch):
+def test_update_changed_dependencies_needs_a_lock_to_start_from(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     bump_zac(tmp_path)
     (tmp_path / "Chart.lock").unlink()
     monkeypatch.setattr(libdependencies, "run", fail_on_any_helm_call)
     assert libdependencies.update_changed_dependencies(tmp_path) == (False, "no usable Chart.lock to update")
 
 
-def test_update_changed_dependencies_leaves_version_ranges_to_helm(libdependencies, tmp_path, monkeypatch):
+def test_update_changed_dependencies_leaves_version_ranges_to_helm(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     bump_zac(tmp_path)
     ranged = [{"name": "zac", "version": "~1.0.0", "repository": "@zac"}]
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": ranged}), encoding="utf-8")
@@ -551,7 +592,7 @@ def test_update_changed_dependencies_leaves_version_ranges_to_helm(libdependenci
         ("@unknown-alias", None),
     ],
 )
-def test_fetch_command_per_repository_kind(libdependencies, tmp_path, repository, expected):
+def test_fetch_command_per_repository_kind(libdependencies: ModuleType, tmp_path: Path, repository, expected):
     dep = {"name": "kiss-chart", "version": "3.1.1", "repository": repository}
     cmd = libdependencies._fetch_command(tmp_path, dep, {}, tmp_path / "dest")
     if expected is None:
@@ -560,7 +601,7 @@ def test_fetch_command_per_repository_kind(libdependencies, tmp_path, repository
         assert cmd == [*expected, str(tmp_path / "dest")]
 
 
-def test_fetch_command_packages_a_file_dependency(libdependencies, tmp_path):
+def test_fetch_command_packages_a_file_dependency(libdependencies: ModuleType, tmp_path: Path):
     dep = {"name": "mi-data", "version": "1.1.0", "repository": "file://../mi-data"}
     cmd = libdependencies._fetch_command(tmp_path / "podiumd", dep, {}, tmp_path / "dest")
     assert cmd == ["helm", "package", str(tmp_path / "mi-data"), "--destination", str(tmp_path / "dest")]

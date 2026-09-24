@@ -13,6 +13,8 @@ mocked via vp.run — friendly_vendor_charts is mocked too, since these tests
 use tmp_path (no real Chart.yaml) — no real yamllint or helm invocation
 happens in these tests."""
 
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -32,7 +34,7 @@ def fake_render_chart(rendered="", returncode=0):
     return render_chart
 
 
-def no_friendly_vendors(libyamllintcheck, monkeypatch):
+def no_friendly_vendors(libyamllintcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """Most tests don't care about the partner-vendor split — default to
     an empty mapping so every vendored finding lands in the plain
     "other vendor" aggregate-count bucket, as before that feature existed."""
@@ -61,7 +63,7 @@ RENDERED = (
 
 
 @pytest.fixture(autouse=True)
-def _default_render(libyamllintcheck, monkeypatch):
+def _default_render(libyamllintcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """check_yamllint now gets its render via lib.render_scope.render_
     chart(chart_dir, extra_args), not a run([...]) call of its own —
     default every test in this file to the standard RENDERED fixture
@@ -85,14 +87,14 @@ def sequenced_run(yamllint_stdout, yamllint_returncode=1):
 # --- build_line_sources ---
 
 
-def test_build_line_sources_maps_lines_to_preceding_source_comment(librenderscope):
+def test_build_line_sources_maps_lines_to_preceding_source_comment(librenderscope: ModuleType):
     sources = librenderscope.build_line_sources(RENDERED)
     assert sources[3] == "podiumd/templates/frankgateway.yaml"
     assert sources[4] == "podiumd/templates/frankgateway.yaml"
     assert sources[7] == "podiumd/charts/zac/templates/configmap.yaml"
 
 
-def test_build_line_sources_line_before_any_source_is_none(librenderscope):
+def test_build_line_sources_line_before_any_source_is_none(librenderscope: ModuleType):
     sources = librenderscope.build_line_sources(RENDERED)
     assert sources[1] is None
 
@@ -100,23 +102,25 @@ def test_build_line_sources_line_before_any_source_is_none(librenderscope):
 # --- chart_name_from_source ---
 
 
-def test_chart_name_from_source_extracts_chart_immediately_before_templates(librenderscope):
+def test_chart_name_from_source_extracts_chart_immediately_before_templates(librenderscope: ModuleType):
     assert librenderscope.chart_name_from_source("podiumd/charts/zac/templates/configmap.yaml") == "zac"
 
 
-def test_chart_name_from_source_uses_deepest_nested_chart(librenderscope):
+def test_chart_name_from_source_uses_deepest_nested_chart(librenderscope: ModuleType):
     path = "podiumd/charts/eck-operator/charts/eck-operator-crds/templates/all-crds.yaml"
     assert librenderscope.chart_name_from_source(path) == "eck-operator-crds"
 
 
-def test_chart_name_from_source_falls_back_to_raw_string(librenderscope):
+def test_chart_name_from_source_falls_back_to_raw_string(librenderscope: ModuleType):
     assert librenderscope.chart_name_from_source("no templates segment here") == "no templates segment here"
 
 
 # --- check_yamllint ---
 
 
-def test_check_yamllint_no_findings_passes(vp, libyamllintcheck, tmp_path, monkeypatch):
+def test_check_yamllint_no_findings_passes(
+    vp: ModuleType, libyamllintcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
     no_friendly_vendors(libyamllintcheck, monkeypatch)
     monkeypatch.setattr(libyamllintcheck, "run", sequenced_run(yamllint_stdout="", yamllint_returncode=0))
@@ -126,7 +130,9 @@ def test_check_yamllint_no_findings_passes(vp, libyamllintcheck, tmp_path, monke
     assert "0 real" in detail
 
 
-def test_check_yamllint_own_key_duplicate_fails(vp, libyamllintcheck, tmp_path, monkeypatch):
+def test_check_yamllint_own_key_duplicate_fails(
+    vp: ModuleType, libyamllintcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
     no_friendly_vendors(libyamllintcheck, monkeypatch)
     yamllint_out = '  4:5     error    duplication of key "kind" in mapping  (key-duplicates)\n'
@@ -137,7 +143,13 @@ def test_check_yamllint_own_key_duplicate_fails(vp, libyamllintcheck, tmp_path, 
     assert "1 real" in detail
 
 
-def test_check_yamllint_finding_line_is_labeled_as_rendered(vp, libyamllintcheck, tmp_path, monkeypatch, capsys):
+def test_check_yamllint_finding_line_is_labeled_as_rendered(
+    vp: ModuleType,
+    libyamllintcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """The line number under a finding is yamllint's own position in the
     full rendered `helm template` output, not a line in the source
     template file shown in the group heading above it — label it
@@ -152,7 +164,13 @@ def test_check_yamllint_finding_line_is_labeled_as_rendered(vp, libyamllintcheck
     assert "rendered line(s):" in out
 
 
-def test_check_yamllint_own_cosmetic_not_reported_at_all(vp, libyamllintcheck, tmp_path, monkeypatch, capsys):
+def test_check_yamllint_own_cosmetic_not_reported_at_all(
+    vp: ModuleType,
+    libyamllintcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """Cosmetic findings in our own templates aren't just non-failing —
     they're not mentioned anywhere in the output or detail string at all,
     per project decision (too noisy to be worth surfacing right now)."""
@@ -170,7 +188,13 @@ def test_check_yamllint_own_cosmetic_not_reported_at_all(vp, libyamllintcheck, t
     assert "cosmetic" not in out
 
 
-def test_check_yamllint_vendored_key_duplicate_never_fails(vp, libyamllintcheck, tmp_path, monkeypatch, capsys):
+def test_check_yamllint_vendored_key_duplicate_never_fails(
+    vp: ModuleType,
+    libyamllintcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """Even a rule that would fail if found in our own templates must never
     fail the check when it's in a vendored sub-chart — we don't control
     that content, per project policy."""
@@ -189,7 +213,11 @@ def test_check_yamllint_vendored_key_duplicate_never_fails(vp, libyamllintcheck,
 
 
 def test_check_yamllint_vendored_findings_reported_as_one_line_count(
-    vp, libyamllintcheck, tmp_path, monkeypatch, capsys
+    vp: ModuleType,
+    libyamllintcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """Non-friendly vendored findings are noisy (can be hundreds) and not
     actionable — reported as a single aggregate count, never dumped
@@ -211,7 +239,11 @@ def test_check_yamllint_vendored_findings_reported_as_one_line_count(
 
 
 def test_check_yamllint_friendly_vendor_finding_reported_per_item_never_fails(
-    vp, libyamllintcheck, tmp_path, monkeypatch, capsys
+    vp: ModuleType,
+    libyamllintcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A vendored sub-chart from a listed partner org (Maykin, Info(NL),
     ICATT, Worth, WeAreFrank, Dimpact, or a local file:// dep) gets its
@@ -236,7 +268,11 @@ def test_check_yamllint_friendly_vendor_finding_reported_per_item_never_fails(
 
 
 def test_check_yamllint_repeated_own_finding_in_one_file_is_grouped(
-    vp, libyamllintcheck, tmp_path, monkeypatch, capsys
+    vp: ModuleType,
+    libyamllintcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """The same root cause (e.g. the frankgateway templates duplicating
     app.kubernetes.io/name once per resource) shows up as several hits in
@@ -277,14 +313,16 @@ def test_check_yamllint_repeated_own_finding_in_one_file_is_grouped(
     assert lines[-2:] == ["8", "14"]  # one location per line, not comma-joined
 
 
-def test_check_yamllint_missing_binary_fails(vp, tmp_path, monkeypatch):
+def test_check_yamllint_missing_binary_fails(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: None)
     ok, detail = vp.check_yamllint(tmp_path, [])
     assert ok is False
     assert "not installed" in detail
 
 
-def test_check_yamllint_render_failure_fails(vp, libyamllintcheck, tmp_path, monkeypatch):
+def test_check_yamllint_render_failure_fails(
+    vp: ModuleType, libyamllintcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
     monkeypatch.setattr(libyamllintcheck, "render_chart", fake_render_chart("", returncode=1))
     ok, detail = vp.check_yamllint(tmp_path, [])

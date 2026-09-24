@@ -3,11 +3,12 @@ turn resolved repository/tag YAML lines into pin records, and flag
 inconsistent (drift/duplicate) pins for the same repository. No network
 access needed."""
 
+from types import ModuleType
 
 # --- scan_digest_pins ---
 
 
-def test_scan_digest_pins_quoted_and_bare(libimagedigests):
+def test_scan_digest_pins_quoted_and_bare(libimagedigests: ModuleType):
     lines = [
         "  a:",
         "    repository: org/repo-a",
@@ -25,12 +26,12 @@ def test_scan_digest_pins_quoted_and_bare(libimagedigests):
     assert pins[1]["line"] == 6
 
 
-def test_scan_digest_pins_ignores_non_digest_tags(libimagedigests):
+def test_scan_digest_pins_ignores_non_digest_tags(libimagedigests: ModuleType):
     lines = ["  image:", "    tag: latest"]
     assert libimagedigests.scan_digest_pins(lines) == []
 
 
-def test_scan_digest_pins_resolves_split_registry_style(libimagedigests):
+def test_scan_digest_pins_resolves_split_registry_style(libimagedigests: ModuleType):
     """scan_digest_pins itself only cares about the resolved repository,
     used for the live lookup (see resolve_pin_repo/find_sibling_registry) —
     a split "registry:"/"repository:" pin must resolve to the same
@@ -45,13 +46,13 @@ def test_scan_digest_pins_resolves_split_registry_style(libimagedigests):
     assert pins[0]["repository"] == "quay.io/opstree/redis"
 
 
-def test_scan_digest_pins_combined_style(libimagedigests):
+def test_scan_digest_pins_combined_style(libimagedigests: ModuleType):
     lines = ["  image:", "    repository: org/repo", '    tag: "1.0.0@sha256:' + "a" * 64 + '"']
     pins = libimagedigests.scan_digest_pins(lines)
     assert pins[0]["repository"] == "org/repo"
 
 
-def test_scan_digest_pins_tolerates_anchor_tag_on_digest_pinned_line(libimagedigests):
+def test_scan_digest_pins_tolerates_anchor_tag_on_digest_pinned_line(libimagedigests: ModuleType):
     """A "&anchor"-decorated repository/tag pair (e.g. keycloak-operator's
     own operator.config.keycloakImage, aliased elsewhere by a sibling
     "keycloak.image" block) must resolve exactly like an un-anchored one —
@@ -77,7 +78,7 @@ def test_scan_digest_pins_tolerates_anchor_tag_on_digest_pinned_line(libimagedig
 # unchanged.
 
 
-def test_scan_version_pins_finds_bare_tag_with_no_digest(libimagedigests):
+def test_scan_version_pins_finds_bare_tag_with_no_digest(libimagedigests: ModuleType):
     """The exact real-world case that motivated this: podiumd-4.8.5 (this
     chart's own real, historical release_table baseline as of this
     writing) pinned zaakbrug/pabc/ita with plain, non-digest-pinned tags
@@ -91,7 +92,7 @@ def test_scan_version_pins_finds_bare_tag_with_no_digest(libimagedigests):
     ]
 
 
-def test_scan_version_pins_still_finds_digest_pinned_tags(libimagedigests):
+def test_scan_version_pins_still_finds_digest_pinned_tags(libimagedigests: ModuleType):
     """A real digest pin still works exactly as before — VERSION_PIN_RE is
     a strict superset of DIGEST_PIN_RE, never a replacement that could
     accidentally stop matching the digest-pinned case."""
@@ -110,13 +111,13 @@ def test_scan_version_pins_still_finds_digest_pinned_tags(libimagedigests):
     ]
 
 
-def test_scan_version_pins_unquoted_bare_tag(libimagedigests):
+def test_scan_version_pins_unquoted_bare_tag(libimagedigests: ModuleType):
     lines = ["  image:", "    repository: org/repo", "    tag: 1.26.15"]
     pins = libimagedigests.scan_version_pins(lines)
     assert (pins[0]["version"], pins[0]["digest"]) == ("1.26.15", None)
 
 
-def test_scan_version_pins_tolerates_anchor_tag(libimagedigests):
+def test_scan_version_pins_tolerates_anchor_tag(libimagedigests: ModuleType):
     """Regression test (real bug, real chart): keycloak-operator's own
     operator.config.keycloakImage pins repository/tag/sha as three
     SEPARATE per-scalar YAML anchors ("repository: &keycloakImageRepo
@@ -143,14 +144,14 @@ def test_scan_version_pins_tolerates_anchor_tag(libimagedigests):
     ]
 
 
-def test_scan_version_pins_ignores_non_tag_lines(libimagedigests):
+def test_scan_version_pins_ignores_non_tag_lines(libimagedigests: ModuleType):
     assert libimagedigests.scan_version_pins(["  repository: org/repo", "  enabled: true"]) == []
 
 
 # --- find_inconsistent_version_pins ---
 
 
-def test_find_inconsistent_version_pins_flags_same_repo_different_versions(libimagedigests):
+def test_find_inconsistent_version_pins_flags_same_repo_different_versions(libimagedigests: ModuleType):
     lines = [
         "a:",
         "  image:",
@@ -171,7 +172,7 @@ def test_find_inconsistent_version_pins_flags_same_repo_different_versions(libim
     }
 
 
-def test_find_inconsistent_version_pins_flags_same_version_different_digest(libimagedigests):
+def test_find_inconsistent_version_pins_flags_same_version_different_digest(libimagedigests: ModuleType):
     """The subtler case: both pins agree on the version string, but the
     digest has diverged — e.g. a sliding tag re-published upstream and
     refreshed at one spot but not the other. Invisible to a version-only
@@ -198,7 +199,7 @@ def test_find_inconsistent_version_pins_flags_same_version_different_digest(libi
     }
 
 
-def test_find_inconsistent_version_pins_flags_matching_pins_as_duplicate(libimagedigests):
+def test_find_inconsistent_version_pins_flags_matching_pins_as_duplicate(libimagedigests: ModuleType):
     """The same repository pinned at the same version AND digest in two
     places — every pin agrees, so this is a "duplicate" (not "drift")
     finding: there's no legitimate reason not to use a shared YAML anchor
@@ -218,7 +219,7 @@ def test_find_inconsistent_version_pins_flags_matching_pins_as_duplicate(libimag
     assert drift == {"curlimages/curl": {"kind": "duplicate", "pins": [(("8.21.0", "a" * 64), [4, 8])]}}
 
 
-def test_find_inconsistent_version_pins_ignores_different_repositories(libimagedigests):
+def test_find_inconsistent_version_pins_ignores_different_repositories(libimagedigests: ModuleType):
     """A shared basename across different orgs/paths is not the same
     image — must never be conflated, only an exact repository match
     counts."""
@@ -236,7 +237,7 @@ def test_find_inconsistent_version_pins_ignores_different_repositories(libimaged
     assert libimagedigests.find_inconsistent_version_pins(pins) == {}
 
 
-def test_find_inconsistent_version_pins_ignores_unresolved_repository(libimagedigests):
+def test_find_inconsistent_version_pins_ignores_unresolved_repository(libimagedigests: ModuleType):
     lines = ["a:", "  image:", f'    tag: "1.0.0@sha256:{"a" * 64}"']
     pins = libimagedigests.scan_digest_pins(lines)
     assert libimagedigests.find_inconsistent_version_pins(pins) == {}

@@ -7,6 +7,8 @@ template <name> <chart_dir> ...` call (an arbitrary --name, so it can't
 go through lib.render_scope.render_chart, which is hardcoded to
 CHART_NAME) — mocked here via vhss.run, never a real helm invocation."""
 
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -14,7 +16,9 @@ import pytest
 from lib.release_secret_size import SecretSizeEstimate
 
 
-def test_main_requires_chart_argument(vhss, monkeypatch, capsys):
+def test_main_requires_chart_argument(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr("sys.argv", ["verify-helm-secret-size"])
     with pytest.raises(SystemExit) as exc_info:
         vhss.main()
@@ -22,7 +26,9 @@ def test_main_requires_chart_argument(vhss, monkeypatch, capsys):
     assert "--chart" in capsys.readouterr().err
 
 
-def test_main_helm_template_command_uses_chart_dir_name_by_default(vhss, monkeypatch, tmp_path):
+def test_main_helm_template_command_uses_chart_dir_name_by_default(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
     captured = {}
 
     def fake_run(cmd, **kwargs):
@@ -39,7 +45,9 @@ def test_main_helm_template_command_uses_chart_dir_name_by_default(vhss, monkeyp
     assert "-f" not in captured["cmd"]
 
 
-def test_main_helm_template_command_uses_explicit_name_and_values_file(vhss, monkeypatch, tmp_path):
+def test_main_helm_template_command_uses_explicit_name_and_values_file(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
     values_path = tmp_path / "lint-values.yaml"
     values_path.write_text("foo: bar\n")
     captured = {}
@@ -70,7 +78,9 @@ def test_main_helm_template_command_uses_explicit_name_and_values_file(vhss, mon
     assert str(values_path) in captured["cmd"]
 
 
-def test_main_passes_parsed_values_override_to_build_release(vhss, monkeypatch, tmp_path):
+def test_main_passes_parsed_values_override_to_build_release(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
     values_path = tmp_path / "lint-values.yaml"
     values_path.write_text("foo: bar\n")
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
@@ -88,7 +98,9 @@ def test_main_passes_parsed_values_override_to_build_release(vhss, monkeypatch, 
     assert captured["values_override"] == {"foo": "bar"}
 
 
-def test_main_no_values_file_means_no_config_override(vhss, monkeypatch, tmp_path):
+def test_main_no_values_file_means_no_config_override(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
     captured = {}
 
@@ -104,7 +116,9 @@ def test_main_no_values_file_means_no_config_override(vhss, monkeypatch, tmp_pat
     assert captured["values_override"] is None
 
 
-def test_main_falls_back_when_helm_predates_skip_schema_validation(vhss, monkeypatch, tmp_path):
+def test_main_falls_back_when_helm_predates_skip_schema_validation(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
     """Real bug caught live: this repo's own environment (Helm 3.9.0, no
     --skip-schema-validation flag at all) failed outright with "unknown
     flag" before this fallback existed -- verify-podiumd's own render
@@ -129,7 +143,9 @@ def test_main_falls_back_when_helm_predates_skip_schema_validation(vhss, monkeyp
     assert "--skip-schema-validation" not in calls[1]
 
 
-def test_main_other_render_failure_is_not_retried(vhss, monkeypatch, tmp_path, capsys):
+def test_main_other_render_failure_is_not_retried(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     """A real render failure unrelated to --skip-schema-validation (a
     genuine template error) must NOT be silently retried/swallowed --
     only the specific "unknown flag" case falls back."""
@@ -150,7 +166,9 @@ def test_main_other_render_failure_is_not_retried(vhss, monkeypatch, tmp_path, c
     assert "real template error" in capsys.readouterr().err
 
 
-def test_main_render_failure_exits_one(vhss, monkeypatch, tmp_path, capsys):
+def test_main_render_failure_exits_one(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=1, stdout="", stderr="boom"))
     monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path)])
 
@@ -161,7 +179,9 @@ def test_main_render_failure_exits_one(vhss, monkeypatch, tmp_path, capsys):
     assert "boom" in capsys.readouterr().err
 
 
-def test_main_prints_report_on_success(vhss, monkeypatch, tmp_path, capsys):
+def test_main_prints_report_on_success(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
     monkeypatch.setattr(vhss, "build_release", lambda *a, **kw: ({"manifest": "x"}, "4.9.1", []))
     monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path)])
@@ -173,7 +193,9 @@ def test_main_prints_report_on_success(vhss, monkeypatch, tmp_path, capsys):
     assert "used:" in out
 
 
-def test_main_prints_subchart_freshness_warnings_to_stderr(vhss, monkeypatch, tmp_path, capsys):
+def test_main_prints_subchart_freshness_warnings_to_stderr(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
     monkeypatch.setattr(
         vhss, "build_release", lambda *a, **kw: ({}, "4.9.1", ["Chart.yaml declares zac@1.0.297, stale vendored copy"])
@@ -186,7 +208,9 @@ def test_main_prints_subchart_freshness_warnings_to_stderr(vhss, monkeypatch, tm
     assert "WARNING: Chart.yaml declares zac@1.0.297" in err
 
 
-def test_main_record_flag_calls_record_result_and_prints_path(vhss, monkeypatch, tmp_path, capsys):
+def test_main_record_flag_calls_record_result_and_prints_path(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
     monkeypatch.setattr(vhss, "build_release", lambda *a, **kw: ({}, "4.9.1", []))
     recorded = {}
@@ -206,7 +230,9 @@ def test_main_record_flag_calls_record_result_and_prints_path(vhss, monkeypatch,
     assert "release-secret-size.md" in out
 
 
-def test_main_without_record_flag_never_calls_record_result(vhss, monkeypatch, tmp_path):
+def test_main_without_record_flag_never_calls_record_result(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
     monkeypatch.setattr(vhss, "build_release", lambda *a, **kw: ({}, "4.9.1", []))
 
@@ -220,7 +246,9 @@ def test_main_without_record_flag_never_calls_record_result(vhss, monkeypatch, t
     vhss.main()  # must not raise
 
 
-def test_main_exits_one_and_warns_at_threshold(vhss, monkeypatch, tmp_path, capsys):
+def test_main_exits_one_and_warns_at_threshold(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     """Regression: the standalone CLI's own exit-1 semantics, unchanged
     by the refactor -- pct >= WARN_THRESHOLD still fails the run."""
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
@@ -241,7 +269,7 @@ def test_main_exits_one_and_warns_at_threshold(vhss, monkeypatch, tmp_path, caps
     assert "request entity too large" in err
 
 
-def test_main_passes_under_threshold_does_not_exit(vhss, monkeypatch, tmp_path):
+def test_main_passes_under_threshold_does_not_exit(vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
     monkeypatch.setattr(vhss, "build_release", lambda *a, **kw: ({}, "4.9.1", []))
     monkeypatch.setattr(
@@ -255,7 +283,9 @@ def test_main_passes_under_threshold_does_not_exit(vhss, monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_main_help_flag_prints_usage_and_exits_zero(vhss, monkeypatch, capsys, flag):
+def test_main_help_flag_prints_usage_and_exits_zero(
+    vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
+):
     monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", flag])
     with pytest.raises(SystemExit) as exc_info:
         vhss.main()

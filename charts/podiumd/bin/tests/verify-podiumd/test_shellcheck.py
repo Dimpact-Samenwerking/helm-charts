@@ -14,6 +14,8 @@ tests."""
 
 import json
 
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -29,7 +31,7 @@ def sc_result(comments, returncode=1):
     )
 
 
-def no_friendly_vendors(libshellcheckcheck, monkeypatch):
+def no_friendly_vendors(libshellcheckcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("lib.render_scope.friendly_vendor_charts", lambda chart_dir: {})
 
 
@@ -74,7 +76,7 @@ DEPLOYMENT_RENDERED_LINE = 20
 # --- find_shell_scripts ---
 
 
-def test_find_shell_scripts_detects_command_then_args_pattern(libshellcheckcheck):
+def test_find_shell_scripts_detects_command_then_args_pattern(libshellcheckcheck: ModuleType):
     manifest = {
         "spec": {
             "containers": [
@@ -89,7 +91,7 @@ def test_find_shell_scripts_detects_command_then_args_pattern(libshellcheckcheck
     assert script == "echo hi"
 
 
-def test_find_shell_scripts_detects_command_only_pattern(libshellcheckcheck):
+def test_find_shell_scripts_detects_command_only_pattern(libshellcheckcheck: ModuleType):
     manifest = {"command": ["sh", "-c", "echo hi"]}
     found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     assert len(found) == 1
@@ -97,14 +99,14 @@ def test_find_shell_scripts_detects_command_only_pattern(libshellcheckcheck):
     assert found[0][3] == "echo hi"
 
 
-def test_find_shell_scripts_ignores_non_shell_commands(libshellcheckcheck):
+def test_find_shell_scripts_ignores_non_shell_commands(libshellcheckcheck: ModuleType):
     manifest = {"command": ["/usr/bin/curl", "-c", "not-a-shell-flag-context"]}
     found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
     # "curl" is not a recognized shell name, so this must not be treated as one
     assert found == []
 
 
-def test_find_shell_scripts_tolerates_scalar_args_alongside_list_command(libshellcheckcheck):
+def test_find_shell_scripts_tolerates_scalar_args_alongside_list_command(libshellcheckcheck: ModuleType):
     """A malformed manifest where command is a list but args is a scalar
     string (a bare-rendered `args: {{ .Values.x }}`, a CRD instance, a
     hand-written Pod) must not raise `list + str` — the scan just uses the
@@ -125,7 +127,7 @@ def test_find_shell_scripts_tolerates_scalar_args_alongside_list_command(libshel
     assert libshellcheckcheck.find_shell_scripts(manifest, "x.yaml", SHELL_NAMES) == []
 
 
-def test_find_shell_scripts_recurses_into_nested_structures(libshellcheckcheck):
+def test_find_shell_scripts_recurses_into_nested_structures(libshellcheckcheck: ModuleType):
     manifest = {
         "spec": {
             "template": {
@@ -152,7 +154,7 @@ def test_find_shell_scripts_recurses_into_nested_structures(libshellcheckcheck):
 # line via lib.render_scope.resource_line.
 
 
-def test_extract_shell_scripts_carries_resource_identity(libshellcheckcheck):
+def test_extract_shell_scripts_carries_resource_identity(libshellcheckcheck: ModuleType):
     docs = [
         (
             "podiumd/templates/x.yaml",
@@ -168,7 +170,7 @@ def test_extract_shell_scripts_carries_resource_identity(libshellcheckcheck):
     assert (kind, namespace, name) == ("Job", "bar", "foo")
 
 
-def test_extract_shell_scripts_no_identity_when_doc_is_not_a_single_object(libshellcheckcheck):
+def test_extract_shell_scripts_no_identity_when_doc_is_not_a_single_object(libshellcheckcheck: ModuleType):
     """A top-level list (not a single k8s object) has no resource identity
     at all — kind/namespace/name must degrade to None rather than crash,
     and _shellcheck_location must skip the rendered-line lookup for it."""
@@ -179,7 +181,7 @@ def test_extract_shell_scripts_no_identity_when_doc_is_not_a_single_object(libsh
     assert (kind, namespace, name) == (None, None, None)
 
 
-def test_extract_shell_scripts_skips_unparseable_doc(libshellcheckcheck):
+def test_extract_shell_scripts_skips_unparseable_doc(libshellcheckcheck: ModuleType):
     docs = [("podiumd/templates/x.yaml", "not: [valid, yaml: at all")]
     assert libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES) == []
 
@@ -195,7 +197,7 @@ def fake_render_chart(rendered=RENDERED, returncode=0):
 
 
 @pytest.fixture(autouse=True)
-def _default_render(monkeypatch):
+def _default_render(monkeypatch: pytest.MonkeyPatch):
     """check_shellcheck now gets its render via lib.render_scope.render_
     chart(chart_dir, extra_args), not a run([...]) call of its own —
     default every test in this file to the standard RENDERED fixture
@@ -220,7 +222,9 @@ def sequenced_run(own_comments, vendored_comments=None, sc_returncode=1):
     return run
 
 
-def test_check_shellcheck_no_findings_passes(vp, libshellcheckcheck, tmp_path, monkeypatch):
+def test_check_shellcheck_no_findings_passes(
+    vp: ModuleType, libshellcheckcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
     monkeypatch.setattr(
@@ -232,7 +236,13 @@ def test_check_shellcheck_no_findings_passes(vp, libshellcheckcheck, tmp_path, m
     assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
-def test_check_shellcheck_own_warning_fails(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_own_warning_fails(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
     monkeypatch.setattr(
@@ -259,7 +269,13 @@ def test_check_shellcheck_own_warning_fails(vp, libshellcheckcheck, tmp_path, mo
     assert "pipefail" in out
 
 
-def test_check_shellcheck_own_error_fails(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_own_error_fails(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
     monkeypatch.setattr(
@@ -279,7 +295,11 @@ def test_check_shellcheck_own_error_fails(vp, libshellcheckcheck, tmp_path, monk
 
 
 def test_check_shellcheck_location_includes_script_line_and_column(
-    vp, libshellcheckcheck, tmp_path, monkeypatch, capsys
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """Beyond source/path, each location also shows shellcheck's own
     line (and column, when shellcheck reports one) — position within
@@ -308,7 +328,13 @@ def test_check_shellcheck_location_includes_script_line_and_column(
     assert f"script line 3:6 (rendered line {JOB_RENDERED_LINE})" in out
 
 
-def test_check_shellcheck_location_line_without_column(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_location_line_without_column(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """A finding with a line but no column still shows the line alone,
     not a bare trailing colon."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
@@ -331,7 +357,13 @@ def test_check_shellcheck_location_line_without_column(vp, libshellcheckcheck, t
     assert f"(rendered line {JOB_RENDERED_LINE})" in out
 
 
-def test_check_shellcheck_info_and_style_never_reported(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_info_and_style_never_reported(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """info/style findings are cosmetic — not just non-failing, not
     mentioned in output or detail at all, same policy as yamllint."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
@@ -355,7 +387,13 @@ def test_check_shellcheck_info_and_style_never_reported(vp, libshellcheckcheck, 
     assert "2006" not in out
 
 
-def test_check_shellcheck_repeated_root_cause_is_grouped(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_repeated_root_cause_is_grouped(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
 
@@ -397,7 +435,13 @@ def test_check_shellcheck_repeated_root_cause_is_grouped(vp, libshellcheckcheck,
     assert "x2" in out
 
 
-def test_check_shellcheck_other_vendor_finding_never_fails(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_other_vendor_finding_never_fails(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
     monkeypatch.setattr(
@@ -420,7 +464,11 @@ def test_check_shellcheck_other_vendor_finding_never_fails(vp, libshellcheckchec
 
 
 def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(
-    vp, libshellcheckcheck, tmp_path, monkeypatch, capsys
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A vendored sub-chart from a listed partner org (here: zac -> Info(NL))
     gets its finding printed individually — unlike a plain vendored
@@ -451,7 +499,9 @@ def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(
     assert f"(rendered line {DEPLOYMENT_RENDERED_LINE})" in out
 
 
-def test_check_shellcheck_no_scripts_found_passes(vp, libshellcheckcheck, tmp_path, monkeypatch):
+def test_check_shellcheck_no_scripts_found_passes(
+    vp: ModuleType, libshellcheckcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
     monkeypatch.setattr(
@@ -469,14 +519,16 @@ def test_check_shellcheck_no_scripts_found_passes(vp, libshellcheckcheck, tmp_pa
     assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
-def test_check_shellcheck_missing_binary_fails(vp, tmp_path, monkeypatch):
+def test_check_shellcheck_missing_binary_fails(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: None)
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
     assert "not installed" in detail
 
 
-def test_check_shellcheck_render_failure_fails(vp, libshellcheckcheck, tmp_path, monkeypatch):
+def test_check_shellcheck_render_failure_fails(
+    vp: ModuleType, libshellcheckcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart("", returncode=1))
     ok, detail = vp.check_shellcheck(tmp_path, [])
@@ -484,7 +536,9 @@ def test_check_shellcheck_render_failure_fails(vp, libshellcheckcheck, tmp_path,
     assert "failed to render" in detail
 
 
-def test_check_shellcheck_unparseable_output_fails(vp, libshellcheckcheck, tmp_path, monkeypatch):
+def test_check_shellcheck_unparseable_output_fails(
+    vp: ModuleType, libshellcheckcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
 

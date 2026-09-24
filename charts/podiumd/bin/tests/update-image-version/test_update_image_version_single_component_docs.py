@@ -12,10 +12,14 @@ import io
 import subprocess
 import tarfile
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
 import yaml
 
 
-def write_values(tmp_path, text):
+def write_values(tmp_path: Path, text):
     path = tmp_path / "values.yaml"
     path.write_text(text, encoding="utf-8")
     return path
@@ -40,7 +44,7 @@ def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
 
-def commit_baseline_tag(tmp_path, baseline):
+def commit_baseline_tag(tmp_path: Path, baseline):
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -51,7 +55,9 @@ def commit_baseline_tag(tmp_path, baseline):
     (tmp_path / "etc" / "release-baseline.yaml").write_text(f'upgrade_docs: "{baseline}"\n', encoding="utf-8")
 
 
-def test_main_single_component_updates_upgrade_doc_table_and_changes(uiv, tmp_path, monkeypatch, capsys):
+def test_main_single_component_updates_upgrade_doc_table_and_changes(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """A basename that resolves to exactly one component (here via the
     "openklant" alias) gets the SAME full-fidelity treatment
     update-component-version itself uses -- a real (unchanged) Helm
@@ -110,7 +116,9 @@ def _make_vendored_tgz(charts_dir, name, version, chart_yaml):
     return tgz_path
 
 
-def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(uiv, tmp_path, monkeypatch):
+def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test (real bug, real doc): openbao's own "server.image.
     tag" is deliberately left blank at the baseline (see lib.chart.
     COMPONENT_IMAGE_PATHS["openbao"]'s own comment) — its real baseline
@@ -206,7 +214,9 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
     assert "1. openbao v2.5.0 -> v2.6.0 (chart 0.28.4, unchanged)." in manifest
 
 
-def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(uiv, tmp_path, monkeypatch):
+def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test (real bug, real doc, mi-data): mi-data's own chart
     version (1.0.0 -> 1.1.0) AND app version (blank -> 2.71.0) both moved
     WITHIN this same release cycle, via an earlier separate run, before
@@ -283,7 +293,9 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(ui
     assert "### mi 2.90.0 (new) (chart 1.1.0, new)" in upgrade
 
 
-def test_main_shows_real_baseline_chart_transition_when_genuinely_tracked(uiv, tmp_path, monkeypatch):
+def test_main_shows_real_baseline_chart_transition_when_genuinely_tracked(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Counterpart to the mi-data test above: a component that WAS
     genuinely tracked at the true baseline (a real app version resolves
     there) gets its real baseline Chart.yaml dependency version as

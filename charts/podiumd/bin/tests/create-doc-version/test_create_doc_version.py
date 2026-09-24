@@ -6,10 +6,13 @@ directly — no real subprocess needed."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 
-def setup_dirs(cdv, tmp_path, monkeypatch, baseline: str | None = "4.8.5"):
+def setup_dirs(cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, baseline: str | None = "4.8.5"):
     """baseline=None skips writing etc/release-baseline.yaml at all — for
     the "no release-baseline.yaml at all" error case."""
     chart_yaml = tmp_path / "Chart.yaml"
@@ -32,15 +35,17 @@ def setup_dirs(cdv, tmp_path, monkeypatch, baseline: str | None = "4.8.5"):
 # --- main(): argument/help handling ---
 
 
-def test_help_flag_prints_docstring_and_exits_zero(cdv, monkeypatch, capsys):
+def test_help_flag_prints_docstring_and_exits_zero(
+    cdv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr("sys.argv", ["create-doc-version", "--help"])
     with pytest.raises(SystemExit) as exc_info:
         cdv.main()
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == cdv.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{cdv.__doc__}\n"
 
 
-def test_any_argument_fails(cdv, monkeypatch, capsys):
+def test_any_argument_fails(cdv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
     """This script never takes the baseline (or anything else) as an
     argument — any positional argument (other than -h/--help) is
     rejected with the usage docstring."""
@@ -51,7 +56,9 @@ def test_any_argument_fails(cdv, monkeypatch, capsys):
     assert "Usage:" in capsys.readouterr().out
 
 
-def test_invalid_baseline_format_fails(cdv, tmp_path, monkeypatch, capsys):
+def test_invalid_baseline_format_fails(
+    cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """A defensive check against a hand-edited or corrupted release-
     baseline.yaml, now that this can no longer come from a CLI argument."""
     setup_dirs(cdv, tmp_path, monkeypatch, baseline="not-a-version")
@@ -65,7 +72,9 @@ def test_invalid_baseline_format_fails(cdv, tmp_path, monkeypatch, capsys):
 # --- main(): release-baseline.yaml ---
 
 
-def test_no_release_baseline_fails(cdv, tmp_path, monkeypatch, capsys):
+def test_no_release_baseline_fails(
+    cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     setup_dirs(cdv, tmp_path, monkeypatch, baseline=None)
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
     with pytest.raises(SystemExit) as exc_info:
@@ -74,7 +83,9 @@ def test_no_release_baseline_fails(cdv, tmp_path, monkeypatch, capsys):
     assert ("release-baseline.yaml has no upgrade_docs key (or the file doesn't exist yet)") in capsys.readouterr().out
 
 
-def test_uses_release_baseline(cdv, tmp_path, monkeypatch, capsys):
+def test_uses_release_baseline(
+    cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     doc_dir, _images_dir = setup_dirs(cdv, tmp_path, monkeypatch, baseline="4.8.5")
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
@@ -86,7 +97,9 @@ def test_uses_release_baseline(cdv, tmp_path, monkeypatch, capsys):
 # --- main(): creation ---
 
 
-def test_creates_all_standard_docs_when_none_exist(cdv, tmp_path, monkeypatch, capsys):
+def test_creates_all_standard_docs_when_none_exist(
+    cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
@@ -99,7 +112,9 @@ def test_creates_all_standard_docs_when_none_exist(cdv, tmp_path, monkeypatch, c
     assert "4.8.5-to-4.9.0-upgrade.md: created" in out
 
 
-def test_creates_only_the_missing_doc(cdv, tmp_path, monkeypatch, capsys):
+def test_creates_only_the_missing_doc(
+    cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     doc_dir, _images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text("hand-written\n", encoding="utf-8")
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
@@ -110,7 +125,9 @@ def test_creates_only_the_missing_doc(cdv, tmp_path, monkeypatch, capsys):
     assert (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").is_file()
 
 
-def test_nothing_to_do_when_everything_already_exists(cdv, tmp_path, monkeypatch, capsys):
+def test_nothing_to_do_when_everything_already_exists(
+    cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
     for suffix in ("upgrade", "gemeente-specific", "values-deltas"):
         (doc_dir / f"4.8.5-to-4.9.0-{suffix}.md").write_text("x", encoding="utf-8")
@@ -122,7 +139,9 @@ def test_nothing_to_do_when_everything_already_exists(cdv, tmp_path, monkeypatch
     assert "nothing to do — every doc already exists" in capsys.readouterr().out
 
 
-def test_refuses_when_doc_exists_under_a_different_baseline(cdv, tmp_path, monkeypatch, capsys):
+def test_refuses_when_doc_exists_under_a_different_baseline(
+    cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """The whole point of the split: never silently rebase docs that
     should have been created fresh (or vice versa) — this is
     fix-doc-consistency's job, so refuse outright instead."""
@@ -144,7 +163,7 @@ def test_refuses_when_doc_exists_under_a_different_baseline(cdv, tmp_path, monke
     assert existing.read_text(encoding="utf-8") == "real content\n"  # untouched
 
 
-def test_invokes_fix_helm_doc(cdv, tmp_path, monkeypatch):
+def test_invokes_fix_helm_doc(cdv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     setup_dirs(cdv, tmp_path, monkeypatch)
     calls = []
     monkeypatch.setattr(

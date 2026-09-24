@@ -3,6 +3,9 @@ regressions found during development: a version number like "1.17.1-static"
 on a continuation line being mistaken for a new numbered list item, and a
 trailing period being captured as part of a version."""
 
+from pathlib import Path
+from types import ModuleType
+
 import yaml
 
 from dep_helpers import make_dep
@@ -35,7 +38,7 @@ REAL_MANIFEST = """\
 """
 
 
-def test_parse_changes_block_extracts_all_items(libupgradedoccomments):
+def test_parse_changes_block_extracts_all_items(libupgradedoccomments: ModuleType):
     items = libupgradedoccomments.parse_changes_block(REAL_MANIFEST)
     assert len(items) == 2
     assert items[0]["name"] == "ZAC (Zaakafhandelcomponent)"
@@ -48,7 +51,7 @@ def test_parse_changes_block_extracts_all_items(libupgradedoccomments):
     assert items[1]["app"] == "0.11.0"
 
 
-def test_parse_changes_block_does_not_mistake_version_continuation_for_new_item(libupgradedoccomments):
+def test_parse_changes_block_does_not_mistake_version_continuation_for_new_item(libupgradedoccomments: ModuleType):
     """Regression: "1.17.1-static -> 1.19.0-static" on an indented
     continuation line must not be parsed as a bogus item #17."""
     items = libupgradedoccomments.parse_changes_block(REAL_MANIFEST)
@@ -56,14 +59,14 @@ def test_parse_changes_block_does_not_mistake_version_continuation_for_new_item(
     assert not any("17.1" in n for n in names)
 
 
-def test_parse_changes_block_no_changes_section(libupgradedoccomments):
+def test_parse_changes_block_no_changes_section(libupgradedoccomments: ModuleType):
     assert libupgradedoccomments.parse_changes_block("# just a header\n# no changes block\n") == []
 
 
 # --- check_images_manifest_changes_numbering ---
 
 
-def test_changes_numbering_flags_a_gap(libimagesmanifest):
+def test_changes_numbering_flags_a_gap(libimagesmanifest: ModuleType):
     """A gap left by a human hand-removing an item's own block without
     renumbering everything after it — real case that surfaced this."""
     text = "# Changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   3. openformulieren 3.4.10 -> 3.5.6.\n"
@@ -71,18 +74,18 @@ def test_changes_numbering_flags_a_gap(libimagesmanifest):
     assert any("item numbered 3 should be 2" in i for i in issues)
 
 
-def test_changes_numbering_correct_sequence_is_clean(libimagesmanifest):
+def test_changes_numbering_correct_sequence_is_clean(libimagesmanifest: ModuleType):
     text = "# Changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   2. openformulieren 3.4.10 -> 3.5.6.\n"
     assert libimagesmanifest.check_images_manifest_changes_numbering("images-4.9.0.yaml", text) == []
 
 
-def test_changes_numbering_flags_stale_count_word(libimagesmanifest):
+def test_changes_numbering_flags_stale_count_word(libimagesmanifest: ModuleType):
     text = "# Three changes:\n#   1. zac 5.0.2 -> 5.4.3.\n#   2. openformulieren 3.4.10 -> 3.5.6.\n"
     issues = libimagesmanifest.check_images_manifest_changes_numbering("images-4.9.0.yaml", text)
     assert any('header says "Three changes" but there are actually 2' in i for i in issues)
 
 
-def test_changes_numbering_no_header_is_clean(libimagesmanifest):
+def test_changes_numbering_no_header_is_clean(libimagesmanifest: ModuleType):
     assert libimagesmanifest.check_images_manifest_changes_numbering("images-4.9.0.yaml", "some: yaml\n") == []
 
 
@@ -95,7 +98,7 @@ DEPS = [
 VALUES = {"zac": {"image": {"tag": "5.4.3@sha256:aaa"}, "opa": {"image": {"tag": "1.19.0-static@sha256:bbb"}}}}
 
 
-def test_images_manifest_format_passes_for_consistent_manifest(libimagesmanifest, tmp_path):
+def test_images_manifest_format_passes_for_consistent_manifest(libimagesmanifest: ModuleType, tmp_path: Path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
     issues = libimagesmanifest.check_images_manifest_format(
@@ -111,7 +114,7 @@ def test_images_manifest_format_passes_for_consistent_manifest(libimagesmanifest
     assert issues == []
 
 
-def test_images_manifest_format_flags_a_numbering_gap(libimagesmanifest, tmp_path):
+def test_images_manifest_format_flags_a_numbering_gap(libimagesmanifest: ModuleType, tmp_path: Path):
     """check_images_manifest_format wires in check_images_manifest_
     changes_numbering — a gap in the "# Changes:" list is a real,
     reportable mismatch, not silently ignored."""
@@ -131,7 +134,7 @@ def test_images_manifest_format_flags_a_numbering_gap(libimagesmanifest, tmp_pat
     assert any("item numbered 3 should be 2" in i for i in issues)
 
 
-def test_images_manifest_format_missing_file(libimagesmanifest, tmp_path):
+def test_images_manifest_format_missing_file(libimagesmanifest: ModuleType, tmp_path: Path):
     issues = libimagesmanifest.check_images_manifest_format(
         tmp_path / "missing.yaml",
         libimagesmanifest.ManifestCheckContext(
@@ -145,7 +148,7 @@ def test_images_manifest_format_missing_file(libimagesmanifest, tmp_path):
     assert "does not exist" in issues[0]
 
 
-def test_images_manifest_format_invalid_yaml(libimagesmanifest, tmp_path):
+def test_images_manifest_format_invalid_yaml(libimagesmanifest: ModuleType, tmp_path: Path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text("- name: zac\n  bad: [\n")
     issues = libimagesmanifest.check_images_manifest_format(
@@ -161,7 +164,7 @@ def test_images_manifest_format_invalid_yaml(libimagesmanifest, tmp_path):
     assert any("not valid YAML" in i for i in issues)
 
 
-def test_images_manifest_format_missing_required_keys(libimagesmanifest, tmp_path):
+def test_images_manifest_format_missing_required_keys(libimagesmanifest: ModuleType, tmp_path: Path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text('- name: zac\n  version: "5.4.3"\n')
     issues = libimagesmanifest.check_images_manifest_format(
@@ -177,7 +180,7 @@ def test_images_manifest_format_missing_required_keys(libimagesmanifest, tmp_pat
     assert any("missing key" in i for i in issues)
 
 
-def test_images_manifest_format_stale_baseline_header(libimagesmanifest, tmp_path):
+def test_images_manifest_format_stale_baseline_header(libimagesmanifest: ModuleType, tmp_path: Path):
     text = REAL_MANIFEST.replace("podiumd 4.8.5", "podiumd 4.8.2").replace("4.9.0 vs 4.8.5", "4.9.0 vs 4.8.2")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
@@ -195,7 +198,7 @@ def test_images_manifest_format_stale_baseline_header(libimagesmanifest, tmp_pat
     assert any('"... vs ..." line says upgrade_docs_baseline "4.8.2"' in i for i in issues)
 
 
-def test_images_manifest_format_trailing_period_not_captured(libimagesmanifest, tmp_path):
+def test_images_manifest_format_trailing_period_not_captured(libimagesmanifest: ModuleType, tmp_path: Path):
     """Regression: the "vs" line ends with a bare period right after the
     baseline number ("vs 4.8.5."); it must not be captured as part of the
     version string."""
@@ -214,7 +217,9 @@ def test_images_manifest_format_trailing_period_not_captured(libimagesmanifest, 
     assert not any("4.8.5." in i for i in issues)
 
 
-def test_images_manifest_format_baseline_line_trailing_period_not_captured(libimagesmanifest, tmp_path):
+def test_images_manifest_format_baseline_line_trailing_period_not_captured(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
     """Regression: component_docs.IMAGES_STUB_TEMPLATE writes the baseline
     line as "# Baseline: podiumd 4.9.0. Re-verify before release." — a
     period directly after the version. "." is inside the capture class, so
@@ -240,7 +245,7 @@ def test_images_manifest_format_baseline_line_trailing_period_not_captured(libim
     assert not any("baseline line says" in i for i in issues)
 
 
-def test_images_manifest_format_changes_block_target_mismatch(libimagesmanifest, tmp_path):
+def test_images_manifest_format_changes_block_target_mismatch(libimagesmanifest: ModuleType, tmp_path: Path):
     text = REAL_MANIFEST.replace("5.0.2 -> 5.4.3 (chart 1.0.297", "5.0.2 -> 5.9.9 (chart 1.0.297")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
@@ -257,7 +262,7 @@ def test_images_manifest_format_changes_block_target_mismatch(libimagesmanifest,
     assert any("target app" in i and "5.9.9" in i for i in issues)
 
 
-def test_images_manifest_format_entry_comment_target_mismatch(libimagesmanifest, tmp_path):
+def test_images_manifest_format_entry_comment_target_mismatch(libimagesmanifest: ModuleType, tmp_path: Path):
     text = REAL_MANIFEST.replace(
         "# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static",
         "# ZAC OPA sidecar — 1.17.1-static -> 9.9.9-static",
@@ -277,7 +282,7 @@ def test_images_manifest_format_entry_comment_target_mismatch(libimagesmanifest,
     assert any('comment says target "9.9.9-static"' in i for i in issues)
 
 
-def test_images_manifest_format_missing_entry_comment(libimagesmanifest, tmp_path):
+def test_images_manifest_format_missing_entry_comment(libimagesmanifest: ModuleType, tmp_path: Path):
     text = REAL_MANIFEST.replace("# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static\n", "")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
@@ -322,7 +327,7 @@ ZGW_VALUES = {
 }
 
 
-def test_images_manifest_format_multi_image_component_shares_one_comment(libimagesmanifest, tmp_path):
+def test_images_manifest_format_multi_image_component_shares_one_comment(libimagesmanifest: ModuleType, tmp_path: Path):
     """A multi-image component (zgw-office-addin's frontend + backend) needs
     only ONE preceding comment for the whole group — the second entry, with
     a blank line (not a comment) directly above it, must NOT be flagged as
@@ -342,7 +347,7 @@ def test_images_manifest_format_multi_image_component_shares_one_comment(libimag
     assert issues == []
 
 
-def test_images_manifest_format_source_vs_baseline(libimagesmanifest, tmp_path):
+def test_images_manifest_format_source_vs_baseline(libimagesmanifest: ModuleType, tmp_path: Path):
     baseline_values = {"zac": {"opa": {"image": {"tag": "1.17.1-static@sha256:old"}}}}
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
@@ -359,7 +364,7 @@ def test_images_manifest_format_source_vs_baseline(libimagesmanifest, tmp_path):
     assert issues == []
 
 
-def test_images_manifest_format_source_vs_baseline_mismatch(libimagesmanifest, tmp_path):
+def test_images_manifest_format_source_vs_baseline_mismatch(libimagesmanifest: ModuleType, tmp_path: Path):
     # baseline actually has a different starting version than the comment claims
     baseline_values = {"zac": {"opa": {"image": {"tag": "2.0.0-static@sha256:old"}}}}
     images_path = tmp_path / "images-4.9.0.yaml"
@@ -423,7 +428,9 @@ REDIS_OPERATOR_MANIFEST = """\
 """
 
 
-def test_images_manifest_format_component_version_path_change_is_recognized(libimagesmanifest, tmp_path):
+def test_images_manifest_format_component_version_path_change_is_recognized(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": REDIS_OPERATOR_DEPS}), encoding="utf-8")
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(redis_operator_values("v0.26.0")), encoding="utf-8")
     images_path = tmp_path / "images-4.9.0.yaml"
@@ -508,7 +515,9 @@ def eck_stack_values(version):
     }
 
 
-def test_images_manifest_format_sidecars_recognized_within_group_by_basename(libimagesmanifest, tmp_path):
+def test_images_manifest_format_sidecars_recognized_within_group_by_basename(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
     """kibana/enterprise-search share elasticsearch's ONE group header
     (no comment of their own, same convention every other multi-entry
     group in the real manifest uses — e.g. ZGW Office Add-in's frontend
@@ -548,7 +557,7 @@ def test_images_manifest_format_sidecars_recognized_within_group_by_basename(lib
     assert not any("has no entry" in i for i in issues)
 
 
-def test_images_manifest_format_out_of_order_entries_are_flagged(libimagesmanifest, tmp_path):
+def test_images_manifest_format_out_of_order_entries_are_flagged(libimagesmanifest: ModuleType, tmp_path: Path):
     """Entries listed in the OPPOSITE order from values.yaml's own top-
     level component order — same "rows/Changes headings should follow
     values.yaml's own order" rule already enforced for -upgrade.md,
@@ -596,7 +605,9 @@ def test_images_manifest_format_out_of_order_entries_are_flagged(libimagesmanife
     )
 
 
-def test_images_manifest_format_correctly_ordered_entries_are_not_flagged(libimagesmanifest, tmp_path):
+def test_images_manifest_format_correctly_ordered_entries_are_not_flagged(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
     deps = [
         {"name": "redis-operator", "version": "1.0.0"},
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
@@ -637,7 +648,7 @@ def test_images_manifest_format_correctly_ordered_entries_are_not_flagged(libima
     assert not any("is listed right after" in i for i in issues)
 
 
-def test_images_manifest_format_changes_list_out_of_order_is_flagged(libimagesmanifest, tmp_path):
+def test_images_manifest_format_changes_list_out_of_order_is_flagged(libimagesmanifest: ModuleType, tmp_path: Path):
     """Real gap: the "# Changes:" header list can be scrambled relative
     to values.yaml's own order even while the ENTRY list below it (the
     only thing find_images_manifest_out_of_order_names checks) is
@@ -688,7 +699,9 @@ def test_images_manifest_format_changes_list_out_of_order_is_flagged(libimagesma
     )
 
 
-def test_images_manifest_format_changes_list_correct_order_is_not_flagged(libimagesmanifest, tmp_path):
+def test_images_manifest_format_changes_list_correct_order_is_not_flagged(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
     deps = [
         {"name": "redis-operator", "version": "1.0.0"},
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
@@ -732,7 +745,7 @@ def test_images_manifest_format_changes_list_correct_order_is_not_flagged(libima
     assert not any('"# Changes:" list has' in i for i in issues)
 
 
-def test_images_manifest_format_entry_with_no_changes_mention_is_flagged(libimagesmanifest, tmp_path):
+def test_images_manifest_format_entry_with_no_changes_mention_is_flagged(libimagesmanifest: ModuleType, tmp_path: Path):
     """Real gap: an entry can be present and perfectly correct (right
     version/digest, own preceding comment) yet never appear anywhere in
     the "# Changes:" header list at all — find_images_manifest_list_
@@ -780,7 +793,9 @@ def test_images_manifest_format_entry_with_no_changes_mention_is_flagged(libimag
     assert any('image "zac" has an entry but no mention in the "# Changes:" list' in i for i in issues)
 
 
-def test_images_manifest_format_free_form_mention_still_counts_as_covered(libimagesmanifest, tmp_path):
+def test_images_manifest_format_free_form_mention_still_counts_as_covered(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
     """A Changes item using free-form prose that only resolves to an
     entry via match_changes_item_to_entry's fuzzy basename match (never
     the entry's own canonical "<key> - <basename>" display name — real
@@ -822,7 +837,9 @@ def test_images_manifest_format_free_form_mention_still_counts_as_covered(libima
     assert not any("no mention in the" in i for i in issues)
 
 
-def test_images_manifest_format_one_item_covers_every_entry_in_a_lockstep_group(libimagesmanifest, tmp_path):
+def test_images_manifest_format_one_item_covers_every_entry_in_a_lockstep_group(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
     """A multi-image "lockstep" component (zgw-office-addin's frontend +
     backend — one of COMPONENT_IMAGE_PATHS' multi-path entries) has TWO
     separate entries, each its own distinct entry_positions slot, but
@@ -893,7 +910,7 @@ PYTHON_MANIFEST = """\
 """
 
 
-def test_images_manifest_format_plain_image_changes_item_matches_entry(libimagesmanifest, tmp_path):
+def test_images_manifest_format_plain_image_changes_item_matches_entry(libimagesmanifest: ModuleType, tmp_path: Path):
     """A Changes item for a plain image (no Chart.yaml dependency of its
     own) must not be flagged just because match_dependency finds nothing —
     it should resolve against this manifest's own "library/python" entry
@@ -913,7 +930,7 @@ def test_images_manifest_format_plain_image_changes_item_matches_entry(libimages
     assert issues == []
 
 
-def test_images_manifest_format_plain_image_changes_item_target_mismatch(libimagesmanifest, tmp_path):
+def test_images_manifest_format_plain_image_changes_item_target_mismatch(libimagesmanifest: ModuleType, tmp_path: Path):
     """Once resolved to its entry, a real mismatch must still be caught."""
     text = PYTHON_MANIFEST.replace("3.14-slim -> 3.14.7-slim —", "3.14-slim -> 9.9.9 —")
     images_path = tmp_path / "images-4.9.0.yaml"
@@ -931,7 +948,9 @@ def test_images_manifest_format_plain_image_changes_item_target_mismatch(libimag
     assert any("target app" in i and "9.9.9" in i for i in issues)
 
 
-def test_images_manifest_format_changes_item_matching_neither_dep_nor_entry_still_reported(libimagesmanifest, tmp_path):
+def test_images_manifest_format_changes_item_matching_neither_dep_nor_entry_still_reported(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
     text = PYTHON_MANIFEST.replace("Python (ensurePodiumdAdminUser init image)", "Totally Unknown Thing")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
@@ -950,7 +969,9 @@ def test_images_manifest_format_changes_item_matching_neither_dep_nor_entry_stil
     )
 
 
-def test_images_manifest_format_changes_item_resolves_via_canonical_path_segment_name(libimagesmanifest, tmp_path):
+def test_images_manifest_format_changes_item_resolves_via_canonical_path_segment_name(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
     """Regression test (real bug, real doc): a canonical sidecar Changes
     item whose own "basename" is a values-tree PATH SEGMENT, not a real
     image-repository basename (see lib.chart.canonical_sidecar_row_names'
@@ -998,7 +1019,9 @@ def test_images_manifest_format_changes_item_resolves_via_canonical_path_segment
     assert not any("no matching" in i for i in issues), issues
 
 
-def test_images_manifest_format_changes_item_canonical_path_segment_target_mismatch(libimagesmanifest, tmp_path):
+def test_images_manifest_format_changes_item_canonical_path_segment_target_mismatch(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
     """Once resolved via its own known path, a real target-version
     mismatch must still be caught — the canonical-path-segment
     resolution isn't a free pass."""
@@ -1061,7 +1084,7 @@ KISS_DEPS = [make_dep("kiss-chart", "3.0.0", alias="kiss")]
 KISS_VALUES = {"kiss": {"image": {"tag": "3.0.0@sha256:bbb"}}}
 
 
-def test_images_manifest_format_exact_item_wins_over_fuzzy_changes_item(libimagesmanifest, tmp_path):
+def test_images_manifest_format_exact_item_wins_over_fuzzy_changes_item(libimagesmanifest: ModuleType, tmp_path: Path):
     """Regression test: item "Kiss's ECK-managed Elasticsearch/Kibana/
     Enterprise Search 8.19.3 -> 8.19.19" fuzzy-matches the real "kiss"
     dependency on the word "kiss" (there's also an exact "KISS 2.2.4 ->
@@ -1099,7 +1122,9 @@ NEW_DEP_VALUES = dict(
 )
 
 
-def test_images_manifest_format_new_component_image_already_in_historical_manifest(libimagesmanifest, tmp_path):
+def test_images_manifest_format_new_component_image_already_in_historical_manifest(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
     """brppersonenmock is a brand-new dependency — baseline_values has
     no "brppersonenmock" key at all, so there's nothing to diff its
     image tag against via git. Since the EXACT version+digest already
@@ -1133,7 +1158,9 @@ def test_images_manifest_format_new_component_image_already_in_historical_manife
     assert not any("brp-api/personen-mock" in i or "brppersonenmock" in i for i in issues)
 
 
-def test_images_manifest_format_new_component_image_not_in_historical_manifest(libimagesmanifest, tmp_path):
+def test_images_manifest_format_new_component_image_not_in_historical_manifest(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
     """Same shape, but no historical images-<version>.yaml records this
     repository at all — flagged as missing, same as without the
     fallback."""

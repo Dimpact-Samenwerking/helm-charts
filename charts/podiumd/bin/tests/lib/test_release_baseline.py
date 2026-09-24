@@ -3,6 +3,9 @@ hermetic temp git repo (same convention as tests/lib/test_gitutil.py)."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -12,7 +15,7 @@ def git(*args, cwd):
 
 
 @pytest.fixture
-def repo(tmp_path):
+def repo(tmp_path: Path):
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -42,7 +45,7 @@ def repo(tmp_path):
     return tmp_path
 
 
-def test_resolve_baseline_chart_state_resolves_real_baseline(librelease_baseline, repo):
+def test_resolve_baseline_chart_state_resolves_real_baseline(librelease_baseline: ModuleType, repo):
     ref, deps, values, lines, error = librelease_baseline.resolve_baseline_chart_state(repo, "4.8.5")
     assert error is None
     assert ref == "podiumd-4.8.5"
@@ -51,7 +54,7 @@ def test_resolve_baseline_chart_state_resolves_real_baseline(librelease_baseline
     assert lines == ["zac:", "  image:", '    tag: "5.0.2@sha256:aaaa"']
 
 
-def test_resolve_baseline_chart_state_lines_match_current_values_yaml_convention(librelease_baseline, repo):
+def test_resolve_baseline_chart_state_lines_match_current_values_yaml_convention(librelease_baseline: ModuleType, repo):
     """No keepends, no trailing empty entry — the exact same
     VALUES_YAML.read_text().splitlines() shape verify-release-table-
     with-podiumd already uses for the CURRENT side, so lib.image.version's
@@ -67,7 +70,7 @@ def test_resolve_baseline_chart_state_lines_match_current_values_yaml_convention
     assert text != shown  # sanity: current values.yaml really did move on
 
 
-def test_resolve_baseline_chart_state_error_when_ref_unresolvable(librelease_baseline, repo):
+def test_resolve_baseline_chart_state_error_when_ref_unresolvable(librelease_baseline: ModuleType, repo):
     ref, deps, values, lines, error = librelease_baseline.resolve_baseline_chart_state(repo, "9.9.9")
     assert ref is None
     assert deps == []
@@ -76,7 +79,7 @@ def test_resolve_baseline_chart_state_error_when_ref_unresolvable(librelease_bas
     assert "could not resolve baseline '9.9.9' to a git ref" in error
 
 
-def test_resolve_baseline_chart_state_error_outside_git_repo(librelease_baseline, tmp_path):
+def test_resolve_baseline_chart_state_error_outside_git_repo(librelease_baseline: ModuleType, tmp_path: Path):
     outside = tmp_path / "not-a-repo"
     outside.mkdir()
     ref, deps, values, lines, error = librelease_baseline.resolve_baseline_chart_state(outside, "4.8.5")
@@ -87,7 +90,9 @@ def test_resolve_baseline_chart_state_error_outside_git_repo(librelease_baseline
     assert "is not inside a git repository" in error
 
 
-def test_resolve_baseline_chart_state_error_when_chart_yaml_unreadable_at_ref(librelease_baseline, tmp_path):
+def test_resolve_baseline_chart_state_error_when_chart_yaml_unreadable_at_ref(
+    librelease_baseline: ModuleType, tmp_path: Path
+):
     """A real, resolvable ref whose Chart.yaml still can't be read (here:
     the chart didn't exist at that path yet) — baseline_ref must come
     back None too, not the resolved ref, matching lib.docs_consistency's
@@ -109,7 +114,7 @@ def test_resolve_baseline_chart_state_error_when_chart_yaml_unreadable_at_ref(li
     assert "could not read Chart.yaml at that ref" in error
 
 
-def test_resolve_baseline_values_resolves_real_baseline(librelease_baseline, repo):
+def test_resolve_baseline_values_resolves_real_baseline(librelease_baseline: ModuleType, repo):
     ref, values, lines, error = librelease_baseline.resolve_baseline_values(repo, "4.8.5")
     assert error is None
     assert ref == "podiumd-4.8.5"
@@ -117,7 +122,7 @@ def test_resolve_baseline_values_resolves_real_baseline(librelease_baseline, rep
     assert lines == ["zac:", "  image:", '    tag: "5.0.2@sha256:aaaa"']
 
 
-def test_resolve_baseline_values_error_when_ref_unresolvable(librelease_baseline, repo):
+def test_resolve_baseline_values_error_when_ref_unresolvable(librelease_baseline: ModuleType, repo):
     ref, values, lines, error = librelease_baseline.resolve_baseline_values(repo, "9.9.9")
     assert ref is None
     assert values == {}
@@ -125,7 +130,7 @@ def test_resolve_baseline_values_error_when_ref_unresolvable(librelease_baseline
     assert "could not resolve baseline '9.9.9' to a git ref" in error
 
 
-def test_resolve_baseline_values_error_outside_git_repo(librelease_baseline, tmp_path):
+def test_resolve_baseline_values_error_outside_git_repo(librelease_baseline: ModuleType, tmp_path: Path):
     outside = tmp_path / "not-a-repo"
     outside.mkdir()
     ref, values, lines, error = librelease_baseline.resolve_baseline_values(outside, "4.8.5")
@@ -135,7 +140,9 @@ def test_resolve_baseline_values_error_outside_git_repo(librelease_baseline, tmp
     assert "is not inside a git repository" in error
 
 
-def test_resolve_baseline_values_error_when_values_yaml_unreadable_at_ref(librelease_baseline, tmp_path):
+def test_resolve_baseline_values_error_when_values_yaml_unreadable_at_ref(
+    librelease_baseline: ModuleType, tmp_path: Path
+):
     """Unlike resolve_baseline_chart_state (where a missing values.yaml
     is NOT itself a failure — Chart.yaml alone is still a usable
     result), this function has nothing else to fall back on: a values-
@@ -156,7 +163,7 @@ def test_resolve_baseline_values_error_when_values_yaml_unreadable_at_ref(librel
     assert error == "could not read ./values.yaml at podiumd-4.8.5"
 
 
-def test_resolve_baseline_values_never_requires_chart_yaml(librelease_baseline, tmp_path):
+def test_resolve_baseline_values_never_requires_chart_yaml(librelease_baseline: ModuleType, tmp_path: Path):
     """The whole point of this sibling: a ref with values.yaml but no
     Chart.yaml at all (impossible for THIS chart in practice, but
     exactly what show-image-baseline-version's own test fixture models
@@ -176,7 +183,9 @@ def test_resolve_baseline_values_never_requires_chart_yaml(librelease_baseline, 
     assert values == {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
 
 
-def test_resolve_baseline_chart_state_empty_dependencies_is_not_a_failure(librelease_baseline, tmp_path):
+def test_resolve_baseline_chart_state_empty_dependencies_is_not_a_failure(
+    librelease_baseline: ModuleType, tmp_path: Path
+):
     """A chart with zero Chart.yaml dependencies at the baseline ref is a
     real, valid state — never itself treated as an error."""
     git("init", "-q", cwd=tmp_path)

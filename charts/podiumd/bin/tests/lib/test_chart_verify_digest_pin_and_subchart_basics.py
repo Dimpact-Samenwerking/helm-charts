@@ -12,6 +12,9 @@ test_chart_*.py files for the rest)."""
 import io
 import tarfile
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -59,7 +62,12 @@ def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None,
 # MISSING, and either return the pulled values.yaml or exit 1.
 
 
-def test_verify_chart_version_found_returns_values(tmp_path, monkeypatch, capsys, libchartpullandsubchartresolution):
+def test_verify_chart_version_found_returns_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    libchartpullandsubchartresolution: ModuleType,
+):
     def fake_pull_chart(dep, version, dest):
         chart_dir = dest / dep["name"]
         chart_dir.mkdir(parents=True)
@@ -79,7 +87,10 @@ def test_verify_chart_version_found_returns_values(tmp_path, monkeypatch, capsys
 
 
 def test_verify_chart_version_prefers_vendored_tgz_without_pulling(
-    tmp_path, monkeypatch, capsys, libchartpullandsubchartresolution
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    libchartpullandsubchartresolution: ModuleType,
 ):
     def raise_if_pulled(dep, version, dest):
         msg = "should not pull — an exact-version .tgz is already vendored"
@@ -95,7 +106,12 @@ def test_verify_chart_version_prefers_vendored_tgz_without_pulling(
     assert "[FOUND  ] openzaak 4.9.1  (vendored)" in capsys.readouterr().out
 
 
-def test_verify_chart_version_missing_exits_one(tmp_path, monkeypatch, capsys, libchartpullandsubchartresolution):
+def test_verify_chart_version_missing_exits_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    libchartpullandsubchartresolution: ModuleType,
+):
     monkeypatch.setattr(
         libchartpullandsubchartresolution, "pull_chart", lambda dep, version, dest: (False, "version not found")
     )
@@ -113,7 +129,9 @@ def test_verify_chart_version_missing_exits_one(tmp_path, monkeypatch, capsys, l
 # --- check_image_versions ---
 
 
-def test_check_image_versions_single_path_found(monkeypatch, libchartpullandsubchartresolution):
+def test_check_image_versions_single_path_found(
+    monkeypatch: pytest.MonkeyPatch, libchartpullandsubchartresolution: ModuleType
+):
     monkeypatch.setattr(
         libchartpullandsubchartresolution, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:abc")
     )
@@ -131,7 +149,9 @@ def test_check_image_versions_single_path_found(monkeypatch, libchartpullandsubc
     ]
 
 
-def test_check_image_versions_reports_missing_tag(monkeypatch, libchartpullandsubchartresolution):
+def test_check_image_versions_reports_missing_tag(
+    monkeypatch: pytest.MonkeyPatch, libchartpullandsubchartresolution: ModuleType
+):
     monkeypatch.setattr(libchartpullandsubchartresolution, "registry_tag_exists", lambda host, repo, tag: (False, None))
     values = {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}
     results = libchartpullandsubchartresolution.check_image_versions(values, ["image"], "9.9.9")
@@ -139,7 +159,9 @@ def test_check_image_versions_reports_missing_tag(monkeypatch, libchartpullandsu
     assert results[0]["digest"] is None
 
 
-def test_check_image_versions_checks_every_multi_image_path(monkeypatch, libchartpullandsubchartresolution):
+def test_check_image_versions_checks_every_multi_image_path(
+    monkeypatch: pytest.MonkeyPatch, libchartpullandsubchartresolution: ModuleType
+):
     checked = []
 
     def fake_registry_tag_exists(host, repo, tag):
@@ -158,7 +180,9 @@ def test_check_image_versions_checks_every_multi_image_path(monkeypatch, libchar
     assert [r["path"] for r in results] == ["frontend.image", "backend.image"]
 
 
-def test_check_image_versions_skips_path_with_no_repository(monkeypatch, libchartpullandsubchartresolution):
+def test_check_image_versions_skips_path_with_no_repository(
+    monkeypatch: pytest.MonkeyPatch, libchartpullandsubchartresolution: ModuleType
+):
     """One path missing a "repository:" isn't fatal as long as at least one
     other path has one — only the resolvable path is checked/returned."""
     monkeypatch.setattr(
@@ -174,7 +198,9 @@ def test_check_image_versions_skips_path_with_no_repository(monkeypatch, libchar
     assert [r["path"] for r in results] == ["frontend.image"]
 
 
-def test_check_image_versions_raises_when_no_path_has_a_repository(monkeypatch, libchartpullandsubchartresolution):
+def test_check_image_versions_raises_when_no_path_has_a_repository(
+    monkeypatch: pytest.MonkeyPatch, libchartpullandsubchartresolution: ModuleType
+):
     values = {"somethingElse": {"repository": "x/y"}}
     with pytest.raises(SystemExit, match="no repository found"):
         libchartpullandsubchartresolution.check_image_versions(values, ["image"], "5.4.3")
@@ -183,7 +209,7 @@ def test_check_image_versions_raises_when_no_path_has_a_repository(monkeypatch, 
 # --- version_of ---
 
 
-def test_version_of_strips_digest(libchartvaluestreeprimitives):
+def test_version_of_strips_digest(libchartvaluestreeprimitives: ModuleType):
     assert libchartvaluestreeprimitives.version_of("5.4.3@sha256:abc") == "5.4.3"
     assert libchartvaluestreeprimitives.version_of("1.19.0-static") == "1.19.0-static"
 
@@ -203,7 +229,7 @@ SIBLING_FIELDS = {
 }
 
 
-def test_resolved_digest_pin_already_embedded_returned_as_is(libchartpullandsubchartresolution):
+def test_resolved_digest_pin_already_embedded_returned_as_is(libchartpullandsubchartresolution: ModuleType):
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
 
     assert (
@@ -214,7 +240,7 @@ def test_resolved_digest_pin_already_embedded_returned_as_is(libchartpullandsubc
     )
 
 
-def test_resolved_digest_pin_split_tag_sha_combines_sibling_sha(libchartpullandsubchartresolution):
+def test_resolved_digest_pin_split_tag_sha_combines_sibling_sha(libchartpullandsubchartresolution: ModuleType):
     """keycloak-operator's own primary image (operator.config.keycloakImage)
     uses the adfinis chart's own split "tag:"/"sha:" convention — the
     "tag:" value alone never carries "@sha256:...", so a caller needing a
@@ -239,7 +265,7 @@ def test_resolved_digest_pin_split_tag_sha_combines_sibling_sha(libchartpullands
     )
 
 
-def test_resolved_digest_pin_split_tag_sha_no_sha_override_returns_none(libchartpullandsubchartresolution):
+def test_resolved_digest_pin_split_tag_sha_no_sha_override_returns_none(libchartpullandsubchartresolution: ModuleType):
     """The vendored subchart's own default "sha:" (inherited, no podiumd
     override at all) isn't visible from values.yaml alone — nothing to
     combine, so this can't produce a digest-pinned string yet."""
@@ -249,7 +275,7 @@ def test_resolved_digest_pin_split_tag_sha_no_sha_override_returns_none(libchart
     assert libchartpullandsubchartresolution.resolved_digest_pin(values, path, "26.7.2", SIBLING_FIELDS) is None
 
 
-def test_resolved_digest_pin_ordinary_path_with_no_digest_returns_none(libchartpullandsubchartresolution):
+def test_resolved_digest_pin_ordinary_path_with_no_digest_returns_none(libchartpullandsubchartresolution: ModuleType):
     """A path outside the sibling_fields table with a bare,
     non-digest-pinned tag has no sibling field to fall back to at all —
     genuinely unresolvable here, unlike the split-tag-sha case."""
@@ -261,7 +287,7 @@ def test_resolved_digest_pin_ordinary_path_with_no_digest_returns_none(libchartp
     )
 
 
-def test_resolved_digest_pin_eck_operator_combines_sibling_digest_field(libchartpullandsubchartresolution):
+def test_resolved_digest_pin_eck_operator_combines_sibling_digest_field(libchartpullandsubchartresolution: ModuleType):
     """Regression test (real bug, real chart): eck-operator's own
     upstream chart names its sibling field "digest:", not "sha:" — the
     ONLY sibling_fields path that differs from the keycloak ones.
@@ -283,7 +309,9 @@ def test_resolved_digest_pin_eck_operator_combines_sibling_digest_field(libchart
     )
 
 
-def test_resolved_digest_pin_eck_operator_no_digest_override_returns_none(libchartpullandsubchartresolution):
+def test_resolved_digest_pin_eck_operator_no_digest_override_returns_none(
+    libchartpullandsubchartresolution: ModuleType,
+):
     """Same "vendored default, no podiumd override visible" shape as the
     keycloak sha-less case above — eck-operator's own sibling "digest:"
     field, when absent, still correctly falls through to None rather
@@ -297,7 +325,7 @@ def test_resolved_digest_pin_eck_operator_no_digest_override_returns_none(libcha
 # --- find_images ---
 
 
-def test_find_images_nested_dict_and_list(libchartvaluestreeprimitives):
+def test_find_images_nested_dict_and_list(libchartvaluestreeprimitives: ModuleType):
     values = {
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:abc"}},
         "items": [{"image": {"repository": "curlimages/curl", "tag": "8.21.0"}}],
@@ -307,29 +335,29 @@ def test_find_images_nested_dict_and_list(libchartvaluestreeprimitives):
     assert ("items[0].image", "curlimages/curl", "8.21.0") in images
 
 
-def test_find_images_skips_empty_tag(libchartvaluestreeprimitives):
+def test_find_images_skips_empty_tag(libchartvaluestreeprimitives: ModuleType):
     assert libchartvaluestreeprimitives.find_images({"image": {"repository": "x", "tag": ""}}) == []
 
 
-def test_find_images_root_path_label(libchartvaluestreeprimitives):
+def test_find_images_root_path_label(libchartvaluestreeprimitives: ModuleType):
     assert libchartvaluestreeprimitives.find_images({"repository": "x", "tag": "1.0"}) == [("(root)", "x", "1.0")]
 
 
 # --- image_paths_for ---
 
 
-def test_image_paths_for_multi_image_component(libchartregisteredpaths):
+def test_image_paths_for_multi_image_component(libchartregisteredpaths: ModuleType):
     assert libchartregisteredpaths.image_paths_for("zgw-office-addin") == ["frontend.image", "backend.image"]
 
 
-def test_image_paths_for_ita_web_and_poller(libchartregisteredpaths):
+def test_image_paths_for_ita_web_and_poller(libchartregisteredpaths: ModuleType):
     """ITA has no single "app" image at all — web and poller are two
     co-equal images, same lockstep shape as zgw-office-addin's own
     frontend+backend split."""
     assert libchartregisteredpaths.image_paths_for("internetaakafhandeling") == ["web.image", "poller.image"]
 
 
-def test_image_paths_for_kiss_chart_frontend_and_sync_jobs(libchartregisteredpaths):
+def test_image_paths_for_kiss_chart_frontend_and_sync_jobs(libchartregisteredpaths: ModuleType):
     """kiss-chart's own frontend image ("image") and its
     settings.syncJobs.image (the elastic-sync CronJob) are released from
     the same kiss-chart version and always move together — same
@@ -339,14 +367,14 @@ def test_image_paths_for_kiss_chart_frontend_and_sync_jobs(libchartregisteredpat
     assert libchartregisteredpaths.image_paths_for("kiss-chart") == ["image", "settings.syncJobs.image"]
 
 
-def test_image_paths_for_unlisted_component_defaults_to_single_image_block(libchartregisteredpaths):
+def test_image_paths_for_unlisted_component_defaults_to_single_image_block(libchartregisteredpaths: ModuleType):
     assert libchartregisteredpaths.image_paths_for("zac") == ["image"]
 
 
 # --- dotted_key_path ---
 
 
-def test_dotted_key_path_nested_component(libchartvaluestreeprimitives):
+def test_dotted_key_path_nested_component(libchartvaluestreeprimitives: ModuleType):
     lines = [
         "openzaak:",
         "  image:",
@@ -355,7 +383,7 @@ def test_dotted_key_path_nested_component(libchartvaluestreeprimitives):
     assert libchartvaluestreeprimitives.dotted_key_path(lines, 2) == "openzaak.image.tag"
 
 
-def test_dotted_key_path_ignores_comments_and_blank_lines(libchartvaluestreeprimitives):
+def test_dotted_key_path_ignores_comments_and_blank_lines(libchartvaluestreeprimitives: ModuleType):
     lines = [
         "a:",
         "  # a comment",
@@ -366,7 +394,7 @@ def test_dotted_key_path_ignores_comments_and_blank_lines(libchartvaluestreeprim
     assert libchartvaluestreeprimitives.dotted_key_path(lines, 4) == "a.image.tag"
 
 
-def test_dotted_key_path_pops_stack_on_dedent(libchartvaluestreeprimitives):
+def test_dotted_key_path_pops_stack_on_dedent(libchartvaluestreeprimitives: ModuleType):
     lines = [
         "a:",
         "  b:",
@@ -380,7 +408,7 @@ def test_dotted_key_path_pops_stack_on_dedent(libchartvaluestreeprimitives):
 # --- subchart_values ---
 
 
-def test_subchart_values_reads_vendored_tgz(tmp_path, libchartpullandsubchartresolution):
+def test_subchart_values_reads_vendored_tgz(tmp_path: Path, libchartpullandsubchartresolution: ModuleType):
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
     dep = {"name": "openzaak", "version": "1.14.2"}
     assert libchartpullandsubchartresolution.subchart_values(tmp_path, dep) == {
@@ -388,12 +416,12 @@ def test_subchart_values_reads_vendored_tgz(tmp_path, libchartpullandsubchartres
     }
 
 
-def test_subchart_values_missing_tgz_returns_none(tmp_path, libchartpullandsubchartresolution):
+def test_subchart_values_missing_tgz_returns_none(tmp_path: Path, libchartpullandsubchartresolution: ModuleType):
     dep = {"name": "openzaak", "version": "1.14.2"}
     assert libchartpullandsubchartresolution.subchart_values(tmp_path, dep) is None
 
 
-def test_subchart_values_missing_member_returns_none(tmp_path, libchartpullandsubchartresolution):
+def test_subchart_values_missing_member_returns_none(tmp_path: Path, libchartpullandsubchartresolution: ModuleType):
     charts_dir = tmp_path / "charts"
     charts_dir.mkdir()
     with tarfile.open(charts_dir / "openzaak-1.14.2.tgz", "w:gz"):
@@ -405,7 +433,7 @@ def test_subchart_values_missing_member_returns_none(tmp_path, libchartpullandsu
 # --- subchart_app_version ---
 
 
-def test_subchart_app_version_reads_vendored_chart_yaml(tmp_path, libchartpullandsubchartresolution):
+def test_subchart_app_version_reads_vendored_chart_yaml(tmp_path: Path, libchartpullandsubchartresolution: ModuleType):
     make_tgz(
         tmp_path / "charts",
         "openbao",
@@ -417,18 +445,22 @@ def test_subchart_app_version_reads_vendored_chart_yaml(tmp_path, libchartpullan
     assert libchartpullandsubchartresolution.subchart_app_version(tmp_path, dep) == "v2.5.5"
 
 
-def test_subchart_app_version_missing_tgz_returns_none(tmp_path, libchartpullandsubchartresolution):
+def test_subchart_app_version_missing_tgz_returns_none(tmp_path: Path, libchartpullandsubchartresolution: ModuleType):
     dep = {"name": "openbao", "version": "0.28.4"}
     assert libchartpullandsubchartresolution.subchart_app_version(tmp_path, dep) is None
 
 
-def test_subchart_app_version_missing_member_returns_none(tmp_path, libchartpullandsubchartresolution):
+def test_subchart_app_version_missing_member_returns_none(
+    tmp_path: Path, libchartpullandsubchartresolution: ModuleType
+):
     make_tgz(tmp_path / "charts", "openbao", "0.28.4", {"server": {"image": {"tag": ""}}})  # no chart_yaml
     dep = {"name": "openbao", "version": "0.28.4"}
     assert libchartpullandsubchartresolution.subchart_app_version(tmp_path, dep) is None
 
 
-def test_subchart_app_version_no_app_version_field_returns_none(tmp_path, libchartpullandsubchartresolution):
+def test_subchart_app_version_no_app_version_field_returns_none(
+    tmp_path: Path, libchartpullandsubchartresolution: ModuleType
+):
     make_tgz(
         tmp_path / "charts",
         "openbao",
@@ -443,7 +475,7 @@ def test_subchart_app_version_no_app_version_field_returns_none(tmp_path, libcha
 # --- nested_subchart_raw_text / nested_subchart_documented_image_repository ---
 
 
-def test_nested_subchart_raw_text_reads_nested_file(libchartnestedsubchartidentity, tmp_path):
+def test_nested_subchart_raw_text_reads_nested_file(libchartnestedsubchartidentity: ModuleType, tmp_path: Path):
     dep = {"name": "eck-stack", "version": "0.20.0"}
     make_tgz(
         tmp_path / "charts",
@@ -460,7 +492,7 @@ def test_nested_subchart_raw_text_reads_nested_file(libchartnestedsubchartidenti
     )
 
 
-def test_nested_subchart_raw_text_missing_tgz_returns_none(libchartnestedsubchartidentity, tmp_path):
+def test_nested_subchart_raw_text_missing_tgz_returns_none(libchartnestedsubchartidentity: ModuleType, tmp_path: Path):
     dep = {"name": "eck-stack", "version": "0.20.0"}
     assert (
         libchartnestedsubchartidentity.nested_subchart_raw_text(tmp_path, dep, "eck-elasticsearch", "values.yaml")
@@ -468,7 +500,9 @@ def test_nested_subchart_raw_text_missing_tgz_returns_none(libchartnestedsubchar
     )
 
 
-def test_nested_subchart_raw_text_missing_nested_chart_returns_none(libchartnestedsubchartidentity, tmp_path):
+def test_nested_subchart_raw_text_missing_nested_chart_returns_none(
+    libchartnestedsubchartidentity: ModuleType, tmp_path: Path
+):
     """The outer .tgz IS vendored, but has no charts/eck-kibana/ inside
     it at all (e.g. a stale/mismatched registry entry) — no crash."""
     dep = {"name": "eck-stack", "version": "0.20.0"}
@@ -484,7 +518,9 @@ def test_nested_subchart_raw_text_missing_nested_chart_returns_none(libchartnest
     assert libchartnestedsubchartidentity.nested_subchart_raw_text(tmp_path, dep, "eck-kibana", "values.yaml") is None
 
 
-def test_nested_subchart_documented_image_repository_extracts_first_example(libchartnestedsubchartidentity, tmp_path):
+def test_nested_subchart_documented_image_repository_extracts_first_example(
+    libchartnestedsubchartidentity: ModuleType, tmp_path: Path
+):
     """The FIRST "# image: <repo>[:<tag>]" comment wins — every ECK-
     family sub-subchart lists the plain "<repo>:<version>" form first,
     then a digest-suffixed variant, then a bare "@sha256:..." form; only
@@ -510,7 +546,9 @@ def test_nested_subchart_documented_image_repository_extracts_first_example(libc
     )
 
 
-def test_nested_subchart_documented_image_repository_no_comment_returns_none(libchartnestedsubchartidentity, tmp_path):
+def test_nested_subchart_documented_image_repository_no_comment_returns_none(
+    libchartnestedsubchartidentity: ModuleType, tmp_path: Path
+):
     dep = {"name": "eck-stack", "version": "0.20.0"}
     make_tgz(
         tmp_path / "charts",
@@ -529,7 +567,7 @@ def test_nested_subchart_documented_image_repository_no_comment_returns_none(lib
 # --- subchart_dependencies ---
 
 
-def test_subchart_dependencies_reads_own_chart_yaml(tmp_path, libchartpullandsubchartresolution):
+def test_subchart_dependencies_reads_own_chart_yaml(tmp_path: Path, libchartpullandsubchartresolution: ModuleType):
     dep = {"name": "openinwoner", "version": "2.4.0"}
     make_tgz(
         tmp_path / "charts",
@@ -549,12 +587,16 @@ def test_subchart_dependencies_reads_own_chart_yaml(tmp_path, libchartpullandsub
     assert [d["name"] for d in deps] == ["eck-operator", "redis"]
 
 
-def test_subchart_dependencies_missing_tgz_returns_empty_list(tmp_path, libchartpullandsubchartresolution):
+def test_subchart_dependencies_missing_tgz_returns_empty_list(
+    tmp_path: Path, libchartpullandsubchartresolution: ModuleType
+):
     dep = {"name": "openinwoner", "version": "2.4.0"}
     assert libchartpullandsubchartresolution.subchart_dependencies(tmp_path, dep) == []
 
 
-def test_subchart_dependencies_no_dependencies_key_returns_empty_list(tmp_path, libchartpullandsubchartresolution):
+def test_subchart_dependencies_no_dependencies_key_returns_empty_list(
+    tmp_path: Path, libchartpullandsubchartresolution: ModuleType
+):
     dep = {"name": "zac", "version": "1.0.297"}
     make_tgz(tmp_path / "charts", "zac", "1.0.297", {}, chart_yaml={"name": "zac", "version": "1.0.297"})
     assert libchartpullandsubchartresolution.subchart_dependencies(tmp_path, dep) == []
@@ -563,7 +605,9 @@ def test_subchart_dependencies_no_dependencies_key_returns_empty_list(tmp_path, 
 # --- resolve_subchart_default ---
 
 
-def test_resolve_subchart_default_top_level_uses_deps_own_app_version(tmp_path, libchartpullandsubchartresolution):
+def test_resolve_subchart_default_top_level_uses_deps_own_app_version(
+    tmp_path: Path, libchartpullandsubchartresolution: ModuleType
+):
     dep = {"name": "eck-operator", "version": "3.5.0"}
     make_tgz(
         tmp_path / "charts",
@@ -584,7 +628,7 @@ def test_resolve_subchart_default_top_level_uses_deps_own_app_version(tmp_path, 
 
 
 def test_resolve_subchart_default_nested_dependency_uses_its_own_chart_yaml(
-    tmp_path, libchartpullandsubchartresolution
+    tmp_path: Path, libchartpullandsubchartresolution: ModuleType
 ):
     """openinwoner's own bundled eck-operator (3.2.0) is a SEPARATE,
     same-named nested dependency of openinwoner's own Chart.yaml,
@@ -615,7 +659,9 @@ def test_resolve_subchart_default_nested_dependency_uses_its_own_chart_yaml(
     assert version == "3.2.0"
 
 
-def test_resolve_subchart_default_no_nested_match_falls_back_to_top_level(tmp_path, libchartpullandsubchartresolution):
+def test_resolve_subchart_default_no_nested_match_falls_back_to_top_level(
+    tmp_path: Path, libchartpullandsubchartresolution: ModuleType
+):
     """path[0] not matching any of dep's own nested dependencies — e.g.
     zac's own "opa" sidecar — stays at dep's own top-level path (opa
     isn't a real Chart.yaml dependency, just a values sub-key). The
@@ -642,7 +688,9 @@ def test_resolve_subchart_default_no_nested_match_falls_back_to_top_level(tmp_pa
     assert version == "5.4.3"
 
 
-def test_resolve_subchart_default_matches_nested_dependency_by_alias_too(tmp_path, libchartpullandsubchartresolution):
+def test_resolve_subchart_default_matches_nested_dependency_by_alias_too(
+    tmp_path: Path, libchartpullandsubchartresolution: ModuleType
+):
     """The NESTED dependency's own chart-tree segment is likewise keyed
     by ITS OWN alias ("kiss-eck"), not its real chart name ("eck-stack")
     — same convention, one level deeper."""
@@ -671,7 +719,9 @@ def test_resolve_subchart_default_matches_nested_dependency_by_alias_too(tmp_pat
     assert chart_tree_path == "podiumd/charts/openinwoner/charts/kiss-eck"
 
 
-def test_resolve_subchart_default_version_none_when_not_vendored(tmp_path, libchartpullandsubchartresolution):
+def test_resolve_subchart_default_version_none_when_not_vendored(
+    tmp_path: Path, libchartpullandsubchartresolution: ModuleType
+):
     dep = {"name": "eck-operator", "version": "3.5.0"}
     chart_tree_path, version = libchartpullandsubchartresolution.resolve_subchart_default(
         tmp_path, dep, "podiumd", ("image",)
@@ -683,7 +733,9 @@ def test_resolve_subchart_default_version_none_when_not_vendored(tmp_path, libch
 # --- own_template_files_referencing / resolve_values_path_source ---
 
 
-def test_own_template_files_referencing_finds_a_literal_values_reference(libchartvaluestreeprimitives, tmp_path):
+def test_own_template_files_referencing_finds_a_literal_values_reference(
+    libchartvaluestreeprimitives: ModuleType, tmp_path: Path
+):
     (tmp_path / "templates").mkdir()
     (tmp_path / "templates" / "frankgateway-nginx.yaml").write_text(
         "image: {{ .Values.frankgateway.nginx.image.repository }}\n", encoding="utf-8"
@@ -695,11 +747,15 @@ def test_own_template_files_referencing_finds_a_literal_values_reference(libchar
     assert files == ["templates/frankgateway-nginx.yaml"]
 
 
-def test_own_template_files_referencing_no_templates_dir_returns_empty(libchartvaluestreeprimitives, tmp_path):
+def test_own_template_files_referencing_no_templates_dir_returns_empty(
+    libchartvaluestreeprimitives: ModuleType, tmp_path: Path
+):
     assert libchartvaluestreeprimitives.own_template_files_referencing(tmp_path, "frankgateway") == []
 
 
-def test_own_template_files_referencing_no_match_returns_empty(libchartvaluestreeprimitives, tmp_path):
+def test_own_template_files_referencing_no_match_returns_empty(
+    libchartvaluestreeprimitives: ModuleType, tmp_path: Path
+):
     (tmp_path / "templates").mkdir()
     (tmp_path / "templates" / "unrelated.yaml").write_text(
         "image: {{ .Values.apiproxy.image.repository }}\n", encoding="utf-8"
@@ -707,13 +763,17 @@ def test_own_template_files_referencing_no_match_returns_empty(libchartvaluestre
     assert libchartvaluestreeprimitives.own_template_files_referencing(tmp_path, "frankgateway") == []
 
 
-def test_resolve_values_path_source_real_dependency_shows_chart_and_version(libchartvaluestreeprimitives, tmp_path):
+def test_resolve_values_path_source_real_dependency_shows_chart_and_version(
+    libchartvaluestreeprimitives: ModuleType, tmp_path: Path
+):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     source = libchartvaluestreeprimitives.resolve_values_path_source(tmp_path, deps, ("zac", "nginx", "image"))
     assert source == "chart zaakafhandelcomponent@1.0.297"
 
 
-def test_resolve_values_path_source_orphan_key_shows_local_template(libchartvaluestreeprimitives, tmp_path):
+def test_resolve_values_path_source_orphan_key_shows_local_template(
+    libchartvaluestreeprimitives: ModuleType, tmp_path: Path
+):
     (tmp_path / "templates").mkdir()
     (tmp_path / "templates" / "frankgateway-nginx.yaml").write_text(
         "image: {{ .Values.frankgateway.nginx.image.repository }}\n", encoding="utf-8"
@@ -722,6 +782,8 @@ def test_resolve_values_path_source_orphan_key_shows_local_template(libchartvalu
     assert source == "local: templates/frankgateway-nginx.yaml"
 
 
-def test_resolve_values_path_source_orphan_key_no_match_says_so(libchartvaluestreeprimitives, tmp_path):
+def test_resolve_values_path_source_orphan_key_no_match_says_so(
+    libchartvaluestreeprimitives: ModuleType, tmp_path: Path
+):
     source = libchartvaluestreeprimitives.resolve_values_path_source(tmp_path, [], ("global", "images", "nginx"))
     assert source == "local: no referencing template found"

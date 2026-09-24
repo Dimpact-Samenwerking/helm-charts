@@ -5,6 +5,9 @@ redis-operator, keycloak-operator, openbao, ...). Used by
 check_yamllint/check_kubeconform/check_shellcheck to decide which vendored
 findings get per-item detail vs. an aggregate-count-only line."""
 
+from pathlib import Path
+from types import ModuleType
+
 
 def write_chart_yaml(chart_dir, dependencies):
     import yaml
@@ -16,12 +19,12 @@ def write_chart_yaml(chart_dir, dependencies):
     return chart_dir
 
 
-def test_maykinmedia_repository_classified_as_maykin(vp, librenderscope, tmp_path):
+def test_maykinmedia_repository_classified_as_maykin(vp: ModuleType, librenderscope: ModuleType, tmp_path: Path):
     write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.0.0", "repository": "@maykinmedia"}])
     assert librenderscope.friendly_vendor_charts(tmp_path) == {"openzaak": "Maykin"}
 
 
-def test_alias_used_as_chart_name_not_dependency_name(vp, librenderscope, tmp_path):
+def test_alias_used_as_chart_name_not_dependency_name(vp: ModuleType, librenderscope: ModuleType, tmp_path: Path):
     """Helm names the charts/<name>/ directory (and so the "# Source:"
     path) after the alias when one is set — the mapping must key off that,
     not the underlying dependency name."""
@@ -36,7 +39,7 @@ def test_alias_used_as_chart_name_not_dependency_name(vp, librenderscope, tmp_pa
     assert "zaakafhandelcomponent" not in result
 
 
-def test_at_alias_repository_resolved_via_required_repos(librenderscope, tmp_path):
+def test_at_alias_repository_resolved_via_required_repos(librenderscope: ModuleType, tmp_path: Path):
     """ "@zac" itself doesn't contain "infonl" — only helm_repos_urls_by_
     alias' resolved URL (https://infonl.github.io/
     dimpact-zaakafhandelcomponent/) does, so resolution must happen before
@@ -55,7 +58,7 @@ def test_at_alias_repository_resolved_via_required_repos(librenderscope, tmp_pat
     assert librenderscope.friendly_vendor_charts(tmp_path)["zac"] == "Info(NL)"
 
 
-def test_worth_nl_repository_classified_as_worth(vp, librenderscope, tmp_path):
+def test_worth_nl_repository_classified_as_worth(vp: ModuleType, librenderscope: ModuleType, tmp_path: Path):
     write_chart_yaml(
         tmp_path,
         [
@@ -65,7 +68,7 @@ def test_worth_nl_repository_classified_as_worth(vp, librenderscope, tmp_path):
     assert librenderscope.friendly_vendor_charts(tmp_path) == {"omc": "Worth"}
 
 
-def test_wearefrank_literal_url_classified_as_wearefrank(vp, librenderscope, tmp_path):
+def test_wearefrank_literal_url_classified_as_wearefrank(vp: ModuleType, librenderscope: ModuleType, tmp_path: Path):
     write_chart_yaml(
         tmp_path,
         [
@@ -75,7 +78,7 @@ def test_wearefrank_literal_url_classified_as_wearefrank(vp, librenderscope, tmp
     assert librenderscope.friendly_vendor_charts(tmp_path) == {"zaakbrug": "WeAreFrank"}
 
 
-def test_dimpact_alias_classified_as_dimpact(vp, librenderscope, tmp_path):
+def test_dimpact_alias_classified_as_dimpact(vp: ModuleType, librenderscope: ModuleType, tmp_path: Path):
     write_chart_yaml(
         tmp_path,
         [
@@ -85,7 +88,9 @@ def test_dimpact_alias_classified_as_dimpact(vp, librenderscope, tmp_path):
     assert librenderscope.friendly_vendor_charts(tmp_path) == {"brppersonenmock": "Dimpact"}
 
 
-def test_kiss_chart_overridden_to_icatt_despite_unmatching_repository(vp, librenderscope, tmp_path):
+def test_kiss_chart_overridden_to_icatt_despite_unmatching_repository(
+    vp: ModuleType, librenderscope: ModuleType, tmp_path: Path
+):
     """kiss-chart's own repository (oci://ghcr.io/klantinteractie-servicesysteem)
     contains none of vendor_classification.keywords — ICATT authorship can
     only be known from docs, so it's a hardcoded override."""
@@ -103,7 +108,7 @@ def test_kiss_chart_overridden_to_icatt_despite_unmatching_repository(vp, libren
     assert librenderscope.friendly_vendor_charts(tmp_path) == {"kiss": "ICATT"}
 
 
-def test_local_file_dependency_classified_as_local(vp, librenderscope, tmp_path):
+def test_local_file_dependency_classified_as_local(vp: ModuleType, librenderscope: ModuleType, tmp_path: Path):
     write_chart_yaml(
         tmp_path,
         [
@@ -113,7 +118,7 @@ def test_local_file_dependency_classified_as_local(vp, librenderscope, tmp_path)
     assert librenderscope.friendly_vendor_charts(tmp_path) == {"mi": "Local"}
 
 
-def test_unrelated_vendor_not_classified(vp, librenderscope, tmp_path):
+def test_unrelated_vendor_not_classified(vp: ModuleType, librenderscope: ModuleType, tmp_path: Path):
     write_chart_yaml(
         tmp_path,
         [
@@ -124,7 +129,7 @@ def test_unrelated_vendor_not_classified(vp, librenderscope, tmp_path):
     assert librenderscope.friendly_vendor_charts(tmp_path) == {}
 
 
-def test_full_real_dependency_set_matches_expected_mapping(vp, librenderscope, tmp_path):
+def test_full_real_dependency_set_matches_expected_mapping(vp: ModuleType, librenderscope: ModuleType, tmp_path: Path):
     """Regression pin against the actual set of Chart.yaml dependencies
     known at the time this was written — catches an accidental keyword/
     override change breaking a previously-classified chart."""

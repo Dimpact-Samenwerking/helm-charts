@@ -5,6 +5,11 @@ except for the literal component name)."""
 
 import difflib
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+
 BASE_LINES = [
     "apiVersion: v1",
     "kind: Pod",
@@ -25,20 +30,22 @@ def write_template(chart_dir, name, lines):
     (templates_dir / name).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def test_no_templates_dir_passes(vp, tmp_path):
+def test_no_templates_dir_passes(vp: ModuleType, tmp_path: Path):
     ok, detail = vp.check_dry(tmp_path)
     assert ok is True
     assert "0 candidate(s)" in detail
 
 
-def test_single_template_passes(vp, tmp_path):
+def test_single_template_passes(vp: ModuleType, tmp_path: Path):
     write_template(tmp_path, "a.yaml", BASE_LINES)
     ok, detail = vp.check_dry(tmp_path)
     assert ok is True
     assert "0 candidate(s)" in detail
 
 
-def test_near_identical_pair_flagged_as_likely_worth_deduping(vp, tmp_path, capsys):
+def test_near_identical_pair_flagged_as_likely_worth_deduping(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     high = list(BASE_LINES)
     high[3] = "  name: bar"
     write_template(tmp_path, "a.yaml", BASE_LINES)
@@ -53,7 +60,9 @@ def test_near_identical_pair_flagged_as_likely_worth_deduping(vp, tmp_path, caps
     assert "likely worth deduping" in out
 
 
-def test_moderately_similar_pair_flagged_as_borderline(vp, tmp_path, capsys):
+def test_moderately_similar_pair_flagged_as_borderline(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     border = list(BASE_LINES)
     border[3] = "  name: bar"
     border[6] = "  - name: d"
@@ -69,7 +78,7 @@ def test_moderately_similar_pair_flagged_as_borderline(vp, tmp_path, capsys):
     assert "borderline" in out
 
 
-def test_dissimilar_pair_not_reported(vp, tmp_path):
+def test_dissimilar_pair_not_reported(vp: ModuleType, tmp_path: Path):
     low = list(BASE_LINES)
     for i in (1, 3, 4, 6, 7, 9):
         low[i] = f"CHANGED{i}"
@@ -81,7 +90,7 @@ def test_dissimilar_pair_not_reported(vp, tmp_path):
     assert "0 candidate(s)" in detail
 
 
-def test_tiny_identical_files_not_reported(vp, tmp_path):
+def test_tiny_identical_files_not_reported(vp: ModuleType, tmp_path: Path):
     """Below the configured min_significant_lines, two files being
     identical is more likely coincidental boilerplate than real
     duplication worth flagging."""
@@ -94,7 +103,9 @@ def test_tiny_identical_files_not_reported(vp, tmp_path):
     assert "0 candidate(s)" in detail
 
 
-def test_blank_lines_and_comments_ignored_in_comparison(vp, tmp_path, capsys):
+def test_blank_lines_and_comments_ignored_in_comparison(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     """Two structurally-identical templates that differ only in blank-line
     placement and comment wording must still be flagged."""
     commented = ["# a comment nobody will read", "", *BASE_LINES[:4], "", "# another comment", *BASE_LINES[4:]]
@@ -108,7 +119,9 @@ def test_blank_lines_and_comments_ignored_in_comparison(vp, tmp_path, capsys):
     assert "100% similar" in out
 
 
-def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(vp, libdrycheck, tmp_path, capsys):
+def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(
+    vp: ModuleType, libdrycheck: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     """Regression pin: the confirmed real-world dedup win (9 pre-refactor
     storage.yaml files, factored into podiumd.storagePVC) scored ~0.82
     similar — differing only by the literal component name substituted in
@@ -132,7 +145,7 @@ def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(vp, li
     assert "borderline" not in out
 
 
-def test_never_fails_even_with_many_near_duplicates(vp, tmp_path):
+def test_never_fails_even_with_many_near_duplicates(vp: ModuleType, tmp_path: Path):
     """Mirrors the real pre-refactor case (9 near-identical storage.yaml
     files) — however many candidates are found, this check must always
     pass; it is advisory only."""

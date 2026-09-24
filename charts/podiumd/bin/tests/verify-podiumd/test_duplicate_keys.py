@@ -2,27 +2,32 @@
 items sharing a key name (e.g. every item having its own "value:") must never
 be treated as duplicates of each other."""
 
+from pathlib import Path
+from types import ModuleType
 
-def write_values(tmp_path, content):
+import pytest
+
+
+def write_values(tmp_path: Path, content):
     (tmp_path / "values.yaml").write_text(content)
     return tmp_path
 
 
-def test_no_duplicates_passes(vp, tmp_path):
+def test_no_duplicates_passes(vp: ModuleType, tmp_path: Path):
     chart_dir = write_values(tmp_path, "zac:\n  image:\n    tag: 5.4.3\n")
     ok, detail = vp.check_duplicate_keys(chart_dir)
     assert ok is True
     assert "0 duplicates" in detail
 
 
-def test_genuine_duplicate_at_root_is_caught(vp, tmp_path):
+def test_genuine_duplicate_at_root_is_caught(vp: ModuleType, tmp_path: Path):
     chart_dir = write_values(tmp_path, "zac:\n  a: 1\nzac:\n  b: 2\n")
     ok, detail = vp.check_duplicate_keys(chart_dir)
     assert ok is False
     assert "1 duplicate" in detail
 
 
-def test_duplicate_message_includes_the_file_name(vp, tmp_path, capsys):
+def test_duplicate_message_includes_the_file_name(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     """A bare "Line N: duplicate ..." message doesn't say which file that
     line number is in — easy to lose track of once read out of context
     (copy-pasted, or read without the surrounding check output)."""
@@ -32,7 +37,7 @@ def test_duplicate_message_includes_the_file_name(vp, tmp_path, capsys):
     assert "values.yaml:3: duplicate" in out
 
 
-def test_genuine_duplicate_nested_is_caught(vp, tmp_path):
+def test_genuine_duplicate_nested_is_caught(vp: ModuleType, tmp_path: Path):
     content = "zac:\n  image:\n    tag: 5.4.3\n  image:\n    tag: 5.5.0\n"
     chart_dir = write_values(tmp_path, content)
     ok, detail = vp.check_duplicate_keys(chart_dir)
@@ -40,7 +45,7 @@ def test_genuine_duplicate_nested_is_caught(vp, tmp_path):
     assert "2 duplicate" in detail  # both "image" and "tag" collide
 
 
-def test_list_items_sharing_key_names_are_not_false_positives(vp, tmp_path):
+def test_list_items_sharing_key_names_are_not_false_positives(vp: ModuleType, tmp_path: Path):
     """Regression test for the bug found in /helm-dupecheck's ported algorithm:
     naive scoping treated every list item's "value:"/"mountPath:" as
     colliding with its siblings."""
@@ -64,7 +69,7 @@ def test_list_items_sharing_key_names_are_not_false_positives(vp, tmp_path):
     assert "0 duplicates" in detail
 
 
-def test_duplicate_key_within_a_single_list_item_is_still_caught(vp, tmp_path):
+def test_duplicate_key_within_a_single_list_item_is_still_caught(vp: ModuleType, tmp_path: Path):
     content = "list:\n  - name: foo\n    value: bar\n    value: baz\n"
     chart_dir = write_values(tmp_path, content)
     ok, detail = vp.check_duplicate_keys(chart_dir)
@@ -72,7 +77,7 @@ def test_duplicate_key_within_a_single_list_item_is_still_caught(vp, tmp_path):
     assert "1 duplicate" in detail
 
 
-def test_comments_are_ignored(vp, tmp_path):
+def test_comments_are_ignored(vp: ModuleType, tmp_path: Path):
     content = "zac:\n  # image:\n  image:\n    tag: 5.4.3\n"
     chart_dir = write_values(tmp_path, content)
     ok, _ = vp.check_duplicate_keys(chart_dir)

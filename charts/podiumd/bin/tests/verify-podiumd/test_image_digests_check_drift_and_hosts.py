@@ -6,12 +6,14 @@ a live fetch would otherwise happen."""
 import urllib.error
 
 from email.message import Message
+from pathlib import Path
+from types import ModuleType
 
 import pytest
 
 
 @pytest.fixture(autouse=True)
-def _clear_tag_exists_cache(libimagedigests):
+def _clear_tag_exists_cache(libimagedigests: ModuleType):
     """cached_tag_exists' own in-process memoization (see its own
     docstring) lives in a module-level dict, and libimagedigests is a
     session-scoped fixture — without this, one test's cached (fake)
@@ -30,7 +32,9 @@ def write_values(chart_dir, text):
 # --- check_image_digests: split registry:/repository: style resolution ---
 
 
-def test_check_image_digests_split_style_pin_queries_the_correct_registry(vp, libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_split_style_pin_queries_the_correct_registry(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test for the actual bug: a split-style pin (redis-ha's
     real values.yaml shape) must resolve against ITS OWN registry (quay.io
     here), not silently fall back to docker.io."""
@@ -57,7 +61,13 @@ def test_check_image_digests_split_style_pin_queries_the_correct_registry(vp, li
     assert "1/1 matched" in detail
 
 
-def test_check_image_digests_reports_version_drift(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+def test_check_image_digests_reports_version_drift(
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     write_values(
         tmp_path,
         (
@@ -88,7 +98,13 @@ def test_check_image_digests_reports_version_drift(vp, libimagedigests, tmp_path
     assert "values.yaml:8" in out
 
 
-def test_check_image_digests_reports_duplicate_pin(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+def test_check_image_digests_reports_duplicate_pin(
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     write_values(
         tmp_path,
         (
@@ -113,7 +129,9 @@ def test_check_image_digests_reports_duplicate_pin(vp, libimagedigests, tmp_path
     assert "YAML anchor" in out
 
 
-def test_check_image_digests_no_inconsistency_when_repository_pinned_once(vp, libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_no_inconsistency_when_repository_pinned_once(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     write_values(tmp_path, (f'a:\n  image:\n    repository: curlimages/curl\n    tag: "8.21.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
     ok, detail = vp.check_image_digests(tmp_path)
@@ -126,7 +144,11 @@ def test_check_image_digests_no_inconsistency_when_repository_pinned_once(vp, li
 
 
 def test_check_image_digests_unverifiable_host_does_not_fail_the_check(
-    vp, libimagedigests, tmp_path, monkeypatch, capsys
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A registry this environment can never reach anonymously (see
     lib.registry.UNVERIFIABLE_HOSTS) must be reported distinctly from a
@@ -164,7 +186,9 @@ def test_check_image_digests_unverifiable_host_does_not_fail_the_check(
     assert "FETCH-ERR" not in out
 
 
-def test_check_image_digests_non_unverifiable_host_fetch_error_still_fails(vp, libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_non_unverifiable_host_fetch_error_still_fails(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(
         libimagedigests,

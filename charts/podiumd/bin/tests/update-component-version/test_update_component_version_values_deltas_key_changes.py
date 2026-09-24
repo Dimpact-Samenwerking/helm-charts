@@ -4,6 +4,11 @@ pylint's too-many-lines check."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+
 import lib.image.version as image_version
 
 OLD_DIGEST = "a" * 64
@@ -23,7 +28,7 @@ def init_git_repo(root):
     git("config", "user.name", "Test", cwd=root)
 
 
-def setup_repo(tmp_path, monkeypatch, ucv):
+def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     # written as raw text (not yaml.safe_dump, which alphabetizes keys) so
@@ -54,7 +59,7 @@ def setup_repo(tmp_path, monkeypatch, ucv):
     return chart_yaml, values_yaml
 
 
-def mock_registry_passes(monkeypatch, ucv, digest_char="b"):
+def mock_registry_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b"):
     """A component whose values.yaml image path has an explicit
     "repository:" (e.g. zac) delegates its tag update to
     lib.image.version.update_image_version, which resolves
@@ -66,7 +71,7 @@ def mock_registry_passes(monkeypatch, ucv, digest_char="b"):
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, digest))
 
 
-def mock_verify_passes(monkeypatch, ucv, digest_char="b", calls=None):
+def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b", calls=None):
     """Fakes update-component-version's own upfront verify_component_version
     step (a lib.chart.resolve_chart_values call + lib.chart.
     check_image_versions call) so main()'s tests don't need real
@@ -103,7 +108,7 @@ def mock_verify_passes(monkeypatch, ucv, digest_char="b", calls=None):
 # --- main(): values-deltas key-change detection against the real baseline ---
 
 
-def setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv):
+def setup_git_repo_for_baseline_test(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     """A real git repo with a baseline commit tagged podiumd-4.8.5, then a
     values.yaml schema key added on top — as if someone hand-edited it to
     prepare this hop, BEFORE running update-component-version. That
@@ -158,7 +163,9 @@ def setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv):
     monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
 
 
-def test_main_detects_key_added_before_running_against_real_baseline(ucv, tmp_path, monkeypatch):
+def test_main_detects_key_added_before_running_against_real_baseline(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv)
     write(
         ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md",
@@ -183,7 +190,9 @@ def test_main_detects_key_added_before_running_against_real_baseline(ucv, tmp_pa
     assert "Key `zac.newFeature` was added." in deltas
 
 
-def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, monkeypatch, capsys):
+def test_main_notes_when_baseline_unresolvable_for_key_detection(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """setup_repo's plain tmp_path (no git init) can't resolve any baseline —
     main() must say so and continue, not silently skip the note or crash.
     No values-deltas.md section gets written either — whether zac's own
@@ -219,7 +228,9 @@ def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, 
     assert "## zac" not in deltas  # no section written — schema diff couldn't be determined
 
 
-def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkeypatch):
+def test_main_touches_only_the_target_component_end_to_end(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Bumping zac must not modify anything belonging to a different
     component (openformulieren here) — its Chart.yaml entry, values.yaml
     subtree, upgrade.md row + Changes section, values-deltas.md mention,

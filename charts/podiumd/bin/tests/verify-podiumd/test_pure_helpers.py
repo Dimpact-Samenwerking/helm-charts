@@ -2,22 +2,24 @@
 extract_source_version, actual_app_version, find_image_tag_paths,
 baseline_ref_candidates."""
 
+from types import ModuleType
+
 import pytest
 
 
-def test_normalize_version_strips_leading_v(libupgradedocbasics):
+def test_normalize_version_strips_leading_v(libupgradedocbasics: ModuleType):
     assert libupgradedocbasics.normalize_version("v0.9.313") == "0.9.313"
     assert libupgradedocbasics.normalize_version("0.11.0") == "0.11.0"
     assert libupgradedocbasics.normalize_version("") == ""
     assert libupgradedocbasics.normalize_version(None) is None
 
 
-def test_normalize_name_strips_punctuation_and_lowercases(libupgradedocbasics):
+def test_normalize_name_strips_punctuation_and_lowercases(libupgradedocbasics: ModuleType):
     assert libupgradedocbasics.normalize_name("ZAC (Zaakafhandelcomponent)") == "zaczaakafhandelcomponent"
     assert libupgradedocbasics.normalize_name("zgw-office-addin-frontend") == "zgwofficeaddinfrontend"
 
 
-def test_words_of_splits_on_non_alnum(libupgradedocbasics):
+def test_words_of_splits_on_non_alnum(libupgradedocbasics: ModuleType):
     assert libupgradedocbasics.words_of("zgw-office-addin-frontend") == ["zgw", "office", "addin", "frontend"]
     assert libupgradedocbasics.words_of("ZAC (Zaakafhandelcomponent)") == ["zac", "zaakafhandelcomponent"]
     assert libupgradedocbasics.words_of("") == []
@@ -33,7 +35,7 @@ def test_words_of_splits_on_non_alnum(libupgradedocbasics):
         ("v0.9.313 → 0.11.0", "0.11.0"),
     ],
 )
-def test_extract_target_version(libupgradedocbasics, cell, expected):
+def test_extract_target_version(libupgradedocbasics: ModuleType, cell, expected):
     assert libupgradedocbasics.extract_target_version(cell) == expected
 
 
@@ -46,11 +48,11 @@ def test_extract_target_version(libupgradedocbasics, cell, expected):
         ("v0.9.313 → 0.11.0", "v0.9.313"),
     ],
 )
-def test_extract_source_version(libupgradedocbasics, cell, expected):
+def test_extract_source_version(libupgradedocbasics: ModuleType, cell, expected):
     assert libupgradedocbasics.extract_source_version(cell) == expected
 
 
-def test_extract_version_handles_no_match(libupgradedocbasics):
+def test_extract_version_handles_no_match(libupgradedocbasics: ModuleType):
     assert libupgradedocbasics.extract_target_version("") is None
     assert libupgradedocbasics.extract_source_version("") is None
     # no word-like token at all -- the fallback regex has nothing to grab
@@ -58,12 +60,12 @@ def test_extract_version_handles_no_match(libupgradedocbasics):
     assert libupgradedocbasics.extract_source_version("!!!") is None
 
 
-def test_actual_app_version_tries_default_image_path(libupgradedocappversion):
+def test_actual_app_version_tries_default_image_path(libupgradedocappversion: ModuleType):
     assert libupgradedocappversion.actual_app_version({"zac": {"image": {"tag": "5.4.3@sha256:abc"}}}, "zac") == "5.4.3"
     assert libupgradedocappversion.actual_app_version({}, "missing") is None
 
 
-def test_actual_app_version_uses_component_image_paths_registry(libupgradedocappversion):
+def test_actual_app_version_uses_component_image_paths_registry(libupgradedocappversion: ModuleType):
     # zgw-office-addin is registered in lib.chart.COMPONENT_IMAGE_PATHS with
     # a frontend/backend pair instead of the default "image" path.
     assert (
@@ -80,7 +82,7 @@ def test_actual_app_version_uses_component_image_paths_registry(libupgradedocapp
     )
 
 
-def test_find_image_tag_paths_finds_sidecars(libupgradedocappversion):
+def test_find_image_tag_paths_finds_sidecars(libupgradedocappversion: ModuleType):
     values = {
         "zac": {
             "image": {"tag": "5.4.3@sha256:a"},
@@ -94,18 +96,18 @@ def test_find_image_tag_paths_finds_sidecars(libupgradedocappversion):
     assert paths[("zac", "solr-operator", "solr", "image")] == "9.10.1-slim@sha256:c"
 
 
-def test_find_image_tag_paths_skips_empty_tag(libupgradedocappversion):
+def test_find_image_tag_paths_skips_empty_tag(libupgradedocappversion: ModuleType):
     values = {"zac": {"image": {"tag": ""}}}
     assert dict(libupgradedocappversion.find_image_tag_paths(values)) == {}
 
 
-def test_find_image_tag_paths_walks_lists(libupgradedocappversion):
+def test_find_image_tag_paths_walks_lists(libupgradedocappversion: ModuleType):
     values = {"items": [{"image": {"tag": "1.0@sha256:a"}}]}
     paths = dict(libupgradedocappversion.find_image_tag_paths(values))
     assert paths[("items", "0", "image")] == "1.0@sha256:a"
 
 
-def test_baseline_ref_candidates_bare_version(libgitutil):
+def test_baseline_ref_candidates_bare_version(libgitutil: ModuleType):
     assert libgitutil.baseline_ref_candidates("4.8.5") == [
         "podiumd-4.8.5",
         "origin/feature/podiumd-4.8.5",
@@ -113,6 +115,6 @@ def test_baseline_ref_candidates_bare_version(libgitutil):
     ]
 
 
-def test_baseline_ref_candidates_explicit_ref(libgitutil):
+def test_baseline_ref_candidates_explicit_ref(libgitutil: ModuleType):
     assert libgitutil.baseline_ref_candidates("origin/some-branch") == ["origin/some-branch"]
     assert libgitutil.baseline_ref_candidates("abc1234") == ["abc1234"]

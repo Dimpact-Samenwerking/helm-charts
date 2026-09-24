@@ -24,7 +24,7 @@ def git(*args, cwd):
 
 
 @pytest.fixture
-def repo(tmp_path):
+def repo(tmp_path: Path):
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -65,12 +65,14 @@ def write_baselines(repo, upgrade_docs=None, release_table=None):
 # so only the failure-path tests wrap the call in pytest.raises(SystemExit).
 
 
-def set_argv_and_repo(scbv, monkeypatch, repo, component):
+def set_argv_and_repo(scbv: ModuleType, monkeypatch: pytest.MonkeyPatch, repo, component):
     monkeypatch.setattr("sys.argv", ["show-component-baseline-version", component])
     monkeypatch.setattr(scbv, "CHART_DIR", repo / "charts" / "podiumd")
 
 
-def test_main_shows_both_baselines(scbv, repo, monkeypatch, capsys):
+def test_main_shows_both_baselines(
+    scbv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     write_baselines(repo, upgrade_docs="4.8.5", release_table="4.8.5")
     set_argv_and_repo(scbv, monkeypatch, repo, "zac")
     scbv.main()  # success path: must not raise
@@ -82,7 +84,9 @@ def test_main_shows_both_baselines(scbv, repo, monkeypatch, capsys):
     assert "5.4.3" not in out  # must read the BASELINE tag's content, not HEAD
 
 
-def test_main_missing_release_table_key_is_noted_not_an_error(scbv, repo, monkeypatch, capsys):
+def test_main_missing_release_table_key_is_noted_not_an_error(
+    scbv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     write_baselines(repo, upgrade_docs="4.8.5")
     set_argv_and_repo(scbv, monkeypatch, repo, "zac")
     scbv.main()  # upgrade_docs alone is enough to succeed overall
@@ -92,7 +96,9 @@ def test_main_missing_release_table_key_is_noted_not_an_error(scbv, repo, monkey
     assert "release-baseline.yaml has no release_table key — skipping" in out
 
 
-def test_main_unresolvable_baseline_noted_other_still_shown(scbv, repo, monkeypatch, capsys):
+def test_main_unresolvable_baseline_noted_other_still_shown(
+    scbv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     write_baselines(repo, upgrade_docs="9.9.9", release_table="4.8.5")
     set_argv_and_repo(scbv, monkeypatch, repo, "zac")
     scbv.main()  # release_table alone is enough to succeed overall
@@ -101,7 +107,9 @@ def test_main_unresolvable_baseline_noted_other_still_shown(scbv, repo, monkeypa
     assert "Helm chart version: 1.0.297" in out
 
 
-def test_main_neither_baseline_shown_fails(scbv, repo, monkeypatch, capsys):
+def test_main_neither_baseline_shown_fails(
+    scbv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     set_argv_and_repo(scbv, monkeypatch, repo, "zac")
     with pytest.raises(SystemExit) as exc_info:
         scbv.main()
@@ -111,7 +119,9 @@ def test_main_neither_baseline_shown_fails(scbv, repo, monkeypatch, capsys):
     assert "release-baseline.yaml has no release_table key" in out
 
 
-def test_main_unknown_component_fails(scbv, repo, monkeypatch, capsys):
+def test_main_unknown_component_fails(
+    scbv: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     write_baselines(repo, upgrade_docs="4.8.5", release_table="4.8.5")
     set_argv_and_repo(scbv, monkeypatch, repo, "totally-unknown")
     with pytest.raises(SystemExit) as exc_info:
@@ -120,14 +130,14 @@ def test_main_unknown_component_fails(scbv, repo, monkeypatch, capsys):
     assert "no dependency named or aliased" in capsys.readouterr().out
 
 
-def test_main_requires_exactly_one_argument(scbv, monkeypatch):
+def test_main_requires_exactly_one_argument(scbv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("sys.argv", ["show-component-baseline-version"])
     with pytest.raises(SystemExit) as exc_info:
         scbv.main()
     assert exc_info.value.code == 1
 
 
-def test_main_too_many_arguments_fails(scbv, monkeypatch):
+def test_main_too_many_arguments_fails(scbv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("sys.argv", ["show-component-baseline-version", "zac", "extra"])
     with pytest.raises(SystemExit) as exc_info:
         scbv.main()
@@ -135,12 +145,14 @@ def test_main_too_many_arguments_fails(scbv, monkeypatch):
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_main_help_flag_prints_usage_and_exits_zero(scbv, monkeypatch, capsys, flag):
+def test_main_help_flag_prints_usage_and_exits_zero(
+    scbv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
+):
     monkeypatch.setattr("sys.argv", ["show-component-baseline-version", flag])
     with pytest.raises(SystemExit) as exc_info:
         scbv.main()
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == scbv.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{scbv.__doc__}\n"
 
 
 def test_main_shows_a_native_component_without_chart_version(

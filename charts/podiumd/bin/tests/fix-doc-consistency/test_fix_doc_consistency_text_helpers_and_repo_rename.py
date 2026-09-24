@@ -6,6 +6,9 @@ lives in conftest.py (shared with other test files in this directory)."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 
@@ -16,7 +19,7 @@ def write(path, text):
 # --- find_collisions ---
 
 
-def test_find_collisions_detects_multiple_sources_for_same_suffix(cdb, tmp_path):
+def test_find_collisions_detects_multiple_sources_for_same_suffix(cdb: ModuleType, tmp_path: Path):
     by_suffix = {
         "upgrade": [("4.8.2", tmp_path / "a.md"), ("4.8.3", tmp_path / "b.md")],
         "values-deltas": [("4.8.2", tmp_path / "c.md")],
@@ -25,7 +28,7 @@ def test_find_collisions_detects_multiple_sources_for_same_suffix(cdb, tmp_path)
     assert set(collisions.keys()) == {"upgrade"}
 
 
-def test_find_collisions_empty_when_all_unique(cdb, tmp_path):
+def test_find_collisions_empty_when_all_unique(cdb: ModuleType, tmp_path: Path):
     by_suffix = {
         "upgrade": [("4.8.2", tmp_path / "a.md")],
         "values-deltas": [("4.8.2", tmp_path / "c.md")],
@@ -36,28 +39,28 @@ def test_find_collisions_empty_when_all_unique(cdb, tmp_path):
 # --- update_title_line ---
 
 
-def test_update_title_line_replaces_arrow_form(cdb):
+def test_update_title_line_replaces_arrow_form(cdb: ModuleType):
     text = "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\nbody\n"
     new_text, changed = cdb.update_title_line(text, "4.8.2", "4.9.0", "4.8.3")
     assert changed is True
     assert new_text.splitlines()[0] == "# Upgrade guide: PodiumD 4.8.3 → 4.9.0"
 
 
-def test_update_title_line_replaces_ascii_arrow(cdb):
+def test_update_title_line_replaces_ascii_arrow(cdb: ModuleType):
     text = "# Upgrade guide: PodiumD 4.8.2 -> 4.9.0\nbody\n"
     new_text, changed = cdb.update_title_line(text, "4.8.2", "4.9.0", "4.8.3")
     assert changed is True
     assert "4.8.3 -> 4.9.0" in new_text.splitlines()[0]
 
 
-def test_update_title_line_only_touches_first_line(cdb):
+def test_update_title_line_only_touches_first_line(cdb: ModuleType):
     text = "# Title 4.8.2 → 4.9.0\nsome body mentioning 4.8.2 again\n"
     new_text, changed = cdb.update_title_line(text, "4.8.2", "4.9.0", "4.8.3")
     assert changed is True
     assert "4.8.2 again" in new_text.splitlines()[1]  # body untouched
 
 
-def test_update_title_line_no_match_returns_unchanged(cdb):
+def test_update_title_line_no_match_returns_unchanged(cdb: ModuleType):
     text = "# Something else entirely\n"
     new_text, changed = cdb.update_title_line(text, "4.8.2", "4.9.0", "4.8.3")
     assert changed is False
@@ -67,14 +70,14 @@ def test_update_title_line_no_match_returns_unchanged(cdb):
 # --- update_component_versions_heading ---
 
 
-def test_update_component_versions_heading_replaces_match(cdb):
+def test_update_component_versions_heading_replaces_match(cdb: ModuleType):
     text = "## Component versions (4.9.0 vs 4.8.2)\n\nmore\n"
     new_text, changed = cdb.update_component_versions_heading(text, "4.8.2", "4.9.0", "4.8.3")
     assert changed is True
     assert "## Component versions (4.9.0 vs 4.8.3)" in new_text
 
 
-def test_update_component_versions_heading_no_match(cdb):
+def test_update_component_versions_heading_no_match(cdb: ModuleType):
     text = "no such heading here\n"
     new_text, changed = cdb.update_component_versions_heading(text, "4.8.2", "4.9.0", "4.8.3")
     assert changed is False
@@ -84,44 +87,44 @@ def test_update_component_versions_heading_no_match(cdb):
 # --- remaining_mentions ---
 
 
-def test_remaining_mentions_finds_all_lines(cdb):
+def test_remaining_mentions_finds_all_lines(cdb: ModuleType):
     text = "line one 4.8.2\nline two\nline three 4.8.2 again\n"
     assert cdb.remaining_mentions(text, "4.8.2") == [1, 3]
 
 
-def test_remaining_mentions_empty_when_absent(cdb):
+def test_remaining_mentions_empty_when_absent(cdb: ModuleType):
     assert cdb.remaining_mentions("nothing here\n", "4.8.2") == []
 
 
 # --- collapse_multiple_blank_lines ---
 
 
-def test_collapse_multiple_blank_lines_two_blanks_becomes_one(cdb):
+def test_collapse_multiple_blank_lines_two_blanks_becomes_one(cdb: ModuleType):
     text = "line one\n\n\nline two\n"
     assert cdb.collapse_multiple_blank_lines(text) == "line one\n\nline two\n"
 
 
-def test_collapse_multiple_blank_lines_many_blanks_becomes_one(cdb):
+def test_collapse_multiple_blank_lines_many_blanks_becomes_one(cdb: ModuleType):
     text = "line one\n\n\n\n\n\nline two\n"
     assert cdb.collapse_multiple_blank_lines(text) == "line one\n\nline two\n"
 
 
-def test_collapse_multiple_blank_lines_single_blank_untouched(cdb):
+def test_collapse_multiple_blank_lines_single_blank_untouched(cdb: ModuleType):
     text = "line one\n\nline two\n"
     assert cdb.collapse_multiple_blank_lines(text) == text
 
 
-def test_collapse_multiple_blank_lines_no_blank_untouched(cdb):
+def test_collapse_multiple_blank_lines_no_blank_untouched(cdb: ModuleType):
     text = "line one\nline two\n"
     assert cdb.collapse_multiple_blank_lines(text) == text
 
 
-def test_collapse_multiple_blank_lines_handles_multiple_separate_runs(cdb):
+def test_collapse_multiple_blank_lines_handles_multiple_separate_runs(cdb: ModuleType):
     text = "a\n\n\nb\n\n\n\nc\n"
     assert cdb.collapse_multiple_blank_lines(text) == "a\n\nb\n\nc\n"
 
 
-def test_collapse_multiple_blank_lines_strips_single_trailing_blank_line_before_eof(cdb):
+def test_collapse_multiple_blank_lines_strips_single_trailing_blank_line_before_eof(cdb: ModuleType):
     """Regression test (real bug, real user session, confirmed against
     real pymarkdown): "content\n\n" — one syntactic blank line right
     before EOF, never 3+ consecutive newlines anywhere — still reports
@@ -134,12 +137,12 @@ def test_collapse_multiple_blank_lines_strips_single_trailing_blank_line_before_
     assert cdb.collapse_multiple_blank_lines(text) == "line one\n"
 
 
-def test_collapse_multiple_blank_lines_strips_many_trailing_blank_lines_before_eof(cdb):
+def test_collapse_multiple_blank_lines_strips_many_trailing_blank_lines_before_eof(cdb: ModuleType):
     text = "line one\n\n\n\n"
     assert cdb.collapse_multiple_blank_lines(text) == "line one\n"
 
 
-def test_collapse_multiple_blank_lines_single_trailing_newline_untouched(cdb):
+def test_collapse_multiple_blank_lines_single_trailing_newline_untouched(cdb: ModuleType):
     text = "line one\nline two\n"
     assert cdb.collapse_multiple_blank_lines(text) == text
 
@@ -147,7 +150,7 @@ def test_collapse_multiple_blank_lines_single_trailing_newline_untouched(cdb):
 # --- ensure_blank_lines_around_headings ---
 
 
-def test_ensure_blank_lines_around_headings_adds_missing_blank_above(cdb):
+def test_ensure_blank_lines_around_headings_adds_missing_blank_above(cdb: ModuleType):
     """Regression test (real bug, real doc): a "### ..." heading landing
     directly against non-blank content above it (real case: lib.
     component_docs.insert_changes_section relocating whatever block
@@ -161,27 +164,27 @@ def test_ensure_blank_lines_around_headings_adds_missing_blank_above(cdb):
     )
 
 
-def test_ensure_blank_lines_around_headings_adds_missing_blank_below(cdb):
+def test_ensure_blank_lines_around_headings_adds_missing_blank_below(cdb: ModuleType):
     text = "### curl 8.21.0 → 8.22.0\nSome prose.\n"
     assert cdb.ensure_blank_lines_around_headings(text) == "### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
 
 
-def test_ensure_blank_lines_around_headings_already_correct_untouched(cdb):
+def test_ensure_blank_lines_around_headings_already_correct_untouched(cdb: ModuleType):
     text = "line one.\n\n### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
     assert cdb.ensure_blank_lines_around_headings(text) == text
 
 
-def test_ensure_blank_lines_around_headings_never_adds_at_start_of_file(cdb):
+def test_ensure_blank_lines_around_headings_never_adds_at_start_of_file(cdb: ModuleType):
     text = "### curl 8.21.0 → 8.22.0\n\nSome prose.\n"
     assert cdb.ensure_blank_lines_around_headings(text) == text
 
 
-def test_ensure_blank_lines_around_headings_never_adds_at_end_of_file(cdb):
+def test_ensure_blank_lines_around_headings_never_adds_at_end_of_file(cdb: ModuleType):
     text = "Some prose.\n\n### curl 8.21.0 → 8.22.0\n"
     assert cdb.ensure_blank_lines_around_headings(text) == text
 
 
-def test_ensure_blank_lines_around_headings_ignores_hash_inside_fenced_code_block(cdb):
+def test_ensure_blank_lines_around_headings_ignores_hash_inside_fenced_code_block(cdb: ModuleType):
     """A "#" line inside a fenced ```...``` block (a shell/YAML comment in
     an example) is never a real heading and must never gain a blank
     line of its own."""
@@ -189,14 +192,14 @@ def test_ensure_blank_lines_around_headings_ignores_hash_inside_fenced_code_bloc
     assert cdb.ensure_blank_lines_around_headings(text) == text
 
 
-def test_ensure_blank_lines_around_headings_multiple_missing_in_one_doc(cdb):
+def test_ensure_blank_lines_around_headings_multiple_missing_in_one_doc(cdb: ModuleType):
     text = "line one.\n## Section A\nline two.\n## Section B\nline three.\n"
     assert cdb.ensure_blank_lines_around_headings(text) == (
         "line one.\n\n## Section A\n\nline two.\n\n## Section B\n\nline three.\n"
     )
 
 
-def test_collapse_multiple_blank_lines_also_fixes_missing_blank_around_heading(cdb):
+def test_collapse_multiple_blank_lines_also_fixes_missing_blank_around_heading(cdb: ModuleType):
     """collapse_multiple_blank_lines itself (not just the standalone
     ensure_blank_lines_around_headings helper) must apply this fix too —
     every one of its own call sites in this script relies on it alone."""
@@ -209,7 +212,7 @@ def test_collapse_multiple_blank_lines_also_fixes_missing_blank_around_heading(c
 # --- main() integration, against a real temp git repo ---
 
 
-def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
+def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, new_baseline, target="4.9.0"):
     monkeypatch.setattr("sys.argv", ["fix-doc-consistency"])
     monkeypatch.setattr(cdb, "read_upgrade_docs_baseline", lambda chart_dir: new_baseline)
     monkeypatch.setattr(cdb, "DOC_DIR", doc_dir)
@@ -219,7 +222,7 @@ def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
     monkeypatch.setattr(cdb, "current_chart_version", lambda: target)
 
 
-def test_main_renames_and_updates_title_and_heading(cdb, repo, monkeypatch):
+def test_main_renames_and_updates_title_and_heading(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
     cdb.main()  # success path must not raise
 
@@ -233,7 +236,9 @@ def test_main_renames_and_updates_title_and_heading(cdb, repo, monkeypatch):
     assert deltas.splitlines()[0] == "# Values deltas — PodiumD 4.8.3 → 4.9.0"
 
 
-def test_main_rewrites_sibling_doc_references_within_the_docs_themselves(cdb, repo, monkeypatch):
+def test_main_rewrites_sibling_doc_references_within_the_docs_themselves(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch
+):
     """A values-deltas doc pointing at its sibling upgrade.md by the old
     baseline (e.g. a markdown link left over from the last rebase) must be
     rewritten too, not just flagged for manual review — this chart
@@ -254,7 +259,7 @@ def test_main_rewrites_sibling_doc_references_within_the_docs_themselves(cdb, re
     assert "4.8.2" not in deltas
 
 
-def test_main_is_tracked_by_git_after_rename(cdb, repo, monkeypatch):
+def test_main_is_tracked_by_git_after_rename(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
     cdb.main()
     status = subprocess.run(
@@ -263,7 +268,7 @@ def test_main_is_tracked_by_git_after_rename(cdb, repo, monkeypatch):
     assert "R  " in status or "renamed" in status.lower() or "4.8.3-to-4.9.0-upgrade.md" in status
 
 
-def test_main_refuses_on_collision(cdb, repo, monkeypatch):
+def test_main_refuses_on_collision(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     write(repo / "4.8.3-to-4.9.0-upgrade.md", "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n")
     original = (repo / "4.8.2-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
@@ -276,7 +281,9 @@ def test_main_refuses_on_collision(cdb, repo, monkeypatch):
     assert (repo / "4.8.2-to-4.9.0-values-deltas.md").exists()
 
 
-def test_main_creates_all_three_stubs_when_target_has_no_docs(cdb, repo, monkeypatch, capsys):
+def test_main_creates_all_three_stubs_when_target_has_no_docs(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     set_argv_and_dir(cdb, monkeypatch, repo, "1.0.0", target="9.9.9")
     cdb.main()  # must not raise — creating stubs is success, not an error
 
@@ -289,7 +296,7 @@ def test_main_creates_all_three_stubs_when_target_has_no_docs(cdb, repo, monkeyp
     assert "created (was missing)" in out
 
 
-def test_main_creates_only_the_missing_standard_doc(cdb, repo, monkeypatch):
+def test_main_creates_only_the_missing_standard_doc(cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     # repo fixture already has upgrade + values-deltas for 4.9.0 baseline 4.8.2;
     # gemeente-specific is missing for this target.
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
@@ -301,7 +308,9 @@ def test_main_creates_only_the_missing_standard_doc(cdb, repo, monkeypatch):
     assert (repo / "4.8.2-to-4.9.0-values-deltas.md").is_file()
 
 
-def test_main_already_at_new_baseline_is_a_noop(cdb, repo, monkeypatch, capsys):
+def test_main_already_at_new_baseline_is_a_noop(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
     cdb.main()
     assert (repo / "4.8.2-to-4.9.0-upgrade.md").exists()
@@ -309,7 +318,9 @@ def test_main_already_at_new_baseline_is_a_noop(cdb, repo, monkeypatch, capsys):
     assert "already baseline 4.8.2 — unchanged" in out
 
 
-def test_main_already_at_new_baseline_still_fixes_a_stale_sibling_reference(cdb, repo, monkeypatch, capsys):
+def test_main_already_at_new_baseline_still_fixes_a_stale_sibling_reference(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """A doc already at the target baseline is otherwise a pure no-op
     (see test above) — except a stale sibling-doc reference left over
     from an earlier, incomplete rebase (the doc's OWN baseline already
@@ -332,7 +343,9 @@ def test_main_already_at_new_baseline_still_fixes_a_stale_sibling_reference(cdb,
     assert "4.8.2-to-4.9.0-values-deltas.md: already baseline 4.8.2 — fixed stale sibling doc reference(s)" in out
 
 
-def test_main_already_at_new_baseline_with_correct_sibling_ref_is_a_noop(cdb, repo, monkeypatch, capsys):
+def test_main_already_at_new_baseline_with_correct_sibling_ref_is_a_noop(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """Regression test: a doc already at the target baseline whose
     sibling-doc reference is already correct (nothing stale to fix at
     all) must print "unchanged", not "fixed stale sibling doc
@@ -359,7 +372,9 @@ def test_main_already_at_new_baseline_with_correct_sibling_ref_is_a_noop(cdb, re
     assert "fixed stale sibling doc reference(s)" not in out
 
 
-def test_main_already_at_new_baseline_collapses_pre_existing_double_blank_line(cdb, repo, monkeypatch, capsys):
+def test_main_already_at_new_baseline_collapses_pre_existing_double_blank_line(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """Regression test (real bug, real user session): a doc already at
     the target baseline, with no stale sibling reference to fix either,
     used to be treated as a pure no-op — "already baseline ... —
@@ -383,7 +398,9 @@ def test_main_already_at_new_baseline_collapses_pre_existing_double_blank_line(c
     assert "4.8.2-to-4.9.0-gemeente-specific.md: already baseline 4.8.2 — collapsed multiple blank line(s)" in out
 
 
-def test_main_already_at_new_baseline_strips_stale_changes_todo_stub(cdb, repo, monkeypatch, capsys):
+def test_main_already_at_new_baseline_strips_stale_changes_todo_stub(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """Regression test (real bug, real doc): 4.9.1-to-4.9.2-upgrade.md's
     own "### eck-operator ..." block was inserted before insert_changes_
     section's own insertion-time fix existed, leaving "TODO" stranded
@@ -411,7 +428,9 @@ def test_main_already_at_new_baseline_strips_stale_changes_todo_stub(cdb, repo, 
     assert "removed stale TODO placeholder from 1 doc(s): 4.8.2-to-4.9.0-upgrade.md" in out
 
 
-def test_main_already_at_new_baseline_leaves_a_still_empty_changes_section_untouched(cdb, repo, monkeypatch, capsys):
+def test_main_already_at_new_baseline_leaves_a_still_empty_changes_section_untouched(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """A "## Changes" section that STILL only has the bare TODO (no real
     "### ..." block yet) is the correct, expected state for a doc with
     nothing recorded yet — must never be touched, and must not appear in
@@ -431,7 +450,9 @@ def test_main_already_at_new_baseline_leaves_a_still_empty_changes_section_untou
     assert "removed stale TODO placeholder" not in out
 
 
-def test_main_already_at_new_baseline_strips_stale_values_deltas_todo_stub(cdb, repo, monkeypatch, capsys):
+def test_main_already_at_new_baseline_strips_stale_values_deltas_todo_stub(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """Regression test (real bug, real doc): 4.9.1-to-4.9.2-values-
     deltas.md's own "## eck-operator ..." section was inserted before
     insert_values_delta_section's own insertion-time fix existed,
@@ -455,7 +476,7 @@ def test_main_already_at_new_baseline_strips_stale_values_deltas_todo_stub(cdb, 
     assert "removed stale TODO placeholder from 1 doc(s): 4.8.2-to-4.9.0-values-deltas.md" in out
 
 
-def test_stale_placeholder_functions_are_reused_not_reimplemented(cdb):
+def test_stale_placeholder_functions_are_reused_not_reimplemented(cdb: ModuleType):
     """The writer (lib.component_docs.insert_changes_section/insert_
     values_delta_section), the retroactive fixer (this script), and the
     checker (lib.docs_consistency.check_docs_consistency) must all call
@@ -479,7 +500,7 @@ def test_stale_placeholder_functions_are_reused_not_reimplemented(cdb):
     )
 
 
-def test_main_no_release_baseline_errors(cdb, monkeypatch):
+def test_main_no_release_baseline_errors(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """No release-baseline.yaml upgrade_docs key to read (file or key
     missing) is an error — this script never takes the baseline as an
     argument, so there's nothing else to fall back to.
@@ -494,7 +515,9 @@ def test_main_no_release_baseline_errors(cdb, monkeypatch):
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_main_help_flag_prints_usage_and_exits_zero_without_touching_anything(cdb, repo, monkeypatch, capsys, flag):
+def test_main_help_flag_prints_usage_and_exits_zero_without_touching_anything(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
+):
     """`--help` must print the module docstring and exit 0, leaving every
     doc untouched."""
     before = sorted(p.name for p in repo.iterdir())
@@ -502,11 +525,13 @@ def test_main_help_flag_prints_usage_and_exits_zero_without_touching_anything(cd
     with pytest.raises(SystemExit) as exc_info:
         cdb.main()
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == cdb.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{cdb.__doc__}\n"
     assert sorted(p.name for p in repo.iterdir()) == before
 
 
-def test_main_rejects_any_argument(cdb, repo, monkeypatch, capsys):
+def test_main_rejects_any_argument(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """This script never takes the baseline (or anything else) as an
     argument — any positional argument (other than -h/--help, its own
     earlier case) must be rejected with the usage docstring, not silently
@@ -516,12 +541,14 @@ def test_main_rejects_any_argument(cdb, repo, monkeypatch, capsys):
     with pytest.raises(SystemExit) as exc_info:
         cdb.main()
     assert exc_info.value.code == 1
-    assert capsys.readouterr().out == cdb.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{cdb.__doc__}\n"
     assert sorted(p.name for p in repo.iterdir()) == before
 
 
 @pytest.mark.parametrize("bogus", ["4.8", "4.8.2-rc1", "v4.8.2", "latest", "4.8.2.1", ""])
-def test_main_rejects_non_semver_baseline_from_release_baseline_yaml(cdb, repo, monkeypatch, capsys, bogus):
+def test_main_rejects_non_semver_baseline_from_release_baseline_yaml(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], bogus
+):
     """Anything release-baseline.yaml's own upgrade_docs key holds that
     isn't a bare MAJOR.MINOR.PATCH — a two-part version, a pre-release
     suffix, a "v" prefix, "latest", four parts, or empty — must be
@@ -537,6 +564,6 @@ def test_main_rejects_non_semver_baseline_from_release_baseline_yaml(cdb, repo, 
     assert sorted(p.name for p in repo.iterdir()) == before
 
 
-def test_main_accepts_valid_semver_baseline(cdb, monkeypatch):
+def test_main_accepts_valid_semver_baseline(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch):
     assert cdb.BASELINE_VERSION_RE.match("4.8.2")
     assert cdb.BASELINE_VERSION_RE.match("10.20.300")

@@ -10,8 +10,13 @@ tests/lib/test_image_version.py does)."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
 
-def write_values(tmp_path, text):
+import pytest
+
+
+def write_values(tmp_path: Path, text):
     path = tmp_path / "values.yaml"
     path.write_text(text, encoding="utf-8")
     return path
@@ -36,7 +41,7 @@ def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
 
-def commit_baseline_tag(tmp_path, baseline):
+def commit_baseline_tag(tmp_path: Path, baseline):
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -63,7 +68,9 @@ CURL_VALUES_TMPL = (
 )
 
 
-def test_main_removes_shared_image_docs_when_reset_back_to_baseline(uiv, tmp_path, monkeypatch):
+def test_main_removes_shared_image_docs_when_reset_back_to_baseline(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """curl bumped to 8.21.0 (already fully documented as a shared-image
     pseudo-component) and then reset back to its baseline version has
     nothing left to report: the table row, Changes section,
@@ -134,7 +141,9 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(uiv, tmp_pat
     assert '"8.20.0"' in manifest  # the entry itself still lists the correct (reset) version
 
 
-def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(uiv, tmp_path, monkeypatch):
+def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Bumping curl to 8.21.0 and then, within the same release cycle,
     reconsidering to 8.22.0 instead must leave exactly ONE entry in each
     doc showing baseline -> final (8.20.0 -> 8.22.0) -- never two entries,
@@ -196,7 +205,9 @@ def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(ui
     assert f'"sha256:{"c" * 64}"' in manifest
 
 
-def test_main_renders_new_when_shared_image_never_existed_at_baseline(uiv, tmp_path, monkeypatch):
+def test_main_renders_new_when_shared_image_never_existed_at_baseline(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test (same root-cause family as #1/#5, in the MULTIPLE-
     scope basename path): resolve_basename_baseline_version's own None
     ("didn't all agree, or any of them isn't found there" -- see its own

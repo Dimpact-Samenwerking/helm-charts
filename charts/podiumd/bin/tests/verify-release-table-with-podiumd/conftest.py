@@ -6,6 +6,7 @@ import importlib.util
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -13,7 +14,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "verify-release-table-with-p
 
 
 @pytest.fixture(scope="session")
-def vrt():
+def vrt() -> ModuleType:
     loader = SourceFileLoader("verify_release_table_with_podiumd", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("verify_release_table_with_podiumd", SCRIPT_PATH, loader=loader)
     assert spec is not None
@@ -23,7 +24,7 @@ def vrt():
 
 
 @pytest.fixture(autouse=True)
-def stub_ensure_vendored_dependencies(vrt, monkeypatch):
+def stub_ensure_vendored_dependencies(vrt: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """main() now calls lib.dependencies.ensure_vendored_dependencies
     first, but every main()-level test here runs against a fake chart
     directory with no vendored sub-charts at all. Stubbed to a no-op by

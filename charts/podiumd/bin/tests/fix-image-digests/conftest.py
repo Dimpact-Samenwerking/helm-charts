@@ -6,6 +6,7 @@ import subprocess
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -13,7 +14,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "fix-image-digests"
 
 
 @pytest.fixture(scope="session")
-def sid():
+def sid() -> ModuleType:
     loader = SourceFileLoader("fix_image_digests", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("fix_image_digests", SCRIPT_PATH, loader=loader)
     assert spec is not None
@@ -23,7 +24,7 @@ def sid():
 
 
 @pytest.fixture(autouse=True)
-def stub_fix_helm_doc(sid, monkeypatch):
+def stub_fix_helm_doc(sid: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """main() shells out to fix-helm-doc after any real (non-dry-run)
     write — stub it here (a real regen would need a real helm-docs binary
     and would touch the actual charts/podiumd/README.md, not this test's

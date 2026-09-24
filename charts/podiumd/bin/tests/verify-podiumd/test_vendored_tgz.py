@@ -4,6 +4,11 @@ AND an extracted directory of the same name, per
 .claude/commands/helm-tgz-inspect.md: Helm silently prefers the extracted
 copy over the pinned package."""
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+
 
 def write_tgz(chart_dir, filename):
     charts_dir = chart_dir / "charts"
@@ -17,27 +22,27 @@ def write_extracted_dir(chart_dir, name):
     (charts_dir / name).mkdir()
 
 
-def test_no_charts_dir_passes(vp, tmp_path):
+def test_no_charts_dir_passes(vp: ModuleType, tmp_path: Path):
     ok, detail = vp.check_vendored_tgz_extraction(tmp_path)
     assert ok is True
     assert "0 conflict(s)" in detail
 
 
-def test_empty_charts_dir_passes(vp, tmp_path):
+def test_empty_charts_dir_passes(vp: ModuleType, tmp_path: Path):
     (tmp_path / "charts").mkdir()
     ok, detail = vp.check_vendored_tgz_extraction(tmp_path)
     assert ok is True
     assert "0 conflict(s)" in detail
 
 
-def test_tgz_only_passes(vp, tmp_path):
+def test_tgz_only_passes(vp: ModuleType, tmp_path: Path):
     write_tgz(tmp_path, "openzaak-1.14.2.tgz")
     ok, detail = vp.check_vendored_tgz_extraction(tmp_path)
     assert ok is True
     assert "0 conflict(s)" in detail
 
 
-def test_tgz_plus_matching_extracted_dir_flagged(vp, tmp_path, capsys):
+def test_tgz_plus_matching_extracted_dir_flagged(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     write_tgz(tmp_path, "openzaak-1.14.2.tgz")
     write_extracted_dir(tmp_path, "openzaak")
     ok, detail = vp.check_vendored_tgz_extraction(tmp_path)
@@ -48,7 +53,7 @@ def test_tgz_plus_matching_extracted_dir_flagged(vp, tmp_path, capsys):
     assert "openzaak-<version>.tgz" in out
 
 
-def test_hyphenated_chart_name_parsed_correctly(vp, tmp_path, capsys):
+def test_hyphenated_chart_name_parsed_correctly(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     """The version suffix must split on the last digit-starting segment,
     not the first hyphen — a chart name like notifynl-omc-nodep or
     keycloak-operator must not be mistaken for name="notifynl" etc."""
@@ -61,7 +66,7 @@ def test_hyphenated_chart_name_parsed_correctly(vp, tmp_path, capsys):
     assert "charts/notifynl-omc-nodep/" in out
 
 
-def test_extracted_dir_with_no_matching_tgz_not_flagged(vp, tmp_path):
+def test_extracted_dir_with_no_matching_tgz_not_flagged(vp: ModuleType, tmp_path: Path):
     """An extracted dir with no pinned .tgz of the same name isn't this
     check's concern (e.g. mi-data, a local file:// dependency with no
     .tgz at all) — only a .tgz shadowed by its own extracted copy is."""
@@ -71,7 +76,7 @@ def test_extracted_dir_with_no_matching_tgz_not_flagged(vp, tmp_path):
     assert "0 conflict(s)" in detail
 
 
-def test_multiple_conflicts_all_reported(vp, tmp_path, capsys):
+def test_multiple_conflicts_all_reported(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     write_tgz(tmp_path, "openzaak-1.14.2.tgz")
     write_extracted_dir(tmp_path, "openzaak")
     write_tgz(tmp_path, "openklant-1.11.0.tgz")
@@ -84,7 +89,7 @@ def test_multiple_conflicts_all_reported(vp, tmp_path, capsys):
     assert "charts/openklant/" in out
 
 
-def test_find_extracted_vendored_dirs_returns_sorted_names(libvendoredtgzcheck, tmp_path):
+def test_find_extracted_vendored_dirs_returns_sorted_names(libvendoredtgzcheck: ModuleType, tmp_path: Path):
     write_tgz(tmp_path, "openzaak-1.14.2.tgz")
     write_extracted_dir(tmp_path, "openzaak")
     write_tgz(tmp_path, "clamav-3.7.1.tgz")

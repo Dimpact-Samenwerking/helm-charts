@@ -29,7 +29,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "update-image-version"
 
 
 @pytest.fixture(scope="session")
-def uiv():
+def uiv() -> ModuleType:
     loader = SourceFileLoader("update_image_version_cli", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("update_image_version_cli", SCRIPT_PATH, loader=loader)
     assert spec is not None
@@ -39,7 +39,7 @@ def uiv():
 
 
 @pytest.fixture(autouse=True)
-def isolate_paths(uiv, tmp_path, monkeypatch):
+def isolate_paths(uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     chart_yaml = tmp_path / "Chart.yaml"
     chart_yaml.write_text(
         yaml.safe_dump({"apiVersion": "v2", "name": "podiumd", "version": "1.0.0", "dependencies": []}),
@@ -60,7 +60,7 @@ def isolate_paths(uiv, tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def stub_fix_helm_doc(uiv, monkeypatch):
+def stub_fix_helm_doc(uiv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     real_run = subprocess.run
     target = str(uiv.FIX_HELM_DOC_SCRIPT)
 
@@ -73,7 +73,7 @@ def stub_fix_helm_doc(uiv, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def stub_ensure_vendored_dependencies(uiv, monkeypatch):
+def stub_ensure_vendored_dependencies(uiv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """main() now calls lib.dependencies.ensure_vendored_dependencies
     first, but every main()-level test here runs against a fake chart
     directory with no vendored sub-charts at all. Stubbed to a no-op by

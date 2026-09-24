@@ -4,18 +4,24 @@ lib.checks.dead_values.check_dead_values (mocked out here — its own
 correctness is tests/verify-podiumd/test_dead_values_check.py's job,
 not this script wrapper's)."""
 
+from types import ModuleType
+
 import pytest
 
 
-def test_help_flag_prints_docstring_and_exits_zero(vpdv, monkeypatch, capsys):
+def test_help_flag_prints_docstring_and_exits_zero(
+    vpdv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr("sys.argv", ["verify-podiumd-dead-values", "--help"])
     with pytest.raises(SystemExit) as exc_info:
         vpdv.main()
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == vpdv.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{vpdv.__doc__}\n"
 
 
-def test_wrong_arg_count_prints_docstring_and_exits_one(vpdv, monkeypatch, capsys):
+def test_wrong_arg_count_prints_docstring_and_exits_one(
+    vpdv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr("sys.argv", ["verify-podiumd-dead-values", "unexpected-arg"])
     with pytest.raises(SystemExit) as exc_info:
         vpdv.main()
@@ -23,7 +29,9 @@ def test_wrong_arg_count_prints_docstring_and_exits_one(vpdv, monkeypatch, capsy
     assert "Usage:" in capsys.readouterr().out
 
 
-def test_missing_helm_fails_before_running_the_check(vpdv, monkeypatch, capsys):
+def test_missing_helm_fails_before_running_the_check(
+    vpdv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr("sys.argv", ["verify-podiumd-dead-values"])
     monkeypatch.setattr(vpdv.shutil, "which", lambda name: None)
 
@@ -40,7 +48,9 @@ def test_missing_helm_fails_before_running_the_check(vpdv, monkeypatch, capsys):
     assert "helm is not installed" in capsys.readouterr().err
 
 
-def test_main_prints_long_runtime_warning_before_running(vpdv, monkeypatch, capsys):
+def test_main_prints_long_runtime_warning_before_running(
+    vpdv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr("sys.argv", ["verify-podiumd-dead-values"])
     monkeypatch.setattr(vpdv.shutil, "which", lambda name: "/usr/bin/helm")
     monkeypatch.setattr(vpdv, "lint_args_for", lambda chart_dir: [])
@@ -56,7 +66,9 @@ def test_main_prints_long_runtime_warning_before_running(vpdv, monkeypatch, caps
     assert out.index("WARNING") < out.index("OK: 0/1321 dead")
 
 
-def test_main_reports_ok_and_exits_zero(vpdv, monkeypatch, capsys):
+def test_main_reports_ok_and_exits_zero(
+    vpdv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr("sys.argv", ["verify-podiumd-dead-values"])
     monkeypatch.setattr(vpdv.shutil, "which", lambda name: "/usr/bin/helm")
     monkeypatch.setattr(vpdv, "lint_args_for", lambda chart_dir: ["-f", "ci/lint-values.yaml"])
@@ -78,7 +90,9 @@ def test_main_reports_ok_and_exits_zero(vpdv, monkeypatch, capsys):
     assert captured_args["extra_args"] == ["-f", "ci/lint-values.yaml"]
 
 
-def test_main_reports_fail_and_exits_one(vpdv, monkeypatch, capsys):
+def test_main_reports_fail_and_exits_one(
+    vpdv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """check_dead_values itself never actually returns ok=False (report-
     only by design), but main()'s own ok -> exit-code wiring should still
     do the right thing if that ever changed."""

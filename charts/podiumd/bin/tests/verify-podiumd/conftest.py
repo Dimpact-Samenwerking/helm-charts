@@ -18,6 +18,7 @@ import sys
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -75,192 +76,192 @@ def _load_module():
 
 
 @pytest.fixture(scope="session")
-def vp():
+def vp() -> ModuleType:
     return _load_module()
 
 
 @pytest.fixture(scope="session")
-def libdrycheck():
+def libdrycheck() -> ModuleType:
     return dry_check
 
 
 @pytest.fixture(scope="session")
-def libdigestpinningcheck():
+def libdigestpinningcheck() -> ModuleType:
     return digest_pinning_check
 
 
 @pytest.fixture(scope="session")
-def libimagedigests():
+def libimagedigests() -> ModuleType:
     return image_digests
 
 
 @pytest.fixture(scope="session")
-def libdocsconsistency():
+def libdocsconsistency() -> ModuleType:
     return docs_consistency
 
 
 @pytest.fixture(scope="session")
-def libimagesmanifest():
+def libimagesmanifest() -> ModuleType:
     return docs_consistency_images_manifest_format
 
 
 @pytest.fixture(scope="session")
-def libdocsconsistencypointer():
+def libdocsconsistencypointer() -> ModuleType:
     return docs_consistency_pointer_consistency
 
 
 @pytest.fixture(scope="session")
-def libdocsconsistencymarkdown():
+def libdocsconsistencymarkdown() -> ModuleType:
     return docs_consistency_markdown_format
 
 
 @pytest.fixture(scope="session")
-def libdocsconsistencyvaluesdiff():
+def libdocsconsistencyvaluesdiff() -> ModuleType:
     return docs_consistency_values_diff
 
 
 @pytest.fixture(scope="session")
-def librenderscope():
+def librenderscope() -> ModuleType:
     return render_scope
 
 
 @pytest.fixture(scope="session")
-def libyamllintcheck():
+def libyamllintcheck() -> ModuleType:
     return yamllint_check
 
 
 @pytest.fixture(scope="session")
-def libkubeconformcheck():
+def libkubeconformcheck() -> ModuleType:
     return kubeconform_check
 
 
 @pytest.fixture(scope="session")
-def libshellcheckcheck():
+def libshellcheckcheck() -> ModuleType:
     return shellcheck_check
 
 
 @pytest.fixture(scope="session")
-def libkubescorecheck():
+def libkubescorecheck() -> ModuleType:
     return kube_score_check
 
 
 @pytest.fixture(scope="session")
-def librelease_secret_size():
+def librelease_secret_size() -> ModuleType:
     return release_secret_size
 
 
 @pytest.fixture(scope="session")
-def libgitutil():
+def libgitutil() -> ModuleType:
     return gitutil
 
 
 @pytest.fixture(scope="session")
-def libupgradedocbasics():
+def libupgradedocbasics() -> ModuleType:
     return upgradedoc_string_and_parsing_basics
 
 
 @pytest.fixture(scope="session")
-def libupgradedocsorting():
+def libupgradedocsorting() -> ModuleType:
     return upgradedoc_sorting_and_ordering
 
 
 @pytest.fixture(scope="session")
-def libupgradedocconsistency():
+def libupgradedocconsistency() -> ModuleType:
     return upgradedoc_consistency_checks
 
 
 @pytest.fixture(scope="session")
-def libupgradedocresolverow():
+def libupgradedocresolverow() -> ModuleType:
     return upgradedoc_resolve_component_row
 
 
 @pytest.fixture(scope="session")
-def libupgradedocversioncells():
+def libupgradedocversioncells() -> ModuleType:
     return upgradedoc_version_cells_and_key_changes
 
 
 @pytest.fixture(scope="session")
-def libupgradedocappversion():
+def libupgradedocappversion() -> ModuleType:
     return upgradedoc_app_version_and_image_paths
 
 
 @pytest.fixture(scope="session")
-def libupgradedocmanifestordering():
+def libupgradedocmanifestordering() -> ModuleType:
     return upgradedoc_images_manifest_ordering
 
 
 @pytest.fixture(scope="session")
-def libupgradedocmanifestdiff():
+def libupgradedocmanifestdiff() -> ModuleType:
     return upgradedoc_images_manifest_list_diff
 
 
 @pytest.fixture(scope="session")
-def libupgradedoccomments():
+def libupgradedoccomments() -> ModuleType:
     return upgradedoc_grouped_comments_and_changes_block
 
 
 @pytest.fixture(scope="session")
-def libregistry():
+def libregistry() -> ModuleType:
     return registry
 
 
 @pytest.fixture(scope="session")
-def libimagereferencescheck():
+def libimagereferencescheck() -> ModuleType:
     return image_references_check
 
 
 @pytest.fixture(scope="session")
-def libnodeselectorcheck():
+def libnodeselectorcheck() -> ModuleType:
     return node_selector_check
 
 
 @pytest.fixture(scope="session")
-def libvendoredtgzcheck():
+def libvendoredtgzcheck() -> ModuleType:
     return vendored_tgz_check
 
 
 @pytest.fixture(scope="session")
-def libcvecheck():
+def libcvecheck() -> ModuleType:
     return cve_check
 
 
 @pytest.fixture(scope="session")
-def libcvediffcheck():
+def libcvediffcheck() -> ModuleType:
     return cve_diff_check
 
 
 @pytest.fixture(scope="session")
-def libhelmdocscheck():
+def libhelmdocscheck() -> ModuleType:
     return helm_docs_check
 
 
 @pytest.fixture(scope="session")
-def libmarkdowncheck():
+def libmarkdowncheck() -> ModuleType:
     return markdown_check
 
 
 @pytest.fixture(scope="session")
-def libimageupgradecheck():
+def libimageupgradecheck() -> ModuleType:
     return image_upgrade_check
 
 
 @pytest.fixture(scope="session")
-def libimageupgradecache():
+def libimageupgradecache() -> ModuleType:
     return image_upgrade_cache
 
 
 @pytest.fixture(scope="session")
-def liblockstepcheck():
+def liblockstepcheck() -> ModuleType:
     return lockstep_check
 
 
 @pytest.fixture(scope="session")
-def libdeadvaluescheck():
+def libdeadvaluescheck() -> ModuleType:
     return dead_values_check
 
 
 @pytest.fixture(scope="session")
-def libsettings():
+def libsettings() -> ModuleType:
     return settings
 
 
@@ -322,7 +323,7 @@ def _chart_repo_values_yaml(app_version):
 
 
 @pytest.fixture
-def chart_repo(tmp_path):
+def chart_repo(tmp_path: Path):
     """Baseline commit (tagged podiumd-4.8.5) has ZAC 5.0.2; HEAD bumps it to
     5.4.3 and updates the matching docs to describe that exact change.
 
@@ -363,7 +364,7 @@ def chart_repo(tmp_path):
 
 
 @pytest.fixture(autouse=True)
-def stub_ensure_vendored_dependencies(vp, monkeypatch):
+def stub_ensure_vendored_dependencies(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """main() now calls lib.dependencies.ensure_vendored_dependencies
     first, but every main()-level test here runs against a fake chart
     directory with no vendored sub-charts at all. Stubbed to a no-op by
