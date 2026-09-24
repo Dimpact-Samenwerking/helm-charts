@@ -128,7 +128,7 @@ def testcached_tag_exists_writes_a_disk_entry_readable_by_repo_access_cache(libi
     key = repo_access_cache.cache_key("registry", ("docker.io", "org/repo", "1.0.0"))
     disk = repo_access_cache.load_cache(tmp_path)
     assert key in disk
-    assert disk[key]["digest"] == f"sha256:{digest_a}"
+    assert disk[key].get("digest") == f"sha256:{digest_a}"
     assert repo_access_cache.cache_entry_is_fresh(disk[key], 30) is True
 
 

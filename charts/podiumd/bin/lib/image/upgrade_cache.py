@@ -13,12 +13,32 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 from pathlib import Path
+from typing import TypedDict
+from typing import TypeGuard
 
 from lib.json_cache import cache_file
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
 
 CACHE_FILENAME = "image-upgrade-cache.json"
+
+
+class UpgradeEntry(TypedDict):
+    """One image-upgrade-cache.json entry: when the tag list was checked
+    and the newest same-variant tag found then (None: none newer)."""
+
+    checked_at: str
+    newest: str | None
+
+
+def is_upgrade_entry(value: object) -> TypeGuard[UpgradeEntry]:
+    """Whether a parsed cache entry is an UpgradeEntry."""
+    return (
+        isinstance(value, dict)
+        and isinstance(value.get("checked_at"), str)
+        and "newest" in value
+        and (value["newest"] is None or isinstance(value["newest"], str))
+    )
 
 
 def cache_path(chart_dir: Path):
@@ -31,15 +51,15 @@ def cache_path(chart_dir: Path):
     return cache_file(chart_dir, CACHE_FILENAME)
 
 
-def load_cache(chart_dir: Path):
+def load_cache(chart_dir: Path) -> dict[str, UpgradeEntry]:
     """The cache dict at cache_path(chart_dir), or {} if it doesn't exist
     yet or fails to parse (a corrupt/partial cache file is treated the
     same as no cache at all, never raised — every lookup just misses and
     gets re-fetched from the registry)."""
-    return load_json_cache(cache_path(chart_dir))
+    return load_json_cache(cache_path(chart_dir), is_upgrade_entry)
 
 
-def save_cache(chart_dir: Path, cache: dict):
+def save_cache(chart_dir: Path, cache: dict[str, UpgradeEntry]):
     """Write `cache` to cache_path(chart_dir) as pretty, key-sorted JSON,
     creating the .cache/ directory if needed. check_image_upgrades calls
     this incrementally after each live registry check (not just once at
@@ -56,7 +76,7 @@ def cache_key(repository: str, version: str):
     return f"{repository}:{version}"
 
 
-def cache_entry_is_fresh(entry: dict, ttl_days: int):
+def cache_entry_is_fresh(entry: UpgradeEntry, ttl_days: int):
     """True when `entry` was checked within the last `ttl_days` days (see
     image_upgrade_check.tag_check_cache_ttl_days in lib.settings — a new
     tag can be published at any moment, so this is deliberately much
