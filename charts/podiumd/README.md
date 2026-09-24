@@ -361,15 +361,15 @@ PodiumD Helm chart
 | keycloak.config.adminFrontendUrl | string | `"https://keycloak-admin.example.nl"` |  |
 | keycloak.config.clients.datamigratie.enabled | bool | `true` |  |
 | keycloak.config.clients.datamigratie.name | string | `"Datamigratie"` |  |
-| keycloak.config.clients.datamigratie.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://datamigratie.example.nl`. |
+| keycloak.config.clients.datamigratie.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.datamigratie.enabled) and this is empty or an example.nl URL. E.g. `https://datamigratie.example.nl`. |
 | keycloak.config.clients.datamigratie.secret | string | `""` |  |
 | keycloak.config.clients.monitoring.enabled | bool | `true` |  |
 | keycloak.config.clients.monitoring.name | string | `"Monitoring (Grafana)"` |  |
-| keycloak.config.clients.monitoring.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://monitoring.example.nl`. |
+| keycloak.config.clients.monitoring.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.monitoring.enabled) and this is empty or an example.nl URL. E.g. `https://monitoring.example.nl`. |
 | keycloak.config.clients.monitoring.secret | string | `""` |  |
 | keycloak.config.clients.zaakbrug.enabled | bool | `true` |  |
 | keycloak.config.clients.zaakbrug.name | string | `"Zaakbrug Frank!Framework console"` |  |
-| keycloak.config.clients.zaakbrug.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://zaakbrug.example.nl`. |
+| keycloak.config.clients.zaakbrug.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.zaakbrug.enabled, and zaakbrug.enabled) and this is empty or an example.nl URL. E.g. `https://zaakbrug.example.nl`. |
 | keycloak.config.clients.zaakbrug.secret | string | `""` |  |
 | keycloak.config.realm | string | `"podiumd"` | identity provider mapper for the admin realm adminIdentityProviderMappers: {} |
 | keycloak.config.realmDisplayName | string | `"PodiumD"` |  |

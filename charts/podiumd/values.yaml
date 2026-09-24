@@ -213,13 +213,13 @@ keycloak:
         name: Monitoring (Grafana)
         enabled: true
         secret: ""
-        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://monitoring.example.nl`.
+        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.monitoring.enabled) and this is empty or an example.nl URL. E.g. `https://monitoring.example.nl`.
         oidcUrl: ""
       datamigratie:
         name: Datamigratie
         enabled: true
         secret: ""
-        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://datamigratie.example.nl`.
+        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.datamigratie.enabled) and this is empty or an example.nl URL. E.g. `https://datamigratie.example.nl`.
         oidcUrl: ""
       # zaakbrug Frank!Framework console OAuth2 client. Only rendered into the
       # podiumd realm import when zaakbrug.enabled=true. Env values supply the
@@ -229,7 +229,7 @@ keycloak:
         name: Zaakbrug Frank!Framework console
         enabled: true
         secret: ""
-        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://zaakbrug.example.nl`.
+        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.zaakbrug.enabled, and zaakbrug.enabled) and this is empty or an example.nl URL. E.g. `https://zaakbrug.example.nl`.
         oidcUrl: ""
   name: "keycloak"
   features:

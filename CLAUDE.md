@@ -27,6 +27,10 @@ Always run before committing changes to `charts/podiumd/`:
 
 This runs BOM check + duplicate key detection + helm lint in one step.
 
+## Markdown
+
+Run `/markdown-lint` after creating or editing any `*.md` file, before committing. The rule itself is in [`.github/copilot-instructions.md` § Markdown](.github/copilot-instructions.md#markdown).
+
 ## Available slash commands
 
 | Command | Purpose |
@@ -35,6 +39,7 @@ This runs BOM check + duplicate key detection + helm lint in one step.
 | `/helm-render` | Render a single template |
 | `/helm-render-all` | Render all templates |
 | `/helm-precommit` | BOM check + dup-key check + lint (run before every commit) |
+| `/markdown-lint` | Lint and fix changed `*.md` files with the `verify-podiumd` markdown rules (run after writing any Markdown) |
 | `/helm-deps` | Update Helm dependencies |
 | `/helm-repos` | Add all required Helm repositories |
 | `/helm-fetch-updates` | Check for upstream component updates |
