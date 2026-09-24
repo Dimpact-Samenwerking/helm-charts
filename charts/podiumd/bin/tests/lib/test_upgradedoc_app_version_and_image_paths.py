@@ -1,24 +1,28 @@
 """lib.upgradedoc -- actual app-version lookup and image/version
 tag path discovery across values trees."""
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
 
 # --- actual_app_version ---
 
 
-def test_actual_app_version_single_image(libupgradedocappversion):
+def test_actual_app_version_single_image(libupgradedocappversion: ModuleType):
     assert libupgradedocappversion.actual_app_version({"zac": {"image": {"tag": "5.4.3@sha256:abc"}}}, "zac") == "5.4.3"
 
 
-def test_actual_app_version_frontend_backend_lockstep(libupgradedocappversion):
+def test_actual_app_version_frontend_backend_lockstep(libupgradedocappversion: ModuleType):
     values = {"zgw-office-addin": {"frontend": {"image": {"tag": "v0.9.352@sha256:abc"}}}}
     assert libupgradedocappversion.actual_app_version(values, "zgw-office-addin") == "v0.9.352"
 
 
-def test_actual_app_version_missing_returns_none(libupgradedocappversion):
+def test_actual_app_version_missing_returns_none(libupgradedocappversion: ModuleType):
     assert libupgradedocappversion.actual_app_version({}, "missing") is None
 
 
-def test_actual_app_version_uses_component_for_aliased_registry_lookup(libupgradedocappversion):
+def test_actual_app_version_uses_component_for_aliased_registry_lookup(libupgradedocappversion: ModuleType):
     # keycloak-operator's own COMPONENT_IMAGE_PATHS entry only applies when
     # the registry is queried by the dependency's real name — pass it
     # explicitly whenever the values.yaml key (alias) differs.
@@ -27,7 +31,7 @@ def test_actual_app_version_uses_component_for_aliased_registry_lookup(libupgrad
     assert libupgradedocappversion.actual_app_version(values, "kc") is None
 
 
-def test_actual_app_version_falls_back_to_bare_version_field(libupgradedocappversion):
+def test_actual_app_version_falls_back_to_bare_version_field(libupgradedocappversion: ModuleType):
     """Regression test: eck-stack's own real app version isn't an
     "image: {tag: ...}" block at all — the ECK operator's own CRD
     convention is a bare "version:" field, which COMPONENT_VERSION_PATHS
@@ -38,7 +42,7 @@ def test_actual_app_version_falls_back_to_bare_version_field(libupgradedocappver
     assert libupgradedocappversion.actual_app_version(values, "kiss-eck", "eck-stack") == "8.19.19"
 
 
-def test_actual_app_version_falls_back_to_split_image_tag_field(libupgradedocappversion):
+def test_actual_app_version_falls_back_to_split_image_tag_field(libupgradedocappversion: ModuleType):
     """Regression test: redis-operator's own OPERATOR image (as opposed
     to redis-ha, the database instance it manages) uses the upstream
     chart's own "imageName:"/"imageTag:" convention — two sibling string
@@ -50,7 +54,9 @@ def test_actual_app_version_falls_back_to_split_image_tag_field(libupgradedocapp
     assert libupgradedocappversion.actual_app_version(values, "redis-operator") == "v0.26.0"
 
 
-def test_actual_app_version_image_tag_path_tried_before_version_path(libupgradedocappversion, monkeypatch):
+def test_actual_app_version_image_tag_path_tried_before_version_path(
+    libupgradedocappversion: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
     """The "image: {tag: ...}" pass always runs first — component_version_
     paths() is only ever a fallback for when NONE of a component's
     image_paths_for candidates resolved anything."""
@@ -80,7 +86,9 @@ def _make_vendored_tgz(charts_dir, name, version, values, chart_yaml):
     return tgz_path
 
 
-def test_actual_app_version_falls_back_to_vendored_subchart_app_version(libupgradedocappversion, tmp_path):
+def test_actual_app_version_falls_back_to_vendored_subchart_app_version(
+    libupgradedocappversion: ModuleType, tmp_path: Path
+):
     """Regression test: openbao's own "server.image.tag" is explicitly
     overridden in values.yaml but deliberately left blank (see settings.
     yaml's own component_resolution.image_paths["openbao"] comment) —
@@ -106,7 +114,9 @@ def test_actual_app_version_falls_back_to_vendored_subchart_app_version(libupgra
     )
 
 
-def test_actual_app_version_subchart_fallback_only_for_registered_components(libupgradedocappversion, tmp_path):
+def test_actual_app_version_subchart_fallback_only_for_registered_components(
+    libupgradedocappversion: ModuleType, tmp_path: Path
+):
     """The vendored-appVersion fallback never applies to a component with
     no COMPONENT_IMAGE_PATHS entry of its own — a blank/missing tag on an
     unregistered component could just as easily mean "not actually
@@ -139,7 +149,9 @@ def test_actual_app_version_subchart_fallback_only_for_registered_components(lib
     )
 
 
-def test_actual_app_version_eck_operator_vendored_fallback_resolves_correctly(libupgradedocappversion, tmp_path):
+def test_actual_app_version_eck_operator_vendored_fallback_resolves_correctly(
+    libupgradedocappversion: ModuleType, tmp_path: Path
+):
     """Regression test (real bug, real doc): eck-operator existed, enabled,
     at the podiumd-4.9.1 baseline with NO explicit values.yaml "image:"
     override at all (chart version 3.5.0, unchanged from target) — its
@@ -168,7 +180,7 @@ def test_actual_app_version_eck_operator_vendored_fallback_resolves_correctly(li
 # --- find_image_tag_paths ---
 
 
-def test_find_image_tag_paths_finds_nested_images(libupgradedocappversion):
+def test_find_image_tag_paths_finds_nested_images(libupgradedocappversion: ModuleType):
     values = {
         "zac": {
             "image": {"tag": "5.1.0@sha256:aaaa"},
@@ -180,18 +192,18 @@ def test_find_image_tag_paths_finds_nested_images(libupgradedocappversion):
     assert paths[("zac", "opa", "image")] == "1.19.0-static@sha256:bbbb"
 
 
-def test_find_image_tag_paths_ignores_tagless_image_blocks(libupgradedocappversion):
+def test_find_image_tag_paths_ignores_tagless_image_blocks(libupgradedocappversion: ModuleType):
     values = {"zac": {"image": {"repository": "x"}}}
     assert dict(libupgradedocappversion.find_image_tag_paths(values)) == {}
 
 
-def test_find_image_tag_paths_walks_lists(libupgradedocappversion):
+def test_find_image_tag_paths_walks_lists(libupgradedocappversion: ModuleType):
     values = {"items": [{"image": {"tag": "1.0@sha256:aaaa"}}]}
     paths = dict(libupgradedocappversion.find_image_tag_paths(values))
     assert paths[("items", "0", "image")] == "1.0@sha256:aaaa"
 
 
-def test_find_image_tag_paths_finds_suffixed_image_key(libupgradedocappversion):
+def test_find_image_tag_paths_finds_suffixed_image_key(libupgradedocappversion: ModuleType):
     """A component needing more than one distinctly-named image (e.g. a
     job's main "image" plus a separate "initImage") can't use the same
     bare "image" key for both — any key ending in "Image" counts too."""
@@ -210,7 +222,7 @@ def test_find_image_tag_paths_finds_suffixed_image_key(libupgradedocappversion):
     assert paths[("keycloak-operator", "jobs", "ensurePodiumdAdminUser", "initImage")] == "3.14.7-slim@sha256:bbbb"
 
 
-def test_find_image_tag_paths_excludes_plural_images_container(libupgradedocappversion):
+def test_find_image_tag_paths_excludes_plural_images_container(libupgradedocappversion: ModuleType):
     """ "images" (plural, a container of several named templates, e.g.
     global.images.nginx/curl/busybox/redis) must NOT itself be treated as
     an image block — it doesn't end in "Image" (capital I), only its own
@@ -222,7 +234,7 @@ def test_find_image_tag_paths_excludes_plural_images_container(libupgradedocappv
 # --- find_image_tag_paths: include_null_tags ---
 
 
-def test_find_image_tag_paths_default_still_ignores_null_tag(libupgradedocappversion):
+def test_find_image_tag_paths_default_still_ignores_null_tag(libupgradedocappversion: ModuleType):
     """include_null_tags defaults False -- every existing caller (find_
     all_image_and_version_paths, find_unresolved_subchart_images before
     this task) must see EXACTLY the same result as before."""
@@ -230,13 +242,15 @@ def test_find_image_tag_paths_default_still_ignores_null_tag(libupgradedocappver
     assert dict(libupgradedocappversion.find_image_tag_paths(values)) == {}
 
 
-def test_find_image_tag_paths_include_null_tags_yields_none_for_null_tag_with_repository(libupgradedocappversion):
+def test_find_image_tag_paths_include_null_tags_yields_none_for_null_tag_with_repository(
+    libupgradedocappversion: ModuleType,
+):
     values = {"eck-operator": {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}}}
     paths = dict(libupgradedocappversion.find_image_tag_paths(values, include_null_tags=True))
     assert paths == {("eck-operator", "image"): None}
 
 
-def test_find_image_tag_paths_include_null_tags_yields_none_for_missing_tag_key(libupgradedocappversion):
+def test_find_image_tag_paths_include_null_tags_yields_none_for_missing_tag_key(libupgradedocappversion: ModuleType):
     """A missing "tag:" key entirely is the same "rely on chart default"
     case as an explicit null -- dict.get("tag") returns None either
     way, and Helm's own template treats them identically."""
@@ -245,14 +259,14 @@ def test_find_image_tag_paths_include_null_tags_yields_none_for_missing_tag_key(
     assert paths == {("eck-operator", "image"): None}
 
 
-def test_find_image_tag_paths_include_null_tags_skips_block_with_no_repository(libupgradedocappversion):
+def test_find_image_tag_paths_include_null_tags_skips_block_with_no_repository(libupgradedocappversion: ModuleType):
     """A null tag with no repository at all has nothing to resolve a
     basename from either way -- never worth yielding as a candidate."""
     values = {"eck-operator": {"image": {"tag": None}}}
     assert dict(libupgradedocappversion.find_image_tag_paths(values, include_null_tags=True)) == {}
 
 
-def test_find_image_tag_paths_include_null_tags_still_excludes_blank_string_tag(libupgradedocappversion):
+def test_find_image_tag_paths_include_null_tags_still_excludes_blank_string_tag(libupgradedocappversion: ModuleType):
     """A DIFFERENT, already-handled case (e.g. openbao's own "server.
     image.tag") -- must stay excluded even with include_null_tags=True,
     never conflated with a genuinely null/missing tag."""
@@ -260,7 +274,7 @@ def test_find_image_tag_paths_include_null_tags_still_excludes_blank_string_tag(
     assert dict(libupgradedocappversion.find_image_tag_paths(values, include_null_tags=True)) == {}
 
 
-def test_find_image_tag_paths_include_null_tags_does_not_affect_real_tags(libupgradedocappversion):
+def test_find_image_tag_paths_include_null_tags_does_not_affect_real_tags(libupgradedocappversion: ModuleType):
     """A real, explicit tag elsewhere in the SAME tree must still come
     through as itself, unaffected by include_null_tags."""
     values = {
@@ -282,7 +296,7 @@ def test_find_image_tag_paths_include_null_tags_does_not_affect_real_tags(libupg
 # a real version bump as "did not change vs baseline".
 
 
-def test_find_component_version_tags_finds_registered_bare_field(libupgradedocappversion):
+def test_find_component_version_tags_finds_registered_bare_field(libupgradedocappversion: ModuleType):
     deps = [{"name": "redis-operator", "version": "0.26.1"}]
     values = {
         "redis-operator": {
@@ -296,7 +310,7 @@ def test_find_component_version_tags_finds_registered_bare_field(libupgradedocap
     assert paths[("redis-operator", "redisOperator", "imageTag")] == "v0.26.0@sha256:aaaa"
 
 
-def test_find_component_version_tags_uses_alias_not_name_for_the_values_key(libupgradedocappversion):
+def test_find_component_version_tags_uses_alias_not_name_for_the_values_key(libupgradedocappversion: ModuleType):
     deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
     values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}, "eck-kibana": {"version": "8.19.19"}}}
     paths = dict(libupgradedocappversion.find_component_version_tags(values, deps))
@@ -304,13 +318,13 @@ def test_find_component_version_tags_uses_alias_not_name_for_the_values_key(libu
     assert paths[("kiss-eck", "eck-kibana", "version")] == "8.19.19"
 
 
-def test_find_component_version_tags_skips_unset_field(libupgradedocappversion):
+def test_find_component_version_tags_skips_unset_field(libupgradedocappversion: ModuleType):
     deps = [{"name": "redis-operator", "version": "0.26.1"}]
     values = {"redis-operator": {}}
     assert dict(libupgradedocappversion.find_component_version_tags(values, deps)) == {}
 
 
-def test_find_component_version_tags_includes_nested_subchart_registered_field(libupgradedocappversion):
+def test_find_component_version_tags_includes_nested_subchart_registered_field(libupgradedocappversion: ModuleType):
     """eck-enterprise-search.version is registered in COMPONENT_VERSION_
     PATH_NESTED_SUBCHARTS but deliberately excluded from COMPONENT_
     VERSION_PATHS itself (disabled by default, not the "pick ONE app
@@ -321,13 +335,13 @@ def test_find_component_version_tags_includes_nested_subchart_registered_field(l
     assert paths[("kiss-eck", "eck-enterprise-search", "version")] == "8.19.19"
 
 
-def test_find_component_version_tags_ignores_unregistered_dependency(libupgradedocappversion):
+def test_find_component_version_tags_ignores_unregistered_dependency(libupgradedocappversion: ModuleType):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
     assert dict(libupgradedocappversion.find_component_version_tags(values, deps)) == {}
 
 
-def test_find_all_image_and_version_paths_combines_both(libupgradedocappversion):
+def test_find_all_image_and_version_paths_combines_both(libupgradedocappversion: ModuleType):
     deps = [{"name": "redis-operator", "version": "0.26.1"}]
     values = {
         "redis-operator": {
@@ -343,7 +357,7 @@ def test_find_all_image_and_version_paths_combines_both(libupgradedocappversion)
 # --- resolve_entry_path ---
 
 
-def test_resolve_entry_path_exact_match(libupgradedocappversion):
+def test_resolve_entry_path_exact_match(libupgradedocappversion: ModuleType):
     paths = [("zac",), ("zgw-office-addin", "frontend"), ("zgw-office-addin", "backend")]
     assert libupgradedocappversion.resolve_entry_path("zgw-office-addin-frontend", paths) == (
         "zgw-office-addin",
@@ -351,16 +365,16 @@ def test_resolve_entry_path_exact_match(libupgradedocappversion):
     )
 
 
-def test_resolve_entry_path_last_word_must_match(libupgradedocappversion):
+def test_resolve_entry_path_last_word_must_match(libupgradedocappversion: ModuleType):
     paths = [("zac", "solr-operator", "solr"), ("zac", "solr-operator", "zookeeper-operator", "zookeeper")]
     assert libupgradedocappversion.resolve_entry_path("zac-solr", paths) == ("zac", "solr-operator", "solr")
 
 
-def test_resolve_entry_path_no_match_returns_none(libupgradedocappversion):
+def test_resolve_entry_path_no_match_returns_none(libupgradedocappversion: ModuleType):
     assert libupgradedocappversion.resolve_entry_path("totally-unrelated", [("zac",)]) is None
 
 
-def test_resolve_entry_path_ignores_trailing_image_key_for_matching(libupgradedocappversion):
+def test_resolve_entry_path_ignores_trailing_image_key_for_matching(libupgradedocappversion: ModuleType):
     """A path from find_image_tag_paths always ends in the image key
     itself ("image", or an "...Image"-suffixed sibling) — that trailing
     segment is a structural marker, not a meaningful descriptor, so it
@@ -372,7 +386,7 @@ def test_resolve_entry_path_ignores_trailing_image_key_for_matching(libupgradedo
     assert libupgradedocappversion.resolve_entry_path("opa", paths) == ("zac", "opa", "image")
 
 
-def test_resolve_entry_path_ignores_trailing_suffixed_image_key(libupgradedocappversion):
+def test_resolve_entry_path_ignores_trailing_suffixed_image_key(libupgradedocappversion: ModuleType):
     paths = [("keycloak-operator", "python", "initImage")]
     assert libupgradedocappversion.resolve_entry_path("python", paths) == ("keycloak-operator", "python", "initImage")
 
@@ -380,7 +394,7 @@ def test_resolve_entry_path_ignores_trailing_suffixed_image_key(libupgradedocapp
 # --- resolve_entry_image_path ---
 
 
-def test_resolve_entry_image_path_exact_repo_map_hit(libupgradedocappversion):
+def test_resolve_entry_image_path_exact_repo_map_hit(libupgradedocappversion: ModuleType):
     """A strip-registry-shaped manifest name ("infonl/zaakafhandelcomponent")
     doesn't fuzzy-word-match the values.yaml key ("zac") at all — repo_map
     is what makes it resolve, via an exact dict lookup rather than a guess."""
@@ -390,7 +404,7 @@ def test_resolve_entry_image_path_exact_repo_map_hit(libupgradedocappversion):
     assert libupgradedocappversion.resolve_entry_image_path(entry["name"], paths, repo_map) == ("zac",)
 
 
-def test_resolve_entry_image_path_falls_back_without_repo_map(libupgradedocappversion):
+def test_resolve_entry_image_path_falls_back_without_repo_map(libupgradedocappversion: ModuleType):
     """No repo_map at all (e.g. a caller that never built one) — same
     fuzzy name-word matching as resolve_entry_path alone."""
     paths = [("zac",)]
@@ -398,7 +412,7 @@ def test_resolve_entry_image_path_falls_back_without_repo_map(libupgradedocappve
     assert libupgradedocappversion.resolve_entry_image_path(entry["name"], paths) == ("zac",)
 
 
-def test_resolve_entry_image_path_falls_back_when_repo_map_has_no_hit(libupgradedocappversion):
+def test_resolve_entry_image_path_falls_back_when_repo_map_has_no_hit(libupgradedocappversion: ModuleType):
     """repo_map given but this entry's name isn't in it (e.g. a nested
     sidecar with no Chart.yaml dependency of its own) — falls back to
     fuzzy name-word matching rather than giving up."""
@@ -408,7 +422,7 @@ def test_resolve_entry_image_path_falls_back_when_repo_map_has_no_hit(libupgrade
     assert libupgradedocappversion.resolve_entry_image_path(entry["name"], paths, repo_map) == ("zac", "opa", "image")
 
 
-def test_resolve_entry_image_path_ignores_repo_map_hit_not_in_paths(libupgradedocappversion):
+def test_resolve_entry_image_path_ignores_repo_map_hit_not_in_paths(libupgradedocappversion: ModuleType):
     """A repo_map hit pointing at a path that isn't actually in this
     call's own paths (e.g. the component didn't exist yet at baseline)
     is not trusted blindly — falls back to fuzzy matching, which

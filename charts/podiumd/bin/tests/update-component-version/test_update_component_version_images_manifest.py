@@ -4,28 +4,30 @@ update_images_manifest_entry, and update_images_manifest: split out of the
 former, monolithic test_update_component_version.py for pylint's
 too-many-lines check."""
 
+from pathlib import Path
+from types import ModuleType
 
 # --- values_delta_section_heading / describe_key_changes ---
 
 
-def test_values_delta_section_heading_app_and_chart_changed(ucv):
+def test_values_delta_section_heading_app_and_chart_changed(ucv: ModuleType):
     heading = ucv.values_delta_section_heading("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.13.0")
     assert heading == "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0 → 1.13.0)\n"
 
 
-def test_values_delta_section_heading_chart_unchanged(ucv):
+def test_values_delta_section_heading_chart_unchanged(ucv: ModuleType):
     heading = ucv.values_delta_section_heading("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0")
     assert heading == "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n"
 
 
-def test_values_delta_section_heading_native_component_omits_chart_clause(ucv):
+def test_values_delta_section_heading_native_component_omits_chart_clause(ucv: ModuleType):
     """new_chart="-" (see lib.chart.NATIVE_COMPONENTS) drops the "(chart
     ...)" clause entirely rather than rendering "(chart None → -)"."""
     heading = ucv.values_delta_section_heading("frankgateway", "100", "104", None, "-")
     assert heading == "## frankgateway 100 → 104\n"
 
 
-def test_describe_key_changes_reports_added_removed_renamed(ucv):
+def test_describe_key_changes_reports_added_removed_renamed(ucv: ModuleType):
     baseline = {"a": 1, "old_name": {"x": 1}}
     current = {"a": 1, "new_name": {"x": 1}, "brand_new": 2}
     lines = ucv.describe_key_changes("comp", baseline, current)
@@ -34,25 +36,25 @@ def test_describe_key_changes_reports_added_removed_renamed(ucv):
     assert "`comp.old_name` was renamed to `comp.new_name`" in joined
 
 
-def test_describe_key_changes_empty_when_nothing_changed(ucv):
+def test_describe_key_changes_empty_when_nothing_changed(ucv: ModuleType):
     assert ucv.describe_key_changes("comp", {"a": 1}, {"a": 1}) == []
 
 
 # --- values_tree_path_for / find_matching_images_entry / update_images_manifest_entry ---
 
 
-def test_values_tree_path_for_single_image(libcomponentdocsentries):
+def test_values_tree_path_for_single_image(libcomponentdocsentries: ModuleType):
     assert libcomponentdocsentries.values_tree_path_for("zac", "image") == ("zac",)
 
 
-def test_values_tree_path_for_nested_image(libcomponentdocsentries):
+def test_values_tree_path_for_nested_image(libcomponentdocsentries: ModuleType):
     assert libcomponentdocsentries.values_tree_path_for("zgw-office-addin", "frontend.image") == (
         "zgw-office-addin",
         "frontend",
     )
 
 
-def test_find_matching_images_entry_matches_by_path(libcomponentdocsentries):
+def test_find_matching_images_entry_matches_by_path(libcomponentdocsentries: ModuleType):
     entries = [{"name": "zac"}, {"name": "zgw-office-addin-frontend"}]
     entry, idx, index = libcomponentdocsentries.find_matching_images_entry(
         entries, [0, 1], ("zgw-office-addin", "frontend")
@@ -62,13 +64,13 @@ def test_find_matching_images_entry_matches_by_path(libcomponentdocsentries):
     assert index == 1
 
 
-def test_find_matching_images_entry_none_when_unmatched(libcomponentdocsentries):
+def test_find_matching_images_entry_none_when_unmatched(libcomponentdocsentries: ModuleType):
     entries = [{"name": "zac"}]
     entry, idx, index = libcomponentdocsentries.find_matching_images_entry(entries, [0], ("openformulieren",))
     assert entry is None and idx is None and index is None
 
 
-def test_update_images_manifest_entry_updates_version_digest_and_comment(libcomponentdocsentries):
+def test_update_images_manifest_entry_updates_version_digest_and_comment(libcomponentdocsentries: ModuleType):
     lines = [
         "# ZAC — 5.0.1 -> 5.1.0\n",
         "- name: zac\n",
@@ -86,7 +88,7 @@ def test_update_images_manifest_entry_updates_version_digest_and_comment(libcomp
     assert '"sha256:bbbb"' in lines[4]
 
 
-def test_update_images_manifest_entry_updates_shared_group_comment(libcomponentdocsentries):
+def test_update_images_manifest_entry_updates_shared_group_comment(libcomponentdocsentries: ModuleType):
     """A second entry (backend) sharing the first entry's (frontend)
     comment, separated by a blank line, must still have that shared
     comment's version pair updated — not skipped as "no comment"."""
@@ -113,7 +115,7 @@ def test_update_images_manifest_entry_updates_shared_group_comment(libcomponentd
 # --- update_images_manifest ---
 
 
-def test_update_images_manifest_creates_missing_header(ucv, tmp_path):
+def test_update_images_manifest_creates_missing_header(ucv: ModuleType, tmp_path: Path):
     """Regression test (real bug, real doc): update_images_manifest's own
     "# Changes:" header-item logic was entirely guarded by "if header_idx
     is not None:" — a manifest with no header at all (see lib.component_
@@ -157,7 +159,7 @@ def test_update_images_manifest_creates_missing_header(ucv, tmp_path):
     assert "1. zac 5.1.0 -> 5.4.3 (chart 1.0.297, unchanged)." in text
 
 
-def test_update_images_manifest_no_baseline_app_renders_new(ucv, tmp_path):
+def test_update_images_manifest_no_baseline_app_renders_new(ucv: ModuleType, tmp_path: Path):
     """Regression test: update_images_manifest's own item_text used to
     ALWAYS hardcode "<old_app> -> <new_app>" with no (new)/(unchanged)/
     (digest changed) branch at all — a genuinely brand-new component
@@ -190,7 +192,7 @@ def test_update_images_manifest_no_baseline_app_renders_new(ucv, tmp_path):
     assert "8.10.1 -> 8.10.1" not in text
 
 
-def test_update_images_manifest_updates_existing_entry(ucv, tmp_path):
+def test_update_images_manifest_updates_existing_entry(ucv: ModuleType, tmp_path: Path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(
         "# Two changes:\n"
@@ -221,7 +223,7 @@ def test_update_images_manifest_updates_existing_entry(ucv, tmp_path):
     assert '"sha256:cccc"' in text
 
 
-def test_update_images_manifest_native_component_omits_chart_clause(ucv, tmp_path):
+def test_update_images_manifest_native_component_omits_chart_clause(ucv: ModuleType, tmp_path: Path):
     """new_chart="-" (see lib.chart.NATIVE_COMPONENTS) writes a "# Changes:"
     header item with no "(chart ...)" clause at all, rather than the
     misleading "(chart None, unchanged)"."""
@@ -250,7 +252,7 @@ def test_update_images_manifest_native_component_omits_chart_clause(ucv, tmp_pat
     assert "frankgateway 100 -> 104 (chart" not in text
 
 
-def test_update_images_manifest_recognizes_bare_changes_header(ucv, tmp_path):
+def test_update_images_manifest_recognizes_bare_changes_header(ucv: ModuleType, tmp_path: Path):
     """A bare "# Changes:" header (no leading count word) — the real,
     hand-curated images-4.9.0.yaml's own actual shape, and lib.
     component_docs.IMAGES_STUB_TEMPLATE's own fresh one — must still be
@@ -289,7 +291,7 @@ def test_update_images_manifest_recognizes_bare_changes_header(ucv, tmp_path):
     assert text.startswith("# Changes:\n")
 
 
-def test_update_images_manifest_bare_header_new_item_no_count_word_invented(ucv, tmp_path):
+def test_update_images_manifest_bare_header_new_item_no_count_word_invented(ucv: ModuleType, tmp_path: Path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(
         "# Changes:\n"
@@ -315,7 +317,7 @@ def test_update_images_manifest_bare_header_new_item_no_count_word_invented(ucv,
     assert "2. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged)." in text
 
 
-def test_update_images_manifest_reports_missing_entry(ucv, tmp_path):
+def test_update_images_manifest_reports_missing_entry(ucv: ModuleType, tmp_path: Path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(
         "# One change:\n"
@@ -342,7 +344,7 @@ def test_update_images_manifest_reports_missing_entry(ucv, tmp_path):
     assert "2. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged)." in text
 
 
-def test_update_images_manifest_new_item_lands_after_continuation_line(ucv, tmp_path):
+def test_update_images_manifest_new_item_lands_after_continuation_line(ucv: ModuleType, tmp_path: Path):
     """A new item must be appended after the LAST item's continuation
     comment line, not immediately after its numbered line — otherwise it
     gets spliced in the middle of the previous item's own comment block."""
@@ -373,7 +375,7 @@ def test_update_images_manifest_new_item_lands_after_continuation_line(ucv, tmp_
     assert lines[5] == "#"
 
 
-def test_update_images_manifest_new_item_inserted_at_values_yaml_position_not_appended(ucv, tmp_path):
+def test_update_images_manifest_new_item_inserted_at_values_yaml_position_not_appended(ucv: ModuleType, tmp_path: Path):
     """Real bug: a brand-new "# Changes:" header item used to always land
     at the very end of the list regardless of values.yaml's own
     component order, only ever fixed by a LATER fix-doc-consistency run.

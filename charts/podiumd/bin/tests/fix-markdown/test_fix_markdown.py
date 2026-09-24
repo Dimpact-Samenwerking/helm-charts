@@ -3,6 +3,7 @@ pymarkdown binary) plus a main() integration test against real files in
 tmp_path."""
 
 from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -31,7 +32,7 @@ def strip_trailing_whitespace_run(cmd, **kwargs):
     return SimpleNamespace(returncode=0, stdout="\n".join(fixed_lines), stderr="")
 
 
-def make_chart(tmp_path, files):
+def make_chart(tmp_path: Path, files):
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "Chart.yaml").write_text("name: podiumd\nversion: 4.9.0\n", encoding="utf-8")
     for rel_path, content in files.items():
@@ -44,7 +45,9 @@ def make_chart(tmp_path, files):
 # --- run_fix ---
 
 
-def test_run_fix_returns_paths_pymarkdown_reported_as_fixed(sub, tmp_path, monkeypatch):
+def test_run_fix_returns_paths_pymarkdown_reported_as_fixed(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     chart_dir = make_chart(tmp_path, {"docs/a.md": FIXABLE, "docs/b.md": CLEAN})
     monkeypatch.setattr(sub, "run", strip_trailing_whitespace_run)
 
@@ -55,7 +58,7 @@ def test_run_fix_returns_paths_pymarkdown_reported_as_fixed(sub, tmp_path, monke
     assert (chart_dir / "docs" / "b.md").read_text(encoding="utf-8") == CLEAN
 
 
-def test_run_fix_disables_md013_md014_and_md031(sub, tmp_path, monkeypatch):
+def test_run_fix_disables_md013_md014_and_md031(sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     chart_dir = make_chart(tmp_path, {"docs/a.md": CLEAN})
     captured = {}
 
@@ -78,7 +81,9 @@ def test_run_fix_disables_md013_md014_and_md031(sub, tmp_path, monkeypatch):
 # --- dry_run_fix ---
 
 
-def test_dry_run_fix_reports_changed_files_without_touching_the_real_ones(sub, tmp_path, monkeypatch):
+def test_dry_run_fix_reports_changed_files_without_touching_the_real_ones(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     chart_dir = make_chart(tmp_path, {"docs/a.md": FIXABLE, "docs/b.md": CLEAN})
     monkeypatch.setattr(sub, "run", strip_trailing_whitespace_run)
 
@@ -91,7 +96,9 @@ def test_dry_run_fix_reports_changed_files_without_touching_the_real_ones(sub, t
     assert (chart_dir / "docs" / "b.md").read_text(encoding="utf-8") == CLEAN
 
 
-def test_dry_run_fix_reports_nothing_when_nothing_would_change(sub, tmp_path, monkeypatch):
+def test_dry_run_fix_reports_nothing_when_nothing_would_change(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     chart_dir = make_chart(tmp_path, {"docs/a.md": CLEAN})
     monkeypatch.setattr(sub, "run", strip_trailing_whitespace_run)
 
@@ -104,7 +111,9 @@ def test_dry_run_fix_reports_nothing_when_nothing_would_change(sub, tmp_path, mo
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_main_help_flag_prints_usage_and_exits_zero(sub, tmp_path, monkeypatch, capsys, flag):
+def test_main_help_flag_prints_usage_and_exits_zero(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
+):
     chart_dir = make_chart(tmp_path, {"docs/a.md": FIXABLE})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-markdown", flag])
@@ -112,11 +121,11 @@ def test_main_help_flag_prints_usage_and_exits_zero(sub, tmp_path, monkeypatch, 
     with pytest.raises(SystemExit) as exc_info:
         sub.main()
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == sub.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{sub.__doc__}\n"
     assert (chart_dir / "docs" / "a.md").read_text(encoding="utf-8") == FIXABLE
 
 
-def test_main_pymarkdown_not_installed_fails(sub, tmp_path, monkeypatch):
+def test_main_pymarkdown_not_installed_fails(sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     chart_dir = make_chart(tmp_path, {"docs/a.md": FIXABLE})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr(sub, "find_pymarkdown", lambda chart_dir: None)
@@ -127,7 +136,9 @@ def test_main_pymarkdown_not_installed_fails(sub, tmp_path, monkeypatch):
     assert exc_info.value.code == 1
 
 
-def test_main_no_markdown_files_exits_zero(sub, tmp_path, monkeypatch, capsys):
+def test_main_no_markdown_files_exits_zero(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_chart(tmp_path, {})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr(sub, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
@@ -139,7 +150,9 @@ def test_main_no_markdown_files_exits_zero(sub, tmp_path, monkeypatch, capsys):
     assert "OK: no markdown files found" in capsys.readouterr().out
 
 
-def test_main_fixes_a_real_file_and_exits_zero(sub, tmp_path, monkeypatch, capsys):
+def test_main_fixes_a_real_file_and_exits_zero(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_chart(tmp_path, {"docs/a.md": FIXABLE})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr(sub, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
@@ -156,7 +169,9 @@ def test_main_fixes_a_real_file_and_exits_zero(sub, tmp_path, monkeypatch, capsy
     assert "human judgment" in out
 
 
-def test_main_nothing_to_fix_exits_zero(sub, tmp_path, monkeypatch, capsys):
+def test_main_nothing_to_fix_exits_zero(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_chart(tmp_path, {"docs/a.md": CLEAN})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr(sub, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
@@ -169,7 +184,9 @@ def test_main_nothing_to_fix_exits_zero(sub, tmp_path, monkeypatch, capsys):
     assert "OK: nothing pymarkdown fix could resolve" in capsys.readouterr().out
 
 
-def test_main_dry_run_reports_but_does_not_write(sub, tmp_path, monkeypatch, capsys):
+def test_main_dry_run_reports_but_does_not_write(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_chart(tmp_path, {"docs/a.md": FIXABLE})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr(sub, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
@@ -186,7 +203,9 @@ def test_main_dry_run_reports_but_does_not_write(sub, tmp_path, monkeypatch, cap
     assert "dry-run" in out
 
 
-def test_main_dry_run_nothing_to_fix_exits_zero(sub, tmp_path, monkeypatch, capsys):
+def test_main_dry_run_nothing_to_fix_exits_zero(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_chart(tmp_path, {"docs/a.md": CLEAN})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr(sub, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")

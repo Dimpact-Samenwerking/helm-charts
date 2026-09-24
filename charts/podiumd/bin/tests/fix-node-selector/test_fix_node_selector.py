@@ -1,6 +1,7 @@
 """find_fixes/apply_fixes (pure logic) plus a main() integration test
 against real files in tmp_path. No git/network/helm needed."""
 
+from pathlib import Path
 from types import ModuleType
 
 import pytest
@@ -67,7 +68,7 @@ data:
 """
 
 
-def test_find_fixes_deployment_missing_node_selector(sub):
+def test_find_fixes_deployment_missing_node_selector(sub: ModuleType):
     fixes, unresolved = sub.find_fixes(DEPLOYMENT_MISSING)
     assert unresolved == []
     assert len(fixes) == 1
@@ -79,7 +80,7 @@ def test_find_fixes_deployment_missing_node_selector(sub):
     assert DEPLOYMENT_MISSING[insert_at:].startswith("      containers:")
 
 
-def test_find_fixes_already_has_node_selector_is_a_noop(sub):
+def test_find_fixes_already_has_node_selector_is_a_noop(sub: ModuleType):
     fixes, unresolved = sub.find_fixes(DEPLOYMENT_WITH_NODE_SELECTOR)
     assert fixes == []
     assert unresolved == []
@@ -113,13 +114,13 @@ def test_find_fixes_selector_in_included_define_block_is_a_noop(sub: ModuleType)
     assert unresolved == []
 
 
-def test_find_fixes_non_workload_kind_ignored(sub):
+def test_find_fixes_non_workload_kind_ignored(sub: ModuleType):
     fixes, unresolved = sub.find_fixes(NON_WORKLOAD)
     assert fixes == []
     assert unresolved == []
 
 
-def test_find_fixes_cronjob_deep_nesting_anchors_on_containers(sub):
+def test_find_fixes_cronjob_deep_nesting_anchors_on_containers(sub: ModuleType):
     fixes, unresolved = sub.find_fixes(CRONJOB_MISSING)
     assert unresolved == []
     assert len(fixes) == 1
@@ -130,7 +131,7 @@ def test_find_fixes_cronjob_deep_nesting_anchors_on_containers(sub):
     assert CRONJOB_MISSING[insert_at:].startswith("          containers:")
 
 
-def test_find_fixes_init_containers_only_is_unresolved_not_misfixed(sub):
+def test_find_fixes_init_containers_only_is_unresolved_not_misfixed(sub: ModuleType):
     """initContainers: must never be mistaken for the containers: anchor
     — a workload with only initContainers (no containers: key at all in
     this fixture) has nothing safe to anchor on."""
@@ -139,13 +140,13 @@ def test_find_fixes_init_containers_only_is_unresolved_not_misfixed(sub):
     assert unresolved == [("Deployment", "my-app")]
 
 
-def test_apply_fixes_inserts_at_correct_position(sub):
+def test_apply_fixes_inserts_at_correct_position(sub: ModuleType):
     fixes, _ = sub.find_fixes(DEPLOYMENT_MISSING)
     result = sub.apply_fixes(DEPLOYMENT_MISSING, fixes)
     assert result == DEPLOYMENT_WITH_NODE_SELECTOR
 
 
-def test_apply_fixes_handles_multiple_documents_without_offset_corruption(sub):
+def test_apply_fixes_handles_multiple_documents_without_offset_corruption(sub: ModuleType):
     combined = DEPLOYMENT_MISSING + "---\n" + CRONJOB_MISSING
     fixes, unresolved = sub.find_fixes(combined)
     assert unresolved == []
@@ -173,7 +174,7 @@ def test_apply_fixes_handles_multiple_documents_without_offset_corruption(sub):
 # --- main() integration ---
 
 
-def make_templates(tmp_path, files):
+def make_templates(tmp_path: Path, files):
     templates_dir = tmp_path / "templates"
     templates_dir.mkdir()
     for name, content in files.items():
@@ -181,7 +182,9 @@ def make_templates(tmp_path, files):
     return tmp_path
 
 
-def test_main_help_flag_prints_usage_and_exits_zero(sub, tmp_path, monkeypatch, capsys):
+def test_main_help_flag_prints_usage_and_exits_zero(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_templates(tmp_path, {"deploy.yaml": DEPLOYMENT_MISSING})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-node-selector", "--help"])
@@ -189,11 +192,13 @@ def test_main_help_flag_prints_usage_and_exits_zero(sub, tmp_path, monkeypatch, 
     with pytest.raises(SystemExit) as exc_info:
         sub.main()
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == sub.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{sub.__doc__}\n"
     assert (chart_dir / "templates" / "deploy.yaml").read_text(encoding="utf-8") == DEPLOYMENT_MISSING
 
 
-def test_main_no_findings_exits_zero(sub, tmp_path, monkeypatch, capsys):
+def test_main_no_findings_exits_zero(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_templates(tmp_path, {"deploy.yaml": DEPLOYMENT_WITH_NODE_SELECTOR})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-node-selector"])
@@ -204,7 +209,9 @@ def test_main_no_findings_exits_zero(sub, tmp_path, monkeypatch, capsys):
     assert "OK:" in capsys.readouterr().out
 
 
-def test_main_fixes_a_real_file_and_exits_zero(sub, tmp_path, monkeypatch, capsys):
+def test_main_fixes_a_real_file_and_exits_zero(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_templates(tmp_path, {"deploy.yaml": DEPLOYMENT_MISSING})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-node-selector"])
@@ -218,7 +225,9 @@ def test_main_fixes_a_real_file_and_exits_zero(sub, tmp_path, monkeypatch, capsy
     assert "Inserted nodeSelector into 1 template" in out
 
 
-def test_main_dry_run_reports_but_does_not_write(sub, tmp_path, monkeypatch, capsys):
+def test_main_dry_run_reports_but_does_not_write(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_templates(tmp_path, {"deploy.yaml": DEPLOYMENT_MISSING})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-node-selector", "--dry-run"])
@@ -232,7 +241,9 @@ def test_main_dry_run_reports_but_does_not_write(sub, tmp_path, monkeypatch, cap
     assert "dry-run" in out
 
 
-def test_main_unresolved_case_exits_nonzero_and_leaves_file_untouched(sub, tmp_path, monkeypatch, capsys):
+def test_main_unresolved_case_exits_nonzero_and_leaves_file_untouched(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_templates(tmp_path, {"deploy.yaml": DEPLOYMENT_WITH_INIT_CONTAINERS_ONLY})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-node-selector"])
@@ -244,7 +255,9 @@ def test_main_unresolved_case_exits_nonzero_and_leaves_file_untouched(sub, tmp_p
     assert "review by hand" in capsys.readouterr().out
 
 
-def test_main_fixes_multiple_files(sub, tmp_path, monkeypatch, capsys):
+def test_main_fixes_multiple_files(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_templates(
         tmp_path,
         {
@@ -263,7 +276,7 @@ def test_main_fixes_multiple_files(sub, tmp_path, monkeypatch, capsys):
     assert "Inserted nodeSelector into 2 template" in capsys.readouterr().out
 
 
-def test_main_is_idempotent(sub, tmp_path, monkeypatch):
+def test_main_is_idempotent(sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Running twice must not insert a second nodeSelector."""
     chart_dir = make_templates(tmp_path, {"deploy.yaml": DEPLOYMENT_MISSING})
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)

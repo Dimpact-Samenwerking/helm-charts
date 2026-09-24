@@ -6,7 +6,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.image import baseline_refresh
+from lib.yaml_types import YamlMapping
 
 
 def no_lint_args(_chart_dir: Path) -> list[str]:
@@ -33,7 +35,11 @@ def test_refresh_images_baseline_passes_the_render_to_the_regeneration(
         return {stdout}
 
     def fake_regenerate(
-        chart_dir: Path, deps: list, values: dict, images_baseline_path: Path, rendered_paths: set[str]
+        chart_dir: Path,
+        deps: list[ChartDependency],
+        values: YamlMapping,
+        images_baseline_path: Path,
+        rendered_paths: set[str],
     ) -> tuple[int, list[str], bool]:
         seen.update(chart_dir=chart_dir, deps=deps, values=values, path=images_baseline_path, rendered=rendered_paths)
         return 3, ["docker.io/unresolvable"], True

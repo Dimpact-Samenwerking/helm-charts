@@ -8,6 +8,9 @@ confirms a chart_dir with no etc/ directory at all doesn't crash
 _load_settings either — mirrors lib.chart._release_baselines' own
 tolerance for a missing etc/release-baseline.yaml."""
 
+from pathlib import Path
+from types import ModuleType
+
 import yaml
 
 FULL_SETTINGS = {
@@ -184,20 +187,20 @@ ACCESSOR_CASES = [
 ]
 
 
-def test_every_accessor_documented_and_present(libsettings):
+def test_every_accessor_documented_and_present(libsettings: ModuleType):
     """Guards against a typo'd/missing accessor name silently dropping a
     case out of the parametrized tests below."""
     for name, *_ in ACCESSOR_CASES:
         assert hasattr(libsettings, name), f"lib.settings.{name} missing"
 
 
-def test_missing_settings_file_falls_back_to_defaults(libsettings, tmp_path):
+def test_missing_settings_file_falls_back_to_defaults(libsettings: ModuleType, tmp_path: Path):
     for name, default, _override, _cast in ACCESSOR_CASES:
         accessor = getattr(libsettings, name)
         assert accessor(tmp_path) == default
 
 
-def test_no_etc_directory_at_all_does_not_crash(libsettings, tmp_path):
+def test_no_etc_directory_at_all_does_not_crash(libsettings: ModuleType, tmp_path: Path):
     """chart_dir has no etc/ directory whatsoever (not just a missing
     settings.yaml inside an existing etc/) — mirrors lib.chart.
     _release_baselines' own tolerance for this."""
@@ -206,7 +209,7 @@ def test_no_etc_directory_at_all_does_not_crash(libsettings, tmp_path):
         assert getattr(libsettings, name)(tmp_path) == default
 
 
-def test_full_settings_file_overrides_every_default(libsettings, tmp_path):
+def test_full_settings_file_overrides_every_default(libsettings: ModuleType, tmp_path: Path):
     write_settings(tmp_path, FULL_SETTINGS)
     for name, _default, override, cast in ACCESSOR_CASES:
         accessor = getattr(libsettings, name)
@@ -216,7 +219,7 @@ def test_full_settings_file_overrides_every_default(libsettings, tmp_path):
             assert isinstance(result, cast)
 
 
-def test_partial_settings_file_mixes_overrides_and_defaults(libsettings, tmp_path):
+def test_partial_settings_file_mixes_overrides_and_defaults(libsettings: ModuleType, tmp_path: Path):
     """Only dry_check is present — every dry_check accessor reads its
     override, every other accessor (including ones in wholly-absent
     sections like cve_scan) falls back to its default without crashing."""
@@ -253,7 +256,7 @@ def test_partial_settings_file_mixes_overrides_and_defaults(libsettings, tmp_pat
     assert libsettings.release_secret_warn_at_fraction_of_limit(tmp_path) == 0.90
 
 
-def test_empty_settings_file_does_not_crash(libsettings, tmp_path):
+def test_empty_settings_file_does_not_crash(libsettings: ModuleType, tmp_path: Path):
     """An etc/settings.yaml that exists but parses to None (e.g. an empty
     file) must behave exactly like a missing one."""
     (tmp_path / "etc").mkdir()
@@ -279,7 +282,9 @@ DEFAULT_DIGEST_PINNING_EXCEPTIONS = {
 }
 
 
-def test_digest_pinning_exceptions_missing_file_matches_todays_five_entry_table(libsettings, tmp_path):
+def test_digest_pinning_exceptions_missing_file_matches_todays_five_entry_table(
+    libsettings: ModuleType, tmp_path: Path
+):
     """No etc/settings.yaml at all -- falls back to exactly today's real
     5-entry table (the one this iteration unified out of lib.chart.
     SPLIT_TAG_SHA_PATHS, lib.checks.digest_pinning.EXEMPT_PATHS, and
@@ -287,7 +292,7 @@ def test_digest_pinning_exceptions_missing_file_matches_todays_five_entry_table(
     assert libsettings.digest_pinning_exceptions(tmp_path) == DEFAULT_DIGEST_PINNING_EXCEPTIONS
 
 
-def test_digest_pinning_exceptions_full_file_override(libsettings, tmp_path):
+def test_digest_pinning_exceptions_full_file_override(libsettings: ModuleType, tmp_path: Path):
     write_settings(
         tmp_path,
         {
@@ -305,7 +310,7 @@ def test_digest_pinning_exceptions_full_file_override(libsettings, tmp_path):
     }
 
 
-def test_digest_pinning_exceptions_partial_entry_defaults_missing_keys(libsettings, tmp_path):
+def test_digest_pinning_exceptions_partial_entry_defaults_missing_keys(libsettings: ModuleType, tmp_path: Path):
     """An entry that only sets one of sibling_field/writable still comes
     back with BOTH keys present (the other defaulted) -- callers never
     need their own .get() dance."""

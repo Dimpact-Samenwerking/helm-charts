@@ -1,16 +1,17 @@
 """lib.upgradedoc -- values-tree/component ordering keys and
 upgrade-doc row/changes-block/values-delta-section sorting."""
 
+from types import ModuleType
 
 # --- values_key_order ---
 
 
-def test_values_key_order_returns_top_level_keys_in_file_order(libupgradedocsorting):
+def test_values_key_order_returns_top_level_keys_in_file_order(libupgradedocsorting: ModuleType):
     values = {"zac": {}, "openzaak": {}, "openinwoner": {}}
     assert libupgradedocsorting.values_key_order(values) == ["zac", "openzaak", "openinwoner"]
 
 
-def test_values_key_order_non_dict_returns_empty(libupgradedocsorting):
+def test_values_key_order_non_dict_returns_empty(libupgradedocsorting: ModuleType):
     assert libupgradedocsorting.values_key_order(None) == []
 
 
@@ -24,22 +25,22 @@ DEPS = [
 KEY_ORDER = ["openzaak", "zac", "openinwoner"]
 
 
-def test_component_order_key_matches_by_alias(libupgradedocsorting):
+def test_component_order_key_matches_by_alias(libupgradedocsorting: ModuleType):
     assert libupgradedocsorting.component_order_key("ZAC", DEPS, KEY_ORDER) == (1, 0)
 
 
-def test_component_order_key_matches_free_form_name(libupgradedocsorting):
+def test_component_order_key_matches_free_form_name(libupgradedocsorting: ModuleType):
     assert libupgradedocsorting.component_order_key("Open Zaak", DEPS, KEY_ORDER) == (0, 0)
 
 
-def test_component_order_key_unmatched_name_sorts_after_every_real_component(libupgradedocsorting):
+def test_component_order_key_unmatched_name_sorts_after_every_real_component(libupgradedocsorting: ModuleType):
     assert libupgradedocsorting.component_order_key("nginx-unprivileged (shared sidecar)", DEPS, KEY_ORDER) == (
         len(KEY_ORDER),
         0,
     )
 
 
-def test_component_order_key_global_shared_image_uses_its_own_values_position(libupgradedocsorting):
+def test_component_order_key_global_shared_image_uses_its_own_values_position(libupgradedocsorting: ModuleType):
     """Real bug: a bare "global" shared-image name (e.g. "nginx-
     unprivileged") never embeds any dependency's own name/alias as a
     substring, so match_dependency finds nothing and this used to always
@@ -58,14 +59,14 @@ def test_component_order_key_global_shared_image_uses_its_own_values_position(li
     ) == (0, 0)
 
 
-def test_component_order_key_no_canonical_names_given_is_unaffected(libupgradedocsorting):
+def test_component_order_key_no_canonical_names_given_is_unaffected(libupgradedocsorting: ModuleType):
     """Omitting canonical_names entirely behaves exactly as before — real
     dependency names and their own sidecars are never affected by this
     parameter either way."""
     assert libupgradedocsorting.component_order_key("nginx-unprivileged", DEPS, KEY_ORDER) == (len(KEY_ORDER), 0)
 
 
-def test_component_order_key_native_component_uses_its_own_values_position(libupgradedocsorting):
+def test_component_order_key_native_component_uses_its_own_values_position(libupgradedocsorting: ModuleType):
     """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
     dependency to match_dependency resolve at all — falls back to
     match_native_component, so its own row/section still sorts at its
@@ -78,7 +79,7 @@ def test_component_order_key_native_component_uses_its_own_values_position(libup
     assert libupgradedocsorting.component_order_key("frankgateway 100 → 104", DEPS, key_order) == (len(KEY_ORDER), 0)
 
 
-def test_component_order_key_matched_dep_not_in_key_order_sorts_last(libupgradedocsorting):
+def test_component_order_key_matched_dep_not_in_key_order_sorts_last(libupgradedocsorting: ModuleType):
     """A dependency that resolves fine but isn't a top-level values.yaml key
     at all (e.g. removed from values.yaml but still in Chart.yaml) can't be
     placed meaningfully -- falls back to the same "sorts last" sentinel as
@@ -87,7 +88,7 @@ def test_component_order_key_matched_dep_not_in_key_order_sorts_last(libupgraded
     assert libupgradedocsorting.component_order_key("TotallyAbsent", deps, KEY_ORDER) == (len(KEY_ORDER), 0)
 
 
-def test_component_order_key_sidecar_sorts_after_its_own_parent_row(libupgradedocsorting):
+def test_component_order_key_sidecar_sorts_after_its_own_parent_row(libupgradedocsorting: ModuleType):
     """A canonical sidecar name ("<parent> - <basename>") always resolves
     to the SAME values_key_index as its owning dependency's own row via
     match_dependency's fuzzy word-containment — the " - " secondary bit
@@ -125,7 +126,7 @@ GLOBAL_IMAGES_CANONICAL_NAMES = {
 }
 
 
-def test_values_tree_position_walks_full_nested_structure(libupgradedocsorting):
+def test_values_tree_position_walks_full_nested_structure(libupgradedocsorting: ModuleType):
     """Real bug this closes: nginx/curl/busybox/redis are all genuinely
     different, independently-orderable images sharing the exact same
     "global.images.*" prefix — every existing sort-key function only
@@ -141,7 +142,7 @@ def test_values_tree_position_walks_full_nested_structure(libupgradedocsorting):
     assert libupgradedocsorting.values_tree_position(GLOBAL_IMAGES_VALUES, ("zac", "image")) == (1, 0)
 
 
-def test_values_tree_position_shorter_prefix_always_sorts_first(libupgradedocsorting):
+def test_values_tree_position_shorter_prefix_always_sorts_first(libupgradedocsorting: ModuleType):
     """A dependency's own bare 1-tuple identity (never resolved down
     into whichever specific image path its app version came from) is a
     genuine PREFIX of any of its own nested sidecar paths — Python's own
@@ -153,12 +154,12 @@ def test_values_tree_position_shorter_prefix_always_sorts_first(libupgradedocsor
     ) < libupgradedocsorting.values_tree_position(GLOBAL_IMAGES_VALUES, ("zac", "image"))
 
 
-def test_values_tree_position_unresolvable_segment_sorts_last_never_crashes(libupgradedocsorting):
+def test_values_tree_position_unresolvable_segment_sorts_last_never_crashes(libupgradedocsorting: ModuleType):
     assert libupgradedocsorting.values_tree_position(GLOBAL_IMAGES_VALUES, ("global", "images", "mystery")) == (0, 0, 4)
     assert libupgradedocsorting.values_tree_position(GLOBAL_IMAGES_VALUES, ("totally", "absent")) == (2,)
 
 
-def test_component_order_key_distinguishes_multiple_global_images_given_values(libupgradedocsorting):
+def test_component_order_key_distinguishes_multiple_global_images_given_values(libupgradedocsorting: ModuleType):
     """Regression test: the real redis/nginx/curl/busybox bug. Without
     `values`, all four canonical "global" shared-image names tie at the
     exact same (index, is_sidecar) key (see test_component_order_key_
@@ -186,22 +187,22 @@ def test_component_order_key_distinguishes_multiple_global_images_given_values(l
 # --- find_out_of_order_names ---
 
 
-def test_find_out_of_order_names_correctly_ordered_is_empty(libupgradedocsorting):
+def test_find_out_of_order_names_correctly_ordered_is_empty(libupgradedocsorting: ModuleType):
     names = ["Open Zaak", "ZAC", "Open Inwoner"]
     assert libupgradedocsorting.find_out_of_order_names(names, DEPS, KEY_ORDER) == []
 
 
-def test_find_out_of_order_names_flags_a_swapped_pair(libupgradedocsorting):
+def test_find_out_of_order_names_flags_a_swapped_pair(libupgradedocsorting: ModuleType):
     names = ["ZAC", "Open Zaak", "Open Inwoner"]
     assert libupgradedocsorting.find_out_of_order_names(names, DEPS, KEY_ORDER) == [("ZAC", "Open Zaak")]
 
 
-def test_find_out_of_order_names_two_unmatched_names_never_conflict(libupgradedocsorting):
+def test_find_out_of_order_names_two_unmatched_names_never_conflict(libupgradedocsorting: ModuleType):
     names = ["Some Shared Sidecar", "Another Shared Thing"]
     assert libupgradedocsorting.find_out_of_order_names(names, DEPS, KEY_ORDER) == []
 
 
-def test_find_out_of_order_names_unmatched_before_a_real_component_is_flagged(libupgradedocsorting):
+def test_find_out_of_order_names_unmatched_before_a_real_component_is_flagged(libupgradedocsorting: ModuleType):
     """An unmatched row/heading sorts after every real component -- one
     appearing BEFORE a real component earlier in values.yaml's own order is
     still a genuine violation."""
@@ -214,23 +215,23 @@ def test_find_out_of_order_names_unmatched_before_a_real_component_is_flagged(li
 # --- insertion_index ---
 
 
-def test_insertion_index_middle(libupgradedocsorting):
+def test_insertion_index_middle(libupgradedocsorting: ModuleType):
     assert libupgradedocsorting.insertion_index(1, [0, 2, 3]) == 1
 
 
-def test_insertion_index_start(libupgradedocsorting):
+def test_insertion_index_start(libupgradedocsorting: ModuleType):
     assert libupgradedocsorting.insertion_index(-1, [0, 2, 3]) == 0
 
 
-def test_insertion_index_end(libupgradedocsorting):
+def test_insertion_index_end(libupgradedocsorting: ModuleType):
     assert libupgradedocsorting.insertion_index(5, [0, 2, 3]) == 3
 
 
-def test_insertion_index_empty_existing(libupgradedocsorting):
+def test_insertion_index_empty_existing(libupgradedocsorting: ModuleType):
     assert libupgradedocsorting.insertion_index(0, []) == 0
 
 
-def test_insertion_index_real_component_goes_before_unmatched_ones(libupgradedocsorting):
+def test_insertion_index_real_component_goes_before_unmatched_ones(libupgradedocsorting: ModuleType):
     """A genuinely new, resolvable component (a real, early key) inserted
     where every existing item is an unmatched/sentinel-keyed row belongs
     BEFORE all of them -- matches how a real component is expected to sort
@@ -238,7 +239,7 @@ def test_insertion_index_real_component_goes_before_unmatched_ones(libupgradedoc
     assert libupgradedocsorting.insertion_index(0, [3, 3, 3]) == 0
 
 
-def test_insertion_index_new_unmatched_item_among_unmatched_ones_goes_last(libupgradedocsorting):
+def test_insertion_index_new_unmatched_item_among_unmatched_ones_goes_last(libupgradedocsorting: ModuleType):
     """A new item that itself carries the sentinel key (unmatched) is never
     inserted ahead of other unmatched items without evidence it belongs
     there -- it goes after all of them, preserving their relative order."""
@@ -248,7 +249,7 @@ def test_insertion_index_new_unmatched_item_among_unmatched_ones_goes_last(libup
 # --- parse_upgrade_doc_changes_blocks ---
 
 
-def test_parse_upgrade_doc_changes_blocks_basic(libupgradedocsorting):
+def test_parse_upgrade_doc_changes_blocks_basic(libupgradedocsorting: ModuleType):
     text = (
         "# Title\n\n"
         "## Changes\n\n"
@@ -261,18 +262,18 @@ def test_parse_upgrade_doc_changes_blocks_basic(libupgradedocsorting):
     assert [b["heading"] for b in blocks] == ["Open Zaak 1.27.3 → 1.27.4", "Open Inwoner 2.3.1 → 2.4.2"]
 
 
-def test_parse_upgrade_doc_changes_blocks_h4_subheading_is_not_a_separate_block(libupgradedocsorting):
+def test_parse_upgrade_doc_changes_blocks_h4_subheading_is_not_a_separate_block(libupgradedocsorting: ModuleType):
     text = "## Changes\n\n### Open Zaak 1.27.3 → 1.27.4\n\n#### Action required\n\nNo action required.\n"
     blocks = libupgradedocsorting.parse_upgrade_doc_changes_blocks(text)
     assert len(blocks) == 1
     assert blocks[0]["heading"] == "Open Zaak 1.27.3 → 1.27.4"
 
 
-def test_parse_upgrade_doc_changes_blocks_no_changes_section_is_empty(libupgradedocsorting):
+def test_parse_upgrade_doc_changes_blocks_no_changes_section_is_empty(libupgradedocsorting: ModuleType):
     assert libupgradedocsorting.parse_upgrade_doc_changes_blocks("# Title\n\nJust prose.\n") == []
 
 
-def test_parse_upgrade_doc_changes_blocks_stops_at_next_h2(libupgradedocsorting):
+def test_parse_upgrade_doc_changes_blocks_stops_at_next_h2(libupgradedocsorting: ModuleType):
     text = (
         "## Changes\n\n"
         "### Open Zaak 1.27.3 → 1.27.4\n\n"
@@ -291,7 +292,7 @@ def test_parse_upgrade_doc_changes_blocks_stops_at_next_h2(libupgradedocsorting)
 COMPONENT_VERSIONS_HEADING = "## Component versions (4.9.0 vs 4.8.5)\n\n"
 
 
-def test_sort_upgrade_doc_rows_reorders_out_of_order_rows(libupgradedocsorting):
+def test_sort_upgrade_doc_rows_reorders_out_of_order_rows(libupgradedocsorting: ModuleType):
     text = (
         COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
@@ -307,7 +308,7 @@ def test_sort_upgrade_doc_rows_reorders_out_of_order_rows(libupgradedocsorting):
     assert lines[5].startswith("| Open Inwoner")
 
 
-def test_sort_upgrade_doc_rows_already_in_order_is_unchanged(libupgradedocsorting):
+def test_sort_upgrade_doc_rows_already_in_order_is_unchanged(libupgradedocsorting: ModuleType):
     text = (
         COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
@@ -320,7 +321,7 @@ def test_sort_upgrade_doc_rows_already_in_order_is_unchanged(libupgradedocsortin
     assert new_text == text
 
 
-def test_sort_upgrade_doc_rows_fewer_than_two_rows_is_unchanged(libupgradedocsorting):
+def test_sort_upgrade_doc_rows_fewer_than_two_rows_is_unchanged(libupgradedocsorting: ModuleType):
     text = (
         COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
@@ -331,7 +332,7 @@ def test_sort_upgrade_doc_rows_fewer_than_two_rows_is_unchanged(libupgradedocsor
     assert new_text == text
 
 
-def test_sort_upgrade_doc_rows_unmatched_row_stays_last(libupgradedocsorting):
+def test_sort_upgrade_doc_rows_unmatched_row_stays_last(libupgradedocsorting: ModuleType):
     text = (
         COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
@@ -345,7 +346,7 @@ def test_sort_upgrade_doc_rows_unmatched_row_stays_last(libupgradedocsorting):
     assert lines[5].startswith("| nginx-unprivileged")
 
 
-def test_sort_upgrade_doc_rows_global_row_sorts_to_its_own_real_position(libupgradedocsorting):
+def test_sort_upgrade_doc_rows_global_row_sorts_to_its_own_real_position(libupgradedocsorting: ModuleType):
     """Real bug: "nginx-unprivileged" (a canonical "global" shared-image
     row — see canonical_sidecar_row_names) always sorted LAST, even
     though "global:" is values.yaml's own FIRST top-level key and the
@@ -370,7 +371,7 @@ def test_sort_upgrade_doc_rows_global_row_sorts_to_its_own_real_position(libupgr
     assert lines[6].startswith("| Open Inwoner")
 
 
-def test_sort_upgrade_doc_rows_multiple_global_images_use_their_own_real_suborder(libupgradedocsorting):
+def test_sort_upgrade_doc_rows_multiple_global_images_use_their_own_real_suborder(libupgradedocsorting: ModuleType):
     """Regression test: the real redis/nginx/curl/busybox bug. FOUR
     canonical "global" shared-image rows (all peers under values.yaml's
     own "global.images.*") plus one real dependency ("zac") — given
@@ -408,7 +409,7 @@ def test_sort_upgrade_doc_rows_multiple_global_images_use_their_own_real_suborde
 # --- sort_changes_blocks ---
 
 
-def test_sort_changes_blocks_reorders_and_preserves_block_content(libupgradedocsorting):
+def test_sort_changes_blocks_reorders_and_preserves_block_content(libupgradedocsorting: ModuleType):
     text = (
         "## Changes\n\n"
         "### Open Inwoner 2.3.1 → 2.4.2\n\n"
@@ -423,7 +424,7 @@ def test_sort_changes_blocks_reorders_and_preserves_block_content(libupgradedocs
     assert new_text.index("### Open Zaak") < new_text.index("### Open Inwoner")
 
 
-def test_sort_changes_blocks_already_in_order_is_unchanged(libupgradedocsorting):
+def test_sort_changes_blocks_already_in_order_is_unchanged(libupgradedocsorting: ModuleType):
     text = (
         "## Changes\n\n"
         "### Open Zaak 1.27.3 → 1.27.4\n\n"
@@ -437,7 +438,7 @@ def test_sort_changes_blocks_already_in_order_is_unchanged(libupgradedocsorting)
     assert new_text == text
 
 
-def test_sort_changes_blocks_unmatched_block_stays_last_and_later_h2_untouched(libupgradedocsorting):
+def test_sort_changes_blocks_unmatched_block_stays_last_and_later_h2_untouched(libupgradedocsorting: ModuleType):
     text = (
         "## Changes\n\n"
         "### Fix: something unrelated to any component\n\n"
@@ -454,7 +455,7 @@ def test_sort_changes_blocks_unmatched_block_stays_last_and_later_h2_untouched(l
     assert "## Per-environment checklist\n\n### A. Prepare\n\n- [ ] Do the thing.\n" in new_text
 
 
-def test_sort_changes_blocks_global_block_sorts_to_its_own_real_position(libupgradedocsorting):
+def test_sort_changes_blocks_global_block_sorts_to_its_own_real_position(libupgradedocsorting: ModuleType):
     """Same real bug as sort_upgrade_doc_rows, for the "### ..." Changes
     heading shape — the heading text has version/arrow text after the
     canonical name (match_canonical_sidecar_name's text_names fallback
@@ -478,7 +479,7 @@ def test_sort_changes_blocks_global_block_sorts_to_its_own_real_position(libupgr
     )
 
 
-def test_sort_changes_blocks_multiple_global_images_use_their_own_real_suborder(libupgradedocsorting):
+def test_sort_changes_blocks_multiple_global_images_use_their_own_real_suborder(libupgradedocsorting: ModuleType):
     """The Changes-heading shape of the same real redis/nginx/curl/
     busybox regression test above."""
     text = (
@@ -505,7 +506,7 @@ def test_sort_changes_blocks_multiple_global_images_use_their_own_real_suborder(
     ]
 
 
-def test_sort_changes_blocks_fewer_than_two_blocks_is_unchanged(libupgradedocsorting):
+def test_sort_changes_blocks_fewer_than_two_blocks_is_unchanged(libupgradedocsorting: ModuleType):
     text = "## Changes\n\n### Open Zaak 1.27.3 → 1.27.4\n\nZaak details.\n"
     new_text, moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, {"openzaak": {}})
     assert moved == []
@@ -515,7 +516,7 @@ def test_sort_changes_blocks_fewer_than_two_blocks_is_unchanged(libupgradedocsor
 # --- parse_values_delta_sections ---
 
 
-def test_parse_values_delta_sections_finds_top_level_headings(libupgradedocsorting):
+def test_parse_values_delta_sections_finds_top_level_headings(libupgradedocsorting: ModuleType):
     text = (
         "# Values deltas\n\n"
         "Intro prose, not part of any section.\n\n"
@@ -536,14 +537,14 @@ def test_parse_values_delta_sections_finds_top_level_headings(libupgradedocsorti
     assert lines[sections[1]["start"]].strip() == "## PABC 1.1.0 → 1.1.1 no values changes"
 
 
-def test_parse_values_delta_sections_no_headings_is_empty(libupgradedocsorting):
+def test_parse_values_delta_sections_no_headings_is_empty(libupgradedocsorting: ModuleType):
     assert libupgradedocsorting.parse_values_delta_sections("# Values deltas\n\nTODO.\n") == []
 
 
 # --- sort_values_delta_sections ---
 
 
-def test_sort_values_delta_sections_reorders_out_of_order_sections(libupgradedocsorting):
+def test_sort_values_delta_sections_reorders_out_of_order_sections(libupgradedocsorting: ModuleType):
     text = (
         "## openinwoner 2.4.2 → 2.4.3\n\n"
         "- Key `openinwoner.a` was added.\n\n"
@@ -560,7 +561,7 @@ def test_sort_values_delta_sections_reorders_out_of_order_sections(libupgradedoc
     )
 
 
-def test_sort_values_delta_sections_already_in_order_is_unchanged(libupgradedocsorting):
+def test_sort_values_delta_sections_already_in_order_is_unchanged(libupgradedocsorting: ModuleType):
     text = (
         "## openzaak 1.27.4 → 1.29.3\n\n- Key `openzaak.b` was added.\n\n"
         "## openinwoner 2.4.2 → 2.4.3\n\n- Key `openinwoner.a` was added.\n"
@@ -570,14 +571,14 @@ def test_sort_values_delta_sections_already_in_order_is_unchanged(libupgradedocs
     assert new_text == text
 
 
-def test_sort_values_delta_sections_fewer_than_two_is_unchanged(libupgradedocsorting):
+def test_sort_values_delta_sections_fewer_than_two_is_unchanged(libupgradedocsorting: ModuleType):
     text = "## openzaak 1.27.4 → 1.29.3\n\n- Key `openzaak.b` was added.\n"
     new_text, moved = libupgradedocsorting.sort_values_delta_sections(text, DEPS, {"openzaak": {}})
     assert moved == []
     assert new_text == text
 
 
-def test_sort_values_delta_sections_never_touches_intro_prose_above(libupgradedocsorting):
+def test_sort_values_delta_sections_never_touches_intro_prose_above(libupgradedocsorting: ModuleType):
     """Content before the very first "## " heading (the doc's own H1
     title, and any intro prose) is never part of any section — see
     parse_values_delta_sections — so it's never moved even when every
@@ -593,7 +594,7 @@ def test_sort_values_delta_sections_never_touches_intro_prose_above(libupgradedo
     assert new_text.startswith("# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nSome intro prose.\n\n")
 
 
-def test_sort_values_delta_sections_reorders_hand_written_sections_too(libupgradedocsorting):
+def test_sort_values_delta_sections_reorders_hand_written_sections_too(libupgradedocsorting: ModuleType):
     """A hand-written section (no different from an auto-generated one
     as far as this function is concerned) is reordered exactly like any
     other — its own CONTENT is never touched, only its physical
@@ -612,7 +613,9 @@ def test_sort_values_delta_sections_reorders_hand_written_sections_too(libupgrad
     )
 
 
-def test_sort_values_delta_sections_multiple_global_images_use_their_own_real_suborder(libupgradedocsorting):
+def test_sort_values_delta_sections_multiple_global_images_use_their_own_real_suborder(
+    libupgradedocsorting: ModuleType,
+):
     """The values-deltas.md shape of the same real redis/nginx/curl/
     busybox regression test above — confirms the identical fix applies
     to this THIRD consumer too, not just -upgrade.md's own table/

@@ -3,6 +3,8 @@ load_yaml_mapping, key_problem."""
 
 import datetime
 
+from pathlib import Path
+
 import pytest
 
 from lib.yaml_types import YamlShapeError
@@ -39,7 +41,7 @@ def test_parse_yaml_mapping_rejects_yaml_boolean_key():
         parse_yaml_mapping("on: push\n", "t.yaml")
 
 
-def test_load_yaml_mapping_names_the_file(tmp_path):
+def test_load_yaml_mapping_names_the_file(tmp_path: Path):
     path = tmp_path / "values.yaml"
     path.write_text("- not a mapping\n", encoding="utf-8")
     with pytest.raises(YamlShapeError, match=str(path)):

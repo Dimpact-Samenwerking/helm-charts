@@ -3,6 +3,10 @@ undocumented component bump, plus its first missing-sidecar-row scenarios."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
 import yaml
 
 
@@ -14,7 +18,7 @@ def write(path, text):
     path.write_text(text, encoding="utf-8")
 
 
-def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
+def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, new_baseline, target="4.9.0"):
     monkeypatch.setattr("sys.argv", ["fix-doc-consistency"])
     monkeypatch.setattr(cdb, "read_upgrade_docs_baseline", lambda chart_dir: new_baseline)
     monkeypatch.setattr(cdb, "DOC_DIR", doc_dir)
@@ -27,7 +31,9 @@ def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
 # --- main() integration: adding a missing "Component versions" row ---
 
 
-def test_main_collapses_pre_existing_double_blank_line_on_write(cdb, tmp_path, monkeypatch):
+def test_main_collapses_pre_existing_double_blank_line_on_write(
+    cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test (MD012, no-multiple-blanks): whatever the source —
     a stray double blank line already sitting in the doc before this run
     touched it at all, not something this specific run's own edit
@@ -118,7 +124,10 @@ def test_main_collapses_pre_existing_double_blank_line_on_write(cdb, tmp_path, m
 
 
 def test_main_adds_missing_row_with_resolvable_app_version(
-    cdb, repo_with_undocumented_component_bumps, monkeypatch, capsys
+    cdb: ModuleType,
+    repo_with_undocumented_component_bumps,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
     cdb.main()
@@ -133,7 +142,10 @@ def test_main_adds_missing_row_with_resolvable_app_version(
 
 
 def test_main_adds_missing_row_with_component_specific_image_path(
-    cdb, repo_with_undocumented_component_bumps, monkeypatch, capsys
+    cdb: ModuleType,
+    repo_with_undocumented_component_bumps,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """keycloak-operator's real app version lives at its own registered
     lib.chart.COMPONENT_IMAGE_PATHS split-path — actual_app_version
@@ -152,7 +164,10 @@ def test_main_adds_missing_row_with_component_specific_image_path(
 
 
 def test_main_adds_missing_row_with_unresolvable_app_version_as_todo_stub(
-    cdb, repo_with_undocumented_component_bumps, monkeypatch, capsys
+    cdb: ModuleType,
+    repo_with_undocumented_component_bumps,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
     cdb.main()
@@ -166,7 +181,7 @@ def test_main_adds_missing_row_with_unresolvable_app_version_as_todo_stub(
 
 
 def test_main_leaves_existing_row_untouched_when_adding_missing_ones(
-    cdb, repo_with_undocumented_component_bumps, monkeypatch
+    cdb: ModuleType, repo_with_undocumented_component_bumps, monkeypatch: pytest.MonkeyPatch
 ):
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
     cdb.main()
@@ -176,7 +191,10 @@ def test_main_leaves_existing_row_untouched_when_adding_missing_ones(
 
 
 def test_main_adds_missing_sidecar_row_nested_under_a_dependency(
-    cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys
+    cdb: ModuleType,
+    repo_with_undocumented_sidecar_bump,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_sidecar_bump, "4.8.5")
     cdb.main()
@@ -190,7 +208,9 @@ def test_main_adds_missing_sidecar_row_nested_under_a_dependency(
     assert "redis-operator - redis" in out
 
 
-def test_main_adds_missing_sidecar_row_for_global_shared_image(cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
+def test_main_adds_missing_sidecar_row_for_global_shared_image(
+    cdb: ModuleType, repo_with_undocumented_sidecar_bump, monkeypatch: pytest.MonkeyPatch
+):
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_sidecar_bump, "4.8.5")
     cdb.main()
 

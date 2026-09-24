@@ -10,6 +10,8 @@ import urllib.error
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -17,7 +19,7 @@ import lib.repo_access_cache as repo_access_cache
 
 
 @pytest.fixture(autouse=True)
-def _clear_tag_exists_cache(libimagedigests):
+def _clear_tag_exists_cache(libimagedigests: ModuleType):
     """cached_tag_exists' own in-process memoization (see its own
     docstring) lives in a module-level dict, and libimagedigests is a
     session-scoped fixture — without this, one test's cached (fake)
@@ -36,7 +38,9 @@ def _clear_tag_exists_cache(libimagedigests):
 # needs both) only pays for one real per-pin registry lookup, not two.
 
 
-def testcached_tag_exists_only_calls_registry_once_for_same_pin(libimagedigests, tmp_path, monkeypatch):
+def testcached_tag_exists_only_calls_registry_once_for_same_pin(
+    libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     calls = []
 
     def fake_registry_tag_exists(host, repo, tag):
@@ -52,7 +56,9 @@ def testcached_tag_exists_only_calls_registry_once_for_same_pin(libimagedigests,
     assert len(calls) == 1
 
 
-def testcached_tag_exists_different_repository_or_version_is_a_distinct_call(libimagedigests, tmp_path, monkeypatch):
+def testcached_tag_exists_different_repository_or_version_is_a_distinct_call(
+    libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     calls = []
 
     def fake_registry_tag_exists(host, repo, tag):
@@ -67,7 +73,9 @@ def testcached_tag_exists_different_repository_or_version_is_a_distinct_call(lib
     assert len(calls) == 2
 
 
-def testcached_tag_exists_does_not_cache_a_raised_exception(libimagedigests, tmp_path, monkeypatch):
+def testcached_tag_exists_does_not_cache_a_raised_exception(
+    libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """A network error must propagate uncached -- check_image_digests' own
     retry-on-transient-network-error loop still genuinely retries over
     the network rather than replaying a cached failure."""
@@ -98,7 +106,9 @@ def testcached_tag_exists_does_not_cache_a_raised_exception(libimagedigests, tmp
 # other, no format translation.
 
 
-def testcached_tag_exists_reads_a_fresh_disk_entry_without_a_network_call(libimagedigests, tmp_path, monkeypatch):
+def testcached_tag_exists_reads_a_fresh_disk_entry_without_a_network_call(
+    libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     digest_a = "a" * 64
     key = repo_access_cache.cache_key("registry", ("docker.io", "org/repo", "1.0.0"))
     repo_access_cache.save_cache(
@@ -119,7 +129,9 @@ def testcached_tag_exists_reads_a_fresh_disk_entry_without_a_network_call(libima
     assert result == (True, f"sha256:{digest_a}")
 
 
-def testcached_tag_exists_writes_a_disk_entry_readable_by_repo_access_cache(libimagedigests, tmp_path, monkeypatch):
+def testcached_tag_exists_writes_a_disk_entry_readable_by_repo_access_cache(
+    libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     digest_a = "a" * 64
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{digest_a}"))
 
@@ -132,7 +144,9 @@ def testcached_tag_exists_writes_a_disk_entry_readable_by_repo_access_cache(libi
     assert repo_access_cache.cache_entry_is_fresh(disk[key], 30) is True
 
 
-def testcached_tag_exists_ignores_a_stale_disk_entry(libimagedigests, tmp_path, monkeypatch):
+def testcached_tag_exists_ignores_a_stale_disk_entry(
+    libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     stale = datetime.now(timezone.utc) - timedelta(minutes=30 + 1)
     key = repo_access_cache.cache_key("registry", ("docker.io", "org/repo", "1.0.0"))
     repo_access_cache.save_cache(
@@ -156,7 +170,9 @@ def testcached_tag_exists_ignores_a_stale_disk_entry(libimagedigests, tmp_path, 
     assert result == (True, f"sha256:{'b' * 64}")
 
 
-def test_check_image_digests_and_find_sliding_pins_share_the_tag_exists_cache(libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_and_find_sliding_pins_share_the_tag_exists_cache(
+    libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """The actual redundancy this cache fixes: check_image_digests' own
     loop and find_sliding_pins (check_cve_diff's own candidate source)
     must not each independently re-query the registry for the same pin

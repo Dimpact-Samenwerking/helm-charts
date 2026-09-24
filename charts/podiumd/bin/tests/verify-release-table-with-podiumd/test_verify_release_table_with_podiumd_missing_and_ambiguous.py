@@ -10,6 +10,8 @@ too-many-lines) -- purely a test reorganization, no behavior change. See the
 sibling test_verify_release_table_with_podiumd_*.py files for the rest of
 that suite."""
 
+from types import ModuleType
+
 import pytest
 
 DIGEST = "a" * 64
@@ -53,7 +55,7 @@ ZAC_WITH_SIDECAR_BLOCK = ZAC_BLOCK + (
 # --- is_primary_image ---
 
 
-def test_is_primary_image_default_path(vrt):
+def test_is_primary_image_default_path(vrt: ModuleType):
     """DEFAULT_IMAGE_PATHS (["image"]) covers the common single-image
     component -- zac's own "zaakafhandelcomponent" pin, at zac.image.tag."""
     lines = values_lines(ZAC_BLOCK)
@@ -61,7 +63,7 @@ def test_is_primary_image_default_path(vrt):
     assert vrt.is_primary_image("zaakafhandelcomponent", lines, pins[0]) is True
 
 
-def test_is_primary_image_false_for_sidecar(vrt):
+def test_is_primary_image_false_for_sidecar(vrt: ModuleType):
     """A sidecar image nested elsewhere is never the component's primary
     one, no matter how deep or shallow the nesting."""
     lines = values_lines(ZAC_WITH_SIDECAR_BLOCK)
@@ -69,7 +71,7 @@ def test_is_primary_image_false_for_sidecar(vrt):
     assert vrt.is_primary_image("zaakafhandelcomponent", lines, pins[0]) is False
 
 
-def test_is_primary_image_multi_image_component_override(vrt):
+def test_is_primary_image_multi_image_component_override(vrt: ModuleType):
     """COMPONENT_IMAGE_PATHS overrides DEFAULT_IMAGE_PATHS for a multi-
     image component -- zgw-office-addin's own frontend+backend are BOTH
     primary, per lib.chart.COMPONENT_IMAGE_PATHS."""
@@ -94,13 +96,13 @@ def test_is_primary_image_multi_image_component_override(vrt):
 # --- compare(): missing from release-table.csv ---
 
 
-def test_compare_reports_dependency_with_no_release_table_row(vrt):
+def test_compare_reports_dependency_with_no_release_table_row(vrt: ModuleType):
     deps = [{"name": "openklant", "alias": "", "version": "1.11.0"}]
     findings, _ = vrt.compare([], vrt.ChartState(None, deps, {}, []))
     assert any("Chart.yaml dependency 'openklant'" in m for m in findings["missing_from_release_table"])
 
 
-def test_compare_dependency_missing_hint_names_resolvable_identifier(vrt):
+def test_compare_dependency_missing_hint_names_resolvable_identifier(vrt: ModuleType):
     """The finding's own second line must tell a human exactly what text
     to write on the Confluence page so the NEXT export resolves this row
     back to the same dependency (see lib.export's component_and_alias) —
@@ -113,7 +115,7 @@ def test_compare_dependency_missing_hint_names_resolvable_identifier(vrt):
     assert 'Name or "Used by": "zac"' in hint
 
 
-def test_compare_reports_image_pinned_but_not_tracked(vrt):
+def test_compare_reports_image_pinned_but_not_tracked(vrt: ModuleType):
     """values.yaml pins an image under zac's own scope that no
     release-table.csv row mentions at all."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
@@ -125,7 +127,7 @@ def test_compare_reports_image_pinned_but_not_tracked(vrt):
     )
 
 
-def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt):
+def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt: ModuleType):
     """The finding's own second line must name the exact Confluence table
     (read off this component's own existing row) and exactly what a new
     row needs to say — a Name containing the missing basename — so
@@ -147,7 +149,7 @@ def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt):
     assert "App version (currently) 5.4.3" in hint
 
 
-def test_compare_missing_primary_image_uses_own_table_without_used_by(vrt):
+def test_compare_missing_primary_image_uses_own_table_without_used_by(vrt: ModuleType):
     """A component's own PRIMARY application image (see lib.chart.
     image_paths_for/DEFAULT_IMAGE_PATHS -- zac.image, here) never needs
     "Used by", even when its only tracked row happens to live on
@@ -169,7 +171,7 @@ def test_compare_missing_primary_image_uses_own_table_without_used_by(vrt):
     assert "Used by" not in hint
 
 
-def test_compare_missing_sidecar_image_always_goes_to_technische_with_used_by(vrt):
+def test_compare_missing_sidecar_image_always_goes_to_technische_with_used_by(vrt: ModuleType):
     """A component's own sidecar/init-container image -- NOT its primary
     application image, see lib.chart.image_paths_for -- always goes to
     "Technische component versies" with "Used by" naming the component,
@@ -194,7 +196,7 @@ def test_compare_missing_sidecar_image_always_goes_to_technische_with_used_by(vr
 # --- compare(): missing from Chart.yaml / values.yaml ---
 
 
-def test_compare_reports_row_component_no_longer_a_dependency(vrt):
+def test_compare_reports_row_component_no_longer_a_dependency(vrt: ModuleType):
     rows = [csv_row("Long Gone", "longgone")]
     findings, _ = vrt.compare(rows, vrt.ChartState(None, [], {}, []))
     assert any(
@@ -203,7 +205,7 @@ def test_compare_reports_row_component_no_longer_a_dependency(vrt):
     )
 
 
-def test_compare_reports_tracked_image_no_longer_pinned(vrt):
+def test_compare_reports_tracked_image_no_longer_pinned(vrt: ModuleType):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [
         csv_row(
@@ -231,7 +233,7 @@ def test_compare_reports_tracked_image_no_longer_pinned(vrt):
 # --- compare(): orphan components (no separate Chart.yaml dependency) ---
 
 
-def test_compare_checks_images_for_orphan_values_yaml_component(vrt):
+def test_compare_checks_images_for_orphan_values_yaml_component(vrt: ModuleType):
     """frankgateway-style: no Chart.yaml dependency, but a real top-level
     values.yaml key — its own image(s) are still checked, just without a
     chart-version comparison (no Chart.yaml "version:" to compare against)."""
@@ -245,7 +247,7 @@ def test_compare_checks_images_for_orphan_values_yaml_component(vrt):
     assert unresolved == []
 
 
-def test_compare_orphan_component_absent_from_values_yaml_is_missing_from_chart(vrt):
+def test_compare_orphan_component_absent_from_values_yaml_is_missing_from_chart(vrt: ModuleType):
     rows = [csv_row("Frank Gateway", "frankgateway")]
     findings, _ = vrt.compare(rows, vrt.ChartState(None, [], {}, []))
     assert any("component 'frankgateway'" in m for m in findings["missing_from_chart"])
@@ -254,7 +256,7 @@ def test_compare_orphan_component_absent_from_values_yaml_is_missing_from_chart(
 # --- compare(): ambiguous pins ---
 
 
-def test_compare_reports_ambiguous_when_basename_pinned_at_multiple_versions(vrt):
+def test_compare_reports_ambiguous_when_basename_pinned_at_multiple_versions(vrt: ModuleType):
     block = (
         "zac:\n"
         "  a:\n"
@@ -277,7 +279,7 @@ def test_compare_reports_ambiguous_when_basename_pinned_at_multiple_versions(vrt
 
 
 @pytest.mark.parametrize("component", ["", "UNKNOWN"])
-def test_compare_lists_unresolved_rows_separately(vrt, component):
+def test_compare_lists_unresolved_rows_separately(vrt: ModuleType, component):
     rows = [csv_row("Solr", component)]
     findings, unresolved = vrt.compare(rows, vrt.ChartState(None, [], {}, []))
     assert findings == {}
@@ -291,7 +293,7 @@ GLOBAL_CURL_BLOCK = (
 )
 
 
-def test_compare_checks_multiple_row_against_global_images(vrt):
+def test_compare_checks_multiple_row_against_global_images(vrt: ModuleType):
     """A "MULTIPLE" row (a shared base image like curl, hoisted into
     values.yaml's global.images map) is checked against the "global"
     scope, not skipped as unresolved."""
@@ -301,14 +303,14 @@ def test_compare_checks_multiple_row_against_global_images(vrt):
     assert unresolved == []
 
 
-def test_compare_multiple_row_matching_global_image_passes(vrt):
+def test_compare_multiple_row_matching_global_image_passes(vrt: ModuleType):
     rows = [csv_row("Curl", "MULTIPLE", alias="MULTIPLE", image_basename="curl", target_app="8.22.0")]
     findings, unresolved = vrt.compare(rows, vrt.ChartState(None, [], {}, values_lines(GLOBAL_CURL_BLOCK)))
     assert findings == {}
     assert unresolved == []
 
 
-def test_compare_multiple_row_with_no_image_basename_is_silently_skipped(vrt):
+def test_compare_multiple_row_with_no_image_basename_is_silently_skipped(vrt: ModuleType):
     """A "MULTIPLE" row export-confluence-release-table couldn't even
     resolve an image_basename for (an ambiguous plain dependency-name
     collision, not a global image) has nothing to check — not an error."""
@@ -318,7 +320,7 @@ def test_compare_multiple_row_with_no_image_basename_is_silently_skipped(vrt):
     assert unresolved == []
 
 
-def test_compare_reports_global_image_with_no_release_table_row(vrt):
+def test_compare_reports_global_image_with_no_release_table_row(vrt: ModuleType):
     findings, _ = vrt.compare([], vrt.ChartState(None, [], {}, values_lines(GLOBAL_CURL_BLOCK)))
     assert any(
         "'global' image 'curl' is pinned in values.yaml but not tracked" in m
@@ -326,7 +328,7 @@ def test_compare_reports_global_image_with_no_release_table_row(vrt):
     )
 
 
-def test_compare_missing_multiple_image_hint_has_no_used_by_and_guesses_technische(vrt):
+def test_compare_missing_multiple_image_hint_has_no_used_by_and_guesses_technische(vrt: ModuleType):
     """A MULTIPLE row resolves purely from its own Name relating to the
     global image key -- no "Used by" needed (see
     resolve_image_basenames). With zero existing "MULTIPLE" rows to read
@@ -343,7 +345,7 @@ def test_compare_missing_multiple_image_hint_has_no_used_by_and_guesses_technisc
 # --- multi-image component (e.g. zgw-office-addin) ---
 
 
-def test_compare_multi_image_component_checks_every_basename(vrt):
+def test_compare_multi_image_component_checks_every_basename(vrt: ModuleType):
     block = (
         "zgw-office-addin:\n"
         "  frontend:\n"

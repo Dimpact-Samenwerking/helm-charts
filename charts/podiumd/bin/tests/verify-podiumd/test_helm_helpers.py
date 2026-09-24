@@ -6,6 +6,8 @@ fix-image-digests) — see tests/lib/test_dependencies.py."""
 
 import json
 
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -36,27 +38,27 @@ def fake_render_chart(returncode=0, stdout="", stderr=""):
 # --- check_lint ---
 
 
-def test_check_lint_passes_on_clean_output(vp, tmp_path, monkeypatch):
+def test_check_lint_passes_on_clean_output(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vp, "run", fake_run(0, "1 chart(s) linted, 0 chart(s) failed\n", ""))
     ok, detail = vp.check_lint(tmp_path, [])
     assert ok is True
     assert detail == "0 error(s), 0 warning(s)"
 
 
-def test_check_lint_fails_on_error_count(vp, tmp_path, monkeypatch):
+def test_check_lint_fails_on_error_count(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vp, "run", fake_run(0, "[ERROR] values.yaml: bad\n", ""))
     ok, detail = vp.check_lint(tmp_path, [])
     assert ok is False
     assert "1 error(s)" in detail
 
 
-def test_check_lint_fails_on_nonzero_returncode(vp, tmp_path, monkeypatch):
+def test_check_lint_fails_on_nonzero_returncode(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vp, "run", fake_run(1, "", "boom"))
     ok, _ = vp.check_lint(tmp_path, [])
     assert ok is False
 
 
-def test_check_lint_counts_warnings_without_failing(vp, tmp_path, monkeypatch):
+def test_check_lint_counts_warnings_without_failing(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vp, "run", fake_run(0, "[WARNING] Chart.yaml: icon is recommended\n", ""))
     ok, detail = vp.check_lint(tmp_path, [])
     assert ok is True
@@ -66,7 +68,7 @@ def test_check_lint_counts_warnings_without_failing(vp, tmp_path, monkeypatch):
 # --- check_render ---
 
 
-def test_check_render_success(vp, tmp_path, monkeypatch):
+def test_check_render_success(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     rendered = (
         "---\n# Source: podiumd/templates/a.yaml\nkind: Foo\n---\n# Source: podiumd/templates/b.yaml\nkind: Bar\n"
     )
@@ -76,14 +78,14 @@ def test_check_render_success(vp, tmp_path, monkeypatch):
     assert detail == "2 manifests"
 
 
-def test_check_render_failure_reports_error(vp, tmp_path, monkeypatch):
+def test_check_render_failure_reports_error(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vp, "render_chart", fake_render_chart(1, "", "Error: something broke"))
     ok, detail = vp.check_render(tmp_path, [])
     assert ok is False
     assert "failed to render" in detail
 
 
-def test_check_render_zero_manifests_fails(vp, tmp_path, monkeypatch):
+def test_check_render_zero_manifests_fails(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vp, "render_chart", fake_render_chart(0, "", ""))
     ok, detail = vp.check_render(tmp_path, [])
     assert ok is False
@@ -94,19 +96,19 @@ def test_check_render_zero_manifests_fails(vp, tmp_path, monkeypatch):
 # they don't crash and print something sensible) ---
 
 
-def test_report_largest_templates_output(vp, capsys):
+def test_report_largest_templates_output(vp: ModuleType, capsys: pytest.CaptureFixture[str]):
     text = "# Source: a.yaml\nline\nline\n# Source: b.yaml\nline\n"
     vp.report_largest_templates(text, 5)
     out = capsys.readouterr().out
     assert "a.yaml" in out and "b.yaml" in out
 
 
-def test_report_largest_templates_no_sources_prints_nothing(vp, capsys):
+def test_report_largest_templates_no_sources_prints_nothing(vp: ModuleType, capsys: pytest.CaptureFixture[str]):
     vp.report_largest_templates("no source markers here", 5)
     assert capsys.readouterr().out == ""
 
 
-def test_report_errors_by_subchart_groups_by_chart(vp, capsys):
+def test_report_errors_by_subchart_groups_by_chart(vp: ModuleType, capsys: pytest.CaptureFixture[str]):
     text = "Error: zac/templates/a.yaml:1\nError: zac/templates/b.yaml:2\nError: openzaak/templates/c.yaml:1\n"
     vp.report_errors_by_subchart(text)
     out = capsys.readouterr().out
@@ -120,13 +122,13 @@ def test_report_errors_by_subchart_groups_by_chart(vp, capsys):
 # tools reports a line number of its own.
 
 
-def test_build_resource_locations_maps_kind_name_to_start_line(librenderscope):
+def test_build_resource_locations_maps_kind_name_to_start_line(librenderscope: ModuleType):
     rendered = "---\n# Source: podiumd/templates/a.yaml\napiVersion: v1\nkind: Service\nmetadata:\n  name: foo\n"
     locations = librenderscope.build_resource_locations(rendered)
     assert locations == {("Service", "", "foo"): 3}
 
 
-def test_build_resource_locations_captures_namespace(librenderscope):
+def test_build_resource_locations_captures_namespace(librenderscope: ModuleType):
     rendered = (
         "---\n"
         "# Source: podiumd/templates/a.yaml\n"
@@ -140,12 +142,12 @@ def test_build_resource_locations_captures_namespace(librenderscope):
     assert locations == {("Service", "podiumd", "foo"): 3}
 
 
-def test_build_resource_locations_skips_resource_without_name(librenderscope):
+def test_build_resource_locations_skips_resource_without_name(librenderscope: ModuleType):
     rendered = "---\n# Source: podiumd/templates/a.yaml\nkind: Service\n"
     assert librenderscope.build_resource_locations(rendered) == {}
 
 
-def test_build_resource_locations_multiple_documents(librenderscope):
+def test_build_resource_locations_multiple_documents(librenderscope: ModuleType):
     rendered = (
         "---\n"
         "# Source: podiumd/templates/a.yaml\n"
@@ -163,18 +165,18 @@ def test_build_resource_locations_multiple_documents(librenderscope):
     assert locations[("ConfigMap", "", "bar")] == 8
 
 
-def test_resource_line_exact_match_with_namespace(librenderscope):
+def test_resource_line_exact_match_with_namespace(librenderscope: ModuleType):
     locations = {("Service", "podiumd", "foo"): 3, ("Service", "other-ns", "foo"): 9}
     assert librenderscope.resource_line(locations, "Service", "foo", namespace="podiumd") == 3
     assert librenderscope.resource_line(locations, "Service", "foo", namespace="other-ns") == 9
 
 
-def test_resource_line_falls_back_to_kind_name_when_unique(librenderscope):
+def test_resource_line_falls_back_to_kind_name_when_unique(librenderscope: ModuleType):
     locations = {("Service", "", "foo"): 3}
     assert librenderscope.resource_line(locations, "Service", "foo") == 3
 
 
-def test_resource_line_none_when_ambiguous_across_namespaces(librenderscope):
+def test_resource_line_none_when_ambiguous_across_namespaces(librenderscope: ModuleType):
     """Without a namespace to disambiguate (kubeconform's JSON has none),
     the same kind+name rendering into two different namespaces must not
     guess — a wrong line is worse than no hint at all."""
@@ -182,7 +184,7 @@ def test_resource_line_none_when_ambiguous_across_namespaces(librenderscope):
     assert librenderscope.resource_line(locations, "Service", "foo") is None
 
 
-def test_resource_line_none_when_not_found(librenderscope):
+def test_resource_line_none_when_not_found(librenderscope: ModuleType):
     locations = {("Service", "", "foo"): 3}
     assert librenderscope.resource_line(locations, "ConfigMap", "bar") is None
 
@@ -194,7 +196,7 @@ def test_resource_line_none_when_not_found(librenderscope):
 
 
 @pytest.fixture(autouse=True)
-def _clear_render_cache(librenderscope):
+def _clear_render_cache(librenderscope: ModuleType):
     """render_chart's own in-process memoization (see its own docstring)
     lives in a module-level dict, and librenderscope is a session-scoped
     fixture — without this, one test's cached render could silently leak
@@ -213,7 +215,9 @@ def _sequenced_run(rendered, returncode=0, stderr=""):
     return _run
 
 
-def test_render_chart_returns_helm_templates_result(librenderscope, tmp_path, monkeypatch):
+def test_render_chart_returns_helm_templates_result(
+    librenderscope: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     rendered = "---\n# Source: podiumd/templates/a.yaml\nkind: Foo\n"
     monkeypatch.setattr(librenderscope, "run", _sequenced_run(rendered))
     result = librenderscope.render_chart(tmp_path, [])
@@ -221,7 +225,9 @@ def test_render_chart_returns_helm_templates_result(librenderscope, tmp_path, mo
     assert result.stdout == rendered
 
 
-def test_render_chart_passes_extra_args_through(librenderscope, tmp_path, monkeypatch):
+def test_render_chart_passes_extra_args_through(
+    librenderscope: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     captured = {}
 
     def _run(cmd, **kwargs):
@@ -233,14 +239,16 @@ def test_render_chart_passes_extra_args_through(librenderscope, tmp_path, monkey
     assert "-f" in captured["cmd"] and "values.yaml" in captured["cmd"]
 
 
-def test_render_chart_propagates_failure(librenderscope, tmp_path, monkeypatch):
+def test_render_chart_propagates_failure(librenderscope: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(librenderscope, "run", _sequenced_run("", returncode=1, stderr="Error: broke"))
     result = librenderscope.render_chart(tmp_path, [])
     assert result.returncode == 1
     assert "broke" in result.stderr
 
 
-def test_render_chart_caches_repeat_calls_with_identical_args(librenderscope, tmp_path, monkeypatch):
+def test_render_chart_caches_repeat_calls_with_identical_args(
+    librenderscope: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Same (chart_dir, extra_args) twice must invoke the underlying
     subprocess exactly once — the second call is served from the cache,
     not a second real `helm template` invocation."""
@@ -259,7 +267,9 @@ def test_render_chart_caches_repeat_calls_with_identical_args(librenderscope, tm
     assert first is second
 
 
-def test_render_chart_caches_a_failure_too_not_just_success(librenderscope, tmp_path, monkeypatch):
+def test_render_chart_caches_a_failure_too_not_just_success(
+    librenderscope: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """A genuine failure must also be memoized -- calling again with the
     identical args would deterministically fail the same way within one
     process run, so there's no reason to re-attempt."""
@@ -279,7 +289,9 @@ def test_render_chart_caches_a_failure_too_not_just_success(librenderscope, tmp_
     assert second.returncode == 1
 
 
-def test_render_chart_different_extra_args_is_a_distinct_cache_entry(librenderscope, tmp_path, monkeypatch):
+def test_render_chart_different_extra_args_is_a_distinct_cache_entry(
+    librenderscope: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """A different extra_args value (still a list, per every real caller's
     own shape -- never required to be a tuple) must NOT reuse another
     call's cached result, even for the same chart_dir."""
@@ -315,7 +327,12 @@ def test_render_chart_different_extra_args_is_a_distinct_cache_entry(librendersc
 
 
 def test_render_consolidation_one_real_render_across_three_checks(
-    vp, librenderscope, libyamllintcheck, libkubeconformcheck, tmp_path, monkeypatch
+    vp: ModuleType,
+    librenderscope: ModuleType,
+    libyamllintcheck: ModuleType,
+    libkubeconformcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     rendered = "---\n# Source: podiumd/templates/a.yaml\nkind: ConfigMap\n"
     calls = []
@@ -350,7 +367,7 @@ def test_render_consolidation_one_real_render_across_three_checks(
 # re-export used by main()) ---
 
 
-def test_lint_args_for_lives_in_render_scope(librenderscope, tmp_path):
+def test_lint_args_for_lives_in_render_scope(librenderscope: ModuleType, tmp_path: Path):
     (tmp_path / "ci").mkdir()
     (tmp_path / "ci" / "lint-values.yaml").write_text("foo: bar\n")
     assert librenderscope.lint_args_for(tmp_path) == ["-f", str(tmp_path / "ci" / "lint-values.yaml")]

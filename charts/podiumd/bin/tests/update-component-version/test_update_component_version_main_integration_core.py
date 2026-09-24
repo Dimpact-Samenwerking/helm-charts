@@ -19,7 +19,7 @@ OLD_DIGEST = "a" * 64
 # --- main() integration ---
 
 
-def setup_repo(tmp_path, monkeypatch, ucv):
+def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     # written as raw text (not yaml.safe_dump, which alphabetizes keys) so
@@ -50,7 +50,7 @@ def setup_repo(tmp_path, monkeypatch, ucv):
     return chart_yaml, values_yaml
 
 
-def mock_registry_passes(monkeypatch, ucv, digest_char="b"):
+def mock_registry_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b"):
     """A component whose values.yaml image path has an explicit
     "repository:" (e.g. zac) delegates its tag update to
     lib.image.version.update_image_version, which resolves
@@ -62,7 +62,7 @@ def mock_registry_passes(monkeypatch, ucv, digest_char="b"):
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, digest))
 
 
-def mock_verify_passes(monkeypatch, ucv, digest_char="b", calls=None):
+def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b", calls=None):
     """Fakes update-component-version's own upfront verify_component_version
     step (a lib.chart.resolve_chart_values call + lib.chart.
     check_image_versions call) so main()'s tests don't need real
@@ -96,7 +96,7 @@ def mock_verify_passes(monkeypatch, ucv, digest_char="b", calls=None):
     monkeypatch.setattr(ucv, "check_image_versions", fake_check_image_versions)
 
 
-def test_main_writes_both_files_when_verify_passes(ucv, tmp_path, monkeypatch):
+def test_main_writes_both_files_when_verify_passes(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
@@ -108,7 +108,9 @@ def test_main_writes_both_files_when_verify_passes(ucv, tmp_path, monkeypatch):
     assert f'"5.4.3@sha256:{"b" * 64}"' in values_yaml.read_text(encoding="utf-8")
 
 
-def test_main_alias_component_argument_bumps_all_registered_lockstep_paths(ucv, tmp_path, monkeypatch):
+def test_main_alias_component_argument_bumps_all_registered_lockstep_paths(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test (real bug, confirmed live against the real chart):
     image_paths_for is keyed by the dependency's own Chart.yaml "name",
     never its alias (see settings.yaml's component_resolution.image_
@@ -166,7 +168,9 @@ def test_main_alias_component_argument_bumps_all_registered_lockstep_paths(ucv, 
     assert written.count(f'"3.1.1@sha256:{"b" * 64}"') == 2
 
 
-def test_main_invokes_fix_helm_doc(ucv, tmp_path, monkeypatch, block_real_subprocess_calls):
+def test_main_invokes_fix_helm_doc(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, block_real_subprocess_calls
+):
     """The version/tag bump above changes values.yaml, so README.md's
     helm-docs-generated table can go stale in the same commit if this
     doesn't run — see fix-helm-doc."""
@@ -181,7 +185,9 @@ def test_main_invokes_fix_helm_doc(ucv, tmp_path, monkeypatch, block_real_subpro
     assert any(str(ucv.FIX_HELM_DOC_SCRIPT) in cmd for cmd in calls)
 
 
-def test_main_re_vendors_after_writing_chart_yaml(ucv, tmp_path, monkeypatch, block_real_subprocess_calls):
+def test_main_re_vendors_after_writing_chart_yaml(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, block_real_subprocess_calls
+):
     """The Chart.yaml bump leaves charts/ + Chart.lock stale; main() must
     re-vendor as its last step (after fix-helm-doc), against the new
     Chart.yaml, so the next script starts from an in-sync state."""
@@ -231,7 +237,7 @@ def test_main_runs_fix_doc_consistency_after_re_vendoring(
     assert order[-2:] == ["ensure", "fix-doc"]
 
 
-def setup_native_component_repo(tmp_path, monkeypatch, ucv):
+def setup_native_component_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     """frankgateway (see lib.chart.NATIVE_COMPONENTS): a real component
     with its own top-level values.yaml key and image, but no Chart.yaml
     dependency at all — implemented via podiumd's own templates instead
@@ -268,7 +274,9 @@ def setup_native_component_repo(tmp_path, monkeypatch, ucv):
     return chart_yaml, values_yaml
 
 
-def test_main_native_component_bumps_values_yaml_never_touches_chart_yaml(ucv, tmp_path, monkeypatch):
+def test_main_native_component_bumps_values_yaml_never_touches_chart_yaml(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """chart-version "native" (case-insensitive) skips find_dependency/
     update_chart_yaml entirely and resolves the image repository straight
     from values.yaml instead of pulling a chart — real end-to-end
@@ -300,7 +308,9 @@ def test_main_native_component_name_ignores_case(
     assert f'"104@sha256:{"b" * 64}"' in values_yaml.read_text(encoding="utf-8")
 
 
-def test_main_native_component_rejects_unregistered_component(ucv, tmp_path, monkeypatch):
+def test_main_native_component_rejects_unregistered_component(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """ "native" is only valid for a settings.yaml component_resolution.
     native_components component — a real Chart.yaml dependency like zac
     must be rejected with a clear error rather than silently skipping
@@ -312,7 +322,7 @@ def test_main_native_component_rejects_unregistered_component(ucv, tmp_path, mon
         ucv.main()
 
 
-def setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv):
+def setup_keycloak_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     """The real values.yaml structure: operator.image has NO override at
     all (relies entirely on the vendored adfinis chart's own
     "{{ .Values.operator.image.tag | default .Chart.AppVersion }}" +
@@ -360,7 +370,9 @@ def setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv):
     return chart_yaml, values_yaml
 
 
-def test_main_bumps_only_config_keycloak_image_not_operator_image(ucv, tmp_path, monkeypatch):
+def test_main_bumps_only_config_keycloak_image_not_operator_image(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """update-component-version keycloak-operator 26.7.3 1.12.1 must
     bump ONLY operator.config.keycloakImage, written as tag + separate
     sha (never a combined @sha256 pin, which would be an invalid double
@@ -384,7 +396,7 @@ def test_main_bumps_only_config_keycloak_image_not_operator_image(ucv, tmp_path,
     assert "  operator:\n    image:\n      repository: quay.io/keycloak/keycloak-operator\n    config:\n" in updated
 
 
-def setup_eck_operator_repo(tmp_path, monkeypatch, ucv):
+def setup_eck_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     """eck-operator's own upstream chart uses a split "tag:"/"digest:"
     convention (see lib.settings.digest_pinning_exceptions) — confirmed
     against the vendored eck-operator chart's own templates/_helpers.tpl,
@@ -423,7 +435,9 @@ def setup_eck_operator_repo(tmp_path, monkeypatch, ucv):
     return chart_yaml, values_yaml
 
 
-def test_main_eck_operator_writes_digest_field_correctly_regression(ucv, tmp_path, monkeypatch):
+def test_main_eck_operator_writes_digest_field_correctly_regression(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test for real bug #2 (this iteration's plan): eck-
     operator.image's own sibling field is "digest:", not "sha:" — before
     this fix, locate_tag_and_sha/write_tag_and_sha hardcoded "sha",
@@ -451,7 +465,9 @@ def test_main_eck_operator_writes_digest_field_correctly_regression(ucv, tmp_pat
     assert "sha:" not in updated  # never a bogus inserted "sha:" line
 
 
-def setup_keycloak_operator_repo_with_operator_image_tag(tmp_path, monkeypatch, ucv):
+def setup_keycloak_operator_repo_with_operator_image_tag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType
+):
     """Same repo shape as setup_keycloak_operator_repo, but operator.
     image ALSO has an explicit "tag:"/"sha:" override of its own — the
     real, corrected picture confirmed directly against values.yaml for
@@ -500,7 +516,9 @@ def setup_keycloak_operator_repo_with_operator_image_tag(tmp_path, monkeypatch, 
     return chart_yaml, values_yaml, operator_old_digest
 
 
-def test_main_keycloak_operator_operator_image_gets_independent_digest_regression(ucv, tmp_path, monkeypatch):
+def test_main_keycloak_operator_operator_image_gets_independent_digest_regression(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test for real bug #1 (this iteration's plan): keycloak-
     operator.operator.image is now included in the write-side allowlist
     (settings.yaml's digest_pinning.exceptions, writable: true) — this
@@ -624,7 +642,7 @@ def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_r
     assert lines[alias_sha_idx] == original_alias_sha_line == "    sha: *keycloakImageDigest\n"
 
 
-def test_main_refuses_to_write_when_verify_fails(ucv, tmp_path, monkeypatch):
+def test_main_refuses_to_write_when_verify_fails(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     original_chart = chart_yaml.read_text(encoding="utf-8")
     original_values = values_yaml.read_text(encoding="utf-8")
@@ -640,7 +658,7 @@ def test_main_refuses_to_write_when_verify_fails(ucv, tmp_path, monkeypatch):
     assert values_yaml.read_text(encoding="utf-8") == original_values
 
 
-def test_main_requires_exactly_three_arguments(ucv, monkeypatch):
+def test_main_requires_exactly_three_arguments(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac"])
     with pytest.raises(SystemExit) as exc_info:
         ucv.main()
@@ -648,18 +666,22 @@ def test_main_requires_exactly_three_arguments(ucv, monkeypatch):
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_main_help_flag_prints_usage_and_exits_zero(ucv, monkeypatch, capsys, flag):
+def test_main_help_flag_prints_usage_and_exits_zero(
+    ucv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
+):
     monkeypatch.setattr("sys.argv", ["update-component-version", flag])
     with pytest.raises(SystemExit) as exc_info:
         ucv.main()
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == ucv.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{ucv.__doc__}\n"
 
 
 # --- main() handling already-current versions ---
 
 
-def test_main_skips_chart_write_when_chart_version_unchanged(ucv, tmp_path, monkeypatch, capsys):
+def test_main_skips_chart_write_when_chart_version_unchanged(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     original_chart = chart_yaml.read_text(encoding="utf-8")
     mock_verify_passes(monkeypatch, ucv)
@@ -675,7 +697,9 @@ def test_main_skips_chart_write_when_chart_version_unchanged(ucv, tmp_path, monk
     assert "Chart version already 1.0.296 — unchanged" in out
 
 
-def test_main_skips_values_write_when_app_version_unchanged(ucv, tmp_path, monkeypatch, capsys):
+def test_main_skips_values_write_when_app_version_unchanged(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     original_values = values_yaml.read_text(encoding="utf-8")
     calls = []
@@ -692,7 +716,9 @@ def test_main_skips_values_write_when_app_version_unchanged(ucv, tmp_path, monke
     assert "app version already 5.0.2 — unchanged" in out
 
 
-def test_main_exits_zero_and_writes_nothing_when_both_unchanged(ucv, tmp_path, monkeypatch, capsys):
+def test_main_exits_zero_and_writes_nothing_when_both_unchanged(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     original_chart = chart_yaml.read_text(encoding="utf-8")
     original_values = values_yaml.read_text(encoding="utf-8")

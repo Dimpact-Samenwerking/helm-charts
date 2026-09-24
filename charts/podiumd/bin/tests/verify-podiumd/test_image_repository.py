@@ -11,6 +11,10 @@ either."""
 import io
 import tarfile
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
 import yaml
 
 from dep_helpers import make_dep
@@ -36,13 +40,13 @@ def make_tgz(charts_dir, name, version, values):
         tar.addfile(info, io.BytesIO(data))
 
 
-def test_no_values_yaml_passes(vp, tmp_path):
+def test_no_values_yaml_passes(vp: ModuleType, tmp_path: Path):
     ok, detail = vp.check_image_repository(tmp_path)
     assert ok is True
     assert detail == "0 missing repository"
 
 
-def test_own_repository_set_passes(vp, tmp_path):
+def test_own_repository_set_passes(vp: ModuleType, tmp_path: Path):
     write_chart_yaml(tmp_path, [make_dep("redis-operator", "0.26.1")])
     write_values_yaml(
         tmp_path,
@@ -59,7 +63,7 @@ redis-operator:
     assert detail == "0 missing repository"
 
 
-def test_repository_resolved_via_vendored_subchart_default_passes(vp, tmp_path):
+def test_repository_resolved_via_vendored_subchart_default_passes(vp: ModuleType, tmp_path: Path):
     write_chart_yaml(tmp_path, [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")])
     make_tgz(
         tmp_path / "charts",
@@ -80,7 +84,7 @@ zac:
     assert detail == "0 missing repository"
 
 
-def test_missing_repository_everywhere_is_reported(vp, tmp_path, capsys):
+def test_missing_repository_everywhere_is_reported(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     """kiss.adapter.image's own real-world shape: no own override, and
     the vendored subchart's own defaults have no matching key either."""
     write_chart_yaml(tmp_path, [make_dep("kiss-chart", "3.0.0", alias="kiss")])
@@ -101,7 +105,7 @@ kiss:
     assert "kiss.adapter.image" in out
 
 
-def test_dependency_not_yet_vendored_is_reported(vp, tmp_path):
+def test_dependency_not_yet_vendored_is_reported(vp: ModuleType, tmp_path: Path):
     """No .tgz on disk, no own override either — genuinely unresolvable,
     same as check_subchart_image_visibility's own "not vendored" case
     but a real failure here, not just a report."""
@@ -119,7 +123,7 @@ openzaak:
     assert detail == "1 image(s) with no resolvable repository"
 
 
-def test_global_shared_image_with_own_repository_passes(vp, tmp_path):
+def test_global_shared_image_with_own_repository_passes(vp: ModuleType, tmp_path: Path):
     """A "global.*" anchor is checked against podiumd's own values.yaml
     only — never a subchart fallback, same convention
     lib.chart.canonical_sidecar_row_names itself uses for this shape."""
@@ -139,7 +143,9 @@ global:
     assert detail == "0 missing repository"
 
 
-def test_global_shared_image_without_repository_is_reported(vp, tmp_path, capsys):
+def test_global_shared_image_without_repository_is_reported(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     write_chart_yaml(tmp_path, [])
     write_values_yaml(
         tmp_path,
@@ -156,7 +162,7 @@ global:
     assert "global.images.curlImage" in out
 
 
-def test_orphan_top_level_block_with_own_repository_passes(vp, tmp_path):
+def test_orphan_top_level_block_with_own_repository_passes(vp: ModuleType, tmp_path: Path):
     """Regression test: a top-level values.yaml block with NO matching
     Chart.yaml dependency at all (podiumd's own directly-templated
     resources, e.g. the real "keycloak"/"apiproxy"/"frankgateway"
@@ -183,7 +189,9 @@ keycloak:
     assert detail == "0 missing repository"
 
 
-def test_orphan_top_level_block_without_repository_is_reported(vp, tmp_path, capsys):
+def test_orphan_top_level_block_without_repository_is_reported(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     write_chart_yaml(tmp_path, [])
     write_values_yaml(
         tmp_path,
@@ -199,7 +207,7 @@ apiproxy:
     assert "apiproxy.image" in out
 
 
-def test_nested_sidecar_repository_resolved_via_subchart_default(vp, tmp_path):
+def test_nested_sidecar_repository_resolved_via_subchart_default(vp: ModuleType, tmp_path: Path):
     """A sub-chart default nested under more than one key (a sidecar)
     resolves via the SAME nested path in the vendored default, not just
     the top-level scope."""
@@ -219,7 +227,7 @@ openzaak:
     assert detail == "0 missing repository"
 
 
-def test_multiple_missing_images_all_reported(vp, tmp_path, capsys):
+def test_multiple_missing_images_all_reported(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     write_chart_yaml(tmp_path, [make_dep("redis-operator", "0.26.1"), make_dep("openzaak", "1.14.2")])
     write_values_yaml(
         tmp_path,
@@ -241,7 +249,7 @@ openzaak:
     assert "openzaak.image" in out
 
 
-def test_multiple_paths_sharing_the_same_repository_are_all_resolved(vp, tmp_path):
+def test_multiple_paths_sharing_the_same_repository_are_all_resolved(vp: ModuleType, tmp_path: Path):
     """Regression test: several own-override paths that happen to pin
     the EXACT same repository (e.g. a shared nginx image aliased via a
     YAML anchor across multiple components) must each be recognized as

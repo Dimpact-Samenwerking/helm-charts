@@ -9,6 +9,9 @@ wording checks."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 
@@ -57,7 +60,7 @@ def order_doc(table_rows, changes_headings):
 
 
 @pytest.fixture
-def order_chart_dir(tmp_path):
+def order_chart_dir(tmp_path: Path):
     chart_dir = tmp_path / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
     (chart_dir / "docs" / "images").mkdir(parents=True)
@@ -67,7 +70,7 @@ def order_chart_dir(tmp_path):
     return chart_dir, doc_dir
 
 
-def test_correctly_ordered_table_and_changes_pass(vp, order_chart_dir):
+def test_correctly_ordered_table_and_changes_pass(vp: ModuleType, order_chart_dir):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump 1.27.4 → 1.27.4", "Open Inwoner bump 2.4.2 → 2.4.2"])
@@ -76,7 +79,7 @@ def test_correctly_ordered_table_and_changes_pass(vp, order_chart_dir):
     assert ok is True, detail
 
 
-def test_out_of_order_table_row_is_caught(vp, order_chart_dir, capsys):
+def test_out_of_order_table_row_is_caught(vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc([INWONER_ROW, ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"])
@@ -89,7 +92,7 @@ def test_out_of_order_table_row_is_caught(vp, order_chart_dir, capsys):
     assert "should follow values.yaml's own component order" in out
 
 
-def test_out_of_order_changes_block_is_caught(vp, order_chart_dir, capsys):
+def test_out_of_order_changes_block_is_caught(vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc([ZAAK_ROW, INWONER_ROW], ["Open Inwoner bump", "Open Zaak bump"])
@@ -102,7 +105,9 @@ def test_out_of_order_changes_block_is_caught(vp, order_chart_dir, capsys):
     assert "Changes blocks should follow values.yaml's own component order" in out
 
 
-def test_unmatched_summary_row_never_flagged_against_real_components(vp, order_chart_dir, capsys):
+def test_unmatched_summary_row_never_flagged_against_real_components(
+    vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
+):
     """A row that doesn't resolve to any Chart.yaml dependency (e.g. a
     shared-image summary row) sorts after every real component and must
     never itself trigger an ORDERING mismatch — it's now separately
@@ -119,7 +124,9 @@ def test_unmatched_summary_row_never_flagged_against_real_components(vp, order_c
     assert "own component order" not in capsys.readouterr().out
 
 
-def test_table_row_with_no_changes_section_is_caught(vp, order_chart_dir, capsys):
+def test_table_row_with_no_changes_section_is_caught(
+    vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
+):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump"]))
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
@@ -129,7 +136,9 @@ def test_table_row_with_no_changes_section_is_caught(vp, order_chart_dir, capsys
     assert 'table row "Open Inwoner" has no matching "### ..." section under "## Changes"' in out
 
 
-def test_changes_section_with_no_table_row_is_caught(vp, order_chart_dir, capsys):
+def test_changes_section_with_no_table_row_is_caught(
+    vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
+):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(order_doc([ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"]))
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
@@ -139,7 +148,9 @@ def test_changes_section_with_no_table_row_is_caught(vp, order_chart_dir, capsys
     assert '"## Changes" section "### Open Inwoner bump" has no matching row in the "Component versions" table' in out
 
 
-def test_heading_naming_two_components_is_flagged_and_neither_row_is_credited(vp, order_chart_dir, capsys):
+def test_heading_naming_two_components_is_flagged_and_neither_row_is_credited(
+    vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
+):
     """A single "### ..." heading naming two components at once (the
     real-world case: "### ECK Operator 3.4.0 → 3.5.0 + ECK Stack
     (kiss-eck) 0.19.0 → 0.20.0") is assessed as a whole, never split on
@@ -167,7 +178,9 @@ def test_heading_naming_two_components_is_flagged_and_neither_row_is_credited(vp
     assert 'table row "Open Inwoner" has no matching "### ..." section under "## Changes"' in out
 
 
-def test_changes_heading_naming_no_real_component_is_caught_as_no_matching_row(vp, order_chart_dir, capsys):
+def test_changes_heading_naming_no_real_component_is_caught_as_no_matching_row(
+    vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
+):
     """A Changes heading that never actually names a real Chart.yaml
     dependency at all (the real-world case: "### Keycloak app image
     26.6.4 → 26.7.2" — never says "keycloak-operator" or even
@@ -187,7 +200,9 @@ def test_changes_heading_naming_no_real_component_is_caught_as_no_matching_row(v
     )
 
 
-def test_changes_heading_missing_app_version_is_caught(vp, order_chart_dir, capsys):
+def test_changes_heading_missing_app_version_is_caught(
+    vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
+):
     """A "### ..." heading naming a real, resolvable component but never
     showing its app version at all (real case: "### openbao 0.28.4" —
     add_missing_component_rows' own chart-only TODO-stub shape, written
@@ -279,7 +294,7 @@ def new_dep_values():
 
 
 @pytest.fixture
-def new_dependency_chart_repo(tmp_path):
+def new_dependency_chart_repo(tmp_path: Path):
     """ "openklant" doesn't exist at all at the baseline ref — added as a
     brand-new Chart.yaml dependency in this release. Its doc row's
     source (baseline) version can never be verified against a baseline
@@ -323,7 +338,9 @@ def new_dependency_chart_repo(tmp_path):
     return chart_dir
 
 
-def test_new_dependency_unresolvable_baseline_row_is_a_warning_not_a_failure(vp, new_dependency_chart_repo, capsys):
+def test_new_dependency_unresolvable_baseline_row_is_a_warning_not_a_failure(
+    vp: ModuleType, new_dependency_chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """A doc row for a component that didn't exist at the baseline ref at
     all must be surfaced (never silently treated as clean, since its
     source cells were never actually compared against anything) — but
@@ -342,7 +359,9 @@ def test_new_dependency_unresolvable_baseline_row_is_a_warning_not_a_failure(vp,
     assert 'openklant" target app' not in out  # target side still resolves fine, no false mismatch there
 
 
-def test_plus_in_heading_not_naming_two_real_components_still_resolves_normally(vp, order_chart_dir, capsys):
+def test_plus_in_heading_not_naming_two_real_components_still_resolves_normally(
+    vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
+):
     """A literal "+" in a heading isn't itself the signal — assessment
     never splits on it at all. Here only "Open Zaak" names a real
     component; the rest of the text ("+ misc cleanup") is plain prose
@@ -391,7 +410,7 @@ def two_dep_values(zac_app, openformulieren_app, *, with_schema_changes=False):
 
 
 @pytest.fixture
-def two_dep_chart_repo(tmp_path):
+def two_dep_chart_repo(tmp_path: Path):
     """zac and openformulieren both already exist at the baseline ref
     (podiumd-4.8.5) and both bump their app version AND add a real
     values.yaml schema key at HEAD — values.yaml lists zac first,
@@ -464,7 +483,9 @@ def two_dep_chart_repo(tmp_path):
     return chart_dir
 
 
-def test_values_deltas_sections_out_of_order_is_caught(vp, two_dep_chart_repo, capsys):
+def test_values_deltas_sections_out_of_order_is_caught(
+    vp: ModuleType, two_dep_chart_repo, capsys: pytest.CaptureFixture[str]
+):
     ok, _detail = vp.check_docs_consistency(two_dep_chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
     out = capsys.readouterr().out
@@ -475,7 +496,7 @@ def test_values_deltas_sections_out_of_order_is_caught(vp, two_dep_chart_repo, c
     )
 
 
-def test_values_deltas_sections_correctly_ordered_passes(vp, two_dep_chart_repo):
+def test_values_deltas_sections_correctly_ordered_passes(vp: ModuleType, two_dep_chart_repo):
     doc = two_dep_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-values-deltas.md"
     doc.write_text(
         "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
@@ -497,7 +518,9 @@ def test_values_deltas_sections_correctly_ordered_passes(vp, two_dep_chart_repo)
 # the OLD code never attempted for the baseline side) ---
 
 
-def test_changes_heading_wrong_transition_wording_is_caught(vp, chart_repo, capsys):
+def test_changes_heading_wrong_transition_wording_is_caught(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """zac really changed 5.0.2 -> 5.4.3 (see chart_repo's own docstring),
     but its own Changes heading wrongly claims "(unchanged)" — the table
     row itself is untouched/correct, only the heading's own wording is
@@ -526,7 +549,7 @@ def test_changes_heading_wrong_transition_wording_is_caught(vp, chart_repo, caps
     ) in out
 
 
-def test_changes_heading_correct_transition_wording_passes(vp, chart_repo):
+def test_changes_heading_correct_transition_wording_passes(vp: ModuleType, chart_repo):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(
         "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"

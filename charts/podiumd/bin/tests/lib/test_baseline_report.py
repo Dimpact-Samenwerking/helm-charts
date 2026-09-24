@@ -3,13 +3,19 @@ release-baseline.yaml section's own outcome" three-tier wrapper
 show-component-baseline-version and show-image-baseline-version both
 build their own resolve-and-print body on top of."""
 
+from types import ModuleType
 
-def test_show_baseline_section_prints_header(libbaselinereport, capsys):
+import pytest
+
+
+def test_show_baseline_section_prints_header(libbaselinereport: ModuleType, capsys: pytest.CaptureFixture[str]):
     libbaselinereport.show_baseline_section("upgrade_docs", "4.8.5", lambda baseline: None)
     assert "=== upgrade_docs baseline ===" in capsys.readouterr().out
 
 
-def test_show_baseline_section_none_baseline_is_skipped_without_calling_resolve(libbaselinereport, capsys):
+def test_show_baseline_section_none_baseline_is_skipped_without_calling_resolve(
+    libbaselinereport: ModuleType, capsys: pytest.CaptureFixture[str]
+):
     called = []
     result = libbaselinereport.show_baseline_section("release_table", None, lambda baseline: called.append(baseline))
     assert result is False
@@ -18,7 +24,7 @@ def test_show_baseline_section_none_baseline_is_skipped_without_calling_resolve(
     assert "  (release-baseline.yaml has no release_table key — skipping)" in out
 
 
-def test_show_baseline_section_calls_resolve_with_the_baseline_value(libbaselinereport):
+def test_show_baseline_section_calls_resolve_with_the_baseline_value(libbaselinereport: ModuleType):
     received = []
 
     def resolve(baseline):
@@ -29,7 +35,9 @@ def test_show_baseline_section_calls_resolve_with_the_baseline_value(libbaseline
     assert received == ["4.8.5"]
 
 
-def test_show_baseline_section_success_returns_true_and_prints_no_error_line(libbaselinereport, capsys):
+def test_show_baseline_section_success_returns_true_and_prints_no_error_line(
+    libbaselinereport: ModuleType, capsys: pytest.CaptureFixture[str]
+):
     def resolve(baseline):
         print("  Component: zac")
         return
@@ -41,7 +49,9 @@ def test_show_baseline_section_success_returns_true_and_prints_no_error_line(lib
     assert "error" not in out
 
 
-def test_show_baseline_section_error_is_printed_verbatim_and_returns_false(libbaselinereport, capsys):
+def test_show_baseline_section_error_is_printed_verbatim_and_returns_false(
+    libbaselinereport: ModuleType, capsys: pytest.CaptureFixture[str]
+):
     """`resolve`'s own return value is printed AS-IS -- never given a
     second "error: " prefix here -- since a caller's own resolution step
     may already have one baked in (e.g. a SystemExit message it just
@@ -53,7 +63,9 @@ def test_show_baseline_section_error_is_printed_verbatim_and_returns_false(libba
     assert "error: error:" not in out
 
 
-def test_show_baseline_section_always_ends_with_one_blank_line(libbaselinereport, capsys):
+def test_show_baseline_section_always_ends_with_one_blank_line(
+    libbaselinereport: ModuleType, capsys: pytest.CaptureFixture[str]
+):
     libbaselinereport.show_baseline_section("upgrade_docs", "4.8.5", lambda baseline: None)
     assert capsys.readouterr().out.endswith("\n\n")
 

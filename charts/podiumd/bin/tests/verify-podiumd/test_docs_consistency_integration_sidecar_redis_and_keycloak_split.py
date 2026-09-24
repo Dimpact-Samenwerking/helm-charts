@@ -8,6 +8,9 @@ sidecar and keycloak-operator split tag/sha cases."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 
@@ -73,7 +76,7 @@ def redis_values(tag, digest="abc"):
 
 
 @pytest.fixture
-def redis_sidecar_chart_repo(tmp_path):
+def redis_sidecar_chart_repo(tmp_path: Path):
     """redis-ha's own image is nested under the "redis-operator"
     dependency's own values — not that dependency's own registered
     primary image (image_paths_for defaults to "image", which doesn't
@@ -113,12 +116,14 @@ def redis_sidecar_chart_repo(tmp_path):
     return chart_dir
 
 
-def test_sidecar_row_with_canonical_name_is_verified(vp, redis_sidecar_chart_repo):
+def test_sidecar_row_with_canonical_name_is_verified(vp: ModuleType, redis_sidecar_chart_repo):
     ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is True, detail
 
 
-def test_sidecar_row_wrong_target_app_is_caught(vp, redis_sidecar_chart_repo, capsys):
+def test_sidecar_row_wrong_target_app_is_caught(
+    vp: ModuleType, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
+):
     doc = redis_sidecar_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="9.9.9"))
 
@@ -132,7 +137,9 @@ def test_sidecar_row_wrong_target_app_is_caught(vp, redis_sidecar_chart_repo, ca
     ) in out
 
 
-def test_sidecar_row_wrong_source_app_vs_baseline_is_caught(vp, redis_sidecar_chart_repo, capsys):
+def test_sidecar_row_wrong_source_app_vs_baseline_is_caught(
+    vp: ModuleType, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
+):
     doc = redis_sidecar_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="1.1.1", app_target="8.6.6"))
 
@@ -146,7 +153,9 @@ def test_sidecar_row_wrong_source_app_vs_baseline_is_caught(vp, redis_sidecar_ch
     ) in out
 
 
-def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(vp, redis_sidecar_chart_repo, capsys):
+def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(
+    vp: ModuleType, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """A row naming the same real sidecar image, but NOT in the exact
     canonical "<values_key> - <basename>" form update-image-version
     writes, is now a reportable mismatch — not silently skipped, and
@@ -164,7 +173,9 @@ def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(vp, re
     ) in out
 
 
-def test_sidecar_digest_only_repin_is_not_flagged_as_changed(vp, tmp_path, capsys):
+def test_sidecar_digest_only_repin_is_not_flagged_as_changed(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     """A sidecar image re-pinned to a NEW digest but the SAME version
     (e.g. nginx-unprivileged in a chart-wide digest-pinning sweep, #437)
     must never be reported as "changed vs baseline but has no row" in
@@ -312,7 +323,7 @@ def keycloak_split_values(app_tag, app_digest, op_tag, op_digest):
 
 
 @pytest.fixture
-def keycloak_split_chart_repo(tmp_path):
+def keycloak_split_chart_repo(tmp_path: Path):
     """keycloak.image (and keycloak-operator's own operator.image) pin
     their digest via a separate sibling "sha:" field, never embedded in
     "tag:" (lib.chart.SPLIT_TAG_SHA_PATHS) — the per-entry version/digest
@@ -362,7 +373,9 @@ def keycloak_split_chart_repo(tmp_path):
     return chart_dir
 
 
-def test_split_tag_sha_path_digest_is_resolved_not_compared_as_bare_tag(vp, keycloak_split_chart_repo, capsys):
+def test_split_tag_sha_path_digest_is_resolved_not_compared_as_bare_tag(
+    vp: ModuleType, keycloak_split_chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """Regression test: keycloak.image's digest lives in a separate
     "sha:" field (lib.chart.SPLIT_TAG_SHA_PATHS), never embedded in
     "tag:". The per-entry images-manifest check used to compare the bare
@@ -384,7 +397,9 @@ def test_split_tag_sha_path_digest_is_resolved_not_compared_as_bare_tag(vp, keyc
     assert "no matching image in values.yaml, skipped" not in out
 
 
-def test_unresolvable_entry_names_the_manifest_file_its_own_message(vp, keycloak_split_chart_repo, capsys):
+def test_unresolvable_entry_names_the_manifest_file_its_own_message(
+    vp: ModuleType, keycloak_split_chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """Regression test: an images-manifest entry the per-entry loop truly
     can't resolve to any values-tree path must name the manifest file
     it's in — the diagnostic used to be a bare "entry ... — no matching
@@ -415,7 +430,9 @@ def test_unresolvable_entry_names_the_manifest_file_its_own_message(vp, keycloak
     assert '(images-4.9.0.yaml: entry "does-not-exist" — no matching image in values.yaml, skipped)' in out
 
 
-def test_split_tag_sha_path_real_mismatch_is_still_caught(vp, keycloak_split_chart_repo, capsys):
+def test_split_tag_sha_path_real_mismatch_is_still_caught(
+    vp: ModuleType, keycloak_split_chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """Once resolved via its own sha: field, a REAL digest mismatch must
     still be caught, not silently swallowed by the fix above."""
     values_path = keycloak_split_chart_repo / "values.yaml"
@@ -428,7 +445,9 @@ def test_split_tag_sha_path_real_mismatch_is_still_caught(vp, keycloak_split_cha
     assert 'keycloak/keycloak: values.yaml tag is "26.7.3@sha256:' + "e" * 64 in out
 
 
-def test_sidecar_with_no_row_at_all_is_caught_as_missing(vp, redis_sidecar_chart_repo, capsys):
+def test_sidecar_with_no_row_at_all_is_caught_as_missing(
+    vp: ModuleType, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """A changed sidecar image with NO row at all — not even a wrongly-
     phrased one — must still be flagged: the dependency's own row
     doesn't exist here either, so the existing "component changed but
@@ -453,7 +472,9 @@ def test_sidecar_with_no_row_at_all_is_caught_as_missing(vp, redis_sidecar_chart
     ) in out
 
 
-def test_sidecar_missing_from_images_manifest_uses_canonical_name(vp, redis_sidecar_chart_repo, capsys):
+def test_sidecar_missing_from_images_manifest_uses_canonical_name(
+    vp: ModuleType, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
+):
     """A changed sidecar image with no images-manifest entry at all is
     reported under its canonical "<values_key> - <basename>" name (the
     same name every other check/row/heading for this sidecar already
@@ -479,7 +500,7 @@ def test_sidecar_missing_from_images_manifest_uses_canonical_name(vp, redis_side
 
 
 def test_orphan_top_level_block_sharing_a_dependencys_sidecar_repository_is_covered(
-    vp, redis_sidecar_chart_repo, capsys
+    vp: ModuleType, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     """A top-level values.yaml block with no Chart.yaml dependency of its
     own at all (podiumd's own directly-templated "apiproxy"/

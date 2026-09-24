@@ -25,6 +25,8 @@ real kube-score or helm invocation happens in these tests."""
 
 import json
 
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
@@ -59,7 +61,7 @@ def ks_result(objects, returncode=1):
     return SimpleNamespace(returncode=returncode, stdout=json.dumps(objects), stderr="")
 
 
-def no_friendly_vendors(libkubescorecheck, monkeypatch):
+def no_friendly_vendors(libkubescorecheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(libkubescorecheck, "friendly_vendor_charts", lambda chart_dir: {})
 
 
@@ -87,7 +89,7 @@ def fake_render_chart(rendered=RENDERED, returncode=0):
 
 
 @pytest.fixture(autouse=True)
-def _default_render(monkeypatch):
+def _default_render(monkeypatch: pytest.MonkeyPatch):
     """check_kube_score now gets its render via lib.render_scope.render_
     chart(chart_dir, extra_args), not a run([...]) call of its own —
     default every test in this file to the standard RENDERED fixture
@@ -119,7 +121,9 @@ def sequenced_run(own_objects, vendored_objects_by_chart=None, ks_returncode=1):
 # --- run_kube_score ---
 
 
-def test_run_kube_score_normalizes_json_null_to_empty_list(vp, libkubescorecheck, monkeypatch):
+def test_run_kube_score_normalizes_json_null_to_empty_list(
+    vp: ModuleType, libkubescorecheck: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
     """Regression: kube-score prints the JSON value "null" (not "[]") for a
     stream with no scoreable objects at all (e.g. a vendored sub-chart
     consisting entirely of CRDs). json.loads("null") is None, which must
@@ -131,7 +135,9 @@ def test_run_kube_score_normalizes_json_null_to_empty_list(vp, libkubescorecheck
     assert libkubescorecheck.run_kube_score("---\nkind: CustomResourceDefinition\n") == []
 
 
-def test_run_kube_score_genuinely_unparseable_returns_none(vp, libkubescorecheck, monkeypatch):
+def test_run_kube_score_genuinely_unparseable_returns_none(
+    vp: ModuleType, libkubescorecheck: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(
         libkubescorecheck, "run", lambda cmd, **kwargs: SimpleNamespace(returncode=1, stdout="not json", stderr="")
     )
@@ -141,12 +147,12 @@ def test_run_kube_score_genuinely_unparseable_returns_none(vp, libkubescorecheck
 # --- extract_resource_findings ---
 
 
-def test_extract_resource_findings_ignores_other_checks(libkubescorecheck):
+def test_extract_resource_findings_ignores_other_checks(libkubescorecheck: ModuleType):
     objects = [ks_object("Deployment", "foo", [other_check()])]
     assert libkubescorecheck.extract_resource_findings(objects, "container-resources") == []
 
 
-def test_extract_resource_findings_ignores_skipped_and_full_grade(libkubescorecheck):
+def test_extract_resource_findings_ignores_skipped_and_full_grade(libkubescorecheck: ModuleType):
     objects = [
         ks_object(
             "Deployment",
@@ -160,7 +166,7 @@ def test_extract_resource_findings_ignores_skipped_and_full_grade(libkubescorech
     assert libkubescorecheck.extract_resource_findings(objects, "container-resources") == []
 
 
-def test_extract_resource_findings_returns_object_container_summary(libkubescorecheck):
+def test_extract_resource_findings_returns_object_container_summary(libkubescorecheck: ModuleType):
     objects = [
         ks_object(
             "Deployment",
@@ -186,7 +192,9 @@ def test_extract_resource_findings_returns_object_container_summary(libkubescore
 # --- check_kube_score ---
 
 
-def test_check_kube_score_no_findings_passes(vp, libkubescorecheck, tmp_path, monkeypatch):
+def test_check_kube_score_no_findings_passes(
+    vp: ModuleType, libkubescorecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
     no_friendly_vendors(libkubescorecheck, monkeypatch)
     monkeypatch.setattr(
@@ -204,7 +212,13 @@ def test_check_kube_score_no_findings_passes(vp, libkubescorecheck, tmp_path, mo
     assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
-def test_check_kube_score_own_finding_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
+def test_check_kube_score_own_finding_fails(
+    vp: ModuleType,
+    libkubescorecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
     no_friendly_vendors(libkubescorecheck, monkeypatch)
     monkeypatch.setattr(
@@ -238,7 +252,9 @@ def test_check_kube_score_own_finding_fails(vp, libkubescorecheck, tmp_path, mon
     assert "CPU limit is not set" in out and "Memory limit is not set" in out
 
 
-def test_check_kube_score_ignores_non_resource_checks(vp, libkubescorecheck, tmp_path, monkeypatch):
+def test_check_kube_score_ignores_non_resource_checks(
+    vp: ModuleType, libkubescorecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """A low grade on an unrelated check (e.g. pod-networkpolicy) must
     never be treated as a finding — this check only cares about
     container-resources, the one convention this repo has documented."""
@@ -260,7 +276,11 @@ def test_check_kube_score_ignores_non_resource_checks(vp, libkubescorecheck, tmp
 
 
 def test_check_kube_score_partner_vendor_finding_reported_per_item_never_fails(
-    vp, libkubescorecheck, tmp_path, monkeypatch, capsys
+    vp: ModuleType,
+    libkubescorecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A vendored sub-chart from a listed partner org gets its finding
     printed individually (attributed to the chart it came from, since
@@ -304,7 +324,11 @@ def test_check_kube_score_partner_vendor_finding_reported_per_item_never_fails(
 
 
 def test_check_kube_score_other_vendor_finding_aggregate_count_only_never_fails(
-    vp, libkubescorecheck, tmp_path, monkeypatch, capsys
+    vp: ModuleType,
+    libkubescorecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A vendored sub-chart NOT from a listed partner org only ever gets a
     one-line aggregate count — no per-item detail — but still never fails
@@ -349,7 +373,9 @@ def test_check_kube_score_other_vendor_finding_aggregate_count_only_never_fails(
     assert "CPU limit is not set" not in out
 
 
-def test_check_kube_score_crd_only_vendored_chart_is_not_a_failure(vp, libkubescorecheck, tmp_path, monkeypatch):
+def test_check_kube_score_crd_only_vendored_chart_is_not_a_failure(
+    vp: ModuleType, libkubescorecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression for the run_kube_score JSON-null-normalization bug: a
     vendored sub-chart consisting entirely of CRDs (kube-score returns
     JSON "null" for it, having nothing to score) must count as 0 findings
@@ -366,14 +392,16 @@ def test_check_kube_score_crd_only_vendored_chart_is_not_a_failure(vp, libkubesc
     assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
-def test_check_kube_score_missing_binary_fails(vp, tmp_path, monkeypatch):
+def test_check_kube_score_missing_binary_fails(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: None)
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is False
     assert "not installed" in detail
 
 
-def test_check_kube_score_render_failure_fails(vp, libkubescorecheck, tmp_path, monkeypatch):
+def test_check_kube_score_render_failure_fails(
+    vp: ModuleType, libkubescorecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
     monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart("", returncode=1))
     ok, detail = vp.check_kube_score(tmp_path, [])
@@ -381,7 +409,9 @@ def test_check_kube_score_render_failure_fails(vp, libkubescorecheck, tmp_path, 
     assert "failed to render" in detail
 
 
-def test_check_kube_score_unparseable_own_output_fails(vp, libkubescorecheck, tmp_path, monkeypatch):
+def test_check_kube_score_unparseable_own_output_fails(
+    vp: ModuleType, libkubescorecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
 
     def run(cmd, **kwargs):
@@ -393,7 +423,9 @@ def test_check_kube_score_unparseable_own_output_fails(vp, libkubescorecheck, tm
     assert "unparseable" in detail
 
 
-def test_check_kube_score_unparseable_vendored_output_fails(vp, libkubescorecheck, tmp_path, monkeypatch):
+def test_check_kube_score_unparseable_vendored_output_fails(
+    vp: ModuleType, libkubescorecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
     no_friendly_vendors(libkubescorecheck, monkeypatch)
     calls = {"n": 0}
@@ -413,11 +445,11 @@ def test_check_kube_score_unparseable_vendored_output_fails(vp, libkubescorechec
 # --- parse_kube_score_object_name ---
 
 
-def test_parse_kube_score_object_name_core_resource_no_namespace(libkubescorecheck):
+def test_parse_kube_score_object_name_core_resource_no_namespace(libkubescorecheck: ModuleType):
     assert libkubescorecheck.parse_kube_score_object_name("Service/v1//pabc") == ("Service", "", "pabc")
 
 
-def test_parse_kube_score_object_name_grouped_api_version_with_namespace(libkubescorecheck):
+def test_parse_kube_score_object_name_grouped_api_version_with_namespace(libkubescorecheck: ModuleType):
     """apiVersion itself can contain a "/" (e.g. "batch/v1") — a naive
     4-way split would misparse this; kind must come from the front and
     name/namespace from the back regardless of how many "/" apiVersion
@@ -427,5 +459,5 @@ def test_parse_kube_score_object_name_grouped_api_version_with_namespace(libkube
     ) == ("Job", "podiumd-minikube", "zookeeper-operator-post-install-upgrade")
 
 
-def test_parse_kube_score_object_name_unrecognized_shape_returns_none(libkubescorecheck):
+def test_parse_kube_score_object_name_unrecognized_shape_returns_none(libkubescorecheck: ModuleType):
     assert libkubescorecheck.parse_kube_score_object_name("not-the-expected-shape") == (None, None, None)

@@ -9,6 +9,9 @@ chains into fix-doc-consistency then fix-helm-doc."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 
@@ -21,7 +24,7 @@ def git(*args, cwd):
 
 
 @pytest.fixture
-def repo(tmp_path):
+def repo(tmp_path: Path):
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -32,7 +35,7 @@ def repo(tmp_path):
     return tmp_path
 
 
-def set_up(cpb, monkeypatch, repo, argv):
+def set_up(cpb: ModuleType, monkeypatch: pytest.MonkeyPatch, repo, argv):
     monkeypatch.setattr("sys.argv", ["change-podiumd-baseline", *argv])
     monkeypatch.setattr(cpb, "find_repo_root", lambda chart_dir: repo)
     monkeypatch.setattr(cpb, "CHART_DIR", repo)
@@ -46,7 +49,9 @@ def set_up(cpb, monkeypatch, repo, argv):
     monkeypatch.setattr(cpb, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 0))
 
 
-def test_main_records_a_resolvable_baseline(cpb, repo, monkeypatch, capsys):
+def test_main_records_a_resolvable_baseline(
+    cpb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     set_up(cpb, monkeypatch, repo, ["4.8.5"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -59,7 +64,9 @@ def test_main_records_a_resolvable_baseline(cpb, repo, monkeypatch, capsys):
     assert "resolved to podiumd-4.8.5" in out
 
 
-def test_main_overwrites_an_existing_baseline(cpb, repo, monkeypatch, capsys):
+def test_main_overwrites_an_existing_baseline(
+    cpb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     cpb.write_release_baselines(repo, upgrade_docs="4.8.4")
     set_up(cpb, monkeypatch, repo, ["4.8.5"])
 
@@ -71,7 +78,7 @@ def test_main_overwrites_an_existing_baseline(cpb, repo, monkeypatch, capsys):
     assert "upgrade_docs 4.8.4 -> 4.8.5" in capsys.readouterr().out
 
 
-def test_main_never_touches_release_table(cpb, repo, monkeypatch):
+def test_main_never_touches_release_table(cpb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     cpb.write_release_baselines(repo, upgrade_docs="4.8.4", release_table="4.8.0")
     set_up(cpb, monkeypatch, repo, ["4.8.5"])
 
@@ -84,7 +91,9 @@ def test_main_never_touches_release_table(cpb, repo, monkeypatch):
     assert release_table_baseline(repo) == "4.8.0"  # untouched
 
 
-def test_main_same_baseline_is_a_noop_message_but_still_writes(cpb, repo, monkeypatch, capsys):
+def test_main_same_baseline_is_a_noop_message_but_still_writes(
+    cpb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     cpb.write_release_baselines(repo, upgrade_docs="4.8.5")
     set_up(cpb, monkeypatch, repo, ["4.8.5"])
 
@@ -96,7 +105,9 @@ def test_main_same_baseline_is_a_noop_message_but_still_writes(cpb, repo, monkey
     assert "upgrade_docs already 4.8.5" in capsys.readouterr().out
 
 
-def test_main_invokes_fix_doc_consistency(cpb, repo, monkeypatch, capsys):
+def test_main_invokes_fix_doc_consistency(
+    cpb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     set_up(cpb, monkeypatch, repo, ["4.8.5"])
     calls = []
     real_fake = cpb.run_script
@@ -110,7 +121,9 @@ def test_main_invokes_fix_doc_consistency(cpb, repo, monkeypatch, capsys):
     assert "fix-doc-consistency (upgrade_docs baseline 4.8.5)" in capsys.readouterr().out
 
 
-def test_main_invokes_fix_helm_doc_after_fix_doc_consistency(cpb, repo, monkeypatch, capsys):
+def test_main_invokes_fix_helm_doc_after_fix_doc_consistency(
+    cpb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     set_up(cpb, monkeypatch, repo, ["4.8.5"])
     calls = []
     real_fake = cpb.run_script
@@ -126,7 +139,7 @@ def test_main_invokes_fix_helm_doc_after_fix_doc_consistency(cpb, repo, monkeypa
     assert "fix-helm-doc" in capsys.readouterr().out
 
 
-def test_main_propagates_fix_doc_consistency_failure_exit_code(cpb, repo, monkeypatch):
+def test_main_propagates_fix_doc_consistency_failure_exit_code(cpb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     set_up(cpb, monkeypatch, repo, ["4.8.5"])
     monkeypatch.setattr(cpb, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 1))
 
@@ -136,7 +149,7 @@ def test_main_propagates_fix_doc_consistency_failure_exit_code(cpb, repo, monkey
     assert exc_info.value.code == 1
 
 
-def test_main_skips_fix_helm_doc_when_fix_doc_consistency_fails(cpb, repo, monkeypatch):
+def test_main_skips_fix_helm_doc_when_fix_doc_consistency_fails(cpb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     set_up(cpb, monkeypatch, repo, ["4.8.5"])
     calls = []
 
@@ -153,7 +166,7 @@ def test_main_skips_fix_helm_doc_when_fix_doc_consistency_fails(cpb, repo, monke
     assert len(calls) == 1  # fix-helm-doc never invoked
 
 
-def test_main_propagates_fix_helm_doc_failure_exit_code(cpb, repo, monkeypatch):
+def test_main_propagates_fix_helm_doc_failure_exit_code(cpb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch):
     set_up(cpb, monkeypatch, repo, ["4.8.5"])
 
     def fake_run_script(cmd, *a, **k):
@@ -168,7 +181,9 @@ def test_main_propagates_fix_helm_doc_failure_exit_code(cpb, repo, monkeypatch):
     assert exc_info.value.code == 1
 
 
-def test_main_unresolvable_baseline_fails_without_writing(cpb, repo, monkeypatch, capsys):
+def test_main_unresolvable_baseline_fails_without_writing(
+    cpb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     cpb.write_release_baselines(repo, upgrade_docs="4.8.4")
     set_up(cpb, monkeypatch, repo, ["9.9.9"])
 
@@ -181,7 +196,9 @@ def test_main_unresolvable_baseline_fails_without_writing(cpb, repo, monkeypatch
 
 
 @pytest.mark.parametrize("bad", ["main", "HEAD~2", "4.9.1-rc.2", "origin/feature/podiumd-4.9.0", "4.9"])
-def test_main_rejects_a_non_semver_baseline_without_writing(cpb, repo, monkeypatch, capsys, bad):
+def test_main_rejects_a_non_semver_baseline_without_writing(
+    cpb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], bad
+):
     """Only a released MAJOR.MINOR.PATCH is a valid baseline. Without this
     guard, gitutil.baseline_ref_candidates' unanchored match lets an
     arbitrary ref resolve and get persisted into release-baseline.yaml,
@@ -197,7 +214,9 @@ def test_main_rejects_a_non_semver_baseline_without_writing(cpb, repo, monkeypat
     assert cpb.read_upgrade_docs_baseline(repo) == "4.8.4"  # untouched
 
 
-def test_main_not_a_git_repo_fails(cpb, monkeypatch, tmp_path, capsys):
+def test_main_not_a_git_repo_fails(
+    cpb: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr("sys.argv", ["change-podiumd-baseline", "4.8.5"])
     monkeypatch.setattr(cpb, "find_repo_root", lambda chart_dir: None)
     monkeypatch.setattr(cpb, "CHART_DIR", tmp_path)
@@ -209,7 +228,7 @@ def test_main_not_a_git_repo_fails(cpb, monkeypatch, tmp_path, capsys):
     assert "not inside a git repository" in capsys.readouterr().out
 
 
-def test_main_requires_exactly_one_argument(cpb, monkeypatch):
+def test_main_requires_exactly_one_argument(cpb: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("sys.argv", ["change-podiumd-baseline"])
     with pytest.raises(SystemExit) as exc_info:
         cpb.main()
@@ -217,9 +236,11 @@ def test_main_requires_exactly_one_argument(cpb, monkeypatch):
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_main_help_flag_prints_usage_and_exits_zero(cpb, monkeypatch, capsys, flag):
+def test_main_help_flag_prints_usage_and_exits_zero(
+    cpb: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
+):
     monkeypatch.setattr("sys.argv", ["change-podiumd-baseline", flag])
     with pytest.raises(SystemExit) as exc_info:
         cpb.main()
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == cpb.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{cpb.__doc__}\n"

@@ -6,6 +6,7 @@ import sys
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -25,5 +26,5 @@ def _load_module():
 
 
 @pytest.fixture(scope="session")
-def cpv():
+def cpv() -> ModuleType:
     return _load_module()

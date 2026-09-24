@@ -6,6 +6,7 @@ import importlib.util
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -13,7 +14,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "verify-helm-secret-size"
 
 
 @pytest.fixture(scope="session")
-def vhss():
+def vhss() -> ModuleType:
     loader = SourceFileLoader("verify_helm_secret_size", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("verify_helm_secret_size", SCRIPT_PATH, loader=loader)
     assert spec is not None
@@ -23,7 +24,7 @@ def vhss():
 
 
 @pytest.fixture(autouse=True)
-def stub_ensure_vendored_dependencies(vhss, monkeypatch):
+def stub_ensure_vendored_dependencies(vhss: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """main() now calls lib.dependencies.ensure_vendored_dependencies
     first, but every main()-level test here runs against a fake chart
     directory with no vendored sub-charts at all. Stubbed to a no-op by

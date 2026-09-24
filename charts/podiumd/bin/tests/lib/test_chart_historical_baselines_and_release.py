@@ -6,6 +6,8 @@ test_chart.py (see test_chart_path_and_version_helpers.py for
 upgrade_docs_baseline/release_table_baseline reads, and the other
 test_chart_*.py files for the rest)."""
 
+from pathlib import Path
+from types import ModuleType
 
 # --- historical_images_manifest_paths / historical_app_version_for_repository ---
 # the replacement for the removed images-baseline.yaml fallback: walks
@@ -33,7 +35,9 @@ def _write_images_manifest(images_dir, version, entries):
     )
 
 
-def test_historical_images_manifest_paths_sorts_most_recent_first(libcharthistoricalbaselines, tmp_path):
+def test_historical_images_manifest_paths_sorts_most_recent_first(
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
+):
     images_dir = tmp_path / "docs" / "images"
     for version in ("4.7.0", "4.9.0", "4.8.5"):
         _write_images_manifest(images_dir, version, [])
@@ -41,7 +45,9 @@ def test_historical_images_manifest_paths_sorts_most_recent_first(libcharthistor
     assert [p.name for p in paths] == ["images-4.9.0.yaml", "images-4.8.5.yaml", "images-4.7.0.yaml"]
 
 
-def test_historical_images_manifest_paths_excludes_versions_after_at_or_before(libcharthistoricalbaselines, tmp_path):
+def test_historical_images_manifest_paths_excludes_versions_after_at_or_before(
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
+):
     images_dir = tmp_path / "docs" / "images"
     for version in ("4.7.0", "4.8.5", "4.9.0", "4.9.1"):
         _write_images_manifest(images_dir, version, [])
@@ -49,7 +55,9 @@ def test_historical_images_manifest_paths_excludes_versions_after_at_or_before(l
     assert [p.name for p in paths] == ["images-4.9.0.yaml", "images-4.8.5.yaml", "images-4.7.0.yaml"]
 
 
-def test_historical_images_manifest_paths_ignores_non_semver_names(libcharthistoricalbaselines, tmp_path):
+def test_historical_images_manifest_paths_ignores_non_semver_names(
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
+):
     """images-baseline.yaml itself (the removed side-file) never parses
     as a bare "X.Y.Z" version — silently skipped, never mistaken for a
     real release."""
@@ -61,12 +69,16 @@ def test_historical_images_manifest_paths_ignores_non_semver_names(libcharthisto
     assert [p.name for p in paths] == ["images-4.8.5.yaml"]
 
 
-def test_historical_images_manifest_paths_empty_when_dir_missing(libcharthistoricalbaselines, tmp_path):
+def test_historical_images_manifest_paths_empty_when_dir_missing(
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
+):
     assert libcharthistoricalbaselines.historical_images_manifest_paths(tmp_path) == []
     assert libcharthistoricalbaselines.historical_images_manifest_paths(None) == []
 
 
-def test_historical_app_version_for_repository_stops_at_most_recent_match(libcharthistoricalbaselines, tmp_path):
+def test_historical_app_version_for_repository_stops_at_most_recent_match(
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
+):
     """Two past manifests both mention the same repository, at DIFFERENT
     versions — the most recent one (searched first) wins, not the
     oldest."""
@@ -86,7 +98,9 @@ def test_historical_app_version_for_repository_stops_at_most_recent_match(libcha
     )
 
 
-def test_historical_app_version_for_repository_none_when_never_mentioned(libcharthistoricalbaselines, tmp_path):
+def test_historical_app_version_for_repository_none_when_never_mentioned(
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
+):
     images_dir = tmp_path / "docs" / "images"
     _write_images_manifest(
         images_dir, "4.8.5", [{"name": "some-other/image", "version": "1.0.0", "digest": "sha256:aaaa"}]
@@ -101,7 +115,7 @@ def test_historical_app_version_for_repository_none_when_never_mentioned(libchar
 
 
 def test_historical_app_version_for_repository_ignores_manifests_after_at_or_before(
-    libcharthistoricalbaselines, tmp_path
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
 ):
     """A repository that only ever appears in a LATER release's own
     manifest (e.g. the in-progress target's own images-<target>.yaml)
@@ -121,7 +135,9 @@ def test_historical_app_version_for_repository_ignores_manifests_after_at_or_bef
     )
 
 
-def test_historical_app_version_for_path_resolves_repo_then_searches(libcharthistoricalbaselines, tmp_path):
+def test_historical_app_version_for_path_resolves_repo_then_searches(
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
+):
     images_dir = tmp_path / "docs" / "images"
     _write_images_manifest(
         images_dir,
@@ -146,7 +162,9 @@ def test_historical_app_version_for_path_resolves_repo_then_searches(libcharthis
     )
 
 
-def test_historical_app_version_for_path_rejects_stripped_name_collision(libcharthistoricalbaselines, tmp_path):
+def test_historical_app_version_for_path_rejects_stripped_name_collision(
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
+):
     """Real bug, real data: global.images.redis (added in 4.9.1, bare
     repository "redis") and redis-operator's own quay.io/opstree/redis
     both strip to the exact same bare name "redis" — but images-
@@ -175,7 +193,9 @@ def test_historical_app_version_for_path_rejects_stripped_name_collision(libchar
     )
 
 
-def test_historical_app_version_for_repository_url_mismatch_is_not_a_match(libcharthistoricalbaselines, tmp_path):
+def test_historical_app_version_for_repository_url_mismatch_is_not_a_match(
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
+):
     """The same collision, exercised directly against historical_app_
     version_for_repository's own expected_url parameter — the lower-
     level primitive historical_app_version_for_path builds on."""
@@ -210,7 +230,9 @@ def test_historical_app_version_for_repository_url_mismatch_is_not_a_match(libch
     )
 
 
-def test_historical_app_version_for_path_none_when_path_unresolvable(libcharthistoricalbaselines, tmp_path):
+def test_historical_app_version_for_path_none_when_path_unresolvable(
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
+):
     """No dependency/override resolves a repository for this path at
     all — nothing to search images-<version>.yaml for."""
     assert (
@@ -224,14 +246,14 @@ def test_historical_app_version_for_path_none_when_path_unresolvable(libcharthis
 # --- write_release_baselines ---
 
 
-def test_write_release_baselines_creates_file_with_both_keys(libchartreleasebaselinebasics, tmp_path):
+def test_write_release_baselines_creates_file_with_both_keys(libchartreleasebaselinebasics: ModuleType, tmp_path: Path):
     libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
     assert libchartreleasebaselinebasics.upgrade_docs_baseline(tmp_path) == "4.9.0"
     assert libchartreleasebaselinebasics.release_table_baseline(tmp_path) == "4.8.5"
 
 
 def test_write_release_baselines_updates_only_upgrade_docs_leaves_release_table(
-    libchartreleasebaselinebasics, tmp_path
+    libchartreleasebaselinebasics: ModuleType, tmp_path: Path
 ):
     libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
     libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs="4.9.1")
@@ -240,7 +262,7 @@ def test_write_release_baselines_updates_only_upgrade_docs_leaves_release_table(
 
 
 def test_write_release_baselines_updates_only_release_table_leaves_upgrade_docs(
-    libchartreleasebaselinebasics, tmp_path
+    libchartreleasebaselinebasics: ModuleType, tmp_path: Path
 ):
     libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
     libchartreleasebaselinebasics.write_release_baselines(tmp_path, release_table="4.9.0")
@@ -248,14 +270,16 @@ def test_write_release_baselines_updates_only_release_table_leaves_upgrade_docs(
     assert libchartreleasebaselinebasics.release_table_baseline(tmp_path) == "4.9.0"
 
 
-def test_write_release_baselines_no_args_leaves_both_unchanged(libchartreleasebaselinebasics, tmp_path):
+def test_write_release_baselines_no_args_leaves_both_unchanged(
+    libchartreleasebaselinebasics: ModuleType, tmp_path: Path
+):
     libchartreleasebaselinebasics.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
     libchartreleasebaselinebasics.write_release_baselines(tmp_path)
     assert libchartreleasebaselinebasics.upgrade_docs_baseline(tmp_path) == "4.9.0"
     assert libchartreleasebaselinebasics.release_table_baseline(tmp_path) == "4.8.5"
 
 
-def test_write_release_baselines_values_are_double_quoted(libchartreleasebaselinebasics, tmp_path):
+def test_write_release_baselines_values_are_double_quoted(libchartreleasebaselinebasics: ModuleType, tmp_path: Path):
     """Real bug, confirmed live: plain yaml.safe_dump only quotes a
     scalar when it's ambiguous with another YAML type (int/float/bool/
     null) — a version string like "4.9.1" (two dots, never a valid
@@ -269,7 +293,9 @@ def test_write_release_baselines_values_are_double_quoted(libchartreleasebaselin
     assert text == 'upgrade_docs: "4.9.1"\nrelease_table: "4.8.5"\n'
 
 
-def test_write_release_baselines_escapes_backslash_and_double_quote_correctly(libchartreleasebaselinebasics, tmp_path):
+def test_write_release_baselines_escapes_backslash_and_double_quote_correctly(
+    libchartreleasebaselinebasics: ModuleType, tmp_path: Path
+):
     """The quoting must come from PyYAML's own scalar emitter, never
     hand-rolled string interpolation (f'{key}: "{value}"\\n') — a value
     containing a literal backslash or an embedded double-quote

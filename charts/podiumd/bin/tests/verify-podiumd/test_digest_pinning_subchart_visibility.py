@@ -8,8 +8,11 @@ podiumd's own values.yaml."""
 import io
 import tarfile
 
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
+import pytest
 import yaml
 
 from dep_helpers import make_dep
@@ -72,7 +75,7 @@ def render_stdout(chart_tree_paths):
     return "".join(f"# Source: {p}/templates/x.yaml\n" for p in chart_tree_paths)
 
 
-def stub_render(monkeypatch, libdigestpinningcheck, chart_tree_paths, returncode=0):
+def stub_render(monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType, chart_tree_paths, returncode=0):
     """Replaces check_subchart_image_visibility's own render_chart call
     (see lib.checks.digest_pinning's "from lib.render_scope import ...
     render_chart" binding — must be patched on THAT module, not vp/
@@ -92,7 +95,11 @@ def stub_render(monkeypatch, libdigestpinningcheck, chart_tree_paths, returncode
 
 
 def test_shared_image_usage_annotates_a_real_dependency_path_with_its_chart(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     write_chart_yaml(tmp_path, [make_dep("zaakafhandelcomponent", "1.0.297", alias="zac")])
     write_values_yaml(
@@ -125,7 +132,11 @@ frankgateway:
 
 
 def test_shared_image_usage_annotates_an_orphan_path_with_its_local_template(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """ "frankgateway" has no Chart.yaml dependency of its own at all --
     it's a native, directly-templated top-level block. The local
@@ -177,7 +188,9 @@ zac:
 # charts/<name>", not "podiumd/charts/<alias>".
 
 
-def test_no_dependencies_passes(vp, tmp_path, monkeypatch, libdigestpinningcheck):
+def test_no_dependencies_passes(
+    vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
+):
     write_chart_yaml(tmp_path, [])
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, [])
@@ -186,7 +199,9 @@ def test_no_dependencies_passes(vp, tmp_path, monkeypatch, libdigestpinningcheck
     assert detail == "0 unresolved"
 
 
-def test_dependency_not_yet_vendored_is_skipped(vp, tmp_path, monkeypatch, libdigestpinningcheck):
+def test_dependency_not_yet_vendored_is_skipped(
+    vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
+):
     """No .tgz on disk yet (the "Dependencies" step hasn't run) — nothing
     to read, so silently skipped rather than an error."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
@@ -197,7 +212,9 @@ def test_dependency_not_yet_vendored_is_skipped(vp, tmp_path, monkeypatch, libdi
     assert detail == "0 unresolved"
 
 
-def test_overridden_subchart_image_is_not_reported(vp, tmp_path, monkeypatch, libdigestpinningcheck):
+def test_overridden_subchart_image_is_not_reported(
+    vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
+):
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(
         tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}}
@@ -217,7 +234,13 @@ openzaak:
     assert detail == "0 unresolved"
 
 
-def test_unoverridden_floating_subchart_image_fails_the_check(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_unoverridden_floating_subchart_image_fails_the_check(
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
+):
     """A FLOATING finding (no podiumd override AND no digest pin in the
     sub-chart's own default either) is genuinely unpinned and non-
     reproducible — it now FAILS the step, unlike a pinned finding."""
@@ -241,7 +264,11 @@ def test_unoverridden_floating_subchart_image_fails_the_check(vp, tmp_path, monk
 
 
 def test_subchart_image_visibility_finding_annotated_with_its_owning_chart(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """Every finding is annotated via the SAME shared resolver
     (lib.chart.resolve_values_path_source) _print_shared_image_usage
@@ -268,7 +295,11 @@ def test_subchart_image_visibility_finding_annotated_with_its_owning_chart(
 
 
 def test_unoverridden_already_pinned_subchart_image_never_fails(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A PINNED finding (the sub-chart's own default already embeds a
     real digest, podiumd just doesn't override it) is already
@@ -300,7 +331,13 @@ def test_unoverridden_already_pinned_subchart_image_never_fails(
     )
 
 
-def test_mix_of_floating_and_pinned_findings_fails_overall(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_mix_of_floating_and_pinned_findings_fails_overall(
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
+):
     """A mix — one floating, one pinned — still fails overall (any
     floating finding fails the step), but the pinned one is still
     printed under its own separate, clearly-labeled report-only
@@ -342,7 +379,9 @@ def test_mix_of_floating_and_pinned_findings_fails_overall(vp, tmp_path, monkeyp
     )
 
 
-def test_nested_subchart_image_path_resolved_correctly(vp, tmp_path, monkeypatch, libdigestpinningcheck):
+def test_nested_subchart_image_path_resolved_correctly(
+    vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
+):
     """A sub-chart default nested under more than one key (e.g. a sidecar)
     must be checked against the SAME nested path in podiumd's own
     values.yaml, not just its top-level scope."""
@@ -364,7 +403,9 @@ openzaak:
     assert detail == "0 unresolved"
 
 
-def test_exempted_digest_pinning_path_never_shows_up_as_unresolved(vp, tmp_path, monkeypatch, libdigestpinningcheck):
+def test_exempted_digest_pinning_path_never_shows_up_as_unresolved(
+    vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
+):
     """keycloak-operator.operator is exempt from check_digest_pinning
     because podiumd DOES override it (with a split tag/sha convention
     instead of an embedded digest) — it must never appear as "unresolved"
@@ -392,7 +433,13 @@ keycloak-operator:
     assert detail == "0 unresolved"
 
 
-def test_multiple_unresolved_images_all_reported(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_multiple_unresolved_images_all_reported(
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
+):
     write_chart_yaml(
         tmp_path,
         [
@@ -414,7 +461,9 @@ def test_multiple_unresolved_images_all_reported(vp, tmp_path, monkeypatch, libd
     assert "openklant.redis.image.tag" in out
 
 
-def test_check_subchart_image_visibility_render_failure(vp, tmp_path, monkeypatch, libdigestpinningcheck):
+def test_check_subchart_image_visibility_render_failure(
+    vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
+):
     monkeypatch.setattr(
         libdigestpinningcheck,
         "render_chart",

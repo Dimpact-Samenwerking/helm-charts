@@ -2,6 +2,9 @@
 no main() integration tests (split out of the former, monolithic
 test_update_component_version.py for pylint's too-many-lines check)."""
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -151,18 +154,18 @@ def test_write_tag_and_sha_replaces_existing_sha_line():
 # --- replace_scalar_value ---
 
 
-def test_replace_scalar_value_preserves_quotes(ucv):
+def test_replace_scalar_value_preserves_quotes(ucv: ModuleType):
     assert (
         ucv.replace_scalar_value('      tag: "1.0.0@sha256:aaaa"\n', "2.0.0@sha256:bbbb")
         == '      tag: "2.0.0@sha256:bbbb"\n'
     )
 
 
-def test_replace_scalar_value_preserves_bare_style(ucv):
+def test_replace_scalar_value_preserves_bare_style(ucv: ModuleType):
     assert ucv.replace_scalar_value("    version: 1.0.297\n", "1.0.298") == "    version: 1.0.298\n"
 
 
-def test_replace_scalar_value_preserves_trailing_comment(ucv):
+def test_replace_scalar_value_preserves_trailing_comment(ucv: ModuleType):
     result = ucv.replace_scalar_value("    version: 1.0.297  # pinned\n", "1.0.298")
     assert result == "    version: 1.0.298  # pinned\n"
 
@@ -174,7 +177,9 @@ def write_chart_yaml(path, deps):
     path.write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
 
 
-def test_update_chart_yaml_bumps_only_matching_dependency(ucv, tmp_path, monkeypatch):
+def test_update_chart_yaml_bumps_only_matching_dependency(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     chart_yaml = tmp_path / "Chart.yaml"
     chart_yaml.write_text(
         "dependencies:\n"
@@ -196,7 +201,7 @@ def test_update_chart_yaml_bumps_only_matching_dependency(ucv, tmp_path, monkeyp
     assert "version: 1.14.2" in updated  # untouched
 
 
-def test_update_chart_yaml_missing_dependency_raises(ucv, tmp_path, monkeypatch):
+def test_update_chart_yaml_missing_dependency_raises(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     chart_yaml = tmp_path / "Chart.yaml"
     chart_yaml.write_text("dependencies:\n  - name: openzaak\n    version: 1.14.2\n", encoding="utf-8")
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
@@ -207,7 +212,7 @@ def test_update_chart_yaml_missing_dependency_raises(ucv, tmp_path, monkeypatch)
 # --- update_values_yaml ---
 
 
-def test_update_values_yaml_single_image(ucv, tmp_path, monkeypatch):
+def test_update_values_yaml_single_image(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     values_yaml = tmp_path / "values.yaml"
     values_yaml.write_text(
         'zac:\n  image:\n    tag: "5.0.2@sha256:aaaa"\n  opa:\n    image:\n      tag: "1.17.1-static@sha256:bbbb"\n',
@@ -221,7 +226,7 @@ def test_update_values_yaml_single_image(ucv, tmp_path, monkeypatch):
     assert '"1.17.1-static@sha256:bbbb"' in updated  # sidecar untouched
 
 
-def test_update_values_yaml_multi_image_lockstep(ucv, tmp_path, monkeypatch):
+def test_update_values_yaml_multi_image_lockstep(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     values_yaml = tmp_path / "values.yaml"
     values_yaml.write_text(
         "zgw-office-addin:\n"
@@ -246,7 +251,7 @@ def test_update_values_yaml_multi_image_lockstep(ucv, tmp_path, monkeypatch):
     assert "v0.9.313" not in updated
 
 
-def test_update_values_yaml_missing_path_raises(ucv, tmp_path, monkeypatch):
+def test_update_values_yaml_missing_path_raises(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     values_yaml = tmp_path / "values.yaml"
     values_yaml.write_text('zac:\n  image:\n    tag: "5.0.2@sha256:aaaa"\n', encoding="utf-8")
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
@@ -257,7 +262,9 @@ def test_update_values_yaml_missing_path_raises(ucv, tmp_path, monkeypatch):
 # --- _load_split_tag_sha_paths ---
 
 
-def test_load_split_tag_sha_paths_skips_writable_entry_without_sibling_field(ucv, monkeypatch):
+def test_load_split_tag_sha_paths_skips_writable_entry_without_sibling_field(
+    ucv: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
     # A writable entry naming no sibling_field has no split pin to write;
     # it used to be kept with a None sibling field, which would have
     # written a literal "None:" key next to its tag.

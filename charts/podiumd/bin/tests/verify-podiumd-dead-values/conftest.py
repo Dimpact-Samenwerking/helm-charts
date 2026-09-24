@@ -6,6 +6,7 @@ import importlib.util
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -13,7 +14,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "verify-podiumd-dead-values"
 
 
 @pytest.fixture(scope="session")
-def vpdv():
+def vpdv() -> ModuleType:
     loader = SourceFileLoader("verify_podiumd_dead_values", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("verify_podiumd_dead_values", SCRIPT_PATH, loader=loader)
     assert spec is not None
@@ -23,7 +24,7 @@ def vpdv():
 
 
 @pytest.fixture(autouse=True)
-def stub_ensure_vendored_dependencies(vpdv, monkeypatch):
+def stub_ensure_vendored_dependencies(vpdv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """main() now calls lib.dependencies.ensure_vendored_dependencies
     first, but every main()-level test here runs against a fake chart
     directory with no vendored sub-charts at all. Stubbed to a no-op by

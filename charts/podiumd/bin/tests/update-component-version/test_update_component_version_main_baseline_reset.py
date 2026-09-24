@@ -9,6 +9,10 @@ import io
 import subprocess
 import tarfile
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
 import yaml
 
 import lib.image.version as image_version
@@ -30,7 +34,7 @@ def init_git_repo(root):
     git("config", "user.name", "Test", cwd=root)
 
 
-def setup_repo(tmp_path, monkeypatch, ucv):
+def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     # written as raw text (not yaml.safe_dump, which alphabetizes keys) so
@@ -61,7 +65,7 @@ def setup_repo(tmp_path, monkeypatch, ucv):
     return chart_yaml, values_yaml
 
 
-def mock_registry_passes(monkeypatch, ucv, digest_char="b"):
+def mock_registry_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b"):
     """A component whose values.yaml image path has an explicit
     "repository:" (e.g. zac) delegates its tag update to
     lib.image.version.update_image_version, which resolves
@@ -73,7 +77,7 @@ def mock_registry_passes(monkeypatch, ucv, digest_char="b"):
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, digest))
 
 
-def mock_verify_passes(monkeypatch, ucv, digest_char="b", calls=None):
+def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b", calls=None):
     """Fakes update-component-version's own upfront verify_component_version
     step (a lib.chart.resolve_chart_values call + lib.chart.
     check_image_versions call) so main()'s tests don't need real
@@ -110,7 +114,9 @@ def mock_verify_passes(monkeypatch, ucv, digest_char="b", calls=None):
 # --- main() integration: doc updates end-to-end ---
 
 
-def setup_docs(ucv, monkeypatch, upgrade_text, values_deltas_text=None, images_text=None):
+def setup_docs(
+    ucv: ModuleType, monkeypatch: pytest.MonkeyPatch, upgrade_text, values_deltas_text=None, images_text=None
+):
     (ucv.CHART_DIR / "etc").mkdir(exist_ok=True)
     write(ucv.CHART_DIR / "etc" / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')
     doc_dir = ucv.DOC_DIR
@@ -121,7 +127,7 @@ def setup_docs(ucv, monkeypatch, upgrade_text, values_deltas_text=None, images_t
         write(ucv.IMAGES_DIR / "images-4.9.0.yaml", images_text)
 
 
-def test_main_adds_new_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
+def test_main_adds_new_component_mention_end_to_end(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     setup_repo(tmp_path, monkeypatch, ucv)
     setup_docs(
         ucv,
@@ -175,7 +181,9 @@ def test_main_adds_new_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
     assert f'"sha256:{"c" * 64}"' in images
 
 
-def test_main_fixes_a_preexisting_changes_numbering_gap_when_adding_an_item(ucv, tmp_path, monkeypatch):
+def test_main_fixes_a_preexisting_changes_numbering_gap_when_adding_an_item(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """The images manifest already has a gap in its own "# Changes:"
     numbering (items "1." and "3." — a THIRD, unrelated item was
     apparently removed by hand at some point without renumbering) when
@@ -229,7 +237,9 @@ def test_main_fixes_a_preexisting_changes_numbering_gap_when_adding_an_item(ucv,
     assert ". zac" in images
 
 
-def test_main_updates_existing_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
+def test_main_updates_existing_component_mention_end_to_end(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     setup_repo(tmp_path, monkeypatch, ucv)
     setup_docs(
         ucv,
@@ -265,14 +275,16 @@ def test_main_updates_existing_component_mention_end_to_end(ucv, tmp_path, monke
 # collapsing more than one bump in a release cycle into a single entry ---
 
 
-def commit_baseline_tag(tmp_path):
+def commit_baseline_tag(tmp_path: Path):
     init_git_repo(tmp_path)
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "baseline", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
 
-def test_main_removes_all_docs_when_reset_back_to_baseline(ucv, tmp_path, monkeypatch):
+def test_main_removes_all_docs_when_reset_back_to_baseline(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """A component bumped once (baseline 5.0.2 -> 5.5.0, already fully
     documented) and then reset all the way back to its baseline version
     has nothing left to report: the table row, Changes section,
@@ -340,7 +352,9 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(ucv, tmp_path, monkey
     assert '"5.0.2"' in images  # the entry itself still lists the correct (reset) version
 
 
-def test_main_new_component_row_renders_new_ignoring_images_baseline(ucv, tmp_path, monkeypatch):
+def test_main_new_component_row_renders_new_ignoring_images_baseline(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test: brppersonenmock's own Chart.yaml dependency is
     brand new (it doesn't exist at all at the podiumd-4.8.5 baseline
     commit — zac is the only dependency there), so baseline_dep resolves
@@ -431,7 +445,9 @@ def test_main_new_component_row_renders_new_ignoring_images_baseline(ucv, tmp_pa
     assert "| brppersonenmock | 2.7.0 (new) |" in upgrade
 
 
-def test_main_collapses_repeated_bump_into_single_baseline_entry(ucv, tmp_path, monkeypatch):
+def test_main_collapses_repeated_bump_into_single_baseline_entry(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Bumping zac to 5.4.3 and then, within the same release cycle,
     reconsidering to 5.5.0 instead must leave exactly ONE entry in each
     doc showing baseline -> final (5.0.2 -> 5.5.0) -- never two entries,
@@ -503,7 +519,9 @@ def _make_vendored_tgz(charts_dir, name, version, chart_yaml):
     return tgz_path
 
 
-def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(ucv, tmp_path, monkeypatch):
+def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test (real bug, real doc): openbao's own "server.image.
     tag" is deliberately left blank at the baseline too (see settings.
     yaml's component_resolution.image_paths["openbao"]'s own comment) —
@@ -582,7 +600,9 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
     assert "1. openbao v2.5.0 -> v2.6.0 (chart 0.28.4, unchanged)." in images
 
 
-def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(ucv, tmp_path, monkeypatch):
+def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test (same #5-class gap as update-image-version's own
     update_docs_single_component, in update-component-version's own
     baseline resolution): a Chart.yaml dependency ALWAYS has a "version"
@@ -652,7 +672,9 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(uc
     assert "### mi 2.90.0 (new) (chart 1.1.0, new)" in upgrade
 
 
-def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkeypatch, capsys):
+def test_main_skips_doc_updates_when_no_upgrade_doc_exists(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     setup_repo(tmp_path, monkeypatch, ucv)
     (tmp_path / "etc").mkdir(exist_ok=True)
     write(
@@ -668,7 +690,9 @@ def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkey
     assert "No upgrade doc found for target 4.9.0" in out
 
 
-def test_main_skips_doc_updates_when_no_release_baseline(ucv, tmp_path, monkeypatch, capsys):
+def test_main_skips_doc_updates_when_no_release_baseline(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     setup_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "e")

@@ -3,6 +3,11 @@ Deployment/StatefulSet/DaemonSet/Job/CronJob in templates/*.yaml must
 expose a nodeSelector field somewhere in its document, per
 .github/copilot-instructions.md's AKS-Blue convention."""
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+
 DEPLOYMENT_WITH_SELECTOR = """\
 apiVersion: apps/v1
 kind: Deployment
@@ -35,20 +40,20 @@ def write_template(chart_dir, name, text):
     (templates_dir / name).write_text(text, encoding="utf-8")
 
 
-def test_no_templates_dir_passes(vp, tmp_path):
+def test_no_templates_dir_passes(vp: ModuleType, tmp_path: Path):
     ok, detail = vp.check_node_selector(tmp_path)
     assert ok is True
     assert "0 violation(s)" in detail
 
 
-def test_deployment_with_node_selector_passes(vp, tmp_path):
+def test_deployment_with_node_selector_passes(vp: ModuleType, tmp_path: Path):
     write_template(tmp_path, "frankgateway.yaml", DEPLOYMENT_WITH_SELECTOR)
     ok, detail = vp.check_node_selector(tmp_path)
     assert ok is True
     assert "0 violation(s)" in detail
 
 
-def test_deployment_without_node_selector_flagged(vp, tmp_path, capsys):
+def test_deployment_without_node_selector_flagged(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     write_template(tmp_path, "frankgateway.yaml", DEPLOYMENT_WITHOUT_SELECTOR)
     ok, detail = vp.check_node_selector(tmp_path)
     assert ok is False
@@ -58,7 +63,7 @@ def test_deployment_without_node_selector_flagged(vp, tmp_path, capsys):
     assert "Deployment/frankgateway" in out
 
 
-def test_non_workload_kinds_never_flagged(vp, tmp_path):
+def test_non_workload_kinds_never_flagged(vp: ModuleType, tmp_path: Path):
     """ConfigMap/ServiceAccount/Role/etc. have no pod spec and must never
     be expected to carry a nodeSelector."""
     write_template(tmp_path, "a.yaml", "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: foo\n")
@@ -67,7 +72,7 @@ def test_non_workload_kinds_never_flagged(vp, tmp_path):
     assert "0 violation(s)" in detail
 
 
-def test_multi_document_file_isolates_each_resource(vp, tmp_path, capsys):
+def test_multi_document_file_isolates_each_resource(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     """redis-ha-pre-delete.yaml's shape: ServiceAccount + Role + RoleBinding
     + Job in one file, separated by bare `---` lines — only the Job (a
     workload kind) should be checked, and it must be isolated from the
@@ -90,7 +95,9 @@ def test_multi_document_file_isolates_each_resource(vp, tmp_path, capsys):
     assert "ServiceAccount" not in out.split("Found")[1]
 
 
-def test_statefulset_and_daemonset_and_cronjob_also_checked(vp, tmp_path, capsys):
+def test_statefulset_and_daemonset_and_cronjob_also_checked(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     write_template(tmp_path, "a.yaml", "kind: StatefulSet\nmetadata:\n  name: etcd\n")
     write_template(tmp_path, "b.yaml", "kind: DaemonSet\nmetadata:\n  name: ds\n")
     write_template(tmp_path, "c.yaml", "kind: CronJob\nmetadata:\n  name: cj\n")
@@ -103,7 +110,9 @@ def test_statefulset_and_daemonset_and_cronjob_also_checked(vp, tmp_path, capsys
     assert "CronJob/cj" in out
 
 
-def test_multiple_violations_across_files_all_reported(vp, tmp_path, capsys):
+def test_multiple_violations_across_files_all_reported(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     write_template(tmp_path, "a.yaml", DEPLOYMENT_WITHOUT_SELECTOR)
     write_template(tmp_path, "b.yaml", DEPLOYMENT_WITHOUT_SELECTOR.replace("frankgateway", "other"))
     ok, detail = vp.check_node_selector(tmp_path)
@@ -148,14 +157,16 @@ DEFINE_BLOCK_JOB_WITHOUT_SELECTOR = DEFINE_BLOCK_JOB_WITH_SELECTOR.replace(
 )
 
 
-def test_job_with_selector_in_same_file_define_block_not_flagged(vp, tmp_path):
+def test_job_with_selector_in_same_file_define_block_not_flagged(vp: ModuleType, tmp_path: Path):
     write_template(tmp_path, "test-seed-job.yaml", DEFINE_BLOCK_JOB_WITH_SELECTOR)
     ok, detail = vp.check_node_selector(tmp_path)
     assert ok is True
     assert "0 violation(s)" in detail
 
 
-def test_job_missing_selector_in_referenced_define_block_still_flagged(vp, tmp_path, capsys):
+def test_job_missing_selector_in_referenced_define_block_still_flagged(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     write_template(tmp_path, "test-seed-job.yaml", DEFINE_BLOCK_JOB_WITHOUT_SELECTOR)
     ok, detail = vp.check_node_selector(tmp_path)
     assert ok is False
@@ -164,7 +175,7 @@ def test_job_missing_selector_in_referenced_define_block_still_flagged(vp, tmp_p
     assert "Job/test-seed-job" in out
 
 
-def test_unrelated_same_file_define_block_never_credited(vp, tmp_path):
+def test_unrelated_same_file_define_block_never_credited(vp: ModuleType, tmp_path: Path):
     """A `define` block that HAPPENS to be in the same file but is never
     actually `include`-d by this doc's own chunk must not be credited —
     only a real `include "<name>"` call wires it in."""
@@ -179,7 +190,7 @@ def test_unrelated_same_file_define_block_never_credited(vp, tmp_path):
     assert "1 violation(s)" in detail
 
 
-def test_non_literal_include_call_never_matches_a_define_name(vp, tmp_path):
+def test_non_literal_include_call_never_matches_a_define_name(vp: ModuleType, tmp_path: Path):
     """`include (print ... )` (keycloak-import-podiumd-realm-job.yaml's own
     same-file include call, for an unrelated template file) has no bare
     quoted name right after `include` — must never be mistaken for one of
@@ -206,7 +217,7 @@ def test_non_literal_include_call_never_matches_a_define_name(vp, tmp_path):
     assert "1 violation(s)" in detail
 
 
-def test_scan_missing_node_selector_returns_path_kind_and_name(libnodeselectorcheck, tmp_path):
+def test_scan_missing_node_selector_returns_path_kind_and_name(libnodeselectorcheck: ModuleType, tmp_path: Path):
     write_template(tmp_path, "frankgateway.yaml", DEPLOYMENT_WITHOUT_SELECTOR)
     findings = libnodeselectorcheck.scan_missing_node_selector(tmp_path)
     assert len(findings) == 1

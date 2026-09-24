@@ -2,6 +2,11 @@
 must have a digest-pinned tag, except the one known keycloak-operator
 field that uses a separate split tag/sha convention instead."""
 
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+
 DIGEST_A = "a" * 64
 
 
@@ -9,13 +14,13 @@ def write_values_yaml(chart_dir, text):
     (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
 
 
-def test_no_values_yaml_passes(vp, tmp_path):
+def test_no_values_yaml_passes(vp: ModuleType, tmp_path: Path):
     ok, detail = vp.check_digest_pinning(tmp_path)
     assert ok is True
     assert "0 pin(s)" in detail
 
 
-def test_all_digest_pinned_passes(vp, tmp_path):
+def test_all_digest_pinned_passes(vp: ModuleType, tmp_path: Path):
     write_values_yaml(
         tmp_path,
         f"""\
@@ -30,7 +35,7 @@ zac:
     assert detail == "1 pin(s), 0 unpinned"
 
 
-def test_floating_tag_fails(vp, tmp_path, capsys):
+def test_floating_tag_fails(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     write_values_yaml(
         tmp_path,
         """\
@@ -48,7 +53,7 @@ clamav:
     assert "clamav.metrics.image.tag: 'v2.1.8'" in out
 
 
-def test_mix_of_pinned_and_floating_reports_only_the_floating_one(vp, tmp_path):
+def test_mix_of_pinned_and_floating_reports_only_the_floating_one(vp: ModuleType, tmp_path: Path):
     write_values_yaml(
         tmp_path,
         f"""\
@@ -68,7 +73,7 @@ clamav:
     assert detail == "1/2 image(s) not digest-pinned"
 
 
-def test_keycloak_operator_own_image_is_exempt(vp, tmp_path):
+def test_keycloak_operator_own_image_is_exempt(vp: ModuleType, tmp_path: Path):
     """keycloak-operator.operator.image uses the adfinis chart's own
     split tag/sha convention -- embedding @sha256 in tag there would
     produce a double digest. Must never be flagged, regardless of what
@@ -88,7 +93,7 @@ keycloak-operator:
     assert detail == "1 pin(s), 0 unpinned"
 
 
-def test_keycloak_operator_keycloak_image_is_exempt(vp, tmp_path):
+def test_keycloak_operator_keycloak_image_is_exempt(vp: ModuleType, tmp_path: Path):
     """keycloak-operator.operator.config.keycloakImage uses the exact
     same split tag/sha convention as operator.image above -- only
     visible to this check at all since find_image_tag_paths started
@@ -110,7 +115,7 @@ keycloak-operator:
     assert detail == "1 pin(s), 0 unpinned"
 
 
-def test_omc_own_image_is_exempt(vp, tmp_path):
+def test_omc_own_image_is_exempt(vp: ModuleType, tmp_path: Path):
     """omc's values.yaml comment says the subchart itself can't handle a
     digest-pinned tag -- must never be flagged."""
     write_values_yaml(
@@ -126,7 +131,7 @@ omc:
     assert detail == "1 pin(s), 0 unpinned"
 
 
-def test_eck_operator_own_image_is_exempt(vp, tmp_path):
+def test_eck_operator_own_image_is_exempt(vp: ModuleType, tmp_path: Path):
     """eck-operator.image uses the upstream elastic chart's own split
     tag/digest convention (confirmed against eck-operator-3.5.0.tgz's
     own templates/_helpers.tpl) -- embedding @sha256 in tag there too
@@ -146,7 +151,7 @@ eck-operator:
     assert detail == "1 pin(s), 0 unpinned"
 
 
-def test_keycloak_operator_exemption_does_not_hide_other_violations(vp, tmp_path):
+def test_keycloak_operator_exemption_does_not_hide_other_violations(vp: ModuleType, tmp_path: Path):
     write_values_yaml(
         tmp_path,
         """\
@@ -167,7 +172,7 @@ keycloak-operator:
     assert detail == "1/2 image(s) not digest-pinned"
 
 
-def test_sha256_style_digest_is_case_sensitive_lowercase_hex(vp, tmp_path):
+def test_sha256_style_digest_is_case_sensitive_lowercase_hex(vp: ModuleType, tmp_path: Path):
     """A malformed/uppercase digest must still fail -- this check is
     about the shape scan_digest_pins itself requires, not just "has an
     @sha256 substring somewhere"."""
@@ -184,7 +189,7 @@ zac:
     assert ok is False
 
 
-def test_multiple_violations_all_reported(vp, tmp_path, capsys):
+def test_multiple_violations_all_reported(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     write_values_yaml(
         tmp_path,
         f"""\
@@ -213,7 +218,7 @@ zac:
     assert "pabc.initContainers.waitFor.image.tag" in out
 
 
-def test_suffixed_image_key_is_enforced_too(vp, tmp_path, capsys):
+def test_suffixed_image_key_is_enforced_too(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     """A component needing more than one distinctly-named image (e.g. a
     job's main "image" plus a separate "initImage") can't use the bare
     "image" key for both — real-world case: ensurePodiumdAdminUser's
@@ -238,7 +243,7 @@ keycloak-operator:
     assert "keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag: '3.14-slim'" in out
 
 
-def test_plural_images_container_not_treated_as_an_image_block(vp, tmp_path):
+def test_plural_images_container_not_treated_as_an_image_block(vp: ModuleType, tmp_path: Path):
     """ "images" (plural, a container of several named templates, e.g.
     global.images.nginx) must not itself be flagged — it doesn't end in
     "Image" (capital I), so only its own literally-"image"/"...Image"-

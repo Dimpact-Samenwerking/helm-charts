@@ -13,8 +13,11 @@ from types import ModuleType
 import pytest
 import yaml
 
+from lib.registry import ImagePathTagCheck
+from lib.yaml_types import YamlMapping
 
-def write_chart_yaml(vcv, dependencies):
+
+def write_chart_yaml(vcv: ModuleType, dependencies):
     """Chart.yaml with `dependencies`, each given a version (as every real
     Chart.yaml dependency has) unless the test sets one."""
     versioned = [{"version": "1.0.0", **dep} for dep in dependencies]
@@ -24,19 +27,19 @@ def write_chart_yaml(vcv, dependencies):
 # --- find_dependency ---
 
 
-def test_find_dependency_by_name(vcv, tmp_path, monkeypatch):
+def test_find_dependency_by_name(vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
     assert vcv.find_dependency("zaakafhandelcomponent")["alias"] == "zac"
 
 
-def test_find_dependency_by_alias(vcv, tmp_path, monkeypatch):
+def test_find_dependency_by_alias(vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
     assert vcv.find_dependency("zac")["name"] == "zaakafhandelcomponent"
 
 
-def test_find_dependency_not_found_raises(vcv, tmp_path, monkeypatch):
+def test_find_dependency_not_found_raises(vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
     with pytest.raises(SystemExit, match="no dependency named or aliased"):
@@ -46,14 +49,16 @@ def test_find_dependency_not_found_raises(vcv, tmp_path, monkeypatch):
 # --- main() ---
 
 
-def run_main(vcv, monkeypatch, argv):
+def run_main(vcv: ModuleType, monkeypatch: pytest.MonkeyPatch, argv):
     monkeypatch.setattr("sys.argv", ["verify-component-version", *argv])
     with pytest.raises(SystemExit) as exc_info:
         vcv.main()
     return exc_info.value
 
 
-def test_main_single_image_component_success(vcv, tmp_path, monkeypatch, capsys):
+def test_main_single_image_component_success(
+    vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
     monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {"image": {"repository": "x/y"}})
@@ -79,7 +84,9 @@ def test_main_single_image_component_success(vcv, tmp_path, monkeypatch, capsys)
     assert "OK: chart + image version(s) exist" in out
 
 
-def test_main_multi_image_component_checks_both(vcv, tmp_path, monkeypatch, capsys):
+def test_main_multi_image_component_checks_both(
+    vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zgw-office-addin", "repository": "@zgw-office-addin"}])
     checked_paths = []
@@ -113,7 +120,9 @@ def test_main_multi_image_component_checks_both(vcv, tmp_path, monkeypatch, caps
     assert checked_paths == ["frontend.image", "backend.image"]
 
 
-def test_main_alias_argument_resolves_full_multi_path_registration(vcv, tmp_path, monkeypatch):
+def test_main_alias_argument_resolves_full_multi_path_registration(
+    vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Regression test (real bug, confirmed live against the real chart):
     image_paths_for is keyed by the dependency's own Chart.yaml "name",
     never its alias (see settings.yaml's component_resolution.image_
@@ -162,7 +171,9 @@ def test_main_alias_argument_resolves_full_multi_path_registration(vcv, tmp_path
     assert checked_paths == ["image", "settings.syncJobs.image"]
 
 
-def test_main_dockerhub_component(vcv, tmp_path, monkeypatch, capsys):
+def test_main_dockerhub_component(
+    vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """openformulieren ships on Docker Hub — the registry must be inferred
     from the repository string, not assumed to be ghcr for everything."""
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
@@ -188,7 +199,7 @@ def test_main_dockerhub_component(vcv, tmp_path, monkeypatch, capsys):
     assert "docker.io/openformulieren/open-forms:3.5.6" in capsys.readouterr().out
 
 
-def test_main_missing_chart_version_propagates(vcv, tmp_path, monkeypatch):
+def test_main_missing_chart_version_propagates(vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """verify_chart_version (lib.chart) already prints its own FAIL message
     and exits 1 when the chart version can't be pulled — main() has
     nothing to add and must not swallow that exit."""
@@ -203,7 +214,9 @@ def test_main_missing_chart_version_propagates(vcv, tmp_path, monkeypatch):
     assert exc.code == 1
 
 
-def test_main_missing_app_version_fails(vcv, tmp_path, monkeypatch, capsys):
+def test_main_missing_app_version_fails(
+    vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
     monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {"image": {"repository": "x/y"}})
@@ -229,7 +242,9 @@ def test_main_missing_app_version_fails(vcv, tmp_path, monkeypatch, capsys):
     assert "FAIL: one or more app image versions" in out
 
 
-def test_main_no_repository_at_configured_path_propagates(vcv, tmp_path, monkeypatch):
+def test_main_no_repository_at_configured_path_propagates(
+    vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """check_image_versions (lib.chart) already raises SystemExit with a
     clear message when none of COMPONENT_IMAGE_PATHS resolves to a
     repository — main() has nothing to add here either."""
@@ -248,16 +263,18 @@ def test_main_no_repository_at_configured_path_propagates(vcv, tmp_path, monkeyp
     assert "no repository found" in str(exc)
 
 
-def test_main_requires_exactly_three_arguments(vcv, monkeypatch):
+def test_main_requires_exactly_three_arguments(vcv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     exc = run_main(vcv, monkeypatch, ["zac", "5.4.3"])
     assert exc.code == 1
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_main_help_flag_prints_usage_and_exits_zero(vcv, monkeypatch, capsys, flag):
+def test_main_help_flag_prints_usage_and_exits_zero(
+    vcv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
+):
     exc = run_main(vcv, monkeypatch, [flag])
     assert exc.code == 0
-    assert capsys.readouterr().out == vcv.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{vcv.__doc__}\n"
 
 
 def test_main_native_component_reads_podiumd_values(
@@ -274,9 +291,20 @@ def test_main_native_component_reads_podiumd_values(
     monkeypatch.setattr(vcv, "verify_chart_version", no_chart_pull)
     seen = {}
 
-    def fake_check_image_versions(values: dict, image_paths: list[str], app_version: str) -> list[dict]:
+    def fake_check_image_versions(
+        values: YamlMapping, image_paths: list[str], app_version: str
+    ) -> list[ImagePathTagCheck]:
         seen.update(values=values, image_paths=image_paths)
-        return [{"path": "image", "host": "docker.io", "repo_path": "x/fg", "exists": True, "digest": None}]
+        return [
+            {
+                "path": "image",
+                "repository": "x/fg",
+                "host": "docker.io",
+                "repo_path": "x/fg",
+                "exists": True,
+                "digest": None,
+            }
+        ]
 
     monkeypatch.setattr(vcv, "check_image_versions", fake_check_image_versions)
 

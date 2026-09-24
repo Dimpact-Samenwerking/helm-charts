@@ -3,13 +3,15 @@ parsing in lib.checks.cve."""
 
 import json
 
+from pathlib import Path
+
 from lib.checks.cve import is_cve_entry
 from lib.checks.cve import trivy_vulnerabilities
 from lib.image.upgrade_cache import is_upgrade_entry
 from lib.json_cache import load_json_cache
 
 
-def test_load_json_cache_drops_entries_that_fail_the_check(tmp_path):
+def test_load_json_cache_drops_entries_that_fail_the_check(tmp_path: Path):
     path = tmp_path / "cache.json"
     path.write_text(
         json.dumps(
@@ -26,7 +28,7 @@ def test_load_json_cache_drops_entries_that_fail_the_check(tmp_path):
     }
 
 
-def test_load_json_cache_non_object_file_is_empty(tmp_path):
+def test_load_json_cache_non_object_file_is_empty(tmp_path: Path):
     path = tmp_path / "cache.json"
     path.write_text("[1, 2]", encoding="utf-8")
     assert load_json_cache(path, is_upgrade_entry) == {}

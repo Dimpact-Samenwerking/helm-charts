@@ -3,6 +3,9 @@ ordered_images_manifest_chart_dir fixture cluster), including 4 backfill-coverag
 tests that are physically colocated with the dedupe tests in the original file but
 exercise this same fixture cluster, not dedupe logic."""
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -12,7 +15,7 @@ def write(path, text):
 
 
 @pytest.fixture
-def ordered_images_manifest_chart_dir(tmp_path):
+def ordered_images_manifest_chart_dir(tmp_path: Path):
     """Three dependencies, values.yaml top-level order openzaak ->
     keycloak-operator -> zac — keycloak-operator's own postgres sidecar
     resolves via an own override, no vendored subchart tgz needed."""
@@ -68,7 +71,7 @@ def _ordered_baseline_values():
 
 
 def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_position(
-    cdb, ordered_images_manifest_chart_dir
+    cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
     """A missing entry for the MIDDLE component (values.yaml order
     openzaak -> keycloak-operator -> zac) is inserted between the
@@ -122,7 +125,7 @@ def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_
 
 
 def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_like_an_item(
-    cdb, ordered_images_manifest_chart_dir
+    cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
     """A wrapped CONTINUATION line that happens to start with a version
     number (e.g. "1.19.1-static, ...") must never be mistaken for a
@@ -180,7 +183,9 @@ def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_lik
     ) in new_text
 
 
-def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(cdb, ordered_images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(
+    cdb: ModuleType, ordered_images_manifest_chart_dir
+):
     """The inserted block is properly blank-line-separated from its
     neighbors on both sides — the result parses as a valid, 3-entry
     manifest, not malformed or merged-together YAML."""
@@ -214,7 +219,9 @@ def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(c
     assert [e["name"] for e in entries] == ["openzaak/open-zaak", "postgres", "infonl/zaakafhandelcomponent"]
 
 
-def test_add_missing_images_manifest_entries_no_header_still_orders_body(cdb, ordered_images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_no_header_still_orders_body(
+    cdb: ModuleType, ordered_images_manifest_chart_dir
+):
     """No "# Changes:" header at all in this file — the body still gets
     ordered correctly; nothing about header-handling is required for
     body ordering to work."""
@@ -252,7 +259,7 @@ def test_add_missing_images_manifest_entries_no_header_still_orders_body(cdb, or
 
 
 def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch(
-    cdb, ordered_images_manifest_chart_dir
+    cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
     """Regression test (real bug, real doc): images-4.9.1.yaml's own
     real intro block ("# Baseline: ...", "# Images new or changed...",
@@ -298,7 +305,9 @@ def test_add_missing_images_manifest_entries_creates_missing_header_from_scratch
         assert f". {name} " in changes_block, f"{name!r} has no '# Changes:' list item"
 
 
-def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(cdb, ordered_images_manifest_chart_dir):
+def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
+    cdb: ModuleType, ordered_images_manifest_chart_dir
+):
     """The real symptom a fresh lib.component_docs.IMAGES_STUB_TEMPLATE
     file has: a bare "# Changes:" header with NO items under it yet
     (not "no header at all" — see the no_header_still_orders_body test
@@ -343,7 +352,7 @@ def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(c
 
 
 def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside_first_entry(
-    cdb, ordered_images_manifest_chart_dir
+    cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
     """Real bug: the fresh stub's own literal bare "[]" (yaml.safe_load's
     empty-list spelling) was left in place while the first real entry got
@@ -369,7 +378,7 @@ def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside
 
 
 def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicate(
-    cdb, ordered_images_manifest_chart_dir
+    cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
     """Real bug downstream of the "[]" placeholder surviving the first
     insert: since the resulting file was invalid YAML, a second run's own
@@ -408,7 +417,7 @@ def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicat
 
 
 def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_entry(
-    cdb, ordered_images_manifest_chart_dir
+    cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
     """A component that already has its own comment+entry block (e.g.
     added by an earlier run of this same function, before header-list
@@ -462,7 +471,7 @@ def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_
 
 
 @pytest.fixture
-def zgw_office_addin_chart_dir(tmp_path):
+def zgw_office_addin_chart_dir(tmp_path: Path):
     """zgw-office-addin's own frontend + backend images — one of
     COMPONENT_IMAGE_PATHS' MULTI-image "lockstep" entries (both share
     ONE path_display_name, "zgw-office-addin") — each with its own
@@ -495,7 +504,7 @@ def zgw_office_addin_chart_dir(tmp_path):
 
 
 def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_item_not_two(
-    cdb, zgw_office_addin_chart_dir
+    cdb: ModuleType, zgw_office_addin_chart_dir
 ):
     """Real bug: a multi-image lockstep component reports TWO missing_
     paths (frontend + backend), both resolving to the SAME path_display_
@@ -540,7 +549,7 @@ def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_
 
 
 def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_entry(
-    cdb, ordered_images_manifest_chart_dir
+    cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
     """An entry already named in some existing header item is left
     alone — a dependency-level mention (e.g. "keycloak-operator chart
@@ -593,7 +602,7 @@ def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_e
 
 
 def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_covered(
-    cdb, ordered_images_manifest_chart_dir
+    cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
     """An entry whose exact display name IS already mentioned in an
     existing header item is left alone entirely — nothing added,
@@ -640,7 +649,7 @@ def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_cover
 
 
 def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_insensitive(
-    cdb, ordered_images_manifest_chart_dir
+    cdb: ModuleType, ordered_images_manifest_chart_dir
 ):
     """A header item written in natural prose case ("ZAC
     (Zaakafhandelcomponent) 5.0.2 -> ...") still covers the entry whose
@@ -694,7 +703,7 @@ def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_ins
     assert new_text.count("ZAC (Zaakafhandelcomponent)") == 1  # item 2 untouched, never duplicated
 
 
-def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely(cdb, tmp_path):
+def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely(cdb: ModuleType, tmp_path: Path):
     """An entry whose own display name is path_display_name's raw-
     dotted-path fallback (no real Chart.yaml dependency AND no
     canonical sidecar name resolves it — real case: podiumd's own

@@ -9,6 +9,9 @@ independently per key."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 
@@ -17,7 +20,7 @@ def git(*args, cwd):
 
 
 @pytest.fixture
-def repo(tmp_path):
+def repo(tmp_path: Path):
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -39,7 +42,7 @@ def write_baselines(chart_dir, upgrade_docs=None, release_table=None):
     (chart_dir / "etc" / "release-baseline.yaml").write_text("".join(lines), encoding="utf-8")
 
 
-def test_both_baselines_resolve_passes(vp, repo, capsys):
+def test_both_baselines_resolve_passes(vp: ModuleType, repo, capsys: pytest.CaptureFixture[str]):
     write_baselines(repo, upgrade_docs="4.9.0", release_table="4.8.5")
     ok, detail = vp.check_release_baseline(repo)
     assert ok is True
@@ -50,28 +53,28 @@ def test_both_baselines_resolve_passes(vp, repo, capsys):
     assert "release_table '4.8.5' resolves to podiumd-4.8.5" in out
 
 
-def test_missing_file_fails_both_keys(vp, repo):
+def test_missing_file_fails_both_keys(vp: ModuleType, repo):
     ok, detail = vp.check_release_baseline(repo)
     assert ok is False
     assert "upgrade_docs: missing from release-baseline.yaml" in detail
     assert "release_table: missing from release-baseline.yaml" in detail
 
 
-def test_missing_upgrade_docs_key_fails_even_if_release_table_present(vp, repo):
+def test_missing_upgrade_docs_key_fails_even_if_release_table_present(vp: ModuleType, repo):
     write_baselines(repo, release_table="4.8.5")
     ok, detail = vp.check_release_baseline(repo)
     assert ok is False
     assert "upgrade_docs: missing from release-baseline.yaml" in detail
 
 
-def test_missing_release_table_key_fails_even_if_upgrade_docs_present(vp, repo):
+def test_missing_release_table_key_fails_even_if_upgrade_docs_present(vp: ModuleType, repo):
     write_baselines(repo, upgrade_docs="4.9.0")
     ok, detail = vp.check_release_baseline(repo)
     assert ok is False
     assert "release_table: missing from release-baseline.yaml" in detail
 
 
-def test_unresolvable_baseline_fails(vp, repo):
+def test_unresolvable_baseline_fails(vp: ModuleType, repo):
     write_baselines(repo, upgrade_docs="9.9.9", release_table="4.8.5")
     ok, detail = vp.check_release_baseline(repo)
     assert ok is False
@@ -79,7 +82,9 @@ def test_unresolvable_baseline_fails(vp, repo):
     assert "could not resolve" in detail
 
 
-def test_one_resolves_one_fails_the_passing_key_is_still_reported_ok(vp, repo, capsys):
+def test_one_resolves_one_fails_the_passing_key_is_still_reported_ok(
+    vp: ModuleType, repo, capsys: pytest.CaptureFixture[str]
+):
     write_baselines(repo, upgrade_docs="4.9.0", release_table="9.9.9")
     ok, detail = vp.check_release_baseline(repo)
     assert ok is False
@@ -88,7 +93,7 @@ def test_one_resolves_one_fails_the_passing_key_is_still_reported_ok(vp, repo, c
     assert "upgrade_docs '4.9.0' resolves to podiumd-4.9.0" in out
 
 
-def test_not_a_git_repo_fails(vp, tmp_path):
+def test_not_a_git_repo_fails(vp: ModuleType, tmp_path: Path):
     ok, detail = vp.check_release_baseline(tmp_path)
     assert ok is False
     assert "not inside a git repository" in detail

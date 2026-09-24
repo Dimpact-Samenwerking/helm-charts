@@ -4,11 +4,14 @@ find_chart_version_mismatches — every component registered as
 paths() multi-path entries, and chart_version_lockstep_components())
 must actually agree on one version in values.yaml/Chart.yaml."""
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 
 @pytest.fixture(autouse=True)
-def _lockstep_registries(liblockstepcheck, monkeypatch):
+def _lockstep_registries(liblockstepcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """Isolate every test from the real, ever-growing component_image_
     paths()/component_version_paths()/chart_version_lockstep_
     components() — a real entry added later for an unrelated component
@@ -29,7 +32,7 @@ def _lockstep_registries(liblockstepcheck, monkeypatch):
 # --- find_lockstep_mismatches ---
 
 
-def test_matching_multi_path_image_versions_no_mismatch(liblockstepcheck):
+def test_matching_multi_path_image_versions_no_mismatch(liblockstepcheck: ModuleType):
     deps = [{"name": "zgw-office-addin", "alias": "", "version": "0.9.352"}]
     values = {
         "zgw-office-addin": {
@@ -40,7 +43,7 @@ def test_matching_multi_path_image_versions_no_mismatch(liblockstepcheck):
     assert liblockstepcheck.find_lockstep_mismatches(deps, values) == []
 
 
-def test_drifted_multi_path_image_versions_reported(liblockstepcheck):
+def test_drifted_multi_path_image_versions_reported(liblockstepcheck: ModuleType):
     deps = [{"name": "zgw-office-addin", "alias": "", "version": "0.9.352"}]
     values = {
         "zgw-office-addin": {
@@ -56,13 +59,13 @@ def test_drifted_multi_path_image_versions_reported(liblockstepcheck):
     assert resolved == [("frontend.image", "0.9.352"), ("backend.image", "0.9.300")]
 
 
-def test_matching_multi_path_bare_version_no_mismatch(liblockstepcheck):
+def test_matching_multi_path_bare_version_no_mismatch(liblockstepcheck: ModuleType):
     dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
     values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}, "eck-kibana": {"version": "8.19.19"}}}
     assert liblockstepcheck.find_lockstep_mismatches([dep], values) == []
 
 
-def test_drifted_multi_path_bare_version_reported(liblockstepcheck):
+def test_drifted_multi_path_bare_version_reported(liblockstepcheck: ModuleType):
     dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
     values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}, "eck-kibana": {"version": "8.19.3"}}}
     mismatches = liblockstepcheck.find_lockstep_mismatches([dep], values)
@@ -73,7 +76,7 @@ def test_drifted_multi_path_bare_version_reported(liblockstepcheck):
     assert resolved == [("eck-elasticsearch.version", "8.19.19"), ("eck-kibana.version", "8.19.3")]
 
 
-def test_digest_ignored_when_comparing_image_tag_versions(liblockstepcheck):
+def test_digest_ignored_when_comparing_image_tag_versions(liblockstepcheck: ModuleType):
     """Two paths pinned to the SAME version but different digests must
     never be reported — only the version (before "@") is compared."""
     deps = [{"name": "zgw-office-addin", "alias": "", "version": "0.9.352"}]
@@ -86,7 +89,7 @@ def test_digest_ignored_when_comparing_image_tag_versions(liblockstepcheck):
     assert liblockstepcheck.find_lockstep_mismatches(deps, values) == []
 
 
-def test_path_with_no_explicit_value_is_skipped_not_flagged(liblockstepcheck):
+def test_path_with_no_explicit_value_is_skipped_not_flagged(liblockstepcheck: ModuleType):
     """backend.image has no override at all (relies on the vendored
     chart's own default) — comparing "no override" against frontend's
     explicit tag would flag a legitimate config choice, not real drift."""
@@ -95,12 +98,12 @@ def test_path_with_no_explicit_value_is_skipped_not_flagged(liblockstepcheck):
     assert liblockstepcheck.find_lockstep_mismatches(deps, values) == []
 
 
-def test_component_missing_from_values_entirely_is_skipped(liblockstepcheck):
+def test_component_missing_from_values_entirely_is_skipped(liblockstepcheck: ModuleType):
     deps = [{"name": "zgw-office-addin", "alias": "", "version": "0.9.352"}]
     assert liblockstepcheck.find_lockstep_mismatches(deps, {}) == []
 
 
-def test_component_with_no_matching_dependency_is_skipped(liblockstepcheck):
+def test_component_with_no_matching_dependency_is_skipped(liblockstepcheck: ModuleType):
     """A registered component absent from Chart.yaml's own dependency
     list (shouldn't happen in practice) must never raise."""
     values = {
@@ -112,7 +115,7 @@ def test_component_with_no_matching_dependency_is_skipped(liblockstepcheck):
     assert liblockstepcheck.find_lockstep_mismatches([], values) == []
 
 
-def test_single_path_registration_never_compared(liblockstepcheck, monkeypatch):
+def test_single_path_registration_never_compared(liblockstepcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """A component_image_paths() entry with just one path has nothing to
     compare against, so it's skipped outright — regardless of whatever
     that lone path resolves to."""
@@ -122,7 +125,7 @@ def test_single_path_registration_never_compared(liblockstepcheck, monkeypatch):
     assert liblockstepcheck.find_lockstep_mismatches([dep], values) == []
 
 
-def test_unrelated_components_sharing_a_version_never_flagged(liblockstepcheck):
+def test_unrelated_components_sharing_a_version_never_flagged(liblockstepcheck: ModuleType):
     """Two DIFFERENT registered components that happen to share a
     version number is normal, not a mismatch — find_lockstep_mismatches
     only ever compares paths WITHIN one component's own entry."""
@@ -146,37 +149,37 @@ def test_unrelated_components_sharing_a_version_never_flagged(liblockstepcheck):
 # --- find_chart_version_mismatches ---
 
 
-def test_chart_version_matches_image_version_no_mismatch(liblockstepcheck):
+def test_chart_version_matches_image_version_no_mismatch(liblockstepcheck: ModuleType):
     dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
     values = {"kiss": {"image": {"tag": "3.1.1@sha256:aaa"}}}
     assert liblockstepcheck.find_chart_version_mismatches([dep], values) == []
 
 
-def test_chart_version_disagrees_with_image_version_reported(liblockstepcheck):
+def test_chart_version_disagrees_with_image_version_reported(liblockstepcheck: ModuleType):
     dep = {"name": "pabc", "alias": "pabc", "version": "1.1.1"}
     values = {"pabc": {"image": {"tag": "1.1.0@sha256:aaa"}}}
     mismatches = liblockstepcheck.find_chart_version_mismatches([dep], values)
     assert mismatches == [("pabc", "pabc", "1.1.1", "1.1.0")]
 
 
-def test_chart_version_component_with_no_image_tag_skipped(liblockstepcheck):
+def test_chart_version_component_with_no_image_tag_skipped(liblockstepcheck: ModuleType):
     """Relies entirely on the vendored chart's own appVersion default —
     nothing to compare, not a mismatch."""
     dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
     assert liblockstepcheck.find_chart_version_mismatches([dep], {"kiss": {}}) == []
 
 
-def test_chart_version_component_with_no_dependency_skipped(liblockstepcheck):
+def test_chart_version_component_with_no_dependency_skipped(liblockstepcheck: ModuleType):
     assert liblockstepcheck.find_chart_version_mismatches([], {}) == []
 
 
-def test_chart_version_digest_ignored_when_comparing(liblockstepcheck):
+def test_chart_version_digest_ignored_when_comparing(liblockstepcheck: ModuleType):
     dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
     values = {"kiss": {"image": {"tag": "3.1.1@sha256:" + "f" * 64}}}
     assert liblockstepcheck.find_chart_version_mismatches([dep], values) == []
 
 
-def test_eck_operator_chart_version_lockstep_registered(liblockstepcheck, monkeypatch):
+def test_eck_operator_chart_version_lockstep_registered(liblockstepcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """eck-operator was added to chart_version_lockstep_components() since
     the elastic eck-operator chart IS the operator image, released
     together at one version number -- unlike keycloak-operator/eck-
@@ -192,7 +195,7 @@ def test_eck_operator_chart_version_lockstep_registered(liblockstepcheck, monkey
     assert liblockstepcheck.find_chart_version_mismatches([dep], values) == []
 
 
-def test_eck_operator_chart_version_drift_reported(liblockstepcheck, monkeypatch):
+def test_eck_operator_chart_version_drift_reported(liblockstepcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """A future eck-operator dependency bump that forgets to also bump
     the image tag override (or vice versa) must be caught, the same as
     kiss-chart/pabc drift already is."""
@@ -208,7 +211,7 @@ def test_eck_operator_chart_version_drift_reported(liblockstepcheck, monkeypatch
 # --- check_lockstep_versions (integration) ---
 
 
-def make_chart(tmp_path, chart_yaml_deps, values_text):
+def make_chart(tmp_path: Path, chart_yaml_deps, values_text):
     (tmp_path / "Chart.yaml").write_text(
         "name: podiumd\nversion: 1.0.0\ndependencies:\n" + chart_yaml_deps, encoding="utf-8"
     )
@@ -216,7 +219,7 @@ def make_chart(tmp_path, chart_yaml_deps, values_text):
     return tmp_path
 
 
-def test_check_passes_when_everything_agrees(liblockstepcheck, tmp_path):
+def test_check_passes_when_everything_agrees(liblockstepcheck: ModuleType, tmp_path: Path):
     make_chart(
         tmp_path,
         "  - name: kiss-chart\n    alias: kiss\n    version: 3.1.1\n",
@@ -227,7 +230,9 @@ def test_check_passes_when_everything_agrees(liblockstepcheck, tmp_path):
     assert "0 mismatch(es)" in detail
 
 
-def test_check_fails_and_reports_chart_version_drift(liblockstepcheck, tmp_path, capsys):
+def test_check_fails_and_reports_chart_version_drift(
+    liblockstepcheck: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     make_chart(
         tmp_path,
         "  - name: pabc\n    alias: pabc\n    version: 1.1.1\n",
@@ -241,7 +246,9 @@ def test_check_fails_and_reports_chart_version_drift(liblockstepcheck, tmp_path,
     assert "1.1.1" in out and "1.1.0" in out
 
 
-def test_check_fails_and_reports_multi_path_drift(liblockstepcheck, tmp_path, capsys):
+def test_check_fails_and_reports_multi_path_drift(
+    liblockstepcheck: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
     make_chart(
         tmp_path,
         "  - name: zgw-office-addin\n    version: 0.9.352\n",

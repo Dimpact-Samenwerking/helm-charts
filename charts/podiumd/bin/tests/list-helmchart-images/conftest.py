@@ -7,6 +7,7 @@ import importlib.util
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -14,7 +15,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[2] / "list-helmchart-images"
 
 
 @pytest.fixture(scope="session")
-def _module():
+def _module() -> ModuleType:
     loader = SourceFileLoader("list_helmchart_images", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("list_helmchart_images", SCRIPT_PATH, loader=loader)
     assert spec is not None
@@ -24,6 +25,6 @@ def _module():
 
 
 @pytest.fixture
-def lhi(_module, tmp_path, monkeypatch):
+def lhi(_module: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(_module, "CHART_YAML", tmp_path / "Chart.yaml")
     return _module

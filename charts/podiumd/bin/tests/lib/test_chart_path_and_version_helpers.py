@@ -6,20 +6,23 @@ pull.py, test_chart_verify_digest_pin_and_subchart_basics.py, test_chart_
 resolve_values_repos_and_paths.py, and test_chart_sidecar_rows_and_
 wrappers.py for the rest)."""
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 # --- get_path ---
 
 
-def test_get_path_nested(libchartvaluestreeprimitives):
+def test_get_path_nested(libchartvaluestreeprimitives: ModuleType):
     assert libchartvaluestreeprimitives.get_path({"a": {"b": {"c": 1}}}, "a.b.c") == 1
 
 
-def test_get_path_missing_returns_none(libchartvaluestreeprimitives):
+def test_get_path_missing_returns_none(libchartvaluestreeprimitives: ModuleType):
     assert libchartvaluestreeprimitives.get_path({"a": {}}, "a.b.c") is None
 
 
-def test_get_path_non_dict_intermediate_returns_none(libchartvaluestreeprimitives):
+def test_get_path_non_dict_intermediate_returns_none(libchartvaluestreeprimitives: ModuleType):
     assert libchartvaluestreeprimitives.get_path({"a": "scalar"}, "a.b") is None
 
 
@@ -29,31 +32,31 @@ def test_get_path_non_dict_intermediate_returns_none(libchartvaluestreeprimitive
 # ucv.replace_scalar_value re-export, still exercised via that import).
 
 
-def test_replace_scalar_value_preserves_quotes(libchartvaluestreeprimitives):
+def test_replace_scalar_value_preserves_quotes(libchartvaluestreeprimitives: ModuleType):
     assert (
         libchartvaluestreeprimitives.replace_scalar_value('      tag: "1.0.0@sha256:aaaa"\n', "2.0.0@sha256:bbbb")
         == '      tag: "2.0.0@sha256:bbbb"\n'
     )
 
 
-def test_replace_scalar_value_preserves_bare_style(libchartvaluestreeprimitives):
+def test_replace_scalar_value_preserves_bare_style(libchartvaluestreeprimitives: ModuleType):
     assert (
         libchartvaluestreeprimitives.replace_scalar_value("    version: 1.0.297\n", "1.0.298")
         == "    version: 1.0.298\n"
     )
 
 
-def test_replace_scalar_value_preserves_trailing_comment(libchartvaluestreeprimitives):
+def test_replace_scalar_value_preserves_trailing_comment(libchartvaluestreeprimitives: ModuleType):
     result = libchartvaluestreeprimitives.replace_scalar_value("    version: 1.0.297  # pinned\n", "1.0.298")
     assert result == "    version: 1.0.298  # pinned\n"
 
 
-def test_replace_scalar_value_unparseable_line_raises(libchartvaluestreeprimitives):
+def test_replace_scalar_value_unparseable_line_raises(libchartvaluestreeprimitives: ModuleType):
     with pytest.raises(SystemExit):
         libchartvaluestreeprimitives.replace_scalar_value("not a key-value line at all\n", "x")
 
 
-def test_replace_scalar_value_preserves_anchor_tag(libchartvaluestreeprimitives):
+def test_replace_scalar_value_preserves_anchor_tag(libchartvaluestreeprimitives: ModuleType):
     """Regression test: a line DEFINING a YAML anchor (e.g. keycloak-
     operator.operator.config.keycloakImage's own "tag:"/"sha:" fields,
     aliased elsewhere by keycloak.image via "*anchor") must keep its own
@@ -80,18 +83,18 @@ def test_replace_scalar_value_preserves_anchor_tag(libchartvaluestreeprimitives)
 # re-export coverage.
 
 
-def test_chart_version_reads_top_level_version(libchartreleasebaselinebasics, tmp_path):
+def test_chart_version_reads_top_level_version(libchartreleasebaselinebasics: ModuleType, tmp_path: Path):
     chart_yaml = tmp_path / "Chart.yaml"
     chart_yaml.write_text("apiVersion: v2\nname: podiumd\nversion: 4.9.0\n", encoding="utf-8")
     assert libchartreleasebaselinebasics.chart_version(chart_yaml) == "4.9.0"
 
 
-def test_semver_re_matches_bare_version(libcharthistoricalbaselines):
+def test_semver_re_matches_bare_version(libcharthistoricalbaselines: ModuleType):
     assert libcharthistoricalbaselines.SEMVER_RE.match("4.8.2")
     assert libcharthistoricalbaselines.SEMVER_RE.match("10.20.300")
 
 
-def test_semver_re_rejects_anything_else(libcharthistoricalbaselines):
+def test_semver_re_rejects_anything_else(libcharthistoricalbaselines: ModuleType):
     assert not libcharthistoricalbaselines.SEMVER_RE.match("4.8")
     assert not libcharthistoricalbaselines.SEMVER_RE.match("v4.8.2")
     assert not libcharthistoricalbaselines.SEMVER_RE.match("--help")
@@ -104,7 +107,7 @@ def test_semver_re_rejects_anything_else(libcharthistoricalbaselines):
 # _UPGRADE_PATHS/images-manifest vs. cumulative release-table.csv).
 
 
-def test_upgrade_docs_baseline_reads_the_key(libchartreleasebaselinebasics, tmp_path):
+def test_upgrade_docs_baseline_reads_the_key(libchartreleasebaselinebasics: ModuleType, tmp_path: Path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "release-baseline.yaml").write_text(
         "upgrade_docs: '4.9.0'\nrelease_table: '4.8.5'\n", encoding="utf-8"
@@ -112,7 +115,7 @@ def test_upgrade_docs_baseline_reads_the_key(libchartreleasebaselinebasics, tmp_
     assert libchartreleasebaselinebasics.upgrade_docs_baseline(tmp_path) == "4.9.0"
 
 
-def test_release_table_baseline_reads_the_key(libchartreleasebaselinebasics, tmp_path):
+def test_release_table_baseline_reads_the_key(libchartreleasebaselinebasics: ModuleType, tmp_path: Path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "release-baseline.yaml").write_text(
         "upgrade_docs: '4.9.0'\nrelease_table: '4.8.5'\n", encoding="utf-8"
@@ -120,21 +123,21 @@ def test_release_table_baseline_reads_the_key(libchartreleasebaselinebasics, tmp
     assert libchartreleasebaselinebasics.release_table_baseline(tmp_path) == "4.8.5"
 
 
-def test_upgrade_docs_baseline_none_when_file_missing(libchartreleasebaselinebasics, tmp_path):
+def test_upgrade_docs_baseline_none_when_file_missing(libchartreleasebaselinebasics: ModuleType, tmp_path: Path):
     assert libchartreleasebaselinebasics.upgrade_docs_baseline(tmp_path) is None
 
 
-def test_release_table_baseline_none_when_file_missing(libchartreleasebaselinebasics, tmp_path):
+def test_release_table_baseline_none_when_file_missing(libchartreleasebaselinebasics: ModuleType, tmp_path: Path):
     assert libchartreleasebaselinebasics.release_table_baseline(tmp_path) is None
 
 
-def test_upgrade_docs_baseline_none_when_key_missing(libchartreleasebaselinebasics, tmp_path):
+def test_upgrade_docs_baseline_none_when_key_missing(libchartreleasebaselinebasics: ModuleType, tmp_path: Path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "release-baseline.yaml").write_text("release_table: '4.8.5'\n", encoding="utf-8")
     assert libchartreleasebaselinebasics.upgrade_docs_baseline(tmp_path) is None
 
 
-def test_release_table_baseline_none_when_key_missing(libchartreleasebaselinebasics, tmp_path):
+def test_release_table_baseline_none_when_key_missing(libchartreleasebaselinebasics: ModuleType, tmp_path: Path):
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "release-baseline.yaml").write_text("upgrade_docs: '4.9.0'\n", encoding="utf-8")
     assert libchartreleasebaselinebasics.release_table_baseline(tmp_path) is None
@@ -146,7 +149,9 @@ def test_release_table_baseline_none_when_key_missing(libchartreleasebaselinebas
 # paths_by_repository's own repo-group keys use.
 
 
-def test_full_repository_for_path_docker_hub_repository_gets_docker_io_host(tmp_path, libchartrepoandpathresolution):
+def test_full_repository_for_path_docker_hub_repository_gets_docker_io_host(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
     """Docker Hub's own convention: no registry host embedded in
     "repository:" at all."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
@@ -157,7 +162,9 @@ def test_full_repository_for_path_docker_hub_repository_gets_docker_io_host(tmp_
     )
 
 
-def test_full_repository_for_path_already_host_qualified_is_unchanged(tmp_path, libchartrepoandpathresolution):
+def test_full_repository_for_path_already_host_qualified_is_unchanged(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
     deps = [{"name": "brp-personen-mock", "alias": "brppersonenmock", "version": "1.2.9"}]
     values = {"brppersonenmock": {"image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:aaaa"}}}
     assert (
@@ -166,7 +173,9 @@ def test_full_repository_for_path_already_host_qualified_is_unchanged(tmp_path, 
     )
 
 
-def test_full_repository_for_path_separate_registry_key_is_authoritative(tmp_path, libchartrepoandpathresolution):
+def test_full_repository_for_path_separate_registry_key_is_authoritative(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
     """Regression test (mi's own real "azure-cli" case): a sibling
     "registry:" key alongside a bare "repository:" (Azure Container
     Registry's own convention) is used directly — never parse_repo's
@@ -183,7 +192,7 @@ def test_full_repository_for_path_separate_registry_key_is_authoritative(tmp_pat
 
 
 def test_full_repository_for_path_bare_namespace_registry_key_gets_docker_io_host(
-    tmp_path, libchartrepoandpathresolution
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
     """Regression test (zaakbrug's own real case): the vendored zaakbrug
     chart's own upstream default sets "image.registry: wearefrank"
@@ -203,7 +212,7 @@ def test_full_repository_for_path_bare_namespace_registry_key_gets_docker_io_hos
     )
 
 
-def test_full_repository_for_path_none_when_unresolvable(tmp_path, libchartrepoandpathresolution):
+def test_full_repository_for_path_none_when_unresolvable(tmp_path: Path, libchartrepoandpathresolution: ModuleType):
     assert (
         libchartrepoandpathresolution.full_repository_for_path(tmp_path, [], {}, ("brppersonenmock", "image")) is None
     )

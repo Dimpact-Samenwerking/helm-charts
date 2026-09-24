@@ -4,6 +4,7 @@ the same way each script adds scripts/ to sys.path before `from lib.x import y`.
 import sys
 
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -48,175 +49,175 @@ import lib.upgradedoc.version_cells_and_key_changes as upgradedoc_version_cells_
 
 
 @pytest.fixture(scope="session")
-def libprocutil():
+def libprocutil() -> ModuleType:
     return procutil
 
 
 @pytest.fixture(scope="session")
-def libregistry():
+def libregistry() -> ModuleType:
     return registry
 
 
 @pytest.fixture(scope="session")
-def libchartvaluestreeprimitives():
+def libchartvaluestreeprimitives() -> ModuleType:
     return chart_values_tree_primitives
 
 
 @pytest.fixture(scope="session")
-def libchartregisteredpaths():
+def libchartregisteredpaths() -> ModuleType:
     return chart_registered_paths
 
 
 @pytest.fixture(scope="session")
-def libchartnestedsubchartidentity():
+def libchartnestedsubchartidentity() -> ModuleType:
     return chart_nested_subchart_identity
 
 
 @pytest.fixture(scope="session")
-def libchartreleasebaselinebasics():
+def libchartreleasebaselinebasics() -> ModuleType:
     return chart_release_baseline_basics
 
 
 @pytest.fixture(scope="session")
-def libchartpullandsubchartresolution():
+def libchartpullandsubchartresolution() -> ModuleType:
     return chart_pull_and_subchart_resolution
 
 
 @pytest.fixture(scope="session")
-def libchartrepoandpathresolution():
+def libchartrepoandpathresolution() -> ModuleType:
     return chart_repo_and_path_resolution
 
 
 @pytest.fixture(scope="session")
-def libcharthistoricalbaselines():
+def libcharthistoricalbaselines() -> ModuleType:
     return chart_historical_baselines
 
 
 @pytest.fixture(scope="session")
-def libbaselinereport():
+def libbaselinereport() -> ModuleType:
     return baseline_report
 
 
 @pytest.fixture(scope="session")
-def libdependencies():
+def libdependencies() -> ModuleType:
     return dependencies
 
 
 @pytest.fixture(scope="session")
-def libchartlock():
+def libchartlock() -> ModuleType:
     return chart_lock
 
 
 @pytest.fixture(scope="session")
-def librepoaccess():
+def librepoaccess() -> ModuleType:
     return repo_access
 
 
 @pytest.fixture(scope="session")
-def librepoaccesscache():
+def librepoaccesscache() -> ModuleType:
     return repo_access_cache
 
 
 @pytest.fixture(scope="session")
-def libimageversion():
+def libimageversion() -> ModuleType:
     return image_version
 
 
 @pytest.fixture(scope="session")
-def libconfluencetables():
+def libconfluencetables() -> ModuleType:
     return confluence_tables
 
 
 @pytest.fixture(scope="session")
-def libgitutil():
+def libgitutil() -> ModuleType:
     return gitutil
 
 
 @pytest.fixture(scope="session")
-def librelease_baseline():
+def librelease_baseline() -> ModuleType:
     return release_baseline
 
 
 @pytest.fixture(scope="session")
-def libupgradedocbasics():
+def libupgradedocbasics() -> ModuleType:
     return upgradedoc_string_and_parsing_basics
 
 
 @pytest.fixture(scope="session")
-def libupgradedocsorting():
+def libupgradedocsorting() -> ModuleType:
     return upgradedoc_sorting_and_ordering
 
 
 @pytest.fixture(scope="session")
-def libupgradedocconsistency():
+def libupgradedocconsistency() -> ModuleType:
     return upgradedoc_consistency_checks
 
 
 @pytest.fixture(scope="session")
-def libupgradedocresolverow():
+def libupgradedocresolverow() -> ModuleType:
     return upgradedoc_resolve_component_row
 
 
 @pytest.fixture(scope="session")
-def libupgradedocversioncells():
+def libupgradedocversioncells() -> ModuleType:
     return upgradedoc_version_cells_and_key_changes
 
 
 @pytest.fixture(scope="session")
-def libupgradedocappversion():
+def libupgradedocappversion() -> ModuleType:
     return upgradedoc_app_version_and_image_paths
 
 
 @pytest.fixture(scope="session")
-def libupgradedocmanifestordering():
+def libupgradedocmanifestordering() -> ModuleType:
     return upgradedoc_images_manifest_ordering
 
 
 @pytest.fixture(scope="session")
-def libupgradedocmanifestdiff():
+def libupgradedocmanifestdiff() -> ModuleType:
     return upgradedoc_images_manifest_list_diff
 
 
 @pytest.fixture(scope="session")
-def libupgradedoccomments():
+def libupgradedoccomments() -> ModuleType:
     return upgradedoc_grouped_comments_and_changes_block
 
 
 @pytest.fixture(scope="session")
-def libimagedocs():
+def libimagedocs() -> ModuleType:
     return image_docs
 
 
 @pytest.fixture(scope="session")
-def libcomponentdocs():
+def libcomponentdocs() -> ModuleType:
     return component_docs
 
 
 @pytest.fixture(scope="session")
-def libcomponentdocsbaselinedocstubs():
+def libcomponentdocsbaselinedocstubs() -> ModuleType:
     return component_docs_baseline_doc_stubs
 
 
 @pytest.fixture(scope="session")
-def libcomponentdocsheader():
+def libcomponentdocsheader() -> ModuleType:
     return component_docs_images_manifest_changes_header
 
 
 @pytest.fixture(scope="session")
-def libcomponentdocschanges():
+def libcomponentdocschanges() -> ModuleType:
     return component_docs_changes_section
 
 
 @pytest.fixture(scope="session")
-def libcomponentdocsdeltas():
+def libcomponentdocsdeltas() -> ModuleType:
     return component_docs_values_delta_sections
 
 
 @pytest.fixture(scope="session")
-def libcomponentdocsentries():
+def libcomponentdocsentries() -> ModuleType:
     return component_docs_images_manifest_entries
 
 
 @pytest.fixture(scope="session")
-def libimagesmanifest():
+def libimagesmanifest() -> ModuleType:
     return docs_consistency_images_manifest_format

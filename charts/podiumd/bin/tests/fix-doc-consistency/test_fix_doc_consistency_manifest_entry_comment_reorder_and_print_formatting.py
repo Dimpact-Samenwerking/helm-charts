@@ -4,6 +4,9 @@ lists."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -16,7 +19,7 @@ def write(path, text):
     path.write_text(text, encoding="utf-8")
 
 
-def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
+def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, new_baseline, target="4.9.0"):
     monkeypatch.setattr("sys.argv", ["fix-doc-consistency"])
     monkeypatch.setattr(cdb, "read_upgrade_docs_baseline", lambda chart_dir: new_baseline)
     monkeypatch.setattr(cdb, "DOC_DIR", doc_dir)
@@ -29,7 +32,9 @@ def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
 # --- main() integration: images-manifest entry-comment correction ---
 
 
-def test_main_corrects_stale_images_manifest_entry_comment(cdb, repo_with_baseline_tag, monkeypatch):
+def test_main_corrects_stale_images_manifest_entry_comment(
+    cdb: ModuleType, repo_with_baseline_tag, monkeypatch: pytest.MonkeyPatch
+):
     images_path = repo_with_baseline_tag.parent / "images" / "images-4.9.0.yaml"
     write(
         images_path,
@@ -47,7 +52,9 @@ def test_main_corrects_stale_images_manifest_entry_comment(cdb, repo_with_baseli
     assert "# ZAC — 5.0.2 -> 5.1.0" in text
 
 
-def test_main_corrects_strip_registry_named_entry_via_repo_map(cdb, tmp_path, monkeypatch):
+def test_main_corrects_strip_registry_named_entry_via_repo_map(
+    cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Same as test_main_corrects_stale_images_manifest_entry_comment, but
     with the images-manifest entry under the CURRENT strip-registry name
     ("infonl/zaakafhandelcomponent") instead of the old short slug
@@ -119,7 +126,7 @@ def test_main_corrects_strip_registry_named_entry_via_repo_map(cdb, tmp_path, mo
     assert "# ZAC — 5.0.2 -> 5.1.0" in text
 
 
-def test_main_adds_missing_images_manifest_entry(cdb, tmp_path, monkeypatch):
+def test_main_adds_missing_images_manifest_entry(cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """A component that changed vs baseline but has NO images-manifest
     entry at all yet (the "changed vs ... but has no entry" gap verify-
     podiumd's own doc-consistency check reports) gets a new entry
@@ -190,7 +197,7 @@ def test_main_adds_missing_images_manifest_entry(cdb, tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def repo_with_out_of_order_doc(tmp_path):
+def repo_with_out_of_order_doc(tmp_path: Path):
     """Two components whose "Component versions" table row order and
     "## Changes" block order are both the OPPOSITE of values.yaml's own
     top-level key order (openzaak before openinwoner there, but the doc
@@ -248,7 +255,9 @@ def repo_with_out_of_order_doc(tmp_path):
     return doc_dir
 
 
-def test_main_reorders_table_and_changes_to_match_values_yaml(cdb, repo_with_out_of_order_doc, monkeypatch, capsys):
+def test_main_reorders_table_and_changes_to_match_values_yaml(
+    cdb: ModuleType, repo_with_out_of_order_doc, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     set_argv_and_dir(cdb, monkeypatch, repo_with_out_of_order_doc, "4.8.3")
     cdb.main()
 
@@ -265,7 +274,9 @@ def test_main_reorders_table_and_changes_to_match_values_yaml(cdb, repo_with_out
     assert "changes block '### Open Zaak 1.27.4 → 1.27.4': position 2 -> 1" in out
 
 
-def test_main_already_ordered_doc_reports_no_reordering(cdb, repo_with_out_of_order_doc, monkeypatch, capsys):
+def test_main_already_ordered_doc_reports_no_reordering(
+    cdb: ModuleType, repo_with_out_of_order_doc, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     doc = repo_with_out_of_order_doc / "4.8.3-to-4.9.0-upgrade.md"
     doc.write_text(
         "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n\n"
@@ -283,7 +294,9 @@ def test_main_already_ordered_doc_reports_no_reordering(cdb, repo_with_out_of_or
     assert "Reordering" not in out
 
 
-def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(cdb, tmp_path, monkeypatch, capsys):
+def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(
+    cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """A canonical sidecar row ("redis-operator - redis") resolves to the
     SAME values_key_index as its owning dependency's own row ("redis-
     operator") via match_dependency's fuzzy word-containment — before the
@@ -345,7 +358,9 @@ def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(cdb, tmp_p
 # --- main() print formatting: multi-item lists split one per line, not comma-joined ---
 
 
-def test_main_reports_unmatched_components_one_per_line(cdb, repo, monkeypatch, capsys):
+def test_main_reports_unmatched_components_one_per_line(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     write(
         repo / "4.8.2-to-4.9.0-upgrade.md",
         "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
@@ -366,7 +381,9 @@ def test_main_reports_unmatched_components_one_per_line(cdb, repo, monkeypatch, 
     assert "Totally Unknown Thing A, Totally Unknown Thing B" not in out
 
 
-def test_main_reports_unresolved_source_versions_one_per_line(cdb, repo, monkeypatch, capsys):
+def test_main_reports_unresolved_source_versions_one_per_line(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """Multiple components whose source (baseline) version can't be
     verified must each get their own line, not be crammed onto one
     comma-joined line — the header states the count, one name per line
@@ -411,7 +428,9 @@ def test_main_reports_unresolved_source_versions_one_per_line(cdb, repo, monkeyp
     assert "ZAC (Zaakafhandelcomponent), Open Zaak" not in out
 
 
-def test_main_reports_unresolved_image_entries_one_per_line(cdb, repo, monkeypatch, capsys):
+def test_main_reports_unresolved_image_entries_one_per_line(
+    cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     images_dir = repo.parent / "images"
     write(
         images_dir / "images-4.9.0.yaml",

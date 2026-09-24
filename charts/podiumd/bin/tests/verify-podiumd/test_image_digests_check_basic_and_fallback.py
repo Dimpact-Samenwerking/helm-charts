@@ -8,6 +8,9 @@ import io
 import tarfile
 import urllib.error
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 import yaml
 
@@ -15,7 +18,7 @@ from dep_helpers import make_dep
 
 
 @pytest.fixture(autouse=True)
-def _clear_tag_exists_cache(libimagedigests):
+def _clear_tag_exists_cache(libimagedigests: ModuleType):
     """cached_tag_exists' own in-process memoization (see its own
     docstring) lives in a module-level dict, and libimagedigests is a
     session-scoped fixture — without this, one test's cached (fake)
@@ -51,7 +54,9 @@ def write_values(chart_dir, text):
     (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
 
 
-def test_check_image_digests_all_match(vp, libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_all_match(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
     ok, detail = vp.check_image_digests(tmp_path)
@@ -60,7 +65,11 @@ def test_check_image_digests_all_match(vp, libimagedigests, tmp_path, monkeypatc
 
 
 def test_check_image_digests_no_digest_header_is_unverifiable_not_matched(
-    vp, libimagedigests, tmp_path, monkeypatch, capsys
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """registry_tag_exists returns (True, None) when a 200 manifest response
     carried no Docker-Content-Digest header (some registries/proxies). The
@@ -75,7 +84,13 @@ def test_check_image_digests_no_digest_header_is_unverifiable_not_matched(
     assert "[UNVERIFIABLE]" in capsys.readouterr().out
 
 
-def test_check_image_digests_reports_mismatch(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+def test_check_image_digests_reports_mismatch(
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
     monkeypatch.setattr(libimagedigests, "is_sliding_tag", lambda *a, **k: False)
@@ -90,7 +105,13 @@ def test_check_image_digests_reports_mismatch(vp, libimagedigests, tmp_path, mon
     assert "[1/1] checking docker.io/org/repo:1.0.0..." in out  # progress line, printed before every check
 
 
-def test_check_image_digests_reports_missing_tag_as_fetch_error(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+def test_check_image_digests_reports_missing_tag_as_fetch_error(
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (False, None))
     ok, detail = vp.check_image_digests(tmp_path)
@@ -101,7 +122,9 @@ def test_check_image_digests_reports_missing_tag_as_fetch_error(vp, libimagedige
     assert "values.yaml:4" in out
 
 
-def test_check_image_digests_retries_once_on_network_error_then_succeeds(vp, libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_retries_once_on_network_error_then_succeeds(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     calls = {"n": 0}
 
@@ -119,7 +142,9 @@ def test_check_image_digests_retries_once_on_network_error_then_succeeds(vp, lib
     assert "1/1 matched" in detail
 
 
-def test_check_image_digests_gives_up_after_one_retry(vp, libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_gives_up_after_one_retry(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     monkeypatch.setattr(
         libimagedigests,
@@ -131,7 +156,9 @@ def test_check_image_digests_gives_up_after_one_retry(vp, libimagedigests, tmp_p
     assert "1 fetch error" in detail
 
 
-def test_check_image_digests_dedupes_shared_repo_and_tag(vp, libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_dedupes_shared_repo_and_tag(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """The same repository+tag pinned at two places still only costs one
     registry fetch — but (since 2026-08-26) it's ALSO now a
     [DUPLICATE-PIN] failure in its own right (see
@@ -164,7 +191,9 @@ def test_check_image_digests_dedupes_shared_repo_and_tag(vp, libimagedigests, tm
     assert "1 duplicate pin(s)" in detail
 
 
-def test_check_image_digests_skips_unresolved_repository(vp, libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_skips_unresolved_repository(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     write_values(tmp_path, (f'a:\n  image:\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     called = []
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda *a: called.append(a))
@@ -174,7 +203,13 @@ def test_check_image_digests_skips_unresolved_repository(vp, libimagedigests, tm
     assert "0/0 matched" in detail
 
 
-def test_check_image_digests_unresolved_line_names_the_file(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+def test_check_image_digests_unresolved_line_names_the_file(
+    vp: ModuleType,
+    libimagedigests: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     """A bare "line N" doesn't say which file N is in — prefix with
     values.yaml, same convention as check_duplicate_keys."""
     write_values(tmp_path, (f'a:\n  image:\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
@@ -187,7 +222,9 @@ def test_check_image_digests_unresolved_line_names_the_file(vp, libimagedigests,
 # --- check_image_digests: subchart-default repository fallback ---
 
 
-def test_check_image_digests_falls_back_to_subchart_default_repository(vp, libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_falls_back_to_subchart_default_repository(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """openzaak/openformulieren-style pins: no repository in values.yaml at
     all, resolved instead from the vendored subchart's own default (the
     same one Helm merges in at render time)."""
@@ -208,7 +245,9 @@ def test_check_image_digests_falls_back_to_subchart_default_repository(vp, libim
     assert "1/1 matched" in detail
 
 
-def test_check_image_digests_falls_back_via_alias(vp, libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_falls_back_via_alias(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     write_values(tmp_path, (f'openformulieren:\n  image:\n    tag: "3.4.10@sha256:{"a" * 64}"\n'))
     write_chart_yaml(tmp_path, [make_dep("openforms", "1.12.0", alias="openformulieren")])
     make_tgz(tmp_path / "charts", "openforms", "1.12.0", {"image": {"repository": "openformulieren/open-forms"}})
@@ -218,7 +257,9 @@ def test_check_image_digests_falls_back_via_alias(vp, libimagedigests, tmp_path,
     assert "1/1 matched" in detail
 
 
-def test_check_image_digests_stays_unresolved_when_subchart_has_no_default_either(vp, libimagedigests, tmp_path):
+def test_check_image_digests_stays_unresolved_when_subchart_has_no_default_either(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path
+):
     write_values(tmp_path, (f'openzaak:\n  image:\n    tag: "1.27.4@sha256:{"a" * 64}"\n'))
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {}})  # subchart doesn't default one either
@@ -227,7 +268,9 @@ def test_check_image_digests_stays_unresolved_when_subchart_has_no_default_eithe
     assert "0/0 matched" in detail
 
 
-def test_check_image_digests_stays_unresolved_without_chart_yaml(vp, libimagedigests, tmp_path):
+def test_check_image_digests_stays_unresolved_without_chart_yaml(
+    vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path
+):
     write_values(tmp_path, (f'a:\n  image:\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True

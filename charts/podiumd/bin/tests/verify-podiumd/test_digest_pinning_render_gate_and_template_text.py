@@ -9,8 +9,11 @@ values.yaml."""
 import io
 import tarfile
 
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
+import pytest
 import yaml
 
 from dep_helpers import make_dep
@@ -72,7 +75,7 @@ def render_stdout(chart_tree_paths):
     return "".join(f"# Source: {p}/templates/x.yaml\n" for p in chart_tree_paths)
 
 
-def stub_render(monkeypatch, libdigestpinningcheck, chart_tree_paths, returncode=0):
+def stub_render(monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType, chart_tree_paths, returncode=0):
     """Replaces check_subchart_image_visibility's own render_chart call
     (see lib.checks.digest_pinning's "from lib.render_scope import ...
     render_chart" binding — must be patched on THAT module, not vp/
@@ -92,7 +95,7 @@ def stub_render(monkeypatch, libdigestpinningcheck, chart_tree_paths, returncode
 
 
 def test_condition_disabled_dependency_not_reported_when_its_own_path_never_renders(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck
+    vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
 ):
     """A dependency whose own chart-tree path never rendered at all (e.g.
     zaakbrug's own condition-disabled "staging" mode, or any dependency
@@ -117,7 +120,11 @@ def test_condition_disabled_dependency_not_reported_when_its_own_path_never_rend
 
 
 def test_null_tag_subchart_default_resolved_via_own_app_version_is_reported(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A top-level dependency's own default "image: {repository: ...,
     tag: null}" block (no podiumd override at all) — e.g. eck-operator,
@@ -144,7 +151,9 @@ def test_null_tag_subchart_default_resolved_via_own_app_version_is_reported(
     assert "eck-operator.image.tag: '3.5.0' (FLOATING in the sub-chart's own default)" in out
 
 
-def test_null_tag_with_no_repository_is_skipped(vp, tmp_path, monkeypatch, libdigestpinningcheck):
+def test_null_tag_with_no_repository_is_skipped(
+    vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
+):
     """A null/missing "tag:" with no "repository:" either isn't a real
     image block at all (find_image_tag_paths' own include_null_tags mode
     already requires a repository) — nothing to resolve or report."""
@@ -158,7 +167,11 @@ def test_null_tag_with_no_repository_is_skipped(vp, tmp_path, monkeypatch, libdi
 
 
 def test_nested_subchart_default_not_reported_when_its_own_path_never_renders(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """openinwoner's own vendored default bundles a SEPARATE, same-named
     nested "eck-operator" dependency (its OWN Chart.yaml declares it,
@@ -199,7 +212,11 @@ def test_nested_subchart_default_not_reported_when_its_own_path_never_renders(
 
 
 def test_nested_subchart_default_reported_when_its_own_path_does_render(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """The flip side of the above: when the nested dependency's own
     chart-tree path DOES render, its own image is reported, resolved
@@ -242,7 +259,11 @@ def test_nested_subchart_default_reported_when_its_own_path_does_render(
 
 
 def test_zaakbrug_staging_is_now_an_ordinary_unexempted_finding(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """SUBCHART_VISIBILITY_EXEMPT has been removed entirely: zaakbrug's
     own "staging" mode is no longer special-cased — once its own
@@ -269,7 +290,11 @@ def test_zaakbrug_staging_is_now_an_ordinary_unexempted_finding(
 
 
 def test_zaakbrug_staging_nested_prefix_is_also_an_ordinary_finding(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """staging.apiProxy (a nested sibling under the same "staging" key)
     is likewise just an ordinary finding now — no prefix-match exemption
@@ -293,7 +318,11 @@ def test_zaakbrug_staging_nested_prefix_is_also_an_ordinary_finding(
 
 
 def test_multiple_findings_from_different_dependencies_all_reported_plainly(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28"), make_dep("openzaak", "1.14.2")])
     make_tgz(
@@ -320,7 +349,11 @@ def test_multiple_findings_from_different_dependencies_all_reported_plainly(
 
 
 def test_unreferenced_subchart_key_is_dropped_when_templates_show_it_is_dead(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A vendored sub-chart's own top-level values key (e.g. pabc's "web"/
     "poller") that no template in that same sub-chart ever reads is
@@ -354,7 +387,11 @@ pabc:
 
 
 def test_referenced_subchart_key_is_still_reported_even_with_templates_present(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """The flip side of the above: a key a template DOES read must still be
     reported as unresolved — the filter only drops keys with zero textual
@@ -380,7 +417,11 @@ def test_referenced_subchart_key_is_still_reported_even_with_templates_present(
 
 
 def test_unreferenced_key_without_a_templates_dir_at_all_is_still_reported(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A vendored .tgz with no templates/ directory at all (the shape
     every other test's make_tgz call already uses) is "can't tell", not

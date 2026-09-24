@@ -2,10 +2,13 @@
 and exit codes. No git/network needed; CHART_DIR is monkeypatched to a
 disposable tmp_path chart."""
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 
-def make_chart(tmp_path, tgz_names=(), extracted_names=()):
+def make_chart(tmp_path: Path, tgz_names=(), extracted_names=()):
     charts_dir = tmp_path / "charts"
     charts_dir.mkdir()
     for name in tgz_names:
@@ -17,7 +20,9 @@ def make_chart(tmp_path, tgz_names=(), extracted_names=()):
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_main_help_flag_prints_usage_and_exits_zero_without_touching_anything(sub, tmp_path, monkeypatch, capsys, flag):
+def test_main_help_flag_prints_usage_and_exits_zero_without_touching_anything(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flag
+):
     chart_dir = make_chart(tmp_path, tgz_names=["redis"], extracted_names=["redis"])
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-vendored-tgz", flag])
@@ -25,11 +30,13 @@ def test_main_help_flag_prints_usage_and_exits_zero_without_touching_anything(su
     with pytest.raises(SystemExit) as exc_info:
         sub.main()
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == sub.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{sub.__doc__}\n"
     assert (chart_dir / "charts" / "redis").is_dir()
 
 
-def test_no_conflict_exits_zero_and_leaves_charts_untouched(sub, tmp_path, monkeypatch):
+def test_no_conflict_exits_zero_and_leaves_charts_untouched(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     chart_dir = make_chart(tmp_path, tgz_names=["redis"])
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-vendored-tgz"])
@@ -40,7 +47,9 @@ def test_no_conflict_exits_zero_and_leaves_charts_untouched(sub, tmp_path, monke
     assert list((chart_dir / "charts").iterdir()) == [chart_dir / "charts" / "redis-1.0.0.tgz"]
 
 
-def test_shadowing_directory_is_deleted_and_exits_zero(sub, tmp_path, monkeypatch, capsys):
+def test_shadowing_directory_is_deleted_and_exits_zero(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_chart(tmp_path, tgz_names=["redis"], extracted_names=["redis"])
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-vendored-tgz"])
@@ -53,7 +62,9 @@ def test_shadowing_directory_is_deleted_and_exits_zero(sub, tmp_path, monkeypatc
     assert "Deleted charts/redis/" in capsys.readouterr().out
 
 
-def test_only_the_shadowing_directory_is_deleted_not_unrelated_ones(sub, tmp_path, monkeypatch):
+def test_only_the_shadowing_directory_is_deleted_not_unrelated_ones(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     chart_dir = make_chart(tmp_path, tgz_names=["redis", "elastic"], extracted_names=["redis", "unrelated-dir"])
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-vendored-tgz"])
@@ -66,7 +77,9 @@ def test_only_the_shadowing_directory_is_deleted_not_unrelated_ones(sub, tmp_pat
     assert (chart_dir / "charts" / "elastic-1.0.0.tgz").is_file()
 
 
-def test_multiple_shadowing_directories_are_all_deleted(sub, tmp_path, monkeypatch, capsys):
+def test_multiple_shadowing_directories_are_all_deleted(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_chart(tmp_path, tgz_names=["redis", "elastic"], extracted_names=["redis", "elastic"])
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-vendored-tgz"])
@@ -80,7 +93,9 @@ def test_multiple_shadowing_directories_are_all_deleted(sub, tmp_path, monkeypat
     assert "Removed 2 extracted directories" in out
 
 
-def test_dry_run_reports_but_does_not_delete(sub, tmp_path, monkeypatch, capsys):
+def test_dry_run_reports_but_does_not_delete(
+    sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_chart(tmp_path, tgz_names=["redis"], extracted_names=["redis"])
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-vendored-tgz", "--dry-run"])
@@ -94,7 +109,7 @@ def test_dry_run_reports_but_does_not_delete(sub, tmp_path, monkeypatch, capsys)
     assert "dry-run" in out
 
 
-def test_dry_run_no_conflict_exits_zero(sub, tmp_path, monkeypatch):
+def test_dry_run_no_conflict_exits_zero(sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     chart_dir = make_chart(tmp_path, tgz_names=["redis"])
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-vendored-tgz", "--dry-run"])
@@ -104,7 +119,7 @@ def test_dry_run_no_conflict_exits_zero(sub, tmp_path, monkeypatch):
     assert exc_info.value.code == 0
 
 
-def test_no_charts_subdir_at_all_exits_zero(sub, tmp_path, monkeypatch):
+def test_no_charts_subdir_at_all_exits_zero(sub: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     chart_dir = tmp_path
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-vendored-tgz"])

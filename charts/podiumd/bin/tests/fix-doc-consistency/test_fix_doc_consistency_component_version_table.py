@@ -1,20 +1,22 @@
 """canonical_version_cell, fix_component_version_table, fix_changes_heading_app_versions,
 fix_values_delta_heading_app_versions — pure logic, no git repo needed."""
 
+from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 # --- canonical_version_cell ---
 
 
-def test_canonical_version_cell_arrow_form(cdb):
+def test_canonical_version_cell_arrow_form(cdb: ModuleType):
     assert cdb.canonical_version_cell("5.0.2", "5.1.0") == "5.0.2 → 5.1.0"
 
 
-def test_canonical_version_cell_unchanged_form(cdb):
+def test_canonical_version_cell_unchanged_form(cdb: ModuleType):
     assert cdb.canonical_version_cell("1.0.297", "1.0.297") == "1.0.297 (unchanged)"
 
 
-def test_canonical_version_cell_v_prefix_counts_as_unchanged(cdb):
+def test_canonical_version_cell_v_prefix_counts_as_unchanged(cdb: ModuleType):
     assert cdb.canonical_version_cell("v0.9.352", "0.9.352") == "0.9.352 (unchanged)"
 
 
@@ -27,7 +29,7 @@ def target_deps_and_values():
     return deps, values
 
 
-def test_fix_component_version_table_corrects_stale_source(cdb):
+def test_fix_component_version_table_corrects_stale_source(cdb: ModuleType):
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -53,7 +55,7 @@ def test_fix_component_version_table_corrects_stale_source(cdb):
     assert "ACR mirror only" in new_text  # notes column untouched
 
 
-def test_fix_component_version_table_leaves_correct_row_untouched(cdb):
+def test_fix_component_version_table_leaves_correct_row_untouched(cdb: ModuleType):
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -74,7 +76,7 @@ def test_fix_component_version_table_leaves_correct_row_untouched(cdb):
     assert new_text == text
 
 
-def test_fix_component_version_table_unmatched_component_reported(cdb):
+def test_fix_component_version_table_unmatched_component_reported(cdb: ModuleType):
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -95,7 +97,7 @@ def test_fix_component_version_table_unmatched_component_reported(cdb):
     assert new_text == text
 
 
-def test_fix_component_version_table_no_baseline_data_reported_unresolved(cdb):
+def test_fix_component_version_table_no_baseline_data_reported_unresolved(cdb: ModuleType):
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -126,7 +128,7 @@ def redis_sidecar_deps_and_values(target_chart="0.26.1", baseline_chart="0.25.0"
     return target_deps, target_values, baseline_deps, baseline_values
 
 
-def test_fix_component_version_table_leaves_a_correct_sidecar_row_untouched(cdb):
+def test_fix_component_version_table_leaves_a_correct_sidecar_row_untouched(cdb: ModuleType):
     """Regression test: a correctly-phrased canonical sidecar row (see
     lib.chart.canonical_sidecar_row_names) must never be "corrected"
     against its unrelated owning dependency's own chart/app version —
@@ -153,7 +155,7 @@ def test_fix_component_version_table_leaves_a_correct_sidecar_row_untouched(cdb)
     assert new_text == text
 
 
-def test_fix_component_version_table_corrects_a_stale_sidecar_row_using_its_own_tag(cdb):
+def test_fix_component_version_table_corrects_a_stale_sidecar_row_using_its_own_tag(cdb: ModuleType):
     """A sidecar row's App-version cell IS still corrected when stale —
     against its OWN resolved tag, never the owning dependency's. Its
     Helm-chart cell stays "-" regardless (never rewritten to the
@@ -179,7 +181,7 @@ def test_fix_component_version_table_corrects_a_stale_sidecar_row_using_its_own_
     assert "| redis-operator - redis | 8.6.2 → 8.6.6 | - | ACR mirror only |" in new_text
 
 
-def test_fix_component_version_table_corrects_a_native_components_wrong_chart_cell(cdb):
+def test_fix_component_version_table_corrects_a_native_components_wrong_chart_cell(cdb: ModuleType):
     """Real bug this guards against: frankgateway (see lib.chart.
     NATIVE_COMPONENTS — no Chart.yaml dependency at all) briefly gained a
     mistaken Chart.yaml dependency entry, and its row's Helm-chart cell
@@ -208,7 +210,7 @@ def test_fix_component_version_table_corrects_a_native_components_wrong_chart_ce
     assert "1.1.0" not in new_text
 
 
-def test_fix_component_version_table_leaves_a_correct_native_component_row_untouched(cdb):
+def test_fix_component_version_table_leaves_a_correct_native_component_row_untouched(cdb: ModuleType):
     text = (
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -230,7 +232,7 @@ def test_fix_component_version_table_leaves_a_correct_native_component_row_untou
     assert new_text == text
 
 
-def test_fix_component_version_table_unresolvable_canonical_row_reported_not_corrupted(cdb):
+def test_fix_component_version_table_unresolvable_canonical_row_reported_not_corrupted(cdb: ModuleType):
     """A row shaped like the canonical sidecar form but with no
     resolvable repository (e.g. "kiss - podiumd-adapter", commented out
     in real life) must be reported as unresolved — never fall through
@@ -256,7 +258,7 @@ def test_fix_component_version_table_unresolvable_canonical_row_reported_not_cor
     assert new_text == text
 
 
-def test_fix_component_version_table_new_dependency_annotated_new_not_reported_unresolved(cdb):
+def test_fix_component_version_table_new_dependency_annotated_new_not_reported_unresolved(cdb: ModuleType):
     """A dependency with no matching entry at all in the baseline
     Chart.yaml (brand new this hop) gets "(new)" cells instead of being
     left untouched and reported for manual review — this row's
@@ -280,7 +282,7 @@ def test_fix_component_version_table_new_dependency_annotated_new_not_reported_u
     assert "| openklant | 2.15.0 (new) | 1.11.0 (new) | - |" in new_text
 
 
-def test_fix_component_version_table_new_dependency_already_annotated_is_untouched(cdb):
+def test_fix_component_version_table_new_dependency_already_annotated_is_untouched(cdb: ModuleType):
     """Idempotent: a row already correctly reading "(new)" is left alone,
     not endlessly re-flagged as changed on every run."""
     text = (
@@ -299,7 +301,7 @@ def test_fix_component_version_table_new_dependency_already_annotated_is_untouch
     assert new_text == text
 
 
-def test_fix_component_version_table_new_sidecar_app_annotated_new_chart_cell_untouched(cdb):
+def test_fix_component_version_table_new_sidecar_app_annotated_new_chart_cell_untouched(cdb: ModuleType):
     """A sidecar with no baseline tag at all (brand new this hop) gets
     its App cell annotated "(new)" — its Helm-chart cell stays "-"
     regardless, same as every other sidecar row; there's no chart
@@ -345,7 +347,9 @@ def _write_historical_images_manifest(chart_dir, version, entries):
     )
 
 
-def test_fix_component_version_table_new_dependency_known_in_historical_manifest_is_unchanged(cdb, tmp_path):
+def test_fix_component_version_table_new_dependency_known_in_historical_manifest_is_unchanged(
+    cdb: ModuleType, tmp_path: Path
+):
     """Regression test: a brand-new Chart.yaml dependency (baseline_deps
     has no matching entry at all) whose image repository already
     appears, byte-for-byte at the same version, in an earlier release's
@@ -392,7 +396,9 @@ def test_fix_component_version_table_new_dependency_known_in_historical_manifest
     assert "| brppersonenmock | 2.7.0-202606230850 (unchanged) | 1.2.9 (new) | - |" in new_text
 
 
-def test_fix_component_version_table_new_sidecar_known_in_historical_manifest_is_unchanged(cdb, tmp_path):
+def test_fix_component_version_table_new_sidecar_known_in_historical_manifest_is_unchanged(
+    cdb: ModuleType, tmp_path: Path
+):
     """Same fallback for a brand-new canonical sidecar row (see
     add_missing_sidecar_rows/lib.upgradedoc.resolve_component_row's own
     sidecar branch) — real case: redis-operator's own "k8s" sidecar. The
@@ -429,7 +435,9 @@ def test_fix_component_version_table_new_sidecar_known_in_historical_manifest_is
     assert "| redis-operator - k8s | 1.36.2 (unchanged) | - | ACR mirror only |" in new_text
 
 
-def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matching_numbers(cdb, tmp_path):
+def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matching_numbers(
+    cdb: ModuleType, tmp_path: Path
+):
     """Regression test: a row written "(new)" by an OLDER fix-doc-
     consistency run (before the historical-images-manifest fallback
     existed) whose NUMBER already happens to match the target (both
@@ -470,7 +478,7 @@ def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matchi
 # --- fix_changes_heading_app_versions ---
 
 
-def test_fix_changes_heading_app_versions_corrects_wrong_new_dependency_heading(cdb):
+def test_fix_changes_heading_app_versions_corrects_wrong_new_dependency_heading(cdb: ModuleType):
     """Real bug, real doc: mi's own row was already correctly fixed
     ("2.90.0 (new)" — a brand-new Chart.yaml dependency this hop, no
     2.71.0 baseline value exists at all) by an earlier fix_component_
@@ -507,7 +515,7 @@ def test_fix_changes_heading_app_versions_corrects_wrong_new_dependency_heading(
     assert "Some stale prose here." in new_text
 
 
-def test_fix_changes_heading_app_versions_syncs_headings_name_to_rows(cdb):
+def test_fix_changes_heading_app_versions_syncs_headings_name_to_rows(cdb: ModuleType):
     """Real bug found live: the table row's own display name ("mi-data
     (MI-data exports)") and this same component's own Changes heading
     ("mi") had drifted apart — every OTHER row/heading pair in the real
@@ -541,7 +549,7 @@ def test_fix_changes_heading_app_versions_syncs_headings_name_to_rows(cdb):
     assert "Some stale prose here." in new_text  # body left as-is, not regenerated
 
 
-def test_fix_changes_heading_app_versions_renames_even_when_app_version_already_correct(cdb):
+def test_fix_changes_heading_app_versions_renames_even_when_app_version_already_correct(cdb: ModuleType):
     """A wrong NAME alone (app-version wording already correct) is still
     enough to trigger a rewrite — the two checks are independent, not
     "only bother if the version is ALSO wrong" — but ONLY because the
@@ -573,7 +581,7 @@ def test_fix_changes_heading_app_versions_renames_even_when_app_version_already_
     assert "### mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)" in new_text
 
 
-def test_fix_changes_heading_app_versions_preserves_deliberately_customized_name(cdb):
+def test_fix_changes_heading_app_versions_preserves_deliberately_customized_name(cdb: ModuleType):
     """Real bug found live against the real chart: a first version of
     this fix renamed "### Keycloak Operator (server) 26.7.2 -> 26.7.3
     (chart 1.12.1 -> 1.13.0)" to "### Keycloak Operator (server +
@@ -628,7 +636,7 @@ def test_fix_changes_heading_app_versions_preserves_deliberately_customized_name
     assert new_text == text
 
 
-def test_fix_changes_heading_app_versions_no_version_marker_never_touched(cdb):
+def test_fix_changes_heading_app_versions_no_version_marker_never_touched(cdb: ModuleType):
     """A heading naming a real "dep" identity but with NO recognizable
     version marker at all (arrow/"(new)"/"(unchanged)"/"(digest
     changed)") was never meant to carry a machine-verifiable version in
@@ -660,7 +668,7 @@ def test_fix_changes_heading_app_versions_no_version_marker_never_touched(cdb):
     assert new_text == text
 
 
-def test_fix_changes_heading_app_versions_already_correct_heading_untouched(cdb):
+def test_fix_changes_heading_app_versions_already_correct_heading_untouched(cdb: ModuleType):
     text = (
         "## Component versions (4.9.1 vs 4.9.0)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
@@ -684,7 +692,7 @@ def test_fix_changes_heading_app_versions_already_correct_heading_untouched(cdb)
     assert new_text == text
 
 
-def test_fix_changes_heading_app_versions_real_version_bump_still_corrected(cdb):
+def test_fix_changes_heading_app_versions_real_version_bump_still_corrected(cdb: ModuleType):
     """A real version transition (not a brand-new dependency) with a
     stale heading is corrected the same way — the "(new)" case above
     isn't the only one this covers."""
@@ -720,7 +728,7 @@ def test_fix_changes_heading_app_versions_real_version_bump_still_corrected(cdb)
     assert "### zac 5.4.0 → 5.5.0 (chart 1.0.297, unchanged)" in new_text
 
 
-def test_fix_changes_heading_app_versions_corrects_stale_bare_sidecar_heading(cdb):
+def test_fix_changes_heading_app_versions_corrects_stale_bare_sidecar_heading(cdb: ModuleType):
     """Regression test: a canonical sidecar/MULTIPLE-scope heading (a
     bare global.images anchor like "redis", not a real Chart.yaml
     dependency) can go stale the exact same way a "dep" heading can —
@@ -755,7 +763,7 @@ def test_fix_changes_heading_app_versions_corrects_stale_bare_sidecar_heading(cd
     assert "Some stale prose here." in new_text  # body left as-is, not regenerated
 
 
-def test_fix_changes_heading_app_versions_corrects_stale_real_sidecar_heading(cdb):
+def test_fix_changes_heading_app_versions_corrects_stale_real_sidecar_heading(cdb: ModuleType):
     """The general case, not just the bare global-anchor shape above: a
     real sidecar nested under an owning dependency ("redis-operator -
     redis") can go stale the same way — proves the fix isn't specific
@@ -789,7 +797,7 @@ def test_fix_changes_heading_app_versions_corrects_stale_real_sidecar_heading(cd
     assert "### redis-operator - redis 8.6.2 → 8.6.6 (chart 0.25.0, unchanged)" in new_text
 
 
-def test_fix_changes_heading_app_versions_already_correct_sidecar_heading_untouched(cdb):
+def test_fix_changes_heading_app_versions_already_correct_sidecar_heading_untouched(cdb: ModuleType):
     """Negative case: an already-correct sidecar heading (name AND
     app-version wording both already right) must never be spuriously
     rewritten — same discipline as the existing "dep"-kind untouched
@@ -817,7 +825,7 @@ def test_fix_changes_heading_app_versions_already_correct_sidecar_heading_untouc
     assert new_text == text
 
 
-def test_fix_changes_heading_app_versions_corrects_moved_repository_sidecar_heading(cdb, tmp_path):
+def test_fix_changes_heading_app_versions_corrects_moved_repository_sidecar_heading(cdb: ModuleType, tmp_path: Path):
     """Live end-to-end reproduction of the resolve_component_row/
     add_missing_sidecar_rows divergence (podiumd 4.9.1's postgres
     consolidation, see lib.chart.baseline_tag_for_sidecar_path): the
@@ -875,7 +883,7 @@ MI_UPGRADE_DOC_TEXT = (
 )
 
 
-def test_fix_values_delta_heading_app_versions_corrects_wrong_name_and_new_dependency_wording(cdb):
+def test_fix_values_delta_heading_app_versions_corrects_wrong_name_and_new_dependency_wording(cdb: ModuleType):
     """Real bug, real doc: -values-deltas.md's own "## mi ..." section
     heading has the SAME stale wording AND the SAME wrong (bare "mi",
     not the row's own "mi-data (MI-data exports)") name problem as
@@ -903,7 +911,7 @@ def test_fix_values_delta_heading_app_versions_corrects_wrong_name_and_new_depen
     assert "- Key `mi.transfer.noEpsv` (optional) added." in new_text  # body left as-is
 
 
-def test_fix_values_delta_heading_app_versions_already_correct_heading_untouched(cdb):
+def test_fix_values_delta_heading_app_versions_already_correct_heading_untouched(cdb: ModuleType):
     values_deltas_text = (
         "# Values deltas — PodiumD 4.9.0 → 4.9.1\n\n"
         "## mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)\n\n"
@@ -924,7 +932,7 @@ def test_fix_values_delta_heading_app_versions_already_correct_heading_untouched
     assert new_text == values_deltas_text
 
 
-def test_fix_values_delta_heading_app_versions_corrects_stale_sidecar_heading(cdb):
+def test_fix_values_delta_heading_app_versions_corrects_stale_sidecar_heading(cdb: ModuleType):
     """Confirms the shared _fix_heading_app_versions/_resolved_rows_by_
     values_key fix ALSO closes this exact gap for -values-deltas.md's
     own "## ..." section headings, not just -upgrade.md's "### ..."
@@ -955,7 +963,7 @@ def test_fix_values_delta_heading_app_versions_corrects_stale_sidecar_heading(cd
     assert "- `global.images.redis` added." in new_text  # body left as-is
 
 
-def test_fix_values_delta_heading_app_versions_bare_hand_written_heading_never_touched(cdb):
+def test_fix_values_delta_heading_app_versions_bare_hand_written_heading_never_touched(cdb: ModuleType):
     """Real bug found live: values-deltas.md's own bare "## zaakbrug"
     and free-form "## Breaking — Frank!Gateway (only when
     `frankgateway.enabled: true`)" section headings got clobbered by a
@@ -982,7 +990,7 @@ def test_fix_values_delta_heading_app_versions_bare_hand_written_heading_never_t
     assert new_text == values_deltas_text
 
 
-def test_fix_values_delta_heading_app_versions_no_upgrade_doc_is_a_noop(cdb):
+def test_fix_values_delta_heading_app_versions_no_upgrade_doc_is_a_noop(cdb: ModuleType):
     """No -upgrade.md at all (upgrade_doc_text == "") — nothing to
     resolve the row data against, so no heading is ever touched, never
     an error."""

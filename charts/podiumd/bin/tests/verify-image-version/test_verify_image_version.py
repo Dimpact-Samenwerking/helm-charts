@@ -7,10 +7,13 @@ which resolves registry_tag_exists via ITS OWN globals — see
 lib.image.version's import — so tests patch that module directly, same
 as tests/update-image-version/test_update_image_version.py does)."""
 
+from pathlib import Path
+from types import ModuleType
+
 import pytest
 
 
-def write_values(tmp_path, text):
+def write_values(tmp_path: Path, text):
     path = tmp_path / "values.yaml"
     path.write_text(text, encoding="utf-8")
     return path
@@ -27,15 +30,19 @@ def write_chart_yaml(chart_dir, deps):
     (chart_dir / "Chart.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def test_help_flag_prints_docstring_and_exits_zero(viv, monkeypatch, capsys):
+def test_help_flag_prints_docstring_and_exits_zero(
+    viv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr("sys.argv", ["verify-image-version", "--help"])
     with pytest.raises(SystemExit) as exc_info:
         viv.main()
     assert exc_info.value.code == 0
-    assert capsys.readouterr().out == viv.__doc__ + "\n"
+    assert capsys.readouterr().out == f"{viv.__doc__}\n"
 
 
-def test_wrong_arg_count_prints_docstring_and_exits_one(viv, monkeypatch, capsys):
+def test_wrong_arg_count_prints_docstring_and_exits_one(
+    viv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     monkeypatch.setattr("sys.argv", ["verify-image-version", "only-one-arg"])
     with pytest.raises(SystemExit) as exc_info:
         viv.main()
@@ -43,7 +50,9 @@ def test_wrong_arg_count_prints_docstring_and_exits_one(viv, monkeypatch, capsys
     assert "Usage:" in capsys.readouterr().out
 
 
-def test_main_found_reports_ok(viv, tmp_path, monkeypatch, capsys):
+def test_main_found_reports_ok(
+    viv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     values_path = write_values(
         tmp_path,
         (
@@ -68,7 +77,9 @@ def test_main_found_reports_ok(viv, tmp_path, monkeypatch, capsys):
     assert "OK: image version exists" in out
 
 
-def test_main_missing_reports_fail(viv, tmp_path, monkeypatch, capsys):
+def test_main_missing_reports_fail(
+    viv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     values_path = write_values(
         tmp_path,
         (
@@ -93,7 +104,9 @@ def test_main_missing_reports_fail(viv, tmp_path, monkeypatch, capsys):
     assert "FAIL: image version does not exist yet" in out
 
 
-def test_main_resolves_given_component_key_and_basename(viv, tmp_path, monkeypatch, capsys):
+def test_main_resolves_given_component_key_and_basename(
+    viv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """<key> "openklant" scopes the search to that component's own
     values.yaml subtree, where <basename> "open-klant" is pinned."""
     write_chart_yaml(tmp_path, [("openklant", None)])
@@ -116,7 +129,9 @@ def test_main_resolves_given_component_key_and_basename(viv, tmp_path, monkeypat
     assert "maykinmedia/open-klant:2.15.1" in out
 
 
-def test_main_accepts_dependency_name_not_just_alias(viv, tmp_path, monkeypatch, capsys):
+def test_main_accepts_dependency_name_not_just_alias(
+    viv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """Regression test (real bug, confirmed live against the real chart):
     <key> used to only accept whichever string happens to literally BE
     the values.yaml top-level key — the alias, when a dependency has one
@@ -144,7 +159,7 @@ def test_main_accepts_dependency_name_not_just_alias(viv, tmp_path, monkeypatch,
     assert "infonl/zaakafhandelcomponent:5.4.4" in capsys.readouterr().out
 
 
-def test_main_unresolvable_target_propagates(viv, tmp_path, monkeypatch):
+def test_main_unresolvable_target_propagates(viv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """resolve_scoped_matches (lib.image.version) already raises
     SystemExit with a clear message when <key> <basename> doesn't
     resolve to any pinned image — main() has nothing to add here."""

@@ -4,6 +4,7 @@ real Confluence page is needed."""
 
 import csv
 
+from pathlib import Path
 from types import ModuleType
 
 import pytest
@@ -15,7 +16,7 @@ def write_values_yaml_raw(chart_dir, text):
     (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
 
 
-def test_recompute_image_basenames_updates_only_the_changed_row(ecrt, tmp_path):
+def test_recompute_image_basenames_updates_only_the_changed_row(ecrt: ModuleType, tmp_path: Path):
     write_values_yaml_raw(
         tmp_path,
         """\
@@ -67,7 +68,7 @@ omc:
     assert rows[2] == ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
 
 
-def test_recompute_image_basenames_no_changes_returns_empty_and_leaves_file_untouched(ecrt, tmp_path):
+def test_recompute_image_basenames_no_changes_returns_empty_and_leaves_file_untouched(ecrt: ModuleType, tmp_path: Path):
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -104,12 +105,12 @@ zac:
     assert csv_path.read_text(encoding="utf-8") == before
 
 
-def test_recompute_image_basenames_missing_file_raises(ecrt, tmp_path):
+def test_recompute_image_basenames_missing_file_raises(ecrt: ModuleType, tmp_path: Path):
     with pytest.raises(SystemExit, match="does not exist"):
         ecrt.recompute_image_basenames(tmp_path / "nope.csv", tmp_path)
 
 
-def test_recompute_image_basenames_wrong_header_raises(ecrt, tmp_path):
+def test_recompute_image_basenames_wrong_header_raises(ecrt: ModuleType, tmp_path: Path):
     csv_path = tmp_path / "release-table.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as f:
         csv.writer(f, lineterminator="\n").writerow(["not", "the", "right", "header"])
@@ -117,7 +118,9 @@ def test_recompute_image_basenames_wrong_header_raises(ecrt, tmp_path):
         ecrt.recompute_image_basenames(csv_path, tmp_path)
 
 
-def test_main_recompute_basenames_flag_skips_confluence_fetch(ecrt, tmp_path, monkeypatch, capsys):
+def test_main_recompute_basenames_flag_skips_confluence_fetch(
+    ecrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     write_values_yaml_raw(
         tmp_path,
         """\
@@ -189,13 +192,15 @@ def test_warn_unknown_lines_names_every_unknown_column(ecrt: ModuleType, capsys:
     )
 
 
-def test_parse_args_requires_url_and_user_unless_recompute_basenames(ecrt, monkeypatch):
+def test_parse_args_requires_url_and_user_unless_recompute_basenames(ecrt: ModuleType, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(ecrt.sys, "argv", ["export-confluence-release-table", "--output", "out.csv"])
     with pytest.raises(SystemExit):
         ecrt.parse_args()
 
 
-def test_parse_args_recompute_basenames_does_not_require_url_and_user(ecrt, monkeypatch):
+def test_parse_args_recompute_basenames_does_not_require_url_and_user(
+    ecrt: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(
         ecrt.sys,
         "argv",

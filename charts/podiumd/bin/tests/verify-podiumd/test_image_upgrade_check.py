@@ -8,7 +8,11 @@ mocked throughout."""
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
+
+import pytest
 
 DIGEST_A = "a" * 64  # own: frankgateway
 DIGEST_B = "b" * 64  # partner: openzaak (Maykin)
@@ -82,7 +86,7 @@ RENDERED = (
 )
 
 
-def make_chart_dir(tmp_path, values=VALUES_YAML, chart_yaml=CHART_YAML):
+def make_chart_dir(tmp_path: Path, values=VALUES_YAML, chart_yaml=CHART_YAML):
     (tmp_path / "Chart.yaml").write_text(chart_yaml, encoding="utf-8")
     (tmp_path / "values.yaml").write_text(values, encoding="utf-8")
     return tmp_path
@@ -113,26 +117,26 @@ def newest_tag_for(**by_repo_path):
 # --- cache helpers ---
 
 
-def test_cache_entry_is_fresh_within_ttl(libimageupgradecheck):
+def test_cache_entry_is_fresh_within_ttl(libimageupgradecheck: ModuleType):
     entry = {"checked_at": datetime.now(timezone.utc).isoformat()}
     assert libimageupgradecheck.cache_entry_is_fresh(entry, 1) is True
 
 
-def test_cache_entry_is_stale_past_ttl(libimageupgradecheck):
+def test_cache_entry_is_stale_past_ttl(libimageupgradecheck: ModuleType):
     stale = datetime.now(timezone.utc) - timedelta(days=1 + 1)
     assert libimageupgradecheck.cache_entry_is_fresh({"checked_at": stale.isoformat()}, 1) is False
 
 
-def test_cache_entry_is_fresh_handles_malformed_entry(libimageupgradecheck):
+def test_cache_entry_is_fresh_handles_malformed_entry(libimageupgradecheck: ModuleType):
     assert libimageupgradecheck.cache_entry_is_fresh({}, 1) is False
     assert libimageupgradecheck.cache_entry_is_fresh({"checked_at": "not-a-date"}, 1) is False
 
 
-def test_load_cache_missing_file_returns_empty(libimageupgradecheck, tmp_path):
+def test_load_cache_missing_file_returns_empty(libimageupgradecheck: ModuleType, tmp_path: Path):
     assert libimageupgradecheck.load_cache(tmp_path) == {}
 
 
-def test_save_and_load_cache_roundtrip(libimageupgradecheck, tmp_path):
+def test_save_and_load_cache_roundtrip(libimageupgradecheck: ModuleType, tmp_path: Path):
     cache = {"org/repo:1.0.0": {"checked_at": "2026-01-01T00:00:00+00:00", "newest": "1.0.0"}}
     libimageupgradecheck.save_cache(tmp_path, cache)
     assert libimageupgradecheck.load_cache(tmp_path) == cache
@@ -141,7 +145,9 @@ def test_save_and_load_cache_roundtrip(libimageupgradecheck, tmp_path):
 # --- check_image_upgrades: preconditions ---
 
 
-def test_check_image_upgrades_render_failure_fails(vp, libimageupgradecheck, tmp_path, monkeypatch):
+def test_check_image_upgrades_render_failure_fails(
+    vp: ModuleType, libimageupgradecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run(returncode=1))
     ok, detail = vp.check_image_upgrades(chart_dir, [])
@@ -153,11 +159,11 @@ def test_check_image_upgrades_render_failure_fails(vp, libimageupgradecheck, tmp
 
 
 def test_check_image_upgrades_splits_own_partner_other_and_never_fails(
-    vp,
-    libimageupgradecheck,
-    tmp_path,
-    monkeypatch,
-    capsys,
+    vp: ModuleType,
+    libimageupgradecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
@@ -185,11 +191,11 @@ def test_check_image_upgrades_splits_own_partner_other_and_never_fails(
 
 
 def test_check_image_upgrades_partner_upgrade_shown_with_vendor_label(
-    vp,
-    libimageupgradecheck,
-    tmp_path,
-    monkeypatch,
-    capsys,
+    vp: ModuleType,
+    libimageupgradecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
@@ -206,11 +212,11 @@ def test_check_image_upgrades_partner_upgrade_shown_with_vendor_label(
 
 
 def test_check_image_upgrades_other_vendor_itemized_like_partner(
-    vp,
-    libimageupgradecheck,
-    tmp_path,
-    monkeypatch,
-    capsys,
+    vp: ModuleType,
+    libimageupgradecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
@@ -227,7 +233,13 @@ def test_check_image_upgrades_other_vendor_itemized_like_partner(
     assert "docker.io/alpine/k8s:1.36.2: newer tag available: 1.37.0" in out
 
 
-def test_check_image_upgrades_nothing_upgradable_prints_ok(vp, libimageupgradecheck, tmp_path, monkeypatch, capsys):
+def test_check_image_upgrades_nothing_upgradable_prints_ok(
+    vp: ModuleType,
+    libimageupgradecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag", newest_tag_for())
@@ -241,11 +253,11 @@ def test_check_image_upgrades_nothing_upgradable_prints_ok(vp, libimageupgradech
 
 
 def test_check_image_upgrades_fetch_error_reported_but_still_passes(
-    vp,
-    libimageupgradecheck,
-    tmp_path,
-    monkeypatch,
-    capsys,
+    vp: ModuleType,
+    libimageupgradecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     import urllib.error
 
@@ -271,7 +283,9 @@ def test_check_image_upgrades_fetch_error_reported_but_still_passes(
 # --- caching ---
 
 
-def test_check_image_upgrades_cache_miss_scans_and_persists(vp, libimageupgradecheck, tmp_path, monkeypatch):
+def test_check_image_upgrades_cache_miss_scans_and_persists(
+    vp: ModuleType, libimageupgradecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag", newest_tag_for())
@@ -282,7 +296,13 @@ def test_check_image_upgrades_cache_miss_scans_and_persists(vp, libimageupgradec
     assert libimageupgradecheck.cache_key("ghcr.io/wearefrank/frank-gateway", "104") in saved
 
 
-def test_check_image_upgrades_cache_hit_skips_registry_call(vp, libimageupgradecheck, tmp_path, monkeypatch, capsys):
+def test_check_image_upgrades_cache_hit_skips_registry_call(
+    vp: ModuleType,
+    libimageupgradecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     key = libimageupgradecheck.cache_key("ghcr.io/wearefrank/frank-gateway", "104")
@@ -309,7 +329,13 @@ def test_check_image_upgrades_cache_hit_skips_registry_call(vp, libimageupgradec
     assert "wearefrank/frank-gateway" not in "".join(line for line in out.splitlines() if "checking" in line)
 
 
-def test_check_image_upgrades_expired_cache_entry_rechecks(vp, libimageupgradecheck, tmp_path, monkeypatch, capsys):
+def test_check_image_upgrades_expired_cache_entry_rechecks(
+    vp: ModuleType,
+    libimageupgradecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     key = libimageupgradecheck.cache_key("ghcr.io/wearefrank/frank-gateway", "104")
@@ -329,7 +355,9 @@ def test_check_image_upgrades_expired_cache_entry_rechecks(vp, libimageupgradech
     assert "0/3 image(s) served from cache" in out  # expired entry does not count as a hit
 
 
-def test_check_image_upgrades_prunes_entries_for_unpinned_images(vp, libimageupgradecheck, tmp_path, monkeypatch):
+def test_check_image_upgrades_prunes_entries_for_unpinned_images(
+    vp: ModuleType, libimageupgradecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libimageupgradecheck, "render_chart", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag", newest_tag_for())
@@ -347,11 +375,11 @@ def test_check_image_upgrades_prunes_entries_for_unpinned_images(vp, libimageupg
 
 
 def test_check_image_upgrades_heuristic_fallback_for_disabled_component(
-    vp,
-    libimageupgradecheck,
-    tmp_path,
-    monkeypatch,
-    capsys,
+    vp: ModuleType,
+    libimageupgradecheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A pin whose component isn't in the render at all (e.g. disabled in
     the CI values) falls back to the values-key heuristic: not a

@@ -9,8 +9,10 @@ needed."""
 
 import json
 import urllib.error
+import urllib.request
 
 from email.message import Message
+from types import ModuleType
 
 import pytest
 
@@ -58,17 +60,17 @@ NO_TH_RELEASE_TABLE_HTML = RELEASE_TABLE_HTML.replace("<th", "<td").replace("</t
 # --- page_id_from_url ---
 
 
-def test_page_id_from_url_modern_pages_path(libconfluencetables):
+def test_page_id_from_url_modern_pages_path(libconfluencetables: ModuleType):
     url = "https://example.atlassian.net/wiki/spaces/PCP/pages/123456789/PodiumD+4.9.0"
     assert libconfluencetables.page_id_from_url(url) == "123456789"
 
 
-def test_page_id_from_url_legacy_query_param(libconfluencetables):
+def test_page_id_from_url_legacy_query_param(libconfluencetables: ModuleType):
     url = "https://confluence.example.com/pages/viewpage.action?pageId=987654"
     assert libconfluencetables.page_id_from_url(url) == "987654"
 
 
-def test_page_id_from_url_no_match_raises(libconfluencetables):
+def test_page_id_from_url_no_match_raises(libconfluencetables: ModuleType):
     with pytest.raises(SystemExit, match="could not find a page ID"):
         libconfluencetables.page_id_from_url("https://example.atlassian.net/wiki/spaces/PCP/overview")
 
@@ -76,12 +78,12 @@ def test_page_id_from_url_no_match_raises(libconfluencetables):
 # --- api_base_url ---
 
 
-def test_api_base_url_cloud_site(libconfluencetables):
+def test_api_base_url_cloud_site(libconfluencetables: ModuleType):
     url = "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title"
     assert libconfluencetables.api_base_url(url) == "https://example.atlassian.net/wiki/rest/api"
 
 
-def test_api_base_url_server_site(libconfluencetables):
+def test_api_base_url_server_site(libconfluencetables: ModuleType):
     url = "https://confluence.example.com/display/PCP/Title"
     assert libconfluencetables.api_base_url(url) == "https://confluence.example.com/rest/api"
 
@@ -103,10 +105,10 @@ class FakeResponse:
         return False
 
 
-def test_fetch_page_html_sends_basic_auth_and_returns_body_storage(libconfluencetables):
+def test_fetch_page_html_sends_basic_auth_and_returns_body_storage(libconfluencetables: ModuleType):
     captured = {}
 
-    def fake_urlopen(request):
+    def fake_urlopen(request: urllib.request.Request):
         captured["url"] = request.full_url
         captured["auth"] = request.get_header("Authorization")
         return FakeResponse({"body": {"storage": {"value": "<table></table>"}}})
@@ -124,8 +126,8 @@ def test_fetch_page_html_sends_basic_auth_and_returns_body_storage(libconfluence
     assert captured["auth"] == "Basic " + base64.b64encode(b"kees@info.nl:s3cr3t").decode()
 
 
-def test_fetch_page_html_missing_body_storage_raises(libconfluencetables):
-    def fake_urlopen(request):
+def test_fetch_page_html_missing_body_storage_raises(libconfluencetables: ModuleType):
+    def fake_urlopen(request: urllib.request.Request):
         return FakeResponse({"body": {}})
 
     with pytest.raises(SystemExit, match=r"no body\.storage\.value"):
@@ -137,8 +139,8 @@ def test_fetch_page_html_missing_body_storage_raises(libconfluencetables):
         )
 
 
-def test_fetch_page_html_http_error_raises(libconfluencetables):
-    def fake_urlopen(request):
+def test_fetch_page_html_http_error_raises(libconfluencetables: ModuleType):
+    def fake_urlopen(request: urllib.request.Request):
         raise urllib.error.HTTPError(request.full_url, 401, "Unauthorized", Message(), None)
 
     with pytest.raises(SystemExit, match="HTTP 401"):
@@ -150,8 +152,8 @@ def test_fetch_page_html_http_error_raises(libconfluencetables):
         )
 
 
-def test_fetch_page_html_url_error_raises(libconfluencetables):
-    def fake_urlopen(request):
+def test_fetch_page_html_url_error_raises(libconfluencetables: ModuleType):
+    def fake_urlopen(request: urllib.request.Request):
         msg = "name resolution failed"
         raise urllib.error.URLError(msg)
 
@@ -167,7 +169,7 @@ def test_fetch_page_html_url_error_raises(libconfluencetables):
 # --- extract_tables ---
 
 
-def test_extract_tables_simple(libconfluencetables):
+def test_extract_tables_simple(libconfluencetables: ModuleType):
     html = "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>"
     tables = libconfluencetables.extract_tables(html)
     assert len(tables) == 1
@@ -180,7 +182,7 @@ def test_extract_tables_simple(libconfluencetables):
     assert [c["tag"] for c in rows[1]] == ["td", "td"]
 
 
-def test_extract_tables_multiple_tables_in_document_order(libconfluencetables):
+def test_extract_tables_multiple_tables_in_document_order(libconfluencetables: ModuleType):
     html = "<p>intro</p><table><tr><td>a</td></tr></table><table><tr><td>b</td></tr></table>"
     tables = libconfluencetables.extract_tables(html)
     assert len(tables) == 2
@@ -188,19 +190,19 @@ def test_extract_tables_multiple_tables_in_document_order(libconfluencetables):
     assert tables[1][1][0][0]["text"] == "b"
 
 
-def test_extract_tables_collapses_whitespace_and_nested_tags(libconfluencetables):
+def test_extract_tables_collapses_whitespace_and_nested_tags(libconfluencetables: ModuleType):
     html = "<table><tr><td>  hello <strong>world</strong>  \n  again </td></tr></table>"
     tables = libconfluencetables.extract_tables(html)
     assert tables[0][1][0][0]["text"] == "hello world again"
 
 
-def test_extract_tables_br_becomes_space(libconfluencetables):
+def test_extract_tables_br_becomes_space(libconfluencetables: ModuleType):
     html = "<table><tr><td>line1<br/>line2</td></tr></table>"
     tables = libconfluencetables.extract_tables(html)
     assert tables[0][1][0][0]["text"] == "line1 line2"
 
 
-def test_extract_tables_adjacent_paragraphs_separated_by_hr_do_not_run_together(libconfluencetables):
+def test_extract_tables_adjacent_paragraphs_separated_by_hr_do_not_run_together(libconfluencetables: ModuleType):
     """Real podiumd page content: a version-history cell rendered as
     "<p>5.4.3</p><hr/><p>5.4.4</p>" — without this, the two values
     concatenate into "5.4.35.4.4" instead of staying distinguishable."""
@@ -209,13 +211,13 @@ def test_extract_tables_adjacent_paragraphs_separated_by_hr_do_not_run_together(
     assert tables[0][1][0][0]["text"] == "5.4.3 5.4.4"
 
 
-def test_extract_tables_single_paragraph_cell_has_no_stray_whitespace(libconfluencetables):
+def test_extract_tables_single_paragraph_cell_has_no_stray_whitespace(libconfluencetables: ModuleType):
     html = "<table><tr><td><p>ZAC</p></td></tr></table>"
     tables = libconfluencetables.extract_tables(html)
     assert tables[0][1][0][0]["text"] == "ZAC"
 
 
-def test_extract_tables_nested_table_does_not_leak_extra_columns(libconfluencetables):
+def test_extract_tables_nested_table_does_not_leak_extra_columns(libconfluencetables: ModuleType):
     """A table nested inside a cell (seen on the real podiumd release page:
     a CVE-details table embedded in a "what changed" cell) must not be
     mistaken for a second top-level table, and its own tr/td/th closing
@@ -236,7 +238,7 @@ def test_extract_tables_nested_table_does_not_leak_extra_columns(libconfluenceta
     assert rows[0][1]["text"] == "before nested1nested2 after"
 
 
-def test_extract_tables_reads_colspan_rowspan_attrs(libconfluencetables):
+def test_extract_tables_reads_colspan_rowspan_attrs(libconfluencetables: ModuleType):
     html = '<table><tr><th colspan="2" rowspan="3">X</th></tr></table>'
     tables = libconfluencetables.extract_tables(html)
     cell = tables[0][1][0][0]
@@ -244,7 +246,7 @@ def test_extract_tables_reads_colspan_rowspan_attrs(libconfluencetables):
     assert cell["rowspan"] == 3
 
 
-def test_extract_tables_associates_nearest_preceding_heading(libconfluencetables):
+def test_extract_tables_associates_nearest_preceding_heading(libconfluencetables: ModuleType):
     html = (
         "<h2>Intro</h2><p>no table here</p>"
         "<h2>Section A</h2><table><tr><td>a1</td></tr></table><table><tr><td>a2</td></tr></table>"
@@ -255,14 +257,14 @@ def test_extract_tables_associates_nearest_preceding_heading(libconfluencetables
     assert headings == ["Section A", "Section A", "Section B"]
 
 
-def test_extract_tables_heading_none_before_any_heading(libconfluencetables):
+def test_extract_tables_heading_none_before_any_heading(libconfluencetables: ModuleType):
     html = "<table><tr><td>a</td></tr></table><h2>Later</h2><table><tr><td>b</td></tr></table>"
     tables = libconfluencetables.extract_tables(html)
     assert tables[0][0] is None
     assert tables[1][0] == "Later"
 
 
-def test_extract_tables_heading_nested_inline_tags_collapsed(libconfluencetables):
+def test_extract_tables_heading_nested_inline_tags_collapsed(libconfluencetables: ModuleType):
     html = "<h2>  Product   <strong>component</strong> versies  </h2><table><tr><td>x</td></tr></table>"
     tables = libconfluencetables.extract_tables(html)
     assert tables[0][0] == "Product component versies"
@@ -271,7 +273,7 @@ def test_extract_tables_heading_nested_inline_tags_collapsed(libconfluencetables
 # --- tables_under_headings ---
 
 
-def test_tables_under_headings_case_insensitive_exact_match(libconfluencetables):
+def test_tables_under_headings_case_insensitive_exact_match(libconfluencetables: ModuleType):
     tables = [
         ("Product component versies", "rowsA"),
         ("Overige component versies", "rowsB"),
@@ -282,27 +284,27 @@ def test_tables_under_headings_case_insensitive_exact_match(libconfluencetables)
     assert matched == [("Product component versies", "rowsA")]
 
 
-def test_tables_under_headings_multiple_wanted_headings_preserve_order(libconfluencetables):
+def test_tables_under_headings_multiple_wanted_headings_preserve_order(libconfluencetables: ModuleType):
     tables = [("A", "rows1"), ("B", "rows2"), ("A", "rows3")]
     matched = libconfluencetables.tables_under_headings(tables, ["a", "b"])
     assert matched == [("A", "rows1"), ("B", "rows2"), ("A", "rows3")]
 
 
-def test_tables_under_headings_no_match_returns_empty(libconfluencetables):
+def test_tables_under_headings_no_match_returns_empty(libconfluencetables: ModuleType):
     assert libconfluencetables.tables_under_headings([("Other", "rows")], ["Wanted"]) == []
 
 
 # --- expand_grid ---
 
 
-def test_expand_grid_no_spans(libconfluencetables):
+def test_expand_grid_no_spans(libconfluencetables: ModuleType):
     tables = libconfluencetables.extract_tables(
         "<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>"
     )
     assert libconfluencetables.expand_grid(tables[0][1]) == [["a", "b"], ["c", "d"]]
 
 
-def test_expand_grid_colspan_repeats_text_across_columns(libconfluencetables):
+def test_expand_grid_colspan_repeats_text_across_columns(libconfluencetables: ModuleType):
     tables = libconfluencetables.extract_tables(
         '<table><tr><th colspan="2">Versie 4.8</th></tr><tr><td>App</td><td>Helm</td></tr></table>'
     )
@@ -311,7 +313,7 @@ def test_expand_grid_colspan_repeats_text_across_columns(libconfluencetables):
     assert grid[1] == ["App", "Helm"]
 
 
-def test_expand_grid_rowspan_repeats_text_down_rows(libconfluencetables):
+def test_expand_grid_rowspan_repeats_text_down_rows(libconfluencetables: ModuleType):
     tables = libconfluencetables.extract_tables(
         '<table><tr><th rowspan="2">Ontwikkelpartij</th><th>App</th></tr><tr><td>Helm</td></tr></table>'
     )
@@ -320,13 +322,13 @@ def test_expand_grid_rowspan_repeats_text_down_rows(libconfluencetables):
     assert grid[1] == ["Ontwikkelpartij", "Helm"]
 
 
-def test_expand_grid_pads_ragged_rows(libconfluencetables):
+def test_expand_grid_pads_ragged_rows(libconfluencetables: ModuleType):
     tables = libconfluencetables.extract_tables("<table><tr><td>a</td><td>b</td></tr><tr><td>c</td></tr></table>")
     grid = libconfluencetables.expand_grid(tables[0][1])
     assert grid == [["a", "b"], ["c", ""]]
 
 
-def test_expand_grid_full_release_table(libconfluencetables):
+def test_expand_grid_full_release_table(libconfluencetables: ModuleType):
     tables = libconfluencetables.extract_tables(RELEASE_TABLE_HTML)
     grid = libconfluencetables.expand_grid(tables[0][1])
     assert grid[0] == ["", "Ontwikkelpartij", "Versie 4.8", "Versie 4.8", "Versie 4.9", "Versie 4.9"]
@@ -337,34 +339,34 @@ def test_expand_grid_full_release_table(libconfluencetables):
 # --- leading_header_row_count / fallback_header_row_count / effective_header_row_count ---
 
 
-def test_leading_header_row_count_two_header_rows(libconfluencetables):
+def test_leading_header_row_count_two_header_rows(libconfluencetables: ModuleType):
     tables = libconfluencetables.extract_tables(RELEASE_TABLE_HTML)
     assert libconfluencetables.leading_header_row_count(tables[0][1]) == 2
 
 
-def test_leading_header_row_count_no_th_at_all(libconfluencetables):
+def test_leading_header_row_count_no_th_at_all(libconfluencetables: ModuleType):
     tables = libconfluencetables.extract_tables("<table><tr><td>A</td></tr><tr><td>1</td></tr></table>")
     assert libconfluencetables.leading_header_row_count(tables[0][1]) == 0
 
 
-def test_fallback_header_row_count_blank_first_column_leading_rows(libconfluencetables):
+def test_fallback_header_row_count_blank_first_column_leading_rows(libconfluencetables: ModuleType):
     grid = [["", "Versie 4.8", "Versie 4.8"], ["", "App", "Helm"], ["ZAC", "5.0.0", "1.0.290"]]
     assert libconfluencetables.fallback_header_row_count(grid) == 2
 
 
-def test_fallback_header_row_count_no_blank_leading_rows(libconfluencetables):
+def test_fallback_header_row_count_no_blank_leading_rows(libconfluencetables: ModuleType):
     grid = [["ZAC", "5.0.0"]]
     assert libconfluencetables.fallback_header_row_count(grid) == 0
 
 
-def test_effective_header_row_count_prefers_th_based_count(libconfluencetables):
+def test_effective_header_row_count_prefers_th_based_count(libconfluencetables: ModuleType):
     tables = libconfluencetables.extract_tables(RELEASE_TABLE_HTML)
     rows = tables[0][1]
     grid = libconfluencetables.expand_grid(rows)
     assert libconfluencetables.effective_header_row_count(rows, grid) == 2
 
 
-def test_effective_header_row_count_falls_back_when_no_th(libconfluencetables):
+def test_effective_header_row_count_falls_back_when_no_th(libconfluencetables: ModuleType):
     """The same release table, but with every header cell rendered as
     plain <td> instead of <th> — some Confluence storage-format tables
     do this."""
@@ -375,7 +377,7 @@ def test_effective_header_row_count_falls_back_when_no_th(libconfluencetables):
     assert libconfluencetables.effective_header_row_count(rows, grid) == 2  # fallback still finds it
 
 
-def test_effective_header_row_count_never_zero(libconfluencetables):
+def test_effective_header_row_count_never_zero(libconfluencetables: ModuleType):
     tables = libconfluencetables.extract_tables("<table><tr><td>a</td><td>b</td></tr></table>")
     rows = tables[0][1]
     grid = libconfluencetables.expand_grid(rows)
@@ -385,7 +387,7 @@ def test_effective_header_row_count_never_zero(libconfluencetables):
 # --- header_paths ---
 
 
-def test_header_paths_matches_release_table_structure(libconfluencetables):
+def test_header_paths_matches_release_table_structure(libconfluencetables: ModuleType):
     tables = libconfluencetables.extract_tables(RELEASE_TABLE_HTML)
     grid = libconfluencetables.expand_grid(tables[0][1])
     paths = libconfluencetables.header_paths(grid, header_row_count=2)
@@ -400,21 +402,21 @@ def test_header_paths_matches_release_table_structure(libconfluencetables):
 # --- find_column ---
 
 
-def test_find_column_case_insensitive_substring_match(libconfluencetables):
+def test_find_column_case_insensitive_substring_match(libconfluencetables: ModuleType):
     paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "App"]]
     assert libconfluencetables.find_column(paths, ["ontwikkelpartij"]) == 1
     assert libconfluencetables.find_column(paths, ["4.8", "app"]) == 2
     assert libconfluencetables.find_column(paths, ["4.9"]) is None
 
 
-def test_find_column_tolerates_hyphenated_header(libconfluencetables):
+def test_find_column_tolerates_hyphenated_header(libconfluencetables: ModuleType):
     """The real podiumd page spells it "Ontwikkel-partij" — a hyphen must
     not break the match against the "ontwikkelpartij" needle."""
     paths = [[], ["Ontwikkel-partij"]]
     assert libconfluencetables.find_column(paths, ["ontwikkelpartij"]) == 1
 
 
-def test_find_column_restricts_to_candidates(libconfluencetables):
+def test_find_column_restricts_to_candidates(libconfluencetables: ModuleType):
     paths = [["Versie 4.8", "App"], ["Versie 4.9", "App"]]
     assert libconfluencetables.find_column(paths, ["app"], candidates=[1]) == 1
     assert libconfluencetables.find_column(paths, ["app"], candidates=[0]) == 0
@@ -423,7 +425,7 @@ def test_find_column_restricts_to_candidates(libconfluencetables):
 # --- find_versie_groups ---
 
 
-def test_find_versie_groups_orders_by_first_appearance(libconfluencetables):
+def test_find_versie_groups_orders_by_first_appearance(libconfluencetables: ModuleType):
     paths = [
         [],
         ["Ontwikkelpartij"],
@@ -436,7 +438,7 @@ def test_find_versie_groups_orders_by_first_appearance(libconfluencetables):
     assert groups == [("Versie 4.8", [2, 3]), ("Versie 4.9", [4, 5])]
 
 
-def test_find_versie_groups_not_tied_to_specific_version_numbers(libconfluencetables):
+def test_find_versie_groups_not_tied_to_specific_version_numbers(libconfluencetables: ModuleType):
     """The page renames these headers every release — matching only
     checks the label starts with "Versie", never a specific number."""
     paths = [["Versie 5.0", "App"], ["Versie 5.1", "Helm"]]
@@ -444,13 +446,13 @@ def test_find_versie_groups_not_tied_to_specific_version_numbers(libconfluenceta
     assert [label for label, _cols in groups] == ["Versie 5.0", "Versie 5.1"]
 
 
-def test_find_versie_groups_case_insensitive(libconfluencetables):
+def test_find_versie_groups_case_insensitive(libconfluencetables: ModuleType):
     paths = [["versie 4.8", "App"]]
     groups = libconfluencetables.find_versie_groups(paths)
     assert groups == [("versie 4.8", [0])]
 
 
-def test_find_versie_groups_ignores_non_versie_columns(libconfluencetables):
+def test_find_versie_groups_ignores_non_versie_columns(libconfluencetables: ModuleType):
     paths = [[], ["Ontwikkelpartij"], ["Wijziging"]]
     assert libconfluencetables.find_versie_groups(paths) == []
 
@@ -458,7 +460,7 @@ def test_find_versie_groups_ignores_non_versie_columns(libconfluencetables):
 # --- select_release_columns / missing_required_release_columns ---
 
 
-def test_select_release_columns_full_release_table(libconfluencetables):
+def test_select_release_columns_full_release_table(libconfluencetables: ModuleType):
     tables = libconfluencetables.extract_tables(RELEASE_TABLE_HTML)
     grid = libconfluencetables.expand_grid(tables[0][1])
     paths = libconfluencetables.header_paths(grid, header_row_count=2)
@@ -474,7 +476,7 @@ def test_select_release_columns_full_release_table(libconfluencetables):
     }
 
 
-def test_select_release_columns_not_tied_to_specific_version_numbers(libconfluencetables):
+def test_select_release_columns_not_tied_to_specific_version_numbers(libconfluencetables: ModuleType):
     paths = [
         [],
         ["Ontwikkelpartij"],
@@ -495,7 +497,7 @@ def test_select_release_columns_not_tied_to_specific_version_numbers(libconfluen
     }
 
 
-def test_select_release_columns_missing_column_is_none(libconfluencetables):
+def test_select_release_columns_missing_column_is_none(libconfluencetables: ModuleType):
     paths = [[], ["Ontwikkelpartij"]]  # no Versie ... columns at all
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["vendor"] == 1
@@ -504,7 +506,7 @@ def test_select_release_columns_missing_column_is_none(libconfluencetables):
     assert columns["target_helm"] is None
 
 
-def test_select_release_columns_finds_used_by(libconfluencetables):
+def test_select_release_columns_finds_used_by(libconfluencetables: ModuleType):
     """A "Technische component versies"-style table has "Used by" instead
     of "Ontwikkelpartij" — naming which product/Common Ground component
     pulls that piece of tooling in."""
@@ -521,7 +523,7 @@ def test_select_release_columns_finds_used_by(libconfluencetables):
     assert columns["used_by"] == 1
 
 
-def test_select_release_columns_lone_versie_column_is_app_even_without_label(libconfluencetables):
+def test_select_release_columns_lone_versie_column_is_app_even_without_label(libconfluencetables: ModuleType):
     """A "Versie ..." group with exactly one column (Helm dropped
     entirely, e.g. "Technische component versies" since 2026-09) is
     always that group's App column, whether or not it still carries its
@@ -535,7 +537,7 @@ def test_select_release_columns_lone_versie_column_is_app_even_without_label(lib
     assert columns["target_helm"] is None
 
 
-def test_select_release_columns_none_when_not_exactly_two_versie_groups(libconfluencetables):
+def test_select_release_columns_none_when_not_exactly_two_versie_groups(libconfluencetables: ModuleType):
     """One "Versie ..." group (or three+) isn't the source/target pair
     this export expects — leave everything unresolved rather than
     guessing which one(s) to use."""
@@ -545,7 +547,7 @@ def test_select_release_columns_none_when_not_exactly_two_versie_groups(libconfl
     assert columns["target_app"] is None
 
 
-def test_missing_required_release_columns_vendor_not_required(libconfluencetables):
+def test_missing_required_release_columns_vendor_not_required(libconfluencetables: ModuleType):
     """A "Used by"-style table with no Ontwikkelpartij column at all, but
     every App/Helm column present, must report nothing missing."""
     paths = [
@@ -561,7 +563,7 @@ def test_missing_required_release_columns_vendor_not_required(libconfluencetable
     assert libconfluencetables.missing_required_release_columns(columns) == []
 
 
-def test_missing_required_release_columns_helm_not_required(libconfluencetables):
+def test_missing_required_release_columns_helm_not_required(libconfluencetables: ModuleType):
     """A table with no Helm sub-column at all (e.g. "Technische component
     versies" on the real page, since 2026-09 -- its Helm cells were
     always empty anyway) reports nothing missing, as long as both App
@@ -573,7 +575,7 @@ def test_missing_required_release_columns_helm_not_required(libconfluencetables)
     assert libconfluencetables.missing_required_release_columns(columns) == []
 
 
-def test_missing_required_release_columns_reports_missing_app(libconfluencetables):
+def test_missing_required_release_columns_reports_missing_app(libconfluencetables: ModuleType):
     paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "Helm"], ["Versie 4.9", "Helm"]]  # no App columns at all
     columns = libconfluencetables.select_release_columns(paths)
     missing = libconfluencetables.missing_required_release_columns(columns)
@@ -600,7 +602,7 @@ def test_missing_required_release_columns_reports_missing_app(libconfluencetable
         "v104",  # same, with the usual leading "v"
     ],
 )
-def test_is_semver_compatible_accepts_valid_versions(libconfluencetables, version):
+def test_is_semver_compatible_accepts_valid_versions(libconfluencetables: ModuleType, version):
     assert libconfluencetables.is_semver_compatible(version) is True
 
 
@@ -613,22 +615,22 @@ def test_is_semver_compatible_accepts_valid_versions(libconfluencetables, versio
         "",
     ],
 )
-def test_is_semver_compatible_rejects_invalid_versions(libconfluencetables, version):
+def test_is_semver_compatible_rejects_invalid_versions(libconfluencetables: ModuleType, version):
     assert libconfluencetables.is_semver_compatible(version) is False
 
 
 # --- major_minor ---
 
 
-def test_major_minor_strips_patch_component(libconfluencetables):
+def test_major_minor_strips_patch_component(libconfluencetables: ModuleType):
     assert libconfluencetables.major_minor("4.9.0") == "4.9"
 
 
-def test_major_minor_finds_pattern_inside_a_label(libconfluencetables):
+def test_major_minor_finds_pattern_inside_a_label(libconfluencetables: ModuleType):
     assert libconfluencetables.major_minor("Versie 4.9") == "4.9"
     assert libconfluencetables.major_minor("v4.9.2-rc1") == "4.9"
 
 
-def test_major_minor_no_pattern_returns_none(libconfluencetables):
+def test_major_minor_no_pattern_returns_none(libconfluencetables: ModuleType):
     assert libconfluencetables.major_minor("unknown") is None
     assert libconfluencetables.major_minor("") is None

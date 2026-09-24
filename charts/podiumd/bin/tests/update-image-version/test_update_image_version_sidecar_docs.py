@@ -10,8 +10,13 @@ that module directly, same as tests/lib/test_image_version.py does)."""
 
 import subprocess
 
+from pathlib import Path
+from types import ModuleType
 
-def write_values(tmp_path, text):
+import pytest
+
+
+def write_values(tmp_path: Path, text):
     path = tmp_path / "values.yaml"
     path.write_text(text, encoding="utf-8")
     return path
@@ -36,7 +41,7 @@ def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
 
-def commit_baseline_tag(tmp_path, baseline):
+def commit_baseline_tag(tmp_path: Path, baseline):
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -56,7 +61,9 @@ REDIS_VALUES_TMPL = (
 )
 
 
-def test_main_sidecar_bump_gets_disambiguated_row_name(uiv, tmp_path, monkeypatch, capsys):
+def test_main_sidecar_bump_gets_disambiguated_row_name(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """redis-ha's own image lives under "redis-operator" but isn't that
     dependency's own registered primary image (image_paths_for defaults
     to just "image", which doesn't exist here) -- the row/section must
@@ -99,7 +106,9 @@ def test_main_sidecar_bump_gets_disambiguated_row_name(uiv, tmp_path, monkeypatc
     assert "(re)wrote '### redis-operator - redis ...' Changes section" in out
 
 
-def test_main_sidecar_bump_does_not_corrupt_dependencys_own_row(uiv, tmp_path, monkeypatch):
+def test_main_sidecar_bump_does_not_corrupt_dependencys_own_row(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """A pre-existing "redis-operator" row (the dependency's own,
     unrelated bump) must be left completely untouched by a redis-ha
     sidecar bump -- before the disambiguated name, find_component_row
@@ -136,7 +145,9 @@ def test_main_sidecar_bump_does_not_corrupt_dependencys_own_row(uiv, tmp_path, m
     assert "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |" in upgrade
 
 
-def test_main_sidecar_reset_to_baseline_uses_raw_values_key(uiv, tmp_path, monkeypatch):
+def test_main_sidecar_reset_to_baseline_uses_raw_values_key(
+    uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Resetting the sidecar bump back to its exact baseline version must
     still correctly detect "nothing left to document" -- reset_to_baseline
     is computed from compute_changed_components' own top-level-key set,

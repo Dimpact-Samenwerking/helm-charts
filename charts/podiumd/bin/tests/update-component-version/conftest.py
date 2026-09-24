@@ -31,7 +31,7 @@ import lib.component_docs.images_manifest_entries as component_docs_images_manif
 
 
 @pytest.fixture(scope="session")
-def ucv():
+def ucv() -> ModuleType:
     loader = SourceFileLoader("update_component_version", str(SCRIPT_PATH))
     spec = importlib.util.spec_from_file_location("update_component_version", SCRIPT_PATH, loader=loader)
     assert spec is not None
@@ -41,17 +41,17 @@ def ucv():
 
 
 @pytest.fixture(scope="session")
-def libcomponentdocschanges():
+def libcomponentdocschanges() -> ModuleType:
     return component_docs_changes_section
 
 
 @pytest.fixture(scope="session")
-def libcomponentdocsentries():
+def libcomponentdocsentries() -> ModuleType:
     return component_docs_images_manifest_entries
 
 
 @pytest.fixture(autouse=True)
-def block_real_subprocess_calls(monkeypatch):
+def block_real_subprocess_calls(monkeypatch: pytest.MonkeyPatch):
     """main() shells out to fix-helm-doc via subprocess.run — fake
     that (and anything else) here so a test can't accidentally run the real
     script against the real repo. git commands still run for real, since
@@ -72,7 +72,7 @@ def block_real_subprocess_calls(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def stub_ensure_vendored_dependencies(ucv, monkeypatch):
+def stub_ensure_vendored_dependencies(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
     """main() now calls lib.dependencies.ensure_vendored_dependencies
     first, but every main()-level test here runs against a fake chart
     directory with no vendored sub-charts at all. Stubbed to a no-op by

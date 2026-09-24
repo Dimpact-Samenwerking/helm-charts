@@ -2,6 +2,8 @@
 lib.chart.release_baseline_basics.chart_version and the lib.chart_lock
 loaders."""
 
+from pathlib import Path
+
 import pytest
 
 from lib.chart.chart_yaml import chart_dependencies
@@ -74,7 +76,7 @@ def test_parse_chart_yaml_names_the_problem(text, problem):
     assert str(excinfo.value) == f"Chart.yaml: {problem}"
 
 
-def test_load_chart_yaml_reads_file(tmp_path):
+def test_load_chart_yaml_reads_file(tmp_path: Path):
     path = tmp_path / "Chart.yaml"
     path.write_text(CHART_YAML, encoding="utf-8")
     assert load_chart_yaml(path)["name"] == "podiumd"
@@ -104,7 +106,7 @@ def test_parse_chart_app_version():
         parse_chart_app_version("appVersion: [1]\n", "Chart.yaml")
 
 
-def test_chart_version(tmp_path):
+def test_chart_version(tmp_path: Path):
     path = tmp_path / "Chart.yaml"
     path.write_text("version: 4.9.2\n", encoding="utf-8")
     assert chart_version(path) == "4.9.2"

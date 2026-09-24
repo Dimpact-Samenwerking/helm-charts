@@ -12,8 +12,10 @@ import io
 import tarfile
 
 from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
+import pytest
 import yaml
 
 from dep_helpers import make_dep
@@ -23,20 +25,20 @@ CHART_YAML = "apiVersion: v2\nname: podiumd\nversion: 0.0.1\n"
 VALUES_YAML = 'foo:\n  used: "abc"\n  dead: "xyz"\nrequired:\n  field: "present"\n'
 
 
-def make_chart_dir(tmp_path, values=VALUES_YAML):
+def make_chart_dir(tmp_path: Path, values=VALUES_YAML):
     (tmp_path / "Chart.yaml").write_text(CHART_YAML, encoding="utf-8")
     (tmp_path / "values.yaml").write_text(values, encoding="utf-8")
     return tmp_path
 
 
-def write_chart_yaml_with_deps(tmp_path, deps):
+def write_chart_yaml_with_deps(tmp_path: Path, deps):
     (tmp_path / "Chart.yaml").write_text(
         yaml.safe_dump({"apiVersion": "v2", "name": "podiumd", "version": "0.0.1", "dependencies": deps}),
         encoding="utf-8",
     )
 
 
-def write_chart_yaml_with_dep(tmp_path, dep):
+def write_chart_yaml_with_dep(tmp_path: Path, dep):
     write_chart_yaml_with_deps(tmp_path, [dep])
 
 
@@ -107,7 +109,7 @@ def fake_run(call_log=None):
 # --- flatten_leaves / candidate_leaf_paths (pure, no run()) ---
 
 
-def test_flatten_leaves_scalars_and_empty_containers(libdeadvaluescheck):
+def test_flatten_leaves_scalars_and_empty_containers(libdeadvaluescheck: ModuleType):
     values = {"a": {"b": "x", "c": None}, "d": {}, "e": [], "f": [1, 2]}
     leaves = dict(libdeadvaluescheck.flatten_leaves(values))
     assert leaves == {
@@ -119,13 +121,13 @@ def test_flatten_leaves_scalars_and_empty_containers(libdeadvaluescheck):
     }
 
 
-def test_candidate_leaf_paths_skips_null_values(libdeadvaluescheck):
+def test_candidate_leaf_paths_skips_null_values(libdeadvaluescheck: ModuleType):
     values = {"a": {"b": "x", "c": None}}
     paths = libdeadvaluescheck.candidate_leaf_paths(values)
     assert paths == [("a", "b")]
 
 
-def test_candidate_leaf_paths_no_longer_treats_zaakbrug_staging_specially(libdeadvaluescheck):
+def test_candidate_leaf_paths_no_longer_treats_zaakbrug_staging_specially(libdeadvaluescheck: ModuleType):
     """SUBCHART_VISIBILITY_EXEMPT has been removed entirely: zaakbrug's
     own "staging" subtree is now an ORDINARY candidate, null-tested like
     any other leaf — no special-casing left anywhere in this function."""
@@ -135,13 +137,13 @@ def test_candidate_leaf_paths_no_longer_treats_zaakbrug_staging_specially(libdea
     assert ("zaakbrug", "other") in paths
 
 
-def test_candidate_leaf_paths_skips_exempt_full_paths(libdeadvaluescheck):
+def test_candidate_leaf_paths_skips_exempt_full_paths(libdeadvaluescheck: ModuleType):
     values = {"zac": {"enabled": True, "used": "x"}}
     paths = libdeadvaluescheck.candidate_leaf_paths(values, {("zac", "enabled")})
     assert paths == [("zac", "used")]
 
 
-def test_condition_leaf_paths_reads_every_dependency_condition(libdeadvaluescheck, tmp_path):
+def test_condition_leaf_paths_reads_every_dependency_condition(libdeadvaluescheck: ModuleType, tmp_path: Path):
     write_chart_yaml_with_deps(
         tmp_path,
         [
@@ -157,7 +159,9 @@ def test_condition_leaf_paths_reads_every_dependency_condition(libdeadvalueschec
 # --- check_dead_values (mocked run) ---
 
 
-def test_check_dead_values_finds_the_one_dead_leaf(libdeadvaluescheck, tmp_path, monkeypatch, capsys):
+def test_check_dead_values_finds_the_one_dead_leaf(
+    libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libdeadvaluescheck, "run", fake_run())
 
@@ -171,7 +175,9 @@ def test_check_dead_values_finds_the_one_dead_leaf(libdeadvaluescheck, tmp_path,
     assert "required.field" not in out
 
 
-def test_check_dead_values_whole_subtree_confirmed_dead_in_one_render(libdeadvaluescheck, tmp_path, monkeypatch):
+def test_check_dead_values_whole_subtree_confirmed_dead_in_one_render(
+    libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Two leaves the fake model never reads at all — nulling both at once
     (the whole "foo" subtree, tested as one unit) still matches baseline,
     so both are confirmed dead without ever recursing into "foo"'s own
@@ -192,7 +198,9 @@ def test_check_dead_values_whole_subtree_confirmed_dead_in_one_render(libdeadval
     assert len(call_log) == 4
 
 
-def test_check_dead_values_deep_dead_subtree_confirmed_regardless_of_depth(libdeadvaluescheck, tmp_path, monkeypatch):
+def test_check_dead_values_deep_dead_subtree_confirmed_regardless_of_depth(
+    libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """The whole point of testing top-down: "bar"'s two dead leaves sit 4
     levels deep, but since NEITHER is ever read, nulling the entire "bar"
     subtree in one render already matches baseline — no need to recurse
@@ -218,7 +226,9 @@ def test_check_dead_values_deep_dead_subtree_confirmed_regardless_of_depth(libde
     assert len(call_log) == 5
 
 
-def test_check_dead_values_nothing_dead_prints_ok(libdeadvaluescheck, tmp_path, monkeypatch, capsys):
+def test_check_dead_values_nothing_dead_prints_ok(
+    libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     chart_dir = make_chart_dir(tmp_path, values='foo:\n  used: "abc"\n')
     monkeypatch.setattr(libdeadvaluescheck, "run", fake_run())
 
@@ -230,7 +240,7 @@ def test_check_dead_values_nothing_dead_prints_ok(libdeadvaluescheck, tmp_path, 
 
 
 def test_check_dead_values_zaakbrug_staging_is_now_an_ordinary_dead_finding(
-    libdeadvaluescheck, tmp_path, monkeypatch, capsys
+    libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     """SUBCHART_VISIBILITY_EXEMPT removed: zaakbrug.staging is no longer
     special-cased at all — it's just another leaf the fake model never
@@ -263,7 +273,9 @@ def test_check_dead_values_zaakbrug_staging_is_now_an_ordinary_dead_finding(
     assert "policy" not in out
 
 
-def test_check_dead_values_baseline_render_failure_is_skipped_not_failed(libdeadvaluescheck, tmp_path, monkeypatch):
+def test_check_dead_values_baseline_render_failure_is_skipped_not_failed(
+    libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     chart_dir = make_chart_dir(tmp_path)
 
     def always_fail(cmd, **kwargs):
@@ -315,14 +327,16 @@ def fake_run_scoped(call_log=None, *, full_reads_dead=False):
     return run
 
 
-def make_scoped_chart_dir(tmp_path):
+def make_scoped_chart_dir(tmp_path: Path):
     write_chart_yaml_with_dep(tmp_path, make_dep("zac", "1.0.0"))
     make_tgz(tmp_path / "charts", "zac", "1.0.0")
     (tmp_path / "values.yaml").write_text('zac:\n  used: "abc"\n  dead: "xyz"\n', encoding="utf-8")
     return tmp_path
 
 
-def test_check_dead_values_uses_scoped_render_for_matching_dependency(libdeadvaluescheck, tmp_path, monkeypatch):
+def test_check_dead_values_uses_scoped_render_for_matching_dependency(
+    libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     chart_dir = make_scoped_chart_dir(tmp_path)
     call_log = []
     monkeypatch.setattr(libdeadvaluescheck, "run", fake_run_scoped(call_log))
@@ -334,7 +348,9 @@ def test_check_dead_values_uses_scoped_render_for_matching_dependency(libdeadval
     assert any(cmd[2] == "zac" for cmd in call_log), "expected at least one scoped (zac) render"
 
 
-def test_check_dead_values_safety_net_rejects_scoped_false_positive(libdeadvaluescheck, tmp_path, monkeypatch):
+def test_check_dead_values_safety_net_rejects_scoped_false_positive(
+    libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """zac.dead looks dead to zac's own isolated render, but the (faked)
     full chart actually reads it — the confirmation pass against the
     real full-chart baseline must catch this and NOT report it."""
@@ -347,7 +363,9 @@ def test_check_dead_values_safety_net_rejects_scoped_false_positive(libdeadvalue
     assert detail == "0/2 dead"
 
 
-def test_check_dead_values_never_nulls_a_dependencys_own_condition_leaf(libdeadvaluescheck, tmp_path, monkeypatch):
+def test_check_dead_values_never_nulls_a_dependencys_own_condition_leaf(
+    libdeadvaluescheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """zac.enabled is Chart.yaml's own "condition:" for the zac
     dependency — real, measured bug: a standalone render of a
     dependency has no parent to gate, so nulling this ONE leaf within
@@ -378,7 +396,7 @@ def test_check_dead_values_never_nulls_a_dependencys_own_condition_leaf(libdeadv
         assert zac_view.get("enabled") is not None, f"zac.enabled was nulled in {overlay}"
 
 
-def test_resolve_scope_prefers_own_scope_without_matching_dependency(libdeadvaluescheck, tmp_path):
+def test_resolve_scope_prefers_own_scope_without_matching_dependency(libdeadvaluescheck: ModuleType, tmp_path: Path):
     own_scope = {"chart_name": "podiumd", "baseline_docs": []}
     full_scope = {"chart_name": "podiumd", "baseline_docs": []}
     context = libdeadvaluescheck.ScopeResolutionContext(tmp_path, {}, {}, own_scope, full_scope)
@@ -386,14 +404,16 @@ def test_resolve_scope_prefers_own_scope_without_matching_dependency(libdeadvalu
     assert scope is own_scope
 
 
-def test_resolve_scope_falls_back_to_full_scope_without_matching_dependency_or_own_scope(libdeadvaluescheck, tmp_path):
+def test_resolve_scope_falls_back_to_full_scope_without_matching_dependency_or_own_scope(
+    libdeadvaluescheck: ModuleType, tmp_path: Path
+):
     full_scope = {"chart_name": "podiumd", "baseline_docs": []}
     context = libdeadvaluescheck.ScopeResolutionContext(tmp_path, {}, {}, None, full_scope)
     scope = libdeadvaluescheck._resolve_scope(context, "keycloak")
     assert scope is full_scope
 
 
-def test_resolve_scope_falls_back_to_full_scope_without_vendored_tgz(libdeadvaluescheck, tmp_path):
+def test_resolve_scope_falls_back_to_full_scope_without_vendored_tgz(libdeadvaluescheck: ModuleType, tmp_path: Path):
     full_scope = {"chart_name": "podiumd", "baseline_docs": []}
     dep_by_key = {"zac": make_dep("zac", "1.0.0")}
     context = libdeadvaluescheck.ScopeResolutionContext(tmp_path, {"zac": {"a": "b"}}, dep_by_key, None, full_scope)
@@ -401,14 +421,14 @@ def test_resolve_scope_falls_back_to_full_scope_without_vendored_tgz(libdeadvalu
     assert scope is full_scope
 
 
-def test_dependency_by_key_uses_alias_when_present(libdeadvaluescheck, tmp_path):
+def test_dependency_by_key_uses_alias_when_present(libdeadvaluescheck: ModuleType, tmp_path: Path):
     write_chart_yaml_with_dep(tmp_path, make_dep("zaakafhandelcomponent", "1.0.0", alias="zac"))
     dep_by_key = libdeadvaluescheck._dependency_by_key(tmp_path)
     assert "zac" in dep_by_key
     assert dep_by_key["zac"]["name"] == "zaakafhandelcomponent"
 
 
-def test_load_merged_values_layers_extra_args_over_values_yaml(libdeadvaluescheck, tmp_path):
+def test_load_merged_values_layers_extra_args_over_values_yaml(libdeadvaluescheck: ModuleType, tmp_path: Path):
     (tmp_path / "values.yaml").write_text("foo:\n  a: 1\n  b: 2\n", encoding="utf-8")
     overlay_path = tmp_path / "overlay.yaml"
     overlay_path.write_text("foo:\n  b: 3\n  c: 4\n", encoding="utf-8")

@@ -18,8 +18,11 @@ considered live whenever anything renders at all."""
 import io
 import tarfile
 
+from pathlib import Path
+from types import ModuleType
 from types import SimpleNamespace
 
+import pytest
 import yaml
 
 from dep_helpers import make_dep
@@ -81,7 +84,7 @@ def render_stdout(chart_tree_paths):
     return "".join(f"# Source: {p}/templates/x.yaml\n" for p in chart_tree_paths)
 
 
-def stub_render(monkeypatch, libdigestpinningcheck, chart_tree_paths, returncode=0):
+def stub_render(monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType, chart_tree_paths, returncode=0):
     """Replaces check_subchart_image_visibility's own render_chart call
     (see lib.checks.digest_pinning's "from lib.render_scope import ...
     render_chart" binding — must be patched on THAT module, not vp/
@@ -97,7 +100,13 @@ def stub_render(monkeypatch, libdigestpinningcheck, chart_tree_paths, returncode
     )
 
 
-def test_global_image_with_zero_consumers_fails(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_global_image_with_zero_consumers_fails(
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
+):
     write_chart_yaml(tmp_path, [])
     write_values_yaml(
         tmp_path,
@@ -120,7 +129,13 @@ global:
     assert "global.images.nginx (0 real consumer(s)):" in out
 
 
-def test_global_image_with_exactly_one_consumer_fails(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_global_image_with_exactly_one_consumer_fails(
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
+):
     """Exactly one real consumer is still under-used — a shared anchor
     with only one alias site is no different from just setting the
     value directly there."""
@@ -152,7 +167,13 @@ zac:
     assert "zac.curl.image" in out
 
 
-def test_global_image_with_two_or_more_consumers_passes(vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys):
+def test_global_image_with_two_or_more_consumers_passes(
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
+):
     """2+ real consumers is genuinely shared -- working as intended,
     still worth seeing the full consumer list for, but report only."""
     write_chart_yaml(tmp_path, [])
@@ -191,7 +212,11 @@ frankgateway:
 
 
 def test_global_image_consumer_under_a_genuinely_enabled_dependency_counts_normally(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """The flip side of the render-gate regression tests below: a path
     under a genuinely ENABLED dependency (its own chart-tree path DOES
@@ -230,7 +255,11 @@ frankgateway:
 
 
 def test_global_image_zero_live_consumers_because_nested_dependency_tags_disabled_fails(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """The exact real bug this render-gate fixes, confirmed live against
     the real chart: every Maykin chart's own "<name>.redis.image"
@@ -286,7 +315,11 @@ openzaak:
 
 
 def test_non_global_repository_shared_at_two_or_more_paths_never_fails(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A repository shared incidentally (NOT a global.images.*
     registration at all -- e.g. keycloak/keycloak-shaped) is never a
@@ -321,7 +354,11 @@ keycloak:
 
 
 def test_check_shared_image_usage_does_not_report_a_single_use_repository_as_shared(
-    vp, tmp_path, monkeypatch, libdigestpinningcheck, capsys
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
 ):
     """A repository pinned at exactly one path isn't "shared" in any
     interesting sense -- no false-positive noise for the common case."""
@@ -345,7 +382,9 @@ zac:
     assert "FAILING" not in out
 
 
-def test_check_shared_image_usage_render_failure(vp, tmp_path, monkeypatch, libdigestpinningcheck):
+def test_check_shared_image_usage_render_failure(
+    vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
+):
     write_chart_yaml(tmp_path, [])
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, [], returncode=1)
@@ -356,7 +395,7 @@ def test_check_shared_image_usage_render_failure(vp, tmp_path, monkeypatch, libd
     assert "helm template failed to render" in detail
 
 
-def test_global_image_usage_excludes_single_use_repos(libdigestpinningcheck, tmp_path):
+def test_global_image_usage_excludes_single_use_repos(libdigestpinningcheck: ModuleType, tmp_path: Path):
     write_values_yaml(
         tmp_path,
         f"""\
@@ -373,7 +412,7 @@ zac:
     assert libdigestpinningcheck._non_global_shared_repo_groups(values, repo_groups, {}) == {}
 
 
-def test_global_image_usage_finds_multi_path_repos(libdigestpinningcheck, tmp_path):
+def test_global_image_usage_finds_multi_path_repos(libdigestpinningcheck: ModuleType, tmp_path: Path):
     write_values_yaml(
         tmp_path,
         f"""\
@@ -397,18 +436,20 @@ zac:
     assert usage[("global", "images", "curl")] == [("zac", "curl", "image")]
 
 
-def test_path_chart_tree_path_orphan_key_is_always_chart_name(libdigestpinningcheck, tmp_path):
+def test_path_chart_tree_path_orphan_key_is_always_chart_name(libdigestpinningcheck: ModuleType, tmp_path: Path):
     assert libdigestpinningcheck._path_chart_tree_path(tmp_path, [], ("global", "images", "nginx")) == "podiumd"
 
 
-def test_path_chart_tree_path_dependency_resolves_via_resolve_subchart_default(libdigestpinningcheck, tmp_path):
+def test_path_chart_tree_path_dependency_resolves_via_resolve_subchart_default(
+    libdigestpinningcheck: ModuleType, tmp_path: Path
+):
     deps = [make_dep("openzaak", "1.14.2")]
     assert (
         libdigestpinningcheck._path_chart_tree_path(tmp_path, deps, ("openzaak", "image")) == "podiumd/charts/openzaak"
     )
 
 
-def test_live_repository_groups_drops_dead_consumer_paths(libdigestpinningcheck, tmp_path):
+def test_live_repository_groups_drops_dead_consumer_paths(libdigestpinningcheck: ModuleType, tmp_path: Path):
     """The render-gate primitive check_shared_image_usage's own
     consumer counting is built on: a path whose own chart-tree path
     never rendered is dropped entirely, not just from a count."""
