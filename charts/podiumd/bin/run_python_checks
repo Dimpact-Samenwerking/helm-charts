@@ -2,8 +2,8 @@
 #
 # Runs every check from README-coding.md's own "Before committing" section,
 # stopping at the first failure. Ordered fastest-first (measured, not
-# guessed): ruff check (~0.03s) -> ruff format --check (~0.05s) -> vulture
-# (~0.5s) -> bandit (~1.7s) -> pylint (~6s) -> basedpyright (~8.6s) ->
+# guessed): ruff check (~0.03s) -> ruff format --check (~0.05s) ->
+# pymarkdown (~0.5s) -> vulture (~0.5s) -> bandit (~1.7s) -> pylint (~6s) -> basedpyright (~8.6s) ->
 # pytest (the full suite, ~2-3 minutes) -- so a real problem in the cheap
 # checks fails in well under a second instead of waiting on the full test
 # run first. See README-coding.md for what each one covers and why.
@@ -13,8 +13,8 @@ usage() {
     cat <<'EOF'
 Usage: run_python_checks [-h|--help]
 
-Runs ruff check, ruff format --check, vulture, bandit, pylint, basedpyright,
-and pytest against this charts/podiumd/bin/ toolset, fastest first, stopping
+Runs ruff check, ruff format --check, pymarkdown, vulture, bandit, pylint,
+basedpyright, and pytest against this charts/podiumd/bin/ toolset, fastest first, stopping
 at the first failure. Must be run from charts/podiumd/bin/ itself (or
 invoked as ./run_python_checks from there) -- see README-coding.md.
 EOF
@@ -38,6 +38,17 @@ ruff check . $(python_scripts)
 
 echo "=== ruff format --check ==="
 ruff format --check . $(python_scripts)
+
+# Same rules and plugin settings as verify-podiumd's markdown check, read
+# from lib so the two can't drift. That check skips bin/, so bin/'s own
+# docs are linted here.
+echo "=== pymarkdown (bin/*.md) ==="
+mapfile -t pymarkdown_args < <(python3 -c '
+from lib.chart.paths import CHART_DIR
+from lib.checks.markdown import MARKDOWN_PLUGIN_SETTINGS
+from lib.settings import quality_gates_markdown_disabled_rules
+print("-d", ",".join(quality_gates_markdown_disabled_rules(CHART_DIR)), *MARKDOWN_PLUGIN_SETTINGS, sep="\n")')
+pymarkdown "${pymarkdown_args[@]}" scan ./*.md
 
 # vulture never connects a TypedDict key read only by string key
 # (row["app"]) to its declaration, so every field of every TypedDict class

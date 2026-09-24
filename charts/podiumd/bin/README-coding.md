@@ -6,6 +6,7 @@ the test suite and the linters. For installing the tools themselves (`ruff`,
 [README-release-process.md's own Setup section](README-release-process.md#setup).
 
 ## Table of contents
+
 - [Running the tests](#running-the-tests)
 - [Running the linters](#running-the-linters)
   - [ruff (lint + format)](#ruff-lint--format)
@@ -197,17 +198,21 @@ cd charts/podiumd/bin
 ```
 
 Runs everything above fastest-first, stopping at the first failure: `ruff
-check` (~0.03s) → `ruff format --check` (~0.05s) → `vulture` (~0.5s) →
+check` (~0.03s) → `ruff format --check` (~0.05s) → `pymarkdown` (~0.5s) →
+`vulture` (~0.5s) →
 `bandit` (~1.7s) → `pylint` (~6s) → `basedpyright` (~8.6s) → `pytest` (the
 full suite, ~2-3 minutes) — measured, not guessed, so a real problem in the
 cheap checks fails in well under a second instead of waiting on the full
 test run first. Equivalent to running each command from the sections above
-by hand, in this order:
+by hand, in this order (`pymarkdown` lints this directory's own `*.md`
+docs, with the same rules as `verify-podiumd`'s markdown check, which skips
+`bin/`):
 
 ```bash
 cd charts/podiumd/bin
 ruff check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 ruff format --check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+pymarkdown -d md013,md014 -s 'plugins.md024.siblings_only=$!True' scan ./*.md
 vulture lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 bandit -c pyproject.toml -r lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) -q
 pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
@@ -216,7 +221,7 @@ basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x
 python3 -m pytest -q
 ```
 
-A failing `pytest` run or a `ruff check`/`pylint`/`bandit`/`basedpyright`
+A failing `pytest` run or a `ruff check`/`pymarkdown`/`pylint`/`bandit`/`basedpyright`
 finding introduced by your own change should be fixed before committing; a
 pre-existing finding you didn't touch is fine to leave (see this repo's own
 git history — findings get worked through in batches, not all at once).
