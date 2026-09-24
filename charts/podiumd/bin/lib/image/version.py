@@ -11,6 +11,7 @@ component name and the image name are not always the same (e.g.
 zgw-office-addin bumps two distinctly-named images, frontend + backend)."""
 
 from pathlib import Path
+from typing import TypeVar
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.values_tree_primitives import dotted_key_path
@@ -18,6 +19,8 @@ from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import same_name
 from lib.chart.values_tree_primitives import values_key_of
+from lib.image.digests import DigestPin
+from lib.image.digests import VersionPin
 from lib.image.digests import scan_digest_pins
 from lib.image.digests import scan_version_pins
 from lib.registry import parse_repo
@@ -94,7 +97,10 @@ def basenames_under_scope_any_tag(lines: list, scope_key: str):
     return _group_by_basename_in_scope(lines, scan_version_pins(lines), scope_key)
 
 
-def _group_by_basename_in_scope(lines: list[str], pins: list[dict], scope_key: str) -> dict[str, list[dict]]:
+PinT = TypeVar("PinT", DigestPin, VersionPin)
+
+
+def _group_by_basename_in_scope(lines: list[str], pins: list[PinT], scope_key: str) -> dict[str, list[PinT]]:
     """{basename: [pin, ...]} for the `pins` whose values.yaml path is
     under top-level `scope_key` (ignoring case, like find_matches_in_
     scope) and ends in "...tag"."""
