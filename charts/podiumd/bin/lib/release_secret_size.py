@@ -83,8 +83,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from pathlib import PurePosixPath
 
-import yaml
-
+from lib.chart.chart_yaml import chart_dependency_problem
+from lib.chart.chart_yaml import dependencies_problem
+from lib.chart.chart_yaml import is_chart_dependency_list
+from lib.chart.values_tree_primitives import text_at
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
 from lib.render_scope import render_chart
@@ -92,7 +94,9 @@ from lib.settings import release_secret_kubernetes_limit_bytes
 from lib.settings import release_secret_warn_at_fraction_of_limit
 from lib.settings import render_report_default_output_file_name
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import YamlShapeError
 from lib.yaml_types import load_yaml_mapping
+from lib.yaml_types import parse_yaml_mapping
 
 
 def b64(data: bytes):
@@ -137,7 +141,10 @@ def packaged_files(chart_dir: Path):
     return out
 
 
-def check_subchart_freshness(chart_dir: Path, metadata: dict):
+CHART_YAML_SOURCE = "Chart.yaml"
+
+
+def check_subchart_freshness(chart_dir: Path, metadata: YamlMapping):
     """`helm package` (as used by packaged_files()) bundles whatever is
     already vendored under <chart_dir>/charts/ as-is — it does NOT run
     `helm dependency update` first. If Chart.yaml's declared dependency
@@ -153,9 +160,13 @@ def check_subchart_freshness(chart_dir: Path, metadata: dict):
     callers regardless of where they want a warning to land."""
     charts_subdir = chart_dir / "charts"
     vendored = list(charts_subdir.glob("*.tgz")) if charts_subdir.is_dir() else []
-    warnings = []
-    for dep in metadata.get("dependencies") or []:
-        name, version = dep.get("name"), dep.get("version")
+    deps = metadata.get("dependencies")
+    if deps is not None and not is_chart_dependency_list(deps):
+        problem = dependencies_problem(metadata, chart_dependency_problem, required=False) or "invalid dependencies"
+        raise YamlShapeError(CHART_YAML_SOURCE, problem)
+    warnings: list[str] = []
+    for dep in deps or []:
+        name, version = dep["name"], dep["version"]
         if not name or not version:
             continue
         matches = [p for p in vendored if p.name.startswith(f"{name}-")]
@@ -213,10 +224,10 @@ def build_release(chart_dir: Path, values_override: YamlMapping | None, manifest
     entirely — an under-count for that chart) — ready-to-print strings,
     no prefix, same convention as check_subchart_freshness's own return."""
     paths = packaged_files(chart_dir)
-    metadata = load_yaml_bytes(paths["Chart.yaml"])
-    values = load_yaml_bytes(paths["values.yaml"]) if "values.yaml" in paths else {}
+    metadata = load_yaml_bytes(paths["Chart.yaml"], "Chart.yaml")
+    values = load_yaml_bytes(paths["values.yaml"], "values.yaml") if "values.yaml" in paths else {}
     schema_b64 = b64(paths["values.schema.json"]) if "values.schema.json" in paths else None
-    lock = load_yaml_bytes(paths["Chart.lock"]) if "Chart.lock" in paths else None
+    lock = load_yaml_bytes(paths["Chart.lock"], "Chart.lock") if "Chart.lock" in paths else None
     templates, files = bucket_files(paths)
 
     warnings = list(check_subchart_freshness(chart_dir, metadata))
@@ -227,7 +238,7 @@ def build_release(chart_dir: Path, values_override: YamlMapping | None, manifest
         )
 
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    release = {
+    release: dict[str, object] = {
         "name": name,
         "info": {
             "first_deployed": now,
@@ -251,15 +262,14 @@ def build_release(chart_dir: Path, values_override: YamlMapping | None, manifest
     }
     if values_override is not None:
         release["config"] = values_override
-    return release, metadata.get("version", "unknown"), warnings
+    return release, text_at(metadata, "version") or "unknown", warnings
 
 
-def load_yaml_bytes(data: bytes):
-    """yaml.safe_load applied to a vendored-tgz member's raw bytes (see
-    packaged_files) — the same parse lib.yaml_types does for a real
-    file, just against bytes already read out of the tar archive rather
-    than a path, so this doesn't need a temp file on disk for each one."""
-    return yaml.safe_load(data.decode("utf-8")) or {}
+def load_yaml_bytes(data: bytes, source: str) -> YamlMapping:
+    """parse_yaml_mapping of a packaged chart member's raw bytes (see
+    packaged_files), read out of the tar archive rather than from a path,
+    so this doesn't need a temp file on disk for each one."""
+    return parse_yaml_mapping(data.decode("utf-8"), source)
 
 
 @dataclass
@@ -276,7 +286,7 @@ class SecretSizeEstimate:
     secret_limit: int
 
 
-def encoded_secret_size(release: dict, secret_limit: int):
+def encoded_secret_size(release: dict[str, object], secret_limit: int):
     """SecretSizeEstimate for `release` (see build_release) — encoded_len's
     fraction of `secret_limit` (see release_secret.kubernetes_secret_limit_
     bytes in lib.settings)."""
