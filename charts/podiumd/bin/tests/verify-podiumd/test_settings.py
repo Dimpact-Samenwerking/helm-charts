@@ -1,12 +1,15 @@
-"""lib.settings — every etc/settings.yaml accessor. Three shapes exercised
-per accessor: (a) no settings.yaml at all -> documented hard-coded
-default, (b) a full settings.yaml -> the YAML-provided value, correctly
-typed, (c) a PARTIAL settings.yaml (only some top-level sections
-present) -> keys/sections present are read from it, keys/sections
-absent fall back to their own default, without crashing. A last test
-confirms a chart_dir with no etc/ directory at all doesn't crash
-_load_settings either — mirrors lib.chart._release_baselines' own
-tolerance for a missing etc/release-baseline.yaml."""
+"""lib.settings — every etc/settings.yaml accessor. Every accessor in
+ACCESSOR_CASES gets shapes (a) no settings.yaml at all -> documented
+hard-coded default, and (b) a full settings.yaml -> the YAML-provided
+value, correctly typed. Shape (c), a PARTIAL settings.yaml (only some
+top-level sections present) -> keys/sections present are read from it,
+keys/sections absent fall back to their own default without crashing, is
+only exercised for dry_check/cve_scan/release_secret (8 of 33 accessors)
+— the other, mostly dict/tuple/list/frozenset-valued accessors don't have
+their own partial-file case yet. A last test confirms a chart_dir with no
+etc/ directory at all doesn't crash _load_settings either — mirrors
+lib.chart._release_baselines' own tolerance for a missing
+etc/release-baseline.yaml."""
 
 from pathlib import Path
 from types import ModuleType
@@ -221,8 +224,8 @@ def test_full_settings_file_overrides_every_default(libsettings: ModuleType, tmp
 
 def test_partial_settings_file_mixes_overrides_and_defaults(libsettings: ModuleType, tmp_path: Path):
     """Only dry_check is present — every dry_check accessor reads its
-    override, every other accessor (including ones in wholly-absent
-    sections like cve_scan) falls back to its default without crashing."""
+    override; cve_scan (wholly absent) and release_secret (present below,
+    missing one key) fall back to their own defaults without crashing."""
     write_settings(
         tmp_path,
         {

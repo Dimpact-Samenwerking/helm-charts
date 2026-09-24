@@ -103,17 +103,22 @@ def sequenced_run(own_objects, vendored_objects_by_chart=None, ks_returncode=1):
     """check_kube_score's own remaining run([...]) calls are ALL
     "kube-score" now (the render moved to render_chart, see
     _default_render above): one call for this chart's own text, then one
-    per distinct vendored chart found in the render."""
+    per distinct vendored chart found in the render. Raises on any call
+    beyond that expected count instead of silently returning an empty
+    result — a real over-invocation bug must fail loudly, not blend into
+    a passing "0 findings" result."""
     vendored_objects_by_chart = vendored_objects_by_chart or {}
+    chart_calls = sorted(vendored_objects_by_chart.keys())
     calls = {"n": 0}
 
     def run(cmd, **kwargs):
         calls["n"] += 1
         if calls["n"] == 1:
             return ks_result(own_objects, returncode=ks_returncode)
-        chart_calls = sorted(vendored_objects_by_chart.keys())
-        chart = chart_calls[calls["n"] - 2] if calls["n"] - 2 < len(chart_calls) else None
-        return ks_result(vendored_objects_by_chart.get(chart, []), returncode=ks_returncode)
+        index = calls["n"] - 2
+        if index >= len(chart_calls):
+            pytest.fail(f"unexpected extra kube-score call #{calls['n']} (expected {1 + len(chart_calls)})")
+        return ks_result(vendored_objects_by_chart[chart_calls[index]], returncode=ks_returncode)
 
     return run
 
@@ -239,7 +244,11 @@ def test_check_kube_score_own_finding_fails(
                         )
                     ],
                 ),
-            ]
+            ],
+            # RENDERED's own zac sub-chart resource still triggers a second,
+            # per-vendored-chart run (see sequenced_run's own docstring) —
+            # empty here since this test doesn't care about zac's findings.
+            vendored_objects_by_chart={"zac": []},
         ),
     )
 
@@ -266,7 +275,8 @@ def test_check_kube_score_ignores_non_resource_checks(
         sequenced_run(
             own_objects=[
                 ks_object("Deployment", "foo", [other_check(), resource_check(10)]),
-            ]
+            ],
+            vendored_objects_by_chart={"zac": []},
         ),
     )
 

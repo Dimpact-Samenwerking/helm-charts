@@ -123,9 +123,9 @@ def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(
     vp: ModuleType, libdrycheck: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
     """Regression pin: the confirmed real-world dedup win (9 pre-refactor
-    storage.yaml files, factored into podiumd.storagePVC) scored ~0.82
+    storage.yaml files, factored into podiumd.storagePVC) scored ~0.89
     similar — differing only by the literal component name substituted in
-    ~9 of 65 lines. If high_similarity_threshold ever creeps above that,
+    7 of 65 lines. If high_similarity_threshold ever creeps above that,
     this exact case silently falls back to "borderline" advice, which is
     wrong — it's not a judgment call, it was a real duplicate."""
     a = list(BASE_LINES) * 6 + BASE_LINES[:5]  # 65 lines, same shape as the real file pair
@@ -135,7 +135,7 @@ def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(
 
     ratio = difflib.SequenceMatcher(None, a, b).ratio()
     assert ratio >= libdrycheck.dry_check_high_similarity_threshold(tmp_path), (
-        f"test fixture ratio {ratio} no longer represents the real ~0.82 storage-file case"
+        f"test fixture ratio {ratio} no longer represents the real ~0.89 storage-file case"
     )
 
     ok, _detail = vp.check_dry(tmp_path)
