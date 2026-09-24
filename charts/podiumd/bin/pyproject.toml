@@ -252,12 +252,6 @@ sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 #   - handle_starttag, handle_endtag, handle_data: _TableExtractor's own
 #     HTMLParser method overrides in lib/confluence_tables.py, dispatched
 #     by name from HTMLParser.feed() itself.
-#   - apiVersion, appVersion, generated, app, target_app, target_chart,
-#     baseline_resolved, baseline_docs, VulnerabilityID, PkgName, Severity,
-#     vulnerabilities: TypedDict keys (ChartYaml, ChartLock, VersionRow,
-#     ResolvedRow, RenderScope, Vulnerability, CveEntry) the code reads
-#     and writes only by string key (row["app"]), which vulture does not
-#     connect to the declaration.
 [tool.vulture]
 ignore_names = [
     "pull_chart_values",
@@ -265,19 +259,7 @@ ignore_names = [
     "clear_tag_exists_cache",
     "handle_starttag",
     "handle_endtag",
-    "handle_data",
-    "apiVersion",
-    "appVersion",
-    "generated",
-    "app",
-    "target_app",
-    "target_chart",
-    "baseline_resolved",
-    "baseline_docs",
-    "VulnerabilityID",
-    "PkgName",
-    "Severity",
-    "vulnerabilities",
+    "handle_data"
 ]
 
 [tool.bandit]

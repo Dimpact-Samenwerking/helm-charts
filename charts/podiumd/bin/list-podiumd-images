@@ -194,7 +194,7 @@ def deep_merge(base: object, override: object) -> Any:
     return override if override is not None else base
 
 
-def resolution_note(values_lines: list, key: str, basename: str):
+def resolution_note(values_lines: list[str], key: str, basename: str):
     """None if <key> <basename> is real, resolvable input for update-
     image-version/verify-image-version/show-image-baseline-version (see
     lib.image.version.resolve_scoped_matches) — otherwise a short hint

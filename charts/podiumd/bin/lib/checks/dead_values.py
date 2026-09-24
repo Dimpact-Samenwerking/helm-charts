@@ -295,10 +295,16 @@ def _condition_leaf_paths(chart_dir: Path):
     return paths
 
 
-def _set_null(tree: dict, path: tuple[str, ...]):
+def _set_null(tree: YamlMapping, path: tuple[str, ...]):
+    """Set the value at `path` in `tree` to None, creating (or replacing a
+    non-mapping value by) an empty mapping at each level on the way."""
     node = tree
     for key in path[:-1]:
-        node = node.setdefault(key, {})
+        child = node.get(key)
+        if not isinstance(child, dict):
+            child = {}
+            node[key] = child
+        node = child
     node[path[-1]] = None
 
 
@@ -409,7 +415,7 @@ def _helm_template(chart_name: str, chart_path: Path, extra_args: list, overlay_
     return run(args, capture_output=True, text=True)
 
 
-def _render(chart_name: str, chart_path: Path, extra_args: list, overlay_path: Path):
+def _render(chart_name: str, chart_path: Path, extra_args: list[str], overlay_path: Path):
     """Parsed multi-doc render (see _parsed_docs) of `chart_name` at
     `chart_path` (the full podiumd chart dir, or one vendored sub-chart's
     own .tgz — see _resolve_scope) with extra_args plus an extra "-f
@@ -424,7 +430,7 @@ def _render(chart_name: str, chart_path: Path, extra_args: list, overlay_path: P
 RenderT = TypeVar("RenderT")
 
 
-def _with_overlay_file(overlay: dict, render_fn: Callable[[Path], RenderT]) -> RenderT:
+def _with_overlay_file(overlay: YamlMapping, render_fn: Callable[[Path], RenderT]) -> RenderT:
     """Dump `overlay` to a throwaway temp file and call
     render_fn(overlay_path) — the file is always cleaned up, even if
     render_fn raises."""

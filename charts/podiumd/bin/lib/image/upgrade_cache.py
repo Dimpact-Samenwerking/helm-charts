@@ -25,20 +25,16 @@ CACHE_FILENAME = "image-upgrade-cache.json"
 
 class UpgradeEntry(TypedDict):
     """One image-upgrade-cache.json entry: when the tag list was checked
-    and the newest same-variant tag found then (None: none newer)."""
+    and the newest same-variant tag found then (the pinned version itself
+    when nothing newer is published)."""
 
     checked_at: str
-    newest: str | None
+    newest: str
 
 
 def is_upgrade_entry(value: object) -> TypeGuard[UpgradeEntry]:
     """Whether a parsed cache entry is an UpgradeEntry."""
-    return (
-        isinstance(value, dict)
-        and isinstance(value.get("checked_at"), str)
-        and "newest" in value
-        and (value["newest"] is None or isinstance(value["newest"], str))
-    )
+    return isinstance(value, dict) and isinstance(value.get("checked_at"), str) and isinstance(value.get("newest"), str)
 
 
 def cache_path(chart_dir: Path):

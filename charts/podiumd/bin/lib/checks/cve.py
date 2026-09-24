@@ -197,6 +197,17 @@ def is_cve_entry(value: object) -> TypeGuard[CveEntry]:
     return isinstance(vulns, list) and all(isinstance(v, dict) and _vulnerability(v) == v for v in vulns)
 
 
+class ImageCves(TypedDict):
+    """One scanned image in the CVE report: its bucket ("own", "partner",
+    "other"), vendor label (partner only), findings and the newer tag the
+    upgrade cache knows (None: none known)."""
+
+    bucket: str
+    vendor_label: str | None
+    vulns: list[Vulnerability]
+    upgradable_to: str | None
+
+
 @dataclass
 class ScanTarget:
     """repository/digest/ref — the image scan_cached is being asked to
@@ -427,7 +438,7 @@ def classify_by_key(top_level_key: str | None, dep_names: set, vendor_map: dict)
     return vendor_map.get(top_level_key, "other")
 
 
-def bucket_of(label: str):
+def bucket_of(label: str) -> str:
     """Collapse a classify_source/classify_by_key label into one of the
     three report buckets: "own"/"other" pass through unchanged, and any
     specific vendor label collapses to "partner" — see print_bucket_report's
@@ -558,7 +569,7 @@ def _target_label(repository: str, version: str, digest: str, line: int, context
     return classify_by_key(top_key, context.classification.dep_names, context.classification.vendor_map)
 
 
-def _upgradable_to(repository: str, version: str, context: ScanContext):
+def _upgradable_to(repository: str, version: str, context: ScanContext) -> str | None:
     """The newer tag lib.image.upgrade_check's own cache reports for
     this (repository, version), or None if there's no fresh entry, or
     the freshest known tag IS the one already pinned."""
@@ -596,7 +607,7 @@ def _scan_one_target(repo_version: tuple[str, ...], digest_line: tuple, index: i
     if vulns is None:
         return image_ref, None, False
 
-    entry = {
+    entry: ImageCves = {
         "bucket": bucket_of(label),
         "vendor_label": label if bucket_of(label) == "partner" else None,
         "vulns": vulns,

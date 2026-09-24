@@ -302,7 +302,7 @@ def _is_more_specific_tag(candidate: str, version: str):
     return cand_suffix == ver_suffix or cand_suffix.startswith(ver_suffix)
 
 
-def find_newest_same_variant_tag(registry_host: str, repo: str, version: str):
+def find_newest_same_variant_tag(registry_host: str, repo: str, version: str) -> str:
     """The numerically-highest published tag sharing version's suffix/
     variant (e.g. both "-slim", or both no suffix) — version itself if
     nothing newer is published, or if version isn't a numeric-style tag at

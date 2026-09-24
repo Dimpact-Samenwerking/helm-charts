@@ -39,8 +39,37 @@ ruff check . $(python_scripts)
 echo "=== ruff format --check ==="
 ruff format --check . $(python_scripts)
 
+# vulture never connects a TypedDict key read only by string key
+# (row["app"]) to its declaration, so every field of every TypedDict class
+# in lib/ and the scripts goes into a generated whitelist -- exactly those
+# names, derived from the code, so it can't drift.
+typeddict_whitelist=$(mktemp --suffix=.py)
+trap 'rm -f "$typeddict_whitelist"' EXIT
+python3 - lib $(python_scripts) > "$typeddict_whitelist" <<'PY'
+import ast
+import pathlib
+import sys
+
+classes = []
+for arg in sys.argv[1:]:
+    path = pathlib.Path(arg)
+    for f in [path] if path.is_file() else sorted(path.rglob("*.py")):
+        classes += [n for n in ast.walk(ast.parse(f.read_text(encoding="utf-8"))) if isinstance(n, ast.ClassDef)]
+typeddicts = {"TypedDict"}
+while True:
+    found = {c.name for c in classes if any(isinstance(b, ast.Name) and b.id in typeddicts for b in c.bases)}
+    if found <= typeddicts:
+        break
+    typeddicts |= found
+for c in classes:
+    if c.name in typeddicts:
+        for st in c.body:
+            if isinstance(st, ast.AnnAssign) and isinstance(st.target, ast.Name):
+                print(st.target.id)
+PY
+
 echo "=== vulture (dead code) ==="
-vulture lib $(python_scripts)
+vulture lib $(python_scripts) "$typeddict_whitelist"
 
 # tests/ excluded, same as vulture above -- every `assert` statement would
 # otherwise flag B101 (assert_used), dominating any real signal.
