@@ -29,7 +29,6 @@ Exit code: 1 when a finding is reported, or with --baseline-only when
 the release_table baseline cannot be resolved; 0 otherwise.
 """
 
-import csv
 import sys
 
 from pathlib import Path
@@ -46,7 +45,7 @@ from lib.chart.paths import VALUES_YAML
 from lib.chart.release_baseline_basics import release_table_baseline
 from lib.dependencies import ensure_vendored_dependencies
 from lib.release_baseline import resolve_baseline_chart_state
-from lib.release_table_verification import ChartState
+from lib.release_table.state import ChartState
 from lib.release_table_verification import compare
 
 # isort: off
@@ -72,18 +71,10 @@ from lib.chart.pull_and_subchart_resolution import primary_image_repositories  #
 from lib.release_table_verification import is_primary_image  # noqa: F401
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.yaml_types import load_yaml_mapping
+from lib.release_table.csv_rows import read_release_table
 # isort: on
 
 RELEASE_TABLE_CSV = CHART_DIR / "etc" / "release-table.csv"
-
-
-def load_release_table(path: Path):
-    """The release-table.csv at `path`, parsed as a list of dict rows
-    (csv.DictReader) — one row per (component, section) pair the way
-    export-confluence-release-table writes it; see its own CSV_HEADER for
-    the column set."""
-    with path.open(newline="", encoding="utf-8") as f:
-        return list(csv.DictReader(f))
 
 
 SECTIONS = [
@@ -168,7 +159,7 @@ def main():
         print(f"error: {RELEASE_TABLE_CSV} not found")
         print("Create it first with export-confluence-release-table.")
         sys.exit(1)
-    rows = load_release_table(RELEASE_TABLE_CSV)
+    rows = read_release_table(RELEASE_TABLE_CSV)
 
     deps = load_chart_dependencies(CHART_YAML) if CHART_YAML.is_file() else []
     values = load_yaml_mapping(VALUES_YAML) if VALUES_YAML.is_file() else {}

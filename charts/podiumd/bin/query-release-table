@@ -22,7 +22,6 @@ Examples:
     query-release-table section technische
 """
 
-import csv
 import sys
 
 from pathlib import Path
@@ -35,6 +34,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.cli import exit_on_help
+from lib.release_table.csv_rows import ReleaseTableRow
+from lib.release_table.csv_rows import read_release_table
 from lib.upgradedoc.string_and_parsing_basics import word_contains
 
 DEFAULT_INPUT = CHART_DIR / "etc" / "release-table.csv"
@@ -45,15 +46,7 @@ TARGET_VERSION_COLUMNS = ("target_version_app", "target_version_helm")
 TARGET_TO_SOURCE_COLUMN = {"target_version_app": "source_version_app", "target_version_helm": "source_version_helm"}
 
 
-def load_rows(path: Path):
-    """The release-table.csv at `path`, parsed as a list of dict rows
-    (csv.DictReader) — see export-confluence-release-table's own
-    CSV_HEADER for the column set."""
-    with path.open(newline="", encoding="utf-8") as f:
-        return list(csv.DictReader(f))
-
-
-def matching_rows(rows: list, column: str, text: str):
+def matching_rows(rows: list[ReleaseTableRow], column: str, text: str):
     """The rows whose `column` value contains `text` as a
     case-insensitive substring — the plain single-column match every
     query but "component" uses directly (component_matches layers its own
@@ -62,7 +55,7 @@ def matching_rows(rows: list, column: str, text: str):
     return [row for row in rows if needle in row[column].lower()]
 
 
-def component_matches(rows: list, text: str):
+def component_matches(rows: list[ReleaseTableRow], text: str):
     """The row(s) a "component" query for `text` should treat as
     matches: rows whose own "component" or "alias" column (both set by
     export-confluence-release-table — see its component_and_alias)
@@ -84,7 +77,7 @@ def component_matches(rows: list, text: str):
     return combined or matching_rows(rows, "name", text)
 
 
-def used_by_rows_for(rows: list, matches: list):
+def used_by_rows_for(rows: list[ReleaseTableRow], matches: list):
     """Every row in `rows` (excluding `matches` themselves) whose
     non-empty "used_by" value relates to one of `matches`' own "name" or
     "alias" values, so that a Technische-section row comes back
@@ -111,7 +104,7 @@ def used_by_rows_for(rows: list, matches: list):
     return result
 
 
-def display_value(row: dict, column: str):
+def display_value(row: ReleaseTableRow, column: str):
     """`row[column]` unchanged, except a target version column shows
     "UNCHANGED" instead of the raw value when either there's no target
     value at all (empty cell), or the target equals its own source
@@ -124,7 +117,7 @@ def display_value(row: dict, column: str):
     return value
 
 
-def print_table(rows: list):
+def print_table(rows: list[ReleaseTableRow]):
     """Prints `rows` as a whitespace-aligned table: name/component/alias/
     image_basename plus the four version columns (see display_value for
     how a target column renders as "UNCHANGED"), with each column's width
@@ -159,7 +152,7 @@ def main():
         print("    export-confluence-release-table --url <page-url> --user <email> --token-file <path>")
         sys.exit(1)
 
-    rows = load_rows(DEFAULT_INPUT)
+    rows = read_release_table(DEFAULT_INPUT)
     matches = component_matches(rows, text) if column == "component" else matching_rows(rows, column, text)
     if not matches:
         print(f"no rows found where {column} contains {text!r}")

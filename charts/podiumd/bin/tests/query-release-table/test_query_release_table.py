@@ -1,4 +1,4 @@
-"""load_rows, matching_rows, component_matches, used_by_rows_for,
+"""matching_rows, component_matches, used_by_rows_for,
 display_value, print_table, main — with DEFAULT_INPUT monkeypatched to a
 fixture CSV, so no dependency on a real charts/podiumd/etc/release-table.csv
 on disk."""
@@ -6,6 +6,8 @@ on disk."""
 from types import ModuleType
 
 import pytest
+
+from lib.release_table.csv_rows import read_release_table
 
 CSV_TEXT = """\
 section,vendor,used_by,name,component,alias,image_basename,source_version_app,source_version_helm,target_version_app,target_version_helm
@@ -31,13 +33,13 @@ def csv_path(tmp_path):
 
 @pytest.fixture
 def rows(qrt, csv_path):
-    return qrt.load_rows(csv_path)
+    return read_release_table(csv_path)
 
 
-# --- load_rows ---
+# --- read_release_table ---
 
 
-def test_load_rows_reads_all_data_rows(rows):
+def test_read_release_table_reads_all_data_rows(rows):
     assert len(rows) == 10
     assert rows[0]["name"] == "ZAC"
 
