@@ -47,9 +47,9 @@ def test_diff_keys_non_dict_nodes_yield_nothing(libupgradedoccomments: ModuleTyp
     assert list(libupgradedoccomments.diff_keys(["a"], ["b"])) == []
 
 
-def test_flatten_leaf_keys_collects_all_nested_key_names(libupgradedoccomments: ModuleType):
+def test_flatten_leaf_keys_collects_nested_leaf_names_only(libupgradedoccomments: ModuleType):
     node = {"host": "x", "auth": {"user": "y", "password": "z"}}
-    assert libupgradedoccomments.flatten_leaf_keys(node) == {"host", "auth", "user", "password"}
+    assert libupgradedoccomments.flatten_leaf_keys(node) == {"host", "user", "password"}
 
 
 def test_flatten_leaf_keys_walks_lists(libupgradedoccomments: ModuleType):

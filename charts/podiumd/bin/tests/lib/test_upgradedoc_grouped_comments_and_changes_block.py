@@ -248,9 +248,42 @@ def test_diff_keys_recurses_into_shared_keys(libupgradedoccomments: ModuleType):
     assert list(libupgradedoccomments.diff_keys(baseline, current)) == [("added", ("a", "y"))]
 
 
-def test_flatten_leaf_keys_collects_all_nested_names(libupgradedoccomments: ModuleType):
+def test_flatten_leaf_keys_collects_nested_leaf_names_only(libupgradedoccomments: ModuleType):
     node = {"host": "h", "auth": {"user": "u", "password": "p"}}
-    assert libupgradedoccomments.flatten_leaf_keys(node) == {"host", "auth", "user", "password"}
+    assert libupgradedoccomments.flatten_leaf_keys(node) == {"host", "user", "password"}
+
+
+def test_diff_keys_yields_keys_in_sorted_order(libupgradedoccomments: ModuleType):
+    """Added, removed and shared keys each come out sorted, not in set
+    order, so pair_renames sees the same input order in every process."""
+    names = [f"key{i:02d}" for i in range(20)]
+    baseline = {name: {"x": 1} for name in reversed(names[:10])} | {"shared": dict.fromkeys(reversed(names[:5]), 1)}
+    current = {name: {"x": 1} for name in reversed(names[10:])} | {"shared": dict.fromkeys(reversed(names[5:10]), 1)}
+    diffs = list(libupgradedoccomments.diff_keys(baseline, current))
+    assert diffs == (
+        [("added", (name,)) for name in names[10:]]
+        + [("removed", (name,)) for name in names[:10]]
+        + [("added", ("shared", name)) for name in names[5:10]]
+        + [("removed", ("shared", name)) for name in names[:5]]
+    )
+
+
+def test_flatten_leaf_keys_excludes_intermediate_keys(libupgradedoccomments: ModuleType):
+    """A key whose value is a dict or list is not a leaf: counting it would
+    inflate the similarity ratio pair_renames uses."""
+    node = {"a": {"x": 1, "y": [{"z": 2}]}}
+    assert libupgradedoccomments.flatten_leaf_keys(node) == {"x", "z"}
+
+
+def test_pair_renames_ignores_shared_intermediate_keys(libupgradedoccomments: ModuleType):
+    """Two blocks that only share an intermediate key name ("auth") and no
+    leaf key are an unrelated add and remove, not a rename."""
+    baseline = {"old": {"auth": {"user": "u", "password": "p"}}}
+    current = {"new": {"auth": {"token": "t"}}}
+    renamed, added, removed = libupgradedoccomments.pair_renames([("new",)], [("old",)], baseline, current)
+    assert renamed == []
+    assert added == [("new",)]
+    assert removed == [("old",)]
 
 
 def test_flatten_leaf_keys_walks_lists(libupgradedoccomments: ModuleType):

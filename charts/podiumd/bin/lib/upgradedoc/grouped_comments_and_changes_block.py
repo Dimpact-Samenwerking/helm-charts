@@ -1,5 +1,5 @@
-"""Preceding-comment lookup (plain and dependency-grouped), a
-Changes block's own "### <name> <version>" parsing, the generic
+"""Preceding-comment lookup (plain and dependency-grouped), an images
+manifest's own "# Changes:" numbered-list block parsing, the generic
 baseline/current key-diff primitives (diff_keys/flatten_leaf_keys/
 pair_renames) they're built from, and path_display_name."""
 
@@ -127,16 +127,18 @@ def diff_keys(
     This matches how values-deltas.md docs actually document changes (e.g.
     "the whole zac.brpApi.protocollering block was redesigned", not a
     leaf-by-leaf listing). Scalar-vs-scalar value changes (same key, new
-    value) are not add/remove/rename and are not reported."""
+    value) are not add/remove/rename and are not reported. Keys are yielded
+    in sorted order: set order varies per process (string hash
+    randomization), which would make pair_renames' pairing order vary too."""
     if not isinstance(baseline_node, dict) or not isinstance(current_node, dict):
         return
     baseline_keys = set(baseline_node.keys())
     current_keys = set(current_node.keys())
-    for key in current_keys - baseline_keys:
+    for key in sorted(current_keys - baseline_keys):
         yield "added", (*path, key)
-    for key in baseline_keys - current_keys:
+    for key in sorted(baseline_keys - current_keys):
         yield "removed", (*path, key)
-    for key in baseline_keys & current_keys:
+    for key in sorted(baseline_keys & current_keys):
         yield from diff_keys(baseline_node[key], current_node[key], (*path, key))
 
 
@@ -144,12 +146,16 @@ def flatten_leaf_keys(node: YamlValue) -> set[str]:
     """All leaf key names anywhere under a subtree, used to measure how
     similar two blocks are (for rename detection) — not full paths, just the
     set of innermost key names, so "host"/"user"/"password" overlapping
-    between an old and new block is a strong rename signal."""
+    between an old and new block is a strong rename signal. A key whose
+    value is itself a dict or list is not a leaf and is not included: it
+    would inflate the similarity ratio pair_renames uses."""
     keys: set[str] = set()
     if isinstance(node, dict):
         for key, value in node.items():
-            keys.add(key)
-            keys |= flatten_leaf_keys(value)
+            if isinstance(value, (dict, list)):
+                keys |= flatten_leaf_keys(value)
+            else:
+                keys.add(key)
     elif isinstance(node, list):
         for item in node:
             keys |= flatten_leaf_keys(item)
@@ -188,8 +194,9 @@ def pair_renames(
 ) -> tuple[list[tuple[tuple[str, ...], tuple[str, ...]]], list[tuple[str, ...]], list[tuple[str, ...]]]:
     """Pair an added and a removed key at the same parent path into a rename
     candidate when their subtrees share enough leaf key names (e.g.
-    mi.sftp -> mi.transfer, both containing host/user/password) — otherwise
-    they're reported as an unrelated add and remove."""
+    mi.sftp -> mi.transfer, both containing host/user/password), or when
+    both hold the same unchanged scalar value — otherwise they're reported
+    as an unrelated add and remove."""
     renamed: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
     added_left, removed_left = list(added), list(removed)
     for add_path in list(added_left):
