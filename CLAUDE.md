@@ -29,7 +29,7 @@ This runs BOM check + duplicate key detection + helm lint in one step.
 
 ## Markdown
 
-Every `*.md` file you create or edit must pass `/markdown-lint` before it is committed: 0 findings for docs under `charts/podiumd/`, no new findings elsewhere. `verify-podiumd`'s markdown step fails on any finding, with the same pymarkdown rules. Write it correctly the first time: a language on every fenced block, blank lines around headings, lists and fences, no trailing spaces, no inline HTML, and in upgrade guides only component version changes as a level-3 section under "Changes".
+Run `/markdown-lint` after creating or editing any `*.md` file, before committing. The rule itself is in [`.github/copilot-instructions.md` § Markdown](.github/copilot-instructions.md#markdown).
 
 ## Available slash commands
 
