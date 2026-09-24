@@ -172,6 +172,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(
     monkeypatch.setattr(vp, "check_dry", make_check("dry"))
     monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
     monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
+    monkeypatch.setattr(vp, "check_oidc_url_coverage", make_check("oidc-url-coverage"))
     monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
     monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
     monkeypatch.setattr(vp, "check_shared_image_usage", make_check("shared-image-usage"))
@@ -207,6 +208,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(
         "dry",
         "image-refs",
         "node-selector",
+        "oidc-url-coverage",
         "digest-pinning",
         "tgz",
         "release-baseline",
@@ -259,6 +261,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp: ModuleType, monkeypatch
         "check_dry",
         "check_image_references",
         "check_node_selector",
+        "check_oidc_url_coverage",
         "check_digest_pinning",
         "check_vendored_tgz_extraction",
         "check_release_baseline",
@@ -313,6 +316,7 @@ def test_main_continues_past_a_failed_step(
     monkeypatch.setattr(vp, "check_dry", make_check("dry"))
     monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
     monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
+    monkeypatch.setattr(vp, "check_oidc_url_coverage", make_check("oidc-url-coverage"))
     monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
     monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
     monkeypatch.setattr(vp, "check_shared_image_usage", make_check("shared-image-usage"))
@@ -347,6 +351,7 @@ def test_main_continues_past_a_failed_step(
         "dry",
         "image-refs",
         "node-selector",
+        "oidc-url-coverage",
         "digest-pinning",
         "tgz",
         "release-baseline",
@@ -401,6 +406,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(
         "check_dry",
         "check_image_references",
         "check_node_selector",
+        "check_oidc_url_coverage",
         "check_digest_pinning",
         "check_vendored_tgz_extraction",
         "check_release_baseline",
@@ -516,6 +522,7 @@ def _stub_all_checks(vp: ModuleType, monkeypatch: pytest.MonkeyPatch, ran):
     monkeypatch.setattr(vp, "check_dry", make_check("dry"))
     monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
     monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
+    monkeypatch.setattr(vp, "check_oidc_url_coverage", make_check("oidc-url-coverage"))
     monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
     monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
     monkeypatch.setattr(vp, "check_shared_image_usage", make_check("shared-image-usage"))
