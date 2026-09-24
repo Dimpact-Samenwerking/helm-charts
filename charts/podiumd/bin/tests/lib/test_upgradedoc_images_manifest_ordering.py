@@ -947,3 +947,82 @@ def test_sort_images_manifest_entries_single_entry_reports_nothing(libupgradedoc
     )
     assert new_text == text
     assert moved == []
+
+
+# --- delete_images_manifest_entry ---
+
+TWO_ENTRY_MANIFEST: str = (
+    "# Changes:\n"
+    "#   1. curl 8.20.0 -> 8.21.0.\n"
+    "\n"
+    "# curl 8.20.0 -> 8.21.0\n"
+    "- name: curlimages/curl\n"
+    "  url: docker.io/curlimages/curl\n"
+    '  version: "8.21.0"\n'
+    "\n"
+    "# Applicaties\n"
+    "- name: openformulieren/open-forms\n"
+    "  url: docker.io/openformulieren/open-forms\n"
+    '  version: "3.5.6"\n'
+    "\n"
+    "# zac 5.4.2 -> 5.4.3\n"
+    "- name: infonl/zaakafhandelcomponent\n"
+    '  version: "5.4.3"\n'
+)
+
+
+def _entry_line(lines: list[str], name: str) -> int:
+    return next(i for i, line in enumerate(lines) if line == f"- name: {name}\n")
+
+
+def test_delete_images_manifest_entry_removes_entry_and_its_version_comment(
+    libupgradedocmanifestordering: ModuleType,
+):
+    lines = TWO_ENTRY_MANIFEST.splitlines(keepends=True)
+    libupgradedocmanifestordering.delete_images_manifest_entry(lines, _entry_line(lines, "curlimages/curl"))
+    text = "".join(lines)
+    assert "curlimages/curl" not in text
+    assert "# curl 8.20.0 -> 8.21.0\n" not in text
+    assert "#   1. curl 8.20.0 -> 8.21.0.\n" in text  # the "# Changes:" item is the caller's job
+    assert "\n\n\n" not in text  # no doubled blank line left behind
+
+
+def test_delete_images_manifest_entry_keeps_group_divider_on_next_entry(
+    libupgradedocmanifestordering: ModuleType,
+):
+    """An entry without a version comment of its own, right below a
+    "# Applicaties" divider: the divider stays and ends up directly on
+    top of the next entry's own comment."""
+    lines = TWO_ENTRY_MANIFEST.splitlines(keepends=True)
+    libupgradedocmanifestordering.delete_images_manifest_entry(lines, _entry_line(lines, "openformulieren/open-forms"))
+    text = "".join(lines)
+    assert "open-forms" not in text
+    assert "\n\n# Applicaties\n# zac 5.4.2 -> 5.4.3\n- name: infonl/zaakafhandelcomponent\n" in text
+
+
+def test_delete_images_manifest_entry_keeps_comment_shared_with_next_entry(
+    libupgradedocmanifestordering: ModuleType,
+):
+    """zgw-office-addin-shaped lockstep pair under one comment: deleting
+    the first entry keeps the comment for the second."""
+    lines = (
+        "# zgw-office-addin 0.0.91 -> 0.0.92\n"
+        "- name: frontend\n"
+        '  version: "0.0.92"\n'
+        "- name: backend\n"
+        '  version: "0.0.92"\n'
+    ).splitlines(keepends=True)
+    libupgradedocmanifestordering.delete_images_manifest_entry(lines, 1)
+    assert "".join(lines) == ('# zgw-office-addin 0.0.91 -> 0.0.92\n- name: backend\n  version: "0.0.92"\n')
+
+
+def test_delete_images_manifest_entry_last_entry_leaves_no_trailing_blank(
+    libupgradedocmanifestordering: ModuleType,
+):
+    lines = TWO_ENTRY_MANIFEST.splitlines(keepends=True)
+    libupgradedocmanifestordering.delete_images_manifest_entry(
+        lines, _entry_line(lines, "infonl/zaakafhandelcomponent")
+    )
+    text = "".join(lines)
+    assert "zaakafhandelcomponent" not in text
+    assert text.endswith('  version: "3.5.6"\n')

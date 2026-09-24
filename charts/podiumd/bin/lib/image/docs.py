@@ -67,6 +67,7 @@ from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import resolve_component_identity
 from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
+from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_order_key
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.sorting_and_ordering import component_order_key
@@ -742,29 +743,27 @@ def _remove_manifest_changes_header_item(lines: list[str], basename: str):
     return "removed"
 
 
-def remove_image_manifest_entry(images_path: Path, basename: str, repository: str, new_version: str, digest: str):
+def remove_image_manifest_entry(images_path: Path, basename: str, repository: str):
     """Counterpart to update_image_manifest for a shared-image bump that
-    nets out to no change from baseline at all: still writes the matching
-    entry's final version/digest, but removes the "changes:" list item
-    and the entry's own preceding source comment instead of updating
-    them, since there is no longer anything to document. Returns
-    (changes_action, entry_updated) — same shape as update_image_manifest."""
+    nets out to no change from baseline at all: removes the "changes:"
+    list item and the matching entry with its own comment, since the
+    manifest only lists images that changed. A same-version re-pin with
+    a new digest is added back as "(digest changed)" by the
+    fix-doc-consistency run that follows. Returns (changes_action,
+    entry_removed)."""
     original_text = images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
     changes_action = _remove_manifest_changes_header_item(lines, basename)
 
-    entry_line, block_end2 = _find_manifest_entry(lines, repository)
-    entry_updated = _update_manifest_entry_scalars(lines, entry_line, block_end2, new_version, digest)
+    entry_line, _block_end = _find_manifest_entry(lines, repository)
     if entry_line is not None:
-        comment_idx = find_preceding_comment_line(lines, entry_line)
-        if comment_idx is not None and extract_source_version(lines[comment_idx]):
-            del lines[comment_idx]
+        delete_images_manifest_entry(lines, entry_line)
 
     new_text = "".join(lines)
     if new_text != original_text:
         images_path.write_text(new_text, encoding="utf-8")
-    return changes_action, entry_updated
+    return changes_action, entry_line is not None
 
 
 IMAGES_BASELINE_HEADER = (

@@ -569,3 +569,31 @@ def test_component_specific_image_path_mismatch_is_flagged_not_silently_skipped(
         'keycloak-operator ("keycloak-operator") target app: values.yaml image tag is "26.7.2", '
         '4.8.5-to-4.9.0-upgrade.md says "-"'
     ) in out
+
+
+# --- a row unchanged vs baseline ---
+
+
+def test_row_unchanged_vs_baseline_is_reported(vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]):
+    """ZAC reset to its baseline 5.0.2 (chart 1.0.297 on both sides), but
+    the upgrade doc still has a row for it: nothing changed, so the row
+    must go."""
+    (chart_repo / "values.yaml").write_text(values_yaml("5.0.2"))
+    upgrade_path = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    upgrade_path.write_text(
+        upgrade_path.read_text().replace(
+            "| 5.0.2 → 5.4.3 | 1.0.297 (unchanged) |", "| 5.0.2 (unchanged) | 1.0.297 (unchanged) |"
+        )
+    )
+    ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    assert ok is False
+    out = capsys.readouterr().out
+    assert 'doc row "ZAC (Zaakafhandelcomponent)" is unchanged vs podiumd-4.8.5' in out
+
+
+def test_row_with_changed_app_is_not_reported_as_unchanged(
+    vp: ModuleType, chart_repo, capsys: pytest.CaptureFixture[str]
+):
+    """chart_repo's own ZAC row: chart unchanged, app 5.0.2 -> 5.4.3."""
+    vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    assert "is unchanged vs" not in capsys.readouterr().out

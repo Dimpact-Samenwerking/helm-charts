@@ -744,7 +744,7 @@ def _remove_images_manifest_entries(
 ):
     """images-manifest write when this component is back at its baseline —
     see _update_images_manifest_section's reset_to_baseline branch."""
-    changes_action, entry_updates = remove_component_from_images_manifest(manifest_target, path_update)
+    changes_action, entry_removals = remove_component_from_images_manifest(manifest_target, path_update)
     print()
     print(f"=== Updating {manifest_target.images_path.name} ===")
     if changes_action:
@@ -752,8 +752,8 @@ def _remove_images_manifest_entries(
             f"  {manifest_target.friendly} is back at its upgrade_docs_baseline "
             f"{comparison.upgrade_docs_baseline} version — removed 'changes:' list entry"
         )
-    for name in entry_updates:
-        print(f"  updated entry '{name}' (now matches upgrade_docs_baseline — no longer a documented change)")
+    for name in entry_removals:
+        print(f"  removed entry '{name}' (back at its upgrade_docs_baseline version)")
 
 
 def _write_images_manifest_updates(

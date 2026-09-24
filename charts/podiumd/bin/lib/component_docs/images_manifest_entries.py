@@ -26,6 +26,7 @@ from lib.images_manifest import ManifestEntry
 from lib.images_manifest import try_parse_images_manifest
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
+from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
@@ -314,50 +315,35 @@ def _remove_changes_header_item(lines: list[str], friendly: str):
     return "removed"
 
 
-def _remove_entry_updates(manifest: ParsedManifest, path_update: ImagePathUpdate, values_key: str) -> list[str]:
-    """Rewrite every touched entry's final version/digest (still correct
-    even with no change left to document, see remove_component_from_
-    images_manifest's own docstring) and delete its own preceding source
-    comment line, when it has one. Returns entry_names_updated."""
-    entry_updates: list[str] = []
-    comment_lines_to_remove: list[int] = []
+def _remove_entries(manifest: ParsedManifest, path_update: ImagePathUpdate, values_key: str) -> list[str]:
+    """Delete every touched entry with its own comment (see lib.upgradedoc.
+    delete_images_manifest_entry), last entry first so the line indices
+    of the ones above stay valid. Returns entry_names_removed."""
+    found: list[tuple[int, str]] = []
     for path in path_update.paths:
         target_path = values_tree_path_for(values_key, path)
-        entry, entry_idx, index = find_matching_images_entry(manifest.entries, manifest.entry_line_indices, target_path)
-        if entry is None or index is None or entry_idx is None:
-            continue
-        new_app_version, digest = path_update.new_tags[path].split("@", 1)
-        _rewrite_entry_scalars(manifest.lines, entry_idx, new_app_version, digest)
-
-        comment_idx = find_grouped_preceding_comment_line(
-            manifest.lines,
-            manifest.entries,
-            manifest.entry_line_indices,
-            index,
-            lambda entry_a, entry_b: _same_group(values_key, entry_a, entry_b),
+        entry, entry_idx, _index = find_matching_images_entry(
+            manifest.entries, manifest.entry_line_indices, target_path
         )
-        if comment_idx is not None and extract_source_version(manifest.lines[comment_idx]):
-            comment_lines_to_remove.append(comment_idx)
-        entry_updates.append(entry["name"])
-
-    for idx in sorted(set(comment_lines_to_remove), reverse=True):
-        del manifest.lines[idx]
-    return entry_updates
+        if entry is not None and entry_idx is not None:
+            found.append((entry_idx, entry["name"]))
+    for entry_idx, _name in sorted(set(found), reverse=True):
+        delete_images_manifest_entry(manifest.lines, entry_idx)
+    return [name for _idx, name in sorted(set(found))]
 
 
 def remove_component_from_images_manifest(target: ManifestUpdateTarget, path_update: ImagePathUpdate):
     """Counterpart to update_images_manifest for a bump that nets out to no
     change from upgrade_docs_baseline at all (see lib.upgradedoc.compute_changed_
-    components): still writes each touched entry's final version/digest —
-    the manifest's job is to list the correct final state for every image
-    regardless of change-tracking — but removes the "changes:" list item
-    and each entry's own preceding source comment instead of updating
-    them, since there is no longer anything to document. `target` is a
-    ManifestUpdateTarget, `path_update` an ImagePathUpdate (its own
-    `repos` field is unused here — kept only for symmetry with
-    update_images_manifest's own ImagePathUpdate). Returns (changes_action,
-    entry_names_updated) — changes_action is "removed" or None (no
-    matching list item found)."""
+    components): removes the "changes:" list item and each touched entry
+    with its own comment, since the manifest only lists images that
+    changed. A same-version re-pin with a new digest is added back as
+    "(digest changed)" by the fix-doc-consistency run that follows.
+    `target` is a ManifestUpdateTarget, `path_update` an ImagePathUpdate
+    (its own `repos` and `new_tags` fields are unused here — kept only
+    for symmetry with update_images_manifest's own ImagePathUpdate).
+    Returns (changes_action, entry_names_removed) — changes_action is
+    "removed" or None (no matching list item found)."""
     original_text = target.images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
@@ -365,9 +351,9 @@ def remove_component_from_images_manifest(target: ManifestUpdateTarget, path_upd
     changes_action = _remove_changes_header_item(lines, target.friendly) if header_idx is not None else None
 
     manifest = _parsed_manifest(lines)
-    entry_updates = _remove_entry_updates(manifest, path_update, target.values_key)
+    entry_removals = _remove_entries(manifest, path_update, target.values_key)
 
     new_text = "".join(lines)
     if new_text != original_text:
         target.images_path.write_text(new_text, encoding="utf-8")
-    return changes_action, entry_updates
+    return changes_action, entry_removals

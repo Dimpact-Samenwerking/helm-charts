@@ -9,11 +9,13 @@ titles, headings and cross-references. Creates missing docs as TODO stubs.
 
 Also repairs the content against Chart.yaml and values.yaml:
   - upgrade doc: component version table and "## Changes" sections,
-    adding missing rows and sorting them in values.yaml order
+    adding missing rows, removing rows unchanged vs the baseline and
+    sorting them in values.yaml order
   - values-deltas doc: adds missing component sections and nested key
     added/removed lines
-  - docs/images/images-<target>.yaml: fixes entries and adds missing ones;
-    review the "name:"/"url:" of added entries by hand (ACR mirror name)
+  - docs/images/images-<target>.yaml: fixes entries, adds missing ones
+    and removes images unchanged vs the baseline; review the
+    "name:"/"url:" of added entries by hand (ACR mirror name)
   - docs/images/images-baseline.yaml: regenerated
 Issues it cannot fix are printed for manual review.
 
@@ -78,6 +80,7 @@ from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update
 from lib.fix_doc_consistency.component_version_table import fix_changes_heading_app_versions
 from lib.fix_doc_consistency.component_version_table import fix_component_version_table
 from lib.fix_doc_consistency.component_version_table import fix_values_delta_heading_app_versions
+from lib.fix_doc_consistency.component_version_table import remove_unchanged_component_rows
 from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifest_changes_items
 from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
 from lib.gitutil import git_show_text
@@ -100,6 +103,7 @@ from lib.fix_doc_consistency.manifest_entries_core import (  # pylint: disable=u
 from lib.fix_doc_consistency.manifest_entries_new_and_urls import (
     MissingEntriesContext,
     add_missing_images_manifest_entries,
+    remove_stale_images_manifest_entries,
     fix_images_manifest_entry_urls,
 )
 
@@ -406,6 +410,20 @@ def _load_rebase_state(target: str, new_baseline: str):
     return RebaseState(target, new_baseline, target_deps, target_values, baseline_deps, baseline_values)
 
 
+def _remove_unchanged_component_rows(
+    text: str, upgrade_path: Path, resolution: ResolutionContext, new_baseline: str
+) -> tuple[str, bool]:
+    """Removes a table row (and its '### ...' Changes section) whose app
+    and chart are both unchanged vs baseline. Returns (text, changed)."""
+    text, removed_names = remove_unchanged_component_rows(text, resolution)
+    if removed_names:
+        print()
+        print(f"=== Removing unchanged component row(s) + Changes section(s) from {upgrade_path.name} ===")
+        for name in removed_names:
+            print(f"  {name} (same app and chart version as {new_baseline})")
+    return text, bool(removed_names)
+
+
 def _correct_component_table(text: str, upgrade_path: Path, resolution: ResolutionContext, new_baseline: str):
     """Fixes wrong app/chart-version cells in upgrade_path's Component-
     versions table. Returns (text, changed)."""
@@ -531,8 +549,9 @@ def _reorder_upgrade_doc(
 
 
 def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys: set[str]):
-    """Corrects upgrade_path's table, adds missing rows/sections, fixes
-    headings, reorders, and writes back only if something changed."""
+    """Removes unchanged rows, corrects upgrade_path's table, adds missing
+    rows/sections, fixes headings, reorders, and writes back only if
+    something changed."""
     if not upgrade_path.is_file():
         return
     text = upgrade_path.read_text(encoding="utf-8")
@@ -543,6 +562,7 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
         upgrade_docs_baseline=state.new_baseline,
     )
 
+    text, rows_removed = _remove_unchanged_component_rows(text, upgrade_path, resolution, state.new_baseline)
     text, table_changed = _correct_component_table(text, upgrade_path, resolution, state.new_baseline)
     text, added_names, added_sidecar_names = _add_missing_component_and_sidecar_rows(
         text, state, upgrade_path, actual_changed_keys
@@ -559,6 +579,7 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
         print(f"=== Collapsing multiple consecutive blank line(s) in {upgrade_path.name} ===")
 
     changed = [
+        rows_removed,
         table_changed,
         bool(added_names),
         bool(added_sidecar_names),
@@ -640,14 +661,8 @@ def _correct_images_manifest_urls(images_path: Path, state: RebaseState, repo_ma
             print(f"  {name}")
 
 
-def _add_missing_images_manifest_entries(images_path: Path, state: RebaseState):
-    """Adds a missing entry for any changed image, and backfills a
-    missing '# Changes:' header item. Skipped if baseline_values is
-    empty."""
-    if not state.baseline_values:
-        return
-    text = images_path.read_text(encoding="utf-8")
-    ctx = MissingEntriesContext(
+def _missing_entries_context(state: RebaseState):
+    return MissingEntriesContext(
         CHART_YAML.parent,
         state.target_deps,
         state.target_values,
@@ -655,6 +670,32 @@ def _add_missing_images_manifest_entries(images_path: Path, state: RebaseState):
         allow_pull=True,
         upgrade_docs_baseline=state.new_baseline,
     )
+
+
+def _remove_stale_images_manifest_entries(images_path: Path, state: RebaseState):
+    """Removes an entry whose image is unchanged vs baseline (version and
+    digest), with its comment and '# Changes:' item. Skipped if
+    baseline_values is empty."""
+    if not state.baseline_values:
+        return
+    text = images_path.read_text(encoding="utf-8")
+    new_text, removed_entry_names = remove_stale_images_manifest_entries(text, _missing_entries_context(state))
+    if removed_entry_names:
+        images_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Removing unchanged entr(y/ies) from {images_path.name} ===")
+        for name in removed_entry_names:
+            print(f"  {name} (same version and digest as {state.new_baseline})")
+
+
+def _add_missing_images_manifest_entries(images_path: Path, state: RebaseState):
+    """Adds a missing entry for any changed image, and backfills a
+    missing '# Changes:' header item. Skipped if baseline_values is
+    empty."""
+    if not state.baseline_values:
+        return
+    text = images_path.read_text(encoding="utf-8")
+    ctx = _missing_entries_context(state)
     new_text, added_entry_names, skipped_entry_names, backfilled_header_names = add_missing_images_manifest_entries(
         text, ctx
     )
@@ -743,8 +784,9 @@ def _renumber_images_manifest_changes_items(images_path: Path):
 
 
 def _fix_images_manifest_content(state: RebaseState, images_path: Path):
-    """Corrects entry comments/urls, adds missing entries, dedupes and
-    reorders/renumbers the '# Changes:' header list."""
+    """Removes unchanged entries, corrects entry comments/urls, adds
+    missing entries, dedupes and reorders/renumbers the '# Changes:'
+    header list."""
     if not images_path.is_file():
         return
     target_paths = [p for p, _tag in find_all_image_and_version_paths(state.target_values, state.target_deps)] + [
@@ -759,6 +801,7 @@ def _fix_images_manifest_content(state: RebaseState, images_path: Path):
     )
 
     _sync_images_manifest_entry_pins(images_path, state)
+    _remove_stale_images_manifest_entries(images_path, state)
     _correct_images_manifest_entries(images_path, state, repo_map)
     _correct_images_manifest_urls(images_path, state, repo_map)
     _add_missing_images_manifest_entries(images_path, state)

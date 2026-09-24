@@ -49,6 +49,7 @@ from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
+from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
 from lib.upgradedoc.sorting_and_ordering import find_out_of_order_names
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
@@ -480,7 +481,9 @@ def _check_component_rows(
     its docstring for why a checker/fixer that resolve a row two
     different ways can silently drift apart on what "correct" even
     means) and checks its chart/app-version cells, both current and
-    (when row_ctx.baseline_ref is given) source, against reality."""
+    (when row_ctx.baseline_ref is given) source, against reality, and
+    flags a row whose app and chart are both unchanged vs baseline (see
+    resolved_row_unchanged, shared with fix-doc-consistency)."""
     result = ComponentRowsResult([], set(), {}, {}, set())
 
     for row in rows:
@@ -501,6 +504,11 @@ def _check_component_rows(
         _check_row_target_versions(row, row_ctx, resolved, values_key, result)
         if row_ctx.baseline_ref:
             _check_row_baseline_versions(row, row_ctx, resolved, values_key, result)
+            if resolved_row_unchanged(resolved):
+                result.mismatches.append(
+                    f'{row_ctx.doc_path.name}: doc row "{row["name"]}" is unchanged vs {row_ctx.baseline_ref} '
+                    f'(app and chart) — remove the row and its "### ..." Changes section'
+                )
 
     return result
 

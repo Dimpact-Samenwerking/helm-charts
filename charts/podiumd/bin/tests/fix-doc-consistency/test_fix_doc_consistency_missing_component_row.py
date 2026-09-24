@@ -187,7 +187,7 @@ def test_main_leaves_existing_row_untouched_when_adding_missing_ones(
     cdb.main()
 
     upgrade = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
-    assert "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |" in upgrade
+    assert "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.0.2 | 1.0.297 (unchanged) | n/a |" in upgrade
 
 
 def test_main_adds_missing_sidecar_row_nested_under_a_dependency(

@@ -288,11 +288,10 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(
     """A component bumped once (baseline 5.0.2 -> 5.5.0, already fully
     documented) and then reset all the way back to its baseline version
     has nothing left to report: the table row, Changes section,
-    values-delta bullet, and images-manifest 'changes:' entry/comment
-    must all be removed, not left describing a transition that no longer
-    happened net of baseline. The manifest ENTRY itself must still show
-    the correct (baseline) version/digest -- it lists every image
-    regardless of change-tracking."""
+    values-delta bullet, and images-manifest 'changes:' item, entry and
+    comment must all be removed, not left describing a transition that
+    no longer happened net of baseline: images-<target>.yaml only lists
+    images that changed."""
     _chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     commit_baseline_tag(tmp_path)  # baseline: chart 1.0.296, zac 5.0.2@sha256:aaaa...
 
@@ -349,7 +348,7 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(
     assert "Zero changes:" in images
     assert "zac 5.0.2" not in images  # the numbered "changes:" list item is gone
     assert "# zac —" not in images  # the entry's now-stale source comment is gone too
-    assert '"5.0.2"' in images  # the entry itself still lists the correct (reset) version
+    assert "- name:" not in images  # the entry itself is gone: nothing changed vs baseline
 
 
 def test_main_new_component_row_renders_new_ignoring_images_baseline(

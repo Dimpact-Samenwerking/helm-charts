@@ -961,3 +961,91 @@ def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repo
     assert added == ["zac"]
     assert skipped == []  # kiss.adapter.image is excluded entirely, not reported as skipped either
     assert "kiss" not in new_text
+
+
+# --- remove_stale_images_manifest_entries ---
+
+
+def test_remove_stale_images_manifest_entries_removes_entry_back_at_baseline(
+    cdb: ModuleType, images_manifest_chart_dir
+):
+    """zac reverted to its baseline version and digest: the entry, its
+    comment and its "# Changes:" item are removed."""
+    text = (
+        "# Baseline: podiumd 4.8.5.\n"
+        "#\n"
+        "# Changes:\n"
+        "#   1. zac 5.0.2 -> 5.1.0.\n"
+        "#\n"
+        "\n"
+        "# zac 5.0.2 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}}}
+
+    new_text, removed = cdb.remove_stale_images_manifest_entries(
+        text, cdb.MissingEntriesContext(images_manifest_chart_dir, deps, values, values)
+    )
+
+    assert removed == ["infonl/zaakafhandelcomponent"]
+    assert "- name:" not in new_text
+    assert "# zac 5.0.2 -> 5.1.0" not in new_text
+    assert "#   1. zac" not in new_text
+    assert "# Changes:\n" in new_text
+
+
+def test_remove_stale_images_manifest_entries_keeps_changed_digest(cdb: ModuleType, images_manifest_chart_dir):
+    """Same version as baseline but a new digest is a real change (see
+    test_add_missing_images_manifest_entries_catches_same_version_changed_digest),
+    so the entry stays."""
+    text = (
+        "# Changes:\n"
+        "#   1. zac 5.0.2 (digest changed).\n"
+        "\n"
+        "# zac 5.0.2 (digest changed)\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.0.2"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    target_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:" + "a" * 64}}
+    }
+    baseline_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:" + "b" * 64}}
+    }
+
+    new_text, removed = cdb.remove_stale_images_manifest_entries(
+        text, cdb.MissingEntriesContext(images_manifest_chart_dir, deps, target_values, baseline_values)
+    )
+
+    assert removed == []
+    assert new_text == text
+
+
+def test_remove_stale_images_manifest_entries_keeps_entry_without_resolvable_repository(
+    cdb: ModuleType, tmp_path: Path
+):
+    """The list-diff reports an entry for a path with no resolvable
+    repository as stale too, but "unchanged" can't be concluded for it:
+    it stays for a human, and the check still reports it."""
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump({"dependencies": [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]}),
+    )
+    values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
+    write(tmp_path / "values.yaml", yaml.safe_dump(values))
+    text = '# zac 5.0.1 -> 5.0.2\n- name: zac\n  url: ghcr.io/infonl/zaakafhandelcomponent\n  version: "5.0.2"\n'
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+
+    new_text, removed = cdb.remove_stale_images_manifest_entries(
+        text, cdb.MissingEntriesContext(tmp_path, deps, values, values)
+    )
+
+    assert removed == []
+    assert new_text == text

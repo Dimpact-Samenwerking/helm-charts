@@ -28,6 +28,7 @@ from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.yaml_types import YamlMapping
 
 
@@ -390,3 +391,17 @@ def resolve_component_row(
         _add_baseline_result(resolution, match, result)
 
     return result
+
+
+def resolved_row_unchanged(resolved: ResolvedRow) -> bool:
+    """Whether a matched row's app and chart versions both equal the
+    baseline's, so the row (and its "### ..." Changes section) has
+    nothing to document. False when the baseline was not requested or
+    could not be resolved for this row (e.g. a component new in this
+    release). Shared by check_docs_consistency and fix-doc-consistency,
+    so the check flags exactly the rows the fixer removes."""
+    if resolved["baseline_resolved"] is not True:
+        return False
+    return normalize_version(resolved["target_app"]) == normalize_version(resolved["baseline_app"]) and (
+        normalize_version(resolved["target_chart"]) == normalize_version(resolved["baseline_chart"])
+    )
