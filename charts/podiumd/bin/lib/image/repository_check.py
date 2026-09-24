@@ -39,6 +39,7 @@ from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.yaml_types import YamlMapping
 
 
 @dataclass
@@ -55,7 +56,7 @@ class _RepositoryResolutionContext:
 
 
 def _path_has_repository(
-    path: tuple[str, ...], values: dict, dep: ChartDependency | None, ctx: _RepositoryResolutionContext
+    path: tuple[str, ...], values: YamlMapping, dep: ChartDependency | None, ctx: _RepositoryResolutionContext
 ):
     """True if `path`'s image-tag block resolves to a non-empty
     repository, per find_images_without_repository's own resolution

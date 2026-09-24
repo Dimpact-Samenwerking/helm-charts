@@ -13,6 +13,7 @@ from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys
 from lib.upgradedoc.grouped_comments_and_changes_block import pair_renames
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.version_cells_and_key_changes import strip_fenced_code_blocks
+from lib.yaml_types import YamlMapping
 
 
 @dataclass
@@ -21,8 +22,8 @@ class ValuesDeltaInputs:
     step of the schema diff below (subtree lookup, rename pairing,
     section lookup) needs the same four things together."""
 
-    baseline_values: dict | None
-    values: dict | None
+    baseline_values: YamlMapping | None
+    values: YamlMapping | None
     deps: list[ChartDependency]
     canonical_names: dict | None = None
 

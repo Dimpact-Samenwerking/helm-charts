@@ -26,6 +26,7 @@ from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
+from lib.yaml_types import YamlMapping
 
 
 @dataclass
@@ -74,7 +75,7 @@ def changes_heading_has_app_version(heading: str):
     )
 
 
-def sidecar_tag(values: dict, sidecar_path: tuple[str, ...]):
+def sidecar_tag(values: YamlMapping, sidecar_path: tuple[str, ...]):
     """The tag pinned at a sidecar's own values-tree path (as returned by
     lib.chart.canonical_sidecar_row_names — already ending in the real
     image key itself, e.g. "initImage", not a hardcoded "image") —
@@ -116,7 +117,7 @@ def _match_row(row_name: str, chart_dir: Path | None, canonical_names: dict, dep
     return RowMatch(sidecar_path, dep, native_key)
 
 
-def _target_result(chart_dir: Path | None, values: dict, match: RowMatch) -> dict[str, Any]:
+def _target_result(chart_dir: Path | None, values: YamlMapping, match: RowMatch) -> dict[str, Any]:
     """The "kind"/"dep"/"sidecar_path"/values-and-chart-key/target_chart/
     target_app fields of resolve_component_row's result dict — the
     target-side resolution, independent of any baseline comparison."""

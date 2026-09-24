@@ -52,6 +52,7 @@ from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
+from lib.yaml_types import YamlMapping
 
 
 @dataclass
@@ -82,7 +83,7 @@ class OrderingContext:
     values.yaml position instead of always last)."""
 
     deps: list[ChartDependency]
-    values: dict | None
+    values: YamlMapping | None
     canonical_names: dict | None = None
 
 
@@ -109,7 +110,7 @@ class ComponentState:
     a baseline value or vice versa by construction."""
 
     deps: list[ChartDependency]
-    values: dict
+    values: YamlMapping
 
 
 @dataclass
@@ -119,7 +120,7 @@ class BaselineState:
     (see lib.upgradedoc.resolve_component_row)."""
 
     deps: list[ChartDependency] | None
-    values: dict | None
+    values: YamlMapping | None
 
 
 @dataclass

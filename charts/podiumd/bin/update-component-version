@@ -100,6 +100,7 @@ from lib.upgradedoc.app_version_and_image_paths import BaselineComponentQuery
 from lib.upgradedoc.app_version_and_image_paths import resolve_baseline_component_versions
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
+from lib.yaml_types import YamlMapping
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
@@ -111,7 +112,7 @@ def find_dependency(name_or_alias: str):
     return require_dependency(CHART_YAML, name_or_alias)
 
 
-def _check_and_print_image_versions(values_for_check: dict, image_paths: list[str], app_version: str):
+def _check_and_print_image_versions(values_for_check: YamlMapping, image_paths: list[str], app_version: str):
     """check_image_versions, printing a FOUND/MISSING line per path and
     exiting 1 if any don't exist upstream. Returns results keyed by path
     — shared by both verify_component_version branches below."""
@@ -128,7 +129,7 @@ def verify_component_version(
     image_paths: list[str],
     app_version: str,
     chart_version: str | None,
-    component_values: dict | None = None,
+    component_values: YamlMapping | None = None,
 ):
     """Resolve chart_version's own values.yaml and check image_paths
     resolve to existing app image versions upstream — the single upfront
@@ -277,7 +278,7 @@ class BumpContext:
     versions: TargetVersions
     resolution: ComponentResolution
     deps: list[ChartDependency]
-    values: dict
+    values: YamlMapping
     image_paths: list
 
     def __getattr__(self, name: str):
@@ -319,7 +320,7 @@ class BaselineSnapshot:
 
     upgrade_docs_baseline: str | None
     baseline_deps: list | None
-    baseline_values: dict | None
+    baseline_values: YamlMapping | None
 
 
 @dataclass
@@ -400,8 +401,13 @@ def _verify_versions(ctx: BumpContext):
     file is touched), then print the chart-version status line. Returns
     (upstream_images, chart_unchanged)."""
     if ctx.no_chart:
+        component_values = ctx.values.get(ctx.values_key)
         upstream_images = verify_component_version(
-            None, ctx.image_paths, ctx.app_version, None, component_values=ctx.values.get(ctx.values_key, {})
+            None,
+            ctx.image_paths,
+            ctx.app_version,
+            None,
+            component_values=component_values if isinstance(component_values, dict) else {},
         )
     else:
         upstream_images = verify_component_version(ctx.dep, ctx.image_paths, ctx.app_version, ctx.chart_version)
@@ -562,7 +568,7 @@ def _update_image_tags(ctx: BumpContext, paths_to_update: list, split_tag_sha_pa
 
 
 def _resolve_against_baseline(
-    ctx: BumpContext, baseline_deps: list[ChartDependency], baseline_values: dict | None, friendly: str
+    ctx: BumpContext, baseline_deps: list[ChartDependency], baseline_values: YamlMapping | None, friendly: str
 ):
     """When baseline_deps resolved to a real git ref: whether `friendly` is
     back at its baseline version, and old_app/old_chart resolved against

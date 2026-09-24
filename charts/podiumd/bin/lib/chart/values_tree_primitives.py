@@ -12,6 +12,7 @@ from typing import Any
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
+from lib.yaml_types import YamlMapping
 
 UTF8_BOM = b"\xef\xbb\xbf"
 
@@ -170,7 +171,7 @@ def resolve_values_path_source(chart_dir: Path, deps: list[ChartDependency], pat
     return "local: no referencing template found"
 
 
-def find_app_versions(values: dict | None, values_key: str, image_paths: list[str]):
+def find_app_versions(values: YamlMapping | None, values_key: str, image_paths: list[str]):
     """[(image_path, tag), ...] for every image_paths entry (see
     image_paths_for) that has an explicit tag override under
     values[values_key] — empty if the component relies entirely on its

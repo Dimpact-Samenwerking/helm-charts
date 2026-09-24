@@ -45,6 +45,7 @@ from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
+from lib.yaml_types import YamlMapping
 
 
 @dataclass
@@ -55,7 +56,7 @@ class UrlFixContext:
 
     chart_dir: Path
     deps: list[ChartDependency]
-    target_values: dict
+    target_values: YamlMapping
     repo_map: dict | None = None
 
 
@@ -69,8 +70,8 @@ class MissingEntriesContext:
 
     chart_dir: Path
     deps: list[ChartDependency]
-    target_values: dict
-    baseline_values: dict | None
+    target_values: YamlMapping
+    baseline_values: YamlMapping | None
     allow_pull: bool = False
     upgrade_docs_baseline: str | None = None
 
@@ -170,7 +171,7 @@ def _entry_url_status(entry: dict, line_idx: int, lines: list[str], current_path
 
 
 def fix_images_manifest_entry_urls(
-    text: str, chart_dir: Path, deps: list[ChartDependency], target_values: dict, repo_map: dict | None = None
+    text: str, chart_dir: Path, deps: list[ChartDependency], target_values: YamlMapping, repo_map: dict | None = None
 ):
     """Rewrite each images-manifest entry's own "url:" field to the REAL,
     fully host-qualified repository for its matched values-tree path

@@ -27,12 +27,13 @@ from lib.chart.vendored_files import vendored_chart_file
 from lib.procutil import run
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
+from lib.yaml_types import YamlMapping
 
 
 # A BOM breaks YAML tooling that doesn't expect one. Shared by
 # verify-podiumd (detects and reports it — a verify script never writes
 # to a tracked file) and fix-utf8-bom (the fixer).
-def resolved_digest_pin(values: dict | None, path: tuple[str, ...], tag: str, sibling_fields: dict):
+def resolved_digest_pin(values: YamlMapping | None, path: tuple[str, ...], tag: str, sibling_fields: dict):
     """`tag`'s own "@sha256:<hex>" suffix if it already has one, else —
     for a path registered in `sibling_fields` (lib.settings.
     digest_pinning_exceptions(chart_dir), or an equivalent {path:
@@ -180,7 +181,7 @@ def native_component_values(chart_dir: Path, name: str) -> dict:
     return values.get(name) or {}
 
 
-def check_image_versions(values: dict, image_paths: list[str], app_version: str):
+def check_image_versions(values: YamlMapping, image_paths: list[str], app_version: str):
     """[{"path", "repository", "host", "repo_path", "exists", "digest"},
     ...] for every path in `image_paths` (see image_paths_for) that has a
     "repository:" in `values` (a pulled chart's own values.yaml — see
@@ -353,7 +354,7 @@ def resolve_chart_values(chart_dir: Path, dep: ChartDependency, version: str, *,
 def primary_image_repositories(
     chart_dir: Path | None,
     dep: ChartDependency,
-    own_values: dict | None,
+    own_values: YamlMapping | None,
     version: str | None = None,
     *,
     allow_pull: bool = True,
@@ -403,7 +404,7 @@ def primary_image_repositories(
     return results, error
 
 
-def global_image_paths(values: dict):
+def global_image_paths(values: YamlMapping):
     """[(path, tag), ...] for every entry directly under "global.images."
     — the shared base-image anchors (nginx/curl/busybox — see the
     values.yaml comment "Shared image references, reused via YAML

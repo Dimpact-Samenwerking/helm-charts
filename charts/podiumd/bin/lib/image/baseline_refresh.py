@@ -14,10 +14,11 @@ from lib.image.docs import regenerate_images_baseline_manifest
 from lib.render_scope import lint_args_for
 from lib.render_scope import render_chart
 from lib.render_scope import rendered_chart_paths
+from lib.yaml_types import YamlMapping
 
 
 def refresh_images_baseline(
-    chart_dir: Path, deps: list[ChartDependency], values: dict, images_baseline_path: Path
+    chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, images_baseline_path: Path
 ) -> None:
     """Regenerates images_baseline_path for Chart.yaml's `deps` and
     values.yaml's `values`, rendering the chart first to also catch

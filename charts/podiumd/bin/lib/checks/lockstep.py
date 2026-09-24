@@ -47,9 +47,10 @@ from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
+from lib.yaml_types import YamlMapping
 
 
-def find_lockstep_mismatches(deps: list[ChartDependency], values: dict | None):
+def find_lockstep_mismatches(deps: list[ChartDependency], values: YamlMapping | None):
     """[(component, values_key, [(path, version), ...])] for every
     multi-path component_image_paths()/component_version_paths() entry
     whose resolved paths disagree on version. `resolved` only ever lists the
@@ -90,7 +91,7 @@ def find_lockstep_mismatches(deps: list[ChartDependency], values: dict | None):
     return findings
 
 
-def find_chart_version_mismatches(deps: list[ChartDependency], values: dict | None):
+def find_chart_version_mismatches(deps: list[ChartDependency], values: YamlMapping | None):
     """[(component, values_key, chart_version, app_version)] for every
     lib.chart.chart_version_lockstep_components() entry whose Chart.yaml
     dependency "version:" disagrees with its own resolved app version. Resolution

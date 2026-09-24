@@ -12,7 +12,6 @@ import tarfile
 from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.nested_subchart_identity import nested_subchart_documented_image_repository
@@ -32,6 +31,7 @@ from lib.chart.values_tree_primitives import strip_registry_host
 from lib.chart.values_tree_primitives import values_key_of
 from lib.registry import parse_repo
 from lib.release_baseline import resolve_baseline_chart_state
+from lib.yaml_types import YamlMapping
 
 
 def component_state_at_baseline(chart_dir: Path, chart_dir_relpath: str, baseline: str, component: str):
@@ -148,7 +148,12 @@ def repo_group_representative(repo_paths: list, deps: list[ChartDependency]):
 
 
 def paths_by_repository(
-    chart_dir: Path | None, deps: list[ChartDependency], values: dict, paths: Collection, *, allow_pull: bool = False
+    chart_dir: Path | None,
+    deps: list[ChartDependency],
+    values: YamlMapping,
+    paths: Collection,
+    *,
+    allow_pull: bool = False,
 ):
     """{strip_registry_host(repository): [path, ...]} for every path in
     `paths` (e.g. lib.upgradedoc.find_image_tag_paths(values)'s own
@@ -243,7 +248,7 @@ class _RepoResolutionState:
 
 
 def _grouped_repository_for_path(
-    values: dict, path: tuple[str, ...], dep: ChartDependency | None, state: _RepoResolutionState
+    values: YamlMapping, path: tuple[str, ...], dep: ChartDependency | None, state: _RepoResolutionState
 ):
     """paths_by_repository's own resolution chain for a single path,
     stripped to its group key (see that function's own docstring for
@@ -259,7 +264,7 @@ def _grouped_repository_for_path(
 
 
 def _grouped_repository_from_dependency(
-    dep: ChartDependency, path: tuple[str, ...], values: dict, state: _RepoResolutionState
+    dep: ChartDependency, path: tuple[str, ...], values: YamlMapping, state: _RepoResolutionState
 ):
     """The sibling-tag-field / nested-subchart / vendored-subchart-
     default tiers of _grouped_repository_for_path — only ever reached
@@ -325,7 +330,7 @@ def _cached_subchart_values(dep: ChartDependency, state: _RepoResolutionState):
 def full_repository_for_path(
     chart_dir: Path | None,
     deps: list[ChartDependency],
-    values: dict | None,
+    values: YamlMapping | None,
     path: tuple[str, ...],
     *,
     allow_pull: bool = False,
@@ -404,7 +409,7 @@ def _formatted_repo(repo: str):
     return f"{host}/{repo_path}"
 
 
-def _full_repo_from_own_override(values: dict | None, path: tuple[str, ...]):
+def _full_repo_from_own_override(values: YamlMapping | None, path: tuple[str, ...]):
     """full_repository_for_path's own "podiumd values.yaml override"
     tier (see that function's own docstring for the registry-sibling /
     Docker-Hub-inference rules), or None when there's no own override
@@ -422,7 +427,7 @@ def _full_repo_from_own_override(values: dict | None, path: tuple[str, ...]):
 
 
 def _full_repo_from_dependency(
-    chart_dir: Path | None, dep: ChartDependency, path: tuple[str, ...], values: dict | None, *, allow_pull: bool
+    chart_dir: Path | None, dep: ChartDependency, path: tuple[str, ...], values: YamlMapping | None, *, allow_pull: bool
 ):
     """full_repository_for_path's own sibling-tag-field / nested-
     subchart / vendored-subchart-default tiers — only ever reached once
@@ -451,7 +456,7 @@ def _full_repo_from_dependency(
 
 
 def repository_path_map(
-    chart_dir: Path | None, deps: list[ChartDependency], values: dict, paths: list, *, allow_pull: bool = False
+    chart_dir: Path | None, deps: list[ChartDependency], values: YamlMapping, paths: list, *, allow_pull: bool = False
 ):
     """{strip_registry_host(repository): values-tree path} — paths_by_
     repository's own per-repository groups, collapsed to each group's
@@ -474,7 +479,12 @@ def repository_path_map(
 
 
 def canonical_sidecar_row_names(
-    chart_dir: Path | None, deps: list[ChartDependency], values: dict, paths: Collection, *, allow_pull: bool = False
+    chart_dir: Path | None,
+    deps: list[ChartDependency],
+    values: YamlMapping,
+    paths: Collection,
+    *,
+    allow_pull: bool = False,
 ):
     """{canonical doc-row name: values-tree path} for every image path
     that isn't a Chart.yaml dependency's own name/alias directly — the
@@ -542,7 +552,7 @@ def canonical_sidecar_row_names(
 def doc_row_name(
     chart_dir: Path,
     deps: list[ChartDependency],
-    values: dict[str, Any],
+    values: YamlMapping,
     path: tuple[str, ...],
     all_paths: list[tuple[str, ...]],
 ) -> str | None:
@@ -596,7 +606,7 @@ def _classify_sidecar_and_global_paths(chart_dir: Path | None, deps: list[ChartD
     return sidecar_paths, global_paths
 
 
-def _global_repository_set(values: dict, global_paths: list):
+def _global_repository_set(values: YamlMapping, global_paths: list):
     """Every global_paths entry's own resolved, stripped repository —
     canonical_sidecar_row_names' own exclusion set for a sidecar whose
     repository is ALSO reachable via the shared "global" key (see that

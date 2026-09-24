@@ -19,10 +19,14 @@ from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.yaml_types import YamlMapping
 
 
 def compute_changed_components(
-    deps: list[ChartDependency], baseline_deps: list[ChartDependency], values: dict, baseline_values: dict | None
+    deps: list[ChartDependency],
+    baseline_deps: list[ChartDependency],
+    values: YamlMapping,
+    baseline_values: YamlMapping | None,
 ):
     """Top-level component keys (Chart.yaml alias, or name if unaliased) that
     actually differ between the baseline and now: dependency added or
@@ -103,8 +107,8 @@ class ManifestDiffContext:
     chart_dir: Path | None = None
     deps: list[ChartDependency] | None = None
     upgrade_docs_baseline: str | None = None
-    values: dict | None = None
-    baseline_values: dict | None = None
+    values: YamlMapping | None = None
+    baseline_values: YamlMapping | None = None
 
 
 @dataclass

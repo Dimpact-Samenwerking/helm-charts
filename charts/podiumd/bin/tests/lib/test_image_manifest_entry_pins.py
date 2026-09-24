@@ -6,11 +6,12 @@ from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.image import manifest_entry_pins
+from lib.yaml_types import YamlMapping
 
 OLD = "a" * 64
 NEW = "b" * 64
 
-VALUES = {"clamav": {"image": {"repository": "docker.io/clamav/clamav", "tag": f"1.5.4@sha256:{NEW}"}}}
+VALUES: YamlMapping = {"clamav": {"image": {"repository": "docker.io/clamav/clamav", "tag": f"1.5.4@sha256:{NEW}"}}}
 DEPS: list[ChartDependency] = [{"name": "clamav", "version": "3.7.2"}]
 
 

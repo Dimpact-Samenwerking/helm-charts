@@ -33,6 +33,7 @@ from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
+from lib.yaml_types import YamlMapping
 
 
 @dataclass
@@ -235,7 +236,7 @@ def update_images_manifest(
     change: VersionChange,
     path_update: ImagePathUpdate,
     deps: list[ChartDependency],
-    values: dict,
+    values: YamlMapping,
 ):
     """Update the "# <N> changes:" header list and any existing entries'
     version/digest/comment for this component. `target` is a

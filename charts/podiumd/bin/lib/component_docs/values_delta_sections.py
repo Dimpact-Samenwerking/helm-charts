@@ -36,6 +36,7 @@ from lib.upgradedoc.version_cells_and_key_changes import append_to_doc
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import missing_key_change_lines_by_key
 from lib.upgradedoc.version_cells_and_key_changes import strip_html_comments
+from lib.yaml_types import YamlMapping
 
 
 def values_delta_section_heading(
@@ -148,7 +149,7 @@ class ValuesDeltaOrdering:
     target_deps/target_values/canonical_names locals."""
 
     deps: list[ChartDependency]
-    values: dict | None
+    values: YamlMapping | None
     canonical_names: dict | None = None
 
 
@@ -160,7 +161,7 @@ class ValuesDeltaBaseline:
     existing section never needs the baseline at all)."""
 
     deps: list[ChartDependency] | None
-    values: dict | None
+    values: YamlMapping | None
 
 
 def insert_values_delta_section(

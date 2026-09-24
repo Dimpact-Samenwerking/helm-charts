@@ -198,6 +198,7 @@ from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import values_key_of
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
+from lib.yaml_types import YamlMapping
 
 # Every render this module issues is an independent `helm template`
 # subprocess (its own temp overlay file, no shared state) competing for
@@ -235,7 +236,7 @@ def _candidate_leaves(node: str | dict, path: tuple, exempt_full_paths: Abstract
         yield leaf_path
 
 
-def candidate_leaf_paths(values: dict, exempt_full_paths: AbstractSet = frozenset()):
+def candidate_leaf_paths(values: YamlMapping, exempt_full_paths: AbstractSet = frozenset()):
     """Every path _candidate_leaves finds in podiumd's own values.yaml
     worth null-testing — the full, flat list (used for the "N checked"
     count; the actual search walks the same candidates hierarchically,
@@ -827,7 +828,9 @@ def _build_scan_context(chart_dir: Path, extra_args: list, full_scope: dict):
     )
 
 
-def _resolve_all_scopes(executor: concurrent.futures.ThreadPoolExecutor, context: ScopeResolutionContext, values: dict):
+def _resolve_all_scopes(
+    executor: concurrent.futures.ThreadPoolExecutor, context: ScopeResolutionContext, values: YamlMapping
+):
     """(scope, (key,), node) for every top-level values.yaml key,
     resolved concurrently via _resolve_scope."""
     scope_futures = {executor.submit(_resolve_scope, context, key): key for key in values}

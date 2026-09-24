@@ -18,6 +18,7 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.yaml_types import YamlMapping
 
 # A bare MAJOR.MINOR.PATCH version, exactly — e.g. podiumd's own Chart.yaml
 # "version:", or a --baseline/target argument. Anything else (a suffix, a
@@ -121,7 +122,7 @@ def historical_app_version_for_repository(
 def historical_app_version_for_path(
     chart_dir: Path | None,
     deps: list[ChartDependency],
-    values: dict,
+    values: YamlMapping,
     path: tuple[str, ...],
     at_or_before: str | None = None,
 ):
@@ -171,8 +172,8 @@ class BaselineLookup:
 
     chart_dir: Path | None
     deps: list[ChartDependency]
-    target_values: dict
-    baseline_values: dict | None
+    target_values: YamlMapping
+    baseline_values: YamlMapping | None
     baseline_paths: dict
     baseline_repo_groups: dict
 
@@ -180,8 +181,8 @@ class BaselineLookup:
 def baseline_lookup(
     chart_dir: Path | None,
     deps: list[ChartDependency],
-    target_values: dict,
-    baseline_values: dict | None,
+    target_values: YamlMapping,
+    baseline_values: YamlMapping | None,
     baseline_setup: BaselineSetup,
 ):
     """A BaselineLookup built from chart_dir/deps/target_values/

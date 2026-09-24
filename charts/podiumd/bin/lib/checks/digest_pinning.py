@@ -75,6 +75,7 @@ from lib.render_scope import rendered_chart_paths
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
+from lib.yaml_types import YamlMapping
 
 # "@sha256:<64 hex chars>" at the end of a tag value — the same shape
 # lib.image.digests.DIGEST_PIN_RE requires, checked here as a suffix
@@ -98,7 +99,7 @@ def _deps_from_chart_yaml(chart_dir: Path):
     return load_chart_dependencies(chart_yaml_path) if chart_yaml_path.is_file() else []
 
 
-def _repository_groups(chart_dir: Path, values: dict, deps: list[ChartDependency]):
+def _repository_groups(chart_dir: Path, values: YamlMapping, deps: list[ChartDependency]):
     """{stripped_repo: [path, ...]} for every image/version path in the
     chart — built from the exact same full path enumeration lib.image.
     docs.regenerate_images_baseline_manifest already uses for
@@ -134,7 +135,9 @@ def _path_chart_tree_path(chart_dir: Path, deps: list[ChartDependency], path: tu
     return chart_tree_path
 
 
-def _live_repository_groups(chart_dir: Path, deps: list[ChartDependency], values: dict, rendered_paths: set[str]):
+def _live_repository_groups(
+    chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, rendered_paths: set[str]
+):
     """_repository_groups(...), with every consuming path whose own
     chart-tree path never actually rendered filtered out entirely —
     both from the count AND from the printed list, never just one or
@@ -159,7 +162,7 @@ def _live_repository_groups(chart_dir: Path, deps: list[ChartDependency], values
     return live
 
 
-def _global_image_usage(values: dict, repo_groups: dict):
+def _global_image_usage(values: YamlMapping, repo_groups: dict):
     """{def_path: [consumer_path, ...]} for every global.images.*
     registered entry (see lib.chart.global_image_paths — the deliberate
     "this is meant to be shared" mechanism: nginx, curl, busybox, redis
@@ -179,7 +182,7 @@ def _global_image_usage(values: dict, repo_groups: dict):
     return usage
 
 
-def _non_global_shared_repo_groups(values: dict, repo_groups: dict, global_usage: dict):
+def _non_global_shared_repo_groups(values: YamlMapping, repo_groups: dict, global_usage: dict):
     """repo_groups, minus every repository a global.images.* entry
     already claims (see _global_image_usage — those are reported
     separately, split into failing/report-only by real consumer count)
@@ -203,7 +206,7 @@ def _print_path_list(chart_dir: Path, deps: list[ChartDependency], paths: list):
 
 
 def _print_shared_image_usage(
-    chart_dir: Path, deps: list[ChartDependency], values: dict, repo_groups: dict, global_usage: dict
+    chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, repo_groups: dict, global_usage: dict
 ):
     """Prints up to three sections, in order, after check_shared_image_
     usage's own render:
@@ -370,7 +373,7 @@ def check_shared_image_usage(chart_dir: Path, extra_args: list):
 
 
 def find_unresolved_subchart_images(
-    chart_dir: Path, deps: list[ChartDependency], own_values: dict, rendered_paths: set
+    chart_dir: Path, deps: list[ChartDependency], own_values: YamlMapping, rendered_paths: set
 ):
     """(scope_key, subpath, tag, already_pinned) for every "<key>: {tag:
     ...}" block ("image", or an "...Image"-suffixed sibling — see
@@ -443,7 +446,7 @@ def find_unresolved_subchart_images(
     return findings
 
 
-def _findings_for_dependency(chart_dir: Path, dep: ChartDependency, own_values: dict, rendered_paths: set):
+def _findings_for_dependency(chart_dir: Path, dep: ChartDependency, own_values: YamlMapping, rendered_paths: set):
     """find_unresolved_subchart_images's own per-dependency body, split out
     purely to keep that function's own local count down — one dependency's
     worth of (scope_key, subpath, tag, already_pinned) findings, using the

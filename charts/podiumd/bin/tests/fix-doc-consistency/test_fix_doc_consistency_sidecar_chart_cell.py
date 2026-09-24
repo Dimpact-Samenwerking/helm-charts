@@ -5,9 +5,10 @@ from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.fix_doc_consistency.component_version_table import fix_component_version_table
 from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.yaml_types import YamlMapping
 
 
-def redis_values(tag: str) -> dict[str, object]:
+def redis_values(tag: str) -> YamlMapping:
     return {
         "redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": f"{tag}@sha256:aaaa"}}}
     }

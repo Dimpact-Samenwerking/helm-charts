@@ -13,6 +13,7 @@ from lib.chart.registered_paths import is_primary_image_path
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
+from lib.yaml_types import YamlValue
 
 BARE_CHART_CLAUSE_RE = re.compile(
     r"\bchart\s+`?[A-Za-z0-9][\w.\-]*`?\s*(?:→|->)\s*`?[A-Za-z0-9][\w.\-]*`?", re.IGNORECASE
@@ -133,7 +134,7 @@ def diff_keys(baseline_node: object, current_node: object, path: tuple = ()):
         yield from diff_keys(baseline_node[key], current_node[key], (*path, key))
 
 
-def flatten_leaf_keys(node: object):
+def flatten_leaf_keys(node: YamlValue) -> set[str]:
     """All leaf key names anywhere under a subtree, used to measure how
     similar two blocks are (for rename detection) — not full paths, just the
     set of innermost key names, so "host"/"user"/"password" overlapping
@@ -149,7 +150,7 @@ def flatten_leaf_keys(node: object):
     return keys
 
 
-def _get_at_path(node: object, path: tuple[str, ...]) -> Any:
+def _get_at_path(node: YamlValue, path: tuple[str, ...]) -> YamlValue:
     for key in path:
         if not isinstance(node, dict):
             return None
@@ -157,7 +158,9 @@ def _get_at_path(node: object, path: tuple[str, ...]) -> Any:
     return node
 
 
-def _find_rename_match(add_path: tuple[str, ...], removed_left: list, baseline_node: dict, current_node: dict):
+def _find_rename_match(
+    add_path: tuple[str, ...], removed_left: list, baseline_node: YamlValue, current_node: YamlValue
+):
     """First rem_path in removed_left that pairs with add_path as a rename
     candidate — same parent path, and either similar leaf keys or an
     unchanged scalar value (see pair_renames) — or None."""
@@ -174,7 +177,7 @@ def _find_rename_match(add_path: tuple[str, ...], removed_left: list, baseline_n
     return None
 
 
-def pair_renames(added: list, removed: list, baseline_node: dict, current_node: dict):
+def pair_renames(added: list, removed: list, baseline_node: YamlValue, current_node: YamlValue):
     """Pair an added and a removed key at the same parent path into a rename
     candidate when their subtrees share enough leaf key names (e.g.
     mi.sftp -> mi.transfer, both containing host/user/password) — otherwise
