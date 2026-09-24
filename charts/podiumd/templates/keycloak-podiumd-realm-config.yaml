@@ -1165,18 +1165,11 @@ data:
         # PABC functional roles: ZAC sends the user's realm roles to PABC, so
         # each functional role in files/pabc-dataset.json needs a realm role
         # with the same name (attached to the group of that name below).
-        - name: administrators
-          description: PABC functionele rol administrators
-        - name: behandelaars
-          description: PABC functionele rol behandelaars
-        - name: beheerders
-          description: PABC functionele rol beheerders
-        - name: coordinators
-          description: PABC functionele rol coordinators
-        - name: raadplegers
-          description: PABC functionele rol raadplegers
-        - name: recordmanagers
-          description: PABC functionele rol recordmanagers
+        # Rendered from the dataset so the two cannot drift apart.
+{{- range $fr := (.Files.Get "files/pabc-dataset.json" | fromJson).functionalRoles }}
+        - name: {{ $fr.name | quote }}
+          description: {{ printf "PABC functionele rol %s" $fr.name | quote }}
+{{- end }}
       client:
         abc:
           - name: administrators
@@ -1361,6 +1354,21 @@ data:
           zac:
             - "domein_elk_zaaktype"
             - "raadpleger"
+{{- /* A PABC functional role in files/pabc-dataset.json without a hand-written
+       group above (with its ZAC client roles) still gets a group carrying its
+       realm role, so the dataset alone decides which groups exist. */}}
+{{- $pabcRoleGroups := list "administrators" "behandelaars" "coordinators" "recordmanagers" "beheerders" "raadplegers" }}
+{{- range $fr := (.Files.Get "files/pabc-dataset.json" | fromJson).functionalRoles }}
+{{- if not (has $fr.name $pabcRoleGroups) }}
+      - name: {{ $fr.name | quote }}
+        path: "/{{ $fr.name }}"
+        attributes:
+          description:
+            - {{ printf "PABC functionele rol %s" $fr.name | quote }}
+        realmRoles:
+          - {{ $fr.name | quote }}
+{{- end }}
+{{- end }}
       - name: {{ .Values.openbao.configuration.uploadersGroup | quote }}
         path: "/{{ .Values.openbao.configuration.uploadersGroup }}"
         attributes:

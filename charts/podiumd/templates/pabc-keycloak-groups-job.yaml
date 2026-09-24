@@ -12,7 +12,7 @@
 # files/pabc-dataset.json this Job makes sure the podiumd realm has a realm
 # role and a group with exactly that name, with the role attached to the
 # group, so putting a user in the group is enough. It uses kcadm.sh from the
-# Keycloak image as the keycloak-operator service account and only ever adds:
+# Keycloak image, authenticating with the keycloak-operator client secret, and only ever adds:
 # existing roles, groups and mappings are left alone.
 #
 # With keycloak.config.skipRoles/skipGroups: false the realm import creates the
@@ -102,14 +102,22 @@ done
 
 ensure_role_and_group() {
   local id
+  # A create can lose a race with the realm import creating the same role or
+  # group (409); in that case the lookup afterwards finds the one it made.
   if ! kc get "roles/$1" -r "$REALM" >/dev/null 2>&1; then
-    kc create roles -r "$REALM" -s "name=$1" >/dev/null
-    echo "Created realm role $1"
+    if kc create roles -r "$REALM" -s "name=$1" >/dev/null 2>&1; then
+      echo "Created realm role $1"
+    else
+      kc get "roles/$1" -r "$REALM" >/dev/null
+    fi
   fi
   id=$(kc get "group-by-path/$1" -r "$REALM" --fields id --format csv --noquotes 2>/dev/null || true)
   if [ -z "$id" ]; then
-    id=$(kc create groups -r "$REALM" -s "name=$1" -i)
-    echo "Created group $1"
+    if id=$(kc create groups -r "$REALM" -s "name=$1" -i 2>/dev/null); then
+      echo "Created group $1"
+    else
+      id=$(kc get "group-by-path/$1" -r "$REALM" --fields id --format csv --noquotes)
+    fi
   fi
   kc add-roles -r "$REALM" --gid "$id" --rolename "$1"
   echo "Group $1 has realm role $1"
