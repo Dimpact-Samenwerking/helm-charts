@@ -27,17 +27,17 @@ fi
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-python_scripts() {
-    grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)
-}
+# Read into arrays so every file name stays one argument (SC2046).
+mapfile -t python_scripts < <(find . -maxdepth 1 -type f -perm -u+x -exec grep -l '^#!.*python' {} +)
+mapfile -t test_files < <(find tests -name '*.py')
 
 # ruff only auto-discovers *.py files -- the extensionless top-level
 # scripts need to be passed explicitly too, same as vulture/pylint below.
 echo "=== ruff check ==="
-ruff check . $(python_scripts)
+ruff check . "${python_scripts[@]}"
 
 echo "=== ruff format --check ==="
-ruff format --check . $(python_scripts)
+ruff format --check . "${python_scripts[@]}"
 
 # Same rules and plugin settings as verify-podiumd's markdown check, read
 # from lib so the two can't drift. That check skips bin/, so bin/'s own
@@ -56,7 +56,7 @@ pymarkdown "${pymarkdown_args[@]}" scan ./*.md
 # names, derived from the code, so it can't drift.
 typeddict_whitelist=$(mktemp --suffix=.py)
 trap 'rm -f "$typeddict_whitelist"' EXIT
-python3 - lib $(python_scripts) > "$typeddict_whitelist" <<'PY'
+python3 - lib "${python_scripts[@]}" > "$typeddict_whitelist" <<'PY'
 import ast
 import pathlib
 import sys
@@ -80,12 +80,12 @@ for c in classes:
 PY
 
 echo "=== vulture (dead code) ==="
-vulture lib $(python_scripts) "$typeddict_whitelist"
+vulture lib "${python_scripts[@]}" "$typeddict_whitelist"
 
 # tests/ excluded, same as vulture above -- every `assert` statement would
 # otherwise flag B101 (assert_used), dominating any real signal.
 echo "=== bandit (security) ==="
-bandit -c pyproject.toml -r lib $(python_scripts) -q
+bandit -c pyproject.toml -r lib "${python_scripts[@]}" -q
 
 # Two invocations: lib/ and the top-level scripts get the full default
 # pylint rule set; tests/ runs with TESTS_PYLINT_DISABLE on top. See
@@ -105,16 +105,16 @@ TESTS_PYLINT_DISABLE=$TESTS_PYLINT_DISABLE,too-many-lines,subprocess-run-check,m
 TESTS_PYLINT_DISABLE=$TESTS_PYLINT_DISABLE,useless-return,unnecessary-lambda,too-few-public-methods
 TESTS_PYLINT_DISABLE=$TESTS_PYLINT_DISABLE,line-too-long,comparison-of-constants
 echo "=== pylint (lib + scripts) ==="
-pylint lib $(python_scripts)
+pylint lib "${python_scripts[@]}"
 
 echo "=== pylint (tests) ==="
 # lib isn't a target here, so its imports need PYTHONPATH (not an analyzed
 # target list) to resolve -- otherwise pylint can't see lib.* at all and
 # every cross-package import raises a false import-error.
-PYTHONPATH=. pylint --disable="$TESTS_PYLINT_DISABLE" $(find tests -name '*.py')
+PYTHONPATH=. pylint --disable="$TESTS_PYLINT_DISABLE" "${test_files[@]}"
 
 echo "=== basedpyright (type checking) ==="
-basedpyright lib $(python_scripts) tests
+basedpyright lib "${python_scripts[@]}" tests
 
 echo "=== pytest ==="
 python3 -m pytest -q
