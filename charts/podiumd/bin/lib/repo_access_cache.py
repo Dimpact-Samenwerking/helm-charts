@@ -37,12 +37,30 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 from pathlib import Path
+from typing import NotRequired
+from typing import TypedDict
+from typing import TypeGuard
 
 from lib.json_cache import cache_file
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
 
 CACHE_FILENAME = "repo-access-cache.json"
+
+
+class RepoAccessEntry(TypedDict):
+    """One repo-access-cache.json entry: when it was checked, and for a
+    registry entry the digest found then (see the module docstring)."""
+
+    checked_at: str
+    digest: NotRequired[str | None]
+
+
+def is_repo_access_entry(value: object) -> TypeGuard[RepoAccessEntry]:
+    """Whether a parsed cache entry is a RepoAccessEntry."""
+    if not isinstance(value, dict) or not isinstance(value.get("checked_at"), str):
+        return False
+    return "digest" not in value or value["digest"] is None or isinstance(value["digest"], str)
 
 
 def cache_path(chart_dir: Path):
@@ -54,14 +72,14 @@ def cache_path(chart_dir: Path):
     return cache_file(chart_dir, CACHE_FILENAME)
 
 
-def load_cache(chart_dir: Path):
+def load_cache(chart_dir: Path) -> dict[str, RepoAccessEntry]:
     """The parsed contents of cache_path(chart_dir), or {} if the file
     doesn't exist yet or can't be parsed (corrupt/truncated) — never
     raises, so a broken cache just behaves like a cold one."""
-    return load_json_cache(cache_path(chart_dir))
+    return load_json_cache(cache_path(chart_dir), is_repo_access_entry)
 
 
-def save_cache(chart_dir: Path, cache: dict):
+def save_cache(chart_dir: Path, cache: dict[str, RepoAccessEntry]):
     """Persist `cache` to cache_path(chart_dir) as pretty-printed,
     key-sorted JSON, creating the .cache directory first if needed."""
     save_json_cache(cache_path(chart_dir), cache)
@@ -77,7 +95,7 @@ def cache_key(test_kind: str, target: str | tuple[str, ...]):
     return f"registry:{host}/{repo_path}:{version}"
 
 
-def cache_entry_is_fresh(entry: dict, ttl_minutes: float):
+def cache_entry_is_fresh(entry: RepoAccessEntry, ttl_minutes: float):
     """True when `entry` was checked within the last `ttl_minutes`
     minutes (see repo_access.cache_ttl_minutes in lib.settings —
     deliberately short: long enough to skip a network round trip on a

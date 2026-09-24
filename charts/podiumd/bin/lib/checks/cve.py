@@ -95,6 +95,8 @@ from datetime import timedelta
 from datetime import timezone
 from pathlib import Path
 from typing import Any
+from typing import TypedDict
+from typing import TypeGuard
 
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.values_tree_primitives import values_key_of
@@ -134,6 +136,67 @@ VULN_FIELDS = ("VulnerabilityID", "PkgName", "Severity")
 CACHE_FILENAME = "cve-scan-cache.json"
 
 
+class Vulnerability(TypedDict):
+    """The VULN_FIELDS of one trivy finding ("?" when trivy left one out)."""
+
+    VulnerabilityID: str
+    PkgName: str
+    Severity: str
+
+
+class CveEntry(TypedDict):
+    """One cve-scan-cache.json entry: when the image was scanned and what
+    was found then."""
+
+    scanned_at: str
+    vulnerabilities: list[Vulnerability]
+
+
+def _vulnerability(finding: object) -> Vulnerability | None:
+    """The VULN_FIELDS of a trivy finding, or None if it isn't a mapping
+    or one of them isn't text."""
+    if not isinstance(finding, dict):
+        return None
+    fields: dict[object, object] = finding
+    vuln_id, pkg, severity = (fields.get(name, "?") for name in VULN_FIELDS)
+    if not isinstance(vuln_id, str) or not isinstance(pkg, str) or not isinstance(severity, str):
+        return None
+    return {"VulnerabilityID": vuln_id, "PkgName": pkg, "Severity": severity}
+
+
+def trivy_vulnerabilities(data: object) -> list[Vulnerability] | None:
+    """Every finding in trivy's JSON report `data`, or None when `data`
+    does not have trivy's Results/Vulnerabilities shape."""
+    if not isinstance(data, dict):
+        return None
+    report: dict[object, object] = data
+    results = report.get("Results") or []
+    if not isinstance(results, list):
+        return None
+    vulns: list[Vulnerability] = []
+    for res in results:
+        if not isinstance(res, dict):
+            return None
+        section: dict[object, object] = res
+        findings = section.get("Vulnerabilities") or []
+        if not isinstance(findings, list):
+            return None
+        for finding in findings:
+            vuln = _vulnerability(finding)
+            if vuln is None:
+                return None
+            vulns.append(vuln)
+    return vulns
+
+
+def is_cve_entry(value: object) -> TypeGuard[CveEntry]:
+    """Whether a parsed cache entry is a CveEntry."""
+    if not isinstance(value, dict) or not isinstance(value.get("scanned_at"), str):
+        return False
+    vulns = value.get("vulnerabilities")
+    return isinstance(vulns, list) and all(isinstance(v, dict) and _vulnerability(v) == v for v in vulns)
+
+
 @dataclass
 class ScanTarget:
     """repository/digest/ref — the image scan_cached is being asked to
@@ -151,8 +214,8 @@ class CacheSession:
     bundled since scan_cached needs both together on every call (read
     from old_cache, write into new_cache)."""
 
-    old_cache: dict
-    new_cache: dict
+    old_cache: dict[str, CveEntry]
+    new_cache: dict[str, CveEntry]
 
 
 def cache_path(chart_dir: Path):
@@ -164,14 +227,14 @@ def cache_path(chart_dir: Path):
     return cache_file(chart_dir, CACHE_FILENAME)
 
 
-def load_cache(chart_dir: Path):
+def load_cache(chart_dir: Path) -> dict[str, CveEntry]:
     """The parsed contents of cache_path(chart_dir), or {} if the file
     doesn't exist yet or can't be parsed (corrupt/truncated) — never
     raises, so a broken cache just behaves like a cold one."""
-    return load_json_cache(cache_path(chart_dir))
+    return load_json_cache(cache_path(chart_dir), is_cve_entry)
 
 
-def save_cache(chart_dir: Path, cache: dict):
+def save_cache(chart_dir: Path, cache: dict[str, CveEntry]):
     """Persist `cache` to cache_path(chart_dir) as pretty-printed,
     key-sorted JSON, creating the .cache directory first if needed."""
     save_json_cache(cache_path(chart_dir), cache)
@@ -201,7 +264,7 @@ def cache_key(repository: str, digest: str):
     return f"{repository}@sha256:{digest}"
 
 
-def cache_entry_is_fresh(entry: dict, ttl_days: int):
+def cache_entry_is_fresh(entry: CveEntry, ttl_days: int):
     """True when `entry` was scanned within the last `ttl_days` days (see
     cve_scan.scan_cache_ttl_days in lib.settings — long enough that a
     routine run doesn't re-pull/re-scan every image every time; short
@@ -214,7 +277,7 @@ def cache_entry_is_fresh(entry: dict, ttl_days: int):
     return datetime.now(timezone.utc) - scanned_at < timedelta(days=ttl_days)
 
 
-def run_trivy(image_ref: str):
+def run_trivy(image_ref: str) -> list[Vulnerability] | None:
     """Scan image_ref with trivy (via `docker run`, same shape as this
     repo's own trivy-vuln-scanner.yaml workflow — --ignore-unfixed so only
     vulnerabilities with an actual fix available are returned, matching
@@ -240,14 +303,10 @@ def run_trivy(image_ref: str):
         text=True,
     )
     try:
-        data = json.loads(result.stdout)
+        data: object = json.loads(result.stdout)
     except json.JSONDecodeError:
         return None
-
-    vulns = []
-    for res in data.get("Results") or []:
-        vulns.extend({field: v.get(field, "?") for field in VULN_FIELDS} for v in res.get("Vulnerabilities") or [])
-    return vulns
+    return trivy_vulnerabilities(data)
 
 
 def scan_cached(chart_dir: Path, target: ScanTarget, session: CacheSession, ttl_days: int, label: str = "this image"):
