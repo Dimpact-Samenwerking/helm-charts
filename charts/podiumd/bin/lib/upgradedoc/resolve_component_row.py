@@ -7,7 +7,8 @@ import re
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Literal
+from typing import TypedDict
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import BaselineLookup
@@ -27,6 +28,28 @@ from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.yaml_types import YamlMapping
+
+
+class UnmatchedRow(TypedDict):
+    """resolve_component_row's result for a row it cannot place."""
+
+    kind: Literal["unmatched"]
+
+
+class ResolvedRow(TypedDict):
+    """resolve_component_row's result for a matched row (see its docstring
+    for each field)."""
+
+    kind: Literal["sidecar", "dependency", "native"]
+    dep: ChartDependency | None
+    sidecar_path: tuple[str, ...] | None
+    values_key: str
+    top_level_key: str
+    target_chart: str | None
+    target_app: str | None
+    baseline_resolved: bool | None
+    baseline_chart: str | None
+    baseline_app: str | None
 
 
 @dataclass
@@ -117,40 +140,60 @@ def _match_row(row_name: str, chart_dir: Path | None, canonical_names: dict, dep
     return RowMatch(sidecar_path, dep, native_key)
 
 
-def _target_result(chart_dir: Path | None, values: YamlMapping, match: RowMatch) -> dict[str, Any]:
-    """The "kind"/"dep"/"sidecar_path"/values-and-chart-key/target_chart/
-    target_app fields of resolve_component_row's result dict — the
-    target-side resolution, independent of any baseline comparison."""
-    result: dict[str, Any] = {"dep": match.dep, "sidecar_path": match.sidecar_path}
+def _target_result(chart_dir: Path | None, values: YamlMapping, match: RowMatch) -> ResolvedRow:
+    """resolve_component_row's result for a matched row, with the target-
+    side fields resolved and the baseline fields still None (see
+    _add_baseline_result)."""
     if match.sidecar_path is not None:
-        result["kind"] = "sidecar"
-        result["values_key"] = ".".join(match.sidecar_path)
-        result["top_level_key"] = match.sidecar_path[0]
-        result["target_chart"] = None
-        result["target_app"] = sidecar_tag(values, match.sidecar_path)
-    elif match.dep is not None:
+        return {
+            "kind": "sidecar",
+            "dep": match.dep,
+            "sidecar_path": match.sidecar_path,
+            "values_key": ".".join(match.sidecar_path),
+            "top_level_key": match.sidecar_path[0],
+            "target_chart": None,
+            "target_app": sidecar_tag(values, match.sidecar_path),
+            "baseline_resolved": None,
+            "baseline_chart": None,
+            "baseline_app": None,
+        }
+    if match.dep is not None:
         values_key = values_key_of(match.dep)
-        result["kind"] = "dependency"
-        result["values_key"] = values_key
-        result["top_level_key"] = values_key
-        result["target_chart"] = str(match.dep["version"])
-        result["target_app"] = actual_app_version(
-            values, values_key, match.dep["name"], chart_dir=chart_dir, dep=match.dep
-        )
-    elif match.native_key is not None:
-        # No chart at all to verify against (never even attempted) — same
-        # "-" not-applicable convention a sidecar's own chart-less cell
-        # already uses (see component_version_cell), just via a different
-        # kind here since a native component's TARGET APP still needs
-        # resolving (a sidecar's target_app comes from sidecar_tag, a real
-        # dependency's from actual_app_version — a native component is
-        # its own top-level key, so it's the latter, keyed on itself).
-        result["kind"] = "native"
-        result["values_key"] = match.native_key
-        result["top_level_key"] = match.native_key
-        result["target_chart"] = None
-        result["target_app"] = actual_app_version(values, match.native_key, match.native_key)
-    return result
+        return {
+            "kind": "dependency",
+            "dep": match.dep,
+            "sidecar_path": match.sidecar_path,
+            "values_key": values_key,
+            "top_level_key": values_key,
+            "target_chart": str(match.dep["version"]),
+            "target_app": actual_app_version(values, values_key, match.dep["name"], chart_dir=chart_dir, dep=match.dep),
+            "baseline_resolved": None,
+            "baseline_chart": None,
+            "baseline_app": None,
+        }
+    # No chart at all to verify against (never even attempted) — same
+    # "-" not-applicable convention a sidecar's own chart-less cell
+    # already uses (see component_version_cell), just via a different
+    # kind here since a native component's TARGET APP still needs
+    # resolving (a sidecar's target_app comes from sidecar_tag, a real
+    # dependency's from actual_app_version — a native component is
+    # its own top-level key, so it's the latter, keyed on itself).
+    native_key = match.native_key
+    if native_key is None:
+        msg = "an unmatched row has no target result"
+        raise ValueError(msg)
+    return {
+        "kind": "native",
+        "dep": match.dep,
+        "sidecar_path": match.sidecar_path,
+        "values_key": native_key,
+        "top_level_key": native_key,
+        "target_chart": None,
+        "target_app": actual_app_version(values, native_key, native_key),
+        "baseline_resolved": None,
+        "baseline_chart": None,
+        "baseline_app": None,
+    }
 
 
 def _sidecar_baseline_app(resolution: ResolutionContext, sidecar_path: tuple[str, ...]):
@@ -232,7 +275,7 @@ def _native_baseline_app(resolution: ResolutionContext, native_key: str):
     return baseline_app
 
 
-def _add_baseline_result(resolution: ResolutionContext, match: RowMatch, result: dict):
+def _add_baseline_result(resolution: ResolutionContext, match: RowMatch, result: ResolvedRow):
     """Mutates result in place with baseline_resolved/baseline_chart/
     baseline_app, dispatching to the matching kind's own baseline
     lookup. Only called once resolution.baseline.deps is not None (see
@@ -254,7 +297,9 @@ def _add_baseline_result(resolution: ResolutionContext, match: RowMatch, result:
         result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
 
 
-def resolve_component_row(row_name: str, canonical_names: dict, resolution: ResolutionContext):
+def resolve_component_row(
+    row_name: str, canonical_names: dict, resolution: ResolutionContext
+) -> UnmatchedRow | ResolvedRow:
     """Resolve a "Component versions" table row's name to the real
     component it identifies, and its actual target (and, if requested,
     source) versions — the one place both fix-doc-consistency's row-
@@ -331,9 +376,6 @@ def resolve_component_row(row_name: str, canonical_names: dict, resolution: Reso
         return {"kind": "unmatched"}
 
     result = _target_result(resolution.chart_dir, resolution.target.values, match)
-    result["baseline_resolved"] = None
-    result["baseline_chart"] = None
-    result["baseline_app"] = None
 
     if resolution.baseline.deps is not None:
         resolution = ResolutionContext(

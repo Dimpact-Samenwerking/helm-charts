@@ -6,6 +6,7 @@ string/regex logic, no filesystem or values.yaml access."""
 import re
 
 from collections.abc import Iterable
+from typing import TypedDict
 from typing import TypeVar
 
 from lib.chart.chart_yaml import ChartDependency
@@ -13,6 +14,25 @@ from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
 
 COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
+
+
+class VersionRow(TypedDict):
+    """One component's version change as a document states it: the
+    Component-versions table row (see TableRow) or a "# Changes:" item
+    (parse_changes_block). Each version is None when its cell has none."""
+
+    name: str
+    app_source: str | None
+    app: str | None
+    chart_source: str | None
+    chart: str | None
+
+
+class TableRow(VersionRow):
+    """A Component-versions table row (parse_upgrade_doc_rows), with its
+    0-based line in the document."""
+
+    line_index: int
 
 
 def normalize_version(v: str | None):
@@ -39,7 +59,7 @@ def words_of(s: str):
     return [w for w in re.split(r"[^a-zA-Z0-9]+", s.lower()) if w]
 
 
-def extract_target_version(cell: str):
+def extract_target_version(cell: str) -> str | None:
     """Pull the target (right-hand) version out of a markdown table cell like
     "5.0.2 → 5.4.3" or "1.0.297 (unchanged)" or "`0.0.92`"."""
     cell = cell.strip()
@@ -50,7 +70,7 @@ def extract_target_version(cell: str):
     return m.group(1) if m else None
 
 
-def extract_source_version(cell: str):
+def extract_source_version(cell: str) -> str | None:
     """Pull the source (left-hand) version out of the same kind of cell —
     equal to the target when the cell has no arrow (e.g. "1.0.297 (unchanged)")."""
     cell = cell.strip()
@@ -61,7 +81,7 @@ def extract_source_version(cell: str):
     return m.group(1) if m else None
 
 
-def parse_upgrade_doc_rows(text: str):
+def parse_upgrade_doc_rows(text: str) -> list[TableRow]:
     """Every row of the "## Component versions (... vs ...)" table
     SPECIFICALLY — scoped to that one section (the heading through the
     next "## " heading, or EOF), never any OTHER pipe-table that happens
@@ -89,7 +109,7 @@ def parse_upgrade_doc_rows(text: str):
             end = i
             break
 
-    rows = []
+    rows: list[TableRow] = []
     for i in range(start, end):
         line = lines[i]
         if not line.strip().startswith("|"):

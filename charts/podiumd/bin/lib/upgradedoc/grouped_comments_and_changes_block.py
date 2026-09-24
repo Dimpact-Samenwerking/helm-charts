@@ -11,6 +11,7 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
 from lib.chart.values_tree_primitives import values_key_of
 from lib.images_manifest import ManifestEntry
+from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
 from lib.yaml_types import YamlValue
@@ -192,7 +193,7 @@ def pair_renames(added: list, removed: list, baseline_node: YamlValue, current_n
     return renamed, added_left, removed_left
 
 
-def parse_changes_block(text: str):
+def parse_changes_block(text: str) -> list[VersionRow]:
     """Parse the "# Changes:" numbered-list block in an images manifest's
     header comment, e.g.:
         #   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).
@@ -260,7 +261,7 @@ def _changes_block_lines(text: str):
             yield line
 
 
-def _finalize_changes_item(rest: str):
+def _finalize_changes_item(rest: str) -> VersionRow:
     # extract_source_version/extract_target_version's own [\w.\-]* token
     # regex treats "." as a valid version character (needed for "1.31.4"
     # itself) — harmless for a table cell, but a Changes item is free-form
