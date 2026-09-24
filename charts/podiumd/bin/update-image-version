@@ -541,6 +541,7 @@ def _update_shared_image_manifest_entry(
             print(f"  removed entry for {repo_path} (back at its upgrade_docs_baseline version)")
         return
 
+    # A missing entry is added by the fix-doc-consistency run at the end of main().
     changes_action, entry_updated = update_image_manifest(
         images_path,
         ImageBump(bump.name, repo_path, context.baseline.old_version, c["new_version"], c["new_digest"]),

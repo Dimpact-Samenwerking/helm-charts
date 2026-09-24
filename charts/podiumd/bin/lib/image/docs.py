@@ -676,9 +676,10 @@ def update_image_manifest(images_path: Path, bump: ImageBump, ordering: Ordering
     "name:" convention docs/images/acr-mirror-naming.md documents), not
     a values-tree path. Returns (changes_action, entry_updated) —
     entry_updated is False (not an error) when no existing entry's
-    "url:" matches this repository; the caller reports the correct
-    name/url to add by hand instead, same convention as
-    lib.component_docs.update_images_manifest's own missing_entries.
+    "url:" matches this repository; no entry is invented here — the
+    caller's closing fix-doc-consistency run adds it (add_missing_
+    images_manifest_entries), same as lib.component_docs.update_images_
+    manifest's own missing_entries.
 
     `ordering` (see _update_manifest_changes_header) positions a
     BRAND-NEW header item at this basename's own real values.yaml order

@@ -1,37 +1,18 @@
 """Accessors for charts/podiumd/etc/settings.yaml — the operator-tunable
 policy constants (cache TTLs, CVE severity sets, retry counts,
-quality-gate pass/fail sets, thresholds, ...) that used to live as bare
-module-level constants scattered across ~12 lib/*.py files. Moving them
-into one YAML file lets an operator retune a value (e.g. loosen a CVE
-cache TTL, add a host to the never-probe list) without touching Python
-source.
+quality-gate pass/fail sets, thresholds, component-resolution tables,
+...) the scripts read instead of hard-coding them, so an operator can
+retune a value without touching Python source.
 
-Follows the exact precedent of lib.chart._release_baselines(chart_dir):
-_load_settings below is tolerant of a missing settings.yaml (returns {}
-rather than raising), takes chart_dir explicitly rather than discovering
-it itself, and does no caching of its own — every accessor call re-reads
-and re-parses the file. That's deliberately simple/cheap rather than
-fast: these are called at most a handful of times per verify-podiumd
-run, never in a hot loop, so there's no reason to add a caching layer
-lib.chart's own equivalent doesn't have either.
+Each public function is a named accessor for one leaf value (e.g.
+cve_scan.high_severity_levels -> cve_high_severity_levels). It returns
+its built-in default when settings.yaml, the section or the key is
+missing (or null). A value that IS present must have the expected
+shape (see lib.yaml_types.shape_problem): a wrong type exits with an
+error naming the offending key, never a silent fallback to the default.
 
-Each public function below is a single named accessor for one leaf
-value (e.g. cve_scan.high_severity_levels -> cve_high_severity_levels).
-Every accessor is resilient by construction: if settings.yaml is
-missing entirely, missing its relevant top-level section, or missing
-just that one key, the accessor silently falls back to today's
-hard-coded default (the same value the constant it replaces has always
-had) rather than raising — a partially-filled-in or wholly absent
-settings.yaml must never break a check. Only the value's presence in
-the YAML overrides the default; there is no other way to change one of
-these constants.
-
-This module is infrastructure only (step 1 of 2). It is not yet wired
-into any of the ~12 consuming files (lib/checks/cve.py, lib/repo_access.
-py, etc.) — those still define and use their own local constants
-unchanged. Step 2 (a separate, later task) migrates each consumer to
-call the matching accessor here instead of its own local constant, and
-only then can that constant be deleted from the consumer."""
+Every accessor call re-reads settings.yaml from the chart_dir it is
+given (no caching); they are called a handful of times per run."""
 
 from pathlib import Path
 from typing import NoReturn

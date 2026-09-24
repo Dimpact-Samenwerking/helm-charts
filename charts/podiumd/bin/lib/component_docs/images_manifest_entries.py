@@ -248,11 +248,9 @@ def update_images_manifest(
     ImagePathUpdate. Returns (changes_action, entry_names_updated,
     missing_entries) where missing_entries is [(image_path, repo,
     new_tag), ...] for components with no existing entry — never invented
-    here. "name:" is mechanically derivable now (strip_registry(repo), see
-    docs/images/acr-mirror-naming.md) but this function doesn't compute it
-    — a full manifest entry still needs a human-authored comment/heading,
-    so callers print a placeholder and leave the whole entry for manual
-    review rather than a script writing part of it and a human the rest.
+    here: the callers' closing fix-doc-consistency run adds the whole
+    entry (add_missing_images_manifest_entries) rather than this function
+    writing part of it.
 
     deps/values position a brand-new header item at its own values.yaml-
     order slot (via insert_images_manifest_header_item/images_manifest_
