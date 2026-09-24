@@ -50,6 +50,7 @@ from lib.release_table.component_resolution import chart_dependencies
 from lib.release_table.component_resolution import component_and_alias
 from lib.release_table.component_resolution import global_image_keys
 from lib.release_table.component_resolution import orphan_values_yaml_keys
+from lib.release_table.csv_rows import CSV_HEADER
 from lib.release_table.image_basenames import resolve_image_basenames
 
 DEFAULT_OUTPUT = CHART_DIR / "etc" / "release-table.csv"
@@ -63,19 +64,6 @@ DEFAULT_HEADINGS = [
     "Technische component versies",
 ]
 
-CSV_HEADER = [
-    "section",
-    "vendor",
-    "used_by",
-    "name",
-    "component",
-    "alias",
-    "image_basename",
-    "source_version_app",
-    "source_version_helm",
-    "target_version_app",
-    "target_version_helm",
-]
 
 # Stripped from the end of a matched heading before it goes into the CSV's
 # "section" column — "Product component versies" -> "Product", etc. Only
