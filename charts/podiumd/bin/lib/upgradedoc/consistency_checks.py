@@ -152,29 +152,37 @@ def find_wrong_or_duplicate_dependency_claims(
     Callers should skip their own normal per-name resolution entirely for
     any name in either returned set, reporting it as wrong/stale instead —
     see lib.docs_consistency's own row loop and Changes-block loop for the
-    exact pattern."""
+    exact pattern.
+
+    Exact claims are tracked as two sets (claiming names, claimed keys),
+    not a {key: name} dict: a dict remembers only one claiming name per
+    key, so two different names that both exactly claim the same key
+    (e.g. "KISS" and "Kiss") would overwrite each other and leave the
+    first one looking like a fuzzy claim. Duplicate names are included:
+    a name that appears twice still exactly claims its dependency, so an
+    unrelated fuzzy name for that dependency is still reported."""
     name_counts: dict[str, int] = {}
     for name in names:
         name_counts[name] = name_counts.get(name, 0) + 1
     duplicate_names = {name for name, count in name_counts.items() if count > 1}
 
-    exact_claims: dict[str, str] = {}  # values_key -> the name that exactly claims it
+    exactly_claiming_names: set[str] = set()
+    exactly_claimed_keys: set[str] = set()
     for name in names:
-        if name in duplicate_names:
-            continue
         dep = match_dependency_excluding_sidecar_names(name, deps)
         if dep is not None and is_exact_dependency_match(name, dep):
-            exact_claims[values_key_of(dep)] = name
+            exactly_claiming_names.add(name)
+            exactly_claimed_keys.add(values_key_of(dep))
 
     wrong_fuzzy_names: set[str] = set()
     for name in names:
-        if name in duplicate_names or name in exact_claims.values():
+        if name in duplicate_names or name in exactly_claiming_names:
             continue
         dep = match_dependency_excluding_sidecar_names(name, deps)
         if dep is None:
             continue
         key = values_key_of(dep)
-        if key in exact_claims:
+        if key in exactly_claimed_keys:
             wrong_fuzzy_names.add(name)
 
     return duplicate_names, wrong_fuzzy_names

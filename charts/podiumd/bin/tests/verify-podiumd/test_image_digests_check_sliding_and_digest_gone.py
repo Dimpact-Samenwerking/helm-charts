@@ -79,6 +79,7 @@ def test_check_image_digests_sliding_drift_warns_but_passes(
     assert "0 stale" in detail
     out = capsys.readouterr().out
     assert "[SLIDING  ]" in out
+    assert "refresh with fix-image-digests" in out
     assert "[DIGEST-GONE]" not in out
     assert "MISMATCH" not in out
 
@@ -97,8 +98,8 @@ def test_check_image_digests_pinned_drift_still_fails(
         libimagedigests,
         "registry_tag_exists",
         lambda host, repo, tag: (
-            (True, f"sha256:{'a' * 64}")
-            if repo == "nginxinc/nginx-unprivileged"  # unchanged, matches
+            (True, f"sha256:{'d' * 64}")
+            if repo == "nginxinc/nginx-unprivileged"  # drifted too, but a known sliding tag
             else (True, f"sha256:{'c' * 64}")  # zac drifted — not sliding
         ),
     )
@@ -109,9 +110,10 @@ def test_check_image_digests_pinned_drift_still_fails(
     )
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is False
-    assert "0 sliding" in detail
+    assert "1 sliding" in detail
     assert "1 stale" in detail
     out = capsys.readouterr().out
+    assert "[SLIDING  ]" in out
     assert "[MISMATCH ]" in out
     assert "zaakafhandelcomponent" in out
 
