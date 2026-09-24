@@ -11,6 +11,7 @@ component name and the image name are not always the same (e.g.
 zgw-office-addin bumps two distinctly-named images, frontend + backend)."""
 
 from pathlib import Path
+from typing import TypedDict
 from typing import TypeVar
 
 from lib.chart.chart_yaml import ChartDependency
@@ -23,8 +24,20 @@ from lib.image.digests import DigestPin
 from lib.image.digests import VersionPin
 from lib.image.digests import scan_digest_pins
 from lib.image.digests import scan_version_pins
+from lib.registry import TagCheck
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
+
+
+class PinUpdate(TypedDict):
+    """One values.yaml pin update_image_version rewrote."""
+
+    line: int
+    repository: str
+    old_version: str
+    old_digest: str
+    new_version: str
+    new_digest: str
 
 
 def image_basename(repository: str):
@@ -234,7 +247,7 @@ def resolve_scoped_matches(lines: list, key: str, basename: str):
     return matches
 
 
-def check_basename_version(lines: list, key: str, basename: str, new_version: str):
+def check_basename_version(lines: list, key: str, basename: str, new_version: str) -> list[TagCheck]:
     """[{"repository", "host", "repo_path", "exists", "digest"}, ...] one
     for <key> <basename>'s single resolved repository (see
     resolve_scoped_matches — it never returns more than one distinct
@@ -249,7 +262,7 @@ def check_basename_version(lines: list, key: str, basename: str, new_version: st
     resolve_scoped_matches)."""
     matches = resolve_scoped_matches(lines, key, basename)
 
-    results = []
+    results: list[TagCheck] = []
     seen_repositories = set()
     for m in matches:
         if m["repository"] in seen_repositories:
@@ -282,7 +295,7 @@ def _resolve_pending_digests(pending: list, new_version: str):
     return digests
 
 
-def update_image_version(values_path: Path, key: str, basename: str, new_version: str):
+def update_image_version(values_path: Path, key: str, basename: str, new_version: str) -> list[PinUpdate]:
     """Update every values.yaml tag pin <key> <basename> resolves to (see
     resolve_scoped_matches) to new_version, re-resolving each one's
     digest against the registry FIRST — before any file is touched, so a
@@ -310,7 +323,7 @@ def update_image_version(values_path: Path, key: str, basename: str, new_version
     digests = _resolve_pending_digests(pending, new_version)
 
     write_lines = text.splitlines(keepends=True)
-    changes = []
+    changes: list[PinUpdate] = []
     for m in pending:
         digest = digests[m["repository"]]
         write_lines[m["line"] - 1] = replace_scalar_value(write_lines[m["line"] - 1], f"{new_version}@{digest}")

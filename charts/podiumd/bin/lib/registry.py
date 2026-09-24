@@ -9,6 +9,7 @@ import urllib.request
 
 from pathlib import Path
 from typing import BinaryIO
+from typing import TypedDict
 
 from lib.procutil import run
 
@@ -32,6 +33,23 @@ MANIFEST_HOSTS = {
 }
 
 BEARER_CHALLENGE_PARAM_RE = re.compile(r'(\w+)="([^"]*)"')
+
+
+class TagCheck(TypedDict):
+    """Whether one repository has a tag upstream: the repository, its
+    parse_repo split, and registry_tag_exists' (exists, digest)."""
+
+    repository: str
+    host: str
+    repo_path: str
+    exists: bool
+    digest: str | None
+
+
+class ImagePathTagCheck(TagCheck):
+    """A TagCheck for the image at one values-tree path."""
+
+    path: str
 
 
 def _read_json(resp: BinaryIO):
@@ -134,7 +152,7 @@ def _get_with_dynamic_auth(url: str, repo: str, headers: dict, timeout: float | 
 UNVERIFIABLE_HOSTS = set()
 
 
-def parse_repo(repository: str):
+def parse_repo(repository: str) -> tuple[str, str]:
     """Split a Docker-style repository string into (registry_host, repo_path)
     using the standard Docker convention: the first path segment is a
     registry host only if it contains a "." or ":" (or is "localhost");
@@ -149,7 +167,9 @@ def parse_repo(repository: str):
     return "docker.io", repository
 
 
-def _fetch_manifest_digest(url: str, repo: str, headers: dict, timeout: float | None, method: str):
+def _fetch_manifest_digest(
+    url: str, repo: str, headers: dict, timeout: float | None, method: str
+) -> tuple[bool, str | None]:
     """One manifest request via the given HTTP method, returning (exists,
     digest) — a 404 is a genuine "tag doesn't exist" answer regardless of
     method, not an error. Any other HTTPError (or URLError/OSError)
@@ -163,7 +183,9 @@ def _fetch_manifest_digest(url: str, repo: str, headers: dict, timeout: float | 
         raise
 
 
-def registry_tag_exists(registry_host: str, repo: str, tag: str, timeout: float | None = None):
+def registry_tag_exists(
+    registry_host: str, repo: str, tag: str, timeout: float | None = None
+) -> tuple[bool, str | None]:
     """Return (exists, digest) for <repo>:<tag> on the given registry host,
     using an anonymous pull token where the registry requires one — same
     flow as /fetch-image-digest. timeout (seconds) bounds every request
