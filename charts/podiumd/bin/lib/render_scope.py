@@ -15,9 +15,12 @@ import re
 
 from collections import Counter
 from collections.abc import Callable
+from collections.abc import Hashable
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Generic
+from typing import TypeVar
 
 import yaml
 
@@ -355,7 +358,7 @@ def build_resource_locations(rendered_text: str):
     return locations
 
 
-def resource_line(locations: dict, kind: str, name: str | None, namespace: str | None = None):
+def resource_line(locations: dict, kind: str | None, name: str | None, namespace: str | None = None):
     """Look up a resource's rendered-line hint from build_resource_locations's
     map. With namespace known (kube-score's own object_name gives one),
     matches exactly. Without it (kubeconform's JSON has no namespace
@@ -369,8 +372,16 @@ def resource_line(locations: dict, kind: str, name: str | None, namespace: str |
     return candidates.pop() if len(candidates) == 1 else None
 
 
+FindingT = TypeVar("FindingT")
+GroupKeyT = TypeVar("GroupKeyT", bound=Hashable)
+
+
 def print_grouped_findings(
-    findings: list, key_fn: Callable, item_fn: Callable, label_fn: Callable, items_label: str = "line(s)"
+    findings: Sequence[FindingT],
+    key_fn: Callable[[FindingT], GroupKeyT],
+    item_fn: Callable[[FindingT], object],
+    label_fn: Callable[[GroupKeyT], object],
+    items_label: str = "line(s)",
 ):
     """Shared grouping printer for check_yamllint/check_kubeconform/
     check_shellcheck/check_kube_score: the same root cause (e.g. a
@@ -380,7 +391,7 @@ def print_grouped_findings(
     a handful of headings instead of a wall of repeats (and each
     location list stays readable instead of one giant comma-joined
     line)."""
-    groups = {}
+    groups: dict[GroupKeyT, list[FindingT]] = {}
     for finding in findings:
         groups.setdefault(key_fn(finding), []).append(finding)
     for key, group in groups.items():
@@ -391,8 +402,12 @@ def print_grouped_findings(
             print(f"        {item_fn(f)}")
 
 
+OwnFindingT = TypeVar("OwnFindingT")
+VendoredFindingT = TypeVar("VendoredFindingT")
+
+
 @dataclass
-class VendorBucketScan:
+class VendorBucketScan(Generic[OwnFindingT, VendoredFindingT]):
     """A completed render + tool pass over the chart, as check_kubeconform
     and check_shellcheck report it: the rendered-line lookup (locations),
     the friendly-vendor map (for the report's label text), and the
@@ -400,9 +415,9 @@ class VendorBucketScan:
 
     locations: dict
     vendor_map: dict
-    own_real: list
-    vendored_friendly: list
-    vendored_other: list
+    own_real: list[OwnFindingT]
+    vendored_friendly: list[VendoredFindingT]
+    vendored_other: list[VendoredFindingT]
 
 
 @dataclass
@@ -427,11 +442,12 @@ def render_chart_docs(chart_dir: Path, extra_args: list[str]) -> tuple[RenderedD
 def scan_rendered_chart(
     chart_dir: Path,
     extra_args: list[str],
-    own_findings: Callable[[list[tuple[str, str]]], tuple[list[Any] | None, str | None]],
+    own_findings: Callable[[list[tuple[str, str]]], tuple[list[OwnFindingT] | None, str | None]],
     vendored_findings: Callable[
-        [list[tuple[str, str]], dict[str, str]], tuple[list[Any] | None, list[Any] | None, str | None]
+        [list[tuple[str, str]], dict[str, str]],
+        tuple[list[VendoredFindingT] | None, list[VendoredFindingT] | None, str | None],
     ],
-) -> tuple[VendorBucketScan | None, str | None]:
+) -> tuple[VendorBucketScan[OwnFindingT, VendoredFindingT] | None, str | None]:
     """Render the chart and run one tool over it, as check_kubeconform and
     check_shellcheck do. own_findings(own_docs) returns (own_real, error);
     vendored_findings(vendored_docs, vendor_map) returns
