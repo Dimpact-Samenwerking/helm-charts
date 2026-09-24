@@ -6,6 +6,7 @@ component's own PRIMARY image path (as opposed to a sidecar)."""
 
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import same_name
 from lib.chart.values_tree_primitives import values_key_of
@@ -170,7 +171,7 @@ def chart_version_lockstep_components(chart_dir: Path | None = None):
 # parameter rather than reading a module constant of its own.
 
 
-def _is_dependency_primary_rel_path(dep: dict, rel_path: str, chart_dir: Path | None = None):
+def _is_dependency_primary_rel_path(dep: ChartDependency, rel_path: str, chart_dir: Path | None = None):
     """rel_path (path[1:], dotted) is one of dep's own PRIMARY image/
     version fields — image_paths_for's "image: {tag}" shape first, else
     (same fallback lib.upgradedoc.actual_app_version already uses for
@@ -187,7 +188,7 @@ def _is_dependency_primary_rel_path(dep: dict, rel_path: str, chart_dir: Path | 
     )
 
 
-def is_primary_image_path(path: tuple | None, deps: list, chart_dir: Path | None = None):
+def is_primary_image_path(path: tuple | None, deps: list[ChartDependency], chart_dir: Path | None = None):
     """True when path is one of a Chart.yaml dependency's own PRIMARY
     image/version field(s) — see _is_dependency_primary_rel_path (image_
     paths_for's "image: {tag}" shape, or version_paths_for's own bare-
@@ -247,8 +248,8 @@ def is_primary_image_path(path: tuple | None, deps: list, chart_dir: Path | None
 
 
 def component_chart_versions(
-    chart_dir: Path | None, key: str, deps: list[dict], baseline_deps: list[dict] | None
-) -> tuple[dict | None, str, str | None, str] | None:
+    chart_dir: Path | None, key: str, deps: list[ChartDependency], baseline_deps: list[ChartDependency] | None
+) -> tuple[ChartDependency | None, str, str | None, str] | None:
     """(dep, chart_name, old_chart, new_chart) for values key `key`: its
     Chart.yaml dependency in deps (old_chart from baseline_deps, None when
     it isn't there), or a native component (dep None, chart_name key,

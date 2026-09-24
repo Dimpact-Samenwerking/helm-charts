@@ -45,9 +45,9 @@ from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_shar
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_positions
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import best_name_match
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
-from lib.upgradedoc.string_and_parsing_basics import match_dependency
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
@@ -126,10 +126,10 @@ def match_changes_item_to_entry(item_name: str, entries: list):
     keycloak-operator dependency) wrongly matched the "keycloak" entry
     (keycloak's own, unrelated primary image) instead of "postgres",
     since match_dependency has no reason to prefer the trailing word."""
-    candidates = [{"name": entry["name"].rsplit("/", 1)[-1], "_entry": entry} for entry in entries if entry.get("name")]
     search_text = item_name.split(" - ", 1)[1] if " - " in item_name else item_name
-    match = match_dependency(search_text, candidates)
-    return match["_entry"] if match else None
+    return best_name_match(
+        search_text, ((entry, [entry["name"].rsplit("/", 1)[-1]]) for entry in entries if entry.get("name"))
+    )
 
 
 def _images_manifest_changes_items(lines: list[str]):

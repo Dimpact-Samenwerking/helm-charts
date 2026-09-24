@@ -9,6 +9,7 @@ from pathlib import Path
 
 import yaml
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
@@ -169,7 +170,7 @@ def _entry_url_status(entry: dict, line_idx: int, lines: list[str], current_path
 
 
 def fix_images_manifest_entry_urls(
-    text: str, chart_dir: Path, deps: list, target_values: dict, repo_map: dict | None = None
+    text: str, chart_dir: Path, deps: list[ChartDependency], target_values: dict, repo_map: dict | None = None
 ):
     """Rewrite each images-manifest entry's own "url:" field to the REAL,
     fully host-qualified repository for its matched values-tree path

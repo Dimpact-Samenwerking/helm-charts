@@ -35,7 +35,7 @@ def repo(tmp_path):
     chart_dir = tmp_path / "charts" / "podiumd"
     chart_dir.mkdir(parents=True)
     (chart_dir / "Chart.yaml").write_text(
-        "dependencies:\n  - name: zaakafhandelcomponent\n    alias: zac\n", encoding="utf-8"
+        "dependencies:\n  - name: zaakafhandelcomponent\n    alias: zac\n    version: 1.0.297\n", encoding="utf-8"
     )
     write_zac_values(chart_dir, "5.0.2", "a" * 64)
     git("add", "-A", cwd=tmp_path)

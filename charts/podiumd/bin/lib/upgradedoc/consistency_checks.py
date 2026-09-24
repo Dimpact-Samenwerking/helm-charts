@@ -4,6 +4,7 @@ dependency/native-component identities -- flags a heading that
 corresponds to no real row, or text claiming a dependency that
 doesn't exist, rather than ever guessing a match."""
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
@@ -13,7 +14,7 @@ from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
 
 
-def resolve_component_identity(text: str, deps: list, canonical_names: dict | None):
+def resolve_component_identity(text: str, deps: list[ChartDependency], canonical_names: dict | None):
     """The single component `text` names — ("sidecar", path) or ("dep",
     values_key) — or None if it names no real Chart.yaml dependency,
     canonical sidecar/shared-image, or native_components component (see
@@ -42,7 +43,9 @@ def resolve_component_identity(text: str, deps: list, canonical_names: dict | No
     return None
 
 
-def find_changes_row_correspondence_gaps(rows: list, headings: list, deps: list, canonical_names: dict):
+def find_changes_row_correspondence_gaps(
+    rows: list, headings: list, deps: list[ChartDependency], canonical_names: dict
+):
     """Cross-check the "Component versions" table against the "## Changes"
     section: every row naming a real component should have exactly one
     Changes heading naming that same component, and vice versa — a real
@@ -96,7 +99,7 @@ def find_changes_row_correspondence_gaps(rows: list, headings: list, deps: list,
     return rows_without_heading, headings_without_row
 
 
-def is_exact_dependency_match(name: str, dep: dict):
+def is_exact_dependency_match(name: str, dep: ChartDependency):
     """True if `name`, normalized (case/punctuation-insensitive), equals
     `dep`'s own name or alias EXACTLY — not just a fuzzy word-span
     containment match (see match_dependency). Distinguishes "this row
@@ -112,7 +115,7 @@ def is_exact_dependency_match(name: str, dep: dict):
     return any(normalize_name(c) == norm for c in (dep.get("name"), dep.get("alias")) if c)
 
 
-def find_wrong_or_duplicate_dependency_claims(names: list, deps: list):
+def find_wrong_or_duplicate_dependency_claims(names: list, deps: list[ChartDependency]):
     """(duplicate_names, wrong_fuzzy_names) for a list of free-form names
     each purporting to describe a Chart.yaml dependency — a doc row's own
     Name cell, or an images-manifest "# Changes:" item's own free-form

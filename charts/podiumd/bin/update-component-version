@@ -40,6 +40,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import DOC_DIR
@@ -122,7 +124,7 @@ def _check_and_print_image_versions(values_for_check: dict, image_paths: list[st
 
 
 def verify_component_version(
-    dep: dict | None,
+    dep: ChartDependency | None,
     image_paths: list[str],
     app_version: str,
     chart_version: str | None,
@@ -250,7 +252,7 @@ class ComponentResolution:
     """no_chart/dep/chart_name/values_key, grouped for BumpContext."""
 
     no_chart: bool
-    dep: dict | None
+    dep: ChartDependency | None
     chart_name: str
     values_key: str
 
@@ -370,7 +372,7 @@ def _resolve_bump_context(component: str, app_version: str, chart_version: str):
     # less sidecar row (see lib.upgradedoc.component_version_cell).
     no_chart = is_native_chart_version(chart_version)
     new_chart = "-" if no_chart else chart_version
-    deps = yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["dependencies"]
+    deps = load_chart_dependencies(CHART_YAML)
     values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
 
     if no_chart:
@@ -559,12 +561,14 @@ def _update_image_tags(ctx: BumpContext, paths_to_update: list, split_tag_sha_pa
     return acc.new_tags_by_path, acc.repos
 
 
-def _resolve_against_baseline(ctx: BumpContext, baseline_deps: list, baseline_values: dict | None, friendly: str):
+def _resolve_against_baseline(
+    ctx: BumpContext, baseline_deps: list[ChartDependency], baseline_values: dict | None, friendly: str
+):
     """When baseline_deps resolved to a real git ref: whether `friendly` is
     back at its baseline version, and old_app/old_chart resolved against
     it (see resolve_baseline_component_versions). Returns (old_app,
     old_chart, reset_to_baseline)."""
-    current_deps = yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["dependencies"]
+    current_deps = load_chart_dependencies(CHART_YAML)
     current_values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
     changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
     reset_to_baseline = friendly not in changed_keys

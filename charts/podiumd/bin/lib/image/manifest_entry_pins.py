@@ -10,6 +10,7 @@ from typing import Any
 
 import yaml
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.repo_and_path_resolution import paths_by_repository
@@ -28,7 +29,7 @@ def current_image_paths(values: dict[str, Any]) -> dict[tuple[str, ...], str | N
 
 
 def image_repo_map(
-    chart_dir: Path, deps: list[dict[str, Any]], values: dict[str, Any], paths: dict[tuple[str, ...], str | None]
+    chart_dir: Path, deps: list[ChartDependency], values: dict[str, Any], paths: dict[tuple[str, ...], str | None]
 ) -> dict[str, tuple[str, ...]]:
     """{repository: representative values-tree path} for `paths`, used
     to match an entry to its image path by repository."""
@@ -85,7 +86,7 @@ def _parsed_entries(text: str) -> tuple[list[str], list[tuple[int, dict[str, Any
 def sync_entry_pins(
     text: str,
     chart_dir: Path,
-    deps: list[dict[str, Any]],
+    deps: list[ChartDependency],
     values: dict[str, Any],
     sibling_fields: dict[tuple[str, ...], dict[str, str]],
 ) -> tuple[str, list[str]]:

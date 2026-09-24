@@ -5,8 +5,10 @@ import tarfile
 
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 
-def vendored_chart_file(chart_dir: Path, dep: dict, member: str, version: str | None = None) -> bytes | None:
+
+def vendored_chart_file(chart_dir: Path, dep: ChartDependency, member: str, version: str | None = None) -> bytes | None:
     """The bytes of <name>/<member> inside dep's vendored .tgz under
     chart_dir/charts/ at version (default: dep["version"]). None if that
     version isn't vendored or the archive has no such file."""

@@ -12,6 +12,9 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.values_tree_primitives import version_of
@@ -283,7 +286,7 @@ def _resolve_baseline(chart_dir: Path, upgrade_docs_baseline: str | None):
 
 
 def _resolve_image_paths(
-    chart_dir: Path | None, deps: list, values: dict, baseline_ref: str | None, baseline_values: dict
+    chart_dir: Path | None, deps: list[ChartDependency], values: dict, baseline_ref: str | None, baseline_values: dict
 ):
     """current/baseline image-tag-path maps plus the shared-image
     repository-group representative map — bundled since every
@@ -299,7 +302,7 @@ def _resolve_image_paths(
 
 
 def _build_docs_check_context(
-    chart_dir: Path, deps: list, values: dict, podiumd_version: str, upgrade_docs_baseline: str | None
+    chart_dir: Path, deps: list[ChartDependency], values: dict, podiumd_version: str, upgrade_docs_baseline: str | None
 ):
     """Resolves the baseline and every image-tag-path map derived from
     it, and bundles all of it into the DocsCheckContext every later
@@ -882,9 +885,8 @@ def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = 
     validate yet, not a pass on the merits). Otherwise (False,
     "<n> mismatch(es)") with every finding printed, or (True, "matches
     ...") when everything checked lines up."""
-    chart_yaml = load_yaml(chart_dir / "Chart.yaml")
-    podiumd_version = str(chart_yaml["version"])
-    deps = chart_yaml.get("dependencies", [])
+    podiumd_version = chart_version(chart_dir / "Chart.yaml")
+    deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     values = load_yaml(chart_dir / "values.yaml") or {}
     sibling_fields = digest_pinning_exceptions(chart_dir)
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"

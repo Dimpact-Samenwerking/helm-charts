@@ -8,6 +8,7 @@ from collections.abc import Callable
 from collections.abc import Collection
 from pathlib import Path
 
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.release_baseline_basics import load_yaml
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.string_and_parsing_basics import word_contains
@@ -61,8 +62,7 @@ def chart_dependencies(chart_dir: Path):
     chart_yaml_path = chart_dir / "Chart.yaml"
     if not chart_yaml_path.is_file():
         return []
-    chart_yaml = load_yaml(chart_yaml_path)
-    return [(dep["name"], dep.get("alias", "")) for dep in chart_yaml.get("dependencies", [])]
+    return [(dep["name"], dep.get("alias", "")) for dep in load_chart_dependencies(chart_yaml_path)]
 
 
 def orphan_values_yaml_keys(chart_dir: Path, dependencies: list):

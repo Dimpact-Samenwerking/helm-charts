@@ -4,13 +4,14 @@ fix-doc-consistency."""
 
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.image import manifest_entry_pins
 
 OLD = "a" * 64
 NEW = "b" * 64
 
 VALUES = {"clamav": {"image": {"repository": "docker.io/clamav/clamav", "tag": f"1.5.4@sha256:{NEW}"}}}
-DEPS = [{"name": "clamav", "version": "3.7.2"}]
+DEPS: list[ChartDependency] = [{"name": "clamav", "version": "3.7.2"}]
 
 
 def manifest(digest: str) -> str:

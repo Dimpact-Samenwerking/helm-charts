@@ -30,6 +30,7 @@ from pathlib import Path
 
 import yaml
 
+from lib.chart.chart_yaml import parse_chart_dependencies
 from lib.gitutil import find_repo_root
 from lib.gitutil import git_show_text
 from lib.gitutil import resolve_baseline_ref
@@ -92,8 +93,7 @@ def resolve_baseline_chart_state(chart_dir: Path, baseline: str):
     chart_yaml_text = git_show_text(repo_root, baseline_ref, f"{rel_chart_dir}/Chart.yaml")
     if chart_yaml_text is None:
         return None, [], {}, [], f"(ref {baseline_ref}): could not read Chart.yaml at that ref"
-    baseline_chart_yaml = yaml.safe_load(chart_yaml_text) or {}
-    baseline_deps = baseline_chart_yaml.get("dependencies", [])
+    baseline_deps = parse_chart_dependencies(chart_yaml_text, f"{baseline_ref}:{rel_chart_dir}/Chart.yaml")
 
     values_text = git_show_text(repo_root, baseline_ref, f"{rel_chart_dir}/values.yaml") or ""
     baseline_values = yaml.safe_load(values_text) or {}

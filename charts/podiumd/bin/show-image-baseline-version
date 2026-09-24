@@ -34,8 +34,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
 from lib.baseline_report import show_baseline_section
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.paths import CHART_DIR
-from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.cli import positional_args
@@ -82,7 +82,7 @@ def main():
     key, basename = positional_args(__doc__, 2)
 
     chart_dir = CHART_DIR
-    key = resolve_key_scope(key, load_yaml(chart_dir / "Chart.yaml").get("dependencies", []))
+    key = resolve_key_scope(key, load_chart_dependencies(chart_dir / "Chart.yaml"))
 
     upgrade_docs = read_upgrade_docs_baseline(chart_dir)
     release_table = read_release_table_baseline(chart_dir)

@@ -27,6 +27,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.registered_paths import component_chart_versions
 from lib.chart.registered_paths import image_paths_for
@@ -643,7 +644,7 @@ def resolve_component_own_version_change(
     return dep, chart_name, old_chart, new_chart, old_app, new_app, (chart_unchanged and app_unchanged)
 
 
-def _matched_component_keys(text: str, target_deps: list, chart_dir: Path):
+def _matched_component_keys(text: str, target_deps: list[ChartDependency], chart_dir: Path):
     """Set of already-matched keys (a Chart.yaml dependency's own alias-
     or-name, or a lib.chart.native_components entry) found among
     `text`'s own current "Component versions" table rows —

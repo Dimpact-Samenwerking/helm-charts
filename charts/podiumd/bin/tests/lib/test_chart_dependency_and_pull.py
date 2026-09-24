@@ -65,8 +65,11 @@ def test_require_dependency_exits_naming_the_chart_yaml(
     libchartvaluestreeprimitives: ModuleType, tmp_path: Path
 ) -> None:
     chart_yaml = tmp_path / "Chart.yaml"
-    chart_yaml.write_text(yaml.safe_dump({"dependencies": [{"name": "clamav"}]}), encoding="utf-8")
-    assert libchartvaluestreeprimitives.require_dependency(chart_yaml, "ClamAV") == {"name": "clamav"}
+    chart_yaml.write_text(yaml.safe_dump({"dependencies": [{"name": "clamav", "version": "3.7.2"}]}), encoding="utf-8")
+    assert libchartvaluestreeprimitives.require_dependency(chart_yaml, "ClamAV") == {
+        "name": "clamav",
+        "version": "3.7.2",
+    }
     with pytest.raises(SystemExit, match=r"no dependency named or aliased 'nope' found in .*Chart\.yaml"):
         libchartvaluestreeprimitives.require_dependency(chart_yaml, "nope")
 

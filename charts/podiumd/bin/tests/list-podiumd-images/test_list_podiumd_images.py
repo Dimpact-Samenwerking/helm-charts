@@ -22,7 +22,7 @@ def write_pulled_chart(dest, name, chart_yaml, values_yaml):
     so a fake pull_chart must reproduce the same layout."""
     chart_dir = dest / name
     chart_dir.mkdir()
-    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump(chart_yaml))
+    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"apiVersion": "v2", **chart_yaml}))
     (chart_dir / "values.yaml").write_text(yaml.safe_dump(values_yaml))
 
 
@@ -37,7 +37,7 @@ def make_vendored_tgz(vendored_dir, tmp_path, name, version, chart_yaml, values_
     staging = tmp_path / f"stage-{name}-{version}"
     chart_dir = staging / name
     chart_dir.mkdir(parents=True)
-    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump(chart_yaml))
+    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"apiVersion": "v2", **chart_yaml}))
     (chart_dir / "values.yaml").write_text(yaml.safe_dump(values_yaml))
     for rel_path, text in (raw_files or {}).items():
         file_path = chart_dir / rel_path
@@ -475,7 +475,7 @@ def test_load_chart_reads_local_source_for_file_dependency(lpi, tmp_path, monkey
     dep = {"name": "mi-data", "version": "1.0.0", "repository": "file://../mi-data"}
     local_dir = tmp_path / "mi-data"
     local_dir.mkdir()
-    (local_dir / "Chart.yaml").write_text(yaml.safe_dump({"name": "mi-data", "version": "1.0.0"}))
+    (local_dir / "Chart.yaml").write_text(yaml.safe_dump({"apiVersion": "v2", "name": "mi-data", "version": "1.0.0"}))
     (local_dir / "values.yaml").write_text(yaml.safe_dump({"image": {"repository": "azure-cli", "tag": "2.71.0"}}))
     monkeypatch.setattr(lpi, "local_chart_dir", lambda podiumd_dir, d: local_dir)
     monkeypatch.setattr(

@@ -40,6 +40,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.chart_yaml import load_chart_yaml
 from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
@@ -112,7 +115,7 @@ class ColumnWidths:
     version: int
 
 
-def pull_chart(dep: dict, dest: Path):
+def pull_chart(dep: ChartDependency, dest: Path):
     """Thin wrapper around lib.chart.pull_and_subchart_resolution.pull_chart
     that pulls `dep` at its own pinned version into `dest`, raising
     SystemExit with a clear message on failure instead of returning an
@@ -144,7 +147,7 @@ def safe_extract_tgz(tgz_path: Path, dest: Path):
         tf.extractall(dest)  # nosec B202  # noqa: S202
 
 
-def load_chart(dep: dict, tmproot: Path, *, refresh: bool):
+def load_chart(dep: ChartDependency, tmproot: Path, *, refresh: bool):
     """Returns (chart_yaml, values) for `dep`'s own sub-chart source: read
     straight from its source directory for a local "file://" dependency
     (--refresh is meaningless there, see comment below); otherwise
@@ -169,7 +172,7 @@ def load_chart(dep: dict, tmproot: Path, *, refresh: bool):
             pull_chart(dep, dest)
         chart_dir = pulled_chart_dir(dest)
 
-    chart_yaml = load_yaml(chart_dir / "Chart.yaml")
+    chart_yaml = load_chart_yaml(chart_dir / "Chart.yaml")
     values_path = chart_dir / "values.yaml"
     values = load_yaml(values_path) if values_path.exists() else {}
     return chart_yaml, values or {}
@@ -275,7 +278,7 @@ def print_image_lines(rows: list, values_lines: list):
         _print_image_entry(entry, values_lines, widths)
 
 
-def row_chart_tree_path(chart_dir: Path, dep: dict, first_segment: str):
+def row_chart_tree_path(chart_dir: Path, dep: ChartDependency, first_segment: str):
     """The chart-tree path (see lib.render_scope.rendered_chart_paths)
     that actually OWNS a row nested under `dep`'s own scope at
     `first_segment` (the row's own dep-relative path's first segment,
@@ -303,7 +306,7 @@ def row_chart_tree_path(chart_dir: Path, dep: dict, first_segment: str):
     return f"{base}/charts/{nested.get('alias') or nested['name']}"
 
 
-def component_version_rows(dep: dict, key: str, merged: dict, ctx: ChartContext):
+def component_version_rows(dep: ChartDependency, key: str, merged: dict, ctx: ChartContext):
     """Extra (key, path, repo, tag, disabled) rows for `dep`'s own settings.
     yaml component_resolution.version_paths/version_path_nested_
     subcharts-registered bare version fields — the ONE image shape find_images'
@@ -406,7 +409,7 @@ def _top_level_image_rows(root_values: dict, dep_keys: set[str]):
     return rows
 
 
-def _print_dependency_header(dep: dict, ctx: ChartContext):
+def _print_dependency_header(dep: ChartDependency, ctx: ChartContext):
     """Prints the "=== <key> (<name> <version>) [disabled] ===" header
     line and returns `key` (dep's own values-key: alias if it declares
     one, else its real name)."""
@@ -418,7 +421,7 @@ def _print_dependency_header(dep: dict, ctx: ChartContext):
     return key
 
 
-def _merged_image_rows(dep: dict, key: str, merged: dict, ctx: ChartContext):
+def _merged_image_rows(dep: ChartDependency, key: str, merged: dict, ctx: ChartContext):
     """(key, path, repo, tag, disabled) rows for `dep`'s own effective
     image set: every find_images-shaped reference in `merged` (chart
     defaults + podiumd's own overrides), plus any component_version_
@@ -435,7 +438,9 @@ def _merged_image_rows(dep: dict, key: str, merged: dict, ctx: ChartContext):
     return rows
 
 
-def _print_dependency_images(dep: dict, tmproot: Path, ctx: ChartContext, values_lines: list[str], *, refresh: bool):
+def _print_dependency_images(
+    dep: ChartDependency, tmproot: Path, ctx: ChartContext, values_lines: list[str], *, refresh: bool
+):
     """Prints one Chart.yaml dependency's "=== <key> (<name> <version>)
     ===" section: its own appVersion/sub-chart dependencies, then every
     resolved image reference (chart defaults merged with podiumd's own
@@ -479,7 +484,7 @@ def main():
     refresh = "--refresh" in sys.argv[1:]
     ensure_vendored_dependencies(VENDORED_DIR.parent)
 
-    deps = load_yaml(CHART_YAML)["dependencies"]
+    deps = load_chart_dependencies(CHART_YAML)
     root_values = load_yaml(VALUES_YAML) or {}
     dep_keys = {values_key_of(dep) for dep in deps}
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()

@@ -9,13 +9,16 @@ import sys
 
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.image.docs import regenerate_images_baseline_manifest
 from lib.render_scope import lint_args_for
 from lib.render_scope import render_chart
 from lib.render_scope import rendered_chart_paths
 
 
-def refresh_images_baseline(chart_dir: Path, deps: list, values: dict, images_baseline_path: Path) -> None:
+def refresh_images_baseline(
+    chart_dir: Path, deps: list[ChartDependency], values: dict, images_baseline_path: Path
+) -> None:
     """Regenerates images_baseline_path for Chart.yaml's `deps` and
     values.yaml's `values`, rendering the chart first to also catch
     images defined only in a vendored sub-chart's default. Needs the

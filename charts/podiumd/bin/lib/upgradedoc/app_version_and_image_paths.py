@@ -7,6 +7,7 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
 from lib.chart.pull_and_subchart_resolution import subchart_app_version
 from lib.chart.registered_paths import component_image_paths
@@ -23,7 +24,7 @@ def actual_app_version(
     values_key: str,
     component: str | None = None,
     chart_dir: Path | None = None,
-    dep: dict | None = None,
+    dep: ChartDependency | None = None,
 ):
     """The app version currently pinned for a component — tries each of
     lib.chart.image_paths_for(component)'s own dotted path(s) in turn:
@@ -92,7 +93,7 @@ class BaselineComponentQuery:
     build all seven the same way, just from differently-named locals."""
 
     baseline_values: dict | None
-    baseline_dep: dict | None
+    baseline_dep: ChartDependency | None
     values_key: str
     image_path: str
     chart_name: str
@@ -236,7 +237,7 @@ def find_image_tag_paths(node: object, path: tuple = (), *, include_null_tags: b
             yield from find_image_tag_paths(item, (*path, str(i)), include_null_tags=include_null_tags)
 
 
-def find_component_version_tags(values: dict, deps: list):
+def find_component_version_tags(values: dict, deps: list[ChartDependency]):
     """(path, value) for every lib.chart.component_version_paths()- or
     lib.settings.component_resolution_version_path_nested_subcharts-
     registered bare tag/version field that's actually pinned in `values`
@@ -262,7 +263,7 @@ def find_component_version_tags(values: dict, deps: list):
                 yield tuple(values_key.split(".")) + tuple(rel.split(".")), value
 
 
-def find_all_image_and_version_paths(values: dict, deps: list):
+def find_all_image_and_version_paths(values: dict, deps: list[ChartDependency]):
     """find_image_tag_paths(values) plus find_component_version_tags(values,
     deps) — every image tag AND registered bare-version pin in one
     combined [(path, value), ...] list. Use this (not find_image_tag_

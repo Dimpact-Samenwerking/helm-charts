@@ -9,7 +9,10 @@ import yaml
 
 
 def write_chart_yaml(lhi, dependencies):
-    lhi.CHART_YAML.write_text(yaml.safe_dump({"dependencies": dependencies}))
+    """Chart.yaml with `dependencies`, each given a version (as every real
+    Chart.yaml dependency has) unless the test sets one."""
+    versioned = [{"version": "1.0.0", **dep} for dep in dependencies]
+    lhi.CHART_YAML.write_text(yaml.safe_dump({"dependencies": versioned}))
 
 
 # --- find_dependency ---
@@ -38,7 +41,7 @@ def test_find_dependency_not_found_raises(lhi):
 
 def write_chart(chart_dir, name, version, app_version=None, dependencies=None, values=None):
     chart_dir.mkdir(parents=True, exist_ok=True)
-    chart_yaml = {"name": name, "version": version}
+    chart_yaml = {"apiVersion": "v2", "name": name, "version": version}
     if app_version is not None:
         chart_yaml["appVersion"] = app_version
     if dependencies is not None:

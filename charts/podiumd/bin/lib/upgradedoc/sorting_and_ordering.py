@@ -7,6 +7,7 @@ import re
 
 from itertools import pairwise
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
@@ -85,7 +86,11 @@ def values_tree_position(values: dict, path: tuple[str, ...]) -> tuple[int, ...]
 
 
 def component_order_key(
-    name: str, deps: list, key_order: list, canonical_names: dict | None = None, values: dict | None = None
+    name: str,
+    deps: list[ChartDependency],
+    key_order: list,
+    canonical_names: dict | None = None,
+    values: dict | None = None,
 ) -> tuple[int, ...]:
     """A doc item's (table row name, or "### ..." Changes heading) sort
     position: (values_key_index, is_sidecar) — values_key_index is the
@@ -173,7 +178,11 @@ def component_order_key(
 
 
 def find_out_of_order_names(
-    names: list, deps: list, key_order: list[str], canonical_names: dict | None = None, values: dict | None = None
+    names: list,
+    deps: list[ChartDependency],
+    key_order: list[str],
+    canonical_names: dict | None = None,
+    values: dict | None = None,
 ):
     """[(name_a, name_b), ...] for every ADJACENT pair whose relative order
     contradicts values.yaml's own top-level key order (see
@@ -266,7 +275,7 @@ def parse_upgrade_doc_changes_blocks(text: str):
     return blocks
 
 
-def sort_upgrade_doc_rows(text: str, deps: list, values: dict, canonical_names: dict | None = None):
+def sort_upgrade_doc_rows(text: str, deps: list[ChartDependency], values: dict, canonical_names: dict | None = None):
     """Reorder the "Component versions" table's rows (physically, in the
     text) to match values.yaml's own top-level key order — see
     values_key_order/component_order_key. canonical_names, when given,
@@ -299,7 +308,7 @@ def sort_upgrade_doc_rows(text: str, deps: list, values: dict, canonical_names: 
     return "".join(lines), moved
 
 
-def sort_changes_blocks(text: str, deps: list, values: dict, canonical_names: dict | None = None):
+def sort_changes_blocks(text: str, deps: list[ChartDependency], values: dict, canonical_names: dict | None = None):
     """Reorder the "## Changes" section's "### ..." blocks (each block's
     full text, heading through its last line before the next block) to
     match values.yaml's own top-level key order — the same rule
@@ -357,7 +366,9 @@ def parse_values_delta_sections(text: str):
     return sections
 
 
-def sort_values_delta_sections(text: str, deps: list, values: dict, canonical_names: dict | None = None):
+def sort_values_delta_sections(
+    text: str, deps: list[ChartDependency], values: dict, canonical_names: dict | None = None
+):
     """Reorder values-deltas.md's own top-level "## ..." sections (each
     section's full text, heading through its last line before the next
     section) to match values.yaml's own top-level key order — the same

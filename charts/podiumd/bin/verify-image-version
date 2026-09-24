@@ -35,9 +35,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import VALUES_YAML
-from lib.chart.release_baseline_basics import load_yaml
 from lib.cli import positional_args
 from lib.image.version import check_basename_version
 from lib.image.version import resolve_key_scope
@@ -51,7 +51,7 @@ def main():
     any resolved pin."""
     key, basename, image_version = positional_args(__doc__, 3)
 
-    deps = load_yaml(CHART_YAML).get("dependencies", [])
+    deps = load_chart_dependencies(CHART_YAML)
     key = resolve_key_scope(key, deps)
 
     lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()

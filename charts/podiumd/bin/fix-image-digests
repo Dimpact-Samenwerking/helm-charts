@@ -36,8 +36,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.paths import CHART_DIR
-from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import subchart_default_repository
 from lib.chart.repo_and_path_resolution import subchart_needs_vendoring
 from lib.dependencies import check_dependencies as vendor_dependencies
@@ -54,7 +55,7 @@ FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
 
 
-def _resolve_pin_repositories(pins: list, chart_dir: Path, lines: list[str], deps: list):
+def _resolve_pin_repositories(pins: list, chart_dir: Path, lines: list[str], deps: list[ChartDependency]):
     """Resolves each pin's "repository:" in place via its vendored
     subchart default (see lib.chart.subchart_default_repository) and
     returns the pins still left unresolved after that. If any of those
@@ -149,7 +150,7 @@ def find_stale_digests(lines: list[str], values_path: Path):
 
     chart_dir = values_path.parent
     chart_yaml_path = chart_dir / "Chart.yaml"
-    deps = load_yaml(chart_yaml_path).get("dependencies", []) if chart_yaml_path.is_file() else []
+    deps = load_chart_dependencies(chart_yaml_path) if chart_yaml_path.is_file() else []
 
     unresolved = _resolve_pin_repositories(pins, chart_dir, lines, deps)
     targets = _group_pins_by_target(pins)

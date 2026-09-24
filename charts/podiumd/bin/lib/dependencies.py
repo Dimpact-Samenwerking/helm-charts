@@ -41,6 +41,10 @@ from typing import cast
 
 import yaml
 
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import parse_chart_dependencies
+from lib.chart_lock import ChartLockDependency
+from lib.chart_lock import parse_chart_lock_dependencies
 from lib.chart_lock import resolved_repository
 from lib.chart_lock import write_chart_lock
 from lib.checks.vendored_tgz import TGZ_NAME_RE
@@ -48,12 +52,13 @@ from lib.procutil import run
 from lib.settings import dependency_fetch_retry_attempts
 from lib.settings import dependency_fetch_retry_backoff_seconds
 from lib.settings import helm_repos_urls_by_alias
+from lib.yaml_types import YamlShapeError
 
 # An exact (semver) version, as opposed to a range like "~1.2" or ">=1".
 _EXACT_VERSION_RE = re.compile(r"^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
 
 
-def _dependency_key(dep: dict, required_repos: dict):
+def _dependency_key(dep: ChartDependency | ChartLockDependency, required_repos: dict):
     """(name, version, repository) — the identity a dependency's own
     Chart.lock entry and its current Chart.yaml entry must agree on for
     vendored_state_matches_chart_yaml to trust the lock file at all.
@@ -77,7 +82,7 @@ def _dependency_key(dep: dict, required_repos: dict):
     return dep.get("name"), str(dep.get("version")), resolved_repository(dep, required_repos)
 
 
-def _lock_problems(chart_dir: Path, chart_deps: list):
+def _lock_problems(chart_dir: Path, chart_deps: list[ChartDependency]):
     """Every way chart_dir/Chart.lock disagrees with Chart.yaml's current
     `chart_deps` — [] when the lock lists exactly the same (name, version,
     repository) triples (see _dependency_key). One entry per affected
@@ -87,12 +92,13 @@ def _lock_problems(chart_dir: Path, chart_deps: list):
     if not lock_path.is_file():
         return ["Chart.lock is missing"]
     try:
-        lock = yaml.safe_load(lock_path.read_text(encoding="utf-8")) or {}
+        lock_deps = parse_chart_lock_dependencies(lock_path.read_text(encoding="utf-8"), "Chart.lock") or []
     except yaml.YAMLError:
         return ["Chart.lock is not valid YAML"]
+    except YamlShapeError as e:
+        return [str(e)]
 
     required_repos = helm_repos_urls_by_alias(chart_dir)
-    lock_deps = lock.get("dependencies") or []
     wanted = {_dependency_key(d, required_repos) for d in chart_deps}
     locked = {_dependency_key(d, required_repos) for d in lock_deps}
 
@@ -122,7 +128,7 @@ def _describe_lock_mismatch(wanted_key: tuple, locked: set):
     return f"{name}: missing from Chart.lock"
 
 
-def _tgz_problems(chart_dir: Path, chart_deps: list):
+def _tgz_problems(chart_dir: Path, chart_deps: list[ChartDependency]):
     """One entry per Chart.yaml dependency whose charts/<name>-<version>.tgz
     isn't vendored, naming whatever other version of it charts/ has
     instead (parsed with lib.checks.vendored_tgz.TGZ_NAME_RE, the same
@@ -158,10 +164,11 @@ def _dependency_state(chart_dir: Path):
     if not chart_yaml_path.is_file():
         return [], ["Chart.yaml is missing"]
     try:
-        chart_yaml = yaml.safe_load(chart_yaml_path.read_text(encoding="utf-8")) or {}
+        chart_deps = parse_chart_dependencies(chart_yaml_path.read_text(encoding="utf-8"), "Chart.yaml")
     except yaml.YAMLError:
         return [], ["Chart.yaml is not valid YAML"]
-    chart_deps = chart_yaml.get("dependencies") or []
+    except YamlShapeError as e:
+        return [], [str(e)]
     if not chart_deps:
         return [], []
     return chart_deps, _lock_problems(chart_dir, chart_deps) + _tgz_problems(chart_dir, chart_deps)
@@ -311,14 +318,14 @@ def _usable_lock_dependencies(chart_dir: Path):
     if not lock_path.is_file():
         return None
     try:
-        lock = yaml.safe_load(lock_path.read_text(encoding="utf-8")) or {}
-    except yaml.YAMLError:
+        return parse_chart_lock_dependencies(lock_path.read_text(encoding="utf-8"), "Chart.lock")
+    except (yaml.YAMLError, YamlShapeError):
         return None
-    lock_deps = lock.get("dependencies")
-    return lock_deps if isinstance(lock_deps, list) else None
 
 
-def _changed_dependencies(chart_dir: Path, chart_deps: list, lock_deps: list, required_repos: dict):
+def _changed_dependencies(
+    chart_dir: Path, chart_deps: list[ChartDependency], lock_deps: list[ChartLockDependency], required_repos: dict
+):
     """The Chart.yaml dependencies update_changed_dependencies must fetch:
     those whose (name, version, repository) Chart.lock doesn't list (see
     _dependency_key), or whose charts/<name>-<version>.tgz is missing.
@@ -334,7 +341,7 @@ def _changed_dependencies(chart_dir: Path, chart_deps: list, lock_deps: list, re
     return list(changed.values())
 
 
-def _fetch_command(chart_dir: Path, dep: dict, required_repos: dict, dest: Path):
+def _fetch_command(chart_dir: Path, dep: ChartDependency, required_repos: dict, dest: Path):
     """The helm command that writes dep's <name>-<version>.tgz into
     `dest`, the same source `helm dependency update` would use: `helm
     package` for a file:// chart, `helm pull` straight from the oci://
@@ -353,7 +360,7 @@ def _fetch_command(chart_dir: Path, dep: dict, required_repos: dict, dest: Path)
     return ["helm", "pull", name, "--repo", repo, "--version", version, "--destination", str(dest)]
 
 
-def _fetch_dependency(chart_dir: Path, dep: dict, required_repos: dict, dest: Path, out: TextIO):
+def _fetch_dependency(chart_dir: Path, dep: ChartDependency, required_repos: dict, dest: Path, out: TextIO):
     """Fetches one dependency's .tgz into `dest` (see _fetch_command),
     retried like the full update. (ok, reason-if-not)."""
     name, version = dep.get("name"), str(dep.get("version"))
@@ -369,7 +376,7 @@ def _fetch_dependency(chart_dir: Path, dep: dict, required_repos: dict, dest: Pa
     return True, ""
 
 
-def _replace_vendored_tgz(chart_dir: Path, chart_deps: list, fetched_dir: Path):
+def _replace_vendored_tgz(chart_dir: Path, chart_deps: list[ChartDependency], fetched_dir: Path):
     """Drops every charts/<name>-<version>.tgz Chart.yaml no longer asks
     for (what `helm dependency update` does too), then moves the freshly
     fetched ones in. Extracted charts/<name>/ directories are left alone

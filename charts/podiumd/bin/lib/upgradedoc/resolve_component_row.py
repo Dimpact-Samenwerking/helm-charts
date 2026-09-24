@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import BaselineLookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
@@ -96,11 +97,11 @@ class RowMatch:
     canonical_names/deps precedence rules that decide which)."""
 
     sidecar_path: tuple | None
-    dep: dict | None
+    dep: ChartDependency | None
     native_key: str | None
 
 
-def _match_row(row_name: str, chart_dir: Path | None, canonical_names: dict, deps: list):
+def _match_row(row_name: str, chart_dir: Path | None, canonical_names: dict, deps: list[ChartDependency]):
     """RowMatch for row_name."""
     sidecar_path = canonical_names.get(row_name)
     dep = None if sidecar_path is not None else match_dependency_excluding_sidecar_names(row_name, deps)
@@ -182,7 +183,7 @@ def _sidecar_baseline_app(resolution: ResolutionContext, sidecar_path: tuple[str
     return baseline_app
 
 
-def _dependency_baseline_result(resolution: ResolutionContext, values_key: str, dep: dict):
+def _dependency_baseline_result(resolution: ResolutionContext, values_key: str, dep: ChartDependency):
     """A real dependency's own baseline_resolved/baseline_chart/
     baseline_app trio — whether the Chart.yaml dependency line itself
     existed at the baseline ref at all (baseline_resolved), and its

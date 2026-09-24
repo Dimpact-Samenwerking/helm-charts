@@ -12,6 +12,7 @@ zgw-office-addin bumps two distinctly-named images, frontend + backend)."""
 
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import replace_scalar_value
@@ -155,7 +156,7 @@ MULTIPLE_KEY = "MULTIPLE"
 GLOBAL_IMAGES_SCOPE = "global"
 
 
-def resolve_key_scope(key: str, deps: list):
+def resolve_key_scope(key: str, deps: list[ChartDependency]):
     """<key> as given on the CLI, translated to the literal top-level
     values.yaml key resolve_scoped_matches/find_matches_in_scope actually
     scan for — accepting EITHER a Chart.yaml dependency's own "name" or

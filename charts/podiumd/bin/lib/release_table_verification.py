@@ -29,6 +29,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.pull_and_subchart_resolution import primary_image_repositories
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.values_tree_primitives import dotted_key_path
@@ -63,7 +64,7 @@ class ComponentRef:
 
     scope_key: str
     component: str
-    dep: dict | None = None
+    dep: ChartDependency | None = None
 
 
 @dataclass
@@ -374,7 +375,12 @@ def check_chart_version(ref: ComponentRef, rows: list, state: ChartState, findin
 
 
 def check_chart_version_source(
-    dep: dict, rows: list, baseline_deps: list, findings: dict, *, strict_presence: bool = False
+    dep: ChartDependency,
+    rows: list,
+    baseline_deps: list[ChartDependency],
+    findings: dict,
+    *,
+    strict_presence: bool = False,
 ):
     """The SOURCE-side sibling of check_chart_version: for every row with
     a verifiable source_version_helm (see is_verifiable_target — never
@@ -852,7 +858,7 @@ class _BaselineSourceResolver:
 
 
 def _check_dependency(
-    dep: dict, rows_by_component: dict, comparison: Comparison, findings: dict, *, baseline_only: bool
+    dep: ChartDependency, rows_by_component: dict, comparison: Comparison, findings: dict, *, baseline_only: bool
 ):
     """One comparison.current.deps entry's own release-table.csv row(s) —
     the Chart.yaml-dependency-backed half of compare()'s own
@@ -864,7 +870,8 @@ def _check_dependency(
     component = dep["name"]
     rows_for_component = rows_by_component.get(component, [])
     if not rows_for_component:
-        alias_suffix = f" (alias '{dep['alias']}')" if dep.get("alias") else ""
+        alias = dep.get("alias")
+        alias_suffix = f" (alias '{alias}')" if alias else ""
         identifier = dep.get("alias") or component
         findings["missing_from_release_table"].append(
             f"[CHART] Chart.yaml dependency '{component}'{alias_suffix} has no release-table.csv row\n"

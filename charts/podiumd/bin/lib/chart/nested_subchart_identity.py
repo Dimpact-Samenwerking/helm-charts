@@ -7,6 +7,7 @@ import re
 
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.vendored_files import vendored_chart_file
 from lib.settings import component_resolution_version_path_nested_subcharts
@@ -72,7 +73,7 @@ DOCUMENTED_IMAGE_RE = re.compile(r"^#\s*image:\s*([^\s:@]+)", re.MULTILINE)
 
 
 def nested_subchart_raw_text(
-    chart_dir: Path, dep: dict, nested_chart_name: str, filename: str, version: str | None = None
+    chart_dir: Path, dep: ChartDependency, nested_chart_name: str, filename: str, version: str | None = None
 ):
     """Raw text of a file inside a NESTED sub-subchart bundled within
     dep's own vendored .tgz (e.g. eck-stack's own "charts/
@@ -90,7 +91,7 @@ def nested_subchart_raw_text(
 
 
 def nested_subchart_documented_image_repository(
-    chart_dir: Path, dep: dict, nested_chart_name: str, version: str | None = None
+    chart_dir: Path, dep: ChartDependency, nested_chart_name: str, version: str | None = None
 ):
     """The repository half of a nested sub-subchart's own commented-out
     "# image: <repo>[:<tag>][@sha256:...]" default — the FIRST such
@@ -109,7 +110,7 @@ def nested_subchart_documented_image_repository(
     return m.group(1) if m else None
 
 
-def documented_repository_for_path(chart_dir: Path | None, deps: list, path: tuple[str, ...]):
+def documented_repository_for_path(chart_dir: Path | None, deps: list[ChartDependency], path: tuple[str, ...]):
     """The FULL, unstripped repository a COMPONENT_VERSION_PATH_NESTED_
     SUBCHARTS-registered path resolves to (e.g. "docker.elastic.co/
     elasticsearch/elasticsearch") via nested_subchart_documented_image_

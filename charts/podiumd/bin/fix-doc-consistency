@@ -42,6 +42,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.chart_yaml import parse_chart_dependencies
 from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import DOC_DIR
@@ -79,6 +82,7 @@ from lib.fix_doc_consistency.component_version_table import fix_component_versio
 from lib.fix_doc_consistency.component_version_table import fix_values_delta_heading_app_versions
 from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifest_changes_items
 from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
+from lib.gitutil import git_show_text
 
 # isort: off
 # Fenced from import sorting (through "isort: on" below): isort and ruff's
@@ -171,9 +175,8 @@ def load_target_state():
     contents — the "current" side of every baseline-vs-target comparison
     this script makes, paired with load_baseline_state's own (deps,
     values) for the old baseline."""
-    chart_yaml = yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))
     values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
-    return chart_yaml.get("dependencies", []), values
+    return load_chart_dependencies(CHART_YAML), values
 
 
 def load_baseline_state(new_baseline: str):
@@ -187,11 +190,11 @@ def load_baseline_state(new_baseline: str):
     if ref is None:
         return None, None
     rel_chart_dir = CHART_YAML.parent.relative_to(repo_root)
-    baseline_chart_yaml = git_show_yaml(repo_root, ref, f"{rel_chart_dir}/Chart.yaml")
-    if baseline_chart_yaml is None:
+    baseline_chart_text = git_show_text(repo_root, ref, f"{rel_chart_dir}/Chart.yaml")
+    if baseline_chart_text is None:
         return None, None
     baseline_values = git_show_yaml(repo_root, ref, f"{rel_chart_dir}/values.yaml") or {}
-    return baseline_chart_yaml.get("dependencies", []), baseline_values
+    return parse_chart_dependencies(baseline_chart_text, f"{ref}:{rel_chart_dir}/Chart.yaml"), baseline_values
 
 
 @dataclass
@@ -499,7 +502,9 @@ def _fix_upgrade_doc_headings(text: str, state: RebaseState, upgrade_path: Path,
     return text, canonical_names, changed
 
 
-def _reorder_upgrade_doc(text: str, upgrade_path: Path, target_deps: list, target_values: dict, canonical_names: dict):
+def _reorder_upgrade_doc(
+    text: str, upgrade_path: Path, target_deps: list[ChartDependency], target_values: dict, canonical_names: dict
+):
     """Reorders upgrade_path's table rows and Changes blocks to match
     values.yaml's own component order. Returns (text, changed)."""
     text, moved_rows = sort_upgrade_doc_rows(text, target_deps, target_values, canonical_names)

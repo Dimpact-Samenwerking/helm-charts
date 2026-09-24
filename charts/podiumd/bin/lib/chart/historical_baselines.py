@@ -14,6 +14,7 @@ from typing import Protocol
 
 import yaml
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
@@ -118,7 +119,11 @@ def historical_app_version_for_repository(
 
 
 def historical_app_version_for_path(
-    chart_dir: Path | None, deps: list, values: dict, path: tuple[str, ...], at_or_before: str | None = None
+    chart_dir: Path | None,
+    deps: list[ChartDependency],
+    values: dict,
+    path: tuple[str, ...],
+    at_or_before: str | None = None,
 ):
     """historical_app_version_for_repository, for `path`'s own resolved
     repository (see paths_by_repository's own per-path resolution
@@ -173,7 +178,11 @@ class BaselineLookup:
 
 
 def baseline_lookup(
-    chart_dir: Path | None, deps: list, target_values: dict, baseline_values: dict | None, baseline_setup: BaselineSetup
+    chart_dir: Path | None,
+    deps: list[ChartDependency],
+    target_values: dict,
+    baseline_values: dict | None,
+    baseline_setup: BaselineSetup,
 ):
     """A BaselineLookup built from chart_dir/deps/target_values/
     baseline_values plus a caller's own baseline_paths/baseline_repo_groups
