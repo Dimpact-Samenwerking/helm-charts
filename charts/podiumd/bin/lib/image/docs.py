@@ -807,7 +807,7 @@ BaselineEntry = tuple[tuple[int, ...], str, str, str, str | None]
 
 
 def _resolve_baseline_entry(
-    ctx: _BaselineManifestContext, current_paths: dict, repo: str, group_paths: list
+    ctx: _BaselineManifestContext, current_paths: dict[ImagePath, str], repo: str, group_paths: list
 ) -> BaselineEntry | None:
     """(sort_key, repo, full_repo, new_version, digest) for one
     repository group's own baseline entry, or None if it should be

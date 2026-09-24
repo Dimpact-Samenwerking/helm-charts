@@ -72,7 +72,7 @@ def resolve_image_basenames(rows: list[list[str]], chart_dir: Path):
     return result
 
 
-def _by_component_row_indices(rows: list):
+def _by_component_row_indices(rows: list[list[str]]):
     """component -> {"alias": ..., "indices": [...]} grouping resolve_
     image_basenames' own per-component pass — a MULTIPLE/UNKNOWN/blank-
     component row is never grouped here, only handled by _assign_
@@ -118,7 +118,7 @@ def _available_basenames_for_component(lines: list[str], scope_keys: list[str]):
     return available
 
 
-def _assign_component_basenames(rows: list, result: list[str], info: dict, available: dict):
+def _assign_component_basenames(rows: list[list[str]], result: list[str], info: dict, available: dict):
     """Claims `available` basenames into `result` for one component's
     own row indices (info["indices"]) — a primary (used_by-blank) row
     gets first refusal, but ONLY at an EXACT match against its own name
@@ -162,7 +162,9 @@ def _assign_component_basenames(rows: list, result: list[str], info: dict, avail
             result[i] = basenames
 
 
-def _assign_multiple_row_basenames(rows: list, result: list[str], global_keys: list, global_images: YamlMapping):
+def _assign_multiple_row_basenames(
+    rows: list[list[str]], result: list[str], global_keys: list, global_images: YamlMapping
+):
     """Resolves every MULTIPLE-component row's own basename
     independently, via which global.images key it actually matches (see
     global_image_keys) — never through any component's own scope, since

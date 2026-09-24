@@ -566,7 +566,7 @@ def _build_own_scope_chart(chart_dir: Path, chart_yaml: ChartYaml, kept_deps: li
     return temp_dir
 
 
-def _make_own_scope(chart_dir: Path, coalesced_values: dict):
+def _make_own_scope(chart_dir: Path, coalesced_values: YamlMapping):
     """Render podiumd's OWN templates/ alone — a temp copy of the whole
     chart directory with "charts/" (the vendored .tgz's) excluded, and
     Chart.yaml's own "dependencies:" list stripped down to just whatever

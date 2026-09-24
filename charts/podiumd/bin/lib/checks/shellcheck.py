@@ -72,7 +72,7 @@ def find_shell_scripts(obj: str | list | dict, source: str, shell_names: set[str
     return found
 
 
-def extract_shell_scripts(docs: list, shell_names: set[str]):
+def extract_shell_scripts(docs: list[tuple[str, str]], shell_names: set[str]):
     """docs: list of (source, doc_text) pairs, e.g. from
     split_rendered_by_source. Parses each doc_text as YAML and returns
     every embedded shell script found in it (see find_shell_scripts for
