@@ -183,7 +183,8 @@ from collections.abc import Callable
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import NotRequired
+from typing import TypedDict
 from typing import TypeVar
 
 import yaml
@@ -199,13 +200,34 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import YamlShapeError
+from lib.yaml_types import YamlValue
+from lib.yaml_types import is_yaml_value
 from lib.yaml_types import load_yaml_mapping
+from lib.yaml_types import yaml_problem
 
 # Every render this module issues is an independent `helm template`
 # subprocess (its own temp overlay file, no shared state) competing for
 # real CPU like any other child process — bounded by actual cores, not
 # an I/O-wait heuristic.
 DEAD_VALUES_MAX_WORKERS = os.cpu_count() or 4
+
+
+class RenderScope(TypedDict):
+    """What one dead-values render runs: `helm template chart_name
+    chart_path extra_args -f <overlay>` with base_overlay plus the nulled
+    leaves (see _render_with_null_overrides), each leaf path first
+    stripped of `strip` leading keys. baseline_docs is that render with
+    nothing nulled (None when it failed); temp_dir is set when chart_path
+    is a throwaway copy the caller must remove."""
+
+    chart_name: str
+    chart_path: Path
+    extra_args: list[str]
+    base_overlay: YamlMapping
+    strip: int
+    baseline_docs: list[YamlValue] | None
+    temp_dir: NotRequired[Path]
 
 
 def flatten_leaves(node: object, path: tuple = ()):
@@ -361,8 +383,20 @@ def _set_true(tree: dict, path: tuple[str, ...]):
     node[path[-1]] = True
 
 
-def _parsed_docs(rendered_text: str):
-    return [doc for doc in yaml.safe_load_all(rendered_text) if doc is not None]
+HELM_OUTPUT_SOURCE = "helm template output"
+
+
+def _parsed_docs(rendered_text: str) -> list[YamlValue]:
+    """The non-empty documents of a `helm template` render."""
+    docs: list[YamlValue] = []
+    for doc in yaml.safe_load_all(rendered_text):
+        if doc is None:
+            continue
+        if not is_yaml_value(doc):
+            problem = yaml_problem(doc) or "not YAML data"
+            raise YamlShapeError(HELM_OUTPUT_SOURCE, problem)
+        docs.append(doc)
+    return docs
 
 
 def _helm_template(chart_name: str, chart_path: Path, extra_args: list, overlay_path: Path):
@@ -403,7 +437,7 @@ def _with_overlay_file(overlay: dict, render_fn: Callable[[Path], RenderT]) -> R
         overlay_path.unlink()
 
 
-def _render_with_null_overrides(scope: dict, relative_paths: list):
+def _render_with_null_overrides(scope: RenderScope, relative_paths: list):
     """Render `scope` with every one of relative_paths (leaf paths
     relative to whatever values `scope["chart_path"]` itself sees as its
     own top-level values — see _resolve_scope's "strip" for how a
@@ -482,12 +516,13 @@ def _make_full_scope(chart_dir: Path, extra_args: list, enable_overlay: dict):
         result = _with_overlay_file(
             overlay, lambda overlay_path: _helm_template(CHART_NAME, chart_dir, extra_args, overlay_path)
         )
-        scope: dict[str, Any] = {
+        scope: RenderScope = {
             "chart_name": CHART_NAME,
             "chart_path": chart_dir,
             "extra_args": extra_args,
             "base_overlay": overlay,
             "strip": 0,
+            "baseline_docs": None,
         }
         if result.returncode == 0:
             scope["baseline_docs"] = _parsed_docs(result.stdout)
@@ -566,7 +601,7 @@ def _build_own_scope_chart(chart_dir: Path, chart_yaml: ChartYaml, kept_deps: li
     return temp_dir
 
 
-def _make_own_scope(chart_dir: Path, coalesced_values: YamlMapping):
+def _make_own_scope(chart_dir: Path, coalesced_values: YamlMapping) -> RenderScope | None:
     """Render podiumd's OWN templates/ alone — a temp copy of the whole
     chart directory with "charts/" (the vendored .tgz's) excluded, and
     Chart.yaml's own "dependencies:" list stripped down to just whatever
@@ -649,8 +684,8 @@ class ScopeResolutionContext:
     chart_dir: Path
     merged_values: dict
     dep_by_key: dict
-    own_scope: dict | None
-    full_scope: dict
+    own_scope: RenderScope | None
+    full_scope: RenderScope
 
 
 def _resolve_scope(context: ScopeResolutionContext, key: str):
@@ -679,12 +714,13 @@ def _resolve_scope(context: ScopeResolutionContext, key: str):
     if "global" in context.merged_values:
         base_overlay["global"] = context.merged_values["global"]
 
-    scope: dict[str, Any] = {
+    scope: RenderScope = {
         "chart_name": dep["name"],
         "chart_path": tgz_path,
         "extra_args": [],
         "base_overlay": base_overlay,
         "strip": 1,
+        "baseline_docs": None,
     }
     scope["baseline_docs"] = _render_with_null_overrides(scope, [])
     if scope["baseline_docs"] is None:
@@ -791,7 +827,9 @@ def _tree_from_paths(paths: list):
     return tree
 
 
-def _confirm_against_full_chart(executor: concurrent.futures.ThreadPoolExecutor, full_scope: dict, candidates: list):
+def _confirm_against_full_chart(
+    executor: concurrent.futures.ThreadPoolExecutor, full_scope: RenderScope, candidates: list
+):
     """Re-verify every candidate that was found via some OTHER (scoped)
     scope against the real, authoritative full-chart render — a scoped
     render only ever narrows the search, never makes the final call (see
@@ -804,7 +842,7 @@ def _confirm_against_full_chart(executor: concurrent.futures.ThreadPoolExecutor,
     return [path for _scope, path in _run_dead_value_search(executor, roots, len(candidates))]
 
 
-def _build_scan_context(chart_dir: Path, extra_args: list, full_scope: dict):
+def _build_scan_context(chart_dir: Path, extra_args: list, full_scope: RenderScope):
     """The ScopeResolutionContext every _resolve_scope call in this run
     shares — split out of check_dead_values purely to keep its own local
     count down."""
@@ -851,7 +889,11 @@ def _print_scope_summary(roots: list, context: ScopeResolutionContext):
 
 
 def _search_and_confirm(
-    executor: concurrent.futures.ThreadPoolExecutor, roots: list, total: int, condition_paths: set, full_scope: dict
+    executor: concurrent.futures.ThreadPoolExecutor,
+    roots: list,
+    total: int,
+    condition_paths: set,
+    full_scope: RenderScope,
 ):
     print("Searching top-down for dead leaves...", flush=True)
     found = _run_dead_value_search(executor, roots, total, condition_paths)
@@ -900,7 +942,9 @@ def check_dead_values(chart_dir: Path, extra_args: list):
             dead = _search_and_confirm(executor, roots, total, condition_paths, full_scope)
     finally:
         if context.own_scope is not None:
-            shutil.rmtree(context.own_scope["temp_dir"], ignore_errors=True)
+            temp_dir = context.own_scope.get("temp_dir")
+            if temp_dir is not None:
+                shutil.rmtree(temp_dir, ignore_errors=True)
 
     dead.sort()
 
