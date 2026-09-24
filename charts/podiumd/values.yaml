@@ -14,7 +14,7 @@ global:
   images:
     nginx: &nginxImage
       repository: nginxinc/nginx-unprivileged
-      tag: "1.31.5@sha256:9d689e987337916e713a2d5fa84966550d9532e4cb512e7d6ad99df87ffe1ec8"
+      tag: "1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
@@ -22,11 +22,11 @@ global:
       pullPolicy: IfNotPresent
     busybox: &busyboxImage
       repository: library/busybox
-      tag: "1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
+      tag: "1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"
       pullPolicy: IfNotPresent
     postgres: &postgresImage
       repository: library/postgres
-      tag: "16.15-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+      tag: "16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"
       pullPolicy: IfNotPresent
 
 tags:
@@ -113,7 +113,7 @@ keycloak-operator:
         registry: ""
         repository: python
         # Digest-pinned to a specific patch rather than the floating 3.14-slim minor tag.
-        tag: "3.14.7-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"
+        tag: "3.14.7-slim@sha256:caaf356f40667c496d405780745b9ac25771c189a51dfcc42430d531ea09f8a2"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image: *postgresImage
     ensureOperatorSa:
@@ -532,7 +532,7 @@ redis-operator:
       schedule: "*/2 * * * *"
       image: &redisHaK8sImage
         repository: docker.io/alpine/k8s
-        tag: "1.36.2@sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"
+        tag: "1.37.0@sha256:b421c2e9419edb98db39b6ab641669f4db7bb2acf354f22450c6b7e7176d1ff4"
       nodeSelector: {}
       resources:
         requests:
@@ -2305,7 +2305,7 @@ referentielijsten:
   image:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
-    tag: "0.7.3@sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
+    tag: "0.7.4@sha256:5501b48fe9b988a72adba14308748e6b5928f851ec66d108bab2fe625eb831a3"
 
   settings:
     allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
@@ -3099,10 +3099,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:0a931f52cfd9a9afd6d958d246e64115648099c788e41a01adad9f09e6f73594
+      # library/solr:9.10.1-slim@sha256:92a1ceccbde539cb067c05b134069250a8aa4446a62a9ada4111e4dde2b3ea26
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:0a931f52cfd9a9afd6d958d246e64115648099c788e41a01adad9f09e6f73594
+        tag: 9.10.1-slim@sha256:92a1ceccbde539cb067c05b134069250a8aa4446a62a9ada4111e4dde2b3ea26
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -3213,7 +3213,7 @@ clamav:
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     repository: clamav/clamav
-    tag: "1.5.4@sha256:9cb27d7660bdf66e9878c832cb433dd8aa152cfbe16f3c2c0084c80b04ae22b4"
+    tag: "1.5.4@sha256:0e31ce089574268aefa0b543767d66b70240ab51ed49eec53e07f18d5629d817"
   metrics:
     enabled: false
     image:
