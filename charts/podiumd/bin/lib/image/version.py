@@ -247,7 +247,7 @@ def resolve_scoped_matches(lines: list, key: str, basename: str):
     return matches
 
 
-def check_basename_version(lines: list, key: str, basename: str, new_version: str) -> list[TagCheck]:
+def check_basename_version(lines: list[str], key: str, basename: str, new_version: str) -> list[TagCheck]:
     """[{"repository", "host", "repo_path", "exists", "digest"}, ...] one
     for <key> <basename>'s single resolved repository (see
     resolve_scoped_matches — it never returns more than one distinct

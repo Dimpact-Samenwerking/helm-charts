@@ -910,7 +910,7 @@ def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace
     )
 
 
-def _ensure_vendored_dependencies_if_skipped(chart_dir: Path, skipped_steps: set):
+def _ensure_vendored_dependencies_if_skipped(chart_dir: Path, skipped_steps: set[str]):
     """--skip=dependencies (e.g. to skip its repo config + `helm
     dependency list` check while iterating) still runs every step that
     needs it, against whatever charts/*.tgz + Chart.lock happen to be on

@@ -17,6 +17,7 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 from lib.images_manifest import ManifestEntry
 from lib.settings import digest_pinning_exceptions
+from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
@@ -74,7 +75,7 @@ def compute_changed_components(
     if baseline_values:
         global_tags |= {tag for _path, tag in global_image_paths(baseline_values)}
 
-    def subtree_paths(key: str, paths: dict):
+    def subtree_paths(key: str, paths: dict[ImagePath, str]):
         return {p: version_of(t) for p, t in paths.items() if p[0] == key and t not in global_tags}
 
     changed = set()

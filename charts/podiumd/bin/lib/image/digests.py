@@ -638,7 +638,7 @@ def _process_pin(ctx: PinCheckContext, i: int, total: int, acc: DigestCheckAccum
         _confirm_pinned_digest_still_resolvable(ctx, acc)
 
 
-def _print_unresolved_pins(unresolved: list):
+def _print_unresolved_pins(unresolved: list[DigestPin]):
     """Every pin whose "tag:" has no resolvable "repository:" (see
     resolve_pin_repo/resolve_pin_targets) — skipped, not a failure."""
     if not unresolved:
@@ -681,7 +681,7 @@ def _print_warning_and_stale_notes(acc: DigestCheckAccumulator):
         )
 
 
-def _print_duplicate_pins(duplicates: dict):
+def _print_duplicate_pins(duplicates: dict[str, RepeatedPin]):
     """[DUPLICATE-PIN] — a repository hand-duplicated identically in more
     than one place instead of a shared YAML anchor (see
     find_inconsistent_version_pins)."""
@@ -696,7 +696,7 @@ def _print_duplicate_pins(duplicates: dict):
         )
 
 
-def _print_drifted_pins(drifted: dict):
+def _print_drifted_pins(drifted: dict[str, RepeatedPin]):
     """[VERSION-DRIFT] — a repository pinned at genuinely different
     versions/digests across values.yaml (see find_inconsistent_version_
     pins)."""
@@ -711,7 +711,11 @@ def _print_drifted_pins(drifted: dict):
 
 
 def _build_digest_check_result(
-    acc: DigestCheckAccumulator, targets: dict, duplicates: dict, drifted: dict, inconsistent: dict
+    acc: DigestCheckAccumulator,
+    targets: dict,
+    duplicates: dict[str, RepeatedPin],
+    drifted: dict[str, RepeatedPin],
+    inconsistent: dict[str, RepeatedPin],
 ):
     """The final (ok, detail) pair check_image_digests returns, built from
     the accumulator plus the inconsistent-pin groupings — factored out

@@ -47,7 +47,7 @@ def resolve_component_identity(text: str, deps: list[ChartDependency], canonical
 
 
 def find_changes_row_correspondence_gaps(
-    rows: Sequence[VersionRow], headings: list, deps: list[ChartDependency], canonical_names: dict
+    rows: Sequence[VersionRow], headings: list[str], deps: list[ChartDependency], canonical_names: dict
 ):
     """Cross-check the "Component versions" table against the "## Changes"
     section: every row naming a real component should have exactly one
@@ -118,7 +118,7 @@ def is_exact_dependency_match(name: str, dep: ChartDependency):
     return any(normalize_name(c) == norm for c in (dep.get("name"), dep.get("alias")) if c)
 
 
-def find_wrong_or_duplicate_dependency_claims(names: list, deps: list[ChartDependency]):
+def find_wrong_or_duplicate_dependency_claims(names: list[str], deps: list[ChartDependency]):
     """(duplicate_names, wrong_fuzzy_names) for a list of free-form names
     each purporting to describe a Chart.yaml dependency — a doc row's own
     Name cell, or an images-manifest "# Changes:" item's own free-form

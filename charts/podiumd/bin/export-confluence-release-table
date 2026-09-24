@@ -281,7 +281,7 @@ def _read_csv_rows(csv_path: Path):
         return list(reader)
 
 
-def _write_csv_rows(csv_path: Path, rows: list):
+def _write_csv_rows(csv_path: Path, rows: list[list[str]]):
     """Writes CSV_HEADER + `rows` to `csv_path`, LF-terminated."""
     with csv_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f, lineterminator="\n")
@@ -289,7 +289,9 @@ def _write_csv_rows(csv_path: Path, rows: list):
         writer.writerows(rows)
 
 
-def _apply_new_basenames(rows: list, new_basenames: list[str], basename_idx: int, name_idx: int, component_idx: int):
+def _apply_new_basenames(
+    rows: list[list[str]], new_basenames: list[str], basename_idx: int, name_idx: int, component_idx: int
+):
     """Rewrites `rows`' own image_basename column (at basename_idx) in
     place from `new_basenames` (same order) and returns [(name,
     component, old, new), ...] for every row that actually changed."""

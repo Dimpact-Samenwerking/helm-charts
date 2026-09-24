@@ -5,6 +5,7 @@ check."""
 from pathlib import Path
 
 from lib.chart.values_tree_primitives import mapping_at
+from lib.chart.values_tree_primitives import text_at
 from lib.image.version import basenames_under_scope
 from lib.image.version import basenames_under_scope_any_tag
 from lib.image.version import image_basename
@@ -12,10 +13,11 @@ from lib.release_table.component_resolution import exact_match
 from lib.release_table.component_resolution import extra_scope_keys_by_component
 from lib.release_table.component_resolution import global_image_keys
 from lib.release_table.component_resolution import match_one
+from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
 
-def resolve_image_basenames(rows: list, chart_dir: Path):
+def resolve_image_basenames(rows: list[list[str]], chart_dir: Path):
     """A comma-joined image_basename string per row in `rows` (same
     order, same shape as extract_release_rows' own output — [section,
     vendor, used_by, name, component, alias, ...versions]) — the actual
@@ -160,7 +162,7 @@ def _assign_component_basenames(rows: list, result: list[str], info: dict, avail
             result[i] = basenames
 
 
-def _assign_multiple_row_basenames(rows: list, result: list[str], global_keys: list, global_images: dict):
+def _assign_multiple_row_basenames(rows: list, result: list[str], global_keys: list, global_images: YamlMapping):
     """Resolves every MULTIPLE-component row's own basename
     independently, via which global.images key it actually matches (see
     global_image_keys) — never through any component's own scope, since
@@ -172,6 +174,6 @@ def _assign_multiple_row_basenames(rows: list, result: list[str], global_keys: l
         matched_key = match_one(used_by or name, global_keys)
         if matched_key is None:
             continue
-        repo = (global_images.get(matched_key) or {}).get("repository")
+        repo = text_at(global_images, f"{matched_key}.repository")
         if repo:
             result[i] = image_basename(repo)

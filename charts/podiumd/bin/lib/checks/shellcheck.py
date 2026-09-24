@@ -149,7 +149,7 @@ def _shellcheck_location(finding: ShellcheckFinding, locations: dict):
 
 
 def _own_shellcheck_findings(
-    own_docs: list, shell_names: set[str], failing_levels: set[str]
+    own_docs: list[tuple[str, str]], shell_names: set[str], failing_levels: set[str]
 ) -> tuple[list[ShellcheckFinding] | None, str | None]:
     """Lints every embedded script found in this chart's own docs, keeping
     only failing_levels-severity comments. Returns (None, error) if any
@@ -179,7 +179,7 @@ def _vendored_script_result(entry: tuple[str, ...], failing_levels: set[str]):
 
 
 def _vendored_shellcheck_findings(
-    vendored_docs: list, shell_names: set[str], failing_levels: set[str], vendor_map: dict
+    vendored_docs: list[tuple[str, str]], shell_names: set[str], failing_levels: set[str], vendor_map: dict[str, str]
 ) -> tuple[list[ShellcheckFinding] | None, list[ShellcheckFinding] | None, str | None]:
     """Lints every embedded script found in vendored docs (see
     _vendored_script_result), splitting findings into (vendored_friendly,

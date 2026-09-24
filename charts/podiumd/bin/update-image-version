@@ -85,6 +85,7 @@ from lib.image.docs import make_image_changes_section
 from lib.image.docs import remove_image_manifest_entry
 from lib.image.docs import resolve_basename_baseline_version
 from lib.image.docs import update_image_manifest
+from lib.image.version import PinUpdate
 from lib.image.version import resolve_key_scope
 from lib.image.version import update_image_version
 from lib.procutil import run_script
@@ -592,7 +593,7 @@ def _ordering_and_row_name(
     return ordering, doc_row_name(CHART_DIR, deps, values, bumped_path, all_paths)
 
 
-def update_docs(basename: str, new_version: str, changes: list, values_lines_before_write: list[str]):
+def update_docs(basename: str, new_version: str, changes: list[PinUpdate], values_lines_before_write: list[str]):
     """Updates the current target's upgrade docs for this run's `changes`
     (all under one values.yaml key/scope — see the module docstring for
     why). The doc row name comes from doc_row_name, the same name

@@ -29,6 +29,7 @@ from lib.image.repository_check import find_images_without_repository
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import images_manifest_problem
 from lib.images_manifest import is_images_manifest
+from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
@@ -555,7 +556,11 @@ def _entry_comment_version_mismatches(
 
 
 def _entry_comment_issues(
-    name: str, lines: list[str], resolved: ResolvedManifest, entry_line_indices: list, baseline_paths: dict
+    name: str,
+    lines: list[str],
+    resolved: ResolvedManifest,
+    entry_line_indices: list[int],
+    baseline_paths: dict[ImagePath, str],
 ):
     """One issue per images-manifest entry whose own preceding comment
     is missing, or whose target/source app version disagrees with the

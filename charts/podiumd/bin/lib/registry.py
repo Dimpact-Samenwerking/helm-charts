@@ -168,7 +168,7 @@ def parse_repo(repository: str) -> tuple[str, str]:
 
 
 def _fetch_manifest_digest(
-    url: str, repo: str, headers: dict, timeout: float | None, method: str
+    url: str, repo: str, headers: dict[str, str], timeout: float | None, method: str
 ) -> tuple[bool, str | None]:
     """One manifest request via the given HTTP method, returning (exists,
     digest) — a 404 is a genuine "tag doesn't exist" answer regardless of

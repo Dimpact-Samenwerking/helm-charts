@@ -300,7 +300,7 @@ def find_all_image_and_version_paths(values: YamlMapping, deps: list[ChartDepend
     return list(find_image_tag_paths(values)) + list(find_component_version_tags(values, deps))
 
 
-def resolve_entry_path(entry_name: str, paths: Collection):
+def resolve_entry_path(entry_name: str, paths: Collection[tuple[str, ...]]):
     """Match an images-manifest entry name (e.g. "zgw-office-addin-frontend")
     to a values-tree path (e.g. ("zgw-office-addin", "frontend")) by comparing
     word-split, concatenated path segments — no hardcoded name list.
