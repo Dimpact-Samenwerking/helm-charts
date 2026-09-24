@@ -129,6 +129,9 @@ All images in podiumd templates use `{{ include "podiumd.image" <image> }}` with
 
 On aks-blue envs, all images pulled from env-specific ACR (set via `global.imageRegistry`). Tags defined by chart defaults — env values files only contain repository overrides, not tags.
 
+### Keycloak Client URLs
+Every Keycloak client with redirect URIs in `keycloak-podiumd-realm-config.yaml` must have an entry in its `$oidcClients` render check, gated on the component's `.enabled` (and the client's own `keycloak.config.clients.<name>.enabled` flag where it has one). Adding a client means adding that entry and a `ci.podiumd.test` URL in `ci/lint-values.yaml`. NEVER give the URL an `example.nl` default in `values.yaml`: keep it `""` and put the example in the `# --` comment.
+
 ### AKS-Blue Cluster Conventions
 - **Never** `helm install/upgrade/delete` or `kubectl apply/delete` directly against aks-blue. All changes via CI/CD pipeline.
 - Read-only ops OK: `kubectl get`, `logs`, `describe`, `helm status`, `helm template`. Always `--context <cluster-name>` with every `kubectl`.

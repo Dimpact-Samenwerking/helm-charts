@@ -354,3 +354,8 @@ pabc:
   settings:
     oidc:
       oidcUrl: https://pabc.ci.podiumd.test
+
+ita:
+  web:
+    oidc:
+      frontendUrl: https://ita.ci.podiumd.test
