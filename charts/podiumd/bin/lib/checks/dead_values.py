@@ -180,6 +180,7 @@ import shutil
 import tempfile
 
 from collections.abc import Callable
+from collections.abc import Iterator
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from pathlib import Path
@@ -230,7 +231,16 @@ class RenderScope(TypedDict):
     temp_dir: NotRequired[Path]
 
 
-def flatten_leaves(node: object, path: tuple = ()):
+# A values leaf as its key path; a subtree still to search as (scope, its
+# path, its node); that plus its candidate leaves; a dead leaf found in a scope.
+LeafPath = tuple[str, ...]
+FrontierEntry = tuple[RenderScope, LeafPath, YamlValue]
+PendingSubtree = tuple[RenderScope, LeafPath, YamlValue, list[LeafPath]]
+DeadCandidate = tuple[RenderScope, LeafPath]
+RenderFuture = concurrent.futures.Future[list[YamlValue] | None]
+
+
+def flatten_leaves(node: YamlValue, path: LeafPath = ()) -> Iterator[tuple[LeafPath, YamlValue]]:
     """(path tuple, value) for every leaf under node — a dict is only a
     leaf itself when empty (nothing to descend into); a list is always
     treated as one leaf (its own elements are never individually
@@ -244,7 +254,9 @@ def flatten_leaves(node: object, path: tuple = ()):
         yield path, node
 
 
-def _candidate_leaves(node: str | dict, path: tuple[str, ...], exempt_full_paths: AbstractSet = frozenset()):
+def _candidate_leaves(
+    node: YamlValue, path: LeafPath, exempt_full_paths: AbstractSet[LeafPath] = frozenset()
+) -> Iterator[LeafPath]:
     """flatten_leaves(node, path), minus a value that's already null
     (nulling a null is a no-op — nothing to learn) and any path in
     exempt_full_paths (see _condition_leaf_paths — a dependency's own
@@ -259,7 +271,7 @@ def _candidate_leaves(node: str | dict, path: tuple[str, ...], exempt_full_paths
         yield leaf_path
 
 
-def candidate_leaf_paths(values: YamlMapping, exempt_full_paths: AbstractSet = frozenset()):
+def candidate_leaf_paths(values: YamlMapping, exempt_full_paths: AbstractSet[LeafPath] = frozenset()) -> list[LeafPath]:
     """Every path _candidate_leaves finds in podiumd's own values.yaml
     worth null-testing — the full, flat list (used for the "N checked"
     count; the actual search walks the same candidates hierarchically,
@@ -267,7 +279,7 @@ def candidate_leaf_paths(values: YamlMapping, exempt_full_paths: AbstractSet = f
     return list(_candidate_leaves(values, (), exempt_full_paths))
 
 
-def _condition_leaf_paths(chart_dir: Path):
+def _condition_leaf_paths(chart_dir: Path) -> set[LeafPath]:
     """Every Chart.yaml dependency's own "condition:" as a full leaf-path
     tuple (e.g. ("eck-operator", "enabled")) — the exact same set
     _enable_overlay forces true. Excluded from every scope's candidate
@@ -287,7 +299,7 @@ def _condition_leaf_paths(chart_dir: Path):
     exemption skips the wasted round-trip through that slow confirmation
     for the one leaf already known, by construction, to always survive
     it."""
-    paths = set()
+    paths: set[LeafPath] = set()
     for dep in load_chart_dependencies(chart_dir / "Chart.yaml"):
         condition = dep.get("condition")
         if condition:
@@ -295,9 +307,9 @@ def _condition_leaf_paths(chart_dir: Path):
     return paths
 
 
-def _set_null(tree: YamlMapping, path: tuple[str, ...]):
-    """Set the value at `path` in `tree` to None, creating (or replacing a
-    non-mapping value by) an empty mapping at each level on the way."""
+def _set_path(tree: YamlMapping, path: LeafPath, value: YamlValue):
+    """Set the value at `path` in `tree` to `value`, creating (or replacing
+    a non-mapping value by) an empty mapping at each level on the way."""
     node = tree
     for key in path[:-1]:
         child = node.get(key)
@@ -305,7 +317,7 @@ def _set_null(tree: YamlMapping, path: tuple[str, ...]):
             child = {}
             node[key] = child
         node = child
-    node[path[-1]] = None
+    node[path[-1]] = value
 
 
 def _deep_merge(base: YamlMapping, overlay: YamlMapping):
@@ -317,7 +329,7 @@ def _deep_merge(base: YamlMapping, overlay: YamlMapping):
             base[key] = value
 
 
-def _load_merged_values(chart_dir: Path, extra_args: list):
+def _load_merged_values(chart_dir: Path, extra_args: list[str]) -> YamlMapping:
     """Python-side equivalent of what -f-layering `helm template` does to
     values.yaml: values.yaml deep-merged with every "-f <file>" in
     extra_args, in order. Needed only for building a sub-chart-scoped
@@ -364,7 +376,7 @@ def _coalesced_values(chart_dir: Path, merged_values: YamlMapping, dep_by_key: d
     return coalesced
 
 
-def _enable_overlay(chart_dir: Path):
+def _enable_overlay(chart_dir: Path) -> YamlMapping:
     """A nested dict setting every Chart.yaml dependency's own
     "condition:" path to True — e.g. {"openbao": {"enabled": True}} —
     read straight from dependencies[].condition, never a name-based
@@ -373,20 +385,13 @@ def _enable_overlay(chart_dir: Path):
     values (e.g. zaakbrug's own "staging" mode) is never force-enabled
     here at all — this overlay only ever knows about real Chart.yaml
     dependency conditions (see this module's docstring)."""
-    overlay = {}
+    overlay: YamlMapping = {}
     for dep in load_chart_dependencies(chart_dir / "Chart.yaml"):
         condition = dep.get("condition")
         if not condition:
             continue
-        _set_true(overlay, tuple(condition.split(".")))
+        _set_path(overlay, tuple(condition.split(".")), value=True)
     return overlay
-
-
-def _set_true(tree: dict, path: tuple[str, ...]):
-    node = tree
-    for key in path[:-1]:
-        node = node.setdefault(key, {})
-    node[path[-1]] = True
 
 
 HELM_OUTPUT_SOURCE = "helm template output"
@@ -405,7 +410,7 @@ def _parsed_docs(rendered_text: str) -> list[YamlValue]:
     return docs
 
 
-def _helm_template(chart_name: str, chart_path: Path, extra_args: list, overlay_path: Path):
+def _helm_template(chart_name: str, chart_path: Path, extra_args: list[str], overlay_path: Path):
     """The raw `helm template` subprocess result — every other render
     helper here derives its own return value from this; the raw result
     (with its stderr) is only needed where a caller must diagnose, or
@@ -443,7 +448,7 @@ def _with_overlay_file(overlay: YamlMapping, render_fn: Callable[[Path], RenderT
         overlay_path.unlink()
 
 
-def _render_with_null_overrides(scope: RenderScope, relative_paths: list):
+def _render_with_null_overrides(scope: RenderScope, relative_paths: list[LeafPath]) -> list[YamlValue] | None:
     """Render `scope` with every one of relative_paths (leaf paths
     relative to whatever values `scope["chart_path"]` itself sees as its
     own top-level values — see _resolve_scope's "strip" for how a
@@ -452,7 +457,7 @@ def _render_with_null_overrides(scope: RenderScope, relative_paths: list):
     call, since every one of these calls can run concurrently."""
     overlay = copy.deepcopy(scope["base_overlay"])
     for path in relative_paths:
-        _set_null(overlay, path)
+        _set_path(overlay, path, value=None)
     return _with_overlay_file(
         overlay,
         lambda overlay_path: _render(scope["chart_name"], scope["chart_path"], scope["extra_args"], overlay_path),
@@ -478,8 +483,8 @@ _EXECUTION_ERROR_PATH_RE = re.compile(r"execution error at \(([^)]+)\):")
 _TOP_LEVEL_CHART_PATH_RE = re.compile(r"charts/([A-Za-z0-9_.\-]+)/")
 
 
-def _error_chart_names(stderr: str):
-    names = set(_SCHEMA_ERROR_CHART_RE.findall(stderr))
+def _error_chart_names(stderr: str) -> set[str]:
+    names: set[str] = set(_SCHEMA_ERROR_CHART_RE.findall(stderr))
     for path in _EXECUTION_ERROR_PATH_RE.findall(stderr):
         chart_match = _TOP_LEVEL_CHART_PATH_RE.search(path)
         if chart_match:
@@ -487,7 +492,7 @@ def _error_chart_names(stderr: str):
     return names
 
 
-def _make_full_scope(chart_dir: Path, extra_args: list, enable_overlay: dict):
+def _make_full_scope(chart_dir: Path, extra_args: list[str], enable_overlay: YamlMapping) -> RenderScope:
     """The whole-podiumd-chart scope — the always-safe fallback for a key
     neither other scope could handle, and the always-authoritative scope
     _confirm_against_full_chart re-verifies every scoped candidate
@@ -517,7 +522,7 @@ def _make_full_scope(chart_dir: Path, extra_args: list, enable_overlay: dict):
     specific, droppable dependency — this IS the final fallback, so
     silence here would leave a genuine problem completely invisible."""
     overlay = copy.deepcopy(enable_overlay)
-    dropped = []
+    dropped: list[str] = []
     while True:
         result = _with_overlay_file(
             overlay, lambda overlay_path: _helm_template(CHART_NAME, chart_dir, extra_args, overlay_path)
@@ -551,7 +556,7 @@ def _make_full_scope(chart_dir: Path, extra_args: list, enable_overlay: dict):
             dropped.append(name)
 
 
-def _own_template_subchart_refs(chart_dir: Path):
+def _own_template_subchart_refs(chart_dir: Path) -> set[str]:
     """The set of Chart.yaml dependency alias-or-name values podiumd's
     OWN templates/*.yaml reference via ".Subcharts.<name>" — Helm's
     mechanism for a parent template to reach into a dependency's own
@@ -569,7 +574,7 @@ def _own_template_subchart_refs(chart_dir: Path):
     templates_dir = chart_dir / "templates"
     if not templates_dir.is_dir():
         return set()
-    refs = set()
+    refs: set[str] = set()
     for path in sorted(templates_dir.rglob("*.yaml")):
         if path.is_file():
             refs.update(re.findall(r"\.Subcharts\.([A-Za-z0-9_-]+)", path.read_text(encoding="utf-8")))
@@ -688,13 +693,13 @@ class ScopeResolutionContext:
     once and reuses it for every key."""
 
     chart_dir: Path
-    merged_values: dict
-    dep_by_key: dict
+    merged_values: YamlMapping
+    dep_by_key: dict[str, ChartDependency]
     own_scope: RenderScope | None
     full_scope: RenderScope
 
 
-def _resolve_scope(context: ScopeResolutionContext, key: str):
+def _resolve_scope(context: ScopeResolutionContext, key: str) -> RenderScope:
     """The fast, sub-chart-scoped render for `key` if one can be built
     (see this module's docstring) and its own baseline render actually
     succeeds; context.own_scope (see _make_own_scope) if `key` matches no
@@ -705,7 +710,7 @@ def _resolve_scope(context: ScopeResolutionContext, key: str):
     dep = context.dep_by_key.get(key)
     if dep is None:
         return context.own_scope if context.own_scope is not None else context.full_scope
-    if dep["repository"].startswith("file://"):
+    if dep.get("repository", "").startswith("file://"):
         return context.full_scope
 
     tgz_path = context.chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz"
@@ -734,11 +739,11 @@ def _resolve_scope(context: ScopeResolutionContext, key: str):
     return scope
 
 
-def _pending_subtrees(frontier: list, exempt_full_paths: set | frozenset):
+def _pending_subtrees(frontier: list[FrontierEntry], exempt_full_paths: AbstractSet[LeafPath]) -> list[PendingSubtree]:
     """(scope, path, node, leaf_paths) for every frontier entry that still
     has at least one leaf worth testing this level — see
     _run_dead_value_search."""
-    pending = []
+    pending: list[PendingSubtree] = []
     for scope, path, node in frontier:
         leaf_paths = list(_candidate_leaves(node, path, exempt_full_paths))
         if leaf_paths:
@@ -746,7 +751,9 @@ def _pending_subtrees(frontier: list, exempt_full_paths: set | frozenset):
     return pending
 
 
-def _submit_level(executor: concurrent.futures.ThreadPoolExecutor, pending: list):
+def _submit_level(
+    executor: concurrent.futures.ThreadPoolExecutor, pending: list[PendingSubtree]
+) -> dict[RenderFuture, PendingSubtree]:
     return {
         executor.submit(_render_with_null_overrides, scope, [p[scope["strip"] :] for p in leaf_paths]): (
             scope,
@@ -758,12 +765,14 @@ def _submit_level(executor: concurrent.futures.ThreadPoolExecutor, pending: list
     }
 
 
-def _collect_level_results(futures: dict, found: list):
+def _collect_level_results(
+    futures: dict[RenderFuture, PendingSubtree], found: list[DeadCandidate]
+) -> tuple[list[FrontierEntry], int]:
     """next_frontier (subtrees whose combined render differed from
     baseline and need recursing into, one level deeper) and how many
     leaves this level resolved (dead, found via `found.extend`, or
     confirmed live) — see _run_dead_value_search."""
-    next_frontier = []
+    next_frontier: list[FrontierEntry] = []
     resolved = 0
     for future in concurrent.futures.as_completed(futures):
         scope, path, node, leaf_paths = futures[future]
@@ -771,7 +780,7 @@ def _collect_level_results(futures: dict, found: list):
         if docs is not None and docs == scope["baseline_docs"]:
             found.extend((scope, p) for p in leaf_paths)
             resolved += len(leaf_paths)
-        elif len(leaf_paths) > 1:
+        elif len(leaf_paths) > 1 and isinstance(node, dict):
             next_frontier.extend((scope, (*path, key), child) for key, child in node.items())
         else:
             resolved += 1  # single leaf that differed (or errored): not dead, done with it
@@ -780,10 +789,10 @@ def _collect_level_results(futures: dict, found: list):
 
 def _run_dead_value_search(
     executor: concurrent.futures.ThreadPoolExecutor,
-    roots: list,
+    roots: list[FrontierEntry],
     total: int | None = None,
-    exempt_full_paths: set | frozenset = frozenset(),
-):
+    exempt_full_paths: AbstractSet[LeafPath] = frozenset(),
+) -> list[DeadCandidate]:
     """(scope, full_path) for every candidate "looks dead within its own
     scope" leaf found by walking `roots` (a [(scope, path, node), ...]
     list, one entry per subtree to search) top-down — see this module's
@@ -794,7 +803,7 @@ def _run_dead_value_search(
     resolved so far" — omit it (e.g. a small confirmation-pass re-run) to
     skip printing progress for that call. exempt_full_paths is passed
     straight through to _candidate_leaves (see _condition_leaf_paths)."""
-    found = []
+    found: list[DeadCandidate] = []
     resolved = 0
     frontier = list(roots)
     level = 0
@@ -817,25 +826,22 @@ def _run_dead_value_search(
     return found
 
 
-def _tree_from_paths(paths: list):
+def _tree_from_paths(paths: list[LeafPath]) -> YamlMapping:
     """A nested dict whose leaves are exactly `paths` (each set to a
     non-null placeholder — _candidate_leaves only cares that it isn't
     None) — lets _run_dead_value_search's own top-down walk be reused to
     re-verify a small, specific set of candidates (see
     _confirm_against_full_chart) instead of needing a separate
     confirmation algorithm."""
-    tree = {}
+    tree: YamlMapping = {}
     for path in paths:
-        node = tree
-        for key in path[:-1]:
-            node = node.setdefault(key, {})
-        node[path[-1]] = True
+        _set_path(tree, path, value=True)
     return tree
 
 
 def _confirm_against_full_chart(
-    executor: concurrent.futures.ThreadPoolExecutor, full_scope: RenderScope, candidates: list
-):
+    executor: concurrent.futures.ThreadPoolExecutor, full_scope: RenderScope, candidates: list[LeafPath]
+) -> list[LeafPath]:
     """Re-verify every candidate that was found via some OTHER (scoped)
     scope against the real, authoritative full-chart render — a scoped
     render only ever narrows the search, never makes the final call (see
@@ -848,7 +854,7 @@ def _confirm_against_full_chart(
     return [path for _scope, path in _run_dead_value_search(executor, roots, len(candidates))]
 
 
-def _build_scan_context(chart_dir: Path, extra_args: list, full_scope: RenderScope):
+def _build_scan_context(chart_dir: Path, extra_args: list[str], full_scope: RenderScope):
     """The ScopeResolutionContext every _resolve_scope call in this run
     shares — split out of check_dead_values purely to keep its own local
     count down."""
@@ -876,18 +882,18 @@ def _build_scan_context(chart_dir: Path, extra_args: list, full_scope: RenderSco
 
 def _resolve_all_scopes(
     executor: concurrent.futures.ThreadPoolExecutor, context: ScopeResolutionContext, values: YamlMapping
-):
+) -> list[FrontierEntry]:
     """(scope, (key,), node) for every top-level values.yaml key,
     resolved concurrently via _resolve_scope."""
     scope_futures = {executor.submit(_resolve_scope, context, key): key for key in values}
-    roots = []
+    roots: list[FrontierEntry] = []
     for future in concurrent.futures.as_completed(scope_futures):
         key = scope_futures[future]
         roots.append((future.result(), (key,), values[key]))
     return roots
 
 
-def _print_scope_summary(roots: list, context: ScopeResolutionContext):
+def _print_scope_summary(roots: list[FrontierEntry], context: ScopeResolutionContext):
     scoped_n = sum(1 for scope, _, _ in roots if scope is not context.full_scope and scope is not context.own_scope)
     own_n = sum(1 for scope, _, _ in roots if scope is context.own_scope)
     full_n = sum(1 for scope, _, _ in roots if scope is context.full_scope)
@@ -896,11 +902,11 @@ def _print_scope_summary(roots: list, context: ScopeResolutionContext):
 
 def _search_and_confirm(
     executor: concurrent.futures.ThreadPoolExecutor,
-    roots: list,
+    roots: list[FrontierEntry],
     total: int,
-    condition_paths: set,
+    condition_paths: set[LeafPath],
     full_scope: RenderScope,
-):
+) -> list[LeafPath]:
     print("Searching top-down for dead leaves...", flush=True)
     found = _run_dead_value_search(executor, roots, total, condition_paths)
     confirmed = [path for scope, path in found if scope is full_scope]
@@ -910,7 +916,7 @@ def _search_and_confirm(
     return confirmed + _confirm_against_full_chart(executor, full_scope, to_confirm)
 
 
-def check_dead_values(chart_dir: Path, extra_args: list):
+def check_dead_values(chart_dir: Path, extra_args: list[str]):
     """Entry point for the dead-values sweep (see module docstring for the
     full design): null-tests every values.yaml leaf top-down, per-subchart
     scoped where possible, confirming any scoped-render candidate against

@@ -94,13 +94,13 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 from pathlib import Path
-from typing import Any
 from typing import TypedDict
 from typing import TypeGuard
 
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import unique_digest_pin_targets
+from lib.image.upgrade_cache import UpgradeEntry
 from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
 from lib.image.upgrade_cache import cache_key as upgrade_cache_key
 from lib.image.upgrade_cache import load_cache as load_upgrade_cache
@@ -118,6 +118,8 @@ from lib.settings import cve_high_severity_levels
 from lib.settings import cve_max_cves_per_package_before_summarizing
 from lib.settings import cve_scan_cache_ttl_days
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
+from lib.yaml_types import YamlValue
+from lib.yaml_types import is_yaml_mapping
 
 TRIVY_IMAGE = "aquasec/trivy:latest"
 # Trivy's own severities, worst first — anything else (a future severity
@@ -152,13 +154,12 @@ class CveEntry(TypedDict):
     vulnerabilities: list[Vulnerability]
 
 
-def _vulnerability(finding: object) -> Vulnerability | None:
+def _vulnerability(finding: YamlValue) -> Vulnerability | None:
     """The VULN_FIELDS of a trivy finding, or None if it isn't a mapping
     or one of them isn't text."""
     if not isinstance(finding, dict):
         return None
-    fields: dict[object, object] = finding
-    vuln_id, pkg, severity = (fields.get(name, "?") for name in VULN_FIELDS)
+    vuln_id, pkg, severity = (finding.get(name, "?") for name in VULN_FIELDS)
     if not isinstance(vuln_id, str) or not isinstance(pkg, str) or not isinstance(severity, str):
         return None
     return {"VulnerabilityID": vuln_id, "PkgName": pkg, "Severity": severity}
@@ -167,18 +168,16 @@ def _vulnerability(finding: object) -> Vulnerability | None:
 def trivy_vulnerabilities(data: object) -> list[Vulnerability] | None:
     """Every finding in trivy's JSON report `data`, or None when `data`
     does not have trivy's Results/Vulnerabilities shape."""
-    if not isinstance(data, dict):
+    if not is_yaml_mapping(data):
         return None
-    report: dict[object, object] = data
-    results = report.get("Results") or []
+    results = data.get("Results") or []
     if not isinstance(results, list):
         return None
     vulns: list[Vulnerability] = []
     for res in results:
         if not isinstance(res, dict):
             return None
-        section: dict[object, object] = res
-        findings = section.get("Vulnerabilities") or []
+        findings = res.get("Vulnerabilities") or []
         if not isinstance(findings, list):
             return None
         for finding in findings:
@@ -191,7 +190,7 @@ def trivy_vulnerabilities(data: object) -> list[Vulnerability] | None:
 
 def is_cve_entry(value: object) -> TypeGuard[CveEntry]:
     """Whether a parsed cache entry is a CveEntry."""
-    if not isinstance(value, dict) or not isinstance(value.get("scanned_at"), str):
+    if not is_yaml_mapping(value) or not isinstance(value.get("scanned_at"), str):
         return False
     vulns = value.get("vulnerabilities")
     return isinstance(vulns, list) and all(isinstance(v, dict) and _vulnerability(v) == v for v in vulns)
@@ -386,8 +385,13 @@ PINNED_IMAGE_RE = re.compile(r'^\s*image:\s*"?([^"\s]+@sha256:[0-9a-f]{64})"?\s*
 # values).
 TOP_LEVEL_KEY_RE = re.compile(r"^([a-zA-Z0-9_-]+):")
 
+# A digest-pinned image as (repository, version or None, digest).
+ImageKey = tuple[str, str | None, str]
+# A scan target as ((repository, version), (digest, values.yaml line)).
+ScanTargetPin = tuple[tuple[str, str], tuple[str, int]]
 
-def parse_image_ref(ref: str):
+
+def parse_image_ref(ref: str) -> ImageKey:
     """ "<repository>[:<version>]@sha256:<digest>" -> (repository, version,
     digest). version is None for a tagless digest reference (a valid k8s
     image ref a vendored sub-chart's helper may emit) — the trailing ":"
@@ -419,7 +423,7 @@ def top_level_key_for_line(lines: list[str], line_no: int):
     return None
 
 
-def classify_source(source: str, vendor_map: dict):
+def classify_source(source: str, vendor_map: dict[str, str]) -> str:
     """ "own" | a vendor label | "other", from a rendered "# Source:"
     path — same rule check_yamllint/check_kubeconform/etc. use."""
     if source.startswith(OWN_TEMPLATES_PREFIX):
@@ -427,13 +431,13 @@ def classify_source(source: str, vendor_map: dict):
     return vendor_map.get(chart_name_from_source(source), "other")
 
 
-def classify_by_key(top_level_key: str | None, dep_names: set, vendor_map: dict):
+def classify_by_key(top_level_key: str | None, dep_names: set[str], vendor_map: dict[str, str]) -> str:
     """Fallback for an image whose component isn't in the render at all:
     "own" if no Chart.yaml dependency has this name/alias (nothing but a
     podiumd-owned template could be configuring it), else the same
     partner/other split as classify_source, keyed by dependency name
     instead of "# Source:" path."""
-    if top_level_key not in dep_names:
+    if top_level_key is None or top_level_key not in dep_names:
         return "own"
     return vendor_map.get(top_level_key, "other")
 
@@ -448,13 +452,13 @@ def bucket_of(label: str) -> str:
     return "partner"
 
 
-def render_image_labels(rendered_text: str, vendor_map: dict):
+def render_image_labels(rendered_text: str, vendor_map: dict[str, str]) -> dict[ImageKey, str]:
     """(repository, version, digest) -> classification label, for every
     digest-pinned image found in the render. "own" always wins if ANY
     source classifies an image that way, even if another source also
     renders it — this repo's decision to use that image directly in its
     own template outweighs it also being some vendored chart's default."""
-    labels = {}
+    labels: dict[ImageKey, str] = {}
     for source, text in split_rendered_by_source(rendered_text):
         label = classify_source(source, vendor_map)
         for ref in PINNED_IMAGE_RE.findall(text):
@@ -470,9 +474,9 @@ class ImageClassification:
     classify_by_key's own combined output, from _classify_pinned_
     images, threaded through the per-target scan loop as one unit."""
 
-    rendered_labels: dict
-    dep_names: set
-    vendor_map: dict
+    rendered_labels: dict[ImageKey, str]
+    dep_names: set[str]
+    vendor_map: dict[str, str]
 
 
 @dataclass
@@ -482,7 +486,7 @@ class CveScanSettings:
     values, resolved once up front and threaded through every helper
     below that needs any subset of them."""
 
-    high_severities: set
+    high_severities: set[str]
     package_cve_list_threshold: int
     cve_cache_ttl_days: int
     upgrade_cache_ttl_days: int
@@ -496,9 +500,9 @@ class ScanContext:
     separate parameters."""
 
     chart_dir: Path
-    values_lines: list
+    values_lines: list[str]
     classification: ImageClassification
-    upgrade_cache: dict
+    upgrade_cache: dict[str, UpgradeEntry]
     session: CacheSession
     settings: CveScanSettings
 
@@ -511,7 +515,7 @@ class ReportSettings:
     positional-only params through every call site is pure repetition."""
 
     detail_level: str
-    high_severities: set
+    high_severities: set[str]
     package_cve_list_threshold: int
 
 
@@ -521,9 +525,9 @@ class BucketRefs:
     lists (see _bucket_refs), bundled since every consumer below (the
     print calls, the summary/detail lines) needs all three together."""
 
-    own: list
-    partner: list
-    other: list
+    own: list[str]
+    partner: list[str]
+    other: list[str]
 
 
 @dataclass
@@ -532,12 +536,12 @@ class ScanStats:
     run-level counters, bundled since the summary-printing/detail-string
     helpers below both need all three together."""
 
-    scan_errors: list
+    scan_errors: list[str]
     cache_hits: int
     target_count: int
 
 
-def _classify_pinned_images(chart_dir: Path, extra_args: list):
+def _classify_pinned_images(chart_dir: Path, extra_args: list[str]):
     """An ImageClassification if the chart renders successfully, else
     None (the caller reports "helm template failed to render" and stops)."""
     result = render_chart(chart_dir, extra_args)
@@ -583,7 +587,9 @@ def _upgradable_to(repository: str, version: str, context: ScanContext) -> str |
     return None
 
 
-def _scan_one_target(repo_version: tuple[str, ...], digest_line: tuple, index: int, total: int, context: ScanContext):
+def _scan_one_target(
+    repo_version: tuple[str, str], digest_line: tuple[str, int], index: int, total: int, context: ScanContext
+):
     """(image_ref, entry, was_cached) for one (repository, version)
     target — entry is None when trivy's own scan failed (the caller
     reports image_ref as a scan error and skips it), otherwise the dict
@@ -616,14 +622,16 @@ def _scan_one_target(repo_version: tuple[str, ...], digest_line: tuple, index: i
     return image_ref, entry, was_cached
 
 
-def _scan_all_targets(targets: list, context: ScanContext):
+def _scan_all_targets(targets: list[ScanTargetPin], context: ScanContext):
     """(images, ScanStats) — scan every target in `targets` (see
     _scan_one_target), printing progress/scan-error lines as it goes."""
     print(
         f"Scanning {len(targets)} unique pinned image(s) for known CVEs with trivy "
         f"(pulls every image not already cached — this can take a while)..."
     )
-    images, scan_errors, cache_hits = {}, [], 0
+    images: dict[str, ImageCves] = {}
+    scan_errors: list[str] = []
+    cache_hits = 0
     for i, (repo_version, digest_line) in enumerate(targets, 1):
         image_ref, entry, was_cached = _scan_one_target(repo_version, digest_line, i, len(targets), context)
         if entry is None:
@@ -636,7 +644,7 @@ def _scan_all_targets(targets: list, context: ScanContext):
     return images, ScanStats(scan_errors, cache_hits, len(targets))
 
 
-def _bucket_refs(images: dict):
+def _bucket_refs(images: dict[str, ImageCves]):
     """(own_refs, partner_refs, other_refs) — refs (in images' own
     insertion order) whose bucket matches and that have at least one
     vulnerability finding, one list per report bucket."""
@@ -647,7 +655,7 @@ def _bucket_refs(images: dict):
     return refs_in("own"), refs_in("partner"), refs_in("other")
 
 
-def _print_bucket_reports(images: dict, buckets: BucketRefs, report_settings: ReportSettings):
+def _print_bucket_reports(images: dict[str, ImageCves], buckets: BucketRefs, report_settings: ReportSettings):
     print_bucket_report("Own images", buckets.own, images, report_settings)
     print_bucket_report("Partner-vendor images", buckets.partner, images, report_settings)
     print_bucket_report("Other-vendor images", buckets.other, images, report_settings)
@@ -666,7 +674,7 @@ def _print_cve_summary_lines(buckets: BucketRefs, stats: ScanStats, cve_cache_tt
     )
 
 
-def _cve_summary_detail(buckets: BucketRefs, images: dict, stats: ScanStats):
+def _cve_summary_detail(buckets: BucketRefs, images: dict[str, ImageCves], stats: ScanStats):
     """The final "CVEs: ... own (... img), ... partner-vendor (... img),
     ... other-vendor (... img); ... scan error(s)" detail string
     check_cves returns for verify-podiumd's own summary line."""
@@ -679,7 +687,7 @@ def _cve_summary_detail(buckets: BucketRefs, images: dict, stats: ScanStats):
     )
 
 
-def check_cves(chart_dir: Path, extra_args: list, *, detail: bool = False):
+def check_cves(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
     """Entry point for the "CVE scan" step (see module docstring for the
     full design). Renders the chart to classify every unique digest-pinned
     image as own/partner-vendor/other-vendor, scans each one with trivy
@@ -736,7 +744,7 @@ def check_cves(chart_dir: Path, extra_args: list, *, detail: bool = False):
     return True, _cve_summary_detail(buckets, images, stats)
 
 
-def bucket_totals(refs: list, images: dict):
+def bucket_totals(refs: list[str], images: dict[str, ImageCves]):
     """(image count, total vulnerability count) for one bucket's `refs` —
     the pair check_cves' own final detail string reports per bucket."""
     return len(refs), sum(len(images[ref]["vulns"]) for ref in refs)
@@ -749,21 +757,21 @@ def severity_label(severity: str):
     return "CRIT" if severity == "CRITICAL" else severity
 
 
-def high_findings_by_package(vulns: list, high_severities: set[str]):
+def high_findings_by_package(vulns: list[Vulnerability], high_severities: set[str]) -> dict[str, list[Vulnerability]]:
     """PkgName -> list of its CRITICAL/HIGH vulnerability dicts (see
     cve_scan.high_severity_levels in lib.settings) — the grouping unit for
     print_package_line. A single package/file can carry many CVE IDs (a
     bundled binary like Chromium tracks each fixed CVE separately against
     the same package), so grouping here is what turns a wall of
     near-duplicate lines into one line per actionable upgrade."""
-    groups = {}
+    groups: dict[str, list[Vulnerability]] = {}
     for v in vulns:
         if v["Severity"] in high_severities:
             groups.setdefault(v["PkgName"], []).append(v)
     return groups
 
 
-def print_package_line(pkg: str, vulns_for_pkg: list[dict[str, Any]], threshold: int):
+def print_package_line(pkg: str, vulns_for_pkg: list[Vulnerability], threshold: int):
     """Print one "full" detail-level line for `pkg`'s own CRIT/HIGH
     findings (see high_findings_by_package) — every CVE ID listed
     individually (worst severity first) when there are `threshold` (see
@@ -788,7 +796,7 @@ def print_package_line(pkg: str, vulns_for_pkg: list[dict[str, Any]], threshold:
     print(f"  {pkg}: {len(ordered)} CVE(s) ({parts})")
 
 
-def print_severity_totals_line(vulns: list):
+def print_severity_totals_line(vulns: list[Vulnerability]):
     """Print one "totals" detail-level line: every severity present in
     `vulns` (including CRIT/HIGH), worst-first per SEVERITY_ORDER, as a
     plain per-severity count — no package breakdown, no individual CVE
@@ -815,7 +823,7 @@ def print_bucket_header(title: str, *, empty: bool):
     return True
 
 
-def print_bucket_report(title: str, refs: list, images: dict, settings: ReportSettings):
+def print_bucket_report(title: str, refs: list[str], images: dict[str, ImageCves], settings: ReportSettings):
     """`settings` is a ReportSettings; settings.detail_level, applied
     identically regardless of which bucket this is (own/partner-vendor/
     other-vendor all get the same treatment — no aggregate-only rollup

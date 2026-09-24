@@ -272,7 +272,7 @@ def scan_version_pins(lines: list[str]) -> list[VersionPin]:
     return pins
 
 
-def unique_digest_pin_targets(values_lines: list[str]):
+def unique_digest_pin_targets(values_lines: list[str]) -> dict[tuple[str, str], tuple[str, int]]:
     """{(repository, version): (digest, line)} for the FIRST occurrence
     of every digest pin whose repository resolves from values.yaml
     ITSELF (an active sibling "repository:"/"registry:" pair, or one of
@@ -285,7 +285,7 @@ def unique_digest_pin_targets(values_lines: list[str]):
     hand-rolling the same "first (digest, line) wins per unique
     (repository, version)" grouping a third and fourth time."""
     pins = scan_digest_pins(values_lines)
-    targets = {}
+    targets: dict[tuple[str, str], tuple[str, int]] = {}
     for p in pins:
         if p["repository"]:
             targets.setdefault((p["repository"], p["version"]), (p["digest"], p["line"]))
@@ -425,7 +425,7 @@ def cached_tag_exists(
     return result
 
 
-def find_sliding_pins(chart_dir: Path):
+def find_sliding_pins(chart_dir: Path) -> list[tuple[str, str, str, str]]:
     """[(repository, version, pinned_digest, digest)] for every unique
     digest pin whose live upstream digest has SLID (see check_image_
     digests' own docstring for the sliding-vs-genuine-drift
@@ -449,7 +449,7 @@ def find_sliding_pins(chart_dir: Path):
     values_path = chart_dir / "values.yaml"
     _pins, targets = resolve_pin_targets(chart_dir)
 
-    sliding = []
+    sliding: list[tuple[str, str, str, str]] = []
     for (repository, version), group in sorted(targets.items()):
         host, repo_path = parse_repo(repository)
         pinned_digest = group[0]["digest"]

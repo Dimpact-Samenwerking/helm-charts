@@ -50,7 +50,9 @@ from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
 
-def find_lockstep_mismatches(deps: list[ChartDependency], values: YamlMapping | None):
+def find_lockstep_mismatches(
+    deps: list[ChartDependency], values: YamlMapping | None
+) -> list[tuple[str, str, list[tuple[str, str]]]]:
     """[(component, values_key, [(path, version), ...])] for every
     multi-path component_image_paths()/component_version_paths() entry
     whose resolved paths disagree on version. `resolved` only ever lists the
@@ -72,7 +74,7 @@ def find_lockstep_mismatches(deps: list[ChartDependency], values: YamlMapping | 
         (name, paths, False) for name, paths in component_version_paths().items() if len(paths) >= 2
     ]
 
-    findings = []
+    findings: list[tuple[str, str, list[tuple[str, str]]]] = []
     for component, paths, is_image_paths in entries:
         dep = find_dependency(deps, component)
         if dep is None:
@@ -80,7 +82,7 @@ def find_lockstep_mismatches(deps: list[ChartDependency], values: YamlMapping | 
         values_key = values_key_of(dep)
         base = values.get(values_key, {}) if isinstance(values, dict) else {}
 
-        resolved = []
+        resolved: list[tuple[str, str]] = []
         for path in paths:
             raw = text_at(base, f"{path}.tag" if is_image_paths else path)
             if isinstance(raw, str) and raw:
@@ -91,7 +93,9 @@ def find_lockstep_mismatches(deps: list[ChartDependency], values: YamlMapping | 
     return findings
 
 
-def find_chart_version_mismatches(deps: list[ChartDependency], values: YamlMapping | None):
+def find_chart_version_mismatches(
+    deps: list[ChartDependency], values: YamlMapping | None
+) -> list[tuple[str, str, str, str]]:
     """[(component, values_key, chart_version, app_version)] for every
     lib.chart.chart_version_lockstep_components() entry whose Chart.yaml
     dependency "version:" disagrees with its own resolved app version. Resolution
@@ -105,7 +109,7 @@ def find_chart_version_mismatches(deps: list[ChartDependency], values: YamlMappi
     on its vendored chart's own appVersion default) has nothing to
     compare, so it's skipped, not reported. Same for a registered
     component with no matching Chart.yaml dependency at all."""
-    findings = []
+    findings: list[tuple[str, str, str, str]] = []
     for component in sorted(chart_version_lockstep_components()):
         dep = find_dependency(deps, component)
         if dep is None:

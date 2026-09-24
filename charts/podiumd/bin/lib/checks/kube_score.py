@@ -16,6 +16,7 @@ from typing import TypeGuard
 
 from lib.procutil import run
 from lib.render_scope import OWN_TEMPLATES_PREFIX
+from lib.render_scope import ResourceLocations
 from lib.render_scope import chart_name_from_source
 from lib.render_scope import friendly_vendor_charts
 from lib.render_scope import print_grouped_findings
@@ -137,7 +138,7 @@ def parse_kube_score_object_name(object_name: str):
     return parts[0], parts[-2], parts[-1]
 
 
-def _kube_score_line_suffix(object_name: str, locations: dict):
+def _kube_score_line_suffix(object_name: str, locations: ResourceLocations):
     kind, namespace, name = parse_kube_score_object_name(object_name)
     if not kind:
         return ""
@@ -152,20 +153,20 @@ class KubeScoreResult:
     the three own/partner-vendor/other-vendor finding buckets. See
     _score_rendered_chart, which builds this."""
 
-    locations: dict
+    locations: ResourceLocations
     own_real: list[KubeScoreFinding]
     vendored_partner: list[VendoredKubeScoreFinding]
     vendored_other: list[VendoredKubeScoreFinding]
 
 
-def _score_vendored_charts(docs: list, check_id: str, vendor_map: dict):
+def _score_vendored_charts(docs: list[tuple[str, str]], check_id: str, vendor_map: dict[str, str]):
     """Runs kube-score separately per vendored sub-chart (kube-score's own
     JSON carries no per-resource source info, so each sub-chart's docs are
     scored on their own — see check_kube_score's docstring), splitting
     findings into (vendored_partner, vendored_other) by vendor_map
     membership. Returns (None, None, error) if any sub-chart's kube-score
     output couldn't be parsed."""
-    vendored_by_chart_docs = {}
+    vendored_by_chart_docs: dict[str, list[str]] = {}
     for source, text in docs:
         if not source.startswith(OWN_TEMPLATES_PREFIX):
             vendored_by_chart_docs.setdefault(chart_name_from_source(source), []).append(text)
@@ -182,7 +183,7 @@ def _score_vendored_charts(docs: list, check_id: str, vendor_map: dict):
     return vendored_partner, vendored_other, None
 
 
-def _score_rendered_chart(chart_dir: Path, extra_args: list, check_id: str):
+def _score_rendered_chart(chart_dir: Path, extra_args: list[str], check_id: str):
     """Renders the chart, scores its own templates and every vendored
     sub-chart's templates (see _score_vendored_charts) with kube-score, and
     bundles the result into a KubeScoreResult. Returns (None, error) on any
@@ -253,7 +254,7 @@ def _print_kube_score_findings(scored: KubeScoreResult):
         print("OK: no kube-score container-resources findings in the rendered chart")
 
 
-def check_kube_score(chart_dir: Path, extra_args: list):
+def check_kube_score(chart_dir: Path, extra_args: list[str]):
     """Checks that every container in the rendered chart declares CPU/
     memory requests AND limits — this repo's own documented convention
     (.github/copilot-instructions.md's "Resource Requests and Limits"),

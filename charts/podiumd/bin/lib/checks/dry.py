@@ -12,11 +12,11 @@ from lib.settings import dry_check_min_significant_lines
 from lib.settings import dry_check_similarity_threshold
 
 
-def _significant_template_lines(path: Path):
+def _significant_template_lines(path: Path) -> list[str]:
     """A template's lines with blanks and full-line comments dropped, so
     similarity scoring isn't skewed by incidental whitespace or comment
     wording differences between two otherwise-identical templates."""
-    lines = []
+    lines: list[str] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith(("#", "{{/*")):

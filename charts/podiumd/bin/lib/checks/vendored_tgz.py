@@ -22,7 +22,7 @@ from pathlib import Path
 TGZ_NAME_RE = re.compile(r"^(?P<name>.+)-(?P<version>\d[\w.+-]*)\.tgz$")
 
 
-def find_extracted_vendored_dirs(chart_dir: Path):
+def find_extracted_vendored_dirs(chart_dir: Path) -> list[str]:
     """Returns a sorted list of chart names that have BOTH a pinned
     `<name>-<version>.tgz` package and an extracted `<name>/` directory
     under chart_dir/charts/."""
@@ -30,7 +30,7 @@ def find_extracted_vendored_dirs(chart_dir: Path):
     if not charts_subdir.is_dir():
         return []
 
-    tgz_names = set()
+    tgz_names: set[str] = set()
     for path in charts_subdir.glob("*.tgz"):
         m = TGZ_NAME_RE.match(path.name)
         if m:

@@ -20,12 +20,12 @@ class DuplicateKeyScan:
     and mutate it without each taking four separate parameters."""
 
     filename: str
-    stack: list = field(default_factory=list)
-    scope_keys: dict = field(default_factory=dict)
-    duplicates: list = field(default_factory=list)
+    stack: list[tuple[int, str]] = field(default_factory=list)
+    scope_keys: dict[tuple[str, ...], dict[str, int]] = field(default_factory=dict)
+    duplicates: list[str] = field(default_factory=list)
 
 
-def _register_duplicate_key(scan: DuplicateKeyScan, scope_id: tuple, key: str, line_no: int):
+def _register_duplicate_key(scan: DuplicateKeyScan, scope_id: tuple[str, ...], key: str, line_no: int):
     scan.scope_keys.setdefault(scope_id, {})
     if key in scan.scope_keys[scope_id]:
         parent = " > ".join(scope_id) if scope_id else "(root)"
@@ -37,11 +37,15 @@ def _register_duplicate_key(scan: DuplicateKeyScan, scope_id: tuple, key: str, l
         scan.scope_keys[scope_id][key] = line_no
 
 
-def _scan_list_item_line(scan: DuplicateKeyScan, key_re: re.Pattern, dash_re: re.Pattern, line: str, line_no: int):
+def _scan_list_item_line(
+    scan: DuplicateKeyScan, key_re: re.Pattern[str], dash_re: re.Pattern[str], line: str, line_no: int
+):
     """A "- ..." line: closes any scope at or past this item's indent,
     opens a new one unique to this occurrence (so sibling list items never
     share a scope), then treats "- key: ..." same as a plain key line."""
     dash_m = dash_re.match(line)
+    if dash_m is None:
+        return
     list_indent = len(dash_m.group(1))
     rest = dash_m.group(2)
     while scan.stack and scan.stack[-1][0] >= list_indent:
@@ -57,7 +61,7 @@ def _scan_list_item_line(scan: DuplicateKeyScan, key_re: re.Pattern, dash_re: re
         scan.stack.append((list_indent + 2, key))
 
 
-def _scan_key_line(scan: DuplicateKeyScan, key_re: re.Pattern, line: str, line_no: int):
+def _scan_key_line(scan: DuplicateKeyScan, key_re: re.Pattern[str], line: str, line_no: int):
     m = key_re.match(line)
     if not m:
         return

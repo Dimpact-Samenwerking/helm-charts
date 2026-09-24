@@ -460,7 +460,8 @@ def check_release_baseline(chart_dir: Path):
     if repo_root is None:
         return False, f"{baselines_file.name}: not inside a git repository"
 
-    failures, resolved = [], []
+    failures: list[str] = []
+    resolved: list[str] = []
     for key, baseline in (
         ("upgrade_docs", read_upgrade_docs_baseline(chart_dir)),
         ("release_table", read_release_table_baseline(chart_dir)),
@@ -482,7 +483,7 @@ def check_release_baseline(chart_dir: Path):
     return True, ", ".join(resolved)
 
 
-def check_lint(chart_dir: Path, extra_args: list):
+def check_lint(chart_dir: Path, extra_args: list[str]):
     """Runs `helm lint` against chart_dir with extra_args (see
     lint_args_for — the shared ci/lint-values.yaml overrides every
     render/lint/check step here uses), printing its combined
@@ -503,7 +504,7 @@ def check_lint(chart_dir: Path, extra_args: list):
     return True, detail
 
 
-def check_render(chart_dir: Path, extra_args: list):
+def check_render(chart_dir: Path, extra_args: list[str]):
     """Renders chart_dir via render_chart (with extra_args — see
     lint_args_for), then reports the rendered manifest count. Returns
     (ok, detail): False if rendering fails outright (reporting
@@ -527,7 +528,11 @@ def check_render(chart_dir: Path, extra_args: list):
     return True, detail
 
 
-def print_summary(results: list, *, overall_ok: bool):
+# One step's summary row: (name, ok or None when skipped, detail).
+StepResult = tuple[str, bool | None, str | None]
+
+
+def print_summary(results: list[StepResult], *, overall_ok: bool):
     """Prints the final PASS/FAIL/SKIP table for every step in `results`
     (name, ok, detail triples — ok=None renders as SKIP), followed by one
     closing line depending on overall_ok."""
@@ -650,13 +655,13 @@ STEP_PREREQUISITES = {
 }
 
 
-def prerequisites_for(step_name: str):
+def prerequisites_for(step_name: str) -> set[str]:
     """Transitive closure of STEP_PREREQUISITES for step_name. Currently
     only one level deep, but resolved as a closure rather than a single
     lookup so a future chained prerequisite doesn't silently go missing —
     order doesn't matter here, since run_step() below runs steps in the
     pipeline's own fixed order regardless of this set's iteration order."""
-    resolved = set()
+    resolved: set[str] = set()
     stack = list(STEP_PREREQUISITES.get(step_name, ()))
     while stack:
         step = stack.pop()
@@ -695,11 +700,11 @@ class StepRunner:
     configuration run() needs to decide, print, and record each step's
     outcome. See run() for what a "step" actually does."""
 
-    skipped_steps: set = field(default_factory=set)
-    skip_flags: list = field(default_factory=list)
-    include_flags: list = field(default_factory=list)
-    results: list = field(default_factory=list)
-    failed_or_blocked: set = field(default_factory=set)
+    skipped_steps: set[str] = field(default_factory=set)
+    skip_flags: list[str] = field(default_factory=list)
+    include_flags: list[str] = field(default_factory=list)
+    results: list[StepResult] = field(default_factory=list)
+    failed_or_blocked: set[str] = field(default_factory=set)
 
     def run(
         self,
@@ -769,7 +774,7 @@ def _parse_cli_args():
 
     valid_flags = {flag for flag, _ in SKIPPABLE_STEPS}
 
-    def parse_step_list(raw: str | None, option_name: str):
+    def parse_step_list(raw: str | None, option_name: str) -> list[str]:
         if not raw:
             return []
         flags = [f for f in raw.split(",") if f]

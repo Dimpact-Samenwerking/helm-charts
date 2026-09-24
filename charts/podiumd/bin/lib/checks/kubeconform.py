@@ -19,6 +19,7 @@ from typing import TypedDict
 from typing import TypeGuard
 
 from lib.procutil import run
+from lib.render_scope import ResourceLocations
 from lib.render_scope import VendorBucketScan
 from lib.render_scope import chart_name_from_source
 from lib.render_scope import print_grouped_findings
@@ -29,6 +30,7 @@ from lib.render_scope import resource_line
 from lib.render_scope import scan_outcome
 from lib.render_scope import scan_rendered_chart
 from lib.settings import quality_gates_kubeconform_failing_statuses
+from lib.yaml_types import is_yaml_mapping
 from lib.yaml_types import shape_problem
 
 KUBECONFORM_BASE_ARGS = [
@@ -69,11 +71,12 @@ def parse_kubeconform_output(stdout: str) -> list[KubeconformResource] | None:
         data: object = json.loads(stdout)
     except json.JSONDecodeError:
         return None
-    resources = data.get("resources") if isinstance(data, dict) else None
+    resources = data.get("resources") if is_yaml_mapping(data) else None
     return resources if _is_resource_list(resources) else None
 
 
 KubeconformEntry = tuple[str | None, KubeconformResource]
+VendoredKubeconformEntry = tuple[str, KubeconformResource]
 
 
 def kubeconform_cache_dir():
@@ -111,7 +114,7 @@ def _kubeconform_group_label(key: tuple[str, ...]):
     return f"[{label:7s}] {first_line}"
 
 
-def _kubeconform_item(entry: KubeconformEntry, locations: dict):
+def _kubeconform_item(entry: KubeconformEntry, locations: ResourceLocations):
     """ "<kind>/<name>" plus a "(rendered line N)" hint when
     build_resource_locations can locate exactly this kind+name
     unambiguously (kubeconform's own JSON has no namespace field, so a
@@ -138,7 +141,7 @@ def _own_kubeconform_findings(
 
 def _scan_vendored_charts(
     docs: list[tuple[str, str]], failing_statuses: set[str], vendor_map: dict[str, str]
-) -> tuple[list[KubeconformEntry] | None, list[KubeconformEntry] | None, str | None]:
+) -> tuple[list[VendoredKubeconformEntry] | None, list[VendoredKubeconformEntry] | None, str | None]:
     """Validates each vendored sub-chart's docs (every rendered doc outside
     OWN_TEMPLATES_PREFIX) with kubeconform separately
     (kubeconform's own JSON carries no per-resource source info, so —
@@ -146,12 +149,12 @@ def _scan_vendored_charts(
     splitting findings into (vendored_friendly, vendored_other) by
     vendor_map membership. Returns (None, None, error) if any sub-chart's
     kubeconform output couldn't be parsed."""
-    vendored_by_chart = {}
+    vendored_by_chart: dict[str, list[str]] = {}
     for source, text in docs:
         vendored_by_chart.setdefault(chart_name_from_source(source), []).append(text)
 
-    vendored_friendly: list[KubeconformEntry] = []
-    vendored_other: list[KubeconformEntry] = []
+    vendored_friendly: list[VendoredKubeconformEntry] = []
+    vendored_other: list[VendoredKubeconformEntry] = []
     for chart, texts in vendored_by_chart.items():
         resources = run_kubeconform("".join(texts))
         if resources is None:
@@ -163,7 +166,7 @@ def _scan_vendored_charts(
     return vendored_friendly, vendored_other, None
 
 
-def _print_kubeconform_findings(scan: VendorBucketScan[KubeconformResource, KubeconformEntry]):
+def _print_kubeconform_findings(scan: VendorBucketScan[KubeconformResource, VendoredKubeconformEntry]):
     """Prints check_kubeconform's three report sections (own/vendored-
     friendly/vendored-other) for a completed VendorBucketScan -- see
     check_kubeconform's own docstring for what each section means and why
@@ -198,7 +201,7 @@ def _print_kubeconform_findings(scan: VendorBucketScan[KubeconformResource, Kube
         print("OK: no kubeconform findings in the rendered chart")
 
 
-def check_kubeconform(chart_dir: Path, extra_args: list):
+def check_kubeconform(chart_dir: Path, extra_args: list[str]):
     """Validates the full `helm template` render against real Kubernetes
     API schemas — catches unknown fields, wrong types, and missing
     required fields that neither `helm lint` nor yamllint check (those

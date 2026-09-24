@@ -18,6 +18,7 @@ import yaml
 
 from lib.chart.values_tree_primitives import text_at
 from lib.procutil import run
+from lib.render_scope import ResourceLocations
 from lib.render_scope import VendorBucketScan
 from lib.render_scope import chart_name_from_source
 from lib.render_scope import print_grouped_findings
@@ -30,6 +31,7 @@ from lib.render_scope import scan_rendered_chart
 from lib.settings import quality_gates_shellcheck_failing_levels
 from lib.settings import quality_gates_shellcheck_shell_names
 from lib.yaml_types import YamlValue
+from lib.yaml_types import is_yaml_mapping
 from lib.yaml_types import is_yaml_value
 from lib.yaml_types import shape_problem
 
@@ -62,18 +64,22 @@ def parse_shellcheck_output(stdout: str) -> list[ShellcheckComment] | None:
         data: object = json.loads(stdout)
     except json.JSONDecodeError:
         return None
-    comments = data.get("comments") if isinstance(data, dict) else None
+    comments = data.get("comments") if is_yaml_mapping(data) else None
     return comments if _is_comment_list(comments) else None
 
 
 ShellcheckFinding = tuple[str, str, ShellcheckComment, str | None, str | None, str | None]
+# An embedded script as (source, path, shell, script_text, kind, namespace, name).
+EmbeddedScript = tuple[str, str, str, str, str | None, str | None, str | None]
 
 
-def _shell_name(token: object):
+def _shell_name(token: YamlValue) -> str | None:
     return token.rsplit("/", 1)[-1] if isinstance(token, str) else None
 
 
-def find_shell_scripts(obj: YamlValue, source: str, shell_names: set[str], path: str = ""):
+def find_shell_scripts(
+    obj: YamlValue, source: str, shell_names: set[str], path: str = ""
+) -> list[tuple[str, str, str, str]]:
     """Recursively walk a parsed manifest (dict/list/scalar) looking for a
     container-shaped dict with a command/args pair that invokes a shell
     with "-c" (in either list, in either order — this chart uses both
@@ -83,7 +89,7 @@ def find_shell_scripts(obj: YamlValue, source: str, shell_names: set[str], path:
     lib.settings) — a container invoking anything else as its `command`
     is not treated as an embedded shell script at all. Returns (source,
     path, shell, script_text) tuples."""
-    found = []
+    found: list[tuple[str, str, str, str]] = []
     if isinstance(obj, dict):
         command = obj.get("command")
         args = obj.get("args")
@@ -97,8 +103,8 @@ def find_shell_scripts(obj: YamlValue, source: str, shell_names: set[str], path:
             shell = _shell_name(combined[0]) if combined else None
             if shell in shell_names:
                 for i, tok in enumerate(combined):
-                    if tok == "-c" and i + 1 < len(combined) and isinstance(combined[i + 1], str):
-                        found.append((source, path, shell, combined[i + 1]))
+                    if tok == "-c" and i + 1 < len(combined) and isinstance(script := combined[i + 1], str):
+                        found.append((source, path, shell, script))
                         break
         for key, value in obj.items():
             found.extend(find_shell_scripts(value, source, shell_names, f"{path}.{key}"))
@@ -108,7 +114,7 @@ def find_shell_scripts(obj: YamlValue, source: str, shell_names: set[str], path:
     return found
 
 
-def extract_shell_scripts(docs: list[tuple[str, str]], shell_names: set[str]):
+def extract_shell_scripts(docs: list[tuple[str, str]], shell_names: set[str]) -> list[EmbeddedScript]:
     """docs: list of (source, doc_text) pairs, e.g. from
     split_rendered_by_source. Parses each doc_text as YAML and returns
     every embedded shell script found in it (see find_shell_scripts for
@@ -117,7 +123,7 @@ def extract_shell_scripts(docs: list[tuple[str, str]], shell_names: set[str]):
     the same doc, one resource per doc — so a finding can later be
     resolved back to a rendered-output line via lib.render_scope.
     resource_line."""
-    scripts = []
+    scripts: list[EmbeddedScript] = []
     for source, doc_text in docs:
         try:
             parsed = yaml.safe_load(doc_text)
@@ -150,12 +156,12 @@ def _shellcheck_group_key(finding: ShellcheckFinding):
     return c.get("level"), c.get("code"), c.get("message")
 
 
-def _shellcheck_group_label(key: tuple):
+def _shellcheck_group_label(key: tuple[str, int, str]):
     level, code, message = key
     return f"[{level.upper():7s}] SC{code}: {message}"
 
 
-def _shellcheck_location(finding: ShellcheckFinding, locations: dict):
+def _shellcheck_location(finding: ShellcheckFinding, locations: ResourceLocations):
     """ "<source> (<path>) — script line <N>[:<col>] (rendered line M)" for
     one finding (source, path, comment, kind, namespace, name). The
     script line/column are shellcheck's own, against the embedded script
@@ -195,7 +201,7 @@ def _own_shellcheck_findings(
     return own_real, None
 
 
-def _vendored_script_result(entry: tuple[str, ...], failing_levels: set[str]):
+def _vendored_script_result(entry: EmbeddedScript, failing_levels: set[str]):
     """One extract_shell_scripts entry -> (chart, findings, error): lints
     the entry's script, keeping only failing_levels-severity comments as
     (source, path, comment, kind, namespace, name) findings. findings is
@@ -264,7 +270,7 @@ def _print_shellcheck_findings(scan: VendorBucketScan[ShellcheckFinding, Shellch
         print("OK: no shellcheck findings in the rendered chart")
 
 
-def check_shellcheck(chart_dir: Path, extra_args: list):
+def check_shellcheck(chart_dir: Path, extra_args: list[str]):
     """Lints every shell script embedded in a container's command/args
     (this chart's `command: [".../sh", "-c"], args: [<script>]` /
     `command: [...], args: ["-c", <script>]` convention) — catches actual
