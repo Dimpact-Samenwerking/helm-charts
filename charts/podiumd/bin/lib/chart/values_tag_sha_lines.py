@@ -29,7 +29,7 @@ def find_child_key_line(lines: list[str], key: str, parent_indent: int, block_st
     smallest indent strictly greater than parent_indent, so a same-named key
     nested deeper inside a grandchild block is never mistaken for it."""
     key_re = re.compile(rf"^(\s*){re.escape(key)}:\s*(.*)$")
-    candidates = []
+    candidates: list[tuple[int, int]] = []
     for i in range(block_start, block_end):
         line = lines[i]
         if not line.strip() or line.lstrip().startswith("#"):

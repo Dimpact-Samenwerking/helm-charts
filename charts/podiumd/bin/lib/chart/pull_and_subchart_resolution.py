@@ -12,6 +12,7 @@ import shutil
 import sys
 import tempfile
 
+from collections.abc import Mapping
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
@@ -27,6 +28,7 @@ from lib.procutil import run
 from lib.registry import ImagePathTagCheck
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
+from lib.settings import DigestPinningException
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 from lib.yaml_types import parse_yaml_mapping
@@ -36,7 +38,12 @@ from lib.yaml_types import scalar_text
 # A BOM breaks YAML tooling that doesn't expect one. Shared by
 # verify-podiumd (detects and reports it — a verify script never writes
 # to a tracked file) and fix-utf8-bom (the fixer).
-def resolved_digest_pin(values: YamlMapping | None, path: tuple[str, ...], tag: str, sibling_fields: dict):
+def resolved_digest_pin(
+    values: YamlMapping | None,
+    path: tuple[str, ...],
+    tag: str,
+    sibling_fields: Mapping[tuple[str, ...], DigestPinningException],
+) -> str | None:
     """`tag`'s own "@sha256:<hex>" suffix if it already has one, else —
     for a path registered in `sibling_fields` (lib.settings.
     digest_pinning_exceptions(chart_dir), or an equivalent {path:
@@ -58,7 +65,8 @@ def resolved_digest_pin(values: YamlMapping | None, path: tuple[str, ...], tag: 
     double it for eck-operator's own shape."""
     if "@" in tag:
         return tag
-    sibling_field = sibling_fields.get(path, {}).get("sibling_field")
+    exception = sibling_fields.get(path)
+    sibling_field = exception.get("sibling_field") if exception is not None else None
     if sibling_field is None:
         return None
     digest = text_at(values, ".".join(path) + f".{sibling_field}")
@@ -360,7 +368,7 @@ def primary_image_repositories(
     version: str | None = None,
     *,
     allow_pull: bool = True,
-):
+) -> tuple[dict[str, str | None], str | None]:
     """({path: repository_or_None, ...}, error_or_None) for every one of
     dep's own primary image path(s) (see image_paths_for(dep["name"])) —
     THE single place "what repository does this component's primary
@@ -387,8 +395,10 @@ def primary_image_repositories(
     "not vendored, and pulling is disabled", never raising."""
     values_key = values_key_of(dep)
     version = version or dep["version"]
-    results = {}
-    subchart_state = None  # lazily filled on first path that needs it: (values_or_None, error_or_None)
+    results: dict[str, str | None] = {}
+    subchart_state: tuple[YamlMapping | None, str | None] | None = (
+        None  # lazily filled on first path that needs it: (values_or_None, error_or_None)
+    )
     for path in image_paths_for(dep["name"], chart_dir):
         repo = text_at(own_values, f"{values_key}.{path}.repository")
         if isinstance(repo, str) and repo:

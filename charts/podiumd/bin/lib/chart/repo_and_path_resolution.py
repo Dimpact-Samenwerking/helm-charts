@@ -34,7 +34,16 @@ from lib.release_baseline import resolve_baseline_chart_state
 from lib.yaml_types import YamlMapping
 
 
-def component_state_at_baseline(chart_dir: Path, chart_dir_relpath: str, baseline: str, component: str):
+def component_state_at_baseline(
+    chart_dir: Path, chart_dir_relpath: str, baseline: str, component: str
+) -> tuple[
+    str | None,
+    ChartDependency | None,
+    str | None,
+    list[str] | None,
+    list[tuple[str, str]] | None,
+    str | None,
+]:
     """(baseline_ref, dep, values_key, image_paths, app_versions, error)
     for `component`'s Chart.yaml dependency entry + declared image
     tag(s) at release-baseline.yaml value `baseline`, resolved against
@@ -90,7 +99,7 @@ def component_state_at_baseline(chart_dir: Path, chart_dir_relpath: str, baselin
     return baseline_ref, dep, values_key, image_paths, app_versions, None
 
 
-def repo_group_representative(repo_paths: list, deps: list[ChartDependency]):
+def repo_group_representative(repo_paths: list[tuple[str, ...]], deps: list[ChartDependency]) -> tuple[str, ...]:
     """The single path a shared-repository group (see paths_by_
     repository) should be treated as "the" path for — ranking each
     candidate and returning the LAST (values.yaml's own top-level key
@@ -243,8 +252,8 @@ class _RepoResolutionState:
 
     chart_dir: Path | None
     allow_pull: bool
-    subchart_cache: dict
-    nested_subchart_cache: dict
+    subchart_cache: dict[str, tuple[YamlMapping | None, str | None]]
+    nested_subchart_cache: dict[tuple[str, str], str | None]
 
 
 def _grouped_repository_for_path(
@@ -456,8 +465,13 @@ def _full_repo_from_dependency(
 
 
 def repository_path_map(
-    chart_dir: Path | None, deps: list[ChartDependency], values: YamlMapping, paths: list, *, allow_pull: bool = False
-):
+    chart_dir: Path | None,
+    deps: list[ChartDependency],
+    values: YamlMapping,
+    paths: Collection[tuple[str, ...]],
+    *,
+    allow_pull: bool = False,
+) -> dict[str, tuple[str, ...]]:
     """{strip_registry_host(repository): values-tree path} — paths_by_
     repository's own per-repository groups, collapsed to each group's
     single representative path (see repo_group_representative). Exists
@@ -482,10 +496,10 @@ def canonical_sidecar_row_names(
     chart_dir: Path | None,
     deps: list[ChartDependency],
     values: YamlMapping,
-    paths: Collection,
+    paths: Collection[tuple[str, ...]],
     *,
     allow_pull: bool = False,
-):
+) -> dict[str, tuple[str, ...]]:
     """{canonical doc-row name: values-tree path} for every image path
     that isn't a Chart.yaml dependency's own name/alias directly — the
     two other shapes update-image-version actually writes a doc row
@@ -535,7 +549,7 @@ def canonical_sidecar_row_names(
     sidecar_paths, global_paths = _classify_sidecar_and_global_paths(chart_dir, deps, paths)
     global_repos = _global_repository_set(values, global_paths)
 
-    names = {}
+    names: dict[str, tuple[str, ...]] = {}
     for repo, path in repository_path_map(chart_dir, deps, values, sidecar_paths, allow_pull=allow_pull).items():
         if repo in global_repos:
             continue
@@ -586,14 +600,17 @@ def _owner_name(deps: list[ChartDependency], natives: frozenset[str], path: tupl
     return path[0] if path[0] in natives else None
 
 
-def _classify_sidecar_and_global_paths(chart_dir: Path | None, deps: list[ChartDependency], paths: Collection):
+def _classify_sidecar_and_global_paths(
+    chart_dir: Path | None, deps: list[ChartDependency], paths: Collection[tuple[str, ...]]
+) -> tuple[list[tuple[str, ...]], list[tuple[str, ...]]]:
     """(sidecar_paths, global_paths) split of `paths` for canonical_
     sidecar_row_names — a path pinned under the shared "global" top-
     level key is handled entirely separately from one nested under a
     real dependency or native_components component's own subtree. An
     owner's primary image (image_paths_for) is neither."""
     natives = native_components(chart_dir)
-    sidecar_paths, global_paths = [], []
+    sidecar_paths: list[tuple[str, ...]] = []
+    global_paths: list[tuple[str, ...]] = []
     for path in paths:
         if not path:
             continue
@@ -606,13 +623,13 @@ def _classify_sidecar_and_global_paths(chart_dir: Path | None, deps: list[ChartD
     return sidecar_paths, global_paths
 
 
-def _global_repository_set(values: YamlMapping, global_paths: list):
+def _global_repository_set(values: YamlMapping, global_paths: list[tuple[str, ...]]) -> set[str]:
     """Every global_paths entry's own resolved, stripped repository —
     canonical_sidecar_row_names' own exclusion set for a sidecar whose
     repository is ALSO reachable via the shared "global" key (see that
     function's own docstring for why registering both would give the
     same version bump two separate canonical names)."""
-    global_repos = set()
+    global_repos: set[str] = set()
     for path in global_paths:
         repo = text_at(values, ".".join(path) + ".repository")
         if isinstance(repo, str) and repo:
@@ -653,7 +670,7 @@ def subchart_template_text(chart_dir: Path, dep: ChartDependency):
             members = [m for m in tar.getmembers() if m.isfile() and m.name.startswith(prefix)]
             if not members:
                 return None
-            parts = []
+            parts: list[str] = []
             for member in members:
                 f = tar.extractfile(member)
                 if f is not None:
@@ -681,8 +698,12 @@ def _dependency_for_pin(lines: list[str], pin_line: int, deps: list[ChartDepende
 
 
 def subchart_default_repository(
-    chart_dir: Path, lines: list[str], pin_line: int, deps: list[ChartDependency], cache: dict | None = None
-):
+    chart_dir: Path,
+    lines: list[str],
+    pin_line: int,
+    deps: list[ChartDependency],
+    cache: dict[str, YamlMapping | None] | None = None,
+) -> str | None:
     """The `repository:` a digest pin's own component defaults to via its
     subchart's baked-in values.yaml, for a pin whose "tag:" line has no
     resolvable "repository:" of its own in podiumd's values.yaml (see

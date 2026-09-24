@@ -105,7 +105,7 @@ def resolve_baseline_chart_state(
     return baseline_ref, baseline_deps, baseline_values, baseline_lines, None
 
 
-def resolve_baseline_values(chart_dir: Path, baseline: str):
+def resolve_baseline_values(chart_dir: Path, baseline: str) -> tuple[str | None, YamlMapping, list[str], str | None]:
     """(baseline_ref, baseline_values, baseline_lines, error) for
     `baseline` resolved against chart_dir's own git history — the
     values.yaml-ONLY sibling of resolve_baseline_chart_state (see this
