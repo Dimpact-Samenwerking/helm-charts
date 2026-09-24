@@ -214,6 +214,20 @@ def test_add_missing_sidecar_rows_genuinely_new_repository_still_renders_new(lib
 # --- make_image_changes_section ---
 
 
+@pytest.mark.parametrize("app", [None, "-"])
+def test_build_changes_section_for_row_without_app_version_is_a_todo_stub(libimagedocs: ModuleType, app: str | None):
+    """A row whose app cell is empty or "-" has no target version, so it
+    gets the TODO stub, never a section built from "-"."""
+    row = {"name": "curl", "app_source": None, "app": app, "chart_source": None, "chart": "-"}
+
+    section = libimagedocs.build_changes_section_for_row(row, ("sidecar", ("global", "images", "curl")), [], "4.9.2")
+
+    assert section == (
+        "### curl -\n\nTODO: describe this component's changes — its app version could not be "
+        "resolved from the table row.\n\n"
+    )
+
+
 def test_make_image_changes_section_lists_every_pinned_path(libimagedocs: ModuleType):
     pinned = [("keycloak-operator.jobs.ensureOperatorSa.image.tag", "8.20.0"), ("zac.global.curlImage.tag", "8.20.0")]
     section = libimagedocs.make_image_changes_section("curl", "4.9.0", "8.20.0", "8.21.0", pinned)

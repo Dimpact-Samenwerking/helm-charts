@@ -1,8 +1,9 @@
 """Update the docs for a shared image basename's version bump — the
-"Component versions" table row, "## Changes" section, values-deltas
-bullet, and images-<target>.yaml entry, all keyed by the basename/
-repository itself rather than any one consuming component's values-tree
-path. Used only when a basename bump (lib.image.version.
+"Component versions" table row, "## Changes" section and
+images-<target>.yaml entry, all keyed by the basename/repository itself
+rather than any one consuming component's values-tree path. It does not
+touch values-deltas.md: that doc tracks per-component key changes, and
+a bare basename bump has no Chart.yaml component of its own. Used only when a basename bump (lib.image.version.
 update_image_version) actually touches more than one Chart.yaml
 component — a bump resolving to exactly one component (e.g. via a
 dependency alias like "openklant") gets the SAME full-fidelity treatment
@@ -328,7 +329,7 @@ def build_changes_section_for_row(
     add_missing_component_rows uses for the same reason. None if `ident`
     names a "dep" identity whose Chart.yaml dependency can't be found
     (shouldn't happen — ident was itself resolved against `deps`)."""
-    if row["app"] is None:
+    if row["app"] in (None, "-"):
         chart_bit = row["chart"] or row["chart_source"] or "-"
         return (
             f"### {row['name']} {chart_bit}\n\n"
