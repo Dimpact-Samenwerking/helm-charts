@@ -213,12 +213,14 @@ keycloak:
         name: Monitoring (Grafana)
         enabled: true
         secret: ""
-        oidcUrl: "https://monitoring.example.nl"
+        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://monitoring.example.nl`.
+        oidcUrl: ""
       datamigratie:
         name: Datamigratie
         enabled: true
         secret: ""
-        oidcUrl: "https://datamigratie.example.nl"
+        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://datamigratie.example.nl`.
+        oidcUrl: ""
       # zaakbrug Frank!Framework console OAuth2 client. Only rendered into the
       # podiumd realm import when zaakbrug.enabled=true. Env values supply the
       # secret (REP placeholder from Key Vault: zaakbrug-oauth-client-secret)
@@ -227,7 +229,8 @@ keycloak:
         name: Zaakbrug Frank!Framework console
         enabled: true
         secret: ""
-        oidcUrl: "https://zaakbrug.example.nl"
+        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://zaakbrug.example.nl`.
+        oidcUrl: ""
   name: "keycloak"
   features:
     enabled: []
@@ -671,7 +674,8 @@ openzaak:
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
       # openzaak_openbeheer_secret: "<openzaak_openbeheer_secret>"
-    oidcUrl: https://openzaak.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openzaak.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   create_required_catalogi_job:
@@ -934,7 +938,8 @@ opennotificaties:
     #     items:
     #       - domain: opennotificaties.test.opengem.nl
     #         name: Open Notificaties
-    oidcUrl: https://opennotificaties.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://opennotificaties.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -1129,7 +1134,8 @@ objecten:
     #           make_users_staff: true
     #           superuser_group_names:
     #             - Registreerders
-    oidcUrl: https://objecten.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecten.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -1264,7 +1270,8 @@ objecttypen:
     #           superuser_group_names:
     #             - Superusers
     token: "<token>"
-    oidcUrl: https://objecttypen.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecttypen.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -1320,7 +1327,8 @@ openarchiefbeheer:
     disabled: true
   configuration:
     enabled: true
-    oidcUrl: https://abc.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://abc.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client.
     pkceEnabled: false
     job:
@@ -1604,7 +1612,8 @@ openklant:
     #           sync: true
     #           sync_pattern: "*"
     #           default_groups: []
-    oidcUrl: https://openklant.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openklant.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -1816,7 +1825,8 @@ openformulieren:
     #           "submission_id": "{{ "{{" }} submission.kenmerk {{ "}}" }}",
     #           "language_code": "{{ "{{" }} submission.language_code {{ "}}" }}"
     #         }
-    oidcUrl: https://openformulieren.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openformulieren.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   # -- Seeds Open Forms' GlobalConfiguration singleton (enable_virus_scan,
@@ -2037,7 +2047,8 @@ openinwoner:
       keycloak_client_secret: ""
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
       # openklant_openinwoner_token: "<openklant_openinwoner_token>"
-    oidcUrl: https://openinwoner.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openinwoner.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   # -- Seeds Open Inwoner's SiteConfiguration singleton (enable_virus_scan,
@@ -2290,7 +2301,8 @@ referentielijsten:
     #           make_users_staff: true
     #           superuser_group_names:
     #             - administrators
-    oidcUrl: https://referentielijsten.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://referentielijsten.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   replicaCount: 1
@@ -2425,7 +2437,8 @@ openbeheer:
     #   api_configuration:
     #     selectielijst_service_identifier: selectielijst-service
     #     objecttypen_service_identifier: objecttypen-service
-    oidcUrl: https://openbeheer.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openbeheer.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   replicaCount: 2
@@ -2851,7 +2864,8 @@ kiss:
 
   # this is used for keycloak
   configuration:
-    oidcUrl: https://kiss.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://kiss.example.nl`.
+    oidcUrl: ""
     oidcSecret: "<kiss>"
 
   imagePullSecrets: []
@@ -2972,7 +2986,8 @@ zac:
         header: ""            # iConnect: "x-toepassing" | eServices: "x-request-application" | 2Secure: "x-applicatie"
         value: ""
   catalogusDomein: ALG
-  contextUrl: http://zac.example.nl
+  # -- Public URL of ZAC; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `http://zac.example.nl`.
+  contextUrl: ""
   db:
     host: postgres
     name: zac
@@ -3482,7 +3497,8 @@ ita:
 
     oidc:
       authority: "REP_ITA_OIDC_AUTHORITY_REP"
-      frontendUrl: "REP_ITA_OIDC_FRONTEND_URL_REP"
+      # -- Public https URL of the ITA frontend; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://ita.example.nl`.
+      frontendUrl: ""
       clientId: "ita"
       clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
       # -- Enable PKCE (S256) on the Keycloak client for ITA.
@@ -3646,7 +3662,8 @@ pabc:
       nameClaimType: "name"
       roleClaimType: "roles"
       emailClaimType: "email"
-      oidcUrl: "https://pabc.example.nl"
+      # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://pabc.example.nl`.
+      oidcUrl: ""
 
     keycloakAdmin:
       clientId: "pabc-keycloak-admin"
@@ -4454,7 +4471,8 @@ openbao:
     enabled: true
     # External URL OpenBao is reached on (Gateway/Ingress). Drives the Keycloak
     # client redirectUris and the OIDC role allowed_redirect_uris.
-    oidcUrl: https://openbao.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openbao.example.nl`.
+    oidcUrl: ""
     # Keycloak OIDC client secret for the `openbao` client. Empty => auto-generated
     # and kept stable across upgrades by keycloak-podiumd-realm-secrets.yaml
     # (identical pattern to the other apps' OIDC secrets).
