@@ -9,6 +9,7 @@ entry."""
 import re
 
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 
 import yaml
@@ -188,24 +189,29 @@ def find_images_manifest_changes_items_out_of_order(
     match_changes_item_display_name's exact prefix match first,
     match_changes_item_to_entry's fuzzy basename match as fallback — so
     checker and fixer can never disagree about what "in order" means.
-    An item resolving via NEITHER sorts last, same as the fixer — never
-    flagged as out of place relative to a resolvable neighbor just
-    because it's free-form prose with nothing to match against."""
+    An item resolving via NEITHER (or to an entry with no position)
+    sorts last in the fixer, but is never compared with its neighbours
+    here: free-form prose with nothing to match against is not "out of
+    order"."""
     lines = text.splitlines(keepends=True)
     items = _images_manifest_changes_items(lines)
     if len(items) < 2:
         return []
 
-    keys: list[int] = []
+    keys: list[int | None] = []
     for rest, _start, _end in items:
         display_name = match_changes_item_display_name(rest, display_name_positions)
         if display_name is not None:
             keys.append(display_name_positions[display_name])
-        else:
-            entry = match_changes_item_to_entry(rest, entries)
-            keys.append(entry_positions.get(entry["name"], len(entry_positions)) if entry else len(entry_positions))
+            continue
+        entry = match_changes_item_to_entry(rest, entries)
+        keys.append(entry_positions.get(entry["name"]) if entry else None)
 
-    return [(items[i][0], items[i + 1][0]) for i in range(len(items) - 1) if keys[i + 1] < keys[i]]
+    return [
+        (items[i][0], items[i + 1][0])
+        for i, (key, next_key) in enumerate(pairwise(keys))
+        if key is not None and next_key is not None and next_key < key
+    ]
 
 
 def _covered_changes_display_names(
@@ -566,7 +572,19 @@ def _entry_comment_issues(
 ):
     """One issue per images-manifest entry whose own preceding comment
     is missing, or whose target/source app version disagrees with the
-    entry's own actual version / upgrade_docs_baseline's actual value."""
+    entry's own actual version / upgrade_docs_baseline's actual value.
+    A single issue instead when the parsed entries and the "- name:"
+    lines differ in count (a valid entry written in another form), since
+    the entries can then not be paired with their comments."""
+
+    if len(resolved.entries) != len(entry_line_indices):
+        return [
+            (
+                f"{name}: found {len(resolved.entries)} manifest entries but "
+                f'{len(entry_line_indices)} lines matched by "^-\\s*name:" -- cannot '
+                f"reliably match entries to their preceding comments"
+            )
+        ]
 
     def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
         return images_manifest_entries_share_group(

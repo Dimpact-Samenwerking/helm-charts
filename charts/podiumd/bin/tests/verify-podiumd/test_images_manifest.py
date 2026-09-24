@@ -1185,3 +1185,53 @@ def test_images_manifest_format_new_component_image_not_in_historical_manifest(
         ),
     )
     assert any('image "brppersonenmock" changed vs 4.8.5 but has no entry' in i for i in issues)
+
+
+def test_changes_items_out_of_order_ignores_a_free_form_item(libimagesmanifest: ModuleType):
+    """A free-form item that resolves to no display name and no entry
+    sorts last in the fixer, but is never reported as out of order
+    against the resolvable item after it."""
+    text = (
+        "# Changes:\n"
+        "#   1. Renovate-integrated bumps of several helper images.\n"
+        "#   2. zac 5.0.2 -> 5.4.4.\n"
+        "#   3. redis-operator 0.25.0 -> 0.26.0.\n"
+    )
+
+    pairs = libimagesmanifest.find_images_manifest_changes_items_out_of_order(
+        text, [], {"infonl/zaakafhandelcomponent": 0, "opstree/redis-operator": 1}, {"zac": 0, "redis-operator": 1}
+    )
+
+    assert pairs == []
+
+
+def test_changes_items_out_of_order_still_flags_two_resolved_items(libimagesmanifest: ModuleType):
+    text = (
+        "# Changes:\n"
+        "#   1. Renovate-integrated bumps of several helper images.\n"
+        "#   2. redis-operator 0.25.0 -> 0.26.0.\n"
+        "#   3. zac 5.0.2 -> 5.4.4.\n"
+    )
+
+    pairs = libimagesmanifest.find_images_manifest_changes_items_out_of_order(
+        text, [], {}, {"zac": 0, "redis-operator": 1}
+    )
+
+    assert pairs == [("redis-operator 0.25.0 -> 0.26.0.", "zac 5.0.2 -> 5.4.4.")]
+
+
+def test_images_manifest_format_reports_an_entry_count_mismatch(libimagesmanifest: ModuleType, tmp_path: Path):
+    """An entry whose "name:" is not its first key is valid YAML but not
+    matched by "^-\\s*name:", so entries and comments can not be paired:
+    one issue, never a zip(strict=True) crash."""
+    text = REAL_MANIFEST.replace(
+        "- name: opa\n  url: openpolicyagent/opa\n", "- url: openpolicyagent/opa\n  name: opa\n"
+    )
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(text)
+
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path, libimagesmanifest.ManifestCheckContext("4.8.5", "4.9.0", DEPS, VALUES, {})
+    )
+
+    assert any("found 2 manifest entries but 1 lines matched" in i for i in issues)
