@@ -278,6 +278,8 @@ def test_check_image_upgrades_fetch_error_reported_but_still_passes(
     out = capsys.readouterr().out
     assert "FETCH-ERR" in out
     assert "could not be checked:\n  ghcr.io/wearefrank/frank-gateway:104" in out
+    assert "OK: no newer tag published" not in out
+    assert "INCOMPLETE: 1/" in out
 
 
 # --- caching ---

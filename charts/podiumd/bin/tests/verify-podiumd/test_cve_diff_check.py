@@ -749,6 +749,39 @@ redis-thing:
     assert isinstance(by_kind["sliding digest"]["line"], int)
 
 
+def test_classify_candidates_falls_back_to_classify_by_key_when_render_raises(
+    libcvediffcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """render_chart can raise (e.g. FileNotFoundError when helm itself is
+    missing); classify_candidates must then degrade to classify_by_key
+    for every candidate instead of crashing."""
+    write_values_yaml(
+        tmp_path, f'zac:\n  image:\n    repository: ghcr.io/infonl/zac\n    tag: "1.0.0@sha256:{DIGEST_A}"\n'
+    )
+
+    def missing_helm(chart_dir: Path, extra_args: list[str]):
+        msg = "helm"
+        raise FileNotFoundError(msg)
+
+    monkeypatch.setattr(libcvediffcheck, "render_chart", missing_helm)
+    candidate = {
+        "kind": "upgrade",
+        "repository": "ghcr.io/infonl/zac",
+        "version": "1.0.0",
+        "current_ref": "ghcr.io/infonl/zac:1.0.0",
+        "current_digest": DIGEST_A,
+        "proposed_label": "1.1.0",
+        "proposed_ref": "ghcr.io/infonl/zac:1.1.0",
+        "proposed_digest": None,
+        "line": 1,
+    }
+    values_lines = (tmp_path / "values.yaml").read_text(encoding="utf-8").splitlines()
+
+    classified = libcvediffcheck.classify_candidates(tmp_path, [], [candidate], values_lines)
+
+    assert [c["bucket"] for c in classified] == ["own"]
+
+
 # --- check_cve_diff: own/partner/other bucket split ---
 #
 # Modeled on tests/verify-podiumd/test_cve_check.py's own CHART_YAML/

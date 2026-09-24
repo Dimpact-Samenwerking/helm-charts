@@ -10,7 +10,8 @@ from types import SimpleNamespace
 import pytest
 
 
-def pymarkdown_result(stdout, returncode=1, stderr=""):
+def pymarkdown_result(stdout, returncode=4, stderr=""):
+    """Default returncode 4: --return-code-scheme explicit's own "findings reported" code."""
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
@@ -234,6 +235,28 @@ def test_no_findings_passes(
     assert "OK: no markdown findings" in capsys.readouterr().out
 
 
+def test_a_pymarkdown_crash_is_reported_as_a_failure_not_a_clean_pass(
+    libmarkdowncheck: ModuleType,
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Regression test: pymarkdown's default return-code scheme returns 1 for
+    both real findings and a genuine failure such as a bad path. With
+    --return-code-scheme explicit, anything other than 0 (clean) or 4
+    (findings) is a failure and must never pass as clean."""
+    chart_dir = make_chart_dir(tmp_path, files={"docs/foo.md": "# a\n"})
+    monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
+    monkeypatch.setattr(
+        libmarkdowncheck, "run", lambda cmd, **kw: pymarkdown_result("", returncode=1, stderr="not a valid path")
+    )
+
+    ok, detail = vp.check_markdown(chart_dir)
+    assert ok is False
+    assert "pymarkdown failed" in detail
+    assert "not a valid path" in detail
+
+
 def test_findings_fail_the_check(
     libmarkdowncheck: ModuleType,
     vp: ModuleType,
@@ -274,7 +297,8 @@ def test_disables_line_length_and_commands_show_output_rules(
 
     cmd = captured["cmd"]
     assert cmd[0] == "/usr/local/bin/pymarkdown"
-    assert cmd[1:3] == ["-d", "md013,md014"]
+    assert cmd[1:3] == ["--return-code-scheme", "explicit"]
+    assert cmd[3:5] == ["-d", "md013,md014"]
     assert "scan" in cmd
     assert cmd.index("-d") < cmd.index("scan")
     assert str(chart_dir / "docs" / "foo.md") in cmd

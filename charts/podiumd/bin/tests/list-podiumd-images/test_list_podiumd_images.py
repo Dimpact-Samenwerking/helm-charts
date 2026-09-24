@@ -837,3 +837,57 @@ def test_main_includes_component_version_path_images(
     assert out.count("kiss-eck  elasticsearch ") == 1
     assert out.count("kiss-eck  kibana ") == 1
     assert out.count("kiss-eck  enterprise-search ") == 1
+
+
+# --- safe_extract_tgz ---
+
+
+def _write_tgz(tgz_path: Path, member_name: str) -> None:
+    src = tgz_path.parent / "payload.txt"
+    src.write_text("x\n", encoding="utf-8")
+    with tarfile.open(tgz_path, "w:gz") as tf:
+        tf.add(src, arcname=member_name)
+
+
+def _record_extractall_kwargs(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
+    calls: list[dict[str, object]] = []
+
+    def fake_extractall(self: tarfile.TarFile, path: Path, **kwargs: object) -> None:
+        calls.append(kwargs)
+
+    monkeypatch.setattr(tarfile.TarFile, "extractall", fake_extractall)
+    return calls
+
+
+def test_safe_extract_tgz_rejects_a_member_escaping_dest(lpi, tmp_path: Path):
+    tgz = tmp_path / "evil.tgz"
+    _write_tgz(tgz, "../escape.txt")
+    dest = tmp_path / "dest"
+    dest.mkdir()
+
+    with pytest.raises(SystemExit, match="would extract outside"):
+        lpi.safe_extract_tgz(tgz, dest)
+
+
+def test_safe_extract_tgz_passes_the_data_filter_when_available(lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    tgz = tmp_path / "chart.tgz"
+    _write_tgz(tgz, "chart/values.yaml")
+    monkeypatch.setattr(tarfile, "data_filter", object(), raising=False)
+    calls = _record_extractall_kwargs(monkeypatch)
+
+    lpi.safe_extract_tgz(tgz, tmp_path)
+
+    assert calls == [{"filter": "data"}]
+
+
+def test_safe_extract_tgz_without_the_data_filter_extracts_unfiltered(
+    lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    tgz = tmp_path / "chart.tgz"
+    _write_tgz(tgz, "chart/values.yaml")
+    monkeypatch.delattr(tarfile, "data_filter", raising=False)
+    calls = _record_extractall_kwargs(monkeypatch)
+
+    lpi.safe_extract_tgz(tgz, tmp_path)
+
+    assert calls == [{}]
