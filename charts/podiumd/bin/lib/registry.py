@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import BinaryIO
 from typing import TypedDict
 
+from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import text_at
 from lib.procutil import run
+from lib.yaml_types import YamlValue
+from lib.yaml_types import is_yaml_value
 
 MANIFEST_ACCEPT = (
     "application/vnd.oci.image.index.v1+json,"
@@ -52,7 +56,7 @@ class ImagePathTagCheck(TagCheck):
     path: str
 
 
-def _read_json(resp: BinaryIO):
+def _read_json(resp: BinaryIO) -> YamlValue:
     """Parse a registry response body as JSON, turning a non-JSON 200 (a
     rate-limit / interstitial HTML page, a caching proxy's own error page —
     routine for Docker Hub / Cloudflare-fronted registries under load) into
@@ -62,24 +66,27 @@ def _read_json(resp: BinaryIO):
     traceback. (URLError is an OSError subclass, so `except OSError` callers
     catch it too.)"""
     raw = resp.read()
+    where = getattr(resp, "url", None) or "registry"
     try:
-        return json.loads(raw)
+        data: object = json.loads(raw)
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        where = getattr(resp, "url", None) or "registry"
         msg = f"non-JSON response from {where}: {e}"
         raise urllib.error.URLError(msg) from e
+    if not is_yaml_value(data):
+        msg = f"unexpected JSON from {where}"
+        raise urllib.error.URLError(msg)
+    return data
 
 
-def _read_token(resp: BinaryIO):
+def _read_token(resp: BinaryIO) -> str:
     """_read_json plus the ["token"] lookup an auth endpoint's response is
     expected to carry — a response that parsed but has no token is the same
     kind of "registry misbehaved" failure, raised the same way."""
-    data = _read_json(resp)
-    try:
-        return data["token"]
-    except (TypeError, KeyError) as e:
-        msg = f"auth response carried no token: {e}"
-        raise urllib.error.URLError(msg) from e
+    token = text_at(_read_json(resp), "token")
+    if token is None:
+        msg = "auth response carried no token"
+        raise urllib.error.URLError(msg)
+    return token
 
 
 def _urlopen(url_or_req: str | urllib.request.Request, timeout: float | None = None):
@@ -267,7 +274,11 @@ def list_tags(registry_host: str, repo: str):
     api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
     url = f"https://{api_host}/v2/{repo}/tags/list"
     with _get_with_dynamic_auth(url, repo, headers) as resp:
-        return _read_json(resp).get("tags") or []
+        tags = get_path(_read_json(resp), "tags") or []
+    if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
+        msg = f"tags/list response from {api_host} is not a list of tag names"
+        raise urllib.error.URLError(msg)
+    return [tag for tag in tags if isinstance(tag, str)]
 
 
 NUMERIC_PREFIX_RE = re.compile(r"^(\d+(?:\.\d+)*)")

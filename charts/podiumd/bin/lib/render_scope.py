@@ -25,11 +25,13 @@ from typing import TypeVar
 import yaml
 
 from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.procutil import run
 from lib.settings import helm_repos_urls_by_alias
 from lib.settings import vendor_classification_chart_overrides
 from lib.settings import vendor_classification_keywords
+from lib.yaml_types import is_yaml_mapping
 
 CHART_NAME = "podiumd"
 
@@ -345,14 +347,13 @@ def build_resource_locations(rendered_text: str):
             parsed = yaml.safe_load("\n".join(doc_lines))
         except yaml.YAMLError:  # noqa: S112 -- not a YAML resource, has no location to record
             continue
-        if not isinstance(parsed, dict):
+        if not is_yaml_mapping(parsed):
             continue
-        kind = parsed.get("kind")
-        metadata = parsed.get("metadata") or {}
-        name = metadata.get("name")
+        kind = text_at(parsed, "kind")
+        name = text_at(parsed, "metadata.name")
         if not kind or not name:
             continue
-        namespace = metadata.get("namespace") or ""
+        namespace = text_at(parsed, "metadata.namespace") or ""
         locations[(kind, namespace, name)] = start + 2  # 1-based line right after "# Source:"
     return locations
 

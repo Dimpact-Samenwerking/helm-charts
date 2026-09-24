@@ -7,6 +7,7 @@ from pathlib import Path
 import yaml
 
 from lib.chart.chart_yaml import normalize_int_version
+from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlShapeError
 from lib.yaml_types import key_problem
 from lib.yaml_types import load_yaml_mapping
@@ -28,7 +29,7 @@ def chart_version(chart_yaml_path: Path) -> str:
 RELEASE_BASELINES_FILE_NAME = "etc/release-baseline.yaml"
 
 
-def _release_baselines(chart_dir: Path):
+def _release_baselines(chart_dir: Path) -> YamlMapping:
     """The parsed contents of chart_dir/etc/release-baseline.yaml — upgrade_
     docs (the incremental baseline _UPGRADE_PATHS/*.md and docs/images/
     images-<target>.yaml are written against) and release_table (the
@@ -41,7 +42,19 @@ def _release_baselines(chart_dir: Path):
     path = chart_dir / RELEASE_BASELINES_FILE_NAME
     if not path.is_file():
         return {}
-    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return load_yaml_mapping(path)
+
+
+def _baseline_value(chart_dir: Path, key: str) -> str | None:
+    """release-baseline.yaml's `key` (see _release_baselines), None if the
+    file or the key doesn't exist yet. Raises YamlShapeError naming the
+    file when the value is there but isn't a string."""
+    baselines = _release_baselines(chart_dir)
+    problem = key_problem(baselines, key, str, "", required=False)
+    if problem is not None:
+        raise YamlShapeError(RELEASE_BASELINES_FILE_NAME, problem)
+    value = baselines.get(key)
+    return value if isinstance(value, str) else None
 
 
 def upgrade_docs_baseline(chart_dir: Path):
@@ -50,7 +63,7 @@ def upgrade_docs_baseline(chart_dir: Path):
     preceding release, advanced on every release cycle (see
     create-podiumd-version). None if release-baseline.yaml or this key
     doesn't exist yet."""
-    return _release_baselines(chart_dir).get("upgrade_docs")
+    return _baseline_value(chart_dir, "upgrade_docs")
 
 
 def release_table_baseline(chart_dir: Path):
@@ -59,7 +72,7 @@ def release_table_baseline(chart_dir: Path):
     a minor version bump (see create-podiumd-version), left untouched by
     a patch bump. None if release-baseline.yaml or this key doesn't
     exist yet."""
-    return _release_baselines(chart_dir).get("release_table")
+    return _baseline_value(chart_dir, "release_table")
 
 
 def write_release_baselines(chart_dir: Path, upgrade_docs: str | None = None, release_table: str | None = None):

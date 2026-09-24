@@ -16,6 +16,7 @@ from typing import TypeGuard
 
 import yaml
 
+from lib.chart.values_tree_primitives import text_at
 from lib.procutil import run
 from lib.render_scope import VendorBucketScan
 from lib.render_scope import chart_name_from_source
@@ -28,6 +29,8 @@ from lib.render_scope import scan_outcome
 from lib.render_scope import scan_rendered_chart
 from lib.settings import quality_gates_shellcheck_failing_levels
 from lib.settings import quality_gates_shellcheck_shell_names
+from lib.yaml_types import YamlValue
+from lib.yaml_types import is_yaml_value
 from lib.yaml_types import shape_problem
 
 
@@ -70,7 +73,7 @@ def _shell_name(token: object):
     return token.rsplit("/", 1)[-1] if isinstance(token, str) else None
 
 
-def find_shell_scripts(obj: str | list | dict, source: str, shell_names: set[str], path: str = ""):
+def find_shell_scripts(obj: YamlValue, source: str, shell_names: set[str], path: str = ""):
     """Recursively walk a parsed manifest (dict/list/scalar) looking for a
     container-shaped dict with a command/args pair that invokes a shell
     with "-c" (in either list, in either order — this chart uses both
@@ -120,13 +123,12 @@ def extract_shell_scripts(docs: list[tuple[str, str]], shell_names: set[str]):
             parsed = yaml.safe_load(doc_text)
         except yaml.YAMLError:  # noqa: S112 -- not a YAML resource, holds no shell script
             continue
-        if parsed is None:
+        if parsed is None or not is_yaml_value(parsed):
             continue
         if isinstance(parsed, dict):
-            metadata = parsed.get("metadata") or {}
-            kind = parsed.get("kind")
-            namespace = metadata.get("namespace") or ""
-            name = metadata.get("name")
+            kind = text_at(parsed, "kind")
+            namespace = text_at(parsed, "metadata.namespace") or ""
+            name = text_at(parsed, "metadata.name")
         else:
             kind = namespace = name = None  # not a single-object doc — no resource_line lookup possible
         for found_source, path, shell, script_text in find_shell_scripts(parsed, source, shell_names):
