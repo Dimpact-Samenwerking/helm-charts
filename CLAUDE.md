@@ -13,6 +13,10 @@ Read [`.github/copilot-instructions.md`](.github/copilot-instructions.md) before
 - Dependency management (Renovate + manual `.tgz` workflow)
 - ZAC repository conventions
 
+For `charts/podiumd/bin/`:
+
+@.claude/memory/reuse-existing-logic.md
+
 ## Branching strategy
 
 See [`README.md`](README.md#branching-strategy). Summary: forward-cascade from `main` → `feature/podiumd-<X.Y.0>` → `feature/podiumd-<X.Y.0>-*` feature branches and `feature/<env>-podiumd-<X.Y.0>` environment branches.
