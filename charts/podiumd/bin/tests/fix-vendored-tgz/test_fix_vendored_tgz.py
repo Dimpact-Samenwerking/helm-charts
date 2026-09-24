@@ -7,12 +7,14 @@ from types import ModuleType
 
 import pytest
 
+FAKE_TGZ = b"fake-tgz"
+
 
 def make_chart(tmp_path: Path, tgz_names=(), extracted_names=()):
     charts_dir = tmp_path / "charts"
     charts_dir.mkdir()
     for name in tgz_names:
-        (charts_dir / f"{name}-1.0.0.tgz").write_bytes(b"fake-tgz")
+        (charts_dir / f"{name}-1.0.0.tgz").write_bytes(FAKE_TGZ)
     for name in extracted_names:
         (charts_dir / name).mkdir()
         (charts_dir / name / "Chart.yaml").write_text("name: " + name + "\n", encoding="utf-8")
@@ -32,6 +34,8 @@ def test_main_help_flag_prints_usage_and_exits_zero_without_touching_anything(
     assert exc_info.value.code == 0
     assert capsys.readouterr().out == f"{sub.__doc__}\n"
     assert (chart_dir / "charts" / "redis").is_dir()
+    assert (chart_dir / "charts" / "redis" / "Chart.yaml").read_text(encoding="utf-8") == "name: redis\n"
+    assert (chart_dir / "charts" / "redis-1.0.0.tgz").read_bytes() == FAKE_TGZ
 
 
 def test_no_conflict_exits_zero_and_leaves_charts_untouched(
@@ -69,12 +73,17 @@ def test_only_the_shadowing_directory_is_deleted_not_unrelated_ones(
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-vendored-tgz"])
 
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as exc_info:
         sub.main()
+    assert exc_info.value.code == 0
 
     assert not (chart_dir / "charts" / "redis").exists()
-    assert (chart_dir / "charts" / "unrelated-dir").is_dir()  # not a pinned .tgz's shadow — untouched
-    assert (chart_dir / "charts" / "elastic-1.0.0.tgz").is_file()
+    # not a pinned .tgz's shadow — untouched, contents included
+    assert (chart_dir / "charts" / "unrelated-dir" / "Chart.yaml").read_text(encoding="utf-8") == (
+        "name: unrelated-dir\n"
+    )
+    assert (chart_dir / "charts" / "redis-1.0.0.tgz").read_bytes() == FAKE_TGZ
+    assert (chart_dir / "charts" / "elastic-1.0.0.tgz").read_bytes() == FAKE_TGZ
 
 
 def test_multiple_shadowing_directories_are_all_deleted(
@@ -84,11 +93,14 @@ def test_multiple_shadowing_directories_are_all_deleted(
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-vendored-tgz"])
 
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as exc_info:
         sub.main()
+    assert exc_info.value.code == 0
 
     assert not (chart_dir / "charts" / "redis").exists()
     assert not (chart_dir / "charts" / "elastic").exists()
+    assert (chart_dir / "charts" / "redis-1.0.0.tgz").read_bytes() == FAKE_TGZ
+    assert (chart_dir / "charts" / "elastic-1.0.0.tgz").read_bytes() == FAKE_TGZ
     out = capsys.readouterr().out
     assert "Removed 2 extracted directories" in out
 
@@ -103,7 +115,8 @@ def test_dry_run_reports_but_does_not_delete(
     with pytest.raises(SystemExit) as exc_info:
         sub.main()
     assert exc_info.value.code == 1
-    assert (chart_dir / "charts" / "redis").is_dir()
+    assert (chart_dir / "charts" / "redis" / "Chart.yaml").read_text(encoding="utf-8") == "name: redis\n"
+    assert (chart_dir / "charts" / "redis-1.0.0.tgz").read_bytes() == FAKE_TGZ
     out = capsys.readouterr().out
     assert "charts/redis/" in out
     assert "dry-run" in out

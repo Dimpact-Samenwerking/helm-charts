@@ -135,6 +135,7 @@ def test_unchanged_sidecar_with_no_row_is_not_flagged(
 
     out = capsys.readouterr().out
     assert "redis-operator - redis-exporter" not in out
+    assert "redisExporter" not in out
 
 
 def test_new_sidecar_row_known_in_historical_images_manifest_is_not_a_warning(

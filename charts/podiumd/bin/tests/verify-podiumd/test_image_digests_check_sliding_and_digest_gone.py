@@ -61,13 +61,20 @@ def test_check_image_digests_sliding_drift_warns_but_passes(
     (see the [DIGEST-GONE] check), no longer a failure at all -- just a
     reported warning pointing at fix-image-digests."""
     write_values(tmp_path, TWO_IMAGES_VALUES)
-    monkeypatch.setattr(
-        libimagedigests,
-        "registry_tag_exists",
-        lambda host, repo, tag: (
-            (True, f"sha256:{'c' * 64}") if repo == "nginxinc/nginx-unprivileged" else (True, f"sha256:{'b' * 64}")
-        ),
-    )
+    # Keyed on (repo, tag): the nginx TAG slid to "c", but its OLD pinned
+    # "a" digest is still pullable by digest; zac's tag is unchanged.
+    registry = {
+        ("nginxinc/nginx-unprivileged", "1.31.3"): (True, f"sha256:{'c' * 64}"),
+        ("nginxinc/nginx-unprivileged", f"sha256:{'a' * 64}"): (True, f"sha256:{'a' * 64}"),
+        ("infonl/zaakafhandelcomponent", "5.1.0"): (True, f"sha256:{'b' * 64}"),
+    }
+    calls: list[tuple[str, str]] = []
+
+    def fake_registry_tag_exists(host, repo, tag):
+        calls.append((repo, tag))
+        return registry[(repo, tag)]
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", fake_registry_tag_exists)
     monkeypatch.setattr(
         libimagedigests,
         "is_sliding_tag",
@@ -75,6 +82,9 @@ def test_check_image_digests_sliding_drift_warns_but_passes(
     )
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True
+    # The "old pinned digest still pullable" precondition was actually
+    # looked up, not just satisfied by a repo-wide catch-all.
+    assert ("nginxinc/nginx-unprivileged", f"sha256:{'a' * 64}") in calls
     assert "1 sliding" in detail
     assert "0 stale" in detail
     out = capsys.readouterr().out

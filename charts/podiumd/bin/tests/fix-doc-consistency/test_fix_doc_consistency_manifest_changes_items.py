@@ -355,6 +355,10 @@ def test_main_reorders_images_manifest_to_match_values_yaml(
     # The "# Changes:" numbered list is ALSO reordered and renumbered.
     assert "#   1. redis-operator 0.25.0 -> 0.26.0.\n" in text
     assert "#   2. zac 5.0.2 -> 5.4.4.\n" in text
+    assert text.index("#   1. redis-operator") < text.index("#   2. zac")
+    # The old numbering is gone, not left alongside the new one.
+    assert "#   1. zac 5.0.2 -> 5.4.4.\n" not in text
+    assert "#   2. redis-operator 0.25.0 -> 0.26.0.\n" not in text
 
     out = capsys.readouterr().out
     assert "Reordering" in out

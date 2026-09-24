@@ -47,6 +47,22 @@ spec:
             image: foo:1.0
 """
 
+CRONJOB_WITH_NODE_SELECTOR = """apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: my-cronjob
+spec:
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          nodeSelector:
+            kubernetes.azure.com/mode: user
+          containers:
+          - name: my-cronjob
+            image: foo:1.0
+"""
+
 DEPLOYMENT_WITH_INIT_CONTAINERS_ONLY = """apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -153,22 +169,7 @@ def test_apply_fixes_handles_multiple_documents_without_offset_corruption(sub: M
     assert len(fixes) == 2
 
     result = sub.apply_fixes(combined, fixes)
-    assert result == DEPLOYMENT_WITH_NODE_SELECTOR + "---\n" + (
-        "apiVersion: batch/v1\n"
-        "kind: CronJob\n"
-        "metadata:\n"
-        "  name: my-cronjob\n"
-        "spec:\n"
-        "  jobTemplate:\n"
-        "    spec:\n"
-        "      template:\n"
-        "        spec:\n"
-        "          nodeSelector:\n"
-        "            kubernetes.azure.com/mode: user\n"
-        "          containers:\n"
-        "          - name: my-cronjob\n"
-        "            image: foo:1.0\n"
-    )
+    assert result == DEPLOYMENT_WITH_NODE_SELECTOR + "---\n" + CRONJOB_WITH_NODE_SELECTOR
 
 
 # --- main() integration ---
@@ -207,6 +208,7 @@ def test_main_no_findings_exits_zero(
         sub.main()
     assert exc_info.value.code == 0
     assert "OK:" in capsys.readouterr().out
+    assert (chart_dir / "templates" / "deploy.yaml").read_text(encoding="utf-8") == DEPLOYMENT_WITH_NODE_SELECTOR
 
 
 def test_main_fixes_a_real_file_and_exits_zero(
@@ -271,8 +273,8 @@ def test_main_fixes_multiple_files(
     with pytest.raises(SystemExit) as exc_info:
         sub.main()
     assert exc_info.value.code == 0
-    assert "nodeSelector" in (chart_dir / "templates" / "deploy.yaml").read_text(encoding="utf-8")
-    assert "nodeSelector" in (chart_dir / "templates" / "cronjob.yaml").read_text(encoding="utf-8")
+    assert (chart_dir / "templates" / "deploy.yaml").read_text(encoding="utf-8") == DEPLOYMENT_WITH_NODE_SELECTOR
+    assert (chart_dir / "templates" / "cronjob.yaml").read_text(encoding="utf-8") == CRONJOB_WITH_NODE_SELECTOR
     assert "Inserted nodeSelector into 2 template" in capsys.readouterr().out
 
 
@@ -282,10 +284,14 @@ def test_main_is_idempotent(sub: ModuleType, tmp_path: Path, monkeypatch: pytest
     monkeypatch.setattr(sub, "CHART_DIR", chart_dir)
     monkeypatch.setattr("sys.argv", ["fix-node-selector"])
 
-    with pytest.raises(SystemExit):
+    deploy_path = chart_dir / "templates" / "deploy.yaml"
+
+    with pytest.raises(SystemExit) as first_exc:
         sub.main()
-    with pytest.raises(SystemExit) as exc_info:
+    assert first_exc.value.code == 0
+    assert deploy_path.read_text(encoding="utf-8") == DEPLOYMENT_WITH_NODE_SELECTOR
+
+    with pytest.raises(SystemExit) as second_exc:
         sub.main()
-    assert exc_info.value.code == 0
-    content = (chart_dir / "templates" / "deploy.yaml").read_text(encoding="utf-8")
-    assert content.count("nodeSelector:") == 1
+    assert second_exc.value.code == 0
+    assert deploy_path.read_text(encoding="utf-8") == DEPLOYMENT_WITH_NODE_SELECTOR

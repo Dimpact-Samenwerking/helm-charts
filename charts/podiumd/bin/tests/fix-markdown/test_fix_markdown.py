@@ -24,6 +24,10 @@ def strip_trailing_whitespace_run(cmd, **kwargs):
     fixed_lines = []
     paths = cmd[cmd.index("fix") + 1 :]
     for path_str in paths:
+        # Everything after "fix" must be a real file path, never a stray
+        # flag/value that happened to land after the subcommand.
+        assert not path_str.startswith("-"), f"flag-like token after 'fix': {path_str}"
+        assert Path(path_str).is_file(), f"not an existing file: {path_str}"
         original = Path(path_str).read_text(encoding="utf-8")
         new = "\n".join(line.rstrip() for line in original.split("\n"))
         if new != original:
@@ -74,7 +78,9 @@ def test_run_fix_disables_md013_md014_and_md031(sub: ModuleType, tmp_path: Path,
     assert "fix" in cmd
     # md024 siblings_only setting is carried into fix mode too, before "fix"
     assert "plugins.md024.siblings_only=$!True" in cmd
-    assert cmd.index("-s") < cmd.index("fix")
+    # The setting value is -s's own argument: directly after it, before "fix".
+    assert cmd[cmd.index("-s") + 1] == "plugins.md024.siblings_only=$!True"
+    assert cmd.index("plugins.md024.siblings_only=$!True") < cmd.index("fix")
     assert cmd.index("-d") < cmd.index("fix")
 
 

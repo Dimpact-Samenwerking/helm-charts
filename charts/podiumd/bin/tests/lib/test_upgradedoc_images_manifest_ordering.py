@@ -287,7 +287,11 @@ def test_find_images_manifest_faulty_headers_digest_changed_sidecar_not_flagged(
     assert problems == []
 
 
-def test_find_images_manifest_faulty_headers_primary_entry_never_checked(libupgradedocmanifestordering: ModuleType):
+def test_find_images_manifest_faulty_headers_primary_entry_never_checked(
+    libupgradedocmanifestordering: ModuleType,
+    libupgradedocappversion: ModuleType,
+    libchartregisteredpaths: ModuleType,
+):
     """A dependency's own primary image is exempt — including a
     multi-container dependency's second co-equal primary sharing the
     first's plain header (zgw-office-addin frontend + backend), which
@@ -311,7 +315,18 @@ def test_find_images_manifest_faulty_headers_primary_entry_never_checked(libupgr
         ("zgw-office-addin", "frontend", "image"): "0.11.0",
         ("zgw-office-addin", "backend", "image"): "0.11.0",
     }
-    repo_map = {}
+    repo_map = {
+        "infonl/zgw-office-addin-frontend": ("zgw-office-addin", "frontend", "image"),
+        "infonl/zgw-office-addin-backend": ("zgw-office-addin", "backend", "image"),
+    }
+    # Both entries really resolve (exact repo_map hit) to a primary path,
+    # so the empty result below is the primary exemption at work, not an
+    # unresolvable-entry skip.
+    for entry in entries:
+        path = libupgradedocappversion.resolve_entry_image_path(entry["name"], current_paths, repo_map)
+        assert path is not None
+        assert path == repo_map[entry["name"]]
+        assert libchartregisteredpaths.is_primary_image_path(path, deps) is True
 
     problems = libupgradedocmanifestordering.find_images_manifest_faulty_headers(
         libupgradedocmanifestordering.ParsedManifest(entries, entry_line_indices, lines),
