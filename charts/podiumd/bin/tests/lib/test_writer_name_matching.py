@@ -1,5 +1,6 @@
 """How update-*-version and fix-doc-consistency find the table row,
 "### ..." Changes block and "# Changes:" item they rewrite: text_names,
+changes_item_names,
 find_changes_item and remove_changes_section, which resolve names the
 same way check_docs_consistency does (match_canonical_sidecar_name)."""
 
@@ -7,6 +8,7 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.images_manifest_changes_header import find_changes_item
+from lib.upgradedoc.string_and_parsing_basics import changes_item_names
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
 from lib.upgradedoc.string_and_parsing_basics import text_names
 
@@ -82,3 +84,29 @@ def test_match_canonical_sidecar_name_needs_the_exact_sidecar_name_first() -> No
 
 def test_match_canonical_sidecar_name_two_names_match_nothing() -> None:
     assert match_canonical_sidecar_name("Shared images: curl, busybox", CANONICAL_NAMES) is None
+
+
+def test_find_changes_item_does_not_match_a_longer_hyphenated_name() -> None:
+    lines = [
+        "# Changes:\n",
+        "#   1. nginx-unprivileged -> 1.31.3.\n",
+        "#   2. nginx 1.29.0 -> 1.31.6.\n",
+    ]
+
+    assert find_changes_item(lines, [1, 2], "nginx") == 2
+    assert find_changes_item(lines, [1], "nginx") is None
+
+
+def test_find_changes_item_does_not_match_a_sidecar_item_by_its_parent_name() -> None:
+    lines = ["# Changes:\n", "#   1. zac - postgres 17.1 -> 17.2.\n", "#   2. ZAC 4.1 -> 4.2.\n"]
+
+    assert find_changes_item(lines, [1, 2], "zac") == 2
+    assert find_changes_item(lines, [1, 2], "zac - postgres") == 1
+
+
+def test_changes_item_names_needs_the_exact_name_first() -> None:
+    assert changes_item_names("Open Inwoner Platform (OIP) 2.1.2 -> 2.3.1.", "Open Inwoner Platform")
+    assert changes_item_names("curl", "curl")
+    assert not changes_item_names("Open Inwoner Platform 2.1.2 -> 2.3.1.", "Open Inwoner")
+    assert not changes_item_names("Renovate-integrated bumps: alpine/k8s 1.34.7->1.36.2", "alpine/k8s")
+    assert not changes_item_names("curl 8.20 -> 8.21", "")

@@ -184,6 +184,29 @@ def text_names(text: str, name: str) -> bool:
     return words[: len(name_words)] == name_words and (not rest or re.match(r"v?\d", rest[0]) is not None)
 
 
+_CHANGES_ITEM_AFTER_NAME_RE = re.compile(r"v?\d|->|→|\(")
+
+
+def changes_item_names(rest: str, name: str) -> bool:
+    """Whether "# Changes:" item text `rest` names exactly `name`: it
+    is `name` (ignoring case), or `name`, a space and then a version
+    ("1.2", "v1.2"), an arrow ("->", "→") or a "(" remark. Every item
+    the tooling writes is f"{name} {old} -> {new}.", so this is an exact
+    match, never a word search: "nginx" never matches "nginx-
+    unprivileged -> 1.31.3", "Open Inwoner" never matches "Open Inwoner
+    Platform 2.3.1", and a plain "zac" never matches the sidecar item
+    "zac - postgres 17.1". Shared by every writer (find_changes_item)
+    and by the check and fixer (lib.upgradedoc.images_manifest_ordering.
+    match_changes_item_display_name), so they resolve an item the same
+    way."""
+    text, prefix = rest.strip().lower(), name.strip().lower()
+    if not prefix:
+        return False
+    if text == prefix:
+        return True
+    return text.startswith(prefix + " ") and _CHANGES_ITEM_AFTER_NAME_RE.match(text, len(prefix) + 1) is not None
+
+
 ItemT = TypeVar("ItemT")
 
 

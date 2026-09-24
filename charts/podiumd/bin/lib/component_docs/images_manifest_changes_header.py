@@ -19,9 +19,9 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import values_tree_position
+from lib.upgradedoc.string_and_parsing_basics import changes_item_names
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
-from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.yaml_types import YamlMapping
 
 NUMBER_WORDS = [
@@ -144,11 +144,11 @@ def find_images_manifest_changes_items(lines: list[str]) -> tuple[int | None, bo
 
 def find_changes_item(lines: list[str], item_indices: list[int], name: str) -> int | None:
     """The index in `item_indices` of the first "#   N. ..." item that
-    names `name` (see text_names), or None. Shared by every writer that
-    updates or removes a component's or image's item."""
+    names `name` (see changes_item_names), or None. Shared by every
+    writer that updates or removes a component's or image's item."""
     for idx in item_indices:
         m = CHANGES_ITEM_RE.match(lines[idx])
-        if m and text_names(m.group("rest"), name):
+        if m and changes_item_names(m.group("rest"), name):
             return idx
     return None
 

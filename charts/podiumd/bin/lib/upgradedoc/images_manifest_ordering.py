@@ -21,6 +21,7 @@ from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_com
 from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.sorting_and_ordering import values_tree_position
+from lib.upgradedoc.string_and_parsing_basics import changes_item_names
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.version_cells_and_key_changes import VERSION_PAIR_RE
 from lib.yaml_types import YamlMapping
@@ -599,9 +600,9 @@ def images_manifest_display_name_positions(text: str, context: ManifestSortConte
 
 
 def match_changes_item_display_name(rest: str, display_name_positions: Mapping[str, int]) -> str | None:
-    """The longest key of display_name_positions that `rest` starts with
-    (followed by a space, or an exact match) — every auto-inserted
-    Changes item's own text is always built as f"{name} {old} -> {new}."
+    """The longest key of display_name_positions that `rest` names (see
+    changes_item_names) — every auto-inserted Changes item's own text
+    is always built as f"{name} {old} -> {new}."
     (see fix-doc-consistency's add_missing_images_manifest_entries' own
     version_text), so this is an EXACT match for anything the tooling
     itself wrote, never a guess — unlike lib.docs_consistency.match_
@@ -621,7 +622,7 @@ def match_changes_item_display_name(rest: str, display_name_positions: Mapping[s
     fixer can never disagree about what a Changes item "is"."""
     best: str | None = None
     for name in display_name_positions:
-        if (rest == name or rest.startswith(name + " ")) and (best is None or len(name) > len(best)):
+        if changes_item_names(rest, name) and (best is None or len(name) > len(best)):
             best = name
     return best
 
