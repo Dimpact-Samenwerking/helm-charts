@@ -52,7 +52,7 @@
   (dict "name" "zac"               "enabled" .Values.zac.enabled               "oidcUrl" .Values.zac.contextUrl "field" "zac.contextUrl")
   (dict "name" "pabc"              "enabled" .Values.pabc.enabled              "oidcUrl" .Values.pabc.settings.oidc.oidcUrl "field" "pabc.settings.oidc.oidcUrl")
   (dict "name" "ita"               "enabled" .Values.ita.enabled               "oidcUrl" .Values.ita.web.oidc.frontendUrl "field" "ita.web.oidc.frontendUrl")
-  (dict "name" "zaakbrug"          "enabled" (and .Values.zaakbrug.enabled .Values.keycloak.config.clients.zaakbrug.enabled) "oidcUrl" .Values.keycloak.config.clients.zaakbrug.oidcUrl "field" "keycloak.config.clients.zaakbrug.oidcUrl")
+  (dict "name" "zaakbrug"          "enabled" (and (.Values.zaakbrug.enabled | default false) (ne .Values.keycloak.config.clients.zaakbrug.enabled false)) "oidcUrl" .Values.keycloak.config.clients.zaakbrug.oidcUrl "field" "keycloak.config.clients.zaakbrug.oidcUrl")
   (dict "name" "monitoring"        "enabled" .Values.keycloak.config.clients.monitoring.enabled   "oidcUrl" .Values.keycloak.config.clients.monitoring.oidcUrl "field" "keycloak.config.clients.monitoring.oidcUrl")
   (dict "name" "datamigratie"      "enabled" .Values.keycloak.config.clients.datamigratie.enabled "oidcUrl" .Values.keycloak.config.clients.datamigratie.oidcUrl "field" "keycloak.config.clients.datamigratie.oidcUrl")
 -}}
