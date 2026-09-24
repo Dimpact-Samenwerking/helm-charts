@@ -29,7 +29,7 @@ def check_pointer_consistency(
     reason to point at another release's — so any Z != podiumd_version is
     flagged (almost always a stale reference left after a rename)."""
     text = doc_path.read_text(encoding="utf-8")
-    issues = []
+    issues: list[str] = []
 
     for m in SIBLING_DOC_RE.finditer(text):
         from_v, to_v, _suffix = m.groups()

@@ -39,7 +39,9 @@ from lib.image.manifest_entry_pins import image_repo_map
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import parse_images_manifest
 from lib.release_baseline import resolve_baseline_chart_state
+from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
+from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
@@ -51,6 +53,7 @@ from lib.upgradedoc.sorting_and_ordering import find_out_of_order_names
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import TableRow
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
@@ -59,8 +62,12 @@ from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
+# A component as resolve_component_identity names it: ("dep", values_key)
+# or ("sidecar", values-tree path).
+ComponentIdentity = tuple[str, str | ImagePath]
 
-def parse_upgrade_doc_rows(doc_path: Path):
+
+def parse_upgrade_doc_rows(doc_path: Path) -> list[TableRow]:
     """lib.upgradedoc.string_and_parsing_basics.parse_upgrade_doc_rows
     (aliased here as _parse_upgrade_doc_rows), applied to `doc_path`'s own
     file contents — this module's own callers all have a Path, not
@@ -77,8 +84,8 @@ class Findings:
     extend by hand -- that unpacking is exactly where this function's
     own local-variable count used to come from."""
 
-    checked: list
-    mismatches: list
+    checked: list[str]
+    mismatches: list[str]
 
 
 @dataclass
@@ -87,8 +94,8 @@ class ImagePaths:
     that compares "the image at this path" always needs both sides at
     once, never just one alone."""
 
-    current: dict
-    baseline: dict
+    current: dict[ImagePath, str | None]
+    baseline: dict[ImagePath, str | None]
 
 
 @dataclass
@@ -124,7 +131,7 @@ class DocsCheckContext:
     baseline_ref: str | None
     doc_query: DocQuery
     image_paths: ImagePaths
-    actual_changed_keys: set
+    actual_changed_keys: set[str]
 
 
 @dataclass
@@ -137,8 +144,8 @@ class DocScanState:
     different ways."""
 
     doc_path: Path
-    rows: list
-    canonical_names: dict
+    rows: list[TableRow]
+    canonical_names: dict[str, ImagePath]
 
 
 @dataclass
@@ -159,8 +166,8 @@ class RowLookup:
     as wrong-or-stale there, skipped here so resolve_component_row
     doesn't ALSO report them as "does not match a dependency"."""
 
-    canonical_names: dict
-    stale_names: set
+    canonical_names: dict[str, ImagePath]
+    stale_names: set[str]
 
 
 @dataclass
@@ -172,14 +179,14 @@ class ComponentRowsResult:
     itself, so returning five separate values would just make every
     caller unpack all five immediately anyway."""
 
-    mismatches: list
-    changed_component_keys: set
+    mismatches: list[str]
+    changed_component_keys: set[str]
     # (kind, values_key) identity -> its resolved, real app version (see
     # resolve_component_identity) — populated for every "dep" row whose
     # own actual_app_version resolves to something. Used by the Changes-
     # heading checks to catch a heading whose own text never shows an
     # app-version pair at all for a component that DOES have one.
-    resolved_app_by_identity: dict
+    resolved_app_by_identity: dict[ComponentIdentity, str]
     # Same identity keying as resolved_app_by_identity, holding the
     # BASELINE side instead (None when the component is genuinely new at
     # the baseline). Used, together with resolved_app_by_identity, to
@@ -189,8 +196,8 @@ class ComponentRowsResult:
     # yet the WRONG transition wording (e.g. "(unchanged)" for a
     # component that's actually new), which changes_heading_has_app_
     # version's own "is some version shown at all" check can never catch.
-    baseline_app_by_identity: dict
-    matched_sidecar_paths: set
+    baseline_app_by_identity: dict[ComponentIdentity, str | None]
+    matched_sidecar_paths: set[ImagePath]
 
 
 @dataclass
@@ -200,8 +207,8 @@ class ManifestEntryScan:
     argument count down."""
 
     images_path: Path
-    repo_map: dict
-    sibling_fields: dict
+    repo_map: dict[str, ImagePath]
+    sibling_fields: dict[ImagePath, DigestPinningException]
 
 
 def _pointer_consistency_mismatches(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str):
@@ -272,7 +279,9 @@ def _check_companion_docs(
                 )
 
 
-def _resolve_baseline(chart_dir: Path, upgrade_docs_baseline: str | None):
+def _resolve_baseline(
+    chart_dir: Path, upgrade_docs_baseline: str | None
+) -> tuple[str | None, list[ChartDependency], YamlMapping, str | None]:
     """Wraps resolve_baseline_chart_state (shared with lib.component_docs'
     own load_baseline_state/load_baseline_values and verify-release-
     table-with-podiumd's own release_table_baseline lookup — see its
@@ -331,7 +340,7 @@ def _build_docs_check_context(
     # Ground truth for "did this component actually change" — independent of
     # what the docs currently say, so it also catches a component that
     # changed but was never added to any doc at all.
-    actual_changed_keys = (
+    actual_changed_keys: set[str] = (
         compute_changed_components(deps, baseline_deps, values, baseline_values) if baseline_ref else set()
     )
     current_paths, baseline_paths, repo_map = _resolve_image_paths(
@@ -365,7 +374,7 @@ def _doc_header_mismatches(doc_path: Path, ctx: DocsCheckContext):
     running (see lib.component_docs.strip_stale_upgrade_placeholders,
     reused here unapplied — its own `changed` flag doubles as this
     finding, no separate detector to drift)."""
-    mismatches = []
+    mismatches: list[str] = []
     if ctx.doc_query.is_bare_version and ctx.doc_query.upgrade_docs_baseline:
         mismatches.extend(check_doc_title(doc_path, ctx.doc_query.upgrade_docs_baseline, ctx.doc_query.podiumd_version))
     if strip_stale_upgrade_placeholders(doc_path.read_text(encoding="utf-8"))[1]:
@@ -388,7 +397,8 @@ def _record_row_identity(resolved: ResolvedRow, result: ComponentRowsResult):
     actual_app = resolved["target_app"]
 
     if resolved["kind"] == "sidecar":
-        result.matched_sidecar_paths.add(sidecar_path)
+        if sidecar_path is not None:
+            result.matched_sidecar_paths.add(sidecar_path)
     elif actual_app:
         # "dependency" and "native" (see lib.chart.native_components)
         # share this identity shape — resolve_component_identity/
@@ -507,7 +517,7 @@ def _check_missing_component_rows(ctx: DocsCheckContext, scan: DocScanState, row
     nested redis-ha image bump has never been added at all — a true
     omission the row-matching above can't see, since no row even claims
     to be about it). Only called when ctx.baseline_ref is set."""
-    mismatches = []
+    mismatches: list[str] = []
     for key in sorted(ctx.actual_changed_keys - rows_result.changed_component_keys):
         resolved = resolve_component_own_version_change(
             key,
@@ -555,7 +565,7 @@ def _check_row_and_heading_order(ctx: DocsCheckContext, scan: DocScanState):
     (mismatches, changes_headings, doc_text): the latter two are re-
     used by _check_changes_heading_correspondence right after, so it
     doesn't have to re-read/re-parse the same doc a second time."""
-    mismatches = []
+    mismatches: list[str] = []
     key_order = values_key_order(ctx.current.values)
     row_names = [row["name"] for row in scan.rows]
     for name_a, name_b in find_out_of_order_names(
@@ -586,7 +596,7 @@ def _check_changes_heading_correspondence(
     rows_result: ComponentRowsResult,
     changes_headings: list[str],
     doc_text: str,
-):
+) -> list[str]:
     """Only checked when the doc actually has a "## Changes" heading at
     all — a fixture/stub doc that never got that far yet (no section to
     compare against) would otherwise have EVERY row reported as missing
@@ -615,7 +625,7 @@ def _check_changes_heading_correspondence(
     if not has_changes_section:
         return []
 
-    mismatches = []
+    mismatches: list[str] = []
     rows_without_heading, headings_without_row = find_changes_row_correspondence_gaps(
         scan.rows, changes_headings, ctx.current.deps, scan.canonical_names
     )
@@ -767,7 +777,10 @@ def _check_images_manifest_entry(
 
 
 def _check_images_manifest(
-    ctx: DocsCheckContext, repo_map: dict[str, tuple[str, ...]], sibling_fields: dict, findings: Findings
+    ctx: DocsCheckContext,
+    repo_map: dict[str, ImagePath],
+    sibling_fields: dict[ImagePath, DigestPinningException],
+    findings: Findings,
 ):
     """The images-manifest section of check_docs_consistency (see that
     function's own docstring) — manifest format validation, the "any

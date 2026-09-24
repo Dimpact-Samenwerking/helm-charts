@@ -25,25 +25,30 @@ class ValuesDeltaInputs:
     baseline_values: YamlMapping | None
     values: YamlMapping | None
     deps: list[ChartDependency]
-    canonical_names: dict | None = None
+    canonical_names: dict[str, tuple[str, ...]] | None = None
 
 
-def _diff_component_key(values_key: str, inputs: ValuesDeltaInputs):
+KeyPath = tuple[str, ...]
+# (added, removed, renamed) for one component's values.yaml subtree.
+KeyChanges = tuple[list[KeyPath], list[KeyPath], list[tuple[KeyPath, KeyPath]]]
+
+
+def _diff_component_key(values_key: str, inputs: ValuesDeltaInputs) -> KeyChanges:
     """(added, removed, renamed) path lists for one component's
     values.yaml subtree vs baseline — all empty when unchanged."""
     baseline_subtree = inputs.baseline_values.get(values_key, {}) if isinstance(inputs.baseline_values, dict) else {}
     current_subtree = inputs.values.get(values_key, {}) if isinstance(inputs.values, dict) else {}
-    diffs = list(diff_keys(baseline_subtree, current_subtree, (values_key,)))
-    added = [p for kind, p in diffs if kind == "added"]
-    removed = [p for kind, p in diffs if kind == "removed"]
+    diffs: list[tuple[str, KeyPath]] = list(diff_keys(baseline_subtree, current_subtree, (values_key,)))
+    added: list[KeyPath] = [p for kind, p in diffs if kind == "added"]
+    removed: list[KeyPath] = [p for kind, p in diffs if kind == "removed"]
     renamed, added, removed = pair_renames(added, removed, baseline_subtree, current_subtree)
     return added, removed, renamed
 
 
-def _added_removed_mentions(doc_path: Path, values_key: str, paths: list, backtick_spans: set, verb: str):
+def _added_removed_mentions(doc_path: Path, values_key: str, paths: list[KeyPath], backtick_spans: set[str], verb: str):
     """One issue per path in `paths` (added or removed keys, per `verb`)
     that isn't backtick-quoted anywhere in values_key's own section."""
-    issues = []
+    issues: list[str] = []
     for path in paths:
         dotted = ".".join(path)
         if dotted not in backtick_spans:
@@ -54,10 +59,10 @@ def _added_removed_mentions(doc_path: Path, values_key: str, paths: list, backti
     return issues
 
 
-def _rename_mentions(doc_path: Path, values_key: str, renamed: list, backtick_spans: set):
+def _rename_mentions(doc_path: Path, values_key: str, renamed: list[tuple[KeyPath, KeyPath]], backtick_spans: set[str]):
     """One issue per (old, new) rename pair not backtick-quoted on BOTH
     sides within values_key's own section."""
-    issues = []
+    issues: list[str] = []
     for old_path, new_path in renamed:
         old_dotted, new_dotted = ".".join(old_path), ".".join(new_path)
         if not (old_dotted in backtick_spans and new_dotted in backtick_spans):
@@ -69,7 +74,9 @@ def _rename_mentions(doc_path: Path, values_key: str, renamed: list, backtick_sp
     return issues
 
 
-def _check_key_section_mentions(doc_path: Path, text: str, values_key: str, changes: tuple, inputs: ValuesDeltaInputs):
+def _check_key_section_mentions(
+    doc_path: Path, text: str, values_key: str, changes: KeyChanges, inputs: ValuesDeltaInputs
+):
     """Verifies values_key has its own "## ..." section and that every
     change in it (added, removed, renamed) is backtick-quoted within
     that section — see check_values_deltas_content's own docstring."""
@@ -87,7 +94,7 @@ def _check_key_section_mentions(doc_path: Path, text: str, values_key: str, chan
     section_text = "".join(lines[section["start"] : section["end"]])
     backtick_spans = set(re.findall(r"`([^`]+)`", strip_fenced_code_blocks(section_text)))
 
-    issues = []
+    issues: list[str] = []
     issues.extend(_added_removed_mentions(doc_path, values_key, added, backtick_spans, "added"))
     issues.extend(_added_removed_mentions(doc_path, values_key, removed, backtick_spans, "removed"))
     issues.extend(_rename_mentions(doc_path, values_key, renamed, backtick_spans))
@@ -139,7 +146,7 @@ def check_values_deltas_content(doc_path: Path, actual_changed_keys: set[str], i
         re.search(r"no\s+gemeente\s+`?podiumd\.yml`?\s+changes\s+are\s+required", text, re.IGNORECASE)
     )
 
-    issues = []
+    issues: list[str] = []
     for values_key in sorted(actual_changed_keys):
         changes = _diff_component_key(values_key, inputs)
         if not any(changes):

@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 
 
-def check_doc_title(doc_path: Path, upgrade_docs_baseline: str, podiumd_version: str):
+def check_doc_title(doc_path: Path, upgrade_docs_baseline: str, podiumd_version: str) -> list[str]:
     """Verify a doc's first line states the "<upgrade_docs_baseline> → <podiumd_version>"
     pair — catches a doc that was renamed without updating its own heading."""
     lines = doc_path.read_text(encoding="utf-8").splitlines()
@@ -39,7 +39,7 @@ def check_markdown_format(doc_path: Path):
     if not text.strip():
         return ["file is empty"]
 
-    issues = []
+    issues: list[str] = []
     first_line = text.splitlines()[0]
     if not first_line.startswith("# "):
         issues.append(f'first line "{first_line}" is not a level-1 heading ("# ...")')
@@ -57,7 +57,7 @@ def check_baseline_doc_set(doc_dir: Path, upgrade_docs_baseline: str, podiumd_ve
     """Existence + markdown-format precheck for all three upgrade_docs_baseline docs,
     run BEFORE any content-based check on them — a doc that's missing or
     malformed makes every downstream check on it meaningless."""
-    issues = []
+    issues: list[str] = []
     for suffix in ("upgrade", "gemeente-specific", "values-deltas"):
         name = f"{upgrade_docs_baseline}-to-{podiumd_version}-{suffix}.md"
         doc_path = doc_dir / name
