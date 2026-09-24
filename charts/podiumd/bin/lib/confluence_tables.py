@@ -31,7 +31,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from html.parser import HTMLParser
-from typing import Any
+from typing import TypedDict
+
+from lib.chart.values_tree_primitives import get_path
+from lib.yaml_types import is_yaml_value
 
 PAGE_ID_RE = re.compile(r"/pages/(\d+)")
 
@@ -60,7 +63,7 @@ def api_base_url(url: str):
     return f"{parsed.scheme}://{parsed.netloc}{api_path}"
 
 
-def fetch_page_html(url: str, user: str, token: str, urlopen: Callable = urllib.request.urlopen):
+def fetch_page_html(url: str, user: str, token: str, urlopen: Callable = urllib.request.urlopen) -> str:
     """The page's raw storage-format body (body.storage.value) via the
     Confluence REST API — see the module docstring for why storage, not
     the rendered view. `urlopen` is overridable for tests."""
@@ -76,18 +79,18 @@ def fetch_page_html(url: str, user: str, token: str, urlopen: Callable = urllib.
     )
     try:
         with urlopen(request) as response:
-            data = json.load(response)
+            data: object = json.load(response)
     except urllib.error.HTTPError as e:
         msg = f"error: Confluence API request failed: HTTP {e.code} {e.reason}"
         raise SystemExit(msg) from e
     except urllib.error.URLError as e:
         msg = f"error: could not reach Confluence: {e.reason}"
         raise SystemExit(msg) from e
-    try:
-        return data["body"]["storage"]["value"]
-    except KeyError as e:
+    value = get_path(data, "body.storage.value") if is_yaml_value(data) else None
+    if not isinstance(value, str):
         msg = "error: response had no body.storage.value — check the URL and permissions"
-        raise SystemExit(msg) from e
+        raise SystemExit(msg)
+    return value
 
 
 HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
@@ -100,6 +103,29 @@ HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 BLOCK_SEPARATOR_TAGS = {"br", "hr", "p"}
 
 
+class TableCell(TypedDict):
+    """One <td>/<th> of a Confluence table: its tag, spans and whitespace-
+    normalized text."""
+
+    tag: str
+    colspan: int
+    rowspan: int
+    text: str
+
+
+class ReleaseColumns(TypedDict):
+    """The grid column index of each release-table field (see
+    select_release_columns); None when the table has no such column."""
+
+    first: int | None
+    vendor: int | None
+    used_by: int | None
+    source_app: int | None
+    source_helm: int | None
+    target_app: int | None
+    target_helm: int | None
+
+
 @dataclass
 class _HeadingState:
     """_TableExtractor's heading tracking: the text of the last heading
@@ -108,6 +134,23 @@ class _HeadingState:
     current: str | None = None
     tag: str | None = None
     text: list = field(default_factory=list)
+
+
+@dataclass
+class _OpenCell:
+    """A <td>/<th> still being read: its tag and spans, and its text so
+    far in pieces."""
+
+    tag: str
+    colspan: int
+    rowspan: int
+    parts: list[str] = field(default_factory=list)
+
+    def finished(self) -> TableCell:
+        """The TableCell, with the text pieces joined and whitespace
+        normalized."""
+        text = " ".join("".join(self.parts).split())
+        return {"tag": self.tag, "colspan": self.colspan, "rowspan": self.rowspan, "text": text}
 
 
 class _TableExtractor(HTMLParser):
@@ -126,11 +169,11 @@ class _TableExtractor(HTMLParser):
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.tables = []
-        self.table_headings = []
-        self._table_stack = []
-        self._row: list[dict[str, Any]] | None = None
-        self._cell: dict[str, Any] | None = None
+        self.tables: list[list[list[TableCell]]] = []
+        self.table_headings: list[str | None] = []
+        self._table_stack: list[list[list[TableCell]]] = []
+        self._row: list[TableCell] | None = None
+        self._cell: _OpenCell | None = None
         self._nested_depth = 0
         self._heading = _HeadingState()
 
@@ -139,7 +182,7 @@ class _TableExtractor(HTMLParser):
             if tag == "table":
                 self._nested_depth += 1
             elif tag in BLOCK_SEPARATOR_TAGS and self._nested_depth == 0:
-                self._cell["text"].append(" ")
+                self._cell.parts.append(" ")
             return
         if tag in HEADING_TAGS:
             self._heading.tag = tag
@@ -151,12 +194,9 @@ class _TableExtractor(HTMLParser):
         elif tag == "tr" and self._table_stack:
             self._row = []
         elif tag in ("td", "th") and self._row is not None:
-            self._cell = {
-                "tag": tag,
-                "colspan": _positive_int(attr_map.get("colspan"), 1),
-                "rowspan": _positive_int(attr_map.get("rowspan"), 1),
-                "text": [],
-            }
+            self._cell = _OpenCell(
+                tag, _positive_int(attr_map.get("colspan"), 1), _positive_int(attr_map.get("rowspan"), 1)
+            )
             self._nested_depth = 0
 
     def handle_endtag(self, tag: str):
@@ -166,10 +206,8 @@ class _TableExtractor(HTMLParser):
             elif tag in ("tr", "td", "th") and self._nested_depth > 0:
                 pass  # a nested table's own row/cell close — not the outer cell's
             elif tag in ("td", "th"):
-                text = " ".join("".join(self._cell["text"]).split())
-                self._cell["text"] = text
                 if self._row is not None:
-                    self._row.append(self._cell)
+                    self._row.append(self._cell.finished())
                 self._cell = None
             return
         if tag == self._heading.tag:
@@ -185,7 +223,7 @@ class _TableExtractor(HTMLParser):
 
     def handle_data(self, data: str):
         if self._cell is not None:
-            self._cell["text"].append(data)
+            self._cell.parts.append(data)
         elif self._heading.tag is not None:
             self._heading.text.append(data)
 
@@ -219,16 +257,16 @@ def tables_under_headings(tables: list, headings: list[str]):
     return [(heading, rows) for heading, rows in tables if heading and _normalize(heading) in wanted]
 
 
-def expand_grid(rows: list):
+def expand_grid(rows: list[list[TableCell]]) -> list[list[str]]:
     """A table's rows (unexpanded cell dicts) as a plain 2D grid of
     strings, with every colspan/rowspan expanded so each covered cell
     repeats the spanning cell's text and every row ends up the same
     width. A gap not covered by any cell (a malformed table) becomes an
     empty string rather than raising."""
-    grid = []
-    carry = {}  # column -> [text, remaining_rows_including_this_one]
+    grid: list[list[str]] = []
+    carry: dict[int, tuple[str, int]] = {}  # column -> (text, remaining_rows_including_this_one)
     for row in rows:
-        grid_row = []
+        grid_row: list[str] = []
         col = 0
         cell_iter = iter(row)
         current_cell = next(cell_iter, None)
@@ -417,7 +455,7 @@ def select_release_columns(paths: list):
     can't be anything else, so it's matched by position rather than
     text, keeping this working whether the page kept a (now redundant)
     "App" sub-header row or dropped the sub-header split entirely."""
-    columns = {
+    columns: ReleaseColumns = {
         "first": 0 if paths else None,
         "vendor": find_column(paths, ["ontwikkelpartij"]),
         "used_by": find_column(paths, ["used by"]),
@@ -447,7 +485,7 @@ def select_release_columns(paths: list):
     return columns
 
 
-def missing_required_release_columns(columns: dict):
+def missing_required_release_columns(columns: ReleaseColumns):
     """Which of select_release_columns()'s REQUIRED columns (source/
     target App — not "first", not the optional "vendor"/"used_by"/
     "source_helm"/"target_helm") came back unresolved (None)."""
