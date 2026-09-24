@@ -91,6 +91,7 @@ from lib.render_scope import render_chart
 from lib.settings import release_secret_kubernetes_limit_bytes
 from lib.settings import release_secret_warn_at_fraction_of_limit
 from lib.settings import render_report_default_output_file_name
+from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
 
@@ -189,7 +190,7 @@ def bucket_files(paths: dict):
     return templates, files
 
 
-def build_release(chart_dir: Path, values_override: dict | None, manifest: str, name: str, namespace: str):
+def build_release(chart_dir: Path, values_override: YamlMapping | None, manifest: str, name: str, namespace: str):
     """(release, version, warnings) for the chart under test.
 
     values_override: an already-parsed dict (becomes Release.Config), or

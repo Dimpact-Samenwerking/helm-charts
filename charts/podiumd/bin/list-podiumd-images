@@ -233,7 +233,7 @@ def _sorted_image_entries(rows: list):
     return entries
 
 
-def _column_widths(entries: list):
+def _column_widths(entries: list[ImageEntry]):
     return ColumnWidths(
         key=max(len(e.key) for e in entries),
         basename=max(len(e.basename) for e in entries),
@@ -264,7 +264,7 @@ def _print_image_entry(entry: ImageEntry, values_lines: list, widths: ColumnWidt
     print(f"      {entry.repo}:{entry.tag}")
 
 
-def print_image_lines(rows: list, values_lines: list):
+def print_image_lines(rows: list, values_lines: list[str]):
     """rows: [(key, path, repo, tag, disabled), ...] — `disabled` is True
     when this row's own chart-tree path (see lib.render_scope.
     rendered_chart_paths and row_chart_tree_path below) never actually

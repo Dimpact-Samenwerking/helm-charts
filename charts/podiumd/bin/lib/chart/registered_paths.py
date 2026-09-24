@@ -188,7 +188,7 @@ def _is_dependency_primary_rel_path(dep: ChartDependency, rel_path: str, chart_d
     )
 
 
-def is_primary_image_path(path: tuple | None, deps: list[ChartDependency], chart_dir: Path | None = None):
+def is_primary_image_path(path: tuple[str, ...], deps: list[ChartDependency], chart_dir: Path | None = None):
     """True when path is one of a Chart.yaml dependency's own PRIMARY
     image/version field(s) — see _is_dependency_primary_rel_path (image_
     paths_for's "image: {tag}" shape, or version_paths_for's own bare-

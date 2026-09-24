@@ -100,7 +100,7 @@ def values_tree_position(values: YamlMapping, path: tuple[str, ...]) -> tuple[in
 def component_order_key(
     name: str,
     deps: list[ChartDependency],
-    key_order: list,
+    key_order: list[str],
     canonical_names: dict | None = None,
     values: YamlMapping | None = None,
 ) -> tuple[int, ...]:

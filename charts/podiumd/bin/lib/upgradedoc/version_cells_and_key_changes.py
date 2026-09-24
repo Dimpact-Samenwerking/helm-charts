@@ -272,7 +272,7 @@ def strip_html_comments(text: str):
     return HTML_COMMENT_RE.sub("", text)
 
 
-def append_to_doc(text: str, new_lines: list):
+def append_to_doc(text: str, new_lines: list[str]):
     """Append new_lines to the end of a doc, blank-line-separated from
     whatever's already there — the shared "just tack this on" convention
     used when a script adds content to an existing markdown doc."""

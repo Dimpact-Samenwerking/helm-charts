@@ -114,7 +114,7 @@ def _lock_problems(chart_dir: Path, chart_deps: list[ChartDependency]):
     return problems
 
 
-def _describe_lock_mismatch(wanted_key: tuple, locked: set):
+def _describe_lock_mismatch(wanted_key: tuple[str, str, str], locked: set[tuple[str, str, str]]):
     """One _lock_problems entry for a Chart.yaml (name, version,
     repository) triple Chart.lock doesn't have: a different repository
     for the same version, a different version, or no entry at all."""

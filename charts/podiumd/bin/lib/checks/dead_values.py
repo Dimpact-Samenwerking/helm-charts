@@ -194,6 +194,7 @@ from lib.chart.chart_yaml import chart_dependencies
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.chart_yaml import load_chart_yaml
 from lib.chart.pull_and_subchart_resolution import subchart_values
+from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
@@ -221,7 +222,7 @@ def flatten_leaves(node: object, path: tuple = ()):
         yield path, node
 
 
-def _candidate_leaves(node: str | dict, path: tuple, exempt_full_paths: AbstractSet = frozenset()):
+def _candidate_leaves(node: str | dict, path: tuple[str, ...], exempt_full_paths: AbstractSet = frozenset()):
     """flatten_leaves(node, path), minus a value that's already null
     (nulling a null is a no-op — nothing to learn) and any path in
     exempt_full_paths (see _condition_leaf_paths — a dependency's own
@@ -279,10 +280,11 @@ def _set_null(tree: dict, path: tuple[str, ...]):
     node[path[-1]] = None
 
 
-def _deep_merge(base: dict, overlay: dict):
+def _deep_merge(base: YamlMapping, overlay: YamlMapping):
     for key, value in overlay.items():
-        if isinstance(value, dict) and isinstance(base.get(key), dict):
-            _deep_merge(base[key], value)
+        sub = base.get(key)
+        if isinstance(value, dict) and isinstance(sub, dict):
+            _deep_merge(sub, value)
         else:
             base[key] = value
 
@@ -307,7 +309,7 @@ def _dependency_by_key(chart_dir: Path):
     return {values_key_of(dep): dep for dep in load_chart_dependencies(chart_dir / "Chart.yaml")}
 
 
-def _coalesced_values(chart_dir: Path, merged_values: dict, dep_by_key: dict):
+def _coalesced_values(chart_dir: Path, merged_values: YamlMapping, dep_by_key: dict[str, ChartDependency]):
     """merged_values, but with each Chart.yaml dependency's OWN default
     values.yaml (from its vendored .tgz — see lib.chart.subchart_values)
     merged in UNDER podiumd's own override for that key — replicating
@@ -329,7 +331,7 @@ def _coalesced_values(chart_dir: Path, merged_values: dict, dep_by_key: dict):
         if defaults is None:
             continue
         with_defaults = copy.deepcopy(defaults)
-        _deep_merge(with_defaults, coalesced.get(key) or {})
+        _deep_merge(with_defaults, mapping_at(coalesced, key))
         coalesced[key] = with_defaults
     return coalesced
 

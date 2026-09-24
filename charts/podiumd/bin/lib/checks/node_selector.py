@@ -47,7 +47,7 @@ DEFINE_BLOCK_RE = re.compile(
 INCLUDE_CALL_RE = re.compile(r'include\s+"(?P<name>[^"]+)"')
 
 
-def _referenced_define_bodies(doc: str, define_bodies: dict):
+def _referenced_define_bodies(doc: str, define_bodies: dict[str, str]):
     """[body, ...] for every same-file `{{ define "X" }}...{{ end }}` block
     (define_bodies, keyed by name — see DEFINE_BLOCK_RE) this doc chunk's
     own text calls via a plain `include "X"` — see module docstring for

@@ -467,7 +467,9 @@ def scan_rendered_chart(
     return VendorBucketScan(rendered.locations, vendor_map, own_real, vendored_friendly, vendored_other), None
 
 
-def scan_outcome(own_real: list, vendored_friendly: list, vendored_other: list) -> tuple[bool, str]:
+def scan_outcome(
+    own_real: Sequence[object], vendored_friendly: Sequence[object], vendored_other: Sequence[object]
+) -> tuple[bool, str]:
     """(passed, detail) for a render + tool check: it passes only without
     own findings; vendored findings are reported, never failing."""
     detail = f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, {len(vendored_other)} other-vendor"

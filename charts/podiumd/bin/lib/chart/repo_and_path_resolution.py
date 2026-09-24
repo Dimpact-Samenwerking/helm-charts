@@ -151,7 +151,7 @@ def paths_by_repository(
     chart_dir: Path | None,
     deps: list[ChartDependency],
     values: YamlMapping,
-    paths: Collection,
+    paths: Collection[tuple[str, ...]],
     *,
     allow_pull: bool = False,
 ):

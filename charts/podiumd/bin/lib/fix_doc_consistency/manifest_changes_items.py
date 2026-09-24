@@ -111,7 +111,7 @@ def dedupe_images_manifest_changes_items(lines: list[str]):
 
 def _resolved_changes_items(
     lines: list[str],
-    item_bounds: list,
+    item_bounds: list[tuple[int, int]],
     entries: list[ManifestEntry],
     entry_positions: dict,
     display_name_positions: dict | None,

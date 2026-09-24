@@ -58,6 +58,7 @@ from lib.component_docs.images_manifest_changes_header import remove_changes_ite
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
+from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
@@ -834,7 +835,7 @@ def _resolve_baseline_entry(
     return sort_key, repo, full_repo, new_version, digest
 
 
-def _resolve_baseline_entries(ctx: _BaselineManifestContext, current_paths: dict, repo_groups: dict):
+def _resolve_baseline_entries(ctx: _BaselineManifestContext, current_paths: dict[ImagePath, str], repo_groups: dict):
     """(resolved, skipped) for every repository group in repo_groups —
     resolved is [(sort_key, repo, full_repo, new_version, digest), ...]
     sorted by sort_key, skipped is [repo, ...] for every group _resolve_
@@ -853,7 +854,7 @@ def _resolve_baseline_entries(ctx: _BaselineManifestContext, current_paths: dict
     return resolved, skipped
 
 
-def _render_baseline_manifest_lines(resolved: list):
+def _render_baseline_manifest_lines(resolved: list[BaselineEntry]):
     """The full images-baseline.yaml text for `resolved` (see _resolve_
     baseline_entries) — the fixed IMAGES_BASELINE_HEADER followed by one
     "- name/url/version/digest" block per entry, exactly one trailing

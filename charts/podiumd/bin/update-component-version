@@ -91,6 +91,7 @@ from lib.dependencies import ensure_vendored_dependencies
 from lib.image.version import image_basename
 from lib.image.version import update_image_version
 from lib.procutil import run_script
+from lib.registry import ImagePathTagCheck
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
@@ -552,7 +553,9 @@ def _write_fallback_tags(ctx: BumpContext, fallback_paths: list, upstream_images
         print(f"    {new_v}")
 
 
-def _update_image_tags(ctx: BumpContext, paths_to_update: list, split_tag_sha_paths: dict, upstream_images: dict):
+def _update_image_tags(
+    ctx: BumpContext, paths_to_update: list, split_tag_sha_paths: dict, upstream_images: dict[str, ImagePathTagCheck]
+):
     """Dispatch paths_to_update to whichever of the three tag-update
     strategies each one needs (see _classify_paths_to_update), writing
     values.yaml as needed. Returns (new_tags_by_path, repos)."""

@@ -59,7 +59,7 @@ CHANGES_ITEM_RE = re.compile(r"^#\s*(?P<num>\d+)\.\s+(?P<rest>.+)$")
 IMAGES_MANIFEST_INTRO_RE = re.compile(r"^#\s*Images new or changed in podiumd\b.*$", re.IGNORECASE)
 
 
-def find_images_manifest_changes_header(lines: list):
+def find_images_manifest_changes_header(lines: list[str]):
     """(header_idx, header_has_count) for the images-manifest's own "#
     Changes:" header — matching EITHER CHANGES_HEADER_RE's counted form
     ("# Twenty One changes:") or BARE_CHANGES_HEADER_RE's plain "#
@@ -80,7 +80,7 @@ def find_images_manifest_changes_header(lines: list):
     return None, False
 
 
-def ensure_images_manifest_changes_header(lines: list):
+def ensure_images_manifest_changes_header(lines: list[str]):
     """Create the images-manifest's own bare "# Changes:\n#\n" header
     (see find_images_manifest_changes_header/IMAGES_STUB_TEMPLATE),
     right after the "# Images new or changed in podiumd ... vs ..."
@@ -127,7 +127,7 @@ def ensure_images_manifest_changes_header(lines: list):
             return
 
 
-def find_images_manifest_changes_items(lines: list):
+def find_images_manifest_changes_items(lines: list[str]):
     """(header_idx, header_has_count, item_indices) — item_indices is
     every "#   N. ..." line's own index (see CHANGES_ITEM_RE), in
     current top-to-bottom document order, scoped to the "# Changes:"
@@ -283,7 +283,7 @@ def remove_changes_item(lines: list[str], item_indices: list[int], match_idx: in
 
 
 def insert_images_manifest_header_item(
-    lines: list, deps: list[ChartDependency], key_order: list, new_key: tuple[int, ...], item_text: str
+    lines: list[str], deps: list[ChartDependency], key_order: list, new_key: tuple[int, ...], item_text: str
 ):
     """Insert "#   N. <item_text>" into the images-manifest's own "#
     Changes:" header list (see find_images_manifest_changes_header) at

@@ -108,7 +108,7 @@ def _own_kubeconform_findings(
 
 
 def _scan_vendored_charts(
-    docs: list, failing_statuses: set[str], vendor_map: dict
+    docs: list[tuple[str, str]], failing_statuses: set[str], vendor_map: dict[str, str]
 ) -> tuple[list[KubeconformEntry] | None, list[KubeconformEntry] | None, str | None]:
     """Validates each vendored sub-chart's docs (every rendered doc outside
     OWN_TEMPLATES_PREFIX) with kubeconform separately

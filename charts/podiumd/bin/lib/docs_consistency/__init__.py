@@ -581,7 +581,11 @@ def _check_row_and_heading_order(ctx: DocsCheckContext, scan: DocScanState):
 
 
 def _check_changes_heading_correspondence(
-    ctx: DocsCheckContext, scan: DocScanState, rows_result: ComponentRowsResult, changes_headings: list, doc_text: str
+    ctx: DocsCheckContext,
+    scan: DocScanState,
+    rows_result: ComponentRowsResult,
+    changes_headings: list[str],
+    doc_text: str,
 ):
     """Only checked when the doc actually has a "## Changes" heading at
     all — a fixture/stub doc that never got that far yet (no section to
@@ -762,7 +766,9 @@ def _check_images_manifest_entry(
         )
 
 
-def _check_images_manifest(ctx: DocsCheckContext, repo_map: dict, sibling_fields: dict, findings: Findings):
+def _check_images_manifest(
+    ctx: DocsCheckContext, repo_map: dict[str, tuple[str, ...]], sibling_fields: dict, findings: Findings
+):
     """The images-manifest section of check_docs_consistency (see that
     function's own docstring) — manifest format validation, the "any
     real entries but no '# Changes:' header" catch-all (real bug this

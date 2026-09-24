@@ -107,7 +107,7 @@ def _fetch_live_digest(host: str, repo_path: str, version: str):
     return digest, error
 
 
-def _check_target(repository: str, version: str, group: list, values_path: Path):
+def _check_target(repository: str, version: str, group: list[DigestPin], values_path: Path):
     """Live-digest check for one (repository, version) target (`group` is
     its list of matching pins). Returns (stale_entry, fetch_error_entry),
     each None unless applicable — stale_entry is (repository, version,
@@ -168,7 +168,7 @@ def find_stale_digests(lines: list[str], values_path: Path):
     return stale, unresolved, fetch_errors
 
 
-def _parse_args(argv: list):
+def _parse_args(argv: list[str]):
     """Parses fix-image-digests' own CLI args: -h/--help, --dry-run, and
     an optional <key> <basename> scoping pair. Exits 0 after printing
     help, or 1 on a malformed positional-arg count. Returns (dry_run,
@@ -185,7 +185,7 @@ def _parse_args(argv: list):
     return dry_run, key, basename
 
 
-def _report_unresolved_and_errors(unresolved: list, fetch_errors: list):
+def _report_unresolved_and_errors(unresolved: list[DigestPin], fetch_errors: list):
     """Prints fix-image-digests' own unresolved-pin and fetch-error report
     sections, when present."""
     if unresolved:

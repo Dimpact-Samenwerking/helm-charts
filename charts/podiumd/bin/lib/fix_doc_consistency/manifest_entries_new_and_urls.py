@@ -32,6 +32,7 @@ from lib.images_manifest import try_parse_images_manifest
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
+from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
@@ -141,7 +142,7 @@ def _entry_url_line_index(lines: list[str], line_idx: int):
 
 
 def _entry_url_status(
-    entry: ManifestEntry, line_idx: int, lines: list[str], current_paths: dict, context: UrlFixContext
+    entry: ManifestEntry, line_idx: int, lines: list[str], current_paths: dict[ImagePath, str], context: UrlFixContext
 ):
     """("unresolved", name) / ("changed", (name, old_url, new_url)) /
     ("unchanged", None) for a single images-manifest entry's own "url:"
@@ -226,7 +227,7 @@ def fix_images_manifest_entry_urls(
     return "".join(lines), changed_names, unresolved_names
 
 
-def _images_manifest_changes_header_text(lines: list):
+def _images_manifest_changes_header_text(lines: list[str]):
     """The full "# Changes:" header block's own text — header line
     through its last numbered item (and any wrapped continuation
     lines) — or "" if the file has no header at all. Used to check
@@ -260,7 +261,7 @@ def _baseline_setup(context: MissingEntriesContext):
     return baseline_paths, baseline_repo_groups
 
 
-def _repo_setup(context: MissingEntriesContext, current_paths: dict):
+def _repo_setup(context: MissingEntriesContext, current_paths: dict[ImagePath, str]):
     """(repo_groups, repo_map, path_to_repo) for `context`'s own
     target_values."""
     repo_groups = paths_by_repository(context.chart_dir, context.deps, context.target_values, current_paths.keys())
@@ -476,7 +477,7 @@ def _entry_insertion_keys(lines: list, context: MissingEntriesContext, resolutio
 
 
 def _splice_added_entry_block(
-    lines: list,
+    lines: list[str],
     context: MissingEntriesContext,
     resolution: MissingEntriesResolution,
     new_key: tuple[int, ...],
