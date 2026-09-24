@@ -853,3 +853,32 @@ def test_guard_not_called_when_every_dependent_step_is_skipped_too(vp, monkeypat
     dependents = {name for _, name in vp.SKIPPABLE_STEPS if "Dependencies" in vp.prerequisites_for(name)}
     vp._ensure_vendored_dependencies_if_skipped(Path("/chart"), {"Dependencies", *dependents})
     assert not calls
+
+
+def test_run_all_steps_passes_the_detail_flags_to_both_cve_steps(vp, tmp_path, monkeypatch):
+    """Regression test: check_cves/check_cve_diff take `detail` as a
+    keyword-only argument, but _run_all_steps passed it positionally
+    through StepRunner.run, so the real CVE scan step crashed with
+    TypeError. Every other step is skipped here."""
+    import argparse
+
+    seen = {}
+
+    def fake_check(name):
+        def check(chart_dir, extra_args, *, detail=False):
+            seen[name] = detail
+            return True, "ok"
+
+        return check
+
+    monkeypatch.setattr(vp, "check_cves", fake_check("CVE scan"))
+    monkeypatch.setattr(vp, "check_cve_diff", fake_check("CVE diff"))
+    monkeypatch.setattr(vp, "ensure_repos_configured", lambda chart_dir: (True, ""))
+    monkeypatch.setattr(vp, "read_upgrade_docs_baseline", lambda chart_dir: None)
+    monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
+    others = {name for _, name in vp.SKIPPABLE_STEPS if name not in ("CVE scan", "CVE diff")}
+    runner = vp.StepRunner(skipped_steps=others, skip_flags=["test"])
+
+    vp._run_all_steps(runner, tmp_path, argparse.Namespace(detail_cve_check=True, detail_cve_diff=False))
+
+    assert seen == {"CVE scan": True, "CVE diff": False}

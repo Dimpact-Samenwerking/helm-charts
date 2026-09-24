@@ -342,7 +342,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
-from typing import Any
+from typing import ParamSpec
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -683,6 +683,10 @@ reported as skipped.
 """
 
 
+# The parameters of the check function one StepRunner.run call runs.
+StepParams = ParamSpec("StepParams")
+
+
 @dataclass
 class StepRunner:
     """Shared state for main()'s run of every SKIPPABLE_STEPS entry: the
@@ -697,10 +701,17 @@ class StepRunner:
     results: list = field(default_factory=list)
     failed_or_blocked: set = field(default_factory=set)
 
-    def run(self, name: str, title: str, func: Callable, *fargs: Any):
+    def run(
+        self,
+        name: str,
+        title: str,
+        func: Callable[StepParams, tuple[bool, str | None]],
+        *fargs: StepParams.args,
+        **fkwargs: StepParams.kwargs,
+    ):
         """Runs one step: prints title, honors skipped_steps/a blocked
-        prerequisite (see failed_or_blocked), else calls func(*fargs) and
-        records (name, ok, detail) into results."""
+        prerequisite (see failed_or_blocked), else calls func(*fargs,
+        **fkwargs) and records (name, ok, detail) into results."""
         log(title)
         if name in self.skipped_steps:
             if self.include_flags:
@@ -718,7 +729,7 @@ class StepRunner:
             self.failed_or_blocked.add(name)
             return
 
-        ok, detail = func(*fargs)
+        ok, detail = func(*fargs, **fkwargs)
         self.results.append((name, ok, detail))
         if not ok:
             self.failed_or_blocked.add(name)
@@ -887,7 +898,7 @@ def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace
         check_cves,
         chart_dir,
         extra_args,
-        args.detail_cve_check,
+        detail=args.detail_cve_check,
     )
     runner.run(
         "CVE diff",
@@ -895,7 +906,7 @@ def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace
         check_cve_diff,
         chart_dir,
         extra_args,
-        args.detail_cve_diff,
+        detail=args.detail_cve_diff,
     )
 
 
