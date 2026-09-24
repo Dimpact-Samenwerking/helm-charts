@@ -12,7 +12,7 @@ from datetime import timezone
 from pathlib import Path
 from typing import TypeVar
 
-from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.repo_and_path_resolution import subchart_default_repository
 from lib.registry import UNVERIFIABLE_HOSTS
 from lib.registry import is_sliding_tag
@@ -276,7 +276,7 @@ def resolve_pin_targets(chart_dir: Path):
     pins = scan_digest_pins(lines)
 
     chart_yaml_path = chart_dir / "Chart.yaml"
-    deps = load_yaml(chart_yaml_path).get("dependencies", []) if chart_yaml_path.is_file() else []
+    deps = load_chart_dependencies(chart_yaml_path) if chart_yaml_path.is_file() else []
     subchart_cache = {}
     for p in pins:
         if not p["repository"]:

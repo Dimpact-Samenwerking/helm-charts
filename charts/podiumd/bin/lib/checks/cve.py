@@ -96,7 +96,7 @@ from datetime import timezone
 from pathlib import Path
 from typing import Any
 
-from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import unique_digest_pin_targets
 from lib.image.upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
@@ -334,8 +334,7 @@ def dependency_names(chart_dir: Path):
     wins over name when present) — the set classify_by_key checks
     membership against to tell a vendored sub-chart's own top-level key
     apart from a podiumd-owned one."""
-    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
-    return {values_key_of(dep) for dep in chart_yaml.get("dependencies", [])}
+    return {values_key_of(dep) for dep in load_chart_dependencies(chart_dir / "Chart.yaml")}
 
 
 def top_level_key_for_line(lines: list[str], line_no: int):

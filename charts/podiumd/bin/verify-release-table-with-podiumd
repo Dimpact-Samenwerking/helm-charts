@@ -71,6 +71,7 @@ from lib.chart.pull_and_subchart_resolution import primary_image_repositories  #
 # basenames_under_scope_any_tag above (vrt.is_primary_image).
 # pylint: disable-next=unused-import
 from lib.release_table_verification import is_primary_image  # noqa: F401
+from lib.chart.chart_yaml import load_chart_dependencies
 # isort: on
 
 RELEASE_TABLE_CSV = CHART_DIR / "etc" / "release-table.csv"
@@ -169,8 +170,7 @@ def main():
         sys.exit(1)
     rows = load_release_table(RELEASE_TABLE_CSV)
 
-    chart_yaml = load_yaml(CHART_YAML) if CHART_YAML.is_file() else {}
-    deps = (chart_yaml or {}).get("dependencies", [])
+    deps = load_chart_dependencies(CHART_YAML) if CHART_YAML.is_file() else []
     values = load_yaml(VALUES_YAML) if VALUES_YAML.is_file() else {}
     lines = VALUES_YAML.read_text(encoding="utf-8").splitlines() if VALUES_YAML.is_file() else []
 

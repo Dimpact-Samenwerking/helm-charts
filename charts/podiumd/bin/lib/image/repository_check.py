@@ -29,6 +29,8 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.nested_subchart_identity import nested_subchart_documented_image_repository
 from lib.chart.nested_subchart_identity import nested_subchart_name_for
 from lib.chart.nested_subchart_identity import version_repository_path_for
@@ -52,7 +54,9 @@ class _RepositoryResolutionContext:
     subchart_cache: dict = field(default_factory=dict)
 
 
-def _path_has_repository(path: tuple[str, ...], values: dict, dep: dict | None, ctx: _RepositoryResolutionContext):
+def _path_has_repository(
+    path: tuple[str, ...], values: dict, dep: ChartDependency | None, ctx: _RepositoryResolutionContext
+):
     """True if `path`'s image-tag block resolves to a non-empty
     repository, per find_images_without_repository's own resolution
     rules (own override, sibling repository field, documented nested
@@ -114,8 +118,7 @@ def find_images_without_repository(chart_dir: Path, *, allow_pull: bool = False)
     these orphan blocks as broken even though each has a perfectly real
     repository of its own — confirmed live against the real chart, 9 of
     the first 10 findings this way were exactly this false positive)."""
-    chart_yaml = load_yaml(chart_dir / "Chart.yaml")
-    deps = chart_yaml.get("dependencies", [])
+    deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     values = load_yaml(chart_dir / "values.yaml") or {}
     by_values_key = {values_key_of(dep): dep for dep in deps}
     ctx = _RepositoryResolutionContext(chart_dir, allow_pull)

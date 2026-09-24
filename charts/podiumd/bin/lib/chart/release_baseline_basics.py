@@ -7,6 +7,11 @@ from pathlib import Path
 
 import yaml
 
+from lib.chart.chart_yaml import normalize_int_version
+from lib.yaml_types import YamlShapeError
+from lib.yaml_types import key_problem
+from lib.yaml_types import load_yaml_mapping
+
 
 def load_yaml(path: Path):
     """Plain yaml.safe_load of `path`'s own text — the one shared reader
@@ -15,11 +20,17 @@ def load_yaml(path: Path):
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-def chart_version(chart_yaml_path: Path):
-    """The "version:" field of a Chart.yaml at `chart_yaml_path`, coerced
-    to str (YAML would otherwise parse a bare "4.9" as a float, silently
-    dropping a trailing zero like "4.90")."""
-    return str(load_yaml(chart_yaml_path)["version"])
+def chart_version(chart_yaml_path: Path) -> str:
+    """The "version:" field of a Chart.yaml at `chart_yaml_path`. An
+    unquoted integer is read as its string; any other non-string (a bare
+    "4.90" parses as the float 4.9) raises YamlShapeError naming the file."""
+    mapping = load_yaml_mapping(chart_yaml_path)
+    normalize_int_version(mapping)
+    version = mapping.get("version")
+    if not isinstance(version, str):
+        problem = key_problem(mapping, "version", str, "", required=True)
+        raise YamlShapeError(str(chart_yaml_path), problem or "version: expected str")
+    return version
 
 
 RELEASE_BASELINES_FILE_NAME = "etc/release-baseline.yaml"

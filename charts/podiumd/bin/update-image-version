@@ -41,12 +41,15 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # Not installed as a package -- sys.path must be patched before
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.paths import DOC_DIR
 from lib.chart.paths import IMAGES_DIR
 from lib.chart.paths import VALUES_YAML
 from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
@@ -128,7 +131,7 @@ class ComponentBump:
     every doc-update phase of update_docs_single_component below needs
     some subset of all three."""
 
-    dep: dict
+    dep: ChartDependency
     values_key: str
     group: dict
 
@@ -182,7 +185,7 @@ def _single_component_baseline_resolution(bump: ComponentBump, chart_name: str, 
     if upgrade_docs_baseline is not None:
         baseline_deps, baseline_values = load_baseline_state(CHART_YAML, VALUES_YAML, upgrade_docs_baseline)
     if baseline_deps is not None:
-        current_deps = load_yaml(CHART_YAML).get("dependencies", [])
+        current_deps = load_chart_dependencies(CHART_YAML)
         current_values = load_yaml(VALUES_YAML) or {}
         changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
         # compute_changed_components returns top-level values.yaml keys.
@@ -580,7 +583,7 @@ def update_docs_shared_image(new_version: str, target: str, bump: SharedImageBum
 
 
 def _ordering_and_row_name(
-    deps: list[dict[str, Any]], values: dict[str, Any], values_key: str, group: dict[str, Any]
+    deps: list[ChartDependency], values: dict[str, Any], values_key: str, group: dict[str, Any]
 ) -> tuple[OrderingContext, str | None]:
     """(OrderingContext, doc row name or None) for a bump of `group`'s
     first image path under `values_key` (see doc_row_name)."""
@@ -599,9 +602,8 @@ def update_docs(basename: str, new_version: str, changes: list, values_lines_bef
     fix-doc-consistency and check_docs_consistency resolve. Dispatches
     to update_docs_single_component for a dependency's own primary
     image, else to update_docs_shared_image (chart column "-")."""
-    chart_yaml = load_yaml(CHART_YAML) or {}
-    deps = chart_yaml.get("dependencies", [])
-    target = str(chart_yaml.get("version"))
+    deps = load_chart_dependencies(CHART_YAML)
+    target = chart_version(CHART_YAML)
     values = load_yaml(VALUES_YAML) or {}
 
     # <key> <basename> already resolved to a single scope (see
@@ -635,7 +637,7 @@ def main():
     key, basename, new_version = positional_args(__doc__, 3)
     ensure_vendored_dependencies(CHART_DIR)
 
-    deps = load_yaml(CHART_YAML).get("dependencies", [])
+    deps = load_chart_dependencies(CHART_YAML)
     key = resolve_key_scope(key, deps)
 
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()

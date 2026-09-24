@@ -33,7 +33,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # lib.* can be imported, so these imports can't move to the top.
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
-from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.release_baseline_basics import chart_version as read_chart_version
 from lib.confluence_tables import effective_header_row_count
 from lib.confluence_tables import expand_grid
 from lib.confluence_tables import extract_tables
@@ -208,7 +208,7 @@ def check_target_matches_chart_version(target_labels: list, chart_dir: Path):
     chart_yaml_path = chart_dir / "Chart.yaml"
     if not chart_yaml_path.is_file():
         return
-    chart_version = str(load_yaml(chart_yaml_path).get("version", ""))
+    chart_version = read_chart_version(chart_yaml_path)
     chart_major_minor = major_minor(chart_version)
     if chart_major_minor is None:
         print(

@@ -44,11 +44,11 @@ def test_refresh_images_baseline_passes_the_render_to_the_regeneration(
     monkeypatch.setattr(baseline_refresh, "regenerate_images_baseline_manifest", fake_regenerate)
     path = tmp_path / "images-baseline.yaml"
 
-    baseline_refresh.refresh_images_baseline(tmp_path, [{"name": "zac"}], {"zac": {}}, path)
+    baseline_refresh.refresh_images_baseline(tmp_path, [{"name": "zac", "version": "1.0.0"}], {"zac": {}}, path)
 
     assert seen == {
         "chart_dir": tmp_path,
-        "deps": [{"name": "zac"}],
+        "deps": [{"name": "zac", "version": "1.0.0"}],
         "values": {"zac": {}},
         "path": path,
         "rendered": {"rendered"},

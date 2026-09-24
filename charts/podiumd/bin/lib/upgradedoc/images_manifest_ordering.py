@@ -9,6 +9,7 @@ from itertools import pairwise
 
 import yaml
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import is_primary_image_path
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
@@ -266,7 +267,7 @@ def find_images_manifest_faulty_headers(manifest: ParsedManifest, resolution: En
 
 
 def images_manifest_entry_order_key(
-    path: tuple[str, ...] | None, deps: list, key_order: list, values: dict | None = None
+    path: tuple[str, ...] | None, deps: list[ChartDependency], key_order: list, values: dict | None = None
 ) -> tuple[int, ...]:
     """An images-manifest entry's own sort key — (values_key_index,
     is_sidecar), the SAME shape and meaning component_order_key already

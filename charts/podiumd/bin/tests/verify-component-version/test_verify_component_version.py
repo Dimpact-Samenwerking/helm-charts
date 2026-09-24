@@ -15,7 +15,10 @@ import yaml
 
 
 def write_chart_yaml(vcv, dependencies):
-    vcv.CHART_YAML.write_text(yaml.safe_dump({"dependencies": dependencies}))
+    """Chart.yaml with `dependencies`, each given a version (as every real
+    Chart.yaml dependency has) unless the test sets one."""
+    versioned = [{"version": "1.0.0", **dep} for dep in dependencies]
+    vcv.CHART_YAML.write_text(yaml.safe_dump({"dependencies": versioned}))
 
 
 # --- find_dependency ---

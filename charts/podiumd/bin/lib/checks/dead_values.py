@@ -188,6 +188,11 @@ from typing import TypeVar
 
 import yaml
 
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import ChartYaml
+from lib.chart.chart_yaml import chart_dependencies
+from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.chart_yaml import load_chart_yaml
 from lib.chart.pull_and_subchart_resolution import subchart_values
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import values_key_of
@@ -258,9 +263,8 @@ def _condition_leaf_paths(chart_dir: Path):
     exemption skips the wasted round-trip through that slow confirmation
     for the one leaf already known, by construction, to always survive
     it."""
-    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
     paths = set()
-    for dep in chart_yaml.get("dependencies", []):
+    for dep in load_chart_dependencies(chart_dir / "Chart.yaml"):
         condition = dep.get("condition")
         if condition:
             paths.add(tuple(condition.split(".")))
@@ -299,8 +303,7 @@ def _load_merged_values(chart_dir: Path, extra_args: list):
 
 
 def _dependency_by_key(chart_dir: Path):
-    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
-    return {values_key_of(dep): dep for dep in chart_yaml.get("dependencies", [])}
+    return {values_key_of(dep): dep for dep in load_chart_dependencies(chart_dir / "Chart.yaml")}
 
 
 def _coalesced_values(chart_dir: Path, merged_values: dict, dep_by_key: dict):
@@ -339,9 +342,8 @@ def _enable_overlay(chart_dir: Path):
     values (e.g. zaakbrug's own "staging" mode) is never force-enabled
     here at all — this overlay only ever knows about real Chart.yaml
     dependency conditions (see this module's docstring)."""
-    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
     overlay = {}
-    for dep in chart_yaml.get("dependencies", []):
+    for dep in load_chart_dependencies(chart_dir / "Chart.yaml"):
         condition = dep.get("condition")
         if not condition:
             continue
@@ -540,7 +542,7 @@ def _own_template_subchart_refs(chart_dir: Path):
 _MISSING_TEMPLATE_RE = re.compile(r'no template "([A-Za-z0-9_-]+)\.[A-Za-z0-9_.-]*" associated')
 
 
-def _build_own_scope_chart(chart_dir: Path, chart_yaml: dict, kept_deps: list):
+def _build_own_scope_chart(chart_dir: Path, chart_yaml: ChartYaml, kept_deps: list[ChartDependency]):
     """A fresh temp copy of chart_dir with "charts/" excluded and
     Chart.yaml's "dependencies:" replaced by kept_deps (their own .tgz's
     copied back in) — the actual chart directory _make_own_scope tries
@@ -594,8 +596,8 @@ def _make_own_scope(chart_dir: Path, coalesced_values: dict):
     the returned scope's "temp_dir" (rmtree once the whole check is done
     with it — every render against this scope needs it to keep
     existing)."""
-    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
-    all_deps = chart_yaml.get("dependencies", [])
+    chart_yaml = load_chart_yaml(chart_dir / "Chart.yaml")
+    all_deps = chart_dependencies(chart_yaml)
     dep_by_name_or_alias = {values_key_of(dep): dep for dep in all_deps}
 
     keep = set(_own_template_subchart_refs(chart_dir)) & set(dep_by_name_or_alias)

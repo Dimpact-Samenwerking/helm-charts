@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import historical_app_version_for_repository
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
@@ -20,7 +21,9 @@ from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 
 
-def compute_changed_components(deps: list, baseline_deps: list, values: dict, baseline_values: dict | None):
+def compute_changed_components(
+    deps: list[ChartDependency], baseline_deps: list[ChartDependency], values: dict, baseline_values: dict | None
+):
     """Top-level component keys (Chart.yaml alias, or name if unaliased) that
     actually differ between the baseline and now: dependency added or
     removed, chart version bumped, or any image tag anywhere under that

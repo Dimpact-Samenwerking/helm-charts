@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.nested_subchart_identity import nested_subchart_documented_image_repository
 from lib.chart.nested_subchart_identity import nested_subchart_name_for
 from lib.chart.nested_subchart_identity import version_repository_path_for
@@ -89,7 +90,7 @@ def component_state_at_baseline(chart_dir: Path, chart_dir_relpath: str, baselin
     return baseline_ref, dep, values_key, image_paths, app_versions, None
 
 
-def repo_group_representative(repo_paths: list, deps: list):
+def repo_group_representative(repo_paths: list, deps: list[ChartDependency]):
     """The single path a shared-repository group (see paths_by_
     repository) should be treated as "the" path for — ranking each
     candidate and returning the LAST (values.yaml's own top-level key
@@ -147,7 +148,7 @@ def repo_group_representative(repo_paths: list, deps: list):
 
 
 def paths_by_repository(
-    chart_dir: Path | None, deps: list, values: dict, paths: Collection, *, allow_pull: bool = False
+    chart_dir: Path | None, deps: list[ChartDependency], values: dict, paths: Collection, *, allow_pull: bool = False
 ):
     """{strip_registry_host(repository): [path, ...]} for every path in
     `paths` (e.g. lib.upgradedoc.find_image_tag_paths(values)'s own
@@ -241,7 +242,9 @@ class _RepoResolutionState:
     nested_subchart_cache: dict
 
 
-def _grouped_repository_for_path(values: dict, path: tuple[str, ...], dep: dict | None, state: _RepoResolutionState):
+def _grouped_repository_for_path(
+    values: dict, path: tuple[str, ...], dep: ChartDependency | None, state: _RepoResolutionState
+):
     """paths_by_repository's own resolution chain for a single path,
     stripped to its group key (see that function's own docstring for
     the tier order) — podiumd's own explicit override checked first,
@@ -255,7 +258,9 @@ def _grouped_repository_for_path(values: dict, path: tuple[str, ...], dep: dict 
     return _grouped_repository_from_dependency(dep, path, values, state)
 
 
-def _grouped_repository_from_dependency(dep: dict, path: tuple[str, ...], values: dict, state: _RepoResolutionState):
+def _grouped_repository_from_dependency(
+    dep: ChartDependency, path: tuple[str, ...], values: dict, state: _RepoResolutionState
+):
     """The sibling-tag-field / nested-subchart / vendored-subchart-
     default tiers of _grouped_repository_for_path — only ever reached
     once `dep` is known and podiumd's own values.yaml has no explicit
@@ -277,7 +282,7 @@ def _grouped_repository_from_dependency(dep: dict, path: tuple[str, ...], values
     return strip_registry_host(repo) if isinstance(repo, str) and repo else None
 
 
-def _cached_nested_subchart_repository(dep: dict, path: tuple[str, ...], state: _RepoResolutionState):
+def _cached_nested_subchart_repository(dep: ChartDependency, path: tuple[str, ...], state: _RepoResolutionState):
     """state.nested_subchart_cache-backed lookup of dep's own registered
     nested sub-subchart's documented default repository at `path` (e.g.
     eck-stack's own three — see nested_subchart_documented_image_
@@ -297,7 +302,7 @@ def _cached_nested_subchart_repository(dep: dict, path: tuple[str, ...], state: 
     return state.nested_subchart_cache[cache_key]
 
 
-def _cached_subchart_values(dep: dict, state: _RepoResolutionState):
+def _cached_subchart_values(dep: ChartDependency, state: _RepoResolutionState):
     """state.subchart_cache-backed resolve_chart_values(dep) lookup,
     resolved at most once per dependency across the whole paths_by_
     repository call — the same caching primary_image_repositories does
@@ -318,7 +323,12 @@ def _cached_subchart_values(dep: dict, state: _RepoResolutionState):
 
 
 def full_repository_for_path(
-    chart_dir: Path | None, deps: list, values: dict | None, path: tuple[str, ...], *, allow_pull: bool = False
+    chart_dir: Path | None,
+    deps: list[ChartDependency],
+    values: dict | None,
+    path: tuple[str, ...],
+    *,
+    allow_pull: bool = False,
 ):
     """The FULLY host-qualified repository for `path` (e.g. "docker.io/
     curlimages/curl", "mcr.microsoft.com/azure-cli") — the same per-path
@@ -412,7 +422,7 @@ def _full_repo_from_own_override(values: dict | None, path: tuple[str, ...]):
 
 
 def _full_repo_from_dependency(
-    chart_dir: Path | None, dep: dict, path: tuple[str, ...], values: dict | None, *, allow_pull: bool
+    chart_dir: Path | None, dep: ChartDependency, path: tuple[str, ...], values: dict | None, *, allow_pull: bool
 ):
     """full_repository_for_path's own sibling-tag-field / nested-
     subchart / vendored-subchart-default tiers — only ever reached once
@@ -440,7 +450,9 @@ def _full_repo_from_dependency(
     return _formatted_repo(repo) if isinstance(repo, str) and repo else None
 
 
-def repository_path_map(chart_dir: Path | None, deps: list, values: dict, paths: list, *, allow_pull: bool = False):
+def repository_path_map(
+    chart_dir: Path | None, deps: list[ChartDependency], values: dict, paths: list, *, allow_pull: bool = False
+):
     """{strip_registry_host(repository): values-tree path} — paths_by_
     repository's own per-repository groups, collapsed to each group's
     single representative path (see repo_group_representative). Exists
@@ -462,7 +474,7 @@ def repository_path_map(chart_dir: Path | None, deps: list, values: dict, paths:
 
 
 def canonical_sidecar_row_names(
-    chart_dir: Path | None, deps: list, values: dict, paths: Collection, *, allow_pull: bool = False
+    chart_dir: Path | None, deps: list[ChartDependency], values: dict, paths: Collection, *, allow_pull: bool = False
 ):
     """{canonical doc-row name: values-tree path} for every image path
     that isn't a Chart.yaml dependency's own name/alias directly — the
@@ -529,7 +541,7 @@ def canonical_sidecar_row_names(
 
 def doc_row_name(
     chart_dir: Path,
-    deps: list[dict[str, Any]],
+    deps: list[ChartDependency],
     values: dict[str, Any],
     path: tuple[str, ...],
     all_paths: list[tuple[str, ...]],
@@ -551,7 +563,7 @@ def doc_row_name(
     return None
 
 
-def _owner_name(deps: list[dict[str, Any]], natives: frozenset[str], path: tuple[str, ...]) -> str | None:
+def _owner_name(deps: list[ChartDependency], natives: frozenset[str], path: tuple[str, ...]) -> str | None:
     """The Chart.yaml dependency name or native component (`natives`)
     that owns values-tree `path` (by its top-level key), or None."""
     dep = next((dep for dep in deps if values_key_of(dep) == path[0]), None)
@@ -564,7 +576,7 @@ def _owner_name(deps: list[dict[str, Any]], natives: frozenset[str], path: tuple
     return path[0] if path[0] in natives else None
 
 
-def _classify_sidecar_and_global_paths(chart_dir: Path | None, deps: list, paths: Collection):
+def _classify_sidecar_and_global_paths(chart_dir: Path | None, deps: list[ChartDependency], paths: Collection):
     """(sidecar_paths, global_paths) split of `paths` for canonical_
     sidecar_row_names — a path pinned under the shared "global" top-
     level key is handled entirely separately from one nested under a
@@ -612,7 +624,7 @@ def _sidecar_row_name(repo: str, path: tuple[str, ...]):
     return None
 
 
-def subchart_template_text(chart_dir: Path, dep: dict):
+def subchart_template_text(chart_dir: Path, dep: ChartDependency):
     """Every file under a vendored dependency's own templates/ directory
     (same .tgz/vendoring mechanics as subchart_values), concatenated into
     one blob — a plain-text haystack for "is this values.yaml key ever
@@ -641,7 +653,7 @@ def subchart_template_text(chart_dir: Path, dep: dict):
         return None
 
 
-def _dependency_for_pin(lines: list[str], pin_line: int, deps: list):
+def _dependency_for_pin(lines: list[str], pin_line: int, deps: list[ChartDependency]):
     """The Chart.yaml dependency + within-component subpath (e.g. "image",
     "frontend.image") for a digest pin's "tag:" line at pin_line (1-based),
     or (None, None) if the path can't be resolved to a component at all
@@ -659,7 +671,7 @@ def _dependency_for_pin(lines: list[str], pin_line: int, deps: list):
 
 
 def subchart_default_repository(
-    chart_dir: Path, lines: list[str], pin_line: int, deps: list, cache: dict | None = None
+    chart_dir: Path, lines: list[str], pin_line: int, deps: list[ChartDependency], cache: dict | None = None
 ):
     """The `repository:` a digest pin's own component defaults to via its
     subchart's baked-in values.yaml, for a pin whose "tag:" line has no
@@ -685,7 +697,7 @@ def subchart_default_repository(
     return get_path(values, f"{subpath}.repository")
 
 
-def subchart_needs_vendoring(chart_dir: Path, lines: list[str], pin_line: int, deps: list):
+def subchart_needs_vendoring(chart_dir: Path, lines: list[str], pin_line: int, deps: list[ChartDependency]):
     """True if a digest pin still unresolved by subchart_default_repository
     could plausibly be resolved after a fresh `helm dependency update`:
     its component matches a Chart.yaml dependency, but the .tgz that

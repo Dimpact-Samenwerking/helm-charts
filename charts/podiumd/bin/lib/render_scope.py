@@ -24,7 +24,7 @@ from typing import TypeVar
 
 import yaml
 
-from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.values_tree_primitives import values_key_of
 from lib.procutil import run
 from lib.settings import helm_repos_urls_by_alias
@@ -265,8 +265,7 @@ def friendly_vendor_charts(chart_dir: Path):
     keywords = vendor_classification_keywords(chart_dir)
     chart_overrides = vendor_classification_chart_overrides(chart_dir)
 
-    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
-    deps = chart_yaml.get("dependencies", [])
+    deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     dep_chart_names = {values_key_of(dep) for dep in deps}
 
     # Only apply an override for a chart that's actually a dependency here

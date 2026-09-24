@@ -1,4 +1,4 @@
-"""Chart.lock writing, byte-compatible with what `helm
+"""Chart.lock types, checked loading, and writing byte-compatible with what `helm
 dependency update` itself writes — so lib.dependencies can re-vendor only
 the dependencies that changed and still leave behind a Chart.lock Helm
 accepts as its own.
@@ -27,8 +27,38 @@ import json
 
 from datetime import datetime
 from pathlib import Path
+from typing import NotRequired
+from typing import TypedDict
+from typing import TypeGuard
 
 import yaml
+
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import dependencies_problem
+from lib.chart.chart_yaml import normalize_dependency_versions
+from lib.yaml_types import YamlMapping
+from lib.yaml_types import YamlShapeError
+from lib.yaml_types import YamlValue
+from lib.yaml_types import first_problem
+from lib.yaml_types import key_problem
+from lib.yaml_types import parse_yaml_mapping
+
+
+class ChartLockDependency(TypedDict):
+    """One Chart.lock dependencies[] entry."""
+
+    name: str
+    version: str
+    repository: NotRequired[str]
+
+
+class ChartLock(TypedDict):
+    """A Chart.lock as Helm writes it."""
+
+    dependencies: list[ChartLockDependency]
+    digest: str
+    generated: str
+
 
 # chart.Dependency's JSON fields in Go declaration order (pkg/chart/
 # dependency.go), with whether each one is `omitempty`.
@@ -52,7 +82,7 @@ _GO_JSON_ESCAPES = {
 }
 
 
-def resolved_repository(dep: dict, required_repos: dict):
+def resolved_repository(dep: ChartDependency | ChartLockDependency, required_repos: dict):
     """dep's repository as Helm stores it in Chart.lock: an "@alias"
     resolved through `required_repos` (lib.settings.
     helm_repos_urls_by_alias), anything else (plain URL, oci://, file://)
@@ -63,7 +93,7 @@ def resolved_repository(dep: dict, required_repos: dict):
     return repo
 
 
-def _go_json_dependency(dep: dict):
+def _go_json_dependency(dep: ChartDependency | ChartLockDependency):
     """dep as Go's json.Marshal writes a chart.Dependency: declared field
     order, omitempty fields left out when empty, version always a string
     (see lib.dependencies._dependency_key for why str())."""
@@ -97,7 +127,7 @@ def _sorted_nested_maps(value: str | list | dict):
     return value
 
 
-def helm_lock_digest(chart_deps: list, lock_deps: list, required_repos: dict):
+def helm_lock_digest(chart_deps: list[ChartDependency], lock_deps: list[ChartLockDependency], required_repos: dict):
     """The `digest:` Helm writes into Chart.lock for Chart.yaml's
     `chart_deps` and the lock's own `lock_deps` — see the module
     docstring for the exact recipe."""
@@ -112,7 +142,7 @@ def helm_lock_digest(chart_deps: list, lock_deps: list, required_repos: dict):
     return "sha256:" + hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
-def lock_dependencies(chart_deps: list, required_repos: dict):
+def lock_dependencies(chart_deps: list[ChartDependency], required_repos: dict) -> list[ChartLockDependency]:
     """Chart.lock's `dependencies:` list for Chart.yaml's `chart_deps`,
     in Chart.yaml order — only name/repository/version, the three fields
     Helm writes there. Assumes every version is exact (lib.dependencies
@@ -128,15 +158,44 @@ def lock_dependencies(chart_deps: list, required_repos: dict):
     ]
 
 
-def write_chart_lock(chart_dir: Path, chart_deps: list, required_repos: dict):
+def write_chart_lock(chart_dir: Path, chart_deps: list[ChartDependency], required_repos: dict):
     """(Re)writes chart_dir/Chart.lock for `chart_deps` the way `helm
     dependency update` would: dependency list, digest, and a fresh
     `generated:` timestamp, keys sorted (Helm marshals the lock through
     JSON, so its YAML keys come out alphabetical too)."""
     lock_deps = lock_dependencies(chart_deps, required_repos)
-    lock = {
+    lock: ChartLock = {
         "dependencies": lock_deps,
         "digest": helm_lock_digest(chart_deps, lock_deps, required_repos),
         "generated": datetime.now().astimezone().isoformat(),
     }
     (chart_dir / "Chart.lock").write_text(yaml.safe_dump(lock, sort_keys=True), encoding="utf-8")
+
+
+def _lock_dependency_problem(value: YamlValue, where: str) -> str | None:
+    if not isinstance(value, dict):
+        return f"{where}: expected a mapping, got {type(value).__name__}"
+    return first_problem(
+        key_problem(value, "name", str, where, required=True),
+        key_problem(value, "version", str, where, required=True),
+        key_problem(value, "repository", str, where, required=False),
+    )
+
+
+def is_chart_lock_dependency_list(value: YamlValue) -> TypeGuard[list[ChartLockDependency]]:
+    """Whether `value` is a list of ChartLockDependency."""
+    return isinstance(value, list) and all(_lock_dependency_problem(dep, "") is None for dep in value)
+
+
+def parse_chart_lock_dependencies(text: str, source: str) -> list[ChartLockDependency] | None:
+    """The dependencies of the Chart.lock in `text`, or None if it has no
+    dependency list. Checks only the dependencies. Raises YamlShapeError
+    naming `source` if an entry does not match ChartLockDependency."""
+    deps = parse_yaml_mapping(text, source).get("dependencies")
+    if deps is None:
+        return None
+    normalize_dependency_versions(deps)
+    if not is_chart_lock_dependency_list(deps):
+        mapping: YamlMapping = {"dependencies": deps}
+        raise YamlShapeError(source, dependencies_problem(mapping, _lock_dependency_problem, required=True) or "")
+    return deps

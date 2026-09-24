@@ -56,6 +56,8 @@ import re
 
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolve_subchart_default
 from lib.chart.pull_and_subchart_resolution import subchart_values
@@ -93,11 +95,10 @@ def _deps_from_chart_yaml(chart_dir: Path):
     "nothing to fall back to" tolerance paths_by_repository's own
     per-dependency subchart-default tier already has."""
     chart_yaml_path = chart_dir / "Chart.yaml"
-    chart_yaml = load_yaml(chart_yaml_path) if chart_yaml_path.is_file() else {}
-    return (chart_yaml or {}).get("dependencies", [])
+    return load_chart_dependencies(chart_yaml_path) if chart_yaml_path.is_file() else []
 
 
-def _repository_groups(chart_dir: Path, values: dict, deps: list):
+def _repository_groups(chart_dir: Path, values: dict, deps: list[ChartDependency]):
     """{stripped_repo: [path, ...]} for every image/version path in the
     chart — built from the exact same full path enumeration lib.image.
     docs.regenerate_images_baseline_manifest already uses for
@@ -114,7 +115,7 @@ def _repository_groups(chart_dir: Path, values: dict, deps: list):
     return paths_by_repository(chart_dir, deps, values, all_paths.keys())
 
 
-def _path_chart_tree_path(chart_dir: Path, deps: list, path: tuple[str, ...]):
+def _path_chart_tree_path(chart_dir: Path, deps: list[ChartDependency], path: tuple[str, ...]):
     """The chart-tree path (see lib.render_scope.rendered_chart_paths)
     that would need to have rendered for `path` to be a genuinely LIVE
     consumer — reuses lib.chart.resolve_subchart_default's own
@@ -133,7 +134,7 @@ def _path_chart_tree_path(chart_dir: Path, deps: list, path: tuple[str, ...]):
     return chart_tree_path
 
 
-def _live_repository_groups(chart_dir: Path, deps: list, values: dict, rendered_paths: set[str]):
+def _live_repository_groups(chart_dir: Path, deps: list[ChartDependency], values: dict, rendered_paths: set[str]):
     """_repository_groups(...), with every consuming path whose own
     chart-tree path never actually rendered filtered out entirely —
     both from the count AND from the printed list, never just one or
@@ -195,13 +196,15 @@ def _non_global_shared_repo_groups(values: dict, repo_groups: dict, global_usage
     return {repo: paths for repo, paths in repo_groups.items() if repo not in claimed and len(paths) > 1}
 
 
-def _print_path_list(chart_dir: Path, deps: list, paths: list):
+def _print_path_list(chart_dir: Path, deps: list[ChartDependency], paths: list):
     for path in sorted(paths):
         source = resolve_values_path_source(chart_dir, deps, path)
         print(f"    {'.'.join(path)}  [{source}]")
 
 
-def _print_shared_image_usage(chart_dir: Path, deps: list, values: dict, repo_groups: dict, global_usage: dict):
+def _print_shared_image_usage(
+    chart_dir: Path, deps: list[ChartDependency], values: dict, repo_groups: dict, global_usage: dict
+):
     """Prints up to three sections, in order, after check_shared_image_
     usage's own render:
     1. FAILING — a global.images.* entry with 0 or 1 real consumer(s):
@@ -366,7 +369,9 @@ def check_shared_image_usage(chart_dir: Path, extra_args: list):
     return True, "every global.images.* entry has 2+ real consumers"
 
 
-def find_unresolved_subchart_images(chart_dir: Path, deps: list, own_values: dict, rendered_paths: set):
+def find_unresolved_subchart_images(
+    chart_dir: Path, deps: list[ChartDependency], own_values: dict, rendered_paths: set
+):
     """(scope_key, subpath, tag, already_pinned) for every "<key>: {tag:
     ...}" block ("image", or an "...Image"-suffixed sibling — see
     lib.upgradedoc.find_image_tag_paths) found in a vendored dependency's
@@ -438,7 +443,7 @@ def find_unresolved_subchart_images(chart_dir: Path, deps: list, own_values: dic
     return findings
 
 
-def _findings_for_dependency(chart_dir: Path, dep: dict, own_values: dict, rendered_paths: set):
+def _findings_for_dependency(chart_dir: Path, dep: ChartDependency, own_values: dict, rendered_paths: set):
     """find_unresolved_subchart_images's own per-dependency body, split out
     purely to keep that function's own local count down — one dependency's
     worth of (scope_key, subpath, tag, already_pinned) findings, using the
@@ -472,7 +477,7 @@ def _findings_for_dependency(chart_dir: Path, dep: dict, own_values: dict, rende
     return findings
 
 
-def _print_subchart_image_finding(chart_dir: Path, deps: list, finding: tuple):
+def _print_subchart_image_finding(chart_dir: Path, deps: list[ChartDependency], finding: tuple):
     """Prints one finding (scope_key, subpath, tag, pinned) — the same
     4-tuple shape find_unresolved_subchart_images returns, taken here as
     one value instead of 4 separate params purely to stay under pylint's
@@ -525,9 +530,8 @@ def check_subchart_image_visibility(chart_dir: Path, extra_args: list):
         return False, "helm template failed to render"
     rendered_paths = rendered_chart_paths(result.stdout)
 
-    chart_yaml = load_yaml(chart_dir / "Chart.yaml")
     own_values = load_yaml(chart_dir / "values.yaml") or {}
-    deps = chart_yaml.get("dependencies", [])
+    deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     findings = find_unresolved_subchart_images(chart_dir, deps, own_values, rendered_paths)
     floating = [f for f in findings if not f[3]]
     pinned = [f for f in findings if f[3]]

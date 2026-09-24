@@ -15,6 +15,7 @@ lib.component_docs package."""
 
 import re
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import values_tree_position
@@ -281,7 +282,7 @@ def remove_changes_item(lines: list[str], item_indices: list[int], match_idx: in
 
 
 def insert_images_manifest_header_item(
-    lines: list, deps: list, key_order: list, new_key: tuple[int, ...], item_text: str
+    lines: list, deps: list[ChartDependency], key_order: list, new_key: tuple[int, ...], item_text: str
 ):
     """Insert "#   N. <item_text>" into the images-manifest's own "#
     Changes:" header list (see find_images_manifest_changes_header) at

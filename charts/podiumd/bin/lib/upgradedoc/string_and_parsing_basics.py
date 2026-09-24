@@ -5,6 +5,10 @@ string/regex logic, no filesystem or values.yaml access."""
 
 import re
 
+from collections.abc import Iterable
+from typing import TypeVar
+
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
 
@@ -153,7 +157,10 @@ def text_names(text: str, name: str) -> bool:
     return words[: len(name_words)] == name_words and (not rest or re.match(r"v?\d", rest[0]) is not None)
 
 
-def match_dependency(text: str, deps: list):
+ItemT = TypeVar("ItemT")
+
+
+def match_dependency(text: str, deps: list[ChartDependency]):
     """Fuzzy-match a doc's free-form component name (e.g. "ZAC
     (Zaakafhandelcomponent)") against Chart.yaml dependencies by name/alias,
     ignoring case and punctuation — so any component the doc mentions is
@@ -161,14 +168,21 @@ def match_dependency(text: str, deps: list):
     _word_aligned_spans) — a name/alias short enough to coincidentally
     appear mid-word in unrelated text (e.g. "mi" inside "AdminUser") can
     never falsely match."""
+    return best_name_match(text, ((dep, (dep["name"], dep.get("alias"))) for dep in deps))
+
+
+def best_name_match(text: str, candidates: Iterable[tuple[ItemT, Iterable[str | None]]]) -> ItemT | None:
+    """The item whose names (see match_dependency for the matching rule)
+    give the longest word-aligned match in `text`, or None. `candidates`
+    pairs each item with its names; None names are skipped."""
     spans = _word_aligned_spans(text)
-    best_dep, best_norm = None, None
-    for dep in deps:
-        for candidate in filter(None, [dep.get("name"), dep.get("alias")]):
+    best_item, best_norm = None, None
+    for item, names in candidates:
+        for candidate in filter(None, names):
             norm_c = normalize_name(candidate)
             if norm_c and norm_c in spans and (best_norm is None or len(norm_c) > len(best_norm)):
-                best_dep, best_norm = dep, norm_c
-    return best_dep
+                best_item, best_norm = item, norm_c
+    return best_item
 
 
 def match_native_component(text: str, native_component_names: set[str] | frozenset[str]):
@@ -210,7 +224,7 @@ def match_canonical_sidecar_name(text: str, canonical_names: dict | None):
     return paths.pop() if len(paths) == 1 else None
 
 
-def match_dependency_excluding_sidecar_names(text: str, deps: list):
+def match_dependency_excluding_sidecar_names(text: str, deps: list[ChartDependency]):
     """match_dependency, but refuses to match at all when `text` contains
     " - " — the canonical sidecar/shared-image delimiter (see
     lib.chart.canonical_sidecar_row_names) — since that shape never
@@ -232,7 +246,7 @@ def match_dependency_excluding_sidecar_names(text: str, deps: list):
     return None if " - " in text else match_dependency(text, deps)
 
 
-def changes_heading_identities(heading: str, deps: list, canonical_names: dict | None):
+def changes_heading_identities(heading: str, deps: list[ChartDependency], canonical_names: dict | None):
     """The set of component identities (see resolve_component_identity)
     found anywhere in a "### ..." Changes heading's text, assessed as a
     whole — never split on "+" or any other separator, since a doc could

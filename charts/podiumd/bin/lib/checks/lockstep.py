@@ -35,6 +35,8 @@ kiss/kiss-elastic-sync precedent)."""
 
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.registered_paths import chart_version_lockstep_components
 from lib.chart.registered_paths import component_image_paths
 from lib.chart.registered_paths import component_version_paths
@@ -47,7 +49,7 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 
 
-def find_lockstep_mismatches(deps: list, values: dict | None):
+def find_lockstep_mismatches(deps: list[ChartDependency], values: dict | None):
     """[(component, values_key, [(path, version), ...])] for every
     multi-path component_image_paths()/component_version_paths() entry
     whose resolved paths disagree on version. `resolved` only ever lists the
@@ -88,7 +90,7 @@ def find_lockstep_mismatches(deps: list, values: dict | None):
     return findings
 
 
-def find_chart_version_mismatches(deps: list, values: dict | None):
+def find_chart_version_mismatches(deps: list[ChartDependency], values: dict | None):
     """[(component, values_key, chart_version, app_version)] for every
     lib.chart.chart_version_lockstep_components() entry whose Chart.yaml
     dependency "version:" disagrees with its own resolved app version. Resolution
@@ -135,8 +137,7 @@ def check_lockstep_versions(chart_dir: Path):
     """Runs find_lockstep_mismatches and find_chart_version_mismatches
     against chart_dir's own Chart.yaml/values.yaml and reports every
     mismatch found."""
-    chart_yaml = load_yaml(chart_dir / "Chart.yaml")
-    deps = chart_yaml.get("dependencies", [])
+    deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     values = load_yaml(chart_dir / "values.yaml") or {}
 
     path_mismatches = find_lockstep_mismatches(deps, values)

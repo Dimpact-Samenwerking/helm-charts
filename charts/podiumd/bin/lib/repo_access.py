@@ -26,7 +26,8 @@ from datetime import datetime
 from datetime import timezone
 from pathlib import Path
 
-from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import cached_tag_exists
 from lib.image.digests import scan_digest_pins
@@ -88,7 +89,7 @@ def dependency_repos(chart_dir: Path):
     needs neither and is omitted."""
     required_repos = helm_repos_urls_by_alias(chart_dir)
     chart_yaml_path = chart_dir / "Chart.yaml"
-    deps = (load_yaml(chart_yaml_path) or {}).get("dependencies", [])
+    deps = load_chart_dependencies(chart_yaml_path)
     line_numbers = _dependency_line_numbers(chart_yaml_path.read_text(encoding="utf-8"))
     repos = []
     for dep in deps:
@@ -187,7 +188,7 @@ class ProbeConfig:
     timeout_seconds: float
 
 
-def _build_entries(chart_deps: list, img_targets: list):
+def _build_entries(chart_deps: list[ChartDependency], img_targets: list):
     """(kind, description, test_kind, target) for every unique repo/image
     check_repo_access needs to probe — Chart.yaml dependencies grouped by
     (kind, target) so everything sharing one repo (e.g. every

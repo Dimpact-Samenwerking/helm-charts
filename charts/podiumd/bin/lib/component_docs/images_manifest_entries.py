@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yaml
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import VersionChange
@@ -230,7 +231,11 @@ def _apply_entry_updates(manifest: ParsedManifest, path_update: ImagePathUpdate,
 
 
 def update_images_manifest(
-    target: ManifestUpdateTarget, change: VersionChange, path_update: ImagePathUpdate, deps: list, values: dict
+    target: ManifestUpdateTarget,
+    change: VersionChange,
+    path_update: ImagePathUpdate,
+    deps: list[ChartDependency],
+    values: dict,
 ):
     """Update the "# <N> changes:" header list and any existing entries'
     version/digest/comment for this component. `target` is a

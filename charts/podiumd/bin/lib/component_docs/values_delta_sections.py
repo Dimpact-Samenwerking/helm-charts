@@ -21,6 +21,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import component_chart_versions
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
 from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
@@ -99,7 +100,9 @@ def values_delta_section_heading(
     return f"## {friendly} {app_bit}{chart_bit}\n"
 
 
-def find_values_delta_section(text: str, friendly: str, deps: list, canonical_names: dict | None = None):
+def find_values_delta_section(
+    text: str, friendly: str, deps: list[ChartDependency], canonical_names: dict | None = None
+):
     """The existing "## ..." section (see lib.upgradedoc.parse_values_
     delta_sections/changes_heading_identities) that already names the
     SAME component identity `friendly` does — reused for a real
@@ -287,7 +290,9 @@ def append_values_delta_section_body(text: str, section: dict, new_lines: list[s
     return new_head + tail
 
 
-def remove_values_delta_section(text: str, friendly: str, deps: list, canonical_names: dict | None = None):
+def remove_values_delta_section(
+    text: str, friendly: str, deps: list[ChartDependency], canonical_names: dict | None = None
+):
     """Delete this component's OWN values-deltas.md section entirely —
     the counterpart to insert_values_delta_section, for a bump that nets
     out to no change from upgrade_docs_baseline at all. Only ever

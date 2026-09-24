@@ -22,6 +22,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
@@ -303,7 +304,7 @@ def add_missing_sidecar_rows(
     return text, added_names
 
 
-def build_changes_section_for_row(row: dict, ident: tuple, deps: list, target: str):
+def build_changes_section_for_row(row: dict, ident: tuple, deps: list[ChartDependency], target: str):
     """The "### ..." Changes section for a single table row + its already-
     resolved identity (see resolve_component_identity) — make_changes_
     section for a real Chart.yaml dependency, make_image_changes_section
@@ -354,7 +355,9 @@ def build_changes_section_for_row(row: dict, ident: tuple, deps: list, target: s
     )
 
 
-def add_missing_changes_sections(text: str, deps: list, target_values: dict, target: str, canonical_names: dict):
+def add_missing_changes_sections(
+    text: str, deps: list[ChartDependency], target_values: dict, target: str, canonical_names: dict
+):
     """Insert a "### ..." Changes section (see build_changes_section_for_
     row) for every "Component versions" table row that already exists
     but has no matching section of its own yet (see lib.upgradedoc.
@@ -778,7 +781,7 @@ class _BaselineManifestContext:
     sibling_fields: dict
 
 
-def _current_image_paths(chart_dir: Path, deps: list, values: dict, rendered_paths: set):
+def _current_image_paths(chart_dir: Path, deps: list[ChartDependency], values: dict, rendered_paths: set):
     """Every currently-pinned image path in the chart (find_all_image_
     and_version_paths + global_image_paths), PLUS every genuinely-live-
     but-unpinned vendored-subchart-default image find_unresolved_
@@ -871,7 +874,7 @@ def _render_baseline_manifest_lines(resolved: list):
 
 
 def regenerate_images_baseline_manifest(
-    chart_dir: Path, deps: list, values: dict, images_baseline_path: Path, rendered_paths: set
+    chart_dir: Path, deps: list[ChartDependency], values: dict, images_baseline_path: Path, rendered_paths: set
 ):
     """Overwrite docs/images/images-baseline.yaml WHOLESALE with a full,
     CURRENT snapshot of every image pinned anywhere in the chart right

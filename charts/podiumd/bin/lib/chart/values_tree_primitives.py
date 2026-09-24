@@ -10,7 +10,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-import yaml
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
 
 UTF8_BOM = b"\xef\xbb\xbf"
 
@@ -75,20 +76,20 @@ def same_name(a: str, b: str) -> bool:
     return a.casefold() == b.casefold()
 
 
-def values_key_of(dep: dict) -> str:
+def values_key_of(dep: ChartDependency) -> str:
     """The values.yaml key of a Chart.yaml dependency: its alias, or its
     name when it has no (or an empty) alias."""
     return dep.get("alias") or dep["name"]
 
 
-def dep_for_values_key(deps: list[dict], values_key: str) -> dict | None:
+def dep_for_values_key(deps: list[ChartDependency], values_key: str) -> ChartDependency | None:
     """The Chart.yaml dependency whose values_key_of equals `values_key`,
     or None when no dependency owns that key (e.g. an orphan top-level
     values.yaml block with no separate chart, like frankgateway)."""
     return next((dep for dep in deps if values_key_of(dep) == values_key), None)
 
 
-def find_dependency(deps: list, name_or_alias: str):
+def find_dependency(deps: list[ChartDependency], name_or_alias: str):
     """The Chart.yaml dependency entry matching this name or alias, or None
     if there isn't one — pure lookup, no I/O; callers load `deps` themselves
     (usually `chart_yaml["dependencies"]`) and decide how to report a miss.
@@ -107,10 +108,10 @@ def find_dependency(deps: list, name_or_alias: str):
     return matches[0] if matches else None
 
 
-def require_dependency(chart_yaml: Path, name_or_alias: str) -> dict:
+def require_dependency(chart_yaml: Path, name_or_alias: str) -> ChartDependency:
     """find_dependency on `chart_yaml`'s dependencies; exits with an
     error naming `chart_yaml` when none matches."""
-    deps = yaml.safe_load(chart_yaml.read_text(encoding="utf-8"))["dependencies"]
+    deps = load_chart_dependencies(chart_yaml)
     dep = find_dependency(deps, name_or_alias)
     if dep is None:
         msg = f"error: no dependency named or aliased '{name_or_alias}' found in {chart_yaml}"
@@ -145,7 +146,7 @@ def own_template_files_referencing(chart_dir: Path, key: str):
     ]
 
 
-def resolve_values_path_source(chart_dir: Path, deps: list, path: tuple[str, ...]):
+def resolve_values_path_source(chart_dir: Path, deps: list[ChartDependency], path: tuple[str, ...]):
     """A short, human-readable description of WHERE a values-tree
     `path`'s own top-level key actually comes from — the real Chart.yaml
     dependency chart+version it belongs to (matching alias or name, via

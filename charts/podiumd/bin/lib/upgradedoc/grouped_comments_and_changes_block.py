@@ -8,6 +8,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
@@ -322,7 +323,7 @@ def _finalize_changes_item(rest: str):
     }
 
 
-def path_display_name(path: tuple[str, ...], deps: list, canonical_names: dict):
+def path_display_name(path: tuple[str, ...], deps: list[ChartDependency], canonical_names: dict):
     """The doc-facing name for a values-tree image path — "<values_key>"
     for a dependency's own primary image (same convention as every
     "component "<key>" changed vs ..." message elsewhere in this check),
