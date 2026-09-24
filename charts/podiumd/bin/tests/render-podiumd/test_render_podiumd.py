@@ -182,6 +182,26 @@ def test_failure_does_not_write_file_and_exits_1(
     assert "failed to render" in out
 
 
+def test_failure_counts_errors_from_stderr_only(
+    rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """A failed `helm template --debug` still prints rendered resources to
+    stdout; a "/templates/" string in a resource body there must not count
+    as an error for that chart."""
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(tmp_path / "out.yaml")])
+    monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: [])
+    stdout = 'data: {x: "podiumd/charts/openzaak/templates/other.yaml"}\n'
+    stderr = "Error: podiumd/charts/zac/templates/a.yaml: broke\n"
+    monkeypatch.setattr(rp, "render_chart", fake_render_chart(1, stdout, stderr))
+
+    with pytest.raises(SystemExit):
+        rp.main()
+
+    out = capsys.readouterr().out
+    assert "zac: 1" in out
+    assert "openzaak" not in out
+
+
 # --- --stdout: rendered YAML on stdout, every other message on stderr ---
 
 

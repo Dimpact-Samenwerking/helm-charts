@@ -146,7 +146,13 @@ def report_errors_by_subchart(error_text: str):
     templates/..." paths (see chart_tree_paths), grouped by leaf chart
     name — lets a caller facing a wall of validator errors see at a
     glance which vendored sub-chart most of them belong to. Prints
-    nothing if no chart-tree path appears in error_text at all."""
+    nothing if no chart-tree path appears in error_text at all.
+
+    Pass helm's stderr only, never stdout: a failed `helm template
+    --debug` still prints every rendered resource to stdout, "# Source:"
+    line (and any "/templates/" string in a resource body) included, so
+    every chart would count as an error. The error itself is always on
+    stderr."""
     counts = Counter(path.rsplit("/", 1)[-1] for path in chart_tree_paths(error_text))
     if not counts:
         return

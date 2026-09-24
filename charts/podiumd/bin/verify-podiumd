@@ -529,7 +529,7 @@ def check_render(chart_dir: Path, extra_args: list[str]):
 
     if result.returncode != 0:
         print(result.stderr, end="" if result.stderr.endswith("\n") else "\n")
-        report_errors_by_subchart(result.stdout + result.stderr)
+        report_errors_by_subchart(result.stderr)
         return False, "helm template failed to render"
 
     doc_count = sum(1 for line in result.stdout.splitlines() if line.startswith("---"))

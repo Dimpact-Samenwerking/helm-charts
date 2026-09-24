@@ -83,9 +83,9 @@ def main():
         status(result.stderr, end="" if result.stderr.endswith("\n") else "\n")
         if to_stdout:
             with contextlib.redirect_stdout(sys.stderr):
-                report_errors_by_subchart(result.stdout + result.stderr)
+                report_errors_by_subchart(result.stderr)
         else:
-            report_errors_by_subchart(result.stdout + result.stderr)
+            report_errors_by_subchart(result.stderr)
         dest = "stdout" if to_stdout else str(output_path)
         status(f"error: helm template failed to render (nothing written to {dest})")
         sys.exit(1)

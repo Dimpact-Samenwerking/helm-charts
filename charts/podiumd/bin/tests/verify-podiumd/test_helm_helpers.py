@@ -85,6 +85,25 @@ def test_check_render_failure_reports_error(vp: ModuleType, tmp_path: Path, monk
     assert "failed to render" in detail
 
 
+def test_check_render_failure_counts_errors_from_stderr_only(
+    vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """A failed `helm template --debug` still prints rendered resources to
+    stdout; their "# Source:" lines and any "/templates/" string in a
+    resource body must not count as errors for that chart."""
+    stdout = (
+        "---\n# Source: podiumd/charts/openzaak/templates/cm.yaml\n"
+        'data: {x: "podiumd/charts/openzaak/templates/other.yaml"}\n'
+    )
+    stderr = "Error: YAML parse error on podiumd/charts/zac/templates/a.yaml: broke\n"
+    monkeypatch.setattr(vp, "render_chart", fake_render_chart(1, stdout, stderr))
+    ok, _detail = vp.check_render(tmp_path, [])
+    assert ok is False
+    out = capsys.readouterr().out
+    assert "zac: 1" in out
+    assert "openzaak" not in out.split("Errors by sub-chart:")[1]
+
+
 def test_check_render_zero_manifests_fails(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(vp, "render_chart", fake_render_chart(0, "", ""))
     ok, detail = vp.check_render(tmp_path, [])
