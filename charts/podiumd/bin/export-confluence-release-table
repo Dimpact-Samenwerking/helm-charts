@@ -34,6 +34,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.chart.release_baseline_basics import chart_version as read_chart_version
+from lib.confluence_tables import ReleaseColumns
 from lib.confluence_tables import effective_header_row_count
 from lib.confluence_tables import expand_grid
 from lib.confluence_tables import extract_tables
@@ -474,16 +475,24 @@ def _rows_for_table(heading: str, rows: list, context: ComponentResolutionContex
     return rows_out, unknown_count, target_label
 
 
-def _release_row_from_data_row(data_row: list[str], heading: str, columns: dict, context: ComponentResolutionContext):
+def _column_text(data_row: list[str], index: int | None) -> str:
+    """The cell at `index` of a table data row, "" when the table has no
+    such column (index None)."""
+    return data_row[index] if index is not None else ""
+
+
+def _release_row_from_data_row(
+    data_row: list[str], heading: str, columns: ReleaseColumns, context: ComponentResolutionContext
+):
     """One CSV data row (section, vendor, used_by, name, component,
     alias, ...versions) resolved from one matched table's own data
     row, plus how many of its version cells weren't semver-compatible
     (see extract_release_rows' own aggregate count) — printing the
     same per-row UNKNOWN-component/UNKNOWN-version warnings extract_
     release_rows always printed inline."""
-    vendor = data_row[columns["vendor"]] if columns["vendor"] is not None else ""
-    used_by = data_row[columns["used_by"]] if columns["used_by"] is not None else ""
-    name = data_row[columns["first"]]
+    vendor = _column_text(data_row, columns["vendor"])
+    used_by = _column_text(data_row, columns["used_by"])
+    name = _column_text(data_row, columns["first"])
     # used_by (when set) is a much better resolution signal than the
     # row's own name — it's often already a literal Chart.yaml alias
     # (e.g. "zac"), whereas a Technische row's own name (e.g. "Solr")
@@ -503,7 +512,7 @@ def _release_row_from_data_row(data_row: list[str], heading: str, columns: dict,
     # when this table has no Helm sub-column.
     version_columns = ("source_version_app", "source_version_helm", "target_version_app", "target_version_helm")
     versions = [
-        normalize_version(data_row[columns[key]]) if columns[key] is not None else ""
+        normalize_version(_column_text(data_row, columns[key]))
         for key in ("source_app", "source_helm", "target_app", "target_helm")
     ]
     for column_name, value in zip(version_columns, versions, strict=False):
