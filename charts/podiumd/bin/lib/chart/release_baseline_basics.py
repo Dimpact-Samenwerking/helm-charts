@@ -115,7 +115,7 @@ def write_release_baselines(chart_dir: Path, upgrade_docs: str | None = None, re
         data["upgrade_docs"] = upgrade_docs
     if release_table is not None:
         data["release_table"] = release_table
-    lines = []
+    lines: list[str] = []
     for key, value in data.items():
         quoted_value = yaml.safe_dump(value, default_style='"').rstrip("\n")
         lines.append(f"{key}: {quoted_value}\n")

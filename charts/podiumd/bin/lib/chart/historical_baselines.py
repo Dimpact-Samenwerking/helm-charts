@@ -8,6 +8,7 @@ entry generation."""
 
 import re
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -26,7 +27,7 @@ from lib.yaml_types import YamlMapping
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
-def historical_images_manifest_paths(chart_dir: Path | None, at_or_before: str | None = None):
+def historical_images_manifest_paths(chart_dir: Path | None, at_or_before: str | None = None) -> list[Path]:
     """This chart's own docs/images/images-<version>.yaml files, most-
     recent-first — every past release's own real, already-committed
     "what changed that hop" manifest (each one lists ONLY that hop's own
@@ -64,7 +65,7 @@ def historical_images_manifest_paths(chart_dir: Path | None, at_or_before: str |
 
 def historical_app_version_for_repository(
     chart_dir: Path | None, repo: str, at_or_before: str | None = None, expected_url: str | None = None
-):
+) -> str | None:
     """The most recent version this EXACT repository (already stripped,
     see strip_registry_host) was pinned to in any of this chart's own
     past images-<version>.yaml manifests (historical_images_manifest_
@@ -121,7 +122,7 @@ def historical_app_version_for_path(
     values: YamlMapping,
     path: tuple[str, ...],
     at_or_before: str | None = None,
-):
+) -> str | None:
     """historical_app_version_for_repository, for `path`'s own resolved
     repository (see paths_by_repository's own per-path resolution
     chain) — a single-path convenience wrapper, not a separate
@@ -147,14 +148,19 @@ def historical_app_version_for_path(
     return historical_app_version_for_repository(chart_dir, repo, at_or_before, expected_url=expected_url)
 
 
-# A Protocol only declares the attributes it needs; pylint counts it as a
-# class with too few public methods.
+# A Protocol only declares the attributes it needs, as read-only
+# properties (so a dict attribute of the implementer matches); pylint
+# counts it as a class with too few public methods, and wants docstrings
+# on the property stubs.
 class BaselineSetup(Protocol):  # pylint: disable=too-few-public-methods
     """What baseline_lookup reads from a caller's own baseline bundle
     (fix_doc_consistency's _BaselineSetup and BaselineResolution)."""
 
-    baseline_paths: dict
-    baseline_repo_groups: dict
+    @property
+    def baseline_paths(self) -> Mapping[tuple[str, ...], str | None]: ...  # pylint: disable=missing-function-docstring
+
+    @property
+    def baseline_repo_groups(self) -> Mapping[str, list[tuple[str, ...]]]: ...  # pylint: disable=missing-function-docstring
 
 
 @dataclass
@@ -170,8 +176,8 @@ class BaselineLookup:
     deps: list[ChartDependency]
     target_values: YamlMapping
     baseline_values: YamlMapping | None
-    baseline_paths: dict
-    baseline_repo_groups: dict
+    baseline_paths: Mapping[tuple[str, ...], str | None]
+    baseline_repo_groups: Mapping[str, list[tuple[str, ...]]]
 
 
 def baseline_lookup(
@@ -180,7 +186,7 @@ def baseline_lookup(
     target_values: YamlMapping,
     baseline_values: YamlMapping | None,
     baseline_setup: BaselineSetup,
-):
+) -> BaselineLookup:
     """A BaselineLookup built from chart_dir/deps/target_values/
     baseline_values plus a caller's own baseline_paths/baseline_repo_groups
     bundle (baseline_setup — any object exposing those two attributes,
@@ -198,7 +204,7 @@ def baseline_lookup(
     )
 
 
-def baseline_tag_for_sidecar_path(lookup: BaselineLookup, path: tuple[str, ...]):
+def baseline_tag_for_sidecar_path(lookup: BaselineLookup, path: tuple[str, ...]) -> str | None:
     """The baseline (pre-upgrade) tag for a sidecar/shared-image (or
     registered bare-version, see below) values-tree `path`, tried in two
     tiers — the one place lib.image.docs.add_missing_sidecar_rows' own
