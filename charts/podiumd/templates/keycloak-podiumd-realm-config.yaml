@@ -785,6 +785,17 @@ data:
               claim.name: samaccountname
               jsonType.label: String
       - clientId: {{ .Values.zac.auth.clientId }}
+        # Explicit, because clients in this realm otherwise end up with no
+        # default client scopes. ZAC 5.4.x reads the functional roles for
+        # PABC from realm_access.roles, which only the "roles" scope below
+        # (its "realm roles" mapper) puts in the token (IN-2004).
+        defaultClientScopes:
+          - web-origins
+          - acr
+          - profile
+          - roles
+          - basic
+          - email
         optionalClientScopes: *defaultOptionalClientScopes
         name: Zaakafhandelcomponent
         enabled: true
