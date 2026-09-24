@@ -24,6 +24,7 @@ general-purpose abstraction, just this module's own plumbing."""
 
 import re
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -86,7 +87,7 @@ class OrderingContext:
 
     deps: list[ChartDependency]
     values: YamlMapping | None
-    canonical_names: dict | None = None
+    canonical_names: dict[str, tuple[str, ...]] | None = None
 
 
 @dataclass
@@ -236,8 +237,12 @@ def remove_component_row(text: str, friendly: str):
 
 
 def make_changes_section(
-    identity: ComponentIdentity, target: str, change: VersionChange, image_paths: list, version_paths: list | tuple = ()
-):
+    identity: ComponentIdentity,
+    target: str,
+    change: VersionChange,
+    image_paths: Sequence[str],
+    version_paths: Sequence[str] = (),
+) -> str:
     """`image_paths` (see lib.chart.image_paths_for) are rendered as
     "Image tag pin `<identity.values_key>.<path>.tag`" bullets — the
     ordinary "{repository, tag}" block shape. `version_paths` (see lib.
@@ -650,13 +655,13 @@ def resolve_component_own_version_change(
     return dep, chart_name, old_chart, new_chart, old_app, new_app, (chart_unchanged and app_unchanged)
 
 
-def _matched_component_keys(text: str, target_deps: list[ChartDependency], chart_dir: Path):
+def _matched_component_keys(text: str, target_deps: list[ChartDependency], chart_dir: Path) -> set[str]:
     """Set of already-matched keys (a Chart.yaml dependency's own alias-
     or-name, or a lib.chart.native_components entry) found among
     `text`'s own current "Component versions" table rows —
     add_missing_component_rows' own "already has a row" check, split
     out purely to keep its own local-variable count down."""
-    matched_keys = set()
+    matched_keys: set[str] = set()
     for row in parse_upgrade_doc_rows(text):
         # match_dependency_excluding_sidecar_names, not match_dependency
         # directly — a canonical sidecar row like "redis-operator -
@@ -753,8 +758,8 @@ def add_missing_component_rows(
     doc_context: DocContext,
     target_state: ComponentState,
     baseline_state: BaselineState,
-    actual_changed_keys: set,
-):
+    actual_changed_keys: set[str],
+) -> tuple[str, list[str]]:
     """Insert a new "Component versions" table row + matching "### ..."
     Changes section for every key in `actual_changed_keys` (see
     lib.upgradedoc.compute_changed_components) that doesn't already have
@@ -790,7 +795,7 @@ def add_missing_component_rows(
     placeholder and a short TODO-stub Changes section instead of
     guessing at prose. Returns (new_text, added_names)."""
     matched_keys = _matched_component_keys(text, target_state.deps, doc_context.chart_dir)
-    added_names = []
+    added_names: list[str] = []
     for key in sorted(actual_changed_keys - matched_keys):
         text, added = _add_missing_row_for_key(text, key, target_state, baseline_state, doc_context)
         if added:

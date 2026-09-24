@@ -5,8 +5,10 @@ order machinery all three sorts are built on."""
 
 import re
 
+from collections.abc import Mapping
 from itertools import pairwise
 from typing import TypedDict
+from typing import TypeVar
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
@@ -22,6 +24,8 @@ CHANGES_BLOCK_HEADING_RE = re.compile(r"^###\s+(.+)$")
 
 
 VALUES_DELTA_SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
+
+OrderKeyT = TypeVar("OrderKeyT", int, tuple[int, ...])
 
 
 class HeadingBlock(TypedDict):
@@ -86,7 +90,7 @@ def values_tree_position(values: YamlMapping, path: tuple[str, ...]) -> tuple[in
     branch deliberately keeps returning a bare 1-tuple (never resolving
     down into whichever specific image path the row's app version
     actually came from) for exactly this reason."""
-    position = []
+    position: list[int] = []
     node = values
     for segment in path:
         if not isinstance(node, dict) or segment not in node:
@@ -101,7 +105,7 @@ def component_order_key(
     name: str,
     deps: list[ChartDependency],
     key_order: list[str],
-    canonical_names: dict | None = None,
+    canonical_names: Mapping[str, tuple[str, ...]] | None = None,
     values: YamlMapping | None = None,
 ) -> tuple[int, ...]:
     """A doc item's (table row name, or "### ..." Changes heading) sort
@@ -190,12 +194,12 @@ def component_order_key(
 
 
 def find_out_of_order_names(
-    names: list,
+    names: list[str],
     deps: list[ChartDependency],
     key_order: list[str],
-    canonical_names: dict | None = None,
+    canonical_names: Mapping[str, tuple[str, ...]] | None = None,
     values: YamlMapping | None = None,
-):
+) -> list[tuple[str, str]]:
     """[(name_a, name_b), ...] for every ADJACENT pair whose relative order
     contradicts values.yaml's own top-level key order (see
     component_order_key) — checking only adjacent pairs is sufficient to
@@ -212,7 +216,7 @@ def find_out_of_order_names(
     unprivileged", both under "global") — omitted, every such pair ties
     and is never flagged as out of order against each other, exactly as
     before."""
-    violations = []
+    violations: list[tuple[str, str]] = []
     # names[1:] is deliberately one element shorter than names -- this pairs
     # each name with its immediate successor (len(names) - 1 pairs), not a
     # same-length zip -- strict=True would raise on every real call.
@@ -224,7 +228,7 @@ def find_out_of_order_names(
     return violations
 
 
-def insertion_index(new_key: int | tuple[int, ...], existing_keys: list):
+def insertion_index(new_key: OrderKeyT, existing_keys: list[OrderKeyT]) -> int:
     """The index into `existing_keys` (each a component_order_key result,
     in their current order) where an item with new_key should be inserted
     to keep the sequence in non-decreasing key order: the first position
@@ -288,8 +292,11 @@ def parse_upgrade_doc_changes_blocks(text: str) -> list[HeadingBlock]:
 
 
 def sort_upgrade_doc_rows(
-    text: str, deps: list[ChartDependency], values: YamlMapping, canonical_names: dict | None = None
-):
+    text: str,
+    deps: list[ChartDependency],
+    values: YamlMapping,
+    canonical_names: Mapping[str, tuple[str, ...]] | None = None,
+) -> tuple[str, list[tuple[str, int, int]]]:
     """Reorder the "Component versions" table's rows (physically, in the
     text) to match values.yaml's own top-level key order — see
     values_key_order/component_order_key. canonical_names, when given,
@@ -323,8 +330,11 @@ def sort_upgrade_doc_rows(
 
 
 def sort_changes_blocks(
-    text: str, deps: list[ChartDependency], values: YamlMapping, canonical_names: dict | None = None
-):
+    text: str,
+    deps: list[ChartDependency],
+    values: YamlMapping,
+    canonical_names: Mapping[str, tuple[str, ...]] | None = None,
+) -> tuple[str, list[tuple[str, int, int]]]:
     """Reorder the "## Changes" section's "### ..." blocks (each block's
     full text, heading through its last line before the next block) to
     match values.yaml's own top-level key order — the same rule
@@ -383,8 +393,11 @@ def parse_values_delta_sections(text: str) -> list[HeadingBlock]:
 
 
 def sort_values_delta_sections(
-    text: str, deps: list[ChartDependency], values: YamlMapping, canonical_names: dict | None = None
-):
+    text: str,
+    deps: list[ChartDependency],
+    values: YamlMapping,
+    canonical_names: Mapping[str, tuple[str, ...]] | None = None,
+) -> tuple[str, list[tuple[str, int, int]]]:
     """Reorder values-deltas.md's own top-level "## ..." sections (each
     section's full text, heading through its last line before the next
     section) to match values.yaml's own top-level key order — the same

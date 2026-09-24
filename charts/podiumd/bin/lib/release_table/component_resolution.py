@@ -18,7 +18,7 @@ from lib.yaml_types import load_yaml_mapping
 BRACKETED_RE = re.compile(r"\(([^)]*)\)")
 
 
-def name_candidates(name: str):
+def name_candidates(name: str) -> list[str]:
     """Every normalized string worth matching against a Chart.yaml
     dependency for `name`: the whole thing, and — if `name` has a
     "... (bracketed part)" shape — the bracketed part and the rest of
@@ -46,7 +46,7 @@ def _candidate_parts(name: str) -> list[str]:
     return [part for part in parts if normalize_name(part)]
 
 
-def _related(a: str, b: str):
+def _related(a: str, b: str) -> bool:
     """True if either of `a` and `b` contains the other as a run of whole
     words (lib.upgradedoc.string_and_parsing_basics.word_contains, the
     same matching the doc scripts use) — the single relation every
@@ -72,7 +72,7 @@ def chart_dependencies(chart_dir: Path) -> list[DependencyNames]:
     return [(dep["name"], dep.get("alias", "")) for dep in load_chart_dependencies(chart_yaml_path)]
 
 
-def orphan_values_yaml_keys(chart_dir: Path, dependencies: Sequence[DependencyNames]):
+def orphan_values_yaml_keys(chart_dir: Path, dependencies: Sequence[DependencyNames]) -> list[DependencyNames]:
     """[(key, ""), ...] for every top-level key of chart_dir/values.yaml
     that isn't already a Chart.yaml dependency's own name or alias (see
     `dependencies`, from chart_dependencies) — e.g. "frankgateway", a
@@ -95,7 +95,7 @@ def orphan_values_yaml_keys(chart_dir: Path, dependencies: Sequence[DependencyNa
     return [(key, "") for key in values if normalize_name(key) not in known]
 
 
-def global_image_keys(chart_dir: Path):
+def global_image_keys(chart_dir: Path) -> list[str]:
     """Every key under chart_dir/values.yaml's top-level global.images map
     (e.g. "nginx", "curl", "busybox") — base images hoisted out of any
     single component's own block specifically because they're shared via
@@ -118,13 +118,15 @@ def global_image_keys(chart_dir: Path):
 MatchTier = Callable[[str, str, str | None], bool]
 
 
-def _tier_matches(candidates: list[str], dependencies: Sequence[DependencyNames], predicate: MatchTier):
+def _tier_matches(
+    candidates: list[str], dependencies: Sequence[DependencyNames], predicate: MatchTier
+) -> dict[str, str]:
     """{dependency_name: alias} for every dependency in `dependencies`
     where `predicate(candidate, dependency_name, alias)` holds for at
     least one of `candidates` — every distinct dependency that matches
     at this priority tier, not just the first, so component_and_alias
     can tell a clean single match from a genuine ambiguity."""
-    found = {}
+    found: dict[str, str] = {}
     for candidate in candidates:
         for dependency_name, alias in dependencies:
             if dependency_name not in found and predicate(candidate, dependency_name, alias):
@@ -162,7 +164,7 @@ _RELATION_TIERS = _MATCH_TIERS[2:]
 
 def _resolve_against(
     candidates: list[str], dependencies: Sequence[DependencyNames], tiers: list[MatchTier] | None = None
-):
+) -> DependencyNames | None:
     """(dependency_name, alias) from the first tier in `tiers` (default
     _MATCH_TIERS) with exactly one distinct match against `dependencies`,
     ("MULTIPLE", "MULTIPLE") from the first tier with more than one, or
@@ -180,9 +182,9 @@ def _resolve_against(
 def component_and_alias(
     name: str,
     dependencies: Sequence[DependencyNames],
-    orphan_keys: list | tuple = (),
-    global_image_key_names: list | tuple = (),
-):
+    orphan_keys: Sequence[DependencyNames] = (),
+    global_image_key_names: Sequence[str] = (),
+) -> DependencyNames:
     """(component, alias) for `name` (the CSV "name" column value),
     resolved against `dependencies` (see chart_dependencies) by trying
     each of name_candidates(name) against every dependency's own
@@ -246,7 +248,7 @@ def component_and_alias(
     came first."""
     candidates = _candidate_parts(name)
 
-    def relates_to_global_key():
+    def relates_to_global_key() -> bool:
         return any(_related(candidate, key) for candidate in candidates for key in global_image_key_names)
 
     exact = _resolve_against(candidates, dependencies, _EXACT_TIERS)
@@ -267,7 +269,7 @@ def component_and_alias(
     return ("UNKNOWN", "")
 
 
-def _exact_options(text: str, options: Collection):
+def _exact_options(text: str, options: Collection[str]) -> set[str]:
     """{o for o in options if normalize_name(o) is one of name_candidates(text)}
     — the raw exact-tier match set exact_match and match_one both
     build on, factored out so neither recomputes it independently."""
@@ -275,7 +277,7 @@ def _exact_options(text: str, options: Collection):
     return {o for o in options if normalize_name(o) in candidates}
 
 
-def exact_match(text: str, options: Collection):
+def exact_match(text: str, options: Collection[str]) -> str | None:
     """The single option in `options` whose own normalize_name is exactly
     one of name_candidates(text) — None if none do, or more than one
     ties (an ambiguity, never a guess). This is match_one's own first,
@@ -291,7 +293,7 @@ def exact_match(text: str, options: Collection):
     return next(iter(exact)) if len(exact) == 1 else None
 
 
-def match_one(text: str, options: Collection):
+def match_one(text: str, options: Collection[str]) -> str | None:
     """The single string in `options` that `text` unambiguously identifies
     — an exact match (see exact_match) if there is one, else the single
     option related to it (see _related) if there's exactly one such
@@ -309,7 +311,7 @@ def match_one(text: str, options: Collection):
     return next(iter(related)) if len(related) == 1 else None
 
 
-def extra_scope_keys_by_component(chart_dir: Path):
+def extra_scope_keys_by_component(chart_dir: Path) -> dict[str, list[str]]:
     """{dependency_name: [orphan_key, ...]} for every orphan values.yaml
     key (see orphan_values_yaml_keys) that itself relates to exactly one
     real Chart.yaml dependency — e.g. orphan key "keycloak" (podiumd's
@@ -324,7 +326,7 @@ def extra_scope_keys_by_component(chart_dir: Path):
     than one dependency (MULTIPLE) or none at all contributes nothing."""
     dependencies = chart_dependencies(chart_dir)
     orphan_keys = orphan_values_yaml_keys(chart_dir, dependencies)
-    extra = {}
+    extra: dict[str, list[str]] = {}
     for key, _ in orphan_keys:
         resolved = _resolve_against(_candidate_parts(key), dependencies)
         if resolved and resolved[0] != "MULTIPLE":

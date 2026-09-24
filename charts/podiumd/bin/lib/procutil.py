@@ -18,7 +18,7 @@ def run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
     return subprocess.run(cmd, check=False, **kwargs)  # nosec B603  # noqa: S603
 
 
-def run_script(cmd: list[str], *, check: bool = False, **kwargs: Any):
+def run_script(cmd: list[str], *, check: bool = False, **kwargs: Any) -> subprocess.CompletedProcess[Any]:
     """For delegating to a sibling script (`[sys.executable, "other.py",
     ...]`) that inherits stdout/stderr, so its output interleaves with the
     caller's own prints in real time. Flushes the caller's stdout first —

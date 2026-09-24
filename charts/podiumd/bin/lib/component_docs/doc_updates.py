@@ -28,7 +28,7 @@ class ValuesDeltaEntry:
 
     friendly: str
     heading_line: str
-    key_lines: list
+    key_lines: list[str]
 
 
 def print_missing_upgrade_doc(upgrade_docs_baseline: str | None, target: str) -> None:

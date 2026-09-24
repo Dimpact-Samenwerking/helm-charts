@@ -4,6 +4,7 @@ sharing one dependency/sidecar group move and stay together."""
 
 import re
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import pairwise
 
@@ -12,6 +13,7 @@ from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import is_primary_image_path
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import try_parse_images_manifest
+from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
@@ -23,6 +25,10 @@ from lib.upgradedoc.version_cells_and_key_changes import VERSION_PAIR_RE
 from lib.yaml_types import YamlMapping
 
 SIDECAR_HEADER_RE = re.compile(r"^#\s{2,}sidecar:\s*(?P<text>.*)$", re.IGNORECASE)
+
+# One _images_manifest_groups group: (entry indices, the first entry's
+# values-tree path or None, its display name).
+ManifestGroup = tuple[list[int], ImagePath | None, str]
 
 
 @dataclass
@@ -36,8 +42,8 @@ class ParsedManifest:
     function's own argument count."""
 
     entries: list[ManifestEntry]
-    entry_line_indices: list
-    lines: list
+    entry_line_indices: list[int]
+    lines: list[str]
 
 
 @dataclass
@@ -52,9 +58,9 @@ class EntryResolution:
     function that computes current_paths itself)."""
 
     deps: list[ChartDependency]
-    current_paths: dict
-    repo_map: dict
-    canonical_names: dict
+    current_paths: dict[tuple[str, ...], str]
+    repo_map: dict[str, tuple[str, ...]]
+    canonical_names: dict[str, tuple[str, ...]]
 
 
 @dataclass
@@ -70,11 +76,15 @@ class ManifestSortContext:
 
     deps: list[ChartDependency]
     values: YamlMapping
-    repo_map: dict
-    canonical_names: dict
+    repo_map: dict[str, tuple[str, ...]]
+    canonical_names: dict[str, tuple[str, ...]]
 
 
-def entry_component(entry: ManifestEntry, current_paths: dict, repo_map: dict | None):
+def entry_component(
+    entry: ManifestEntry,
+    current_paths: Mapping[tuple[str, ...], str | None],
+    repo_map: Mapping[str, tuple[str, ...]] | None,
+) -> str | None:
     """The top-level values-tree component an images-manifest entry
     resolves to (path[0], via resolve_entry_image_path), or None when it
     doesn't resolve to any real path at all."""
@@ -83,8 +93,11 @@ def entry_component(entry: ManifestEntry, current_paths: dict, repo_map: dict | 
 
 
 def images_manifest_entries_share_group(
-    entry_a: ManifestEntry, entry_b: ManifestEntry, current_paths: dict, repo_map: dict | None
-):
+    entry_a: ManifestEntry,
+    entry_b: ManifestEntry,
+    current_paths: Mapping[tuple[str, ...], str | None],
+    repo_map: Mapping[str, tuple[str, ...]] | None,
+) -> bool:
     """True when entry_a and entry_b are part of ONE shared-comment
     group in the images manifest — same top-level component AND the
     same declared manifest "version" (evidence of one lockstep bump
@@ -104,7 +117,7 @@ def images_manifest_entries_share_group(
     )
 
 
-def _own_header_top_line(lines: list[str], entry_line_index: int):
+def _own_header_top_line(lines: list[str], entry_line_index: int) -> str | None:
     """The raw (whitespace-preserving) text of the TOPMOST line in this
     entry's own directly-preceding comment block, or None when there's
     no comment directly above it at all (a blank/non-comment line sits
@@ -117,14 +130,14 @@ def _own_header_top_line(lines: list[str], entry_line_index: int):
     check this feeds only cares about the line's own leading "#"/indent,
     never its content."""
     j = entry_line_index - 1
-    top = None
+    top: str | None = None
     while j >= 0 and lines[j].strip().startswith("#"):
         top = lines[j]
         j -= 1
     return top
 
 
-def images_manifest_block_start(lines: list[str], entry_line_idx: int):
+def images_manifest_block_start(lines: list[str], entry_line_idx: int) -> int:
     """The line index where this entry's own preceding comment block
     begins (or the entry line itself if it has none) — walks upward
     through contiguous "#"-prefixed lines directly above. When the
@@ -145,7 +158,7 @@ def images_manifest_block_start(lines: list[str], entry_line_idx: int):
     return i
 
 
-def header_name_segment(text: str):
+def header_name_segment(text: str) -> str:
     """A header's own component-name portion — everything before its
     version pair (or before a trailing "(...)" aside, or the whole text
     when neither is present), with a trailing dash/em-dash separator
@@ -205,7 +218,9 @@ def header_name_segment(text: str):
     return name.rstrip(" \t—-")
 
 
-def find_images_manifest_faulty_headers(manifest: ParsedManifest, resolution: EntryResolution):
+def find_images_manifest_faulty_headers(
+    manifest: ParsedManifest, resolution: EntryResolution
+) -> list[tuple[str, str, str]]:
     """[(entry_name, expected_display_name, problem), ...] for every
     SIDECAR entry (see is_primary_image_path — a co-equal primary image
     like zgw-office-addin's frontend/backend is exempt, expected and
@@ -254,7 +269,7 @@ def find_images_manifest_faulty_headers(manifest: ParsedManifest, resolution: En
     listed, not whose sidecar it is) is exactly the right shape already
     (see is_primary_image_path, which treats "no owning dependency" as
     primary/standalone for exactly this reason)."""
-    problems = []
+    problems: list[tuple[str, str, str]] = []
     for entry, line_idx in zip(manifest.entries, manifest.entry_line_indices, strict=True):
         path = resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo_map)
         if path is None or is_primary_image_path(path, resolution.deps):
@@ -270,7 +285,7 @@ def find_images_manifest_faulty_headers(manifest: ParsedManifest, resolution: En
 
 
 def images_manifest_entry_order_key(
-    path: tuple[str, ...] | None, deps: list[ChartDependency], key_order: list, values: YamlMapping | None = None
+    path: tuple[str, ...] | None, deps: list[ChartDependency], key_order: list[str], values: YamlMapping | None = None
 ) -> tuple[int, ...]:
     """An images-manifest entry's own sort key — (values_key_index,
     is_sidecar), the SAME shape and meaning component_order_key already
@@ -327,7 +342,7 @@ def images_manifest_entry_order_key(
     return (idx, is_sidecar)
 
 
-def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolution):
+def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolution) -> list[ManifestGroup]:
     """[(indices, path, display_name), ...] — one entry per physical
     GROUP of consecutive entries sharing a single preceding comment
     (see find_grouped_preceding_comment_line/images_manifest_entries_
@@ -341,7 +356,7 @@ def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolutio
     keys) so the two can never disagree about what counts as one group."""
     n = len(manifest.entries)
 
-    def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry):
+    def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
         return images_manifest_entries_share_group(entry_a, entry_b, resolution.current_paths, resolution.repo_map)
 
     comment_idx_for = [
@@ -350,14 +365,14 @@ def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolutio
         )
         for i in range(n)
     ]
-    index_groups = []
+    index_groups: list[list[int]] = []
     for i in range(n):
         if i > 0 and comment_idx_for[i] is not None and comment_idx_for[i] == comment_idx_for[i - 1]:
             index_groups[-1].append(i)
         else:
             index_groups.append([i])
 
-    groups = []
+    groups: list[ManifestGroup] = []
     for indices in index_groups:
         path = resolve_entry_image_path(
             manifest.entries[indices[0]]["name"], resolution.current_paths.keys(), resolution.repo_map
@@ -373,7 +388,7 @@ def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolutio
 
 def find_images_manifest_out_of_order_names(
     manifest: ParsedManifest, resolution: EntryResolution, key_order: list[str], values: YamlMapping | None = None
-):
+) -> list[tuple[str, str]]:
     """[(name_a, name_b), ...] for every ADJACENT pair of images-
     manifest GROUPS (see _images_manifest_groups) whose relative order
     contradicts values.yaml's own top-level key order (see images_
@@ -388,7 +403,7 @@ def find_images_manifest_out_of_order_names(
     entries) — omitted, every such pair ties and is never flagged as
     out of order against each other, exactly as before."""
     groups = _images_manifest_groups(manifest, resolution)
-    violations = []
+    violations: list[tuple[str, str]] = []
     # groups[1:] is deliberately one element shorter than groups -- same
     # adjacent-pairs shape as find_out_of_order_names' own zip(names,
     # names[1:]) above -- not a same-length zip.
@@ -400,7 +415,7 @@ def find_images_manifest_out_of_order_names(
     return violations
 
 
-def _collapse_group_internal_blank_lines(group_text: str):
+def _collapse_group_internal_blank_lines(group_text: str) -> str:
     """Within one multi-entry group's own captured text, drop every
     blank line that separates two of the group's own entries — a shared
     header's entries sit directly below one another, no blank line
@@ -418,7 +433,9 @@ def _collapse_group_internal_blank_lines(group_text: str):
     return "".join(body + lines[last_content:])
 
 
-def _images_manifest_sorted_groups(manifest: ParsedManifest, context: ManifestSortContext):
+def _images_manifest_sorted_groups(
+    manifest: ParsedManifest, context: ManifestSortContext
+) -> tuple[list[ManifestGroup], list[int]]:
     """(groups, order) — groups from _images_manifest_groups; order is
     the permutation (list of original group indices, in their NEW
     sorted sequence) sort_images_manifest_entries physically applies,
@@ -455,7 +472,7 @@ def _images_manifest_sorted_groups(manifest: ParsedManifest, context: ManifestSo
     return groups, order
 
 
-def _parsed_manifest_from_text(text: str):
+def _parsed_manifest_from_text(text: str) -> tuple[ParsedManifest | None, bool]:
     """(ParsedManifest, ok) for `text` — ok is False (ParsedManifest is
     then meaningless/unused) when `text` isn't valid YAML, isn't a list,
     or has fewer than 2 entries — the same three guards images_manifest_
@@ -475,7 +492,7 @@ def _parsed_manifest_from_text(text: str):
     return ParsedManifest(entries, entry_line_indices, lines), True
 
 
-def images_manifest_entry_positions(text: str, context: ManifestSortContext):
+def images_manifest_entry_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
     """{entry_name: 0-based final position} for every entry in the
     images manifest, after applying the SAME group-level reordering
     sort_images_manifest_entries itself performs — for a caller that
@@ -496,14 +513,14 @@ def images_manifest_entry_positions(text: str, context: ManifestSortContext):
 
     groups, order = _images_manifest_sorted_groups(manifest, context)
     position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
-    positions = {}
+    positions: dict[str, int] = {}
     for group_index, (indices, _path, _name) in enumerate(groups):
         for entry_index in indices:
             positions[manifest.entries[entry_index]["name"]] = position_of_group[group_index]
     return positions
 
 
-def images_manifest_display_name_positions(text: str, context: ManifestSortContext):
+def images_manifest_display_name_positions(text: str, context: ManifestSortContext) -> dict[str, int]:
     """{display_name: 0-based final position} — the SAME group-level
     positions images_manifest_entry_positions computes, keyed by each
     group's own path_display_name instead of its entries' raw YAML
@@ -543,7 +560,7 @@ def images_manifest_display_name_positions(text: str, context: ManifestSortConte
 
     groups, order = _images_manifest_sorted_groups(manifest, context)
     position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
-    positions = {}
+    positions: dict[str, int] = {}
     for group_index, (_indices, _path, name) in enumerate(groups):
         position = position_of_group[group_index]
         if name not in positions or position < positions[name]:
@@ -551,7 +568,7 @@ def images_manifest_display_name_positions(text: str, context: ManifestSortConte
     return positions
 
 
-def match_changes_item_display_name(rest: str, display_name_positions: dict):
+def match_changes_item_display_name(rest: str, display_name_positions: Mapping[str, int]) -> str | None:
     """The longest key of display_name_positions that `rest` starts with
     (followed by a space, or an exact match) — every auto-inserted
     Changes item's own text is always built as f"{name} {old} -> {new}."
@@ -572,14 +589,16 @@ def match_changes_item_display_name(rest: str, display_name_positions: dict):
     changes_items (the fixer) and lib.docs_consistency's own out-of-
     order/missing-mention checks — the SAME resolution, so checker and
     fixer can never disagree about what a Changes item "is"."""
-    best = None
+    best: str | None = None
     for name in display_name_positions:
         if (rest == name or rest.startswith(name + " ")) and (best is None or len(name) > len(best)):
             best = name
     return best
 
 
-def _group_texts_and_components(lines: list[str], groups: list, starts: list[int]):
+def _group_texts_and_components(
+    lines: list[str], groups: list[ManifestGroup], starts: list[int]
+) -> tuple[list[str], list[str | None]]:
     """(per_group_texts, components) — each group's own captured text
     span (with an already-multi-entry group's OWN internal blank lines
     collapsed first, see _collapse_group_internal_blank_lines) and its
@@ -601,7 +620,7 @@ def _group_texts_and_components(lines: list[str], groups: list, starts: list[int
     return per_group_texts, components
 
 
-def _merge_ordered_groups(per_group_texts: list[str], components: list, order: list[int]):
+def _merge_ordered_groups(per_group_texts: list[str], components: list[str | None], order: list[int]) -> list[str]:
     """Runs of consecutive same-component groups (in the NEW, post-sort
     `order`) merged into one text block each — collapsing blank lines
     within a multi-group run (see _collapse_group_internal_blank_lines)
@@ -613,7 +632,7 @@ def _merge_ordered_groups(per_group_texts: list[str], components: list, order: l
     ordered_texts = [per_group_texts[i] for i in order]
     ordered_components = [components[i] for i in order]
 
-    merged_texts = []
+    merged_texts: list[str] = []
     run_start = 0
     for i in range(1, len(ordered_texts) + 1):
         at_end = i == len(ordered_texts)
@@ -635,7 +654,9 @@ def _merge_ordered_groups(per_group_texts: list[str], components: list, order: l
     return merged_texts
 
 
-def _sorted_manifest_text(lines: list[str], entry_line_indices: list[int], groups: list, order: list[int]):
+def _sorted_manifest_text(
+    lines: list[str], entry_line_indices: list[int], groups: list[ManifestGroup], order: list[int]
+) -> str:
     """The manifest's own full text after physically applying `order` to
     `groups` — see sort_images_manifest_entries' own docstring for the
     blank-line collapse/normalize rules this also applies. Restores the
@@ -648,7 +669,7 @@ def _sorted_manifest_text(lines: list[str], entry_line_indices: list[int], group
     return prefix + "".join(merged_texts)
 
 
-def sort_images_manifest_entries(text: str, context: ManifestSortContext):
+def sort_images_manifest_entries(text: str, context: ManifestSortContext) -> tuple[str, list[tuple[str, int, int]]]:
     """Reorder the images manifest's own entry GROUPS (physically, in
     the text) to match values.yaml's own top-level key order — see
     values_key_order/images_manifest_entry_order_key, the same rule

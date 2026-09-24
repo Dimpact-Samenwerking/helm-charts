@@ -28,14 +28,18 @@ failure semantics differ."""
 
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import parse_chart_dependencies
 from lib.gitutil import find_repo_root
 from lib.gitutil import git_show_text
 from lib.gitutil import resolve_baseline_ref
+from lib.yaml_types import YamlMapping
 from lib.yaml_types import parse_yaml_mapping
 
 
-def resolve_baseline_chart_state(chart_dir: Path, baseline: str):
+def resolve_baseline_chart_state(
+    chart_dir: Path, baseline: str
+) -> tuple[str | None, list[ChartDependency], YamlMapping, list[str], str | None]:
     """(baseline_ref, baseline_deps, baseline_values, baseline_lines,
     error) for `baseline` (any release-baseline.yaml value — upgrade_
     docs, release_table, or a raw git ref) resolved against chart_dir's

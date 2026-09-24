@@ -5,6 +5,7 @@ dependency or native component actually pins."""
 
 from collections.abc import Collection
 from collections.abc import Iterator
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -341,7 +342,9 @@ def resolve_entry_path(entry_name: str, paths: Collection[tuple[str, ...]]):
     return best_path
 
 
-def resolve_entry_image_path(name: str, paths: Collection, repo_map: dict | None = None):
+def resolve_entry_image_path(
+    name: str, paths: Collection[ImagePath], repo_map: Mapping[str, ImagePath] | None = None
+) -> ImagePath | None:
     """Match an images-manifest entry's "name:" to a values-tree path —
     an exact repo_map lookup first
     (see lib.chart.repository_path_map: under the current strip-

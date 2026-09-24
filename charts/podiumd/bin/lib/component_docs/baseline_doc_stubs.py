@@ -16,11 +16,13 @@ import re
 
 from pathlib import Path
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.gitutil import baseline_ref_candidates
 from lib.gitutil import find_repo_root
 from lib.gitutil import git_show_yaml
 from lib.gitutil import resolve_git_ref
 from lib.release_baseline import resolve_baseline_chart_state
+from lib.yaml_types import YamlMapping
 
 
 def images_manifest_path(images_dir: Path, target: str):
@@ -123,14 +125,14 @@ IMAGES_STUB_TEMPLATE = (
 DOC_FILENAME_RE_TMPL = r"^(?P<upgrade_docs_baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+)\.md$"
 
 
-def existing_doc_baselines(doc_dir: Path, target: str):
+def existing_doc_baselines(doc_dir: Path, target: str) -> dict[str, list[tuple[str, Path]]]:
     """{suffix: [(upgrade_docs_baseline, path), ...]} for every *-to-<target>-<suffix>.md
     doc currently in doc_dir, whatever upgrade_docs_baseline each one currently names —
     the raw "what's actually there" scan. Shared by create-doc-version (to
     detect an upgrade_docs_baseline mismatch worth refusing fresh-creation over) and
     fix-doc-consistency (to know what to rename)."""
     pattern = re.compile(DOC_FILENAME_RE_TMPL.format(target=re.escape(target)))
-    by_suffix = {}
+    by_suffix: dict[str, list[tuple[str, Path]]] = {}
     for path in doc_dir.glob(f"*-to-{target}-*.md"):
         m = pattern.match(path.name)
         if not m:
@@ -139,13 +141,13 @@ def existing_doc_baselines(doc_dir: Path, target: str):
     return by_suffix
 
 
-def create_missing_docs(doc_dir: Path, images_dir: Path, upgrade_docs_baseline: str, target: str):
+def create_missing_docs(doc_dir: Path, images_dir: Path, upgrade_docs_baseline: str, target: str) -> list[str]:
     """Create whichever of the three standard <upgrade_docs_baseline>-to-<target>-*.md
     docs, and docs/images/images-<target>.yaml, don't already exist yet,
     as TODO stubs — never overwrites an existing file. Returns the
     filenames actually created (upgrade/gemeente-specific/values-deltas
     order, images manifest last)."""
-    created = []
+    created: list[str] = []
     for suffix in STANDARD_SUFFIXES:
         path = doc_dir / f"{upgrade_docs_baseline}-to-{target}-{suffix}.md"
         if not path.is_file():
@@ -163,7 +165,7 @@ def create_missing_docs(doc_dir: Path, images_dir: Path, upgrade_docs_baseline: 
     return created
 
 
-def load_baseline_values(values_path: Path, upgrade_docs_baseline: str):
+def load_baseline_values(values_path: Path, upgrade_docs_baseline: str) -> YamlMapping | None:
     """values.yaml as it actually was at the release these docs are written
     against (resolved via git) — NOT "before this script's own edit". A
     tag-only bump never touches values.yaml's schema, so a before/after-
@@ -203,7 +205,7 @@ def load_baseline_state(
     chart_yaml_path: Path,  # pylint: disable=unused-argument  # noqa: ARG001
     values_path: Path,
     upgrade_docs_baseline: str,
-):
+) -> tuple[list[ChartDependency], YamlMapping] | tuple[None, None]:
     """(baseline_deps, baseline_values) as they actually were at upgrade_docs_baseline's
     resolved git ref — same ref resolution as load_baseline_values, but
     also pulls Chart.yaml so a caller can tell whether a component's own

@@ -55,9 +55,9 @@ class ImagePathUpdate:
     entry is reported as (path, repos[path], new_tags[path]), see update_
     images_manifest's own docstring)."""
 
-    paths: list
-    repos: dict
-    new_tags: dict
+    paths: list[str]
+    repos: dict[str, str]
+    new_tags: dict[str, str]
 
 
 @dataclass
@@ -68,9 +68,9 @@ class ParsedManifest:
     meaningful read together; update_images_manifest_entry/find_matching_
     images_entry both need all three."""
 
-    lines: list
+    lines: list[str]
     entries: list[ManifestEntry]
-    entry_line_indices: list
+    entry_line_indices: list[int]
 
 
 def values_tree_path_for(values_key: str, image_path: str):
@@ -80,7 +80,9 @@ def values_tree_path_for(values_key: str, image_path: str):
     return (values_key, *tuple(segments[:-1]))
 
 
-def find_matching_images_entry(entries: list[ManifestEntry], entry_line_indices: list, target_path: tuple[str, ...]):
+def find_matching_images_entry(
+    entries: list[ManifestEntry], entry_line_indices: list[int], target_path: tuple[str, ...]
+) -> tuple[ManifestEntry, int, int] | tuple[None, None, None]:
     """(entry, line_idx, index) for the parsed manifest entry whose own
     resolve_entry_path(entry["name"], ...) equals `target_path` (see
     values_tree_path_for), or (None, None, None) if this component has no
@@ -209,13 +211,16 @@ def _update_changes_header_item(
     return "added"
 
 
-def _apply_entry_updates(manifest: ParsedManifest, path_update: ImagePathUpdate, values_key: str):
+def _apply_entry_updates(
+    manifest: ParsedManifest, path_update: ImagePathUpdate, values_key: str
+) -> tuple[list[str], list[tuple[str, str, str]]]:
     """Update every existing manifest entry for `path_update.paths`,
     returning (entry_names_updated, missing_entries) — missing_entries is
     [(image_path, repo, new_tag), ...] for a component_image_paths() path
     with no matching manifest entry yet (see update_images_manifest's own
     docstring for why nothing here invents one)."""
-    entry_updates, missing_entries = [], []
+    entry_updates: list[str] = []
+    missing_entries: list[tuple[str, str, str]] = []
     for path in path_update.paths:
         target_path = values_tree_path_for(values_key, path)
         entry, _entry_idx, index = find_matching_images_entry(
@@ -309,12 +314,13 @@ def _remove_changes_header_item(lines: list[str], friendly: str):
     return "removed"
 
 
-def _remove_entry_updates(manifest: ParsedManifest, path_update: ImagePathUpdate, values_key: str):
+def _remove_entry_updates(manifest: ParsedManifest, path_update: ImagePathUpdate, values_key: str) -> list[str]:
     """Rewrite every touched entry's final version/digest (still correct
     even with no change left to document, see remove_component_from_
     images_manifest's own docstring) and delete its own preceding source
     comment line, when it has one. Returns entry_names_updated."""
-    entry_updates, comment_lines_to_remove = [], []
+    entry_updates: list[str] = []
+    comment_lines_to_remove: list[int] = []
     for path in path_update.paths:
         target_path = values_tree_path_for(values_key, path)
         entry, entry_idx, index = find_matching_images_entry(manifest.entries, manifest.entry_line_indices, target_path)

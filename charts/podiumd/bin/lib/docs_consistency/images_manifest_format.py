@@ -251,7 +251,7 @@ def _uncovered_entry_display_names(
         if not path:
             continue
         display_name = path_display_name(path, resolution.deps, resolution.canonical_names)
-        if display_name is None or display_name in seen or display_name == ".".join(path):
+        if display_name in seen or display_name == ".".join(path):
             continue
         seen.add(display_name)
         if display_name not in covered_names:

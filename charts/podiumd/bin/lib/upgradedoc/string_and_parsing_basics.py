@@ -6,6 +6,8 @@ string/regex logic, no filesystem or values.yaml access."""
 import re
 
 from collections.abc import Iterable
+from collections.abc import Mapping
+from typing import Literal
 from typing import TypedDict
 from typing import TypeVar
 
@@ -14,6 +16,11 @@ from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
 
 COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
+
+# What a document's component name resolves to: a canonical sidecar or
+# shared image by its values-tree path, or a dependency (or native
+# component) by its values.yaml key.
+ComponentRef = tuple[Literal["sidecar"], tuple[str, ...]] | tuple[Literal["dep"], str]
 
 
 class VersionRow(TypedDict):
@@ -132,7 +139,7 @@ def parse_upgrade_doc_rows(text: str) -> list[TableRow]:
     return rows
 
 
-def _word_aligned_spans(text: str):
+def _word_aligned_spans(text: str) -> set[str]:
     """Every contiguous run of words in `text`, concatenated and normalized
     — e.g. "ZGW Office Add-in (frontend)" -> {"zgw", "zgwoffice",
     "zgwofficeadd", "zgwofficeaddin", ..., "frontend"}. A substring check
@@ -142,7 +149,7 @@ def _word_aligned_spans(text: str):
     normalize_name(text) containment check can't tell apart from a real
     word-level match."""
     words = words_of(text)
-    spans = set()
+    spans: set[str] = set()
     for i in range(len(words)):
         acc = ""
         for j in range(i, len(words)):
@@ -228,7 +235,9 @@ def match_native_component(text: str, native_component_names: set[str] | frozens
     return best_key
 
 
-def match_canonical_sidecar_name(text: str, canonical_names: dict | None):
+def match_canonical_sidecar_name(
+    text: str, canonical_names: Mapping[str, tuple[str, ...]] | None
+) -> tuple[str, ...] | None:
     """The values-tree path of the one canonical sidecar/shared-image
     name (lib.chart.canonical_sidecar_row_names) that `text` names: an
     exact key of canonical_names (a table row's bare name), else the
@@ -266,7 +275,9 @@ def match_dependency_excluding_sidecar_names(text: str, deps: list[ChartDependen
     return None if " - " in text else match_dependency(text, deps)
 
 
-def changes_heading_identities(heading: str, deps: list[ChartDependency], canonical_names: dict | None):
+def changes_heading_identities(
+    heading: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+) -> set[ComponentRef]:
     """The set of component identities (see resolve_component_identity)
     found anywhere in a "### ..." Changes heading's text, assessed as a
     whole — never split on "+" or any other separator, since a doc could
@@ -321,7 +332,7 @@ def changes_heading_identities(heading: str, deps: list[ChartDependency], canoni
     if " - " in heading:
         return set()
     words = words_of(heading)
-    matches = []  # [(start, end, values_key), ...], end exclusive
+    matches: list[tuple[int, int, str]] = []  # end exclusive
     candidates_by_key = [
         (cand, values_key_of(dep)) for dep in deps for cand in filter(None, [dep.get("name"), dep.get("alias")])
     ]

@@ -45,7 +45,7 @@ class ChartState:
     chart_dir: Path
     deps: list[ChartDependency]
     values: YamlMapping | None
-    lines: list
+    lines: list[str]
 
 
 @dataclass
