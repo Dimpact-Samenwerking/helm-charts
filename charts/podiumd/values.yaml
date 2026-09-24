@@ -68,7 +68,7 @@ keycloak-operator:
       # / ACR-mirror envs where the mirrored digest differs), set
       # `operator.image.sha: ""`. See
       # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
-      tag: "26.7.3"
+      tag: "26.7.4"
       sha: "e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
     resources:
       requests:
