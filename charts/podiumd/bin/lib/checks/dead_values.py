@@ -184,6 +184,7 @@ from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from typing import TypeVar
 
 import yaml
 
@@ -381,7 +382,10 @@ def _render(chart_name: str, chart_path: Path, extra_args: list, overlay_path: P
     return _parsed_docs(result.stdout)
 
 
-def _with_overlay_file(overlay: dict, render_fn: Callable):
+RenderT = TypeVar("RenderT")
+
+
+def _with_overlay_file(overlay: dict, render_fn: Callable[[Path], RenderT]) -> RenderT:
     """Dump `overlay` to a throwaway temp file and call
     render_fn(overlay_path) — the file is always cleaned up, even if
     render_fn raises."""

@@ -2,6 +2,8 @@
 maintenance (dedupe + reorder), split out of that script for pylint's
 too-many-lines check."""
 
+from typing import Any
+
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import NUMBER_WORDS
@@ -105,7 +107,7 @@ def _resolved_changes_items(
     item_bounds is a list of (start, end) line-index pairs, one per item.
     Returns a list of {"start", "end", "rest", "key"} dicts, one per item,
     in their ORIGINAL (pre-sort) order."""
-    items = []
+    items: list[dict[str, Any]] = []
     for start, end in item_bounds:
         rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
         display_name = match_changes_item_display_name(rest, display_name_positions or {})

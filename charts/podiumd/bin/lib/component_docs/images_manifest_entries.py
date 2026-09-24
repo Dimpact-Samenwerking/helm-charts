@@ -108,7 +108,7 @@ def _component_of(values_key: str, entry: dict):
     return values_key if text_names(entry["name"], values_key) else None
 
 
-def _same_group(values_key: str, entry_a: dict, entry_b: dict):
+def _same_group(values_key: str, entry_a: dict, entry_b: dict) -> bool:
     """Whether `entry_a`/`entry_b` share the same top-level component AND
     version — find_grouped_preceding_comment_line's own "same group"
     predicate, so a shared comment block (e.g. zgw-office-addin's frontend

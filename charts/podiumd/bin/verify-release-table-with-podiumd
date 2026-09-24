@@ -93,7 +93,7 @@ SECTIONS = [
 ]
 
 
-def print_report(findings: dict, unresolved: list):
+def print_report(findings: dict, unresolved: list[dict[str, str]]):
     """Prints every non-empty findings[key] section (in SECTIONS' order,
     items sorted), plus a "Skipped" block for `unresolved` rows (see
     compare — a release-table.csv row whose component couldn't be

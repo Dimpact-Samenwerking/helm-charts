@@ -793,7 +793,13 @@ def _current_image_paths(chart_dir: Path, deps: list, values: dict, rendered_pat
     return current_paths
 
 
-def _resolve_baseline_entry(ctx: _BaselineManifestContext, current_paths: dict, repo: str, group_paths: list):
+# (sort_key, repo, full_repo, new_version, digest) -- see _resolve_baseline_entry.
+BaselineEntry = tuple[tuple[int, ...], str, str, str, str | None]
+
+
+def _resolve_baseline_entry(
+    ctx: _BaselineManifestContext, current_paths: dict, repo: str, group_paths: list
+) -> BaselineEntry | None:
     """(sort_key, repo, full_repo, new_version, digest) for one
     repository group's own baseline entry, or None if it should be
     skipped (unresolvable full_repo, or unresolvable digest) — the
@@ -827,7 +833,8 @@ def _resolve_baseline_entries(ctx: _BaselineManifestContext, current_paths: dict
     baseline_entry couldn't resolve. Split out of regenerate_images_
     baseline_manifest purely to keep its own local-variable count
     down."""
-    resolved, skipped = [], []
+    resolved: list[BaselineEntry] = []
+    skipped: list[str] = []
     for repo, group_paths in repo_groups.items():
         entry = _resolve_baseline_entry(ctx, current_paths, repo, group_paths)
         if entry is None:

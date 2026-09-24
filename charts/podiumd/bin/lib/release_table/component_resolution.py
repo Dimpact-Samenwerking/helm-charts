@@ -113,7 +113,11 @@ def global_image_keys(chart_dir: Path):
     return list(images) if isinstance(images, dict) else []
 
 
-def _tier_matches(candidates: list[str], dependencies: list | tuple, predicate: Callable):
+# predicate(candidate, dependency_name, alias) for one _MATCH_TIERS tier.
+MatchTier = Callable[[str, str, str | None], bool]
+
+
+def _tier_matches(candidates: list[str], dependencies: list | tuple, predicate: MatchTier):
     """{dependency_name: alias} for every dependency in `dependencies`
     where `predicate(candidate, dependency_name, alias)` holds for at
     least one of `candidates` — every distinct dependency that matches
@@ -134,7 +138,7 @@ def _tier_matches(candidates: list[str], dependencies: list | tuple, predicate: 
 # alias "kiss", and that must resolve outright rather than being treated
 # as ambiguous with "eck-stack" (alias "kiss-eck") just because
 # "kiss-eck" also happens to *contain* "kiss" as a substring.
-_MATCH_TIERS = [
+_MATCH_TIERS: list[MatchTier] = [
     lambda candidate, dependency_name, _alias: normalize_name(candidate) == normalize_name(dependency_name),
     lambda candidate, _dependency_name, alias: bool(alias) and normalize_name(candidate) == normalize_name(alias),
     lambda candidate, _dependency_name, alias: bool(alias) and _related(candidate, alias),
@@ -155,7 +159,7 @@ _EXACT_TIERS = _MATCH_TIERS[:2]
 _RELATION_TIERS = _MATCH_TIERS[2:]
 
 
-def _resolve_against(candidates: list[str], dependencies: list | tuple, tiers: list | None = None):
+def _resolve_against(candidates: list[str], dependencies: list | tuple, tiers: list[MatchTier] | None = None):
     """(dependency_name, alias) from the first tier in `tiers` (default
     _MATCH_TIERS) with exactly one distinct match against `dependencies`,
     ("MULTIPLE", "MULTIPLE") from the first tier with more than one, or
