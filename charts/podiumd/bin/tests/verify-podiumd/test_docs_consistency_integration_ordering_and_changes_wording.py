@@ -148,6 +148,35 @@ def test_changes_section_with_no_table_row_is_caught(
     assert '"## Changes" section "### Open Inwoner bump" has no matching row in the "Component versions" table' in out
 
 
+def test_two_rows_naming_one_component_are_caught(vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]):
+    chart_dir, doc_dir = order_chart_dir
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        order_doc(
+            [ZAAK_ROW, "| openzaak | 1.27.4 | 1.14.2 | - |", INWONER_ROW], ["Open Zaak bump", "Open Inwoner bump"]
+        )
+    )
+    ok, _ = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
+    assert ok is False
+    out = capsys.readouterr().out
+    assert 'table rows "Open Zaak", "openzaak" all name the same component' in out
+
+
+def test_two_changes_sections_naming_one_component_are_caught(
+    vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
+):
+    chart_dir, doc_dir = order_chart_dir
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump", "openzaak 1.27.4 (chart 1.14.2)", "Open Inwoner bump"])
+    )
+    ok, _ = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
+    assert ok is False
+    out = capsys.readouterr().out
+    assert (
+        '"## Changes" sections "### Open Zaak bump", "### openzaak 1.27.4 (chart 1.14.2)" all name the same component'
+        in out
+    )
+
+
 def test_heading_naming_two_components_is_flagged_and_neither_row_is_credited(
     vp: ModuleType, order_chart_dir, capsys: pytest.CaptureFixture[str]
 ):

@@ -109,6 +109,49 @@ def find_changes_row_correspondence_gaps(
     return rows_without_heading, headings_without_row
 
 
+def _group_by_identity(texts_and_identities: Sequence[tuple[str, ComponentRef]]) -> list[tuple[str, ...]]:
+    """Every group of texts sharing one identity with at least one other
+    text, in order of each group's first text."""
+    groups: dict[ComponentRef, list[str]] = {}
+    for text, ident in texts_and_identities:
+        groups.setdefault(ident, []).append(text)
+    return [tuple(texts) for texts in groups.values() if len(texts) > 1]
+
+
+def find_changes_duplicate_identities(
+    rows: Sequence[VersionRow],
+    headings: list[str],
+    deps: list[ChartDependency],
+    canonical_names: Mapping[str, tuple[str, ...]],
+) -> tuple[list[tuple[str, ...]], list[tuple[str, ...]]]:
+    """(duplicate_row_groups, duplicate_heading_groups): the "Component
+    versions" rows, and separately the "## Changes" headings, that name
+    the same component more than once — e.g. rows "KISS" and "Kiss", or
+    headings "KISS 3.0.0 → 3.1.0" and "kiss 3.0.0 → 3.1.0 (chart 1 → 2)".
+    find_changes_row_correspondence_gaps only asks whether an identity
+    appears on both sides, so a second row/heading for the same component
+    passes it unnoticed.
+
+    Rows resolve via resolve_component_identity; a heading counts only
+    when changes_heading_identities finds exactly one identity in it (a
+    zero- or multi-identity heading is already reported by
+    find_changes_row_correspondence_gaps). Each group lists the original
+    row names / heading texts in their original order."""
+    row_idents: list[tuple[str, ComponentRef]] = []
+    for row in rows:
+        ident = resolve_component_identity(row["name"], deps, canonical_names)
+        if ident is not None:
+            row_idents.append((row["name"], ident))
+
+    heading_idents: list[tuple[str, ComponentRef]] = []
+    for heading in headings:
+        idents = changes_heading_identities(heading, deps, canonical_names)
+        if len(idents) == 1:
+            heading_idents.append((heading, next(iter(idents))))
+
+    return _group_by_identity(row_idents), _group_by_identity(heading_idents)
+
+
 def is_exact_dependency_match(name: str, dep: ChartDependency) -> bool:
     """True if `name`, normalized (case/punctuation-insensitive), equals
     `dep`'s own name or alias EXACTLY — not just a fuzzy word-span

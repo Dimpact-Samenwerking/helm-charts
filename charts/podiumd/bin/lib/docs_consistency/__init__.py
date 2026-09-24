@@ -42,6 +42,7 @@ from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
+from lib.upgradedoc.consistency_checks import find_changes_duplicate_identities
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
 from lib.upgradedoc.consistency_checks import find_wrong_or_duplicate_dependency_claims
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
@@ -610,6 +611,27 @@ def _check_row_and_heading_order(ctx: DocsCheckContext, scan: DocScanState):
     return mismatches, changes_headings, doc_text
 
 
+def _duplicate_identity_mismatches(ctx: DocsCheckContext, scan: DocScanState, changes_headings: list[str]):
+    """One mismatch per find_changes_duplicate_identities group."""
+    duplicate_rows, duplicate_headings = find_changes_duplicate_identities(
+        scan.rows, changes_headings, ctx.current.deps, scan.canonical_names
+    )
+    mismatches: list[str] = []
+    for group in duplicate_rows:
+        quoted = ", ".join(f'"{name}"' for name in group)
+        mismatches.append(
+            f"{scan.doc_path.name}: table rows {quoted} all name the same component — "
+            f"keep exactly one row per component"
+        )
+    for group in duplicate_headings:
+        quoted = ", ".join(f'"### {heading}"' for heading in group)
+        mismatches.append(
+            f'{scan.doc_path.name}: "## Changes" sections {quoted} all name the same component — '
+            f"keep exactly one section per component"
+        )
+    return mismatches
+
+
 def _check_changes_heading_correspondence(
     ctx: DocsCheckContext,
     scan: DocScanState,
@@ -622,8 +644,10 @@ def _check_changes_heading_correspondence(
     compare against) would otherwise have EVERY row reported as missing
     its heading, which isn't the gap this check exists to catch. Then:
     every row has a matching "### ..." section and vice versa (see
-    find_changes_row_correspondence_gaps); a heading naming exactly one
-    "dep" component that DOES have a real, resolved app version (see
+    find_changes_row_correspondence_gaps), no component is named by two
+    rows or two headings (see find_changes_duplicate_identities); a
+    heading naming exactly one "dep" component that DOES have a real,
+    resolved app version (see
     ComponentRowsResult.resolved_app_by_identity) must actually show it
     — a heading written back when that version wasn't resolvable yet
     (e.g. openbao's own "### openbao 0.28.4" — chart-only, add_missing_
@@ -658,6 +682,7 @@ def _check_changes_heading_correspondence(
         f'"Component versions" table'
         for heading in headings_without_row
     )
+    mismatches.extend(_duplicate_identity_mismatches(ctx, scan, changes_headings))
 
     for heading in changes_headings:
         idents = changes_heading_identities(heading, ctx.current.deps, scan.canonical_names)
