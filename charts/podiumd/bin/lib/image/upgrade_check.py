@@ -52,6 +52,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
+from typing import TypedDict
 
 from lib.checks.cve import bucket_of
 from lib.checks.cve import classify_by_key
@@ -59,6 +60,7 @@ from lib.checks.cve import dependency_names
 from lib.checks.cve import render_image_labels
 from lib.checks.cve import top_level_key_for_line
 from lib.image.digests import unique_digest_pin_targets
+from lib.image.upgrade_cache import UpgradeEntry
 from lib.image.upgrade_cache import cache_entry_is_fresh
 from lib.image.upgrade_cache import cache_key
 from lib.image.upgrade_cache import load_cache
@@ -101,7 +103,17 @@ class ImageUpgradeScan:
     cache_hits: int
 
 
-def _upgrade_info(label: str, newest: str, version: str):
+class ImageUpgrade(TypedDict):
+    """One image in the upgrade report: its bucket, vendor label (partner
+    only), the newest same-variant tag and whether that is newer."""
+
+    bucket: str
+    vendor_label: str | None
+    newest: str
+    has_newer: bool
+
+
+def _upgrade_info(label: str, newest: str, version: str) -> ImageUpgrade:
     """One images[] entry: bucket_of(label), a vendor-label suffix (only
     for a partner-vendor image — see check_image_upgrades' docstring for
     why own/other never carry one), and whether a newer tag is published."""
@@ -147,8 +159,8 @@ class _TargetResult:
 
     image_ref: str
     key: str | None = None
-    cache_entry: dict | None = None
-    info: dict | None = None
+    cache_entry: UpgradeEntry | None = None
+    info: ImageUpgrade | None = None
     cache_hit: bool = False
     error: bool = False
 
@@ -164,7 +176,7 @@ def _fetch_target_upgrade(i: int, total: int, info: _TargetResolveInfo):
         print(f"  [FETCH-ERR] {info.image_ref}  {e}")
         return _TargetResult(info.image_ref, error=True)
 
-    cache_entry = {"checked_at": datetime.now(timezone.utc).isoformat(), "newest": newest}
+    cache_entry: UpgradeEntry = {"checked_at": datetime.now(timezone.utc).isoformat(), "newest": newest}
     return _TargetResult(info.image_ref, info.key, cache_entry, _upgrade_info(info.label, newest, info.version))
 
 

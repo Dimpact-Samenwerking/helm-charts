@@ -102,10 +102,13 @@ import urllib.error
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
+from typing import TypedDict
 
 from lib.checks.cve import SEVERITY_ORDER
 from lib.checks.cve import CacheSession
 from lib.checks.cve import ScanTarget
+from lib.checks.cve import Vulnerability
 from lib.checks.cve import bucket_of
 from lib.checks.cve import classify_by_key
 from lib.checks.cve import dependency_names
@@ -133,11 +136,11 @@ from lib.settings import cve_scan_cache_ttl_days
 from lib.settings import image_upgrade_tag_check_cache_ttl_days
 
 
-def _vuln_key(v: dict):
+def _vuln_key(v: Vulnerability):
     return (v["VulnerabilityID"], v["PkgName"])
 
 
-def diff_vulns(current_vulns: list, proposed_vulns: list):
+def diff_vulns(current_vulns: list[Vulnerability], proposed_vulns: list[Vulnerability]):
     """(closed, introduced) — lists of vuln dicts (same shape lib.
     checks.cve.run_trivy returns) present in exactly one side, keyed by
     the exact (VulnerabilityID, PkgName) pair. An EXACT set difference,
@@ -159,7 +162,31 @@ def _bare_digest(digest_ref: str):
     return digest_ref.removeprefix(prefix)
 
 
-def gather_candidates(chart_dir: Path):
+class DiffCandidate(TypedDict):
+    """One image whose CVEs are diffed (see gather_candidates): "upgrade"
+    to a newer tag, or a "sliding digest" whose tag moved upstream.
+    proposed_digest is None until an upgrade's digest is resolved; line
+    is the pin's values.yaml line, None when it can't be located."""
+
+    kind: Literal["upgrade", "sliding digest"]
+    repository: str
+    version: str
+    current_ref: str
+    current_digest: str
+    proposed_label: str
+    proposed_ref: str
+    proposed_digest: str | None
+    line: int | None
+
+
+class ClassifiedCandidate(DiffCandidate):
+    """A DiffCandidate with its report bucket ("own", "partner", "other";
+    see classify_candidates)."""
+
+    bucket: str
+
+
+def gather_candidates(chart_dir: Path) -> list[DiffCandidate]:
     """[{"kind", "repository", "version", "current_ref", "current_digest",
     "proposed_label", "proposed_ref", "proposed_digest"}] — see this
     module's own docstring for exactly what each of the two candidate
@@ -178,7 +205,7 @@ def gather_candidates(chart_dir: Path):
 
     upgrade_cache = load_upgrade_cache(chart_dir)
     upgrade_ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
-    candidates = []
+    candidates: list[DiffCandidate] = []
     for (repository, version), (digest, line) in sorted(targets.items()):
         entry = upgrade_cache.get(upgrade_cache_key(repository, version))
         if entry and upgrade_entry_is_fresh(entry, upgrade_ttl_days) and entry["newest"] != version:
@@ -328,9 +355,11 @@ def print_candidate_result(
     print()
 
 
-def classify_candidates(chart_dir: Path, extra_args: list, candidates: list, values_lines: list[str]):
-    """Attach "bucket" ("own"|"partner"|"other") to each candidate dict in
-    place, via the exact same own/partner/other classification lib.
+def classify_candidates(
+    chart_dir: Path, extra_args: list, candidates: list[DiffCandidate], values_lines: list[str]
+) -> list[ClassifiedCandidate]:
+    """Each candidate with its "bucket" ("own"|"partner"|"other"), via the
+    exact same own/partner/other classification lib.
     checks.cve/lib.image.upgrade_check already use for a currently-pinned
     image: render-based "# Source:" attribution first (rendered_labels),
     falling back to a values.yaml top-level-key heuristic
@@ -346,12 +375,14 @@ def classify_candidates(chart_dir: Path, extra_args: list, candidates: list, val
     dep_names = dependency_names(chart_dir)
     rendered_labels = render_image_labels(result.stdout, vendor_map) if result.returncode == 0 else {}
 
+    classified: list[ClassifiedCandidate] = []
     for candidate in candidates:
         label = rendered_labels.get((candidate["repository"], candidate["version"], candidate["current_digest"]))
         if label is None:
             top_key = top_level_key_for_line(values_lines, candidate["line"]) if candidate["line"] else None
             label = classify_by_key(top_key, dep_names, vendor_map)
-        candidate["bucket"] = bucket_of(label)
+        classified.append({**candidate, "bucket": bucket_of(label)})
+    return classified
 
 
 def _process_bucket(context: DiffContext, title: str, bucket_candidates: list):
@@ -391,7 +422,7 @@ def _process_bucket(context: DiffContext, title: str, bucket_candidates: list):
     return total_closed, total_introduced
 
 
-def _partition_by_bucket(candidates: list):
+def _partition_by_bucket(candidates: list[ClassifiedCandidate]):
     """[(bucket_key, title, candidates-in-that-bucket)] for the three
     report buckets, own/partner/other, in print order — see
     _process_all_buckets/_build_detail_message, which both iterate this
@@ -452,8 +483,7 @@ def check_cve_diff(chart_dir: Path, extra_args: list, *, detail: bool = False):
         return True, "0 candidate(s)"
 
     values_lines = (chart_dir / "values.yaml").read_text(encoding="utf-8").splitlines()
-    classify_candidates(chart_dir, extra_args, candidates, values_lines)
-    buckets = _partition_by_bucket(candidates)
+    buckets = _partition_by_bucket(classify_candidates(chart_dir, extra_args, candidates, values_lines))
 
     print(f"Diffing CVEs for {len(candidates)} upgrade/slide candidate(s) (current vs proposed, via trivy)...")
 
