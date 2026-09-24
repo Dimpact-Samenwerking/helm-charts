@@ -10,6 +10,7 @@ from lib.component_docs.images_manifest_changes_header import NUMBER_WORDS
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
 from lib.docs_consistency.images_manifest_format import match_changes_item_to_entry
+from lib.images_manifest import ManifestEntry
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 
@@ -98,7 +99,11 @@ def dedupe_images_manifest_changes_items(lines: list[str]):
 
 
 def _resolved_changes_items(
-    lines: list[str], item_bounds: list, entries: list, entry_positions: dict, display_name_positions: dict | None
+    lines: list[str],
+    item_bounds: list,
+    entries: list[ManifestEntry],
+    entry_positions: dict,
+    display_name_positions: dict | None,
 ):
     """Resolves each item's own sort key: exact display-name match first
     (see match_changes_item_display_name/display_name_positions), falling
@@ -122,7 +127,7 @@ def _resolved_changes_items(
 
 
 def sort_images_manifest_changes_items(
-    lines: list[str], entries: list, entry_positions: dict, display_name_positions: dict | None = None
+    lines: list[str], entries: list[ManifestEntry], entry_positions: dict, display_name_positions: dict | None = None
 ):
     """Reorder the images-manifest's own "# Changes:" numbered item list
     (see _find_images_manifest_changes_header) to MIRROR the entry

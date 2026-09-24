@@ -41,7 +41,7 @@ no signal other than the reported percentage looking wrong. Re-diff against
 encodeRelease() in helm.sh/helm/v4/pkg/storage/driver/util.go after any
 Helm major-version bump in this repo's tooling.
 
-Chart.yaml/values.yaml/Chart.lock are parsed with lib.chart.load_yaml
+Chart.yaml/values.yaml/Chart.lock are parsed with yaml.safe_load
 (PyYAML) rather than shelling out to a YAML-to-JSON converter (the
 original standalone version of this tool used mikefarah/yq's `-o=json`,
 with its own guard against this repo's OTHER, incompatible `yq`) — this
@@ -255,7 +255,7 @@ def build_release(chart_dir: Path, values_override: dict | None, manifest: str, 
 
 def load_yaml_bytes(data: bytes):
     """yaml.safe_load applied to a vendored-tgz member's raw bytes (see
-    packaged_files) — the same parse load_yaml itself does for a real
+    packaged_files) — the same parse lib.yaml_types does for a real
     file, just against bytes already read out of the tar archive rather
     than a path, so this doesn't need a temp file on disk for each one."""
     return yaml.safe_load(data.decode("utf-8")) or {}

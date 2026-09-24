@@ -8,8 +8,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
-
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
@@ -17,6 +15,8 @@ from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.images_manifest import ManifestEntry
+from lib.images_manifest import try_parse_images_manifest
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
@@ -65,7 +65,7 @@ class _ManifestEntriesSetup:
     everywhere shape)."""
 
     lines: list
-    entries: list
+    entries: list[ManifestEntry]
     entry_line_indices: list
     current_paths: dict
     baseline: _BaselineSetup
@@ -86,11 +86,11 @@ class _ManifestFixState:
     fixed_comment_versions: dict
 
 
-def resolve_entry_version(entry: dict, paths: dict, repo_map: dict | None = None):
+def resolve_entry_version(entry: ManifestEntry, paths: dict, repo_map: dict | None = None):
     """The app version pinned at the values-tree path this images-manifest
     entry resolves to, or None if it can't be resolved (no matching
     path, or that path has no version, e.g. the component didn't exist yet)."""
-    path = resolve_entry_image_path(entry, paths.keys(), repo_map)
+    path = resolve_entry_image_path(entry["name"], paths.keys(), repo_map)
     tag = paths.get(path) if path else None
     return tag.split("@")[0] if tag else None
 
@@ -100,11 +100,8 @@ def _manifest_entries_setup(text: str, context: ManifestEntriesContext):
     hand caller-visible text back unchanged" case fix_images_manifest_
     entries itself used to return early for."""
     lines = text.splitlines(keepends=True)
-    try:
-        entries = yaml.safe_load(text)
-    except yaml.YAMLError:
-        return None
-    if not isinstance(entries, list):
+    entries = try_parse_images_manifest(text)
+    if entries is None:
         return None
 
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
@@ -127,7 +124,7 @@ def _manifest_entries_setup(text: str, context: ManifestEntriesContext):
     # None-safe handling.
     sibling_fields = digest_pinning_exceptions(context.chart_dir) if context.chart_dir is not None else {}
 
-    def same_group(entry_a: dict, entry_b: dict):
+    def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry):
         return images_manifest_entries_share_group(entry_a, entry_b, current_paths, context.repo_map)
 
     return _ManifestEntriesSetup(
@@ -184,7 +181,11 @@ def _manifest_entry_digest_only_change(
 
 
 def _process_manifest_entry(
-    index: int, entry: dict, context: ManifestEntriesContext, setup: _ManifestEntriesSetup, state: _ManifestFixState
+    index: int,
+    entry: ManifestEntry,
+    context: ManifestEntriesContext,
+    setup: _ManifestEntriesSetup,
+    state: _ManifestFixState,
 ):
     """Resolves and, if needed, rewrites the one images-manifest entry
     at `entries[index]` — appending to state.changed_entries/
@@ -198,7 +199,7 @@ def _process_manifest_entry(
         state.unresolved_names.append(name)
         return
 
-    path = resolve_entry_image_path(entry, setup.current_paths.keys(), context.repo_map)
+    path = resolve_entry_image_path(entry["name"], setup.current_paths.keys(), context.repo_map)
     actual_target = resolve_entry_version(entry, setup.current_paths, context.repo_map)
     if path is None or actual_target is None:
         state.unresolved_names.append(name)

@@ -6,9 +6,6 @@ cannot disagree."""
 import re
 
 from pathlib import Path
-from typing import Any
-
-import yaml
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.pull_and_subchart_resolution import global_image_paths
@@ -16,6 +13,8 @@ from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.images_manifest import ManifestEntry
+from lib.images_manifest import try_parse_images_manifest
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.yaml_types import YamlMapping
@@ -39,7 +38,7 @@ def image_repo_map(
 
 
 def entry_pin(
-    entry: dict[str, Any],
+    entry: ManifestEntry,
     values: YamlMapping,
     paths: dict[tuple[str, ...], str | None],
     repo_map: dict[str, tuple[str, ...]],
@@ -49,7 +48,7 @@ def entry_pin(
     and the tag pinned there, with the digest from a sibling field when
     the tag has none (resolved_digest_pin). Tag None when the path has
     no tag; (None, None) when the entry matches no image path."""
-    path = resolve_entry_image_path(entry, paths.keys(), repo_map)
+    path = resolve_entry_image_path(entry["name"], paths.keys(), repo_map)
     if not path:
         return None, None
     tag = paths[path]
@@ -69,17 +68,14 @@ def _rewrite_entry_pin(lines: list[str], start: int, tag: str) -> None:
             lines[i] = replace_scalar_value(lines[i], version if m.group(1) == "version" else digest)
 
 
-def _parsed_entries(text: str) -> tuple[list[str], list[tuple[int, dict[str, Any]]]]:
+def _parsed_entries(text: str) -> tuple[list[str], list[tuple[int, ManifestEntry]]]:
     """(lines, [(start line index, entry), ...]) of an images manifest,
     or no entries when it is not a list whose "- name:" lines line up
     with its entries."""
     lines = text.splitlines(keepends=True)
-    try:
-        entries = yaml.safe_load(text)
-    except yaml.YAMLError:
-        return lines, []
+    entries = try_parse_images_manifest(text)
     starts = [i for i, line in enumerate(lines) if ENTRY_START_RE.match(line)]
-    if not isinstance(entries, list) or len(starts) != len(entries):
+    if entries is None or len(starts) != len(entries):
         return lines, []
     return lines, list(zip(starts, entries, strict=True))
 

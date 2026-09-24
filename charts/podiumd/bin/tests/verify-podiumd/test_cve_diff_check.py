@@ -16,7 +16,7 @@ re-imported into lib.checks.cve_diff — live in lib.checks.cve now, not
 here.
 
 classify_candidates (the new bucketing step) needs a Chart.yaml to exist
-(dependency_names/friendly_vendor_charts both call lib.chart.load_yaml on
+(dependency_names/friendly_vendor_charts both read Chart.yaml through lib.chart.chart_yaml on
 it directly, no existence check) and calls lib.render_scope.render_chart
 — every test in this file gets a minimal Chart.yaml via make_chart_dir,
 and an autouse fixture defaults render_chart to a FAILING render (see
@@ -58,7 +58,7 @@ def write_values_yaml(chart_dir, text):
     """Every EXISTING test in this file only ever wrote values.yaml — now
     that classify_candidates (called unconditionally by check_cve_diff)
     needs a Chart.yaml to exist too (dependency_names/friendly_vendor_
-    charts both call lib.chart.load_yaml on it directly, no existence
+    charts both read it through lib.chart.chart_yaml, no existence
     check), this also drops in a minimal Chart.yaml with no dependencies
     at all, unless a test already wrote its own first — the least
     invasive fix, since every existing candidate then falls through

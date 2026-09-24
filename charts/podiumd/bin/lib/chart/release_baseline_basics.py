@@ -1,7 +1,6 @@
 """Release-baseline basics: chart_dir/etc/release-baseline.yaml
 read/write (upgrade_docs_baseline, release_table_baseline,
-write_release_baselines) and the two plain YAML readers
-(load_yaml/chart_version) every other lib.chart.* module shares."""
+write_release_baselines) and chart_version."""
 
 from pathlib import Path
 
@@ -11,13 +10,6 @@ from lib.chart.chart_yaml import normalize_int_version
 from lib.yaml_types import YamlShapeError
 from lib.yaml_types import key_problem
 from lib.yaml_types import load_yaml_mapping
-
-
-def load_yaml(path: Path):
-    """Plain yaml.safe_load of `path`'s own text — the one shared reader
-    every other lib.chart.* module uses rather than re-opening/re-parsing
-    a YAML file itself."""
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 def chart_version(chart_yaml_path: Path) -> str:

@@ -15,6 +15,7 @@ from lib.chart.registered_paths import native_components
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
+from lib.images_manifest import ManifestEntry
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
@@ -122,7 +123,7 @@ class ManifestDiffInputs:
     different subset of these together. See find_images_manifest_list_
     diff's own docstring for what each field means."""
 
-    entries: list
+    entries: list[ManifestEntry]
     current_paths: dict
     baseline_paths: dict
     repo_map: dict
@@ -196,7 +197,7 @@ def _match_entries(inputs: ManifestDiffInputs, representative_of: dict, changed_
     matched_paths = set()
     stale_entry_names, unmatched_entry_names = [], []
     for entry in inputs.entries:
-        path = resolve_entry_image_path(entry, inputs.current_paths.keys(), inputs.repo_map)
+        path = resolve_entry_image_path(entry["name"], inputs.current_paths.keys(), inputs.repo_map)
         # An entry can resolve to ANY path in a shared-repository group —
         # repo_map's own exact "name: is a stripped repository" hit
         # always lands on repo_map's chosen representative already, but

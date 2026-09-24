@@ -59,7 +59,7 @@ def is_denylisted_host(host: str, denylisted_host_suffixes: tuple[str, ...]):
 
 # "- name: <name>" at the start of a Chart.yaml dependency block — used to
 # re-derive a dependency's own source line, since PyYAML's safe_load (what
-# lib.chart.load_yaml uses) doesn't track source lines at all. Same
+# lib.yaml_types uses) doesn't track source lines at all. Same
 # raw-text-regex approach every other line-anchored scan in this codebase
 # uses (see lib.image.digests.DIGEST_PIN_RE and friends), rather than a
 # real YAML AST with position info.

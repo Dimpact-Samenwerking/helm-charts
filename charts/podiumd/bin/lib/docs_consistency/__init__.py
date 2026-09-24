@@ -15,7 +15,6 @@ from pathlib import Path
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.release_baseline_basics import chart_version
-from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.values_tree_primitives import version_of
 from lib.component_docs.changes_section import BaselineState
@@ -36,6 +35,8 @@ from lib.docs_consistency.values_diff import check_values_deltas_content
 from lib.image.manifest_entry_pins import current_image_paths
 from lib.image.manifest_entry_pins import entry_pin
 from lib.image.manifest_entry_pins import image_repo_map
+from lib.images_manifest import ManifestEntry
+from lib.images_manifest import parse_images_manifest
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.consistency_checks import find_changes_row_correspondence_gaps
@@ -725,7 +726,9 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     )
 
 
-def _check_images_manifest_entry(ctx: DocsCheckContext, scan: ManifestEntryScan, entry: dict, findings: Findings):
+def _check_images_manifest_entry(
+    ctx: DocsCheckContext, scan: ManifestEntryScan, entry: ManifestEntry, findings: Findings
+):
     """One images-manifest entry's own version/digest/already-in-
     baseline checks — split out of the entries loop purely to keep
     that loop's own complexity down."""
@@ -793,7 +796,7 @@ def _check_images_manifest(ctx: DocsCheckContext, repo_map: dict, sibling_fields
         return  # format issue(s) already recorded above; entries aren't safely interpretable until fixed
 
     findings.checked.append(images_path.name)
-    entries_list = load_yaml(images_path) or []
+    entries_list = parse_images_manifest(images_path.read_text(encoding="utf-8"), str(images_path))
 
     if entries_list:
         manifest_lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
