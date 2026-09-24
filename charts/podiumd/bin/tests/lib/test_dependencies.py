@@ -4,6 +4,9 @@ ensure_vendored_dependencies. `helm` subprocess calls mocked out via
 libdependencies.run, so these tests need neither the binary installed nor
 network access."""
 
+import errno
+import os
+
 from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
@@ -248,6 +251,37 @@ def testvendored_state_matches_chart_yaml_false_when_no_lock_file(libdependencie
     deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
     assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
+
+
+def test_vendored_state_matches_chart_yaml_false_when_chart_yaml_unreadable(
+    libdependencies: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """An OSError reading Chart.yaml means "not in sync", never a crash."""
+    deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
+    write_matching_lock_state(tmp_path, deps)
+    real_read_text = Path.read_text
+
+    def read_text(path: Path, *args: str, **kwargs: str) -> str:
+        if path.name == "Chart.yaml":
+            raise PermissionError(errno.EACCES, os.strerror(errno.EACCES))
+        return real_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+
+    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
+    assert libdependencies.vendored_dependency_problems(tmp_path) == [
+        "Chart.yaml can not be read: [Errno 13] Permission denied"
+    ]
+
+
+def test_vendored_state_matches_chart_yaml_false_when_lock_is_not_utf8(libdependencies: ModuleType, tmp_path: Path):
+    deps = [{"name": "zac", "version": "1.0.297", "repository": "@zac"}]
+    write_matching_lock_state(tmp_path, deps)
+    (tmp_path / "Chart.lock").write_bytes(b"\xff\xfe not utf-8")
+
+    assert libdependencies.vendored_state_matches_chart_yaml(tmp_path) is False
+    [problem] = libdependencies.vendored_dependency_problems(tmp_path)
+    assert problem.startswith("Chart.lock can not be read: ")
 
 
 def testvendored_state_matches_chart_yaml_false_when_version_bumped(libdependencies: ModuleType, tmp_path: Path):

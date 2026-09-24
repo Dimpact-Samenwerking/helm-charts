@@ -93,6 +93,8 @@ def _lock_problems(chart_dir: Path, chart_deps: list[ChartDependency]):
         return ["Chart.lock is missing"]
     try:
         lock_deps = parse_chart_lock_dependencies(lock_path.read_text(encoding="utf-8"), "Chart.lock") or []
+    except (OSError, UnicodeDecodeError) as e:
+        return [f"Chart.lock can not be read: {e}"]
     except yaml.YAMLError:
         return ["Chart.lock is not valid YAML"]
     except YamlShapeError as e:
@@ -165,6 +167,8 @@ def _dependency_state(chart_dir: Path) -> tuple[list[ChartDependency], list[str]
         return [], ["Chart.yaml is missing"]
     try:
         chart_deps = parse_chart_dependencies(chart_yaml_path.read_text(encoding="utf-8"), "Chart.yaml")
+    except (OSError, UnicodeDecodeError) as e:
+        return [], [f"Chart.yaml can not be read: {e}"]
     except yaml.YAMLError:
         return [], ["Chart.yaml is not valid YAML"]
     except YamlShapeError as e:
@@ -208,7 +212,7 @@ def vendored_state_matches_chart_yaml(chart_dir: Path):
     correct dependency in the Helm version this repo currently uses).
 
     False (never raises) for any reason the lock can't be trusted as-is:
-    missing, unparseable, a different dependency set/version/repository,
+    missing, unreadable, unparseable, a different dependency set/version/repository,
     a dependency missing its own vendored .tgz (see vendored_dependency_
     problems for the itemized list), or a Chart.yaml with no dependencies
     at all — check_dependencies' own full rebuild-from-scratch path is
