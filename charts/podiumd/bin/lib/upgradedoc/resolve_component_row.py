@@ -18,7 +18,7 @@ from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import native_components
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.values_tree_primitives import dep_for_values_key
-from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
@@ -87,7 +87,7 @@ def sidecar_tag(values: YamlMapping, sidecar_path: tuple[str, ...]):
     "image" and "initImage" — stripping the trailing key and re-
     guessing ".image.tag" would compare the row against the wrong one
     of the two)."""
-    tag = get_path(values, ".".join(sidecar_path) + ".tag")
+    tag = text_at(values, ".".join(sidecar_path) + ".tag")
     return tag.split("@", 1)[0] if isinstance(tag, str) and tag else None
 
 

@@ -42,12 +42,12 @@ from lib.chart.registered_paths import component_image_paths
 from lib.chart.registered_paths import component_version_paths
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import version_paths_for
-from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import find_dependency
-from lib.chart.values_tree_primitives import get_path
+from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
 
 
 def find_lockstep_mismatches(deps: list[ChartDependency], values: YamlMapping | None):
@@ -82,7 +82,7 @@ def find_lockstep_mismatches(deps: list[ChartDependency], values: YamlMapping | 
 
         resolved = []
         for path in paths:
-            raw = get_path(base, f"{path}.tag" if is_image_paths else path)
+            raw = text_at(base, f"{path}.tag" if is_image_paths else path)
             if isinstance(raw, str) and raw:
                 resolved.append((path, version_of(raw)))
 
@@ -115,13 +115,13 @@ def find_chart_version_mismatches(deps: list[ChartDependency], values: YamlMappi
 
         app_version = None
         for path in image_paths_for(component):
-            tag = get_path(base, f"{path}.tag")
+            tag = text_at(base, f"{path}.tag")
             if tag:
                 app_version = version_of(tag)
                 break
         if app_version is None:
             for path in version_paths_for(component):
-                version = get_path(base, path)
+                version = text_at(base, path)
                 if isinstance(version, str) and version:
                     app_version = version_of(version)
                     break
@@ -139,7 +139,7 @@ def check_lockstep_versions(chart_dir: Path):
     against chart_dir's own Chart.yaml/values.yaml and reports every
     mismatch found."""
     deps = load_chart_dependencies(chart_dir / "Chart.yaml")
-    values = load_yaml(chart_dir / "values.yaml") or {}
+    values = load_yaml_mapping(chart_dir / "values.yaml")
 
     path_mismatches = find_lockstep_mismatches(deps, values)
     chart_version_mismatches = find_chart_version_mismatches(deps, values)

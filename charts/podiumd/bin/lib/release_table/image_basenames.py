@@ -4,7 +4,7 @@ check."""
 
 from pathlib import Path
 
-from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.values_tree_primitives import mapping_at
 from lib.image.version import basenames_under_scope
 from lib.image.version import basenames_under_scope_any_tag
 from lib.image.version import image_basename
@@ -12,6 +12,7 @@ from lib.release_table.component_resolution import exact_match
 from lib.release_table.component_resolution import extra_scope_keys_by_component
 from lib.release_table.component_resolution import global_image_keys
 from lib.release_table.component_resolution import match_one
+from lib.yaml_types import load_yaml_mapping
 
 
 def resolve_image_basenames(rows: list, chart_dir: Path):
@@ -51,9 +52,9 @@ def resolve_image_basenames(rows: list, chart_dir: Path):
     if not values_path.is_file():
         return ["" for _ in rows]
     lines = values_path.read_text(encoding="utf-8").splitlines()
-    values = load_yaml(values_path) or {}
+    values = load_yaml_mapping(values_path)
     global_keys = global_image_keys(chart_dir)
-    global_images = (values.get("global") or {}).get("images") or {}
+    global_images = mapping_at(values, "global.images")
 
     result = [""] * len(rows)
     extra_scopes = extra_scope_keys_by_component(chart_dir)

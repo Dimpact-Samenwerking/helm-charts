@@ -366,7 +366,7 @@ zac:
     tag: "5.0.0@sha256:{DIGEST_A}"
 """,
     )
-    values = libdigestpinningcheck.load_yaml(tmp_path / "values.yaml")
+    values = libdigestpinningcheck.load_yaml_mapping(tmp_path / "values.yaml")
     deps = []
     repo_groups = libdigestpinningcheck._repository_groups(tmp_path, values, deps)
     assert libdigestpinningcheck._global_image_usage(values, repo_groups) == {}
@@ -389,7 +389,7 @@ zac:
       tag: "8.21.0@sha256:{DIGEST_A}"
 """,
     )
-    values = libdigestpinningcheck.load_yaml(tmp_path / "values.yaml")
+    values = libdigestpinningcheck.load_yaml_mapping(tmp_path / "values.yaml")
     deps = []
     repo_groups = libdigestpinningcheck._repository_groups(tmp_path, values, deps)
     usage = libdigestpinningcheck._global_image_usage(values, repo_groups)

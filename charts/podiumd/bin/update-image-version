@@ -50,7 +50,6 @@ from lib.chart.paths import IMAGES_DIR
 from lib.chart.paths import VALUES_YAML
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.release_baseline_basics import chart_version
-from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import doc_row_name
@@ -97,6 +96,7 @@ from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
@@ -187,7 +187,7 @@ def _single_component_baseline_resolution(bump: ComponentBump, chart_name: str, 
         baseline_deps, baseline_values = load_baseline_state(CHART_YAML, VALUES_YAML, upgrade_docs_baseline)
     if baseline_deps is not None:
         current_deps = load_chart_dependencies(CHART_YAML)
-        current_values = load_yaml(VALUES_YAML) or {}
+        current_values = load_yaml_mapping(VALUES_YAML)
         changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
         # compute_changed_components returns top-level values.yaml keys.
         reset_to_baseline = bump.values_key not in changed_keys
@@ -276,12 +276,8 @@ def _update_single_component_values_deltas(
     key_lines = []
     no_baseline_ref = baseline_values_at_release is None
     if not no_baseline_ref:
-        baseline_subtree = (
-            baseline_values_at_release.get(bump.values_key, {}) if isinstance(baseline_values_at_release, dict) else {}
-        )
-        current_subtree = (
-            context.ordering.values.get(bump.values_key, {}) if isinstance(context.ordering.values, dict) else {}
-        )
+        baseline_subtree = baseline_values_at_release.get(bump.values_key, {})
+        current_subtree = (context.ordering.values or {}).get(bump.values_key, {})
         key_lines = describe_key_changes(bump.values_key, baseline_subtree, current_subtree)
 
     # A pure image-tag bump with no values-schema change needs no
@@ -605,7 +601,7 @@ def update_docs(basename: str, new_version: str, changes: list, values_lines_bef
     image, else to update_docs_shared_image (chart column "-")."""
     deps = load_chart_dependencies(CHART_YAML)
     target = chart_version(CHART_YAML)
-    values = load_yaml(VALUES_YAML) or {}
+    values = load_yaml_mapping(VALUES_YAML)
 
     # <key> <basename> already resolved to a single scope (see
     # lib.image.version.resolve_scoped_matches) before any pin was

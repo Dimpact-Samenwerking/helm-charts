@@ -46,7 +46,6 @@ from lib.chart.pull_and_subchart_resolution import local_chart_dir
 from lib.chart.pull_and_subchart_resolution import pull_chart
 from lib.chart.pull_and_subchart_resolution import pulled_chart_dir
 from lib.chart.pull_and_subchart_resolution import require_local_chart_dir
-from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import find_dependency as _find_dependency
 from lib.chart.values_tree_primitives import find_images
 from lib.chart.values_tree_primitives import values_key_of
@@ -54,6 +53,7 @@ from lib.chart.values_tree_primitives import version_of
 from lib.cli import positional_args
 from lib.image.version import image_basename
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
 
 
 def find_dependency(name_or_alias: str):
@@ -97,7 +97,7 @@ def report_chart(chart_dir: Path, requested_version: str, key: str):
     `requested_version` (e.g. a local "file://" dependency, which only
     ever has one real version)."""
     chart_yaml = load_chart_yaml(chart_dir / "Chart.yaml")
-    values_yaml = load_yaml(chart_dir / "values.yaml") or {}
+    values_yaml = load_yaml_mapping(chart_dir / "values.yaml")
 
     actual_version = chart_yaml["version"]
     if actual_version != requested_version:

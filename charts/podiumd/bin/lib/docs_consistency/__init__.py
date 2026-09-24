@@ -53,6 +53,7 @@ from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
 
 
 def parse_upgrade_doc_rows(doc_path: Path):
@@ -896,7 +897,7 @@ def check_docs_consistency(chart_dir: Path, upgrade_docs_baseline: str | None = 
     ...") when everything checked lines up."""
     podiumd_version = chart_version(chart_dir / "Chart.yaml")
     deps = load_chart_dependencies(chart_dir / "Chart.yaml")
-    values = load_yaml(chart_dir / "values.yaml") or {}
+    values = load_yaml_mapping(chart_dir / "values.yaml")
     sibling_fields = digest_pinning_exceptions(chart_dir)
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
     is_bare_version = bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline))

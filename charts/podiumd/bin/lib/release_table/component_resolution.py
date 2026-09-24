@@ -10,9 +10,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from lib.chart.chart_yaml import load_chart_dependencies
-from lib.chart.release_baseline_basics import load_yaml
+from lib.chart.values_tree_primitives import mapping_at
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.string_and_parsing_basics import word_contains
+from lib.yaml_types import load_yaml_mapping
 
 BRACKETED_RE = re.compile(r"\(([^)]*)\)")
 
@@ -88,9 +89,7 @@ def orphan_values_yaml_keys(chart_dir: Path, dependencies: Sequence[DependencyNa
     values_yaml_path = chart_dir / "values.yaml"
     if not values_yaml_path.is_file():
         return []
-    values = load_yaml(values_yaml_path)
-    if not isinstance(values, dict):
-        return []
+    values = load_yaml_mapping(values_yaml_path)
     known = {normalize_name(dependency_name) for dependency_name, _ in dependencies}
     known |= {normalize_name(alias) for _, alias in dependencies if alias}
     return [(key, "") for key in values if normalize_name(key) not in known]
@@ -112,11 +111,7 @@ def global_image_keys(chart_dir: Path):
     values_yaml_path = chart_dir / "values.yaml"
     if not values_yaml_path.is_file():
         return []
-    values = load_yaml(values_yaml_path)
-    if not isinstance(values, dict):
-        return []
-    images = (values.get("global") or {}).get("images")
-    return list(images) if isinstance(images, dict) else []
+    return list(mapping_at(load_yaml_mapping(values_yaml_path), "global.images"))
 
 
 # predicate(candidate, dependency_name, alias) for one _MATCH_TIERS tier.

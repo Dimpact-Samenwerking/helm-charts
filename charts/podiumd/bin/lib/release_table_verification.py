@@ -34,8 +34,8 @@ from lib.chart.pull_and_subchart_resolution import primary_image_repositories
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_dependency
-from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import strip_registry_host
+from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import version_of
 from lib.image.version import GLOBAL_IMAGES_SCOPE
 from lib.image.version import MULTIPLE_KEY
@@ -783,10 +783,10 @@ class _BaselineSourceResolver:
         repos, error = self._subchart_repos_state
         matching_paths = [p for p, repo in repos.items() if repo and image_basename(repo) == basename]
         if matching_paths:
-            tag = get_path(baseline.values, f"{self.ref.scope_key}.{matching_paths[0]}.tag")
+            tag = text_at(baseline.values, f"{self.ref.scope_key}.{matching_paths[0]}.tag")
             return (version_of(tag) if isinstance(tag, str) and tag else None), None
         if error and all(
-            not get_path(baseline.values, f"{self.ref.scope_key}.{p}.repository")
+            not text_at(baseline.values, f"{self.ref.scope_key}.{p}.repository")
             for p in image_paths_for(self.baseline_dep["name"], baseline.chart_dir)
         ):
             # No path resolved to `basename`, but the resolution itself

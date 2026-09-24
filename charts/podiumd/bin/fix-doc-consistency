@@ -84,6 +84,7 @@ from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifes
 from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
 from lib.gitutil import git_show_text
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
 
 # isort: off
 # Fenced from import sorting (through "isort: on" below): isort and ruff's
@@ -176,7 +177,7 @@ def load_target_state():
     contents — the "current" side of every baseline-vs-target comparison
     this script makes, paired with load_baseline_state's own (deps,
     values) for the old baseline."""
-    values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
+    values = load_yaml_mapping(VALUES_YAML)
     return load_chart_dependencies(CHART_YAML), values
 
 

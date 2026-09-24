@@ -32,8 +32,6 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -62,9 +60,9 @@ from lib.chart.values_tag_sha_lines import locate_dotted_key_line
 from lib.chart.values_tag_sha_lines import locate_tag_and_sha
 from lib.chart.values_tag_sha_lines import write_tag_and_sha
 from lib.chart.values_tree_primitives import dep_for_values_key
-from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import require_dependency
+from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.cli import positional_args
 from lib.component_docs.baseline_doc_stubs import baseline_doc_paths as _baseline_doc_paths
@@ -101,6 +99,7 @@ from lib.upgradedoc.app_version_and_image_paths import resolve_baseline_componen
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
@@ -374,7 +373,7 @@ def _resolve_bump_context(component: str, app_version: str, chart_version: str):
     no_chart = is_native_chart_version(chart_version)
     new_chart = "-" if no_chart else chart_version
     deps = load_chart_dependencies(CHART_YAML)
-    values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
+    values = load_yaml_mapping(VALUES_YAML)
 
     if no_chart:
         component = resolve_native_component(CHART_DIR, component)
@@ -430,7 +429,7 @@ def _compute_paths_to_update(ctx: BumpContext):
     paths_to_update = []
     old_app_by_path = {}
     for path in ctx.image_paths:
-        current_tag = get_path(ctx.values, f"{ctx.values_key}.{path}.tag") or ""
+        current_tag = text_at(ctx.values, f"{ctx.values_key}.{path}.tag") or ""
         current_version = current_tag.split("@", 1)[0]
         old_app_by_path[path] = current_version or None
         if current_version == ctx.app_version:
@@ -450,7 +449,7 @@ def _classify_paths_to_update(ctx: BumpContext, paths_to_update: list[str], spli
         if (ctx.values_key, path) in split_tag_sha_paths:
             split_paths.append(path)
             continue
-        explicit_repo = get_path(ctx.values, f"{ctx.values_key}.{path}.repository")
+        explicit_repo = text_at(ctx.values, f"{ctx.values_key}.{path}.repository")
         (delegated_paths if isinstance(explicit_repo, str) and explicit_repo else fallback_paths).append(path)
     return TagUpdatePlan(split_paths, delegated_paths, fallback_paths)
 
@@ -476,7 +475,7 @@ def _write_split_tag_sha_pin(
 ):
     """Write one split pin pair for path into values_lines (see
     _write_split_tag_sha_pins), updating acc in place."""
-    repo = get_path(ctx.values, f"{ctx.values_key}.{path}.repository")
+    repo = text_at(ctx.values, f"{ctx.values_key}.{path}.repository")
     if not isinstance(repo, str) or not repo:
         msg = f"error: no repository found at {ctx.values_key}.{path}.repository in {VALUES_YAML}"
         raise SystemExit(msg)
@@ -516,7 +515,7 @@ def _write_delegated_tags(ctx: BumpContext, delegated_paths: list, acc: TagUpdat
             msg = f"error: could not find '{ctx.values_key}.{path}.tag' in {VALUES_YAML}"
             raise SystemExit(msg)
         own_line = located[0] + 1  # 1-indexed, matches lib.image.version's line numbering
-        acc.repos[path] = get_path(ctx.values, f"{ctx.values_key}.{path}.repository")
+        acc.repos[path] = text_at(ctx.values, f"{ctx.values_key}.{path}.repository")
         basename = image_basename(acc.repos[path])
         print()
         print(f"=== Updating '{basename}' image pin(s) for {ctx.values_key}.{path} ===")
@@ -575,7 +574,7 @@ def _resolve_against_baseline(
     it (see resolve_baseline_component_versions). Returns (old_app,
     old_chart, reset_to_baseline)."""
     current_deps = load_chart_dependencies(CHART_YAML)
-    current_values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
+    current_values = load_yaml_mapping(VALUES_YAML)
     changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
     reset_to_baseline = friendly not in changed_keys
 
@@ -652,7 +651,7 @@ def _update_values_deltas_change(
     """Non-reset branch of _update_values_deltas_section: describes
     added/removed/renamed values.yaml keys for this component since its
     baseline, writing a section if any."""
-    current_values_after = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
+    current_values_after = load_yaml_mapping(VALUES_YAML)
     current_subtree = current_values_after.get(ctx.values_key, {})
     baseline_values_at_release = (
         comparison.baseline_values
