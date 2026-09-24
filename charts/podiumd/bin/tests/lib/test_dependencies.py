@@ -179,6 +179,16 @@ def test_check_dependencies_retries_then_succeeds(libdependencies, tmp_path, mon
     assert "Running helm dependency update (attempt 2/3)..." in out
 
 
+def test_check_dependencies_zero_retry_attempts_is_a_clear_error(libdependencies, tmp_path, monkeypatch):
+    """Regression test: dependency_fetch.retry_attempts = 0 ran helm zero
+    times and then crashed with AttributeError on the missing result. It
+    now fails with an error that names the setting."""
+    monkeypatch.setattr(libdependencies, "run", fake_run())
+    monkeypatch.setattr(libdependencies, "dependency_fetch_retry_attempts", lambda _chart_dir: 0)
+    with pytest.raises(SystemExit, match="retry_attempts must be at least 1, got 0"):
+        libdependencies.check_dependencies(tmp_path)
+
+
 def test_check_dependencies_count_mismatch(libdependencies, tmp_path, monkeypatch):
     (tmp_path / "charts").mkdir()
     # only one .tgz on disk but the dependency list reports two
