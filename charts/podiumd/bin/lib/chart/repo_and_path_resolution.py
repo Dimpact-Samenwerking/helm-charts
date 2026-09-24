@@ -164,7 +164,7 @@ def paths_by_repository(
     *,
     allow_pull: bool = False,
 ) -> dict[str, list[tuple[str, ...]]]:
-    """{strip_registry_host(repository): [path, ...]} for every path in
+    """{repository_group_key(repository): [path, ...]} for every path in
     `paths` (e.g. lib.upgradedoc.find_image_tag_paths(values)'s own
     keys) that resolves to a repository — not just each dependency's
     own "primary" image (image_paths_for / primary_image_repositories)
@@ -264,12 +264,22 @@ def _grouped_repository_for_path(
     the tier order) — podiumd's own explicit override checked first,
     regardless of whether `dep` is even known; every other tier needs a
     real `dep` to resolve anything at all."""
-    own_repo = text_at(values, ".".join(path) + ".repository")
-    if isinstance(own_repo, str) and own_repo:
+    own_repo = _full_repo_from_own_override(values, path)
+    if own_repo is not None:
         return strip_registry_host(own_repo)
     if dep is None:
         return None
     return _grouped_repository_from_dependency(dep, path, values, state)
+
+
+def repository_group_key(repository: str) -> str:
+    """The group key (and images-manifest "name:") for a "repository:"
+    string: resolved to its full host-qualified form the way
+    full_repository_for_path does (Docker Hub's implicit "docker.io/"
+    and "library/" added), then the host stripped. "python" and
+    "docker.io/library/python" both give "library/python",
+    "mcr.microsoft.com/azure-cli" gives "azure-cli"."""
+    return strip_registry_host(_formatted_repo(repository))
 
 
 def _grouped_repository_from_dependency(
@@ -283,17 +293,17 @@ def _grouped_repository_from_dependency(
     if sibling_rel:
         sibling_repo = text_at(values, f"{path[0]}.{sibling_rel}")
         if isinstance(sibling_repo, str) and sibling_repo:
-            return strip_registry_host(sibling_repo)
+            return repository_group_key(sibling_repo)
 
     nested_repo = _cached_nested_subchart_repository(dep, path, state)
     if nested_repo:
-        return strip_registry_host(nested_repo)
+        return repository_group_key(nested_repo)
 
     sub_values = _cached_subchart_values(dep, state)
     if sub_values is None:
         return None
     repo = text_at(sub_values, ".".join(path[1:]) + ".repository")
-    return strip_registry_host(repo) if isinstance(repo, str) and repo else None
+    return repository_group_key(repo) if isinstance(repo, str) and repo else None
 
 
 def _cached_nested_subchart_repository(dep: ChartDependency, path: tuple[str, ...], state: _RepoResolutionState):
@@ -472,7 +482,7 @@ def repository_path_map(
     *,
     allow_pull: bool = False,
 ) -> dict[str, tuple[str, ...]]:
-    """{strip_registry_host(repository): values-tree path} — paths_by_
+    """{repository_group_key(repository): values-tree path} — paths_by_
     repository's own per-repository groups, collapsed to each group's
     single representative path (see repo_group_representative). Exists
     because an images-manifest entry's "name:" is, under the current
@@ -559,7 +569,7 @@ def canonical_sidecar_row_names(
     for path in global_paths:
         repo = text_at(values, ".".join(path) + ".repository")
         if isinstance(repo, str) and repo:
-            names[strip_registry_host(repo).rsplit("/", 1)[-1]] = path
+            names[repository_group_key(repo).rsplit("/", 1)[-1]] = path
     return names
 
 
@@ -633,7 +643,7 @@ def _global_repository_set(values: YamlMapping, global_paths: list[tuple[str, ..
     for path in global_paths:
         repo = text_at(values, ".".join(path) + ".repository")
         if isinstance(repo, str) and repo:
-            global_repos.add(strip_registry_host(repo))
+            global_repos.add(repository_group_key(repo))
     return global_repos
 
 

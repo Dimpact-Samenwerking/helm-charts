@@ -104,6 +104,7 @@ from lib.fix_doc_consistency.manifest_entries_new_and_urls import (
     MissingEntriesContext,
     add_missing_images_manifest_entries,
     remove_stale_images_manifest_entries,
+    fix_images_manifest_entry_names,
     fix_images_manifest_entry_urls,
 )
 
@@ -591,6 +592,19 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
         upgrade_path.write_text(collapsed_text, encoding="utf-8")
 
 
+def _correct_images_manifest_names(images_path: Path, repo_map: dict[str, ImagePath]):
+    """Renames an entry whose "name:" isn't its url minus the registry
+    host (e.g. "python" for docker.io/library/python)."""
+    text = images_path.read_text(encoding="utf-8")
+    new_text, renamed = fix_images_manifest_entry_names(text, repo_map)
+    if renamed:
+        images_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Correcting entry name(s) in {images_path.name} ===")
+        for old_name, new_name in renamed:
+            print(f"  {old_name} -> {new_name}")
+
+
 def _sync_images_manifest_entry_pins(images_path: Path, state: RebaseState) -> None:
     """Sets each entry's version/digest to the tag values.yaml pins."""
     text = images_path.read_text(encoding="utf-8")
@@ -784,9 +798,9 @@ def _renumber_images_manifest_changes_items(images_path: Path):
 
 
 def _fix_images_manifest_content(state: RebaseState, images_path: Path):
-    """Removes unchanged entries, corrects entry comments/urls, adds
-    missing entries, dedupes and reorders/renumbers the '# Changes:'
-    header list."""
+    """Corrects entry names, removes unchanged entries, corrects entry
+    comments/urls, adds missing entries, dedupes and reorders/renumbers
+    the '# Changes:' header list."""
     if not images_path.is_file():
         return
     target_paths = [p for p, _tag in find_all_image_and_version_paths(state.target_values, state.target_deps)] + [
@@ -800,6 +814,7 @@ def _fix_images_manifest_content(state: RebaseState, images_path: Path):
         CHART_YAML.parent, state.target_deps, state.target_values, target_paths
     )
 
+    _correct_images_manifest_names(images_path, repo_map)
     _sync_images_manifest_entry_pins(images_path, state)
     _remove_stale_images_manifest_entries(images_path, state)
     _correct_images_manifest_entries(images_path, state, repo_map)

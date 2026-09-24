@@ -32,9 +32,9 @@ from typing import Literal
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.pull_and_subchart_resolution import primary_image_repositories
 from lib.chart.registered_paths import image_paths_for
+from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_dependency
-from lib.chart.values_tree_primitives import strip_registry_host
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import version_of
 from lib.image.digests import DigestPin
@@ -659,8 +659,8 @@ def check_images_source(
     CURRENT chart (repository_for_basename_in_scope, the same
     scoped-then-unscoped tier, against `comparison.current.lines`
     instead of baseline lines) and only keeps a baseline candidate whose
-    OWN repository matches it (stripped, see lib.chart.
-    strip_registry_host — same convention historical_app_version_for_
+    OWN repository matches it (as a group key, see lib.chart.
+    repository_group_key — same convention historical_app_version_for_
     path's own expected_url cross-check uses, applied here to two raw
     values.yaml pins instead of a values-tree path and a historical
     manifest entry). No trustworthy CURRENT-side repository to check
@@ -769,7 +769,7 @@ class _BaselineSourceResolver:
             for p in fallback_pins
             if current_repo is not None
             and p["repository"]
-            and strip_registry_host(p["repository"]) == strip_registry_host(current_repo)
+            and repository_group_key(p["repository"]) == repository_group_key(current_repo)
         ]
 
     def resolve_at_baseline(self, basename: str) -> BaselineResolution:

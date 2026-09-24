@@ -474,4 +474,4 @@ def test_live_repository_groups_drops_dead_consumer_paths(libdigestpinningcheck:
 
     live = libdigestpinningcheck._live_repository_groups(tmp_path, deps, values, rendered_paths)
 
-    assert live == {"redis": [("global", "images", "redis")]}  # only the (always-live) definition survives
+    assert live == {"library/redis": [("global", "images", "redis")]}  # only the (always-live) definition survives

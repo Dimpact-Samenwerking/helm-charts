@@ -20,6 +20,7 @@ from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.chart.repo_and_path_resolution import repository_group_key
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import version_of
 from lib.component_docs.images_manifest_changes_header import ensure_images_manifest_changes_header
@@ -240,6 +241,33 @@ def fix_images_manifest_entry_urls(
             changed_names.append(status[1])
 
     return "".join(lines), changed_names, unresolved_names
+
+
+def fix_images_manifest_entry_names(text: str, repo_map: dict[str, ImagePath]) -> tuple[str, list[tuple[str, str]]]:
+    """Rewrite an entry's "name:" to the group key its own "url:" gives
+    (lib.chart.repository_group_key: the url minus its registry host, so
+    "docker.io/library/python" names "library/python") when the current
+    name isn't a known repository but that key is — e.g. an entry written
+    as "python" before bare Docker Hub names got their "library/". Only
+    renames when no other entry already carries the new name. Returns
+    (new_text, renamed) — renamed is [(old_name, new_name), ...]."""
+    lines = text.splitlines(keepends=True)
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    names = {m.group(1) for i in entry_line_indices if (m := re.match(r"^-\s*name:\s*(\S+)\s*$", lines[i]))}
+    renamed: list[tuple[str, str]] = []
+    for line_idx in entry_line_indices:
+        name_m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[line_idx])
+        url_idx = _entry_url_line_index(lines, line_idx)
+        url_m = re.match(r"^\s*url:\s*(\S+)\s*$", lines[url_idx]) if url_idx is not None else None
+        if name_m is None or url_m is None or name_m.group(1) in repo_map:
+            continue
+        new_name = repository_group_key(url_m.group(1))
+        if new_name not in repo_map or new_name in names:
+            continue
+        lines[line_idx] = replace_scalar_value(lines[line_idx], new_name)
+        names.add(new_name)
+        renamed.append((name_m.group(1), new_name))
+    return "".join(lines), renamed
 
 
 def _images_manifest_changes_header_text(lines: list[str]):

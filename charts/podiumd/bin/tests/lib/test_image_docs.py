@@ -607,7 +607,7 @@ def test_regenerate_images_baseline_manifest_global_images_use_their_own_real_su
         "nginxinc/nginx-unprivileged",
         "curlimages/curl",
         "library/busybox",
-        "redis",
+        "library/redis",
     ]
 
 
@@ -924,3 +924,18 @@ def test_regenerate_images_baseline_manifest_blank_tag_override_not_treated_as_s
 
     assert skipped == []
     assert written == 0
+
+
+def test_historical_lookup_matches_an_older_bare_name_by_its_url(
+    libcharthistoricalbaselines: ModuleType, tmp_path: Path
+):
+    """images-<ver>.yaml files written before names used the "library/"
+    form still match "library/python" through their url."""
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    (images_dir / "images-4.9.2.yaml").write_text(
+        '- name: python\n  url: docker.io/library/python\n  version: "3.14.7-slim"\n  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    version = libcharthistoricalbaselines.historical_app_version_for_repository(tmp_path, "library/python")
+    assert version == "3.14.7-slim"

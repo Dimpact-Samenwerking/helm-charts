@@ -1049,3 +1049,30 @@ def test_remove_stale_images_manifest_entries_keeps_entry_without_resolvable_rep
 
     assert removed == []
     assert new_text == text
+
+
+# --- fix_images_manifest_entry_names ---
+
+
+def test_fix_images_manifest_entry_names_uses_url_minus_registry_host(cdb: ModuleType):
+    """An entry written as "python" before bare Docker Hub names got
+    their implicit "library/" is renamed to its url minus the host."""
+    text = '- name: python\n  url: docker.io/library/python\n  version: "3.14.7-slim"\n'
+    repo_map = {"library/python": ("keycloak-operator", "initImage")}
+
+    new_text, renamed = cdb.fix_images_manifest_entry_names(text, repo_map)
+
+    assert renamed == [("python", "library/python")]
+    assert new_text == '- name: library/python\n  url: docker.io/library/python\n  version: "3.14.7-slim"\n'
+
+
+def test_fix_images_manifest_entry_names_leaves_known_and_unknown_names(cdb: ModuleType):
+    """A name that already is a known repository stays, and so does one
+    whose url resolves to nothing known (left for the check to report)."""
+    text = "- name: azure-cli\n  url: mcr.microsoft.com/azure-cli\n- name: mystery\n  url: docker.io/acme/mystery\n"
+    repo_map = {"azure-cli": ("mi", "image")}
+
+    new_text, renamed = cdb.fix_images_manifest_entry_names(text, repo_map)
+
+    assert renamed == []
+    assert new_text == text
