@@ -188,12 +188,14 @@ def update_chart_yaml(chart_name: str, new_chart_version: str):
     return old_line.strip(), lines[version_line].strip()
 
 
-def update_values_yaml(values_key: str, image_paths: list[str], new_tags_by_path: dict):
+def update_values_yaml(
+    values_key: str, image_paths: list[str], new_tags_by_path: dict[str, str]
+) -> list[tuple[str, str, str]]:
     """Rewrite each "<values_key>.<path>.tag" line to new_tags_by_path[
     path]. Returns (dotted_path, old_line, new_line) tuples, each
     stripped; raises SystemExit if any dotted path can't be found."""
     lines = VALUES_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
-    changes = []
+    changes: list[tuple[str, str, str]] = []
     for path in image_paths:
         dotted = f"{values_key}.{path}.tag"
         located = locate_dotted_key_line(lines, dotted)
@@ -258,7 +260,7 @@ class ComponentResolution:
     values_key: str
 
 
-def _group_getattr(groups: tuple, name: str):
+def _group_getattr(groups: tuple[object, ...], name: str):
     """Look up `name` on each of `groups` in turn — shared __getattr__
     body below, so grouping fields into nested dataclasses (for too-many-
     instance-attributes) doesn't force ctx.app_version-style access to
@@ -279,7 +281,7 @@ class BumpContext:
     resolution: ComponentResolution
     deps: list[ChartDependency]
     values: YamlMapping
-    image_paths: list
+    image_paths: list[str]
 
     def __getattr__(self, name: str):
         return _group_getattr((self.versions, self.resolution), name)
@@ -290,9 +292,9 @@ class TagUpdatePlan:
     """paths_to_update split by tag-update strategy — see
     _classify_paths_to_update."""
 
-    split_paths: list
-    delegated_paths: list
-    fallback_paths: list
+    split_paths: list[str]
+    delegated_paths: list[str]
+    fallback_paths: list[str]
 
 
 @dataclass
@@ -300,8 +302,8 @@ class TagUpdateAccumulator:
     """new_tags_by_path/repos, built in place by whichever _write_*_tags
     helper runs — see _update_image_tags."""
 
-    new_tags_by_path: dict
-    repos: dict
+    new_tags_by_path: dict[str, str]
+    repos: dict[str, str]
 
 
 @dataclass
@@ -319,7 +321,7 @@ class BaselineSnapshot:
     values.yaml content — grouped for BaselineComparison."""
 
     upgrade_docs_baseline: str | None
-    baseline_deps: list | None
+    baseline_deps: list[ChartDependency] | None
     baseline_values: YamlMapping | None
 
 
@@ -353,7 +355,7 @@ def _parse_cli_args():
 # settings.digest_pinning_exceptions) and _load_split_tag_sha_paths below.
 # Checked BEFORE the explicit-repository/subchart-default split, since
 # these paths DO have a "repository:" too.
-def _load_split_tag_sha_paths():
+def _load_split_tag_sha_paths() -> dict[tuple[str, str], str]:
     """digest_pinning.exceptions, filtered to writable: true entries that
     name a sibling_field and reshaped to (values_key, path) ->
     sibling_field (see the comment above). A writable entry without a
@@ -425,12 +427,12 @@ def _verify_versions(ctx: BumpContext):
     return upstream_images, chart_unchanged
 
 
-def _compute_paths_to_update(ctx: BumpContext):
+def _compute_paths_to_update(ctx: BumpContext) -> tuple[list[str], dict[str, str | None]]:
     """Per-path current app version vs. ctx.app_version, printing an
     unchanged/bump line for each. old_app_by_path keeps every path's
     prior version (even unchanged ones) for phases below."""
-    paths_to_update = []
-    old_app_by_path = {}
+    paths_to_update: list[str] = []
+    old_app_by_path: dict[str, str | None] = {}
     for path in ctx.image_paths:
         current_tag = text_at(ctx.values, f"{ctx.values_key}.{path}.tag") or ""
         current_version = current_tag.split("@", 1)[0]
@@ -443,11 +445,15 @@ def _compute_paths_to_update(ctx: BumpContext):
     return paths_to_update, old_app_by_path
 
 
-def _classify_paths_to_update(ctx: BumpContext, paths_to_update: list[str], split_tag_sha_paths: dict):
+def _classify_paths_to_update(
+    ctx: BumpContext, paths_to_update: list[str], split_tag_sha_paths: dict[tuple[str, str], str]
+) -> TagUpdatePlan:
     """Split paths_to_update three ways: an explicit split tag/sha pin, a
     path with its own "repository:" (see _write_delegated_tags), or a
     sub-chart-default fallback (see _write_fallback_tags)."""
-    split_paths, delegated_paths, fallback_paths = [], [], []
+    split_paths: list[str] = []
+    delegated_paths: list[str] = []
+    fallback_paths: list[str] = []
     for path in paths_to_update:
         if (ctx.values_key, path) in split_tag_sha_paths:
             split_paths.append(path)
@@ -458,8 +464,8 @@ def _classify_paths_to_update(ctx: BumpContext, paths_to_update: list[str], spli
 
 
 def _write_split_tag_sha_pins(
-    ctx: BumpContext, split_paths: list, split_tag_sha_paths: dict, acc: TagUpdateAccumulator
-):
+    ctx: BumpContext, split_paths: list[str], split_tag_sha_paths: dict[tuple[str, str], str], acc: TagUpdateAccumulator
+) -> None:
     """Write the split "tag:"/"<sibling_field>:" pin pairs (see the comment
     above _load_split_tag_sha_paths and lib.chart.values_tag_sha_lines)
     for split_paths, updating acc.new_tags_by_path/acc.repos in place."""
@@ -504,7 +510,7 @@ def _write_split_tag_sha_pin(
     )
 
 
-def _write_delegated_tags(ctx: BumpContext, delegated_paths: list, acc: TagUpdateAccumulator):
+def _write_delegated_tags(ctx: BumpContext, delegated_paths: list[str], acc: TagUpdateAccumulator) -> None:
     """Delegate delegated_paths to lib.image.version.update_image_version,
     keyed by each path's own real repository basename (not necessarily
     this component's own name) so a shared image is updated everywhere
@@ -518,8 +524,12 @@ def _write_delegated_tags(ctx: BumpContext, delegated_paths: list, acc: TagUpdat
             msg = f"error: could not find '{ctx.values_key}.{path}.tag' in {VALUES_YAML}"
             raise SystemExit(msg)
         own_line = located[0] + 1  # 1-indexed, matches lib.image.version's line numbering
-        acc.repos[path] = text_at(ctx.values, f"{ctx.values_key}.{path}.repository")
-        basename = image_basename(acc.repos[path])
+        repo = text_at(ctx.values, f"{ctx.values_key}.{path}.repository")
+        if repo is None:
+            msg = f"error: no repository found at {ctx.values_key}.{path}.repository in {VALUES_YAML}"
+            raise SystemExit(msg)
+        acc.repos[path] = repo
+        basename = image_basename(repo)
         print()
         print(f"=== Updating '{basename}' image pin(s) for {ctx.values_key}.{path} ===")
         changes = update_image_version(VALUES_YAML, ctx.values_key, basename, ctx.app_version)
@@ -531,7 +541,12 @@ def _write_delegated_tags(ctx: BumpContext, delegated_paths: list, acc: TagUpdat
         acc.new_tags_by_path[path] = f"{own_change['new_version']}@{own_change['new_digest']}"
 
 
-def _write_fallback_tags(ctx: BumpContext, fallback_paths: list, upstream_images: dict, acc: TagUpdateAccumulator):
+def _write_fallback_tags(
+    ctx: BumpContext,
+    fallback_paths: list[str],
+    upstream_images: dict[str, ImagePathTagCheck],
+    acc: TagUpdateAccumulator,
+) -> None:
     """For fallback_paths (sub-chart default repository), write the digest
     upstream_images already resolved straight into values.yaml. Updates
     acc.new_tags_by_path/acc.repos in place."""
@@ -556,8 +571,11 @@ def _write_fallback_tags(ctx: BumpContext, fallback_paths: list, upstream_images
 
 
 def _update_image_tags(
-    ctx: BumpContext, paths_to_update: list, split_tag_sha_paths: dict, upstream_images: dict[str, ImagePathTagCheck]
-):
+    ctx: BumpContext,
+    paths_to_update: list[str],
+    split_tag_sha_paths: dict[tuple[str, str], str],
+    upstream_images: dict[str, ImagePathTagCheck],
+) -> tuple[dict[str, str], dict[str, str]]:
     """Dispatch paths_to_update to whichever of the three tag-update
     strategies each one needs (see _classify_paths_to_update), writing
     values.yaml as needed. Returns (new_tags_by_path, repos)."""
@@ -602,7 +620,7 @@ def _resolve_against_baseline(
     return old_app, old_chart, reset_to_baseline
 
 
-def _resolve_baseline_comparison(ctx: BumpContext, target: str, old_app_by_path: dict):
+def _resolve_baseline_comparison(ctx: BumpContext, target: str, old_app_by_path: dict[str, str | None]):
     """Compare against the TRUE release upgrade_docs_baseline (git-
     resolved), not "whatever this script last left on disk" — the only
     way a component bumped more than once in one cycle still documents as
@@ -631,7 +649,9 @@ def _resolve_baseline_comparison(ctx: BumpContext, target: str, old_app_by_path:
     )
 
 
-def _update_upgrade_doc_section(ctx: BumpContext, comparison: BaselineComparison, target: str, paths_to_update: list):
+def _update_upgrade_doc_section(
+    ctx: BumpContext, comparison: BaselineComparison, target: str, paths_to_update: list[str]
+):
     """Rewrite (or explain skipping) the upgrade-path doc's Component-
     versions table row and Changes section for this component."""
     friendly = ctx.values_key
@@ -658,17 +678,15 @@ def _update_values_deltas_change(
     baseline, writing a section if any."""
     current_values_after = load_yaml_mapping(VALUES_YAML)
     current_subtree = current_values_after.get(ctx.values_key, {})
-    baseline_values_at_release = (
+    baseline_values_at_release: YamlMapping | None = (
         comparison.baseline_values
         if comparison.baseline_deps is not None
         else load_baseline_values(comparison.upgrade_docs_baseline)
     )
-    key_lines = []
+    key_lines: list[str] = []
     no_baseline_ref = baseline_values_at_release is None
-    if not no_baseline_ref:
-        baseline_subtree = (
-            baseline_values_at_release.get(ctx.values_key, {}) if isinstance(baseline_values_at_release, dict) else {}
-        )
+    if baseline_values_at_release is not None:
+        baseline_subtree = baseline_values_at_release.get(ctx.values_key, {})
         key_lines = describe_key_changes(ctx.values_key, baseline_subtree, current_subtree)
 
     # A pure version bump with no values-schema change needs no section at
@@ -760,7 +778,10 @@ def _write_images_manifest_updates(
 
 
 def _update_images_manifest_section(
-    ctx: BumpContext, comparison: BaselineComparison, paths_to_update: list, tags: tuple
+    ctx: BumpContext,
+    comparison: BaselineComparison,
+    paths_to_update: list[str],
+    tags: tuple[dict[str, str], dict[str, str]],
 ):
     """Rewrite (or explain skipping) docs/images/images-<target>.yaml's
     entries and 'changes:' list for this component. `tags` is the

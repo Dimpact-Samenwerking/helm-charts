@@ -81,13 +81,13 @@ def bump_kind(baseline: str, target: str):
     return None
 
 
-def update_chart_version(new_version: str):
+def update_chart_version(new_version: str) -> list[str]:
     """Bump Chart.yaml's top-level "version:" and "appVersion:" (this
     repo's own chart always keeps the two in lockstep — see git history of
     every prior release bump) to new_version. Returns the field names
     actually changed, in file order."""
     lines = CHART_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
-    changed = []
+    changed: list[str] = []
     for i, line in enumerate(lines):
         if re.match(r"^version:\s", line):
             lines[i] = replace_scalar_value(line, new_version)
@@ -102,10 +102,10 @@ def update_chart_version(new_version: str):
     return changed
 
 
-def _resolve_baseline_refs(repo_root: Path, upgrade_docs: str, release_table: str | None) -> dict:
+def _resolve_baseline_refs(repo_root: Path, upgrade_docs: str, release_table: str | None) -> dict[str, str]:
     """{"upgrade_docs": ref, "release_table": ref} for the two new baseline
     values; exits 1 if release_table is None or either value has no ref."""
-    resolved_refs = {}
+    resolved_refs: dict[str, str] = {}
     for label, value in (("upgrade_docs", upgrade_docs), ("release_table", release_table)):
         if value is None:
             print(
@@ -115,7 +115,7 @@ def _resolve_baseline_refs(repo_root: Path, upgrade_docs: str, release_table: st
             )
             sys.exit(1)
         ref, error = resolve_baseline_ref(repo_root, value)
-        if error:
+        if ref is None:
             print(f"error: {label} baseline '{value}': {error}")
             sys.exit(1)
         resolved_refs[label] = ref

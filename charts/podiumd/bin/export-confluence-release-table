@@ -35,6 +35,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.paths import CHART_DIR
 from lib.chart.release_baseline_basics import chart_version as read_chart_version
 from lib.confluence_tables import ReleaseColumns
+from lib.confluence_tables import TableCell
 from lib.confluence_tables import effective_header_row_count
 from lib.confluence_tables import expand_grid
 from lib.confluence_tables import extract_tables
@@ -82,7 +83,7 @@ SECTION_SUFFIX = " component versies"
 MAX_HEADER_ROW_PROBE = 2
 
 
-def resolve_header_row_count(rows: list, grid: list):
+def resolve_header_row_count(rows: list[list[TableCell]], grid: list[list[str]]) -> int:
     """effective_header_row_count(rows, grid), extended by up to
     MAX_HEADER_ROW_PROBE extra rows if that's what it takes for
     select_release_columns to find every required column — see
@@ -178,7 +179,7 @@ def section_name(heading: str):
     return heading.removesuffix(SECTION_SUFFIX)
 
 
-def check_target_matches_chart_version(target_labels: list, chart_dir: Path):
+def check_target_matches_chart_version(target_labels: list[str], chart_dir: Path) -> None:
     """Prints a large warning to stderr for every distinct label in
     `target_labels` (see find_versie_groups — the second, "target",
     "Versie ..." group found per table) whose MAJOR.MINOR doesn't match
@@ -226,7 +227,7 @@ def check_target_matches_chart_version(target_labels: list, chart_dir: Path):
     print(border, file=sys.stderr)
 
 
-def recompute_image_basenames(csv_path: Path, chart_dir: Path):
+def recompute_image_basenames(csv_path: Path, chart_dir: Path) -> list[tuple[str, str, str, str]]:
     """Rewrites ONLY the "image_basename" column of the CSV already at
     `csv_path`, in place — every other column (every version, and every
     other already-resolved column) is carried through completely
@@ -262,7 +263,7 @@ def recompute_image_basenames(csv_path: Path, chart_dir: Path):
     return changes
 
 
-def _read_csv_rows(csv_path: Path):
+def _read_csv_rows(csv_path: Path) -> list[list[str]]:
     """rows (list of lists) from `csv_path`'s own CSV_HEADER-shaped
     contents — raises SystemExit if csv_path doesn't exist, or its
     header doesn't match CSV_HEADER (see recompute_image_basenames' own
@@ -292,11 +293,11 @@ def _write_csv_rows(csv_path: Path, rows: list[list[str]]):
 
 def _apply_new_basenames(
     rows: list[list[str]], new_basenames: list[str], basename_idx: int, name_idx: int, component_idx: int
-):
+) -> list[tuple[str, str, str, str]]:
     """Rewrites `rows`' own image_basename column (at basename_idx) in
     place from `new_basenames` (same order) and returns [(name,
     component, old, new), ...] for every row that actually changed."""
-    changes = []
+    changes: list[tuple[str, str, str, str]] = []
     for row, new_basename in zip(rows, new_basenames, strict=False):
         old_basename = row[basename_idx]
         if new_basename != old_basename:
@@ -305,7 +306,7 @@ def _apply_new_basenames(
     return changes
 
 
-def apply_native_helm_marker(rows: list):
+def apply_native_helm_marker(rows: list[list[str]]) -> None:
     """Mutates `rows` (CSV_HEADER-shaped, post-image_basename-insert) in
     place: for every row whose source_version_helm AND target_version_
     helm are BOTH still empty, used_by is empty (a component's own
@@ -357,11 +358,13 @@ class ComponentResolutionContext:
     exact same values (never re-derived per-row/per-table)."""
 
     dependencies: list[DependencyNames]
-    orphan_keys: list
-    global_keys: list
+    orphan_keys: list[DependencyNames]
+    global_keys: list[str]
 
 
-def extract_release_rows(html: str, headings: list[str] | None = None, chart_dir: Path | None = None):
+def extract_release_rows(
+    html: str, headings: list[str] | None = None, chart_dir: Path | None = None
+) -> list[list[str]]:
     """Return the CSV data rows (section, vendor, used_by, name,
     component, alias, image_basename, source_version_app/helm,
     target_version_app/helm) across every table directly under one of
@@ -428,12 +431,14 @@ def extract_release_rows(html: str, headings: list[str] | None = None, chart_dir
     return rows_out
 
 
-def _rows_for_tables(matching: list, context: ComponentResolutionContext):
+def _rows_for_tables(
+    matching: list[tuple[str, list[list[TableCell]]]], context: ComponentResolutionContext
+) -> tuple[list[list[str]], int, list[str]]:
     """_rows_for_table over every matched (heading, rows) table: returns
     (all data rows, total non-semver cell count, target labels)."""
-    rows_out = []
+    rows_out: list[list[str]] = []
     unknown_count = 0
-    target_labels = []
+    target_labels: list[str] = []
     for heading, rows in matching:
         table_rows, table_unknown_count, target_label = _rows_for_table(heading, rows, context)
         rows_out.extend(table_rows)
@@ -443,7 +448,9 @@ def _rows_for_tables(matching: list, context: ComponentResolutionContext):
     return rows_out, unknown_count, target_labels
 
 
-def _rows_for_table(heading: str, rows: list, context: ComponentResolutionContext):
+def _rows_for_table(
+    heading: str, rows: list[list[TableCell]], context: ComponentResolutionContext
+) -> tuple[list[list[str]], int, str | None]:
     """The CSV data rows this one already-matched table contributes
     (before image_basename is resolved/inserted — see extract_release_
     rows' own docstring), plus how many of its version cells weren't
@@ -463,7 +470,7 @@ def _rows_for_table(heading: str, rows: list, context: ComponentResolutionContex
         print(f'"{heading}": skipped (missing required column(s): {", ".join(missing)})')
         return [], 0, target_label
 
-    rows_out = []
+    rows_out: list[list[str]] = []
     unknown_count = 0
     for data_row in grid[header_row_count:]:
         if not any(cell.strip() for cell in data_row):
@@ -483,7 +490,7 @@ def _column_text(data_row: list[str], index: int | None) -> str:
 
 def _release_row_from_data_row(
     data_row: list[str], heading: str, columns: ReleaseColumns, context: ComponentResolutionContext
-):
+) -> tuple[list[str], int]:
     """One CSV data row (section, vendor, used_by, name, component,
     alias, ...versions) resolved from one matched table's own data
     row, plus how many of its version cells weren't semver-compatible
@@ -522,7 +529,7 @@ def _release_row_from_data_row(
     return [section_name(heading), vendor, used_by, name, component, alias, *versions], unknown_count
 
 
-def _insert_resolved_basenames(rows_out: list, chart_dir: Path):
+def _insert_resolved_basenames(rows_out: list[list[str]], chart_dir: Path) -> None:
     """Resolves and inserts each row's own image_basename column (see
     resolve_image_basenames), warning when a MULTIPLE row couldn't be
     resolved at all — a MULTIPLE row with no resolved basename is
@@ -545,7 +552,7 @@ def _insert_resolved_basenames(rows_out: list, chart_dir: Path):
         row.insert(6, basename)
 
 
-def _warn_duplicate_component_basename_pairs(rows_out: list):
+def _warn_duplicate_component_basename_pairs(rows_out: list[list[str]]) -> None:
     """Warns for every (component, basename) pair two-or-more distinct
     rows both resolve to — never legitimate: either an accidentally
     duplicated Confluence row, or two differently-named rows that both
@@ -555,7 +562,7 @@ def _warn_duplicate_component_basename_pairs(rows_out: list):
     "nothing to track here" result (a real component's own primary row
     with no directly-pinned image at all — see resolve_image_
     basenames's own docstring), not a duplicate."""
-    by_pair = {}
+    by_pair: dict[tuple[str, str], list[str]] = {}
     for row in rows_out:
         component, basename = row[4], row[6]
         if component and basename:
