@@ -798,9 +798,10 @@ def _renumber_images_manifest_changes_items(images_path: Path):
 
 
 def _fix_images_manifest_content(state: RebaseState, images_path: Path):
-    """Corrects entry names, removes unchanged entries, corrects entry
-    comments/urls, adds missing entries, dedupes and reorders/renumbers
-    the '# Changes:' header list."""
+    """Corrects entry urls and then names (so a corrected url gives the
+    name in the same run), removes unchanged entries, corrects entry
+    comments, adds missing entries, dedupes and reorders/renumbers the
+    '# Changes:' header list."""
     if not images_path.is_file():
         return
     target_paths = [p for p, _tag in find_all_image_and_version_paths(state.target_values, state.target_deps)] + [
@@ -814,11 +815,11 @@ def _fix_images_manifest_content(state: RebaseState, images_path: Path):
         CHART_YAML.parent, state.target_deps, state.target_values, target_paths
     )
 
+    _correct_images_manifest_urls(images_path, state, repo_map)
     _correct_images_manifest_names(images_path, repo_map)
     _sync_images_manifest_entry_pins(images_path, state)
     _remove_stale_images_manifest_entries(images_path, state)
     _correct_images_manifest_entries(images_path, state, repo_map)
-    _correct_images_manifest_urls(images_path, state, repo_map)
     _add_missing_images_manifest_entries(images_path, state)
     _dedupe_images_manifest_changes_items(images_path)
     _sort_images_manifest(images_path, state, repo_map, canonical_names)

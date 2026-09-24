@@ -25,13 +25,13 @@ REAL_MANIFEST = """\
 # See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
 
 # ZAC — 5.0.2 -> 5.4.3
-- name: zac
+- name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
   version: "5.4.3"
   digest: "sha256:aaa"
 
 # ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static
-- name: opa
+- name: openpolicyagent/opa
   url: openpolicyagent/opa
   version: "1.19.0-static"
   digest: "sha256:bbb"
@@ -95,7 +95,12 @@ DEPS = [
     make_dep("zaakafhandelcomponent", "1.0.297", alias="zac"),
     make_dep("zgw-office-addin", "0.0.92"),
 ]
-VALUES = {"zac": {"image": {"tag": "5.4.3@sha256:aaa"}, "opa": {"image": {"tag": "1.19.0-static@sha256:bbb"}}}}
+VALUES = {
+    "zac": {
+        "image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:aaa"},
+        "opa": {"image": {"repository": "openpolicyagent/opa", "tag": "1.19.0-static@sha256:bbb"}},
+    }
+}
 
 
 def test_images_manifest_format_passes_for_consistent_manifest(libimagesmanifest: ModuleType, tmp_path: Path):
@@ -296,7 +301,7 @@ def test_images_manifest_format_missing_entry_comment(libimagesmanifest: ModuleT
             {},
         ),
     )
-    assert any('entry "opa" has no preceding comment' in i for i in issues)
+    assert any('entry "openpolicyagent/opa" has no preceding comment' in i for i in issues)
 
 
 ZGW_MANIFEST = """\
@@ -308,12 +313,12 @@ ZGW_MANIFEST = """\
 #   1. ZGW Office Add-in v0.9.313 -> v0.9.352 (chart 0.0.89, unchanged).
 
 # ZGW Office Add-in — v0.9.313 -> v0.9.352
-- name: zgw-office-addin-frontend
+- name: infonl/zgw-office-addin-frontend
   url: ghcr.io/infonl/zgw-office-addin-frontend
   version: "v0.9.352"
   digest: "sha256:aaa"
 
-- name: zgw-office-addin-backend
+- name: infonl/zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.352"
   digest: "sha256:bbb"
@@ -366,7 +371,10 @@ def test_images_manifest_format_source_vs_baseline(libimagesmanifest: ModuleType
 
 def test_images_manifest_format_source_vs_baseline_mismatch(libimagesmanifest: ModuleType, tmp_path: Path):
     # baseline actually has a different starting version than the comment claims
+    # chart_dir resolves the entry's "openpolicyagent/opa" name to its values-tree path.
     baseline_values = {"zac": {"opa": {"image": {"tag": "2.0.0-static@sha256:old"}}}}
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": DEPS}), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(VALUES), encoding="utf-8")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
     issues = libimagesmanifest.check_images_manifest_format(
@@ -377,6 +385,7 @@ def test_images_manifest_format_source_vs_baseline_mismatch(libimagesmanifest: M
             DEPS,
             VALUES,
             baseline_values,
+            chart_dir=tmp_path,
         ),
     )
     assert any('comment says source "1.17.1-static"' in i for i in issues)
@@ -816,7 +825,7 @@ def test_images_manifest_format_free_form_mention_still_counts_as_covered(
         "#   1. redis-ha 8.6.2 -> 8.6.6\n"
         "#   2. some other free-form item -> nothing to do with this\n\n"
         "#   sidecar: redis-operator - redis 8.6.2 -> 8.6.6\n"
-        "- name: redis-ha\n"
+        "- name: opstree/redis\n"
         "  url: quay.io/opstree/redis\n"
         '  version: "8.6.6"\n'
         '  digest: "sha256:aaaa"\n'
@@ -1225,7 +1234,8 @@ def test_images_manifest_format_reports_an_entry_count_mismatch(libimagesmanifes
     matched by "^-\\s*name:", so entries and comments can not be paired:
     one issue, never a zip(strict=True) crash."""
     text = REAL_MANIFEST.replace(
-        "- name: opa\n  url: openpolicyagent/opa\n", "- url: openpolicyagent/opa\n  name: opa\n"
+        "- name: openpolicyagent/opa\n  url: openpolicyagent/opa\n",
+        "- url: openpolicyagent/opa\n  name: openpolicyagent/opa\n",
     )
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
@@ -1235,3 +1245,21 @@ def test_images_manifest_format_reports_an_entry_count_mismatch(libimagesmanifes
     )
 
     assert any("found 2 manifest entries but 1 lines matched" in i for i in issues)
+
+
+def test_images_manifest_format_reports_a_legacy_name_that_still_resolves(
+    libimagesmanifest: ModuleType, tmp_path: Path
+):
+    """ "zac" still resolves to its values-tree path, but is not its url
+    minus the registry host, so the ACR mirror would use the wrong name."""
+    text = REAL_MANIFEST.replace("- name: infonl/zaakafhandelcomponent\n", "- name: zac\n")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(text)
+
+    issues = libimagesmanifest.check_images_manifest_format(
+        images_path, libimagesmanifest.ManifestCheckContext("4.8.5", "4.9.0", DEPS, VALUES, {})
+    )
+
+    assert issues == [
+        'images-4.9.0.yaml: entry "zac" should be named "infonl/zaakafhandelcomponent" (its url minus the registry host)'
+    ]

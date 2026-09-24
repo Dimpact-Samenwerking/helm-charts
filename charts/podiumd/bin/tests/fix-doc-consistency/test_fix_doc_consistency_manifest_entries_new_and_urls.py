@@ -1076,3 +1076,26 @@ def test_fix_images_manifest_entry_names_leaves_known_and_unknown_names(cdb: Mod
 
     assert renamed == []
     assert new_text == text
+
+
+def test_fix_images_manifest_entry_names_renames_a_known_name_that_is_not_its_url(cdb: ModuleType):
+    """A name that is a known repository but not its own url's key is
+    renamed too: after the url correction, the url is what the chart
+    pulls."""
+    text = '- name: "library/postgres"\n  url: docker.io/library/python\n'
+    repo_map = {"library/postgres": ("zac", "db", "image"), "library/python": ("keycloak-operator", "initImage")}
+
+    new_text, renamed = cdb.fix_images_manifest_entry_names(text, repo_map)
+
+    assert renamed == [("library/postgres", "library/python")]
+    assert new_text == '- name: "library/python"\n  url: docker.io/library/python\n'
+
+
+def test_fix_images_manifest_entry_names_skips_a_name_another_entry_has(cdb: ModuleType):
+    text = "- name: python\n  url: docker.io/library/python\n- name: library/python\n  url: docker.io/library/python\n"
+    repo_map = {"library/python": ("keycloak-operator", "initImage")}
+
+    new_text, renamed = cdb.fix_images_manifest_entry_names(text, repo_map)
+
+    assert renamed == []
+    assert new_text == text

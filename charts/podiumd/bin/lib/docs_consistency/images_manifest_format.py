@@ -8,6 +8,7 @@ entry."""
 
 import re
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import pairwise
 from pathlib import Path
@@ -700,16 +701,36 @@ def _structural_issues(
     return issues
 
 
-def _unmatched_entry_issue(name: str, entry_name: str, inputs: ListDiffInputs) -> str:
-    """The issue for an entry whose "name:" resolves to no values-tree
-    path — naming the expected "name:" when the entry's own "url:" does
-    resolve (lib.chart.repository_group_key), the case
-    fix-doc-consistency renames."""
-    url = next((e.get("url") for e in inputs.manifest.entries if e["name"] == entry_name), None)
-    expected = repository_group_key(url) if isinstance(url, str) else None
-    if expected is not None and expected in inputs.manifest.resolution.repo_map:
-        return f'{name}: entry "{entry_name}" should be named "{expected}" (its url minus the registry host)'
-    return f'{name}: entry "{entry_name}" is wrong or stale — not found in Chart.yaml or values.yaml'
+def expected_entry_name(entry: ManifestEntry) -> str | None:
+    """The "name:" `entry` must have: its own "url:" minus the registry
+    host (lib.chart.repository_group_key), the name the ACR import
+    mirrors the image under. None for an entry without a "url:".
+    fix-doc-consistency's fix_images_manifest_entry_names renames to the
+    same key."""
+    url = entry.get("url")
+    return repository_group_key(url) if isinstance(url, str) else None
+
+
+def _renamable_entry_names(entries: list[ManifestEntry], repo_map: Mapping[str, ImagePath]) -> set[str]:
+    """The "name:" of every entry whose expected_entry_name differs from
+    it and is a known repository: renaming makes it resolve, so
+    _entry_name_issues already reports it."""
+    return {
+        str(entry["name"])
+        for entry in entries
+        if (expected := expected_entry_name(entry)) is not None
+        and str(entry["name"]) != expected
+        and expected in repo_map
+    }
+
+
+def _entry_name_issues(name: str, entries: list[ManifestEntry]) -> list[str]:
+    """One issue per entry whose "name:" is not its expected_entry_name."""
+    return [
+        f'{name}: entry "{entry["name"]}" should be named "{expected}" (its url minus the registry host)'
+        for entry in entries
+        if (expected := expected_entry_name(entry)) is not None and str(entry["name"]) != expected
+    ]
 
 
 def _list_diff_issues(name: str, inputs: ListDiffInputs, context: ManifestCheckContext) -> list[str]:
@@ -749,7 +770,12 @@ def _list_diff_issues(name: str, inputs: ListDiffInputs, context: ManifestCheckC
         f'{name}: entry "{entry_name}" is listed but its image did not change vs {context.upgrade_docs_baseline}'
         for entry_name in stale_entry_names
     )
-    issues.extend(_unmatched_entry_issue(name, entry_name, inputs) for entry_name in unmatched_entry_names)
+    renamable = _renamable_entry_names(inputs.manifest.entries, inputs.manifest.resolution.repo_map)
+    issues.extend(
+        f'{name}: entry "{entry_name}" is wrong or stale — not found in Chart.yaml or values.yaml'
+        for entry_name in unmatched_entry_names
+        if entry_name not in renamable
+    )
     return issues
 
 
@@ -761,7 +787,8 @@ def check_images_manifest_format(images_path: Path, context: ManifestCheckContex
     changed vs context.upgrade_docs_baseline (see find_images_manifest_
     list_diff) — every changed image must have an entry, and every entry
     must correspond to a real change, once context.chart_dir is given.
-    `context` is a ManifestCheckContext."""
+    Every entry must also be named after its own url (see
+    expected_entry_name). `context` is a ManifestCheckContext."""
     if not images_path.is_file():
         return [f'expected "{images_path.name}" does not exist']
 
@@ -778,6 +805,7 @@ def check_images_manifest_format(images_path: Path, context: ManifestCheckContex
 
     issues = _baseline_and_vs_line_issues(images_path.name, text, context)
     issues.extend(check_images_manifest_changes_numbering(images_path.name, text))
+    issues.extend(_entry_name_issues(images_path.name, entries))
 
     repo_groups, resolution = _manifest_resolution_context(context)
     resolved = ResolvedManifest(entries, resolution)

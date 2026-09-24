@@ -52,14 +52,11 @@ def test_main_corrects_stale_images_manifest_entry_comment(
     assert "# ZAC — 5.0.2 -> 5.1.0" in text
 
 
-def test_main_corrects_strip_registry_named_entry_via_repo_map(
-    cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    """Same as test_main_corrects_stale_images_manifest_entry_comment, but
-    with the images-manifest entry under the CURRENT strip-registry name
-    ("infonl/zaakafhandelcomponent") instead of the old short slug
-    ("zac") — main() must build repo_map from the real Chart.yaml/
-    values.yaml and pass it through for this to resolve at all."""
+def _repo_with_zac_bump(tmp_path: Path, entry_name: str, entry_url: str) -> tuple[Path, Path]:
+    """A repo whose values.yaml bumps zac (ghcr.io/infonl/
+    zaakafhandelcomponent) 5.0.2 -> 5.1.0 since the podiumd-4.8.5 tag,
+    with an images-4.9.0.yaml entry under `entry_name`/`entry_url` and a
+    stale "5.0.1 -> 5.1.0" comment. Returns (doc_dir, images_path)."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -111,18 +108,47 @@ def test_main_corrects_strip_registry_named_entry_via_repo_map(
         images_path,
         "# Baseline: podiumd 4.8.5. Re-verify before release.\n\n"
         "# ZAC — 5.0.1 -> 5.1.0\n"
-        "- name: infonl/zaakafhandelcomponent\n"
-        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        f"- name: {entry_name}\n"
+        f"  url: {entry_url}\n"
         '  version: "5.1.0"\n'
         '  digest: "sha256:aaaa"\n',
     )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump zac, stale images-manifest comment", cwd=tmp_path)
+    return doc_dir, images_path
+
+
+def test_main_corrects_strip_registry_named_entry_via_repo_map(
+    cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Same as test_main_corrects_stale_images_manifest_entry_comment, but
+    with the images-manifest entry under the CURRENT strip-registry name
+    ("infonl/zaakafhandelcomponent") instead of the old short slug
+    ("zac") — main() must build repo_map from the real Chart.yaml/
+    values.yaml and pass it through for this to resolve at all."""
+    doc_dir, images_path = _repo_with_zac_bump(
+        tmp_path, "infonl/zaakafhandelcomponent", "ghcr.io/infonl/zaakafhandelcomponent"
+    )
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
 
     text = images_path.read_text(encoding="utf-8")
+    assert "# ZAC — 5.0.2 -> 5.1.0" in text
+
+
+def test_main_corrects_url_then_name_in_one_run(cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """An entry with a legacy name and a wrong url: the url is corrected
+    first, so the name follows the corrected url in the same run. With
+    the names corrected first, the wrong url's key is no known
+    repository, so the name stayed "zac" until a second run."""
+    doc_dir, images_path = _repo_with_zac_bump(tmp_path, "zac", "ghcr.io/infonl/zac-old")
+
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    text = images_path.read_text(encoding="utf-8")
+    assert "- name: infonl/zaakafhandelcomponent\n  url: ghcr.io/infonl/zaakafhandelcomponent\n" in text
     assert "# ZAC — 5.0.2 -> 5.1.0" in text
 
 
