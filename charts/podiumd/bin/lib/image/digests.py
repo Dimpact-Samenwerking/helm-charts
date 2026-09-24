@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
+from typing import TypeVar
 
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.repo_and_path_resolution import subchart_default_repository
@@ -288,7 +289,7 @@ def resolve_pin_targets(chart_dir: Path):
     return pins, targets
 
 
-_tag_exists_cache = {}
+_tag_exists_cache: dict[tuple[str, str], tuple[bool, str | None]] = {}
 
 
 def clear_tag_exists_cache() -> None:
@@ -296,7 +297,9 @@ def clear_tag_exists_cache() -> None:
     _tag_exists_cache.clear()
 
 
-def cached_tag_exists(chart_dir: Path, repository: str, version: str, timeout: float | None = None):
+def cached_tag_exists(
+    chart_dir: Path, repository: str, version: str, timeout: float | None = None
+) -> tuple[bool, str | None]:
     """Wrapper around lib.registry.registry_tag_exists for the tag-level
     lookup check_image_digests' own loop (below), find_sliding_pins, AND
     lib.repo_access.check_repo_access all make for the same pin — keyed
@@ -470,7 +473,10 @@ class DigestCheckAccumulator:
     digest_check_errors: list
 
 
-def _call_with_retry(fn: Callable):
+ResultT = TypeVar("ResultT")
+
+
+def _call_with_retry(fn: Callable[[], ResultT]) -> tuple[ResultT | None, str | None]:
     """Call fn() up to twice, retried only on a transient network error
     (never on a clean, non-exception result) — the same two-attempt shape
     both registry lookups below need. Returns (result, error): result is

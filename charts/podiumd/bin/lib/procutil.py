@@ -9,7 +9,7 @@ import sys
 from typing import Any
 
 
-def run(cmd: list[str], **kwargs: Any):
+def run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
     """For `helm`/`git`/etc. calls that capture output — never raises on a
     non-zero exit, so callers decide what a failure means for them."""
     # cmd is always a fixed argv list built by the caller (e.g. ["git", "mv", ...]),

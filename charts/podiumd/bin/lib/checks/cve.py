@@ -94,6 +94,7 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 from pathlib import Path
+from typing import Any
 
 from lib.chart.release_baseline_basics import load_yaml
 from lib.chart.values_tree_primitives import values_key_of
@@ -693,7 +694,7 @@ def high_findings_by_package(vulns: list, high_severities: set[str]):
     return groups
 
 
-def print_package_line(pkg: str, vulns_for_pkg: list, threshold: int):
+def print_package_line(pkg: str, vulns_for_pkg: list[dict[str, Any]], threshold: int):
     """Print one "full" detail-level line for `pkg`'s own CRIT/HIGH
     findings (see high_findings_by_package) — every CVE ID listed
     individually (worst severity first) when there are `threshold` (see

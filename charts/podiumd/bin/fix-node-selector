@@ -52,6 +52,10 @@ def split_docs_with_offsets(text: str):
     return [(text[s:e], s) for s, e in zip(starts, ends, strict=False)]
 
 
+# (insert_at, new_text, kind, name) -- see find_fixes.
+NodeSelectorFix = tuple[int, str, str, str]
+
+
 def find_fixes(text: str):
     """Returns (fixes, unresolved) for one file's text:
     - fixes: list of (insert_at, new_text, kind, name) — insert_at is an
@@ -60,7 +64,7 @@ def find_fixes(text: str):
       own indentation).
     - unresolved: list of (kind, name) for a workload doc missing
       nodeSelector with no containers: key to anchor on."""
-    fixes = []
+    fixes: list[NodeSelectorFix] = []
     unresolved = []
     define_bodies = file_define_bodies(text)
     for doc, offset in split_docs_with_offsets(text):
@@ -80,7 +84,7 @@ def find_fixes(text: str):
     return fixes, unresolved
 
 
-def apply_fixes(text: str, fixes: list):
+def apply_fixes(text: str, fixes: list[NodeSelectorFix]):
     """Splices every fix into text, in reverse offset order so an earlier
     insertion's position isn't shifted by a later one applied first."""
     for insert_at, new_text, _kind, _name in sorted(fixes, key=lambda f: f[0], reverse=True):

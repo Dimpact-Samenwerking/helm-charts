@@ -238,7 +238,7 @@ def strip_registry_host(url: str):
 def find_images(node: object, path: str = ""):
     """Recursively walk a parsed values.yaml tree, yielding (path, repository,
     tag) for every dict that has both a "repository" and a "tag" key."""
-    images = []
+    images: list[tuple[str, Any, Any]] = []
     if isinstance(node, dict):
         if "repository" in node and "tag" in node:
             repo, tag = node["repository"], node["tag"]

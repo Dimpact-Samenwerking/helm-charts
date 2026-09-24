@@ -267,7 +267,7 @@ def find_images_manifest_faulty_headers(manifest: ParsedManifest, resolution: En
 
 def images_manifest_entry_order_key(
     path: tuple[str, ...] | None, deps: list, key_order: list, values: dict | None = None
-):
+) -> tuple[int, ...]:
     """An images-manifest entry's own sort key — (values_key_index,
     is_sidecar), the SAME shape and meaning component_order_key already
     uses for -upgrade.md's own rows/Changes headings — computed from the

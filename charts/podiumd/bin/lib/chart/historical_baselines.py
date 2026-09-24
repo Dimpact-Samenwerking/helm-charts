@@ -48,7 +48,7 @@ def historical_images_manifest_paths(chart_dir: Path | None, at_or_before: str |
     if not images_dir.is_dir():
         return []
     limit = tuple(int(p) for p in at_or_before.split(".")) if at_or_before and SEMVER_RE.match(at_or_before) else None
-    dated = []
+    dated: list[tuple[tuple[int, ...], Path]] = []
     for path in images_dir.glob("images-*.yaml"):
         m = re.match(r"^images-(\d+\.\d+\.\d+)\.yaml$", path.name)
         if not m:
