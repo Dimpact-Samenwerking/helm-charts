@@ -73,8 +73,6 @@ echo "=== pylint (tests) ==="
 # every cross-package import raises a false import-error.
 PYTHONPATH=. pylint --disable="$TESTS_PYLINT_DISABLE" $(find tests -name '*.py')
 
-# Reads .basedpyright/baseline.json itself: only errors not recorded there
-# fail (see README-coding.md for shrinking it).
 echo "=== basedpyright (type checking) ==="
 basedpyright lib $(python_scripts) tests
 
