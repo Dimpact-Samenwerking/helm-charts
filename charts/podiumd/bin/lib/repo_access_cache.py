@@ -44,6 +44,7 @@ from typing import TypeGuard
 from lib.json_cache import cache_file
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
+from lib.yaml_types import shape_problem
 
 CACHE_FILENAME = "repo-access-cache.json"
 
@@ -58,9 +59,7 @@ class RepoAccessEntry(TypedDict):
 
 def is_repo_access_entry(value: object) -> TypeGuard[RepoAccessEntry]:
     """Whether a parsed cache entry is a RepoAccessEntry."""
-    if not isinstance(value, dict) or not isinstance(value.get("checked_at"), str):
-        return False
-    return "digest" not in value or value["digest"] is None or isinstance(value["digest"], str)
+    return shape_problem(value, {"checked_at": str, "digest?": (str, type(None))}) is None
 
 
 def cache_path(chart_dir: Path):

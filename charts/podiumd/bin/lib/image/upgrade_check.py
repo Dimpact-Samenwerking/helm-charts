@@ -54,6 +54,7 @@ from datetime import timezone
 from pathlib import Path
 from typing import TypedDict
 
+from lib.checks.cve import ImageKey
 from lib.checks.cve import bucket_of
 from lib.checks.cve import classify_by_key
 from lib.checks.cve import dependency_names
@@ -80,27 +81,12 @@ class UpgradeCheckContext:
     cache state that stays fixed while the scan is in progress
     (old_cache, ttl_days). See check_image_upgrades, which builds this."""
 
-    rendered_labels: dict
-    values_lines: list
+    rendered_labels: dict[ImageKey, str]
+    values_lines: list[str]
     dep_names: set[str]
-    vendor_map: dict
-    old_cache: dict
+    vendor_map: dict[str, str]
+    old_cache: dict[str, UpgradeEntry]
     ttl_days: int
-
-
-@dataclass
-class ImageUpgradeScan:
-    """Everything check_image_upgrades's own print/detail logic needs from
-    a completed registry-check pass: the per-ref info map, the three
-    own/partner-vendor/other-vendor ref buckets, and the fetch-errors/
-    cache-hits scan stats. See _scan_image_upgrades, which builds this."""
-
-    images: dict
-    own_refs: list
-    partner_refs: list
-    other_refs: list
-    fetch_errors: list
-    cache_hits: int
 
 
 class ImageUpgrade(TypedDict):
@@ -111,6 +97,21 @@ class ImageUpgrade(TypedDict):
     vendor_label: str | None
     newest: str
     has_newer: bool
+
+
+@dataclass
+class ImageUpgradeScan:
+    """Everything check_image_upgrades's own print/detail logic needs from
+    a completed registry-check pass: the per-ref info map, the three
+    own/partner-vendor/other-vendor ref buckets, and the fetch-errors/
+    cache-hits scan stats. See _scan_image_upgrades, which builds this."""
+
+    images: dict[str, ImageUpgrade]
+    own_refs: list[str]
+    partner_refs: list[str]
+    other_refs: list[str]
+    fetch_errors: list[str]
+    cache_hits: int
 
 
 def _upgrade_info(label: str, newest: str, version: str) -> ImageUpgrade:
@@ -125,7 +126,7 @@ def _upgrade_info(label: str, newest: str, version: str) -> ImageUpgrade:
     }
 
 
-def _label_for_target(repository: str, version: str, digest: str, line: int, ctx: UpgradeCheckContext):
+def _label_for_target(repository: str, version: str, digest: str, line: int, ctx: UpgradeCheckContext) -> str:
     """Label for one target: the render's own "# Source:" attribution when
     it rendered at all, else the values.yaml top-level-key heuristic (see
     this module's own docstring for why own always wins)."""
@@ -165,7 +166,7 @@ class _TargetResult:
     error: bool = False
 
 
-def _fetch_target_upgrade(i: int, total: int, info: _TargetResolveInfo):
+def _fetch_target_upgrade(i: int, total: int, info: _TargetResolveInfo) -> _TargetResult:
     """The registry-fetch path of _resolve_target_upgrade: announces the
     real tag-list call (a cache hit is near-instant and stays silent —
     same convention as check_cves), then queries the registry."""
@@ -180,7 +181,9 @@ def _fetch_target_upgrade(i: int, total: int, info: _TargetResolveInfo):
     return _TargetResult(info.image_ref, info.key, cache_entry, _upgrade_info(info.label, newest, info.version))
 
 
-def _resolve_target_upgrade(i: int, total: int, target: tuple, ctx: UpgradeCheckContext):
+def _resolve_target_upgrade(
+    i: int, total: int, target: tuple[tuple[str, str], tuple[str, int]], ctx: UpgradeCheckContext
+) -> _TargetResult:
     """Resolves ONE unique_digest_pin_targets entry against the tag cache
     (a fresh cache hit) or the registry (see _fetch_target_upgrade)."""
     (repository, version), (digest, line) = target
@@ -202,30 +205,32 @@ def _resolve_target_upgrade(i: int, total: int, target: tuple, ctx: UpgradeCheck
     return _fetch_target_upgrade(i, total, info)
 
 
-def _bucket_refs(images: dict):
+def _bucket_refs(images: dict[str, ImageUpgrade]) -> tuple[list[str], list[str], list[str]]:
     """own_refs, partner_refs, other_refs -- the ref lists for each of
     check_image_upgrades' own/partner-vendor/other-vendor buckets, drawn
     from `images`' own "bucket" field (see _upgrade_info)."""
 
-    def refs_in(bucket: str):
+    def refs_in(bucket: str) -> list[str]:
         return [ref for ref, info in images.items() if info["bucket"] == bucket]
 
     return refs_in("own"), refs_in("partner"), refs_in("other")
 
 
-def _scan_image_upgrades(chart_dir: Path, targets: list, ctx: UpgradeCheckContext):
+def _scan_image_upgrades(
+    chart_dir: Path, targets: list[tuple[tuple[str, str], tuple[str, int]]], ctx: UpgradeCheckContext
+) -> ImageUpgradeScan:
     """Resolves every target (see _resolve_target_upgrade), saving the tag
     cache incrementally after each real registry call (same convention as
     check_cves) and once more at the end (to drop stale entries for an
     image no longer pinned). Bundles the result into an ImageUpgradeScan."""
-    new_cache = {}
+    new_cache: dict[str, UpgradeEntry] = {}
     cache_hits = 0
-    images = {}
-    fetch_errors = []
+    images: dict[str, ImageUpgrade] = {}
+    fetch_errors: list[str] = []
 
     for i, target in enumerate(targets, 1):
         r = _resolve_target_upgrade(i, len(targets), target, ctx)
-        if r.error:
+        if r.error or r.key is None or r.cache_entry is None or r.info is None:
             fetch_errors.append(r.image_ref)
             continue
         new_cache[r.key] = r.cache_entry
@@ -304,14 +309,14 @@ def check_image_upgrades(chart_dir: Path, extra_args: list[str]):
     return True, _image_upgrade_detail(scan)
 
 
-def bucket_totals(refs: list, images: dict):
+def bucket_totals(refs: list[str], images: dict[str, ImageUpgrade]) -> tuple[int, int]:
     """(total, upgradable_count) for `refs` (one bucket's image refs) against
     `images` (check_image_upgrades's own ref -> info map) — feeds the
     final "upgradable: X/Y own, ..." summary line."""
     return len(refs), sum(1 for ref in refs if images[ref]["has_newer"])
 
 
-def print_upgradable(title: str, refs: list, images: dict):
+def print_upgradable(title: str, refs: list[str], images: dict[str, ImageUpgrade]) -> None:
     """Print `title` as a section heading followed by one line per ref in
     `refs` that has a newer tag available (images[ref]["has_newer"]),
     each with its vendor label suffix when the image has one (see

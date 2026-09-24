@@ -10,6 +10,7 @@ from typing import TypeGuard
 from typing import TypeVar
 
 from lib.gitutil import find_repo_root
+from lib.yaml_types import is_object_dict
 
 
 def cache_file(chart_dir: Path, filename: str) -> Path:
@@ -35,10 +36,9 @@ def load_json_cache(path: Path, is_entry: Callable[[object], TypeGuard[EntryT]])
         data: object = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {}
-    if not isinstance(data, dict):
+    if not is_object_dict(data):
         return {}
-    entries: dict[object, object] = data
-    return {key: entry for key, entry in entries.items() if isinstance(key, str) and is_entry(entry)}
+    return {key: entry for key, entry in data.items() if isinstance(key, str) and is_entry(entry)}
 
 
 def save_json_cache(path: Path, cache: Mapping[str, object]) -> None:

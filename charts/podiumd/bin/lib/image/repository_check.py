@@ -35,6 +35,7 @@ from lib.chart.nested_subchart_identity import nested_subchart_documented_image_
 from lib.chart.nested_subchart_identity import nested_subchart_name_for
 from lib.chart.nested_subchart_identity import version_repository_path_for
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
+from lib.chart.repo_and_path_resolution import SubchartValuesCache
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
@@ -51,8 +52,8 @@ class _RepositoryResolutionContext:
 
     chart_dir: Path
     allow_pull: bool
-    nested_subchart_cache: dict = field(default_factory=dict)
-    subchart_cache: dict = field(default_factory=dict)
+    nested_subchart_cache: dict[tuple[str, str], str | None] = field(default_factory=dict)
+    subchart_cache: SubchartValuesCache = field(default_factory=dict)
 
 
 def _path_has_repository(
@@ -98,7 +99,7 @@ def _path_has_repository(
     return isinstance(sub_repo, str) and bool(sub_repo)
 
 
-def find_images_without_repository(chart_dir: Path, *, allow_pull: bool = False):
+def find_images_without_repository(chart_dir: Path, *, allow_pull: bool = False) -> list[tuple[str, ...]]:
     """[path, ...] (each as find_image_tag_paths' own tuple form, sorted)
     for every image-tag block whose repository can't be resolved at all.
     A path rooted at a real Chart.yaml dependency's own values-tree key
@@ -124,7 +125,7 @@ def find_images_without_repository(chart_dir: Path, *, allow_pull: bool = False)
     by_values_key = {values_key_of(dep): dep for dep in deps}
     ctx = _RepositoryResolutionContext(chart_dir, allow_pull)
 
-    missing = []
+    missing: list[tuple[str, ...]] = []
     for path, _tag in find_all_image_and_version_paths(values, deps):
         if not path:
             continue

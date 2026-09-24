@@ -697,12 +697,17 @@ def _dependency_for_pin(lines: list[str], pin_line: int, deps: list[ChartDepende
     return dep, subpath
 
 
+# dep name -> its vendored subchart values (None: not vendored), shared
+# across subchart_default_repository calls.
+SubchartValuesCache = dict[str, YamlMapping | None]
+
+
 def subchart_default_repository(
     chart_dir: Path,
     lines: list[str],
     pin_line: int,
     deps: list[ChartDependency],
-    cache: dict[str, YamlMapping | None] | None = None,
+    cache: SubchartValuesCache | None = None,
 ) -> str | None:
     """The `repository:` a digest pin's own component defaults to via its
     subchart's baked-in values.yaml, for a pin whose "tag:" line has no

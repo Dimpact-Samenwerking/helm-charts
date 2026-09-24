@@ -19,6 +19,7 @@ from typing import TypeGuard
 from lib.json_cache import cache_file
 from lib.json_cache import load_json_cache
 from lib.json_cache import save_json_cache
+from lib.yaml_types import shape_problem
 
 CACHE_FILENAME = "image-upgrade-cache.json"
 
@@ -34,7 +35,7 @@ class UpgradeEntry(TypedDict):
 
 def is_upgrade_entry(value: object) -> TypeGuard[UpgradeEntry]:
     """Whether a parsed cache entry is an UpgradeEntry."""
-    return isinstance(value, dict) and isinstance(value.get("checked_at"), str) and isinstance(value.get("newest"), str)
+    return shape_problem(value, {"checked_at": str, "newest": str}) is None
 
 
 def cache_path(chart_dir: Path):

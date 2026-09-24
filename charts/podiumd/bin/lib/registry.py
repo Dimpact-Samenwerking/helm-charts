@@ -116,7 +116,9 @@ def _parse_bearer_challenge(header_value: str | None):
     return params if "realm" in params else None
 
 
-def _get_with_dynamic_auth(url: str, repo: str, headers: dict, timeout: float | None = None, method: str = "GET"):
+def _get_with_dynamic_auth(
+    url: str, repo: str, headers: dict[str, str], timeout: float | None = None, method: str = "GET"
+):
     """Requests url (GET by default; registry_tag_exists passes "HEAD" — see
     there), retrying once with a bearer token if the registry demands one
     via a WWW-Authenticate challenge that TOKEN_ENDPOINTS didn't already
@@ -156,7 +158,7 @@ def _get_with_dynamic_auth(url: str, repo: str, headers: dict, timeout: float | 
 # back here only after confirming by hand that no auth flow can reach it
 # (see _get_with_dynamic_auth first — docker.elastic.co looked the same at
 # first glance and turned out not to belong here).
-UNVERIFIABLE_HOSTS = set()
+UNVERIFIABLE_HOSTS: set[str] = set()
 
 
 def parse_repo(repository: str) -> tuple[str, str]:
@@ -233,7 +235,7 @@ def registry_tag_exists(
 HISTORICAL_DIGEST_RE_TMPL = r'tag:\s*"?{version}@sha256:([0-9a-f]{{64}})'
 
 
-def historical_digests_for_tag(values_path: Path, version: str):
+def historical_digests_for_tag(values_path: Path, version: str) -> set[str]:
     """Every distinct digest this repo's own git history has ever recorded
     for a "tag: <version>@sha256:<digest>" pin with this exact version
     string — every value this tag has ever been pinned to here, across
@@ -251,7 +253,7 @@ def historical_digests_for_tag(values_path: Path, version: str):
     )
     if result.returncode != 0:
         return set()
-    digests = set()
+    digests: set[str] = set()
     for line in result.stdout.splitlines():
         if line.startswith(("+++", "---")) or not line.startswith(("+", "-")):
             continue
@@ -266,7 +268,7 @@ def list_tags(registry_host: str, repo: str):
     Distribution "tags/list" endpoint (GET /v2/<repo>/tags/list) — supported
     by Docker Hub, ghcr.io, quay.io, and any spec-compliant registry, unlike
     Docker Hub's richer but Hub-specific REST API."""
-    headers = {}
+    headers: dict[str, str] = {}
     token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
     if token_url_tmpl:
         token = _read_token(_urlopen(token_url_tmpl.format(repo=repo)))

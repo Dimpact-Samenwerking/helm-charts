@@ -57,6 +57,7 @@ from lib.component_docs.images_manifest_changes_header import insert_images_mani
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
+from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
@@ -82,8 +83,8 @@ from lib.yaml_types import YamlMapping
 
 
 def make_image_changes_section(
-    basename: str, target: str, old_version: str | None, new_version: str | None, pinned: list
-):
+    basename: str, target: str, old_version: str | None, new_version: str | None, pinned: list[tuple[str, str | None]]
+) -> str:
     """The "### <basename> <old> → <new>" Changes block for a shared
     image basename bump. `pinned` is [(dotted_path, old_version), ...]
     for every values.yaml tag pin actually bumped (see
@@ -133,11 +134,11 @@ class _SidecarScanState:
     (identical for every candidate path, not per-path) rather than
     recomputed on every iteration."""
 
-    canonical_names: dict
-    current_paths: dict
-    baseline_paths: dict
-    baseline_repo_groups: dict
-    matched_paths: set
+    canonical_names: dict[str, ImagePath]
+    current_paths: dict[ImagePath, str]
+    baseline_paths: dict[ImagePath, str]
+    baseline_repo_groups: dict[str, list[ImagePath]]
+    matched_paths: set[ImagePath]
 
 
 @dataclass
@@ -154,12 +155,12 @@ class _SidecarRowContext:
 
 def _sidecar_scan_state(
     text: str, doc_context: DocContext, target_state: ComponentState, baseline_values: YamlMapping | None
-):
+) -> _SidecarScanState:
     """Builds _SidecarScanState — split out of add_missing_sidecar_rows
     purely to keep its own local-variable count down."""
     current_paths = dict(find_image_tag_paths(target_state.values))
     current_paths.update(global_image_paths(target_state.values))
-    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+    baseline_paths: dict[ImagePath, str] = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
     baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
     canonical_names = canonical_sidecar_row_names(
         doc_context.chart_dir, target_state.deps, target_state.values, current_paths.keys()
@@ -168,7 +169,7 @@ def _sidecar_scan_state(
     # values -- this is "where did this repository already live in the
     # baseline tree", not a current-tree question) and reused across
     # every path below rather than recomputed per path.
-    baseline_repo_groups = (
+    baseline_repo_groups: dict[str, list[ImagePath]] = (
         paths_by_repository(doc_context.chart_dir, target_state.deps, baseline_values, baseline_paths.keys())
         if baseline_values
         else {}
@@ -246,7 +247,7 @@ def _add_sidecar_row(text: str, name: str, path: tuple[str, ...], ctx: _SidecarR
 
 def add_missing_sidecar_rows(
     text: str, doc_context: DocContext, target_state: ComponentState, baseline_values: YamlMapping | None
-):
+) -> tuple[str, list[str]]:
     """Insert a new "Component versions" table row + matching "### ..."
     Changes section for every canonical sidecar/shared-image name (see
     lib.chart.canonical_sidecar_row_names — "<values_key> - <basename>"
@@ -301,7 +302,7 @@ def add_missing_sidecar_rows(
     Returns (new_text, added_names)."""
     state = _sidecar_scan_state(text, doc_context, target_state, baseline_values)
     ctx = _SidecarRowContext(state, target_state, baseline_values, doc_context)
-    added_names = []
+    added_names: list[str] = []
     for name, path in sorted(state.canonical_names.items()):
         text, added = _add_sidecar_row(text, name, path, ctx)
         if added:
@@ -361,8 +362,12 @@ def build_changes_section_for_row(row: VersionRow, ident: tuple, deps: list[Char
 
 
 def add_missing_changes_sections(
-    text: str, deps: list[ChartDependency], target_values: YamlMapping, target: str, canonical_names: dict
-):
+    text: str,
+    deps: list[ChartDependency],
+    target_values: YamlMapping,
+    target: str,
+    canonical_names: dict[str, ImagePath],
+) -> tuple[str, list[str]]:
     """Insert a "### ..." Changes section (see build_changes_section_for_
     row) for every "Component versions" table row that already exists
     but has no matching section of its own yet (see lib.upgradedoc.
@@ -380,7 +385,7 @@ def add_missing_changes_sections(
         return text, []
     missing = set(rows_without_heading)
 
-    added_names = []
+    added_names: list[str] = []
     for row in rows:
         if row["name"] not in missing:
             continue
@@ -486,7 +491,9 @@ def _rewrite_stale_heading(
     return text, True
 
 
-def update_stale_app_version_headings(text: str, doc_context: DocContext, ordering: OrderingContext):
+def update_stale_app_version_headings(
+    text: str, doc_context: DocContext, ordering: OrderingContext
+) -> tuple[str, list[str]]:
     """Regenerate a "### ..." Changes section whose own heading is
     missing the primary-image app version (see lib.upgradedoc.changes_
     heading_has_app_version) for a component that DOES have one
@@ -515,7 +522,7 @@ def update_stale_app_version_headings(text: str, doc_context: DocContext, orderi
     (pre-fix) heading text for every section actually rewritten."""
     ctx = _StaleHeadingContext(doc_context, ordering)
     rows_by_identity = _rows_by_identity(text, ctx)
-    updated_headings = []
+    updated_headings: list[str] = []
     for heading, ident in _stale_app_version_headings(text, ctx):
         text, updated = _rewrite_stale_heading(text, heading, ident, rows_by_identity, ctx)
         if updated:
@@ -523,7 +530,9 @@ def update_stale_app_version_headings(text: str, doc_context: DocContext, orderi
     return text, updated_headings
 
 
-def resolve_basename_baseline_version(baseline_values: YamlMapping | None, full_paths: list):
+def resolve_basename_baseline_version(
+    baseline_values: YamlMapping | None, full_paths: list[tuple[str, str | None]]
+) -> str | None:
     """The single version every one of this basename's touched pins
     actually started at in baseline_values (the true git-resolved release
     baseline, see lib.component_docs.load_baseline_values) — None if they
@@ -536,7 +545,7 @@ def resolve_basename_baseline_version(baseline_values: YamlMapping | None, full_
     2, rather than each documenting the other's intermediate hop).
     `full_paths` is [(dotted "...tag" path, old_version), ...] as returned
     by group_changes_by_component."""
-    versions = set()
+    versions: set[str] = set()
     for dotted_path, _old_version in full_paths:
         tag = text_at(baseline_values, dotted_path)
         if not isinstance(tag, str) or not tag:
@@ -782,11 +791,13 @@ class _BaselineManifestContext:
     chart_dir: Path
     deps: list[ChartDependency]
     values: YamlMapping
-    key_order: list
-    sibling_fields: dict
+    key_order: list[str]
+    sibling_fields: dict[ImagePath, DigestPinningException]
 
 
-def _current_image_paths(chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, rendered_paths: set):
+def _current_image_paths(
+    chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, rendered_paths: set[str]
+) -> dict[ImagePath, str]:
     """Every currently-pinned image path in the chart (find_all_image_
     and_version_paths + global_image_paths), PLUS every genuinely-live-
     but-unpinned vendored-subchart-default image find_unresolved_
@@ -807,7 +818,7 @@ BaselineEntry = tuple[tuple[int, ...], str, str, str, str | None]
 
 
 def _resolve_baseline_entry(
-    ctx: _BaselineManifestContext, current_paths: dict[ImagePath, str], repo: str, group_paths: list
+    ctx: _BaselineManifestContext, current_paths: dict[ImagePath, str], repo: str, group_paths: list[ImagePath]
 ) -> BaselineEntry | None:
     """(sort_key, repo, full_repo, new_version, digest) for one
     repository group's own baseline entry, or None if it should be
@@ -835,7 +846,9 @@ def _resolve_baseline_entry(
     return sort_key, repo, full_repo, new_version, digest
 
 
-def _resolve_baseline_entries(ctx: _BaselineManifestContext, current_paths: dict[ImagePath, str], repo_groups: dict):
+def _resolve_baseline_entries(
+    ctx: _BaselineManifestContext, current_paths: dict[ImagePath, str], repo_groups: dict[str, list[ImagePath]]
+) -> tuple[list[BaselineEntry], list[str]]:
     """(resolved, skipped) for every repository group in repo_groups —
     resolved is [(sort_key, repo, full_repo, new_version, digest), ...]
     sorted by sort_key, skipped is [repo, ...] for every group _resolve_
@@ -879,7 +892,11 @@ def _render_baseline_manifest_lines(resolved: list[BaselineEntry]):
 
 
 def regenerate_images_baseline_manifest(
-    chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, images_baseline_path: Path, rendered_paths: set
+    chart_dir: Path,
+    deps: list[ChartDependency],
+    values: YamlMapping,
+    images_baseline_path: Path,
+    rendered_paths: set[str],
 ):
     """Overwrite docs/images/images-baseline.yaml WHOLESALE with a full,
     CURRENT snapshot of every image pinned anywhere in the chart right
