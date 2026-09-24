@@ -103,9 +103,11 @@ def test_skippable_steps_order_matches_main_run_order(vp):
     import re
 
     source = inspect.getsource(vp._run_all_steps)
-    positions = [
-        re.search(rf'runner\.run\(\s*"{re.escape(step_name)}"', source).start() for _, step_name in vp.SKIPPABLE_STEPS
-    ]
+    positions = []
+    for _, step_name in vp.SKIPPABLE_STEPS:
+        m = re.search(rf'runner\.run\(\s*"{re.escape(step_name)}"', source)
+        assert m is not None, f"{step_name!r} is not run in _run_all_steps"
+        positions.append(m.start())
     assert positions == sorted(positions)
 
 

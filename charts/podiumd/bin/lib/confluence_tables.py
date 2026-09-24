@@ -129,7 +129,7 @@ class _TableExtractor(HTMLParser):
         self.tables = []
         self.table_headings = []
         self._table_stack = []
-        self._row = None
+        self._row: list[dict[str, Any]] | None = None
         self._cell: dict[str, Any] | None = None
         self._nested_depth = 0
         self._heading = _HeadingState()
@@ -168,7 +168,8 @@ class _TableExtractor(HTMLParser):
             elif tag in ("td", "th"):
                 text = " ".join("".join(self._cell["text"]).split())
                 self._cell["text"] = text
-                self._row.append(self._cell)
+                if self._row is not None:
+                    self._row.append(self._cell)
                 self._cell = None
             return
         if tag == self._heading.tag:
