@@ -135,12 +135,15 @@ def pull_chart(dep: ChartDependency, dest: Path):
 def safe_extract_tgz(tgz_path: Path, dest: Path):
     """Extract a vendored .tgz, rejecting any member that would land outside dest.
 
-    tarfile.extractall() has no member-path-containment check on this Python
-    version (the `filter` kwarg only exists from 3.11.4+/3.12+) -- so a
+    tarfile.extractall() has no member-path-containment check before Python
+    3.11.4/3.12 (the `filter` kwarg does not exist there) -- so a
     crafted archive with "../"-escaping member names could write outside
     `dest`. The .tgz here comes from this repo's own vendored charts/
     directory, not attacker-controlled input, but the check is cheap and
-    makes that assumption explicit rather than implicit.
+    makes that assumption explicit rather than implicit. Where the Python
+    version has it, filter="data" is passed as well: it also rejects
+    symlink/hardlink members pointing outside dest, absolute paths and
+    device files, which the member-name check above can't see.
     """
     dest_resolved = dest.resolve()
     with tarfile.open(tgz_path) as tf:
@@ -150,7 +153,10 @@ def safe_extract_tgz(tgz_path: Path, dest: Path):
                 msg = f"error: {tgz_path} member '{member.name}' would extract outside {dest}"
                 raise SystemExit(msg)
         # Member paths validated above.
-        tf.extractall(dest)  # nosec B202  # noqa: S202
+        if hasattr(tarfile, "data_filter"):
+            tf.extractall(dest, filter="data")
+        else:
+            tf.extractall(dest)  # nosec B202  # noqa: S202
 
 
 def load_chart(dep: ChartDependency, tmproot: Path, *, refresh: bool):

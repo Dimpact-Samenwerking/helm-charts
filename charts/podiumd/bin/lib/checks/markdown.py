@@ -137,7 +137,9 @@ def check_markdown(chart_dir: Path):
     (line-length) and MD014 (commands-show-output) disabled (see module
     docstring). Fails whenever any finding is reported, same as a missing
     pymarkdown install (see module docstring for why this no longer
-    tolerates findings the way it used to)."""
+    tolerates findings the way it used to). Invoked with
+    --return-code-scheme explicit: 0 = clean, 4 = findings reported,
+    anything else is a real pymarkdown failure, not a finding."""
     pymarkdown = find_pymarkdown(chart_dir)
     if pymarkdown is None:
         return False, (
@@ -151,10 +153,21 @@ def check_markdown(chart_dir: Path):
 
     disabled_rules = ",".join(quality_gates_markdown_disabled_rules(chart_dir))
     result = run(
-        [pymarkdown, "-d", disabled_rules, *MARKDOWN_PLUGIN_SETTINGS, "scan", *[str(f) for f in files]],
+        [
+            pymarkdown,
+            "--return-code-scheme",
+            "explicit",
+            "-d",
+            disabled_rules,
+            *MARKDOWN_PLUGIN_SETTINGS,
+            "scan",
+            *[str(f) for f in files],
+        ],
         capture_output=True,
         text=True,
     )
+    if result.returncode not in (0, 4):
+        return False, f"pymarkdown failed (exit {result.returncode}): {result.stderr.strip() or result.stdout.strip()}"
     output = result.stdout + result.stderr
 
     findings: list[dict[str, str]] = []

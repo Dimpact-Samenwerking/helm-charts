@@ -97,6 +97,7 @@ But the two sides, and the two candidate KINDS, get there differently:
   same tolerance the tag-check that produced the candidate in the first
   place already has for its own failed lookups."""
 
+import tarfile
 import urllib.error
 
 from collections import Counter
@@ -104,6 +105,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 from typing import TypedDict
+
+import yaml
 
 from lib.checks.cve import SEVERITY_ORDER
 from lib.checks.cve import CacheSession
@@ -378,11 +381,19 @@ def classify_candidates(
     — this check never fails. render_chart is memoized (lib.render_scope's
     own _render_cache), and "Image upgrades" already runs before this step
     (STEP_PREREQUISITES) with the same extra_args, so this call is a free
-    cache hit in the normal pipeline, not a second real `helm template`."""
-    result = render_chart(chart_dir, extra_args)
-    vendor_map = friendly_vendor_charts(chart_dir)
-    dep_names = dependency_names(chart_dir)
-    rendered_labels = render_image_labels(result.stdout, vendor_map) if result.returncode == 0 else {}
+    cache hit in the normal pipeline, not a second real `helm template`.
+    "Never a crash" covers what those calls can raise: file and process
+    launch errors, a broken .tgz, invalid YAML, and a malformed Chart.yaml
+    entry."""
+    try:
+        result = render_chart(chart_dir, extra_args)
+        vendor_map = friendly_vendor_charts(chart_dir)
+        dep_names = dependency_names(chart_dir)
+        rendered_labels = render_image_labels(result.stdout, vendor_map) if result.returncode == 0 else {}
+    except (OSError, tarfile.TarError, yaml.YAMLError, KeyError, TypeError, ValueError):
+        vendor_map = {}
+        dep_names: set[str] = set()
+        rendered_labels = {}
 
     classified: list[ClassifiedCandidate] = []
     for candidate in candidates:

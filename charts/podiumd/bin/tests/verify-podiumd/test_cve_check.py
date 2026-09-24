@@ -180,6 +180,23 @@ def test_run_trivy_unparseable_output_returns_none(libcvecheck: ModuleType, monk
     assert libcvecheck.run_trivy("org/repo:1.0.0") is None
 
 
+def test_run_trivy_nonzero_exit_with_parseable_output_returns_none(
+    libcvecheck: ModuleType, monkeypatch: pytest.MonkeyPatch
+):
+    """A failed trivy/docker run can still print valid JSON; it must count
+    as a scan error, never as a clean scan."""
+    monkeypatch.setattr(libcvecheck, "run", lambda cmd, **kw: trivy_result(returncode=1, stdout="{}"))
+    assert libcvecheck.run_trivy("org/repo:1.0.0") is None
+
+
+def test_digest_ref_uses_the_pinned_digest(libcvecheck: ModuleType):
+    assert libcvecheck._digest_ref("org/repo", DIGEST_A) == f"docker.io/org/repo@sha256:{DIGEST_A}"
+
+
+def test_digest_ref_without_a_digest_is_none(libcvecheck: ModuleType):
+    assert libcvecheck._digest_ref("org/repo", "") is None
+
+
 # --- scan_cached (the shared primitive check_cves and lib.checks.cve_diff
 # both route through) ---
 
@@ -527,15 +544,15 @@ def test_check_cves_splits_own_partner_other_and_never_fails(
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
     trivy_by_image = {
-        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(
+        f"ghcr.io/wearefrank/frank-gateway@sha256:{DIGEST_A}": trivy_result(
             stdout=json.dumps(
                 {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1"), vuln("LOW", cve="CVE-OWN-2")]}]}
             )
         ),
-        "docker.io/maykinmedia/objects-api:1.0.0": trivy_result(
+        f"docker.io/maykinmedia/objects-api@sha256:{DIGEST_B}": trivy_result(
             stdout=json.dumps({"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-PARTNER-1")]}]})
         ),
-        "docker.io/alpine/k8s:1.36.2": trivy_result(
+        f"docker.io/alpine/k8s@sha256:{DIGEST_C}": trivy_result(
             stdout=json.dumps(
                 {
                     "Results": [
@@ -603,10 +620,10 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
     )
 
     trivy_by_image = {
-        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(
+        f"ghcr.io/wearefrank/frank-gateway@sha256:{DIGEST_A}": trivy_result(
             stdout=json.dumps({"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1")]}]})
         ),
-        "docker.io/maykinmedia/objects-api:1.0.0": trivy_result(
+        f"docker.io/maykinmedia/objects-api@sha256:{DIGEST_B}": trivy_result(
             stdout=json.dumps({"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-PARTNER-1")]}]})
         ),
     }
@@ -647,7 +664,7 @@ def test_check_cves_stale_upgrade_cache_entry_not_marked_upgradable(
     )
 
     trivy_by_image = {
-        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(
+        f"ghcr.io/wearefrank/frank-gateway@sha256:{DIGEST_A}": trivy_result(
             stdout=json.dumps({"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1")]}]})
         ),
     }
@@ -673,15 +690,15 @@ def test_check_cves_detail_itemizes_every_bucket(
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
     trivy_by_image = {
-        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(
+        f"ghcr.io/wearefrank/frank-gateway@sha256:{DIGEST_A}": trivy_result(
             stdout=json.dumps(
                 {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1"), vuln("LOW", cve="CVE-OWN-2")]}]}
             )
         ),
-        "docker.io/maykinmedia/objects-api:1.0.0": trivy_result(
+        f"docker.io/maykinmedia/objects-api@sha256:{DIGEST_B}": trivy_result(
             stdout=json.dumps({"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-PARTNER-1", pkg="curl")]}]})
         ),
-        "docker.io/alpine/k8s:1.36.2": trivy_result(
+        f"docker.io/alpine/k8s@sha256:{DIGEST_C}": trivy_result(
             stdout=json.dumps(
                 {
                     "Results": [
@@ -801,7 +818,9 @@ def test_check_cves_scan_error_reported_but_still_passes(
 ):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
-    trivy_by_image = {"ghcr.io/wearefrank/frank-gateway:104": trivy_result(returncode=1, stdout="not json")}
+    trivy_by_image = {
+        f"ghcr.io/wearefrank/frank-gateway@sha256:{DIGEST_A}": trivy_result(returncode=1, stdout="not json")
+    }
     monkeypatch.setattr(libcvecheck, "run", sequenced_run(trivy_by_image=trivy_by_image))
 
     ok, detail = vp.check_cves(chart_dir, [])
@@ -822,12 +841,15 @@ def test_check_cves_heuristic_fallback_for_disabled_component(
     """A pin whose component isn't in the render at all (e.g. disabled in
     the CI values) falls back to the values-key heuristic: not a
     Chart.yaml dependency -> own."""
-    values = VALUES_YAML + (f'apiproxy:\n  image:\n    repository: org/apiproxy\n    tag: "1.0.0@sha256:{"d" * 64}"\n')
+    apiproxy_digest = "d" * 64
+    values = VALUES_YAML + (
+        f'apiproxy:\n  image:\n    repository: org/apiproxy\n    tag: "1.0.0@sha256:{apiproxy_digest}"\n'
+    )
     chart_dir = make_chart_dir(tmp_path, values=values)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
     trivy_by_image = {
-        "docker.io/org/apiproxy:1.0.0": trivy_result(
+        f"docker.io/org/apiproxy@sha256:{apiproxy_digest}": trivy_result(
             stdout=json.dumps({"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-APIPROXY")]}]})
         ),
     }

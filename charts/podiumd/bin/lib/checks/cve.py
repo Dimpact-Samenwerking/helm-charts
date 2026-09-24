@@ -294,7 +294,9 @@ def run_trivy(image_ref: str) -> list[Vulnerability] | None:
     what's relevant to "should we bump this image"). Returns the flat list
     of trimmed vulnerability dicts (see VULN_FIELDS), or None if trivy's
     own output couldn't be parsed as JSON (a pull failure or trivy crash,
-    not a chart problem)."""
+    not a chart problem), or None if trivy/docker exited non-zero — run()
+    never raises on a failed exit, and a failure can still print
+    parseable-but-empty JSON that would otherwise read as a clean scan."""
     result = run(
         [
             "docker",
@@ -312,6 +314,8 @@ def run_trivy(image_ref: str) -> list[Vulnerability] | None:
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0:
+        return None
     try:
         data: object = json.loads(result.stdout)
     except json.JSONDecodeError:
@@ -561,6 +565,15 @@ def _image_ref(repository: str, version: str):
     return f"{host}/{repo_path}:{version}"
 
 
+def _digest_ref(repository: str, digest: str | None) -> str | None:
+    """ "<host>/<repo_path>@sha256:<digest>" for `repository`, or None
+    without a digest."""
+    if not digest:
+        return None
+    host, repo_path = parse_repo(repository)
+    return f"{host}/{repo_path}@sha256:{digest}"
+
+
 def _target_label(repository: str, version: str, digest: str, line: int, context: ScanContext):
     """ "own" | a vendor label | "other" for one scan target — the
     render-based classification (see render_image_labels) when the
@@ -593,10 +606,14 @@ def _scan_one_target(
     """(image_ref, entry, was_cached) for one (repository, version)
     target — entry is None when trivy's own scan failed (the caller
     reports image_ref as a scan error and skips it), otherwise the dict
-    check_cves' own `images` map stores under image_ref."""
+    check_cves' own `images` map stores under image_ref. image_ref is the
+    tag-based ref, for display and as the map key; trivy scans the pinned
+    digest instead, since a floating tag may have been republished since
+    pinning and its results are cached under this pin's digest."""
     repository, version = repo_version
     digest, line = digest_line
     image_ref = _image_ref(repository, version)
+    scan_ref = _digest_ref(repository, digest) or image_ref
     label = _target_label(repository, version, digest, line, context)
 
     # Per-image cache-hit/fresh-scan reporting and the actual cache
@@ -605,7 +622,7 @@ def _scan_one_target(
     # docstring for why this is shared rather than reimplemented here.
     vulns, was_cached = scan_cached(
         context.chart_dir,
-        ScanTarget(repository, digest, image_ref),
+        ScanTarget(repository, digest, scan_ref),
         context.session,
         context.settings.cve_cache_ttl_days,
         label=f"[{index}/{total}] this image",
