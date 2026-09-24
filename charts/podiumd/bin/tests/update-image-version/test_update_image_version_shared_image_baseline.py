@@ -74,9 +74,9 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(
     """curl bumped to 8.21.0 (already fully documented as a shared-image
     pseudo-component) and then reset back to its baseline version has
     nothing left to report: the table row, Changes section,
-    values-delta bullet, and images-manifest 'changes:' entry/comment
-    must all be removed -- the manifest ENTRY itself still lists the
-    correct (baseline) version/digest."""
+    values-delta bullet, and images-manifest 'changes:' item, entry and
+    comment must all be removed: images-<target>.yaml only lists images
+    that changed."""
     write_chart_yaml(tmp_path, [("keycloak-operator", None), ("zac", None)])
     write_values(tmp_path, CURL_VALUES_TMPL.format(version="8.20.0", digest="a" * 64))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
@@ -138,7 +138,7 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(
     assert "Zero changes:" not in manifest
     assert "curl 8.20.0" not in manifest  # the numbered "changes:" list item is gone
     assert "# curl —" not in manifest  # the entry's now-stale source comment is gone too
-    assert '"8.20.0"' in manifest  # the entry itself still lists the correct (reset) version
+    assert "- name:" not in manifest  # the entry itself is gone: nothing changed vs baseline
 
 
 def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(

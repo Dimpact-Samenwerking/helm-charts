@@ -17,6 +17,7 @@ from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
+from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_comment_line
 from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.sorting_and_ordering import values_tree_position
@@ -156,6 +157,35 @@ def images_manifest_block_start(lines: list[str], entry_line_idx: int) -> int:
     while i > 0 and lines[i - 1].lstrip().startswith("#"):
         i -= 1
     return i
+
+
+def delete_images_manifest_entry(lines: list[str], entry_line_idx: int) -> None:
+    """Deletes the entry block starting at entry_line_idx (its "- name:"
+    line up to the next entry, comment or blank line) from `lines`, with
+    its own version comment (see find_preceding_comment_line) and any
+    comment lines between that and the entry. Comment lines above the
+    version comment, e.g. a "# Applicaties" group divider, stay. The
+    comment also stays when the next entry directly follows with no
+    comment of its own, since that entry shares it. A blank line left
+    doubled by the deletion is dropped too, and so is a blank line left
+    right below a kept comment, so a divider stays on top of the next
+    entry."""
+    block_end = entry_line_idx + 1
+    while block_end < len(lines):
+        line = lines[block_end]
+        if not line.strip() or line.lstrip().startswith("#") or re.match(r"^-\s*name:", line):
+            break
+        block_end += 1
+    shares_comment = block_end < len(lines) and re.match(r"^-\s*name:", lines[block_end]) is not None
+    comment_idx = None if shares_comment else find_preceding_comment_line(lines, entry_line_idx)
+    start = entry_line_idx if comment_idx is None else comment_idx
+    del lines[start:block_end]
+    if 0 < start < len(lines) and not lines[start].strip():
+        above = lines[start - 1]
+        if not above.strip() or above.lstrip().startswith("#"):
+            del lines[start]
+    elif start == len(lines) and start > 0 and not lines[start - 1].strip():
+        del lines[start - 1]
 
 
 def header_name_segment(text: str) -> str:

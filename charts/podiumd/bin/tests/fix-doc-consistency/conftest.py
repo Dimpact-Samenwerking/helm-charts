@@ -201,7 +201,7 @@ def repo_with_undocumented_component_bumps(tmp_path: Path):
         tmp_path / "values.yaml",
         yaml.safe_dump(
             {
-                "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+                "zac": {"image": {"tag": "5.0.1@sha256:bbbb"}},
                 "openformulieren": {"image": {"tag": "3.4.10@sha256:cccc"}},
                 "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.6.4", "sha": "eeee"}}}},
             }
@@ -248,7 +248,7 @@ def repo_with_undocumented_component_bumps(tmp_path: Path):
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
-        "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |\n\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.0.2 | 1.0.297 (unchanged) | n/a |\n\n"
         "## Changes\n\n",
     )
     git("add", "-A", cwd=tmp_path)
@@ -264,7 +264,7 @@ def repo_with_undocumented_component_bumps(tmp_path: Path):
 
 @pytest.fixture
 def repo_with_undocumented_sidecar_bump(tmp_path: Path):
-    """redis-operator's own row already exists (unchanged, correct) —
+    """redis-operator's own row already exists (correct) —
     add_missing_component_rows has nothing to do at the top level. Its
     nested redis-ha sidecar image DID change vs baseline, but has no row
     of its own at all — the real gap add_missing_sidecar_rows exists to
@@ -285,7 +285,7 @@ def repo_with_undocumented_sidecar_bump(tmp_path: Path):
             {
                 "dependencies": [
                     {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-                    {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
+                    {"name": "redis-operator", "version": "0.26.0", "repository": "@opstree"},
                 ],
             }
         ),
@@ -294,7 +294,7 @@ def repo_with_undocumented_sidecar_bump(tmp_path: Path):
         tmp_path / "values.yaml",
         yaml.safe_dump(
             {
-                "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+                "zac": {"image": {"tag": "5.0.1@sha256:bbbb"}},
                 "redis-operator": {
                     "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}
                 },
@@ -309,6 +309,17 @@ def repo_with_undocumented_sidecar_bump(tmp_path: Path):
     git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
+    write(
+        tmp_path / "Chart.yaml",
+        yaml.safe_dump(
+            {
+                "dependencies": [
+                    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+                    {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
+                ],
+            }
+        ),
+    )
     write(
         tmp_path / "values.yaml",
         yaml.safe_dump(
@@ -327,8 +338,8 @@ def repo_with_undocumented_sidecar_bump(tmp_path: Path):
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
-        "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |\n"
-        "| redis-operator | - | 0.26.1 (unchanged) | n/a |\n\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.0.2 | 1.0.297 (unchanged) | n/a |\n"
+        "| redis-operator | - | 0.26.0 → 0.26.1 | n/a |\n\n"
         "## Changes\n\n",
     )
     git("add", "-A", cwd=tmp_path)

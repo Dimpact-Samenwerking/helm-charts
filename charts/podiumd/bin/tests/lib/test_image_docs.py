@@ -471,14 +471,16 @@ def test_remove_image_manifest_entry_recognizes_bare_changes_header(libimagedocs
             '  digest: "sha256:bbbb"\n'
         ),
     )
-    changes_action, entry_updated = libimagedocs.remove_image_manifest_entry(
-        path, "nginx-unprivileged", "nginxinc/nginx-unprivileged", "1.31.3", "sha256:aaaa"
+    changes_action, entry_removed = libimagedocs.remove_image_manifest_entry(
+        path, "nginx-unprivileged", "nginxinc/nginx-unprivileged"
     )
     assert changes_action == "removed"
-    assert entry_updated is True
+    assert entry_removed is True
     text = path.read_text(encoding="utf-8")
     assert "nginx-unprivileged 1.31.3 -> 1.31.4." not in text
-    assert '"1.31.3"' in text  # entry reset back to the baseline version
+    # the entry and its comment are gone, not reset to the baseline version
+    assert "- name:" not in text
+    assert "# nginx-unprivileged — 1.31.3 -> 1.31.4" not in text
 
 
 def test_update_image_manifest_no_matching_entry_reports_not_updated(libimagedocs: ModuleType, tmp_path: Path):

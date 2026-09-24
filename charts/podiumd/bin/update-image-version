@@ -332,7 +332,7 @@ def _update_single_component_images_manifest(context: _SingleComponentDocContext
     path_update = ImagePathUpdate(bump.group["paths"], bump.group["repos"], bump.group["new_tags_by_path"])
 
     if context.baseline.reset_to_baseline:
-        changes_action, entry_updates = remove_component_from_images_manifest(manifest_target, path_update)
+        changes_action, entry_removals = remove_component_from_images_manifest(manifest_target, path_update)
         print()
         print(f"=== Updating {images_path.name} ===")
         if changes_action:
@@ -340,8 +340,8 @@ def _update_single_component_images_manifest(context: _SingleComponentDocContext
                 f"  {context.friendly} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
                 " version — removed 'changes:' list entry"
             )
-        for name in entry_updates:
-            print(f"  updated entry '{name}' (now matches upgrade_docs_baseline — no longer a documented change)")
+        for name in entry_removals:
+            print(f"  removed entry '{name}' (back at its upgrade_docs_baseline version)")
         return
 
     # A missing entry is added by the fix-doc-consistency run at the end of main().
@@ -534,15 +534,11 @@ def _update_shared_image_manifest_entry(
 ):
     _host, repo_path = parse_repo(repository)
     if context.baseline.reset_to_baseline:
-        changes_action, entry_updated = remove_image_manifest_entry(
-            images_path, bump.name, repo_path, c["new_version"], c["new_digest"]
-        )
+        changes_action, entry_removed = remove_image_manifest_entry(images_path, bump.name, repo_path)
         if changes_action:
             print("  removed 'changes:' list entry")
-        if entry_updated:
-            print(
-                f"  updated entry for {repo_path} (now matches upgrade_docs_baseline — no longer a documented change)"
-            )
+        if entry_removed:
+            print(f"  removed entry for {repo_path} (back at its upgrade_docs_baseline version)")
         return
 
     changes_action, entry_updated = update_image_manifest(

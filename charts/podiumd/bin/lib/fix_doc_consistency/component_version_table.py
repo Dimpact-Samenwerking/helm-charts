@@ -10,6 +10,9 @@ from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
+from lib.component_docs.changes_section import OrderingContext
+from lib.component_docs.changes_section import remove_changes_section
+from lib.component_docs.changes_section import remove_component_row
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_ordering import header_name_segment
@@ -17,6 +20,7 @@ from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
+from lib.upgradedoc.resolve_component_row import resolved_row_unchanged
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
@@ -565,3 +569,29 @@ def fix_values_delta_heading_app_versions(
     return _fix_heading_app_versions(
         values_deltas_text, resolution, HeadingFixInputs(resolved_by_values_key, canonical_names, blocks, "##")
     )
+
+
+def remove_unchanged_component_rows(text: str, resolution: ResolutionContext) -> tuple[str, list[str]]:
+    """Deletes every "Component versions" row whose app and chart versions
+    both equal the baseline's (see lib.upgradedoc.resolved_row_unchanged),
+    with its "### ..." Changes section — the same removal update-
+    component-version/update-image-version do for a version reset back
+    to the baseline. A row whose baseline can't be resolved stays.
+    Returns (new_text, removed_names)."""
+    current_paths = dict(find_image_tag_paths(resolution.target.values))
+    current_paths.update(global_image_paths(resolution.target.values))
+    canonical_names = canonical_sidecar_row_names(
+        resolution.chart_dir, resolution.target.deps, resolution.target.values, current_paths.keys()
+    )
+    ordering = OrderingContext(resolution.target.deps, resolution.target.values, canonical_names)
+
+    removed_names: list[str] = []
+    for row in parse_upgrade_doc_rows(text):
+        resolved = resolve_component_row(row["name"], canonical_names, resolution)
+        if resolved["kind"] == "unmatched" or not resolved_row_unchanged(resolved):
+            continue
+        removed_names.append(row["name"])
+    for name in removed_names:
+        text, _row_removed = remove_component_row(text, name)
+        text, _section_removed = remove_changes_section(text, name, ordering)
+    return text, removed_names

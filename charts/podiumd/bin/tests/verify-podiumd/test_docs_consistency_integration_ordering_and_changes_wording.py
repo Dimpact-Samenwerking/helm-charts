@@ -256,7 +256,6 @@ NEW_DEP_UPGRADE_DOC = """\
 
 | Component | App version | Helm chart | Notes |
 | --- | --- | --- | --- |
-| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |
 | openklant | 2.15.0 (new) | 2.15.0 (new) | - |
 
 See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).

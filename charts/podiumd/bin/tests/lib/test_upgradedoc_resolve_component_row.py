@@ -459,3 +459,34 @@ def test_changes_heading_has_app_version_chart_only_stub_has_none(libupgradedocr
     app version could be resolved at all, no "(chart ...)" clause
     either) reliably signals no app version was ever written."""
     assert not libupgradedocresolverow.changes_heading_has_app_version("openbao 0.28.4")
+
+
+# --- resolved_row_unchanged ---
+
+
+def test_resolved_row_unchanged_true_when_app_and_chart_equal_baseline(libupgradedocresolverow: ModuleType):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+    resolved = libupgradedocresolverow.resolve_component_row(
+        "ZAC", {}, _resolution(libupgradedocresolverow, None, deps, values, deps, values)
+    )
+    assert libupgradedocresolverow.resolved_row_unchanged(resolved) is True
+
+
+def test_resolved_row_unchanged_false_when_only_chart_equals_baseline(libupgradedocresolverow: ModuleType):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+    baseline_values = {"zac": {"image": {"tag": "5.4.3@sha256:bbbb"}}}
+    resolved = libupgradedocresolverow.resolve_component_row(
+        "ZAC", {}, _resolution(libupgradedocresolverow, None, deps, values, deps, baseline_values)
+    )
+    assert libupgradedocresolverow.resolved_row_unchanged(resolved) is False
+
+
+def test_resolved_row_unchanged_false_without_baseline(libupgradedocresolverow: ModuleType):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+    resolved = libupgradedocresolverow.resolve_component_row(
+        "ZAC", {}, _resolution(libupgradedocresolverow, None, deps, values)
+    )
+    assert libupgradedocresolverow.resolved_row_unchanged(resolved) is False

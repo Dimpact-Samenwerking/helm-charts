@@ -23,10 +23,13 @@ from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import version_of
 from lib.component_docs.images_manifest_changes_header import ensure_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import find_changes_item
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
+from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_items
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
 from lib.component_docs.images_manifest_changes_header import images_manifest_order_key
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
+from lib.component_docs.images_manifest_changes_header import remove_changes_item
 from lib.image.repository_check import find_images_without_repository
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import try_parse_images_manifest
@@ -41,6 +44,7 @@ from lib.upgradedoc.grouped_comments_and_changes_block import path_display_name
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffContext
 from lib.upgradedoc.images_manifest_list_diff import ManifestDiffInputs
 from lib.upgradedoc.images_manifest_list_diff import find_images_manifest_list_diff
+from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
 from lib.upgradedoc.images_manifest_ordering import images_manifest_block_start
 from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import values_key_order
@@ -283,14 +287,14 @@ def _repo_setup(
     return repo_groups, repo_map, path_to_repo
 
 
-def _missing_paths_for_entries(
+def _manifest_list_diff(
     text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
-) -> list[ImagePath]:
-    """The list of paths find_images_manifest_list_diff reports as
-    changed vs baseline but with no images-manifest entry yet — `text`
-    is only ever parsed here, never needed again afterward."""
+) -> tuple[list[ImagePath], list[str], list[str]]:
+    """find_images_manifest_list_diff's (missing_paths, stale_entry_names,
+    unmatched_entry_names) for `text` — the same diff verify-podiumd's
+    doc-consistency check reports."""
     entries = try_parse_images_manifest(text) or []
-    missing_paths, _stale_entry_names, _unmatched_entry_names = find_images_manifest_list_diff(
+    return find_images_manifest_list_diff(
         ManifestDiffInputs(
             entries,
             resolution.current_paths,
@@ -307,17 +311,13 @@ def _missing_paths_for_entries(
             ),
         )
     )
-    return missing_paths
 
 
-def _missing_entries_setup(
-    text: str, context: MissingEntriesContext
-) -> tuple[MissingEntriesResolution, list[ImagePath]]:
-    """(resolution, missing_paths) — add_missing_images_manifest_
-    entries' own one-time setup phase: current_paths/baseline_paths/
-    repo groups/canonical names/key order/digest-pinning exceptions
-    (bundled as a MissingEntriesResolution) and the actual list of
-    paths that changed vs baseline but have no entry yet."""
+def _entries_resolution(context: MissingEntriesContext) -> MissingEntriesResolution:
+    """current_paths/baseline_paths/repo groups/canonical names/key
+    order/digest-pinning exceptions, computed once for `context` —
+    shared by add_missing_images_manifest_entries and
+    remove_stale_images_manifest_entries."""
     current_paths = dict(find_all_image_and_version_paths(context.target_values, context.deps))
     current_paths.update(global_image_paths(context.target_values))
     baseline_paths, baseline_repo_groups = _baseline_setup(context)
@@ -329,7 +329,7 @@ def _missing_entries_setup(
     key_order = values_key_order(context.target_values)
     sibling_fields = digest_pinning_exceptions(context.chart_dir)
 
-    resolution = MissingEntriesResolution(
+    return MissingEntriesResolution(
         current_paths,
         BaselineResolution(baseline_paths, baseline_repo_groups),
         RepoResolution(repo_groups, repo_map, path_to_repo),
@@ -338,8 +338,6 @@ def _missing_entries_setup(
         key_order,
         sibling_fields,
     )
-    missing_paths = _missing_paths_for_entries(text, context, resolution)
-    return resolution, missing_paths
 
 
 def _pinned_tag_for_path(
@@ -688,7 +686,7 @@ def add_missing_images_manifest_entries(
     indices by hand.
 
     global_image_paths(target_values/baseline_values) is folded into
-    current_paths/baseline_paths up front (see _missing_entries_setup)
+    current_paths/baseline_paths up front (see _entries_resolution)
     so "global.images.nginx" (and every other shared base-image anchor)
     participates in this same missing-entry scan as its own path, not
     just via whichever component happens to alias it. Combined with
@@ -700,7 +698,8 @@ def add_missing_images_manifest_entries(
     own separate "missing" entry needing one of its own.
 
     Returns (new_text, added_names, skipped_names, backfilled_names)."""
-    resolution, missing_paths = _missing_entries_setup(text, context)
+    resolution = _entries_resolution(context)
+    missing_paths, _stale_entry_names, _unmatched_entry_names = _manifest_list_diff(text, context, resolution)
 
     added_names: list[str] = []
     skipped_names: list[str] = []
@@ -714,3 +713,59 @@ def add_missing_images_manifest_entries(
 
     text, backfilled_names = _backfill_header_items(text, context, resolution)
     return text, added_names, skipped_names, backfilled_names
+
+
+def _remove_stale_entry(
+    lines: list[str], entry_name: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
+):
+    """Deletes the entry named `entry_name` with its own comment, and its
+    "# Changes:" item unless another entry still carries the same display
+    name (a lockstep component's other image)."""
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    entry_line = next(
+        (i for i in entry_line_indices if re.match(rf"^-\s*name:\s*{re.escape(entry_name)}\s*$", lines[i])), None
+    )
+    if entry_line is None:
+        return
+    delete_images_manifest_entry(lines, entry_line)
+
+    entry_path = resolve_entry_image_path(entry_name, resolution.current_paths.keys(), resolution.repo.repo_map)
+    if entry_path is None:
+        return
+    display_name = path_display_name(entry_path, context.deps, resolution.canonical_names)
+    remaining_display_names = {
+        path_display_name(path, context.deps, resolution.canonical_names)
+        for entry in try_parse_images_manifest("".join(lines)) or []
+        if (path := resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo.repo_map))
+    }
+    if display_name in remaining_display_names:
+        return
+    _header_idx, _header_has_count, item_indices = find_images_manifest_changes_items(lines)
+    match_idx = find_changes_item(lines, item_indices, display_name)
+    if match_idx is not None:
+        remove_changes_item(lines, item_indices, match_idx)
+
+
+def remove_stale_images_manifest_entries(text: str, context: MissingEntriesContext) -> tuple[str, list[str]]:
+    """Deletes every entry lib.upgradedoc.find_images_manifest_list_diff
+    reports as stale — its image's version and digest equal
+    upgrade_docs_baseline's, so there is no change to document — with its
+    own comment and "# Changes:" item. The counterpart of
+    add_missing_images_manifest_entries, and the fix for the check's
+    "is listed but its image did not change" issue. The "# Changes:" count
+    word is left to the renumber pass that follows. An entry whose path
+    has no resolvable repository is also reported as stale, but "did not
+    change" can't be concluded for it, so it stays for a human (the check
+    still reports it). Returns (new_text, removed_names)."""
+    resolution = _entries_resolution(context)
+    _missing_paths, stale_entry_names, _unmatched_entry_names = _manifest_list_diff(text, context, resolution)
+    removable_names = [
+        name
+        for name in stale_entry_names
+        if resolve_entry_image_path(name, resolution.current_paths.keys(), resolution.repo.repo_map)
+        not in resolution.unresolvable_paths
+    ]
+    lines = text.splitlines(keepends=True)
+    for entry_name in removable_names:
+        _remove_stale_entry(lines, entry_name, context, resolution)
+    return "".join(lines), removable_names
