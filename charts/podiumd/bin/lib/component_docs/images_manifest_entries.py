@@ -8,8 +8,6 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
-
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.component_docs.changes_section import ComponentState
@@ -24,6 +22,8 @@ from lib.component_docs.images_manifest_changes_header import images_manifest_ch
 from lib.component_docs.images_manifest_changes_header import images_manifest_order_key
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
+from lib.images_manifest import ManifestEntry
+from lib.images_manifest import try_parse_images_manifest
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.sorting_and_ordering import values_key_order
@@ -69,7 +69,7 @@ class ParsedManifest:
     images_entry both need all three."""
 
     lines: list
-    entries: list
+    entries: list[ManifestEntry]
     entry_line_indices: list
 
 
@@ -80,7 +80,7 @@ def values_tree_path_for(values_key: str, image_path: str):
     return (values_key, *tuple(segments[:-1]))
 
 
-def find_matching_images_entry(entries: list, entry_line_indices: list, target_path: tuple[str, ...]):
+def find_matching_images_entry(entries: list[ManifestEntry], entry_line_indices: list, target_path: tuple[str, ...]):
     """(entry, line_idx, index) for the parsed manifest entry whose own
     resolve_entry_path(entry["name"], ...) equals `target_path` (see
     values_tree_path_for), or (None, None, None) if this component has no
@@ -100,18 +100,16 @@ def _parsed_manifest(lines: list[str]):
     ParsedManifest since update_images_manifest_entry/find_matching_
     images_entry both need all three (lines/entries/entry_line_indices)
     kept in lockstep."""
-    entries = yaml.safe_load("".join(lines)) or []
-    if not isinstance(entries, list):
-        entries = []
+    entries = try_parse_images_manifest("".join(lines)) or []
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
     return ParsedManifest(lines, entries, entry_line_indices)
 
 
-def _component_of(values_key: str, entry: dict):
+def _component_of(values_key: str, entry: ManifestEntry):
     return values_key if text_names(entry["name"], values_key) else None
 
 
-def _same_group(values_key: str, entry_a: dict, entry_b: dict) -> bool:
+def _same_group(values_key: str, entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
     """Whether `entry_a`/`entry_b` share the same top-level component AND
     version — find_grouped_preceding_comment_line's own "same group"
     predicate, so a shared comment block (e.g. zgw-office-addin's frontend

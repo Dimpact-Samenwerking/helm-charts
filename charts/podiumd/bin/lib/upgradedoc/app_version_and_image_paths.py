@@ -341,9 +341,9 @@ def resolve_entry_path(entry_name: str, paths: Collection):
     return best_path
 
 
-def resolve_entry_image_path(entry: dict, paths: Collection, repo_map: dict | None = None):
-    """Match an images-manifest entry (the full {"name", "url", ...}
-    mapping) to a values-tree path — an exact repo_map lookup first
+def resolve_entry_image_path(name: str, paths: Collection, repo_map: dict | None = None):
+    """Match an images-manifest entry's "name:" to a values-tree path —
+    an exact repo_map lookup first
     (see lib.chart.repository_path_map: under the current strip-
     registry convention an entry's "name:" IS the repository in that
     same stripped form, so this is a direct dict hit, not a guess),
@@ -353,7 +353,7 @@ def resolve_entry_image_path(entry: dict, paths: Collection, repo_map: dict | No
     nested image with no Chart.yaml dependency of its own — e.g. a
     component's bundled sidecar — that repo_map doesn't cover at all)."""
     if repo_map:
-        path = repo_map.get(entry["name"])
+        path = repo_map.get(name)
         if path is not None and path in paths:
             return path
-    return resolve_entry_path(entry["name"], paths)
+    return resolve_entry_path(name, paths)

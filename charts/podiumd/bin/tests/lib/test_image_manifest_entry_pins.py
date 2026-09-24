@@ -6,6 +6,7 @@ from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.image import manifest_entry_pins
+from lib.images_manifest import ManifestEntry
 from lib.yaml_types import YamlMapping
 
 OLD = "a" * 64
@@ -13,6 +14,13 @@ NEW = "b" * 64
 
 VALUES: YamlMapping = {"clamav": {"image": {"repository": "docker.io/clamav/clamav", "tag": f"1.5.4@sha256:{NEW}"}}}
 DEPS: list[ChartDependency] = [{"name": "clamav", "version": "3.7.2"}]
+
+ENTRY: ManifestEntry = {
+    "name": "clamav/clamav",
+    "url": "docker.io/clamav/clamav",
+    "version": "1.5.4",
+    "digest": f"sha256:{NEW}",
+}
 
 
 def manifest(digest: str) -> str:
@@ -43,9 +51,8 @@ def test_sync_entry_pins_leaves_a_matching_entry_alone(tmp_path: Path) -> None:
 
 def test_entry_pin_is_the_tag_check_docs_consistency_compares() -> None:
     paths = manifest_entry_pins.current_image_paths(VALUES)
-    entry = {"name": "clamav/clamav", "url": "docker.io/clamav/clamav"}
 
-    path, tag = manifest_entry_pins.entry_pin(entry, VALUES, paths, {}, {})
+    path, tag = manifest_entry_pins.entry_pin(ENTRY, VALUES, paths, {}, {})
 
     assert path == ("clamav", "image")
     assert tag == f"1.5.4@sha256:{NEW}"

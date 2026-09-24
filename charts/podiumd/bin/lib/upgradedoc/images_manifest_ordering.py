@@ -7,11 +7,11 @@ import re
 from dataclasses import dataclass
 from itertools import pairwise
 
-import yaml
-
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import is_primary_image_path
+from lib.images_manifest import ManifestEntry
+from lib.images_manifest import try_parse_images_manifest
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
@@ -35,7 +35,7 @@ class ParsedManifest:
     sync, so bundling them keeps that plumbing from dominating each
     function's own argument count."""
 
-    entries: list
+    entries: list[ManifestEntry]
     entry_line_indices: list
     lines: list
 
@@ -74,15 +74,17 @@ class ManifestSortContext:
     canonical_names: dict
 
 
-def entry_component(entry: dict, current_paths: dict, repo_map: dict | None):
+def entry_component(entry: ManifestEntry, current_paths: dict, repo_map: dict | None):
     """The top-level values-tree component an images-manifest entry
     resolves to (path[0], via resolve_entry_image_path), or None when it
     doesn't resolve to any real path at all."""
-    path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
+    path = resolve_entry_image_path(entry["name"], current_paths.keys(), repo_map)
     return path[0] if path else None
 
 
-def images_manifest_entries_share_group(entry_a: dict, entry_b: dict, current_paths: dict, repo_map: dict | None):
+def images_manifest_entries_share_group(
+    entry_a: ManifestEntry, entry_b: ManifestEntry, current_paths: dict, repo_map: dict | None
+):
     """True when entry_a and entry_b are part of ONE shared-comment
     group in the images manifest — same top-level component AND the
     same declared manifest "version" (evidence of one lockstep bump
@@ -254,7 +256,7 @@ def find_images_manifest_faulty_headers(manifest: ParsedManifest, resolution: En
     primary/standalone for exactly this reason)."""
     problems = []
     for entry, line_idx in zip(manifest.entries, manifest.entry_line_indices, strict=True):
-        path = resolve_entry_image_path(entry, resolution.current_paths.keys(), resolution.repo_map)
+        path = resolve_entry_image_path(entry["name"], resolution.current_paths.keys(), resolution.repo_map)
         if path is None or is_primary_image_path(path, resolution.deps):
             continue
         display_name = path_display_name(path, resolution.deps, resolution.canonical_names)
@@ -339,7 +341,7 @@ def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolutio
     keys) so the two can never disagree about what counts as one group."""
     n = len(manifest.entries)
 
-    def same_group(entry_a: dict, entry_b: dict):
+    def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry):
         return images_manifest_entries_share_group(entry_a, entry_b, resolution.current_paths, resolution.repo_map)
 
     comment_idx_for = [
@@ -358,7 +360,7 @@ def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolutio
     groups = []
     for indices in index_groups:
         path = resolve_entry_image_path(
-            manifest.entries[indices[0]], resolution.current_paths.keys(), resolution.repo_map
+            manifest.entries[indices[0]]["name"], resolution.current_paths.keys(), resolution.repo_map
         )
         name = (
             path_display_name(path, resolution.deps, resolution.canonical_names)
@@ -461,11 +463,8 @@ def _parsed_manifest_from_text(text: str):
     manifest_entries all apply before there's anything meaningful to
     group/sort/position at all."""
     lines = text.splitlines(keepends=True)
-    try:
-        entries = yaml.safe_load(text)
-    except yaml.YAMLError:
-        return None, False
-    if not isinstance(entries, list):
+    entries = try_parse_images_manifest(text)
+    if entries is None:
         return None, False
 
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]

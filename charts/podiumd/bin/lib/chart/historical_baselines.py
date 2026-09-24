@@ -12,12 +12,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-import yaml
-
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.images_manifest import try_parse_images_manifest
 from lib.yaml_types import YamlMapping
 
 # A bare MAJOR.MINOR.PATCH version, exactly — e.g. podiumd's own Chart.yaml
@@ -107,11 +106,8 @@ def historical_app_version_for_repository(
     values of its own to resolve one from — still a fully deterministic,
     exact comparison either way, never a heuristic."""
     for path in historical_images_manifest_paths(chart_dir, at_or_before):
-        entries = yaml.safe_load(path.read_text(encoding="utf-8")) or []
-        if not isinstance(entries, list):
-            continue
-        for entry in entries:
-            if not isinstance(entry, dict) or entry.get("name") != repo:
+        for entry in try_parse_images_manifest(path.read_text(encoding="utf-8")) or []:
+            if entry["name"] != repo:
                 continue
             if expected_url is not None and entry.get("url") != expected_url:
                 continue

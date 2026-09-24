@@ -387,7 +387,7 @@ def test_resolve_entry_image_path_exact_repo_map_hit(libupgradedocappversion):
     paths = [("zac",)]
     repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
     entry = {"name": "infonl/zaakafhandelcomponent", "url": "ghcr.io/infonl/zaakafhandelcomponent"}
-    assert libupgradedocappversion.resolve_entry_image_path(entry, paths, repo_map) == ("zac",)
+    assert libupgradedocappversion.resolve_entry_image_path(entry["name"], paths, repo_map) == ("zac",)
 
 
 def test_resolve_entry_image_path_falls_back_without_repo_map(libupgradedocappversion):
@@ -395,7 +395,7 @@ def test_resolve_entry_image_path_falls_back_without_repo_map(libupgradedocappve
     fuzzy name-word matching as resolve_entry_path alone."""
     paths = [("zac",)]
     entry = {"name": "zac"}
-    assert libupgradedocappversion.resolve_entry_image_path(entry, paths) == ("zac",)
+    assert libupgradedocappversion.resolve_entry_image_path(entry["name"], paths) == ("zac",)
 
 
 def test_resolve_entry_image_path_falls_back_when_repo_map_has_no_hit(libupgradedocappversion):
@@ -405,7 +405,7 @@ def test_resolve_entry_image_path_falls_back_when_repo_map_has_no_hit(libupgrade
     paths = [("zac", "opa", "image")]
     repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
     entry = {"name": "opa", "url": "docker.io/openpolicyagent/opa"}
-    assert libupgradedocappversion.resolve_entry_image_path(entry, paths, repo_map) == ("zac", "opa", "image")
+    assert libupgradedocappversion.resolve_entry_image_path(entry["name"], paths, repo_map) == ("zac", "opa", "image")
 
 
 def test_resolve_entry_image_path_ignores_repo_map_hit_not_in_paths(libupgradedocappversion):
@@ -416,4 +416,4 @@ def test_resolve_entry_image_path_ignores_repo_map_hit_not_in_paths(libupgradedo
     paths = [("unrelated",)]
     repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
     entry = {"name": "infonl/zaakafhandelcomponent"}
-    assert libupgradedocappversion.resolve_entry_image_path(entry, paths, repo_map) is None
+    assert libupgradedocappversion.resolve_entry_image_path(entry["name"], paths, repo_map) is None

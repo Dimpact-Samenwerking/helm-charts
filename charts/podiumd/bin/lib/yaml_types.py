@@ -95,6 +95,21 @@ def parse_yaml_mapping(text: str, source: str) -> YamlMapping:
     return data
 
 
+def parse_yaml(text: str, source: str) -> YamlValue:
+    """`text` parsed as YAML of any shape (an empty document is None).
+    Raises YamlShapeError naming `source` if it holds something that is
+    not a YamlValue; yaml.YAMLError passes through."""
+    data = yaml.safe_load(text)
+    if not is_yaml_value(data):
+        raise YamlShapeError(source, yaml_problem(data) or "not YAML data")
+    return data
+
+
+def is_yaml_value(value: object) -> TypeGuard[YamlValue]:
+    """Whether `value` is a YamlValue."""
+    return yaml_problem(value) is None
+
+
 def load_yaml_mapping(path: Path) -> YamlMapping:
     """parse_yaml_mapping of the file at `path`."""
     return parse_yaml_mapping(path.read_text(encoding="utf-8"), str(path))

@@ -7,8 +7,6 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
-
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
@@ -29,6 +27,8 @@ from lib.component_docs.images_manifest_changes_header import images_manifest_ch
 from lib.component_docs.images_manifest_changes_header import images_manifest_order_key
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.image.repository_check import find_images_without_repository
+from lib.images_manifest import ManifestEntry
+from lib.images_manifest import try_parse_images_manifest
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
@@ -140,14 +140,16 @@ def _entry_url_line_index(lines: list[str], line_idx: int):
     return None
 
 
-def _entry_url_status(entry: dict, line_idx: int, lines: list[str], current_paths: dict, context: UrlFixContext):
+def _entry_url_status(
+    entry: ManifestEntry, line_idx: int, lines: list[str], current_paths: dict, context: UrlFixContext
+):
     """("unresolved", name) / ("changed", (name, old_url, new_url)) /
     ("unchanged", None) for a single images-manifest entry's own "url:"
     field, resolved against `context` (chart_dir/deps/target_values/
     repo_map, see UrlFixContext). Mutates `lines` in place when the url
     actually changes."""
     name = entry["name"]
-    path = resolve_entry_image_path(entry, current_paths.keys(), context.repo_map)
+    path = resolve_entry_image_path(entry["name"], current_paths.keys(), context.repo_map)
     full_repo = (
         full_repository_for_path(context.chart_dir, context.deps, context.target_values, path)
         if path is not None
@@ -203,11 +205,8 @@ def fix_images_manifest_entry_urls(
     all, or that has no "url:" field to check — never guessed at, same
     "report it, don't touch it" discipline every other fixer here uses."""
     lines = text.splitlines(keepends=True)
-    try:
-        entries = yaml.safe_load(text)
-    except yaml.YAMLError:
-        return text, [], []
-    if not isinstance(entries, list):
+    entries = try_parse_images_manifest(text)
+    if entries is None:
         return text, [], []
 
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
@@ -274,12 +273,7 @@ def _missing_paths_for_entries(text: str, context: MissingEntriesContext, resolu
     """The list of paths find_images_manifest_list_diff reports as
     changed vs baseline but with no images-manifest entry yet — `text`
     is only ever parsed here, never needed again afterward."""
-    try:
-        entries = yaml.safe_load(text) or []
-    except yaml.YAMLError:
-        entries = []
-    if not isinstance(entries, list):
-        entries = []
+    entries = try_parse_images_manifest(text) or []
     missing_paths, _stale_entry_names, _unmatched_entry_names = find_images_manifest_list_diff(
         ManifestDiffInputs(
             entries,
@@ -465,7 +459,7 @@ def _entry_insertion_keys(lines: list, context: MissingEntriesContext, resolutio
     for idx in entry_line_indices:
         m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[idx])
         entry_path = (
-            resolve_entry_image_path({"name": m.group(1)}, resolution.current_paths.keys(), resolution.repo.repo_map)
+            resolve_entry_image_path(m.group(1), resolution.current_paths.keys(), resolution.repo.repo_map)
             if m
             else None
         )
@@ -557,7 +551,7 @@ def _backfilled_header_target(
     for idx in entry_line_indices:
         m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[idx])
         entry_path = (
-            resolve_entry_image_path({"name": m.group(1)}, resolution.current_paths.keys(), resolution.repo.repo_map)
+            resolve_entry_image_path(m.group(1), resolution.current_paths.keys(), resolution.repo.repo_map)
             if m
             else None
         )

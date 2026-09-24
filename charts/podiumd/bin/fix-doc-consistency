@@ -34,8 +34,6 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -83,6 +81,7 @@ from lib.fix_doc_consistency.component_version_table import fix_values_delta_hea
 from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifest_changes_items
 from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
 from lib.gitutil import git_show_text
+from lib.images_manifest import try_parse_images_manifest
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
@@ -687,10 +686,7 @@ def _dedupe_images_manifest_changes_items(images_path: Path):
 def _reorder_manifest_text(before_sort: str, sort_context: ManifestSortContext):
     """Computes before_sort's reordered text without touching disk.
     Returns (text, moved_header_items, moved_entries)."""
-    try:
-        entries_for_header_sort = yaml.safe_load(before_sort) or []
-    except yaml.YAMLError:
-        entries_for_header_sort = []
+    entries_for_header_sort = try_parse_images_manifest(before_sort) or []
     entry_positions = images_manifest_entry_positions(before_sort, sort_context)
     display_name_positions = images_manifest_display_name_positions(before_sort, sort_context)
     lines = before_sort.splitlines(keepends=True)
