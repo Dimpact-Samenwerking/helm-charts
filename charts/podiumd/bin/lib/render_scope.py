@@ -12,6 +12,7 @@ paths specifically) check_subchart_image_visibility (lib.
 checks.digest_pinning) and list-podiumd-images."""
 
 import re
+import subprocess  # nosec B404
 
 from collections import Counter
 from collections.abc import Callable
@@ -38,7 +39,7 @@ CHART_NAME = "podiumd"
 OWN_TEMPLATES_PREFIX = "podiumd/templates/"
 
 
-def lint_args_for(chart_dir: Path):
+def lint_args_for(chart_dir: Path) -> list[str]:
     """The extra `helm template`/`helm lint` args needed to render chart_dir
     with its own ci/lint-values.yaml overrides, e.g. ["-f", ".../ci/
     lint-values.yaml"] — every render/lint/check command in this toolchain
@@ -52,10 +53,11 @@ def lint_args_for(chart_dir: Path):
     return []
 
 
-_render_cache = {}
+# subprocess is imported for this CompletedProcess type only; commands run via lib.procutil.run.
+_render_cache: dict[tuple[str, tuple[str, ...]], subprocess.CompletedProcess[str]] = {}
 
 
-def render_chart(chart_dir: Path, extra_args: list):
+def render_chart(chart_dir: Path, extra_args: list[str]) -> subprocess.CompletedProcess[str]:
     """Run `helm template <CHART_NAME> <chart_dir> <extra_args>`. Returns
     the raw subprocess result; every caller decides for itself what a
     non-zero returncode means and how to report it.
@@ -131,7 +133,7 @@ def report_largest_templates(rendered_text: str, top_n: int):
 CHART_TREE_PATH_RE = re.compile(r"([A-Za-z0-9_./\-]+)/templates/")
 
 
-def chart_tree_paths(text: str):
+def chart_tree_paths(text: str) -> list[str]:
     """Every distinct chart_tree_path match in `text` (a full render, or
     an error-output blob with one or more embedded "<tree>/templates/
     ..." paths) — in match order, duplicates included; callers reduce
@@ -165,7 +167,7 @@ def chart_name_from_source(source: str | None):
     return m.group(1).rsplit("/", 1)[-1] if m else (source or "(unknown source)")
 
 
-def rendered_chart_paths(rendered_text: str):
+def rendered_chart_paths(rendered_text: str) -> set[str]:
     """Every distinct chart-tree directory that either produced at least
     one rendered resource of its OWN in `rendered_text` (a full `helm
     template` render), or has at least one rendered DESCENDANT — e.g.
@@ -216,7 +218,7 @@ def rendered_chart_paths(rendered_text: str):
     resolve_subchart_default) genuinely renders right now, instead of
     just being vendored on disk."""
     paths = set(chart_tree_paths(rendered_text))
-    ancestors = set()
+    ancestors: set[str] = set()
     for path in paths:
         segments = path.split("/charts/")
         for depth in range(2, len(segments)):
@@ -287,13 +289,13 @@ def friendly_vendor_charts(chart_dir: Path):
     return mapping
 
 
-def build_line_sources(rendered_text: str):
+def build_line_sources(rendered_text: str) -> dict[int, str | None]:
     """Map each 1-based line number in a full `helm template` render to the
     most recent preceding "# Source: <path>" comment, so a yamllint finding
     (which only knows line numbers) can be attributed back to the template
     file that produced it."""
-    sources = {}
-    current = None
+    sources: dict[int, str | None] = {}
+    current: str | None = None
     for i, line in enumerate(rendered_text.splitlines(), 1):
         if line.startswith("# Source: "):
             current = line[len("# Source: ") :].strip()
@@ -305,10 +307,13 @@ def build_line_sources(rendered_text: str):
 # or originating-file info per resource (unlike yamllint), so scoping own
 # vs. vendored has to happen BEFORE validation: split the render into
 # separate per-scope YAML streams and run the tool once per stream.
+# (kind, namespace, name) -> 1-based rendered line; see build_resource_locations.
+ResourceLocations = dict[tuple[str, str, str], int]
+
 SOURCE_DOC_SPLIT_RE = re.compile(r"(?m)^---\n(?=# Source: )")
 
 
-def split_rendered_by_source(rendered_text: str):
+def split_rendered_by_source(rendered_text: str) -> list[tuple[str, str]]:
     """Split a full `helm template` render into (source, doc_text) pairs,
     one per "# Source: <path>" block — each doc_text keeps its own leading
     "---\\n# Source: ...\\n" header, so any subset of the pairs can be
@@ -316,7 +321,7 @@ def split_rendered_by_source(rendered_text: str):
     stream (used to validate this chart's own templates and its vendored
     sub-charts as separate runs)."""
     docs = SOURCE_DOC_SPLIT_RE.split(rendered_text)
-    result = []
+    result: list[tuple[str, str]] = []
     for doc in docs:
         m = re.match(r"# Source: (.+)\n", doc)
         if m:
@@ -324,7 +329,7 @@ def split_rendered_by_source(rendered_text: str):
     return result
 
 
-def build_resource_locations(rendered_text: str):
+def build_resource_locations(rendered_text: str) -> ResourceLocations:
     """Map (kind, namespace, name) -> the 1-based line number where that
     resource's manifest begins (the line right after its own "# Source:"
     comment) in the full multi-document `helm template` render — a
@@ -337,7 +342,7 @@ def build_resource_locations(rendered_text: str):
     chart's own render today, so it can't just be ignored)."""
     lines = rendered_text.splitlines()
     marker_indices = [i for i, line in enumerate(lines) if line.startswith("# Source: ")]
-    locations = {}
+    locations: ResourceLocations = {}
     for pos, start in enumerate(marker_indices):
         end = marker_indices[pos + 1] - 1 if pos + 1 < len(marker_indices) else len(lines)
         doc_lines = lines[start + 1 : end]
@@ -358,7 +363,9 @@ def build_resource_locations(rendered_text: str):
     return locations
 
 
-def resource_line(locations: dict, kind: str | None, name: str | None, namespace: str | None = None):
+def resource_line(
+    locations: ResourceLocations, kind: str | None, name: str | None, namespace: str | None = None
+) -> int | None:
     """Look up a resource's rendered-line hint from build_resource_locations's
     map. With namespace known (kube-score's own object_name gives one),
     matches exactly. Without it (kubeconform's JSON has no namespace
@@ -366,6 +373,8 @@ def resource_line(locations: dict, kind: str | None, name: str | None, namespace
     that's unambiguous across every namespace the same kind/name might
     render into; otherwise returns None rather than risk pointing at the
     wrong one."""
+    if kind is None or name is None:
+        return None
     if namespace is not None:
         return locations.get((kind, namespace, name))
     candidates = {line for (k, _ns, n), line in locations.items() if k == kind and n == name}
@@ -413,8 +422,8 @@ class VendorBucketScan(Generic[OwnFindingT, VendoredFindingT]):
     the friendly-vendor map (for the report's label text), and the
     findings split into own / vendored-friendly / vendored-other."""
 
-    locations: dict
-    vendor_map: dict
+    locations: ResourceLocations
+    vendor_map: dict[str, str]
     own_real: list[OwnFindingT]
     vendored_friendly: list[VendoredFindingT]
     vendored_other: list[VendoredFindingT]
@@ -426,8 +435,8 @@ class RenderedDocs:
     rendered-line lookup (see build_resource_locations) and the
     (source, text) docs (see split_rendered_by_source)."""
 
-    locations: dict
-    docs: list
+    locations: ResourceLocations
+    docs: list[tuple[str, str]]
 
 
 def render_chart_docs(chart_dir: Path, extra_args: list[str]) -> tuple[RenderedDocs | None, str | None]:

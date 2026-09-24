@@ -76,12 +76,12 @@ def missing_node_selector(doc: str, define_bodies: dict[str, str]) -> tuple[str,
     return kind_m.group(1), (name_m.group(1).strip() if name_m else "(unknown name)")
 
 
-def scan_missing_node_selector(templates_dir: Path):
+def scan_missing_node_selector(templates_dir: Path) -> list[tuple[Path, str, str]]:
     """Returns a list of (path, kind, name) for every workload resource in
     templates/*.yaml with no nodeSelector field anywhere in its document
     (including, per _referenced_define_bodies, any same-file `define`
     block it includes its pod spec from)."""
-    findings = []
+    findings: list[tuple[Path, str, str]] = []
     for path in sorted(templates_dir.rglob("*.yaml")):
         if not path.is_file():
             continue

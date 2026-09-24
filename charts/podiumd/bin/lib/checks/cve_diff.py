@@ -186,6 +186,10 @@ class ClassifiedCandidate(DiffCandidate):
     bucket: str
 
 
+# One report bucket as (bucket key, title, its candidates); see _partition_by_bucket.
+CandidateBucket = tuple[str, str, list[ClassifiedCandidate]]
+
+
 def gather_candidates(chart_dir: Path) -> list[DiffCandidate]:
     """[{"kind", "repository", "version", "current_ref", "current_digest",
     "proposed_label", "proposed_ref", "proposed_digest"}] — see this
@@ -255,14 +259,14 @@ class DiffContext:
 
     chart_dir: Path
     cache: CacheSession
-    scan_errors: list
+    scan_errors: list[str]
     detail: bool
     ttl_days: int
-    high_severities: set
+    high_severities: set[str]
     package_cve_list_threshold: int
 
 
-def _scan_current(context: DiffContext, candidate: dict):
+def _scan_current(context: DiffContext, candidate: DiffCandidate):
     """The CURRENT side of one candidate — always cache-eligible, its
     pinned digest is already known from values.yaml, a free hit whenever
     check_cves already scanned this exact digest (both route through the
@@ -277,7 +281,7 @@ def _scan_current(context: DiffContext, candidate: dict):
     return vulns
 
 
-def _scan_proposed(context: DiffContext, candidate: dict):
+def _scan_proposed(context: DiffContext, candidate: DiffCandidate):
     """The PROPOSED side of one candidate. A "sliding digest" candidate
     already carries its own resolved digest (see gather_candidates) — no
     extra call needed, straight to scan_cached. An "upgrade" candidate's
@@ -308,13 +312,13 @@ def _scan_proposed(context: DiffContext, candidate: dict):
     return vulns
 
 
-def _severity_counts(vulns: list):
+def _severity_counts(vulns: list[Vulnerability]):
     counts = Counter(v["Severity"] for v in vulns)
     return ", ".join(f"{counts[s]} {severity_label(s)}" for s in SEVERITY_ORDER if counts.get(s))
 
 
 def _print_direction(
-    label: str, vulns: list, *, detail: bool, high_severities: set[str], package_cve_list_threshold: int
+    label: str, vulns: list[Vulnerability], *, detail: bool, high_severities: set[str], package_cve_list_threshold: int
 ):
     if not vulns:
         print(f"  {label}: none")
@@ -326,7 +330,7 @@ def _print_direction(
             print_package_line(pkg, vulns_for_pkg, package_cve_list_threshold)
 
 
-def _print_candidate_header(i: int, total: int, candidate: dict):
+def _print_candidate_header(i: int, total: int, candidate: DiffCandidate):
     print(
         f"[{i}/{total}] {candidate['repository']}: {candidate['version']} -> "
         f"{candidate['proposed_label']}  [{candidate['kind']}]"
@@ -334,7 +338,12 @@ def _print_candidate_header(i: int, total: int, candidate: dict):
 
 
 def print_candidate_result(
-    closed: list, introduced: list, *, detail: bool, high_severities: set[str], package_cve_list_threshold: int
+    closed: list[Vulnerability],
+    introduced: list[Vulnerability],
+    *,
+    detail: bool,
+    high_severities: set[str],
+    package_cve_list_threshold: int,
 ):
     """Print one candidate's "closed"/"introduced" CVE-diff lines (see
     _print_direction) followed by a blank separator line."""
@@ -356,7 +365,7 @@ def print_candidate_result(
 
 
 def classify_candidates(
-    chart_dir: Path, extra_args: list, candidates: list[DiffCandidate], values_lines: list[str]
+    chart_dir: Path, extra_args: list[str], candidates: list[DiffCandidate], values_lines: list[str]
 ) -> list[ClassifiedCandidate]:
     """Each candidate with its "bucket" ("own"|"partner"|"other"), via the
     exact same own/partner/other classification lib.
@@ -385,7 +394,7 @@ def classify_candidates(
     return classified
 
 
-def _process_bucket(context: DiffContext, title: str, bucket_candidates: list):
+def _process_bucket(context: DiffContext, title: str, bucket_candidates: list[ClassifiedCandidate]):
     """Scan and print one bucket's candidates under its own "--- <title>
     ---" header (skipped entirely when the bucket is empty, via the same
     lib.checks.cve.print_bucket_header idiom print_bucket_report itself
@@ -422,7 +431,7 @@ def _process_bucket(context: DiffContext, title: str, bucket_candidates: list):
     return total_closed, total_introduced
 
 
-def _partition_by_bucket(candidates: list[ClassifiedCandidate]):
+def _partition_by_bucket(candidates: list[ClassifiedCandidate]) -> list[CandidateBucket]:
     """[(bucket_key, title, candidates-in-that-bucket)] for the three
     report buckets, own/partner/other, in print order — see
     _process_all_buckets/_build_detail_message, which both iterate this
@@ -447,25 +456,25 @@ def _build_diff_context(chart_dir: Path, *, detail: bool):
     )
 
 
-def _process_all_buckets(context: DiffContext, buckets: list):
+def _process_all_buckets(context: DiffContext, buckets: list[CandidateBucket]) -> dict[str, tuple[int, int]]:
     """{bucket_key: (closed, introduced)} — runs _process_bucket for each
     (bucket_key, title, candidates) triple from _partition_by_bucket."""
     return {key: _process_bucket(context, title, bucket_candidates) for key, title, bucket_candidates in buckets}
 
 
-def _build_detail_message(buckets: list, totals: dict, scan_errors: list):
+def _build_detail_message(buckets: list[CandidateBucket], totals: dict[str, tuple[int, int]], scan_errors: list[str]):
     """check_cve_diff's own detail string: per-bucket candidate/closed/
     introduced counts (own/partner-vendor/other-vendor, in that order)
     plus the scan error count."""
     labels = {"own": "own", "partner": "partner-vendor", "other": "other-vendor"}
-    parts = []
+    parts: list[str] = []
     for key, _, bucket_candidates in buckets:
         closed, introduced = totals[key]
         parts.append(f"{len(bucket_candidates)} {labels[key]} ({closed} closed, {introduced} introduced)")
     return ", ".join(parts) + f"; {len(scan_errors)} scan error(s)"
 
 
-def check_cve_diff(chart_dir: Path, extra_args: list, *, detail: bool = False):
+def check_cve_diff(chart_dir: Path, extra_args: list[str], *, detail: bool = False):
     """Entry point for the "CVE diff" step (see module docstring for the
     full design): gathers every upgrade-available/sliding-digest
     candidate (gather_candidates), classifies each into the own/partner/

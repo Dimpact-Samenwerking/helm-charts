@@ -270,7 +270,7 @@ def _image_upgrade_detail(scan: ImageUpgradeScan):
     )
 
 
-def check_image_upgrades(chart_dir: Path, extra_args: list):
+def check_image_upgrades(chart_dir: Path, extra_args: list[str]):
     """The verify-podiumd check itself: for every unique digest-pinned
     image in values.yaml, ask the registry (via find_newest_same_variant_
     tag, cached per (repository, version) — see lib.image.upgrade_cache)

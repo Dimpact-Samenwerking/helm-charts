@@ -404,7 +404,7 @@ def values_file_from_extra_args(extra_args: list):
     return None
 
 
-def check_release_secret_size(chart_dir: Path, extra_args: list):
+def check_release_secret_size(chart_dir: Path, extra_args: list[str]):
     """Verify-podiumd integration: renders podiumd via lib.render_scope.
     render_chart (the shared release-name-"podiumd" primitive, not a
     second inline `helm template` call), reuses `extra_args` (verify-

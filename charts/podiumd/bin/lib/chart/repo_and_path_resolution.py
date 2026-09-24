@@ -154,7 +154,7 @@ def paths_by_repository(
     paths: Collection[tuple[str, ...]],
     *,
     allow_pull: bool = False,
-):
+) -> dict[str, list[tuple[str, ...]]]:
     """{strip_registry_host(repository): [path, ...]} for every path in
     `paths` (e.g. lib.upgradedoc.find_image_tag_paths(values)'s own
     keys) that resolves to a repository — not just each dependency's
@@ -222,7 +222,7 @@ def paths_by_repository(
     it works with."""
     by_values_key = {values_key_of(dep): dep for dep in deps}
     state = _RepoResolutionState(chart_dir, allow_pull, {}, {})
-    groups = {}
+    groups: dict[str, list[tuple[str, ...]]] = {}
     for path in paths:
         dep = by_values_key.get(path[0]) if path else None
         repo = _grouped_repository_for_path(values, path, dep, state)
