@@ -311,7 +311,13 @@ def migrate_kiss(old):
         new['nodeSelector'] = dict(old['nodeSelector'])
 
     # -------------------------------------------------------------------------
-    # kiss.adapter  (add objecten / objecttypen / esuite sub-sections)
+    # kiss.adapter  (add objecten / esuite sub-sections)
+    #
+    # H.7 (docs/apps/objecten/openobject-migration.md): the target schema's former separate
+    # adapter.objecten/.objecttypen groups are collapsed into one adapter.objecten
+    # block post-merge — baseUrl/token come from the old "objecten" source fields
+    # (the ones actually read by the adapter for SMOELENBOEK_*), the rest carry
+    # over unchanged from "objecttypen".
     # -------------------------------------------------------------------------
     adapter = {}
     for field in ('image', 'baseUrl', 'clientId', 'secret'):
@@ -319,17 +325,12 @@ def migrate_kiss(old):
             val = old_adapter[field]
             adapter[field] = dict(val) if isinstance(val, dict) else val
 
-    if old_objecten:
+    if old_objecten or old_objecttypen:
         adapter['objecten'] = {
             'baseUrl': old_objecten.get('baseUrl', ''),
-            'token': old_objecten.get('token', ''),
-        }
-
-    if old_objecttypen:
-        adapter['objecttypen'] = {
             'baseUrlIntern': old_objecttypen.get('baseUrlIntern', ''),
             'baseUrlExtern': old_objecttypen.get('baseUrlExtern', ''),
-            'token': old_objecttypen.get('token', ''),
+            'token': old_objecten.get('token', ''),
             'medewerkerUUID': old_objecttypen.get('medewerkerUUID', ''),
             'afdelingUUID': old_objecttypen.get('afdelingUUID', ''),
             'groepUUID': old_objecttypen.get('groepUUID', ''),

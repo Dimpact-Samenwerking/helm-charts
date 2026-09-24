@@ -138,8 +138,7 @@ targets:
     # podiumd subchart is "opennotificaties" but its K8s resources are named "notificaties".
     secretName: notificaties
     configMapName: notificaties
-  - component: objecten
-  - component: objecttypen
+  - component: objecten # covers what used to be the separate "objecttypen" target too, post-merge
   - component: openarchiefbeheer
   - component: openklant
   - component: openformulieren

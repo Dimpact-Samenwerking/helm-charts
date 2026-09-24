@@ -1016,8 +1016,8 @@ spec:
 Overrides of two subchart chart-label helpers.
 
 create-required-catalogi.yaml and create-required-objecttypen.yaml are podiumd
-templates, but they label their objects with the openzaak / objecttypen
-subcharts' label helpers. Those helpers read `.Chart`, and when called from a
+templates, but they label their objects with the openzaak / openobject
+subcharts' label helpers (openobject is aliased as objecten). Those helpers read `.Chart`, and when called from a
 podiumd template that is PODIUMD's Chart — so they build the label from
 podiumd's version, not the subchart's.
 
@@ -1039,7 +1039,7 @@ verified by the byte-identical default-render check.
 {{- regexReplaceAll "[^a-zA-Z0-9]+$" $c "" -}}
 {{- end }}
 
-{{- define "objecttypen.chart" -}}
+{{- define "openobject.chart" -}}
 {{- $c := printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 -}}
 {{- regexReplaceAll "[^a-zA-Z0-9]+$" $c "" -}}
 {{- end }}
