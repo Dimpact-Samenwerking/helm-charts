@@ -452,6 +452,7 @@ def test_sort_changes_blocks_unmatched_block_stays_last_and_later_h2_untouched(l
     values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
     new_text, _moved = libupgradedocsorting.sort_changes_blocks(text, DEPS, values)
     assert new_text.index("### Open Zaak") < new_text.index("### Fix: something unrelated")
+    assert new_text.index("### Fix: something unrelated") < new_text.index("## Per-environment checklist")
     assert "## Per-environment checklist\n\n### A. Prepare\n\n- [ ] Do the thing.\n" in new_text
 
 

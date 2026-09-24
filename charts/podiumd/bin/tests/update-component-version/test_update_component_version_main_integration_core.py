@@ -588,8 +588,14 @@ def test_main_keycloak_operator_operator_image_gets_independent_digest_regressio
 
     updated = values_yaml.read_text(encoding="utf-8")
     assert updated.count('tag: "26.7.3"') == 2
-    assert f'sha: "{operator_digest}"' in updated  # operator.image's OWN digest
-    assert f'sha: "{server_digest}"' in updated  # config.keycloakImage's OWN digest
+    # Each path's own digest under its own repository -- never swapped, even
+    # though both mocked digests would otherwise just be "present somewhere".
+    assert (
+        f'      repository: quay.io/keycloak/keycloak-operator\n      tag: "26.7.3"\n      sha: "{operator_digest}"\n'
+    ) in updated
+    assert (
+        f'        repository: quay.io/keycloak/keycloak\n        tag: "26.7.3"\n        sha: "{server_digest}"\n'
+    ) in updated
     assert operator_old_digest not in updated
     assert OLD_DIGEST not in updated
     assert "26.6.4" not in updated
