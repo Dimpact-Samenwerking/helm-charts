@@ -451,7 +451,7 @@ def _manifest_lines_for_insert(text: str):
     return lines
 
 
-def _entry_insertion_keys(lines: list, context: MissingEntriesContext, resolution: MissingEntriesResolution):
+def _entry_insertion_keys(lines: list[str], context: MissingEntriesContext, resolution: MissingEntriesResolution):
     """(entry_line_indices, entry_keys) — every existing entry's own
     line index and sort key (see images_manifest_order_key), used to
     find where a new entry belongs (see insertion_index)."""

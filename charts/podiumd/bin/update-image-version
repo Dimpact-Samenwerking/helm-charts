@@ -102,7 +102,7 @@ from lib.yaml_types import load_yaml_mapping
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
-def group_changes_by_component(changes: list, values_lines_before_write: list[str]):
+def group_changes_by_component(changes: list[PinUpdate], values_lines_before_write: list[str]):
     """{values_key: {"paths": [dotted image path, ...], "old_app_by_path",
     "repos", "new_tags_by_path"}} for every distinct top-level component a
     basename bump's changes touch, plus [(full dotted "...tag" path,

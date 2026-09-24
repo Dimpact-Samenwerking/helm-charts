@@ -241,7 +241,7 @@ def _column_widths(entries: list[ImageEntry]):
     )
 
 
-def _print_image_entry(entry: ImageEntry, values_lines: list, widths: ColumnWidths):
+def _print_image_entry(entry: ImageEntry, values_lines: list[str], widths: ColumnWidths):
     """Prints one entry's two lines (see print_image_lines): a short,
     column-aligned "<key> <basename> <version> (path: ...)" line — <key>
     <basename> <version> is exactly the copy/paste-able input for

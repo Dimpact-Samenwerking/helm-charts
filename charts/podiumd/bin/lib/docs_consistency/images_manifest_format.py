@@ -531,7 +531,7 @@ def _changes_block_item_issues(name: str, text: str, resolved: ResolvedManifest,
 
 
 def _entry_comment_version_mismatches(
-    name: str, entry: ManifestEntry, comment: str, resolution: EntryResolution, baseline_paths: dict
+    name: str, entry: ManifestEntry, comment: str, resolution: EntryResolution, baseline_paths: dict[ImagePath, str]
 ):
     """The issue(s) for a single entry's own preceding comment — its
     target version cell vs. the entry's own actual version, and its
