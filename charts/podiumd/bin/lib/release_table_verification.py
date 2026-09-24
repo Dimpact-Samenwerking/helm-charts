@@ -43,6 +43,7 @@ from lib.image.version import basenames_under_scope_any_tag
 from lib.image.version import find_matches_any_tag
 from lib.image.version import image_basename
 from lib.image.version import repository_for_basename_in_scope
+from lib.yaml_types import YamlMapping
 
 UNRESOLVED_COMPONENTS = ("", "UNKNOWN")
 
@@ -81,7 +82,7 @@ class ChartState:
 
     chart_dir: Path
     deps: list[ChartDependency]
-    values: dict | None
+    values: YamlMapping | None
     lines: list
 
 

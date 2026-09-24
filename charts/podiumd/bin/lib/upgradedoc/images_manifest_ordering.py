@@ -20,6 +20,7 @@ from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.sorting_and_ordering import values_tree_position
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.version_cells_and_key_changes import VERSION_PAIR_RE
+from lib.yaml_types import YamlMapping
 
 SIDECAR_HEADER_RE = re.compile(r"^#\s{2,}sidecar:\s*(?P<text>.*)$", re.IGNORECASE)
 
@@ -68,7 +69,7 @@ class ManifestSortContext:
     caller happened to precompute for something else."""
 
     deps: list[ChartDependency]
-    values: dict
+    values: YamlMapping
     repo_map: dict
     canonical_names: dict
 
@@ -267,7 +268,7 @@ def find_images_manifest_faulty_headers(manifest: ParsedManifest, resolution: En
 
 
 def images_manifest_entry_order_key(
-    path: tuple[str, ...] | None, deps: list[ChartDependency], key_order: list, values: dict | None = None
+    path: tuple[str, ...] | None, deps: list[ChartDependency], key_order: list, values: YamlMapping | None = None
 ) -> tuple[int, ...]:
     """An images-manifest entry's own sort key — (values_key_index,
     is_sidecar), the SAME shape and meaning component_order_key already
@@ -369,7 +370,7 @@ def _images_manifest_groups(manifest: ParsedManifest, resolution: EntryResolutio
 
 
 def find_images_manifest_out_of_order_names(
-    manifest: ParsedManifest, resolution: EntryResolution, key_order: list[str], values: dict | None = None
+    manifest: ParsedManifest, resolution: EntryResolution, key_order: list[str], values: YamlMapping | None = None
 ):
     """[(name_a, name_b), ...] for every ADJACENT pair of images-
     manifest GROUPS (see _images_manifest_groups) whose relative order

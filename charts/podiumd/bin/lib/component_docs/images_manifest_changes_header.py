@@ -22,6 +22,7 @@ from lib.upgradedoc.sorting_and_ordering import values_tree_position
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import text_names
+from lib.yaml_types import YamlMapping
 
 NUMBER_WORDS = [
     "Zero",
@@ -208,7 +209,7 @@ def renumber_images_manifest_changes_items(lines: list[str]):
 
 
 def images_manifest_order_key(
-    key_order: list, values_key: str | tuple[str, ...], *, is_sidecar: bool, values: dict | None = None
+    key_order: list, values_key: str | tuple[str, ...], *, is_sidecar: bool, values: YamlMapping | None = None
 ):
     """(index-in-key_order, 0-or-1-for-sidecar) sort key for an images-
     manifest "# Changes:" item belonging to `values_key` — an unknown

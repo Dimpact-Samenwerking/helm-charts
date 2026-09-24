@@ -76,6 +76,7 @@ from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
 from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
+from lib.yaml_types import YamlMapping
 
 
 def make_image_changes_section(
@@ -145,11 +146,13 @@ class _SidecarRowContext:
 
     state: _SidecarScanState
     target_state: ComponentState
-    baseline_values: dict | None
+    baseline_values: YamlMapping | None
     doc_context: DocContext
 
 
-def _sidecar_scan_state(text: str, doc_context: DocContext, target_state: ComponentState, baseline_values: dict | None):
+def _sidecar_scan_state(
+    text: str, doc_context: DocContext, target_state: ComponentState, baseline_values: YamlMapping | None
+):
     """Builds _SidecarScanState — split out of add_missing_sidecar_rows
     purely to keep its own local-variable count down."""
     current_paths = dict(find_image_tag_paths(target_state.values))
@@ -240,7 +243,7 @@ def _add_sidecar_row(text: str, name: str, path: tuple[str, ...], ctx: _SidecarR
 
 
 def add_missing_sidecar_rows(
-    text: str, doc_context: DocContext, target_state: ComponentState, baseline_values: dict | None
+    text: str, doc_context: DocContext, target_state: ComponentState, baseline_values: YamlMapping | None
 ):
     """Insert a new "Component versions" table row + matching "### ..."
     Changes section for every canonical sidecar/shared-image name (see
@@ -356,7 +359,7 @@ def build_changes_section_for_row(row: dict, ident: tuple, deps: list[ChartDepen
 
 
 def add_missing_changes_sections(
-    text: str, deps: list[ChartDependency], target_values: dict, target: str, canonical_names: dict
+    text: str, deps: list[ChartDependency], target_values: YamlMapping, target: str, canonical_names: dict
 ):
     """Insert a "### ..." Changes section (see build_changes_section_for_
     row) for every "Component versions" table row that already exists
@@ -518,7 +521,7 @@ def update_stale_app_version_headings(text: str, doc_context: DocContext, orderi
     return text, updated_headings
 
 
-def resolve_basename_baseline_version(baseline_values: dict | None, full_paths: list):
+def resolve_basename_baseline_version(baseline_values: YamlMapping | None, full_paths: list):
     """The single version every one of this basename's touched pins
     actually started at in baseline_values (the true git-resolved release
     baseline, see lib.component_docs.load_baseline_values) — None if they
@@ -776,12 +779,12 @@ class _BaselineManifestContext:
 
     chart_dir: Path
     deps: list[ChartDependency]
-    values: dict
+    values: YamlMapping
     key_order: list
     sibling_fields: dict
 
 
-def _current_image_paths(chart_dir: Path, deps: list[ChartDependency], values: dict, rendered_paths: set):
+def _current_image_paths(chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, rendered_paths: set):
     """Every currently-pinned image path in the chart (find_all_image_
     and_version_paths + global_image_paths), PLUS every genuinely-live-
     but-unpinned vendored-subchart-default image find_unresolved_
@@ -874,7 +877,7 @@ def _render_baseline_manifest_lines(resolved: list):
 
 
 def regenerate_images_baseline_manifest(
-    chart_dir: Path, deps: list[ChartDependency], values: dict, images_baseline_path: Path, rendered_paths: set
+    chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, images_baseline_path: Path, rendered_paths: set
 ):
     """Overwrite docs/images/images-baseline.yaml WHOLESALE with a full,
     CURRENT snapshot of every image pinned anywhere in the chart right

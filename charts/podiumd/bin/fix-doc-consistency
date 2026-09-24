@@ -83,6 +83,7 @@ from lib.fix_doc_consistency.component_version_table import fix_values_delta_hea
 from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifest_changes_items
 from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
 from lib.gitutil import git_show_text
+from lib.yaml_types import YamlMapping
 
 # isort: off
 # Fenced from import sorting (through "isort: on" below): isort and ruff's
@@ -206,9 +207,9 @@ class RebaseState:
     target: str
     new_baseline: str
     target_deps: list
-    target_values: dict
+    target_values: YamlMapping
     baseline_deps: list | None
-    baseline_values: dict | None
+    baseline_values: YamlMapping | None
 
 
 def _parse_cli_args():
@@ -503,7 +504,7 @@ def _fix_upgrade_doc_headings(text: str, state: RebaseState, upgrade_path: Path,
 
 
 def _reorder_upgrade_doc(
-    text: str, upgrade_path: Path, target_deps: list[ChartDependency], target_values: dict, canonical_names: dict
+    text: str, upgrade_path: Path, target_deps: list[ChartDependency], target_values: YamlMapping, canonical_names: dict
 ):
     """Reorders upgrade_path's table rows and Changes blocks to match
     values.yaml's own component order. Returns (text, changed)."""

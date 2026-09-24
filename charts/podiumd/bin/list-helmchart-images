@@ -53,6 +53,7 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 from lib.cli import positional_args
 from lib.image.version import image_basename
+from lib.yaml_types import YamlMapping
 
 
 def find_dependency(name_or_alias: str):
@@ -68,7 +69,7 @@ def find_dependency(name_or_alias: str):
     return dep
 
 
-def _print_image_references(values_yaml: dict, key: str):
+def _print_image_references(values_yaml: YamlMapping, key: str):
     """Prints every image reference in `values_yaml` — each as the "<key>
     <basename> <version>  (path: ...)" line plus an indented "<repo>:<tag>"
     line (see module docstring for why that shape matters), column-aligned

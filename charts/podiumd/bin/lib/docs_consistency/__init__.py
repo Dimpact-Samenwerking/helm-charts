@@ -52,6 +52,7 @@ from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
+from lib.yaml_types import YamlMapping
 
 
 def parse_upgrade_doc_rows(doc_path: Path):
@@ -286,7 +287,11 @@ def _resolve_baseline(chart_dir: Path, upgrade_docs_baseline: str | None):
 
 
 def _resolve_image_paths(
-    chart_dir: Path | None, deps: list[ChartDependency], values: dict, baseline_ref: str | None, baseline_values: dict
+    chart_dir: Path | None,
+    deps: list[ChartDependency],
+    values: YamlMapping,
+    baseline_ref: str | None,
+    baseline_values: YamlMapping,
 ):
     """current/baseline image-tag-path maps plus the shared-image
     repository-group representative map — bundled since every
@@ -302,7 +307,11 @@ def _resolve_image_paths(
 
 
 def _build_docs_check_context(
-    chart_dir: Path, deps: list[ChartDependency], values: dict, podiumd_version: str, upgrade_docs_baseline: str | None
+    chart_dir: Path,
+    deps: list[ChartDependency],
+    values: YamlMapping,
+    podiumd_version: str,
+    upgrade_docs_baseline: str | None,
 ):
     """Resolves the baseline and every image-tag-path map derived from
     it, and bundles all of it into the DocsCheckContext every later

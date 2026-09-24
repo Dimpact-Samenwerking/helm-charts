@@ -18,18 +18,19 @@ from lib.chart.repo_and_path_resolution import repo_group_representative
 from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
+from lib.yaml_types import YamlMapping
 
 ENTRY_START_RE = re.compile(r"^-\s*name:")
 
 
-def current_image_paths(values: dict[str, Any]) -> dict[tuple[str, ...], str | None]:
+def current_image_paths(values: YamlMapping) -> dict[tuple[str, ...], str | None]:
     """{values-tree path: tag, or None when it has none} for every image
     in `values`, including the global.images anchors."""
     return {**dict(find_image_tag_paths(values)), **dict(global_image_paths(values))}
 
 
 def image_repo_map(
-    chart_dir: Path, deps: list[ChartDependency], values: dict[str, Any], paths: dict[tuple[str, ...], str | None]
+    chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, paths: dict[tuple[str, ...], str | None]
 ) -> dict[str, tuple[str, ...]]:
     """{repository: representative values-tree path} for `paths`, used
     to match an entry to its image path by repository."""
@@ -39,7 +40,7 @@ def image_repo_map(
 
 def entry_pin(
     entry: dict[str, Any],
-    values: dict[str, Any],
+    values: YamlMapping,
     paths: dict[tuple[str, ...], str | None],
     repo_map: dict[str, tuple[str, ...]],
     sibling_fields: dict[tuple[str, ...], dict[str, str]],
@@ -87,7 +88,7 @@ def sync_entry_pins(
     text: str,
     chart_dir: Path,
     deps: list[ChartDependency],
-    values: dict[str, Any],
+    values: YamlMapping,
     sibling_fields: dict[tuple[str, ...], dict[str, str]],
 ) -> tuple[str, list[str]]:
     """Rewrites the version:/digest: of every entry in `text` whose pin

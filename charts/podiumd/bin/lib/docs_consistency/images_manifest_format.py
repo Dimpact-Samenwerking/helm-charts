@@ -52,6 +52,7 @@ from lib.upgradedoc.string_and_parsing_basics import extract_target_version
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.yaml_types import YamlMapping
 
 
 @dataclass
@@ -66,8 +67,8 @@ class ManifestCheckContext:
     upgrade_docs_baseline: str | None
     podiumd_version: str
     deps: list[ChartDependency]
-    values: dict
-    baseline_values: dict | None
+    values: YamlMapping
+    baseline_values: YamlMapping | None
     chart_dir: Path | None = None
 
 
@@ -606,7 +607,7 @@ def _sidecar_header_issues(name: str, parsed: ParsedManifest, resolution: EntryR
 
 
 def _out_of_order_entry_issues(
-    name: str, parsed: ParsedManifest, resolution: EntryResolution, key_order: list[str], values: dict
+    name: str, parsed: ParsedManifest, resolution: EntryResolution, key_order: list[str], values: YamlMapping
 ):
     """One issue per adjacent pair of entries (or shared-header groups)
     that don't follow values.yaml's own top-level component order — the

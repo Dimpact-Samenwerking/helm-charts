@@ -9,6 +9,8 @@ from lib.upgradedoc.grouped_comments_and_changes_block import VERSION_SPEC_RE
 from lib.upgradedoc.grouped_comments_and_changes_block import diff_keys
 from lib.upgradedoc.grouped_comments_and_changes_block import pair_renames
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.yaml_types import YamlMapping
+from lib.yaml_types import YamlValue
 
 VERSION_PAIR_RE = re.compile(r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)")
 
@@ -146,7 +148,7 @@ def replace_version_spec(line: str, new_spec: str):
     return new_line if count else line
 
 
-def describe_key_changes(values_key: str, baseline_subtree: dict, current_subtree: dict):
+def describe_key_changes(values_key: str, baseline_subtree: YamlValue, current_subtree: YamlValue):
     """One "- Key `<dotted>` was added/removed/renamed to `<dotted>`." line
     per top-level key change under this component — backtick-quoted,
     matching the convention verify-podiumd's own check looks for.
@@ -171,7 +173,7 @@ def describe_key_changes(values_key: str, baseline_subtree: dict, current_subtre
 
 
 def missing_key_change_lines_by_key(
-    text: str, changed_component_keys: set, baseline_values: dict | None, values: dict | None
+    text: str, changed_component_keys: set, baseline_values: YamlMapping | None, values: YamlMapping | None
 ):
     """{values_key: [line, ...]} — every describe_key_changes() line for
     a changed component that isn't already mentioned (backtick-quoted,

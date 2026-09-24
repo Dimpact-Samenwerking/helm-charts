@@ -68,6 +68,7 @@ from lib.render_scope import CHART_NAME
 from lib.render_scope import lint_args_for
 from lib.render_scope import render_chart
 from lib.render_scope import rendered_chart_paths
+from lib.yaml_types import YamlMapping
 
 VENDORED_DIR = CHART_DIR / "charts"
 
@@ -82,7 +83,7 @@ class ChartContext:
     as three separate arguments each."""
 
     deps: list[ChartDependency]
-    root_values: dict
+    root_values: YamlMapping
     rendered_paths: set
 
 
@@ -306,7 +307,7 @@ def row_chart_tree_path(chart_dir: Path, dep: ChartDependency, first_segment: st
     return f"{base}/charts/{nested.get('alias') or nested['name']}"
 
 
-def component_version_rows(dep: ChartDependency, key: str, merged: dict, ctx: ChartContext):
+def component_version_rows(dep: ChartDependency, key: str, merged: YamlMapping, ctx: ChartContext):
     """Extra (key, path, repo, tag, disabled) rows for `dep`'s own settings.
     yaml component_resolution.version_paths/version_path_nested_
     subcharts-registered bare version fields — the ONE image shape find_images'
@@ -397,7 +398,7 @@ def _compute_rendered_paths():
     return rendered_chart_paths(render_result.stdout)
 
 
-def _top_level_image_rows(root_values: dict, dep_keys: set[str]):
+def _top_level_image_rows(root_values: YamlMapping, dep_keys: set[str]):
     """(key, path, repo, tag, disabled) rows for podiumd's own top-level
     values not tied to any dependency (e.g. global.images.*) — never
     disabled, since a top-level value isn't gated by any chart-tree
@@ -421,7 +422,7 @@ def _print_dependency_header(dep: ChartDependency, ctx: ChartContext):
     return key
 
 
-def _merged_image_rows(dep: ChartDependency, key: str, merged: dict, ctx: ChartContext):
+def _merged_image_rows(dep: ChartDependency, key: str, merged: YamlMapping, ctx: ChartContext):
     """(key, path, repo, tag, disabled) rows for `dep`'s own effective
     image set: every find_images-shaped reference in `merged` (chart
     defaults + podiumd's own overrides), plus any component_version_

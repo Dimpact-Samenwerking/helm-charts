@@ -15,6 +15,7 @@ from lib.upgradedoc.string_and_parsing_basics import match_dependency
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
+from lib.yaml_types import YamlMapping
 
 CHANGES_BLOCK_HEADING_RE = re.compile(r"^###\s+(.+)$")
 
@@ -22,7 +23,7 @@ CHANGES_BLOCK_HEADING_RE = re.compile(r"^###\s+(.+)$")
 VALUES_DELTA_SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
 
 
-def values_key_order(values: dict | None):
+def values_key_order(values: YamlMapping | None):
     """Top-level keys of values.yaml in the order they appear in the file,
     top to bottom — yaml.safe_load's mapping is a plain dict, which
     preserves insertion order (Python 3.7+); for a top-level mapping that
@@ -33,7 +34,7 @@ def values_key_order(values: dict | None):
     return list(values.keys()) if isinstance(values, dict) else []
 
 
-def values_tree_position(values: dict, path: tuple[str, ...]) -> tuple[int, ...]:
+def values_tree_position(values: YamlMapping, path: tuple[str, ...]) -> tuple[int, ...]:
     """The FULL nested position of a resolved values-tree `path` (a
     tuple) within `values`'s own real structure — one index per path
     segment, each segment's own position among its immediate parent
@@ -90,7 +91,7 @@ def component_order_key(
     deps: list[ChartDependency],
     key_order: list,
     canonical_names: dict | None = None,
-    values: dict | None = None,
+    values: YamlMapping | None = None,
 ) -> tuple[int, ...]:
     """A doc item's (table row name, or "### ..." Changes heading) sort
     position: (values_key_index, is_sidecar) — values_key_index is the
@@ -182,7 +183,7 @@ def find_out_of_order_names(
     deps: list[ChartDependency],
     key_order: list[str],
     canonical_names: dict | None = None,
-    values: dict | None = None,
+    values: YamlMapping | None = None,
 ):
     """[(name_a, name_b), ...] for every ADJACENT pair whose relative order
     contradicts values.yaml's own top-level key order (see
@@ -275,7 +276,9 @@ def parse_upgrade_doc_changes_blocks(text: str):
     return blocks
 
 
-def sort_upgrade_doc_rows(text: str, deps: list[ChartDependency], values: dict, canonical_names: dict | None = None):
+def sort_upgrade_doc_rows(
+    text: str, deps: list[ChartDependency], values: YamlMapping, canonical_names: dict | None = None
+):
     """Reorder the "Component versions" table's rows (physically, in the
     text) to match values.yaml's own top-level key order — see
     values_key_order/component_order_key. canonical_names, when given,
@@ -308,7 +311,9 @@ def sort_upgrade_doc_rows(text: str, deps: list[ChartDependency], values: dict, 
     return "".join(lines), moved
 
 
-def sort_changes_blocks(text: str, deps: list[ChartDependency], values: dict, canonical_names: dict | None = None):
+def sort_changes_blocks(
+    text: str, deps: list[ChartDependency], values: YamlMapping, canonical_names: dict | None = None
+):
     """Reorder the "## Changes" section's "### ..." blocks (each block's
     full text, heading through its last line before the next block) to
     match values.yaml's own top-level key order — the same rule
@@ -367,7 +372,7 @@ def parse_values_delta_sections(text: str):
 
 
 def sort_values_delta_sections(
-    text: str, deps: list[ChartDependency], values: dict, canonical_names: dict | None = None
+    text: str, deps: list[ChartDependency], values: YamlMapping, canonical_names: dict | None = None
 ):
     """Reorder values-deltas.md's own top-level "## ..." sections (each
     section's full text, heading through its last line before the next

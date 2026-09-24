@@ -96,6 +96,7 @@ from lib.upgradedoc.app_version_and_image_paths import resolve_baseline_componen
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
+from lib.yaml_types import YamlMapping
 
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
@@ -150,7 +151,7 @@ class _BaselineResolution:
     old_chart_str: str | None
     reset_to_baseline: bool
     baseline_deps: list | None = None
-    baseline_values: dict | None = None
+    baseline_values: YamlMapping | None = None
 
 
 @dataclass
@@ -583,7 +584,7 @@ def update_docs_shared_image(new_version: str, target: str, bump: SharedImageBum
 
 
 def _ordering_and_row_name(
-    deps: list[ChartDependency], values: dict[str, Any], values_key: str, group: dict[str, Any]
+    deps: list[ChartDependency], values: YamlMapping, values_key: str, group: dict[str, Any]
 ) -> tuple[OrderingContext, str | None]:
     """(OrderingContext, doc row name or None) for a bump of `group`'s
     first image path under `values_key` (see doc_row_name)."""

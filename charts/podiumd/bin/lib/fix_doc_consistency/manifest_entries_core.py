@@ -25,6 +25,7 @@ from lib.upgradedoc.images_manifest_ordering import images_manifest_entries_shar
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_spec
+from lib.yaml_types import YamlMapping
 
 
 @dataclass
@@ -37,8 +38,8 @@ class ManifestEntriesContext:
 
     chart_dir: Path | None
     deps: list[ChartDependency]
-    target_values: dict
-    baseline_values: dict | None
+    target_values: YamlMapping
+    baseline_values: YamlMapping | None
     repo_map: dict | None = None
     upgrade_docs_baseline: str | None = None
 
