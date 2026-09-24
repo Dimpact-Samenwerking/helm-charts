@@ -100,6 +100,12 @@ def test_find_images_skips_missing_or_empty_tag(lpi):
     assert lpi.find_images({"image": {"repository": "r"}}) == []
 
 
+def test_find_images_returns_a_numeric_tag_as_text(lpi):
+    # An unquoted "tag: 1.5" parses as a float; version_of() and the
+    # printers need the text Helm renders for it.
+    assert lpi.find_images({"image": {"repository": "r", "tag": 1.5}}) == [("image", "r", "1.5")]
+
+
 # --- resolution_note ---
 
 
