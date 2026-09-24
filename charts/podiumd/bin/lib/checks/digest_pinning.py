@@ -441,7 +441,11 @@ def find_unresolved_subchart_images(
     chart, or a test fixture that only vendors values.yaml) can't be told
     apart from "genuinely unreferenced" by an empty haystack, so every
     finding for it is kept instead of silently swallowed (subject to the
-    render-gate above either way).
+    render-gate above either way). Also only applied to a finding owned by
+    dep's OWN chart-tree path: one belonging to a NESTED dependency (e.g.
+    openinwoner's own bundled eck-operator) is read by that nested chart's
+    own templates, which dep's own templates/ doesn't include, so the
+    render-gate alone decides it.
 
     Deliberately NOT cross-checked against digest_pinning_exceptions
     above — those exempt fields (keycloak-operator.operator, omc) are
@@ -467,6 +471,7 @@ def _findings_for_dependency(
     if sub_values is None:
         return []
     template_text = subchart_template_text(chart_dir, dep)
+    own_tree_path = f"{CHART_NAME}/charts/{scope_key}"
 
     findings: list[SubchartImageFinding] = []
     for path, tag in find_image_tag_paths(sub_values, include_null_tags=True):
@@ -474,11 +479,16 @@ def _findings_for_dependency(
         own_image_tag_path = f"{scope_key}.{subpath}.tag"
         if get_path(own_values, own_image_tag_path) is not None:
             continue
-        top_level_key = path[0]
-        if template_text is not None and not re.search(rf"\b{re.escape(top_level_key)}\b", template_text):
-            continue
-
         chart_tree_path, resolved_version = resolve_subchart_default(chart_dir, dep, CHART_NAME, path)
+        # A nested dependency's own templates live under dep's charts/, not
+        # dep's own templates/, so the text filter can't see them; the
+        # render-gate below decides those on its own.
+        if (
+            chart_tree_path == own_tree_path
+            and template_text is not None
+            and not re.search(rf"\b{re.escape(path[0])}\b", template_text)
+        ):
+            continue
         if chart_tree_path not in rendered_paths:
             continue
 

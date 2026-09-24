@@ -438,3 +438,53 @@ def test_unreferenced_key_without_a_templates_dir_at_all_is_still_reported(
     assert detail == "1 floating (failing)"
     out = capsys.readouterr().out
     assert "pabc.web.image.tag" in out
+
+
+def test_nested_dependency_finding_survives_when_parent_templates_never_mention_it(
+    vp: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    libdigestpinningcheck: ModuleType,
+    capsys: pytest.CaptureFixture[str],
+):
+    """openinwoner's own bundled eck-operator is read by the NESTED chart's
+    own templates, never by openinwoner's own templates/ — so the template-
+    text filter must not drop it; the render-gate alone decides it. A
+    parent-level key in the same .tgz that openinwoner's own templates never
+    mention (here "web") is still filtered as before."""
+    write_chart_yaml(tmp_path, [make_dep("openinwoner", "1.0.0")])
+    make_tgz(
+        tmp_path / "charts",
+        "openinwoner",
+        "1.0.0",
+        {
+            "eck-operator": {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": None}},
+            "web": {"image": {"repository": "maykinmedia/web", "tag": "1.0.0"}},
+        },
+        templates={"deployment.yaml": "image: {{ .Values.image.repository }}\n"},
+        chart_yaml={
+            "name": "openinwoner",
+            "version": "1.0.0",
+            "appVersion": "1.0.0",
+            "dependencies": [{"name": "eck-operator", "version": "3.2.0"}],
+        },
+        extra_files={
+            "charts/eck-operator/Chart.yaml": yaml.safe_dump(
+                {"name": "eck-operator", "version": "3.2.0", "appVersion": "3.2.0"}
+            ),
+        },
+    )
+    write_values_yaml(tmp_path, "{}\n")
+    stub_render(
+        monkeypatch,
+        libdigestpinningcheck,
+        ["podiumd/charts/openinwoner", "podiumd/charts/openinwoner/charts/eck-operator"],
+    )
+
+    ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
+
+    assert ok is False
+    assert detail == "1 floating (failing)"
+    out = capsys.readouterr().out
+    assert "openinwoner.eck-operator.image.tag: '3.2.0' (FLOATING in the sub-chart's own default)" in out
+    assert "openinwoner.web" not in out
