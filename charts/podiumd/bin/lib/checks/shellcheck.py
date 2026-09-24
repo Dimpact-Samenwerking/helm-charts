@@ -27,6 +27,11 @@ from lib.render_scope import scan_rendered_chart
 from lib.settings import quality_gates_shellcheck_failing_levels
 from lib.settings import quality_gates_shellcheck_shell_names
 
+# One entry of shellcheck's JSON "comments" list (level/code/line/column/
+# message), and a finding as (source, path, comment, kind, namespace, name).
+ShellcheckComment = dict[str, Any]
+ShellcheckFinding = tuple[str, str, ShellcheckComment, str | None, str | None, str | None]
+
 
 def _shell_name(token: object):
     return token.rsplit("/", 1)[-1] if isinstance(token, str) else None
@@ -96,7 +101,7 @@ def extract_shell_scripts(docs: list, shell_names: set[str]):
     return scripts
 
 
-def run_shellcheck(shell: str, script_text: str):
+def run_shellcheck(shell: str, script_text: str) -> list[ShellcheckComment] | None:
     """Lint one embedded script, returning shellcheck's "comments" list (each
     a dict with level/code/line/message) — or None if shellcheck's own
     output couldn't be parsed as JSON (a shellcheck bug/crash, not a chart
@@ -108,7 +113,7 @@ def run_shellcheck(shell: str, script_text: str):
         return None
 
 
-def _shellcheck_group_key(finding: tuple):
+def _shellcheck_group_key(finding: ShellcheckFinding):
     _source, _path, c, _kind, _namespace, _name = finding
     return c.get("level"), c.get("code"), c.get("message")
 
@@ -118,7 +123,7 @@ def _shellcheck_group_label(key: tuple):
     return f"[{level.upper():7s}] SC{code}: {message}"
 
 
-def _shellcheck_location(finding: tuple, locations: dict):
+def _shellcheck_location(finding: ShellcheckFinding, locations: dict):
     """ "<source> (<path>) — script line <N>[:<col>] (rendered line M)" for
     one finding (source, path, comment, kind, namespace, name). The
     script line/column are shellcheck's own, against the embedded script
@@ -145,11 +150,11 @@ def _shellcheck_location(finding: tuple, locations: dict):
 
 def _own_shellcheck_findings(
     own_docs: list, shell_names: set[str], failing_levels: set[str]
-) -> tuple[list[Any] | None, str | None]:
+) -> tuple[list[ShellcheckFinding] | None, str | None]:
     """Lints every embedded script found in this chart's own docs, keeping
     only failing_levels-severity comments. Returns (None, error) if any
     script's shellcheck output couldn't be parsed."""
-    own_real = []
+    own_real: list[ShellcheckFinding] = []
     for source, path, shell, script_text, kind, namespace, name in extract_shell_scripts(own_docs, shell_names):
         comments = run_shellcheck(shell, script_text)
         if comments is None:
@@ -167,18 +172,21 @@ def _vendored_script_result(entry: tuple[str, ...], failing_levels: set[str]):
     comments = run_shellcheck(shell, script_text)
     if comments is None:
         return None, None, "shellcheck produced unparseable output"
-    findings = [(source, path, c, kind, namespace, name) for c in comments if c.get("level") in failing_levels]
+    findings: list[ShellcheckFinding] = [
+        (source, path, c, kind, namespace, name) for c in comments if c.get("level") in failing_levels
+    ]
     return chart_name_from_source(source), findings, None
 
 
 def _vendored_shellcheck_findings(
     vendored_docs: list, shell_names: set[str], failing_levels: set[str], vendor_map: dict
-) -> tuple[list[Any] | None, list[Any] | None, str | None]:
+) -> tuple[list[ShellcheckFinding] | None, list[ShellcheckFinding] | None, str | None]:
     """Lints every embedded script found in vendored docs (see
     _vendored_script_result), splitting findings into (vendored_friendly,
     vendored_other) by vendor_map membership. Returns (None, None, error)
     if any script's shellcheck output couldn't be parsed."""
-    vendored_friendly, vendored_other = [], []
+    vendored_friendly: list[ShellcheckFinding] = []
+    vendored_other: list[ShellcheckFinding] = []
     for entry in extract_shell_scripts(vendored_docs, shell_names):
         chart, findings, error = _vendored_script_result(entry, failing_levels)
         if findings is None:
@@ -187,7 +195,7 @@ def _vendored_shellcheck_findings(
     return vendored_friendly, vendored_other, None
 
 
-def _print_shellcheck_findings(scan: VendorBucketScan):
+def _print_shellcheck_findings(scan: VendorBucketScan[ShellcheckFinding, ShellcheckFinding]):
     """Prints check_shellcheck's three report sections (own/vendored-
     friendly/vendored-other) for a completed VendorBucketScan -- see
     check_shellcheck's own docstring for what each section means and why

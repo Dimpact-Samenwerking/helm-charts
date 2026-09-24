@@ -157,7 +157,7 @@ def check_markdown(chart_dir: Path):
     )
     output = result.stdout + result.stderr
 
-    findings = []
+    findings: list[dict[str, str]] = []
     for m in MARKDOWN_FINDING_RE.finditer(output):
         d = m.groupdict()
         d["path"] = _relative_path(d["path"], chart_dir)

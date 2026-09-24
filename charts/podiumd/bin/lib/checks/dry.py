@@ -36,7 +36,7 @@ def find_similar_template_pairs(templates_dir: Path, similarity_threshold: float
     significant = {p: _significant_template_lines(p) for p in paths}
     candidates = [p for p in paths if len(significant[p]) >= min_significant_lines]
 
-    findings = []
+    findings: list[tuple[float, Path, Path]] = []
     for i, a in enumerate(candidates):
         for b in candidates[i + 1 :]:
             ratio = difflib.SequenceMatcher(None, significant[a], significant[b]).ratio()

@@ -43,12 +43,17 @@ YAMLLINT_FINDING_RE = re.compile(
     re.MULTILINE,
 )
 
+# A finding as (rendered line, source, level, message, rule).
+YamllintFinding = tuple[int, str | None, str, str, str]
+
 
 def _classify_yamllint_findings(output: str, sources: dict, vendor_map: dict, failing_rules: set[str]):
     """Buckets every non-cosmetic yamllint finding in `output` into (own_real,
     vendored_friendly, vendored_other) — see check_yamllint's own docstring
     for what each bucket means."""
-    own_real, vendored_friendly, vendored_other = [], [], []
+    own_real: list[YamllintFinding] = []
+    vendored_friendly: list[YamllintFinding] = []
+    vendored_other: list[YamllintFinding] = []
     for m in YAMLLINT_FINDING_RE.finditer(output):
         line_no = int(m.group("line"))
         rule = m.group("rule")

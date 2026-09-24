@@ -38,6 +38,11 @@ KUBECONFORM_BASE_ARGS = [
     "json",
 ]
 
+# One entry of kubeconform's JSON "resources" list (kind/name/version/
+# status/msg), and a finding as (vendored chart or None for own, resource).
+KubeconformResource = dict[str, Any]
+KubeconformEntry = tuple[str | None, KubeconformResource]
+
 
 def kubeconform_cache_dir():
     """Where kubeconform's own -cache flag stores every Kubernetes API
@@ -50,7 +55,7 @@ def kubeconform_cache_dir():
     return Path.home() / ".cache" / "podiumd-kubeconform-schemas"
 
 
-def run_kubeconform(yaml_text: str):
+def run_kubeconform(yaml_text: str) -> list[KubeconformResource] | None:
     """Validate a YAML stream with kubeconform, returning the parsed
     "resources" list (each a dict with at least kind/name/version/status/
     msg) — or None if kubeconform's own output couldn't be parsed as JSON
@@ -65,7 +70,7 @@ def run_kubeconform(yaml_text: str):
         return None
 
 
-def _kubeconform_group_key(entry: tuple):
+def _kubeconform_group_key(entry: KubeconformEntry) -> tuple[str, str]:
     _chart, r = entry
     message = r.get("msg") or "(no message)"
     return r["status"], message.splitlines()[0]
@@ -77,7 +82,7 @@ def _kubeconform_group_label(key: tuple[str, ...]):
     return f"[{label:7s}] {first_line}"
 
 
-def _kubeconform_item(entry: tuple, locations: dict):
+def _kubeconform_item(entry: KubeconformEntry, locations: dict):
     """ "<kind>/<name>" plus a "(rendered line N)" hint when
     build_resource_locations can locate exactly this kind+name
     unambiguously (kubeconform's own JSON has no namespace field, so a
@@ -93,7 +98,7 @@ def _kubeconform_item(entry: tuple, locations: dict):
 
 def _own_kubeconform_findings(
     own_docs: list[tuple[str, str]], failing_statuses: set[str]
-) -> tuple[list[Any] | None, str | None]:
+) -> tuple[list[KubeconformResource] | None, str | None]:
     """(own_real, None) — this chart's own templates validated with
     kubeconform in one run — or (None, error) on unparseable output."""
     own_resources = run_kubeconform("".join(text for _source, text in own_docs))
@@ -104,7 +109,7 @@ def _own_kubeconform_findings(
 
 def _scan_vendored_charts(
     docs: list, failing_statuses: set[str], vendor_map: dict
-) -> tuple[list[Any] | None, list[Any] | None, str | None]:
+) -> tuple[list[KubeconformEntry] | None, list[KubeconformEntry] | None, str | None]:
     """Validates each vendored sub-chart's docs (every rendered doc outside
     OWN_TEMPLATES_PREFIX) with kubeconform separately
     (kubeconform's own JSON carries no per-resource source info, so —
@@ -116,7 +121,8 @@ def _scan_vendored_charts(
     for source, text in docs:
         vendored_by_chart.setdefault(chart_name_from_source(source), []).append(text)
 
-    vendored_friendly, vendored_other = [], []
+    vendored_friendly: list[KubeconformEntry] = []
+    vendored_other: list[KubeconformEntry] = []
     for chart, texts in vendored_by_chart.items():
         resources = run_kubeconform("".join(texts))
         if resources is None:
@@ -128,7 +134,7 @@ def _scan_vendored_charts(
     return vendored_friendly, vendored_other, None
 
 
-def _print_kubeconform_findings(scan: VendorBucketScan):
+def _print_kubeconform_findings(scan: VendorBucketScan[KubeconformResource, KubeconformEntry]):
     """Prints check_kubeconform's three report sections (own/vendored-
     friendly/vendored-other) for a completed VendorBucketScan -- see
     check_kubeconform's own docstring for what each section means and why

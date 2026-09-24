@@ -21,6 +21,11 @@ from lib.render_scope import resource_line
 from lib.render_scope import scan_outcome
 from lib.settings import quality_gates_kube_score_check_id
 
+# A finding as (object_name, container, summary); a vendored one is
+# prefixed with its sub-chart: (chart, object_name, container, summary).
+KubeScoreFinding = tuple[str, str, str]
+VendoredKubeScoreFinding = tuple[str, str, str, str]
+
 
 def run_kube_score(yaml_text: str):
     """Score a YAML stream with kube-score, returning the parsed list of
@@ -41,13 +46,13 @@ def run_kube_score(yaml_text: str):
     return data or []
 
 
-def extract_resource_findings(kube_score_objects: list, check_id: str):
+def extract_resource_findings(kube_score_objects: list, check_id: str) -> list[KubeScoreFinding]:
     """From a kube-score run's scored objects, pull every non-skipped,
     below-full-grade `check_id` finding as (object_name, container,
     summary) — object_name is kube-score's own "Kind/apiVersion/
     namespace/name" identifier, container is the comment's "path" (the
     container the missing request/limit belongs to)."""
-    findings = []
+    findings: list[KubeScoreFinding] = []
     for obj in kube_score_objects or []:
         object_name = obj.get("object_name", "?")
         for c in obj.get("checks", []):
@@ -90,9 +95,9 @@ class KubeScoreResult:
     _score_rendered_chart, which builds this."""
 
     locations: dict
-    own_real: list
-    vendored_partner: list
-    vendored_other: list
+    own_real: list[KubeScoreFinding]
+    vendored_partner: list[VendoredKubeScoreFinding]
+    vendored_other: list[VendoredKubeScoreFinding]
 
 
 def _score_vendored_charts(docs: list, check_id: str, vendor_map: dict):
@@ -107,7 +112,8 @@ def _score_vendored_charts(docs: list, check_id: str, vendor_map: dict):
         if not source.startswith(OWN_TEMPLATES_PREFIX):
             vendored_by_chart_docs.setdefault(chart_name_from_source(source), []).append(text)
 
-    vendored_partner, vendored_other = [], []
+    vendored_partner: list[VendoredKubeScoreFinding] = []
+    vendored_other: list[VendoredKubeScoreFinding] = []
     for chart, texts in vendored_by_chart_docs.items():
         objects = run_kube_score("".join(texts))
         if objects is None:
