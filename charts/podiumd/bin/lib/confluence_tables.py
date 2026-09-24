@@ -28,9 +28,11 @@ import urllib.parse
 import urllib.request
 
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from dataclasses import field
 from html.parser import HTMLParser
+from typing import IO
 from typing import TypedDict
 
 from lib.chart.values_tree_primitives import get_path
@@ -39,7 +41,7 @@ from lib.yaml_types import is_yaml_value
 PAGE_ID_RE = re.compile(r"/pages/(\d+)")
 
 
-def page_id_from_url(url: str):
+def page_id_from_url(url: str) -> str:
     """The numeric content ID from a Confluence page URL — either the
     modern "/pages/<id>/<title-slug>" form or the older
     "?pageId=<id>" query-param form."""
@@ -53,7 +55,7 @@ def page_id_from_url(url: str):
     raise SystemExit(msg)
 
 
-def api_base_url(url: str):
+def api_base_url(url: str) -> str:
     """The REST API root for this Confluence site. Cloud sites serve the
     wiki under "/wiki" (API root ".../wiki/rest/api"); Server/DC sites
     serve it at the domain root (API root ".../rest/api")."""
@@ -63,7 +65,12 @@ def api_base_url(url: str):
     return f"{parsed.scheme}://{parsed.netloc}{api_path}"
 
 
-def fetch_page_html(url: str, user: str, token: str, urlopen: Callable = urllib.request.urlopen) -> str:
+def fetch_page_html(
+    url: str,
+    user: str,
+    token: str,
+    urlopen: Callable[[urllib.request.Request], AbstractContextManager[IO[bytes]]] = urllib.request.urlopen,
+) -> str:
     """The page's raw storage-format body (body.storage.value) via the
     Confluence REST API — see the module docstring for why storage, not
     the rendered view. `urlopen` is overridable for tests."""
@@ -126,6 +133,10 @@ class ReleaseColumns(TypedDict):
     target_helm: int | None
 
 
+# (heading, rows) of one extracted <table> — see extract_tables.
+ConfluenceTable = tuple[str | None, list[list[TableCell]]]
+
+
 @dataclass
 class _HeadingState:
     """_TableExtractor's heading tracking: the text of the last heading
@@ -133,7 +144,7 @@ class _HeadingState:
 
     current: str | None = None
     tag: str | None = None
-    text: list = field(default_factory=list)
+    text: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -177,7 +188,7 @@ class _TableExtractor(HTMLParser):
         self._nested_depth = 0
         self._heading = _HeadingState()
 
-    def handle_starttag(self, tag: str, attrs: list):
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]):
         if self._cell is not None:
             if tag == "table":
                 self._nested_depth += 1
@@ -228,7 +239,7 @@ class _TableExtractor(HTMLParser):
             self._heading.text.append(data)
 
 
-def _positive_int(value: str | None, default: int):
+def _positive_int(value: str | None, default: int) -> int:
     if value is None:
         return default
     try:
@@ -238,7 +249,7 @@ def _positive_int(value: str | None, default: int):
     return parsed if parsed > 0 else default
 
 
-def extract_tables(html_text: str):
+def extract_tables(html_text: str) -> list[ConfluenceTable]:
     """One (heading, rows) pair per <table> found in `html_text`, in
     document order — rows are unexpanded cell dicts (see _TableExtractor);
     heading is the text of the nearest preceding h1-h6, or None if the
@@ -249,7 +260,9 @@ def extract_tables(html_text: str):
     return list(zip(parser.table_headings, parser.tables, strict=True))
 
 
-def tables_under_headings(tables: list, headings: list[str]):
+def tables_under_headings(
+    tables: list[ConfluenceTable], headings: list[str]
+) -> list[tuple[str, list[list[TableCell]]]]:
     """The (heading, rows) pairs from extract_tables() whose heading
     case-insensitively matches one of `headings` (whitespace-normalized
     exact match, not substring — headings are titles, not free text)."""
@@ -298,7 +311,7 @@ def expand_grid(rows: list[list[TableCell]]) -> list[list[str]]:
     return grid
 
 
-def leading_header_row_count(rows: list):
+def leading_header_row_count(rows: list[list[TableCell]]) -> int:
     """How many rows, starting from the top, contain at least one <th> —
     stops at the first row with none. 0 if the table uses no <th> at all
     (some Confluence tables render header cells as plain bold <td>s)."""
@@ -310,7 +323,7 @@ def leading_header_row_count(rows: list):
     return count
 
 
-def fallback_header_row_count(grid: list):
+def fallback_header_row_count(grid: list[list[str]]) -> int:
     """A guess at the header block for a table with no <th> at all (see
     leading_header_row_count): however many leading rows have an empty
     first column. True of every observed component-versions table, where
@@ -325,7 +338,7 @@ def fallback_header_row_count(grid: list):
     return count
 
 
-def effective_header_row_count(rows: list, grid: list):
+def effective_header_row_count(rows: list[list[TableCell]], grid: list[list[str]]) -> int:
     """leading_header_row_count(rows) when the table uses <th> at all;
     otherwise fallback_header_row_count(grid); always at least 1, since a
     table needs at least one header row to match columns against."""
@@ -335,16 +348,16 @@ def effective_header_row_count(rows: list, grid: list):
     return count or 1
 
 
-def header_paths(grid: list, header_row_count: int):
+def header_paths(grid: list[list[str]], header_row_count: int) -> list[list[str]]:
     """For every column, the stack of distinct header texts above it (top
     row first) — e.g. ["Versie 4.8", "App"] for a column under a
     colspan=2 "Versie 4.8" cell and its own "App" sub-header, or just
     ["Ontwikkelpartij"] for a column whose single header spans every
     header row via rowspan (deduped so it isn't repeated per row)."""
     width = len(grid[0]) if grid else 0
-    paths = []
+    paths: list[list[str]] = []
     for col in range(width):
-        path = []
+        path: list[str] = []
         prev = None
         for row_idx in range(header_row_count):
             text = grid[row_idx][col] if col < len(grid[row_idx]) else ""
@@ -355,7 +368,7 @@ def header_paths(grid: list, header_row_count: int):
     return paths
 
 
-def _normalize(text: str):
+def _normalize(text: str) -> str:
     """Lowercased, whitespace-collapsed, hyphens removed — the real
     podiumd page spells it "Ontwikkel-partij", and stripping the hyphen
     (rather than trying to special-case that one header) keeps the match
@@ -364,7 +377,7 @@ def _normalize(text: str):
     return " ".join(text.lower().replace("-", "").split())
 
 
-def find_column(paths: list, contains_all: list[str], candidates: list[int] | None = None):
+def find_column(paths: list[list[str]], contains_all: list[str], candidates: list[int] | None = None) -> int | None:
     """Index of the first column (among `candidates`, default: every
     column) whose header path contains every one of `contains_all` as a
     case-insensitive substring of the joined path text, or None if no
@@ -378,7 +391,7 @@ def find_column(paths: list, contains_all: list[str], candidates: list[int] | No
     return None
 
 
-def find_versie_groups(paths: list):
+def find_versie_groups(paths: list[list[str]]) -> list[tuple[str, list[int]]]:
     """Ordered list of (label, [column_indices]) for every distinct
     top-level header group whose own label starts with "Versie" (case-
     insensitive) — e.g. "Versie 4.8"/"Versie 4.9" today, but the version
@@ -386,8 +399,8 @@ def find_versie_groups(paths: list):
     release. Order is first-appearance (left to right), so a caller that
     needs "source" (lower/earlier, left-hand) vs "target" (higher/later,
     right-hand) can just take groups[0] and groups[1]."""
-    groups = []
-    index_by_label = {}
+    groups: list[tuple[str, list[int]]] = []
+    index_by_label: dict[str, int] = {}
     for idx, path in enumerate(paths):
         if not path or not _normalize(path[0]).startswith("versie"):
             continue
@@ -432,7 +445,7 @@ def find_versie_groups(paths: list):
 REQUIRED_RELEASE_COLUMNS = ["source_app", "target_app"]
 
 
-def select_release_columns(paths: list):
+def select_release_columns(paths: list[list[str]]) -> ReleaseColumns:
     """{"first": 0, "vendor": <idx-or-None>, "used_by": <idx-or-None>,
     "source_app": ..., "source_helm": <idx-or-None>, "target_app": ...,
     "target_helm": <idx-or-None>} — "vendor" is matched against the
