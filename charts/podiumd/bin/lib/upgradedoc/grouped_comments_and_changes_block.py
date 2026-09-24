@@ -6,6 +6,9 @@ pair_renames) they're built from, and path_display_name."""
 import re
 
 from collections.abc import Callable
+from collections.abc import Iterator
+from collections.abc import Mapping
+from typing import Literal
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import is_primary_image_path
@@ -27,12 +30,12 @@ VERSION_SPEC_RE = re.compile(
 )
 
 
-def find_preceding_comment(lines: list[str], entry_line_index: int):
+def find_preceding_comment(lines: list[str], entry_line_index: int) -> str:
     """The comment line(s) immediately above a "- name: ..." line, e.g.
     "# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static" right above the opa
     entry — stops at the first blank/non-comment line, so it doesn't reach
     back into the previous entry's comment."""
-    comment_lines = []
+    comment_lines: list[str] = []
     j = entry_line_index - 1
     while j >= 0 and lines[j].strip().startswith("#"):
         comment_lines.insert(0, lines[j].strip())
@@ -40,7 +43,7 @@ def find_preceding_comment(lines: list[str], entry_line_index: int):
     return " ".join(comment_lines)
 
 
-def find_preceding_comment_line(lines: list[str], entry_line_index: int):
+def find_preceding_comment_line(lines: list[str], entry_line_index: int) -> int | None:
     """Index of the closest comment line above entry_line_index that
     states a version spec — a "<source> -> <target>" pair, OR a bare
     "<version> (new)"/"(unchanged)"/"(digest changed)" (see VERSION_
@@ -70,7 +73,7 @@ def find_grouped_preceding_comment(
     entry_line_indices: list[int],
     index: int,
     same_group: Callable[[ManifestEntry, ManifestEntry], bool],
-):
+) -> str:
     """The comment describing entries[index]'s version bump: its own
     directly-preceding comment if it has one, else — when a component's
     images are listed as one contiguous block sharing a single comment
@@ -102,7 +105,7 @@ def find_grouped_preceding_comment_line(
     entry_line_indices: list[int],
     index: int,
     same_group: Callable[[ManifestEntry, ManifestEntry], bool],
-):
+) -> int | None:
     """Same grouping rule as find_grouped_preceding_comment, for callers
     that need the matched comment's line index (to rewrite it in place)
     rather than its text — built on find_preceding_comment_line's
@@ -115,7 +118,9 @@ def find_grouped_preceding_comment_line(
     return find_grouped_preceding_comment_line(lines, entries, entry_line_indices, index - 1, same_group)
 
 
-def diff_keys(baseline_node: object, current_node: object, path: tuple = ()):
+def diff_keys(
+    baseline_node: YamlValue, current_node: YamlValue, path: tuple[str, ...] = ()
+) -> Iterator[tuple[Literal["added", "removed"], tuple[str, ...]]]:
     """Yield ("added"|"removed", path) for the SHALLOWEST differing keys
     between two values subtrees — if a whole block is new or gone, report it
     once at that level rather than recursing into every leaf underneath it.
@@ -140,7 +145,7 @@ def flatten_leaf_keys(node: YamlValue) -> set[str]:
     similar two blocks are (for rename detection) — not full paths, just the
     set of innermost key names, so "host"/"user"/"password" overlapping
     between an old and new block is a strong rename signal."""
-    keys = set()
+    keys: set[str] = set()
     if isinstance(node, dict):
         for key, value in node.items():
             keys.add(key)
@@ -160,8 +165,8 @@ def _get_at_path(node: YamlValue, path: tuple[str, ...]) -> YamlValue:
 
 
 def _find_rename_match(
-    add_path: tuple[str, ...], removed_left: list, baseline_node: YamlValue, current_node: YamlValue
-):
+    add_path: tuple[str, ...], removed_left: list[tuple[str, ...]], baseline_node: YamlValue, current_node: YamlValue
+) -> tuple[str, ...] | None:
     """First rem_path in removed_left that pairs with add_path as a rename
     candidate — same parent path, and either similar leaf keys or an
     unchanged scalar value (see pair_renames) — or None."""
@@ -178,12 +183,15 @@ def _find_rename_match(
     return None
 
 
-def pair_renames(added: list, removed: list, baseline_node: YamlValue, current_node: YamlValue):
+def pair_renames(
+    added: list[tuple[str, ...]], removed: list[tuple[str, ...]], baseline_node: YamlValue, current_node: YamlValue
+) -> tuple[list[tuple[tuple[str, ...], tuple[str, ...]]], list[tuple[str, ...]], list[tuple[str, ...]]]:
     """Pair an added and a removed key at the same parent path into a rename
     candidate when their subtrees share enough leaf key names (e.g.
     mi.sftp -> mi.transfer, both containing host/user/password) — otherwise
     they're reported as an unrelated add and remove."""
-    renamed, added_left, removed_left = [], list(added), list(removed)
+    renamed: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
+    added_left, removed_left = list(added), list(removed)
     for add_path in list(added_left):
         rem_path = _find_rename_match(add_path, removed_left, baseline_node, current_node)
         if rem_path is not None:
@@ -220,7 +228,7 @@ def parse_changes_block(text: str) -> list[VersionRow]:
     list with no blank line separating them) — both single-space forms
     end whichever item is currently accumulating, the same way a new
     numbered line does, rather than being swallowed into it."""
-    items = []
+    items: list[VersionRow] = []
     current = None  # raw text accumulated so far for the item being parsed
     for line in _changes_block_lines(text):
         # "\.\s+" (period, then whitespace) — not "\.\s*" — so a version number
@@ -327,7 +335,9 @@ def _finalize_changes_item(rest: str) -> VersionRow:
     }
 
 
-def path_display_name(path: tuple[str, ...], deps: list[ChartDependency], canonical_names: dict):
+def path_display_name(
+    path: tuple[str, ...], deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]]
+) -> str:
     """The doc-facing name for a values-tree image path — "<values_key>"
     for a dependency's own primary image (same convention as every
     "component "<key>" changed vs ..." message elsewhere in this check),

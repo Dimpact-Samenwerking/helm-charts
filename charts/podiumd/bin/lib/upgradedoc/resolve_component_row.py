@@ -5,6 +5,7 @@ app version from values.yaml/Chart.yaml/vendored subcharts."""
 
 import re
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -120,12 +121,14 @@ class RowMatch:
     three not None (see resolve_component_row's own docstring for the
     canonical_names/deps precedence rules that decide which)."""
 
-    sidecar_path: tuple | None
+    sidecar_path: tuple[str, ...] | None
     dep: ChartDependency | None
     native_key: str | None
 
 
-def _match_row(row_name: str, chart_dir: Path | None, canonical_names: dict, deps: list[ChartDependency]):
+def _match_row(
+    row_name: str, chart_dir: Path | None, canonical_names: Mapping[str, tuple[str, ...]], deps: list[ChartDependency]
+):
     """RowMatch for row_name."""
     sidecar_path = canonical_names.get(row_name)
     dep = None if sidecar_path is not None else match_dependency_excluding_sidecar_names(row_name, deps)
@@ -196,7 +199,7 @@ def _target_result(chart_dir: Path | None, values: YamlMapping, match: RowMatch)
     }
 
 
-def _sidecar_baseline_app(resolution: ResolutionContext, sidecar_path: tuple[str, ...]):
+def _sidecar_baseline_app(resolution: ResolutionContext, sidecar_path: tuple[str, ...]) -> str | None:
     """A sidecar's own baseline app version — exact-path or same-
     repository-elsewhere-in-baseline_values match (via baseline_tag_
     for_sidecar_path's own two tiers), else a past images-<version>.yaml
@@ -298,7 +301,7 @@ def _add_baseline_result(resolution: ResolutionContext, match: RowMatch, result:
 
 
 def resolve_component_row(
-    row_name: str, canonical_names: dict, resolution: ResolutionContext
+    row_name: str, canonical_names: Mapping[str, tuple[str, ...]], resolution: ResolutionContext
 ) -> UnmatchedRow | ResolvedRow:
     """Resolve a "Component versions" table row's name to the real
     component it identifies, and its actual target (and, if requested,

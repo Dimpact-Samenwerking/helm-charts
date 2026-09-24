@@ -127,7 +127,7 @@ def ensure_images_manifest_changes_header(lines: list[str]):
             return
 
 
-def find_images_manifest_changes_items(lines: list[str]):
+def find_images_manifest_changes_items(lines: list[str]) -> tuple[int | None, bool, list[int]]:
     """(header_idx, header_has_count, item_indices) — item_indices is
     every "#   N. ..." line's own index (see CHANGES_ITEM_RE), in
     current top-to-bottom document order, scoped to the "# Changes:"
@@ -209,8 +209,8 @@ def renumber_images_manifest_changes_items(lines: list[str]):
 
 
 def images_manifest_order_key(
-    key_order: list, values_key: str | tuple[str, ...], *, is_sidecar: bool, values: YamlMapping | None = None
-):
+    key_order: list[str], values_key: str | tuple[str, ...], *, is_sidecar: bool, values: YamlMapping | None = None
+) -> tuple[int, ...]:
     """(index-in-key_order, 0-or-1-for-sidecar) sort key for an images-
     manifest "# Changes:" item belonging to `values_key` — an unknown
     values_key (not in key_order at all) sorts LAST, never crashes.
@@ -250,7 +250,7 @@ def images_manifest_changes_block(lines: list[str], header_idx: int) -> tuple[li
     (CHANGES_ITEM_RE), and the index one past the block's last comment
     line. The block ends at a bare "#" line or the first line that isn't a
     comment. The one scan every reader and writer of this block uses."""
-    item_starts = []
+    item_starts: list[int] = []
     block_end = header_idx + 1
     for i in range(header_idx + 1, len(lines)):
         if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
@@ -283,8 +283,8 @@ def remove_changes_item(lines: list[str], item_indices: list[int], match_idx: in
 
 
 def insert_images_manifest_header_item(
-    lines: list[str], deps: list[ChartDependency], key_order: list, new_key: tuple[int, ...], item_text: str
-):
+    lines: list[str], deps: list[ChartDependency], key_order: list[str], new_key: tuple[int, ...], item_text: str
+) -> None:
     """Insert "#   N. <item_text>" into the images-manifest's own "#
     Changes:" header list (see find_images_manifest_changes_header) at
     the position matching new_key relative to what's already there (see
@@ -323,7 +323,7 @@ def insert_images_manifest_header_item(
 
     block_end = images_manifest_changes_block(lines, header_idx)[1]
 
-    item_keys = []
+    item_keys: list[tuple[int, ...]] = []
     for idx in item_indices:
         m = CHANGES_ITEM_RE.match(lines[idx])
         item_dep = match_dependency_excluding_sidecar_names(m.group("rest"), deps) if m else None

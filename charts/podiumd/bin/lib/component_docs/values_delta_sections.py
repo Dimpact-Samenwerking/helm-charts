@@ -18,6 +18,7 @@ package."""
 
 import re
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -103,7 +104,7 @@ def values_delta_section_heading(
 
 
 def find_values_delta_section(
-    text: str, friendly: str, deps: list[ChartDependency], canonical_names: dict | None = None
+    text: str, friendly: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None = None
 ):
     """The existing "## ..." section (see lib.upgradedoc.parse_values_
     delta_sections/changes_heading_identities) that already names the
@@ -151,7 +152,7 @@ class ValuesDeltaOrdering:
 
     deps: list[ChartDependency]
     values: YamlMapping | None
-    canonical_names: dict | None = None
+    canonical_names: dict[str, tuple[str, ...]] | None = None
 
 
 @dataclass
@@ -293,7 +294,7 @@ def append_values_delta_section_body(text: str, section: HeadingBlock, new_lines
 
 
 def remove_values_delta_section(
-    text: str, friendly: str, deps: list[ChartDependency], canonical_names: dict | None = None
+    text: str, friendly: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None = None
 ):
     """Delete this component's OWN values-deltas.md section entirely —
     the counterpart to insert_values_delta_section, for a bump that nets
@@ -338,8 +339,12 @@ def _values_delta_new_section_heading(
 
 
 def sync_values_delta_sections(
-    text: str, chart_dir: Path, ordering: ValuesDeltaOrdering, baseline: ValuesDeltaBaseline, actual_changed_keys: set
-):
+    text: str,
+    chart_dir: Path,
+    ordering: ValuesDeltaOrdering,
+    baseline: ValuesDeltaBaseline,
+    actual_changed_keys: set[str],
+) -> tuple[str, list[str], list[str]]:
     """Ensure every key in `actual_changed_keys` has its own values-
     deltas.md section (see find_values_delta_section/insert_values_
     delta_section) carrying every describe_key_changes line not already
@@ -370,7 +375,8 @@ def sync_values_delta_sections(
     touches one that's already there.
     Returns (new_text, created_names, updated_names)."""
     by_key = missing_key_change_lines_by_key(text, actual_changed_keys, baseline.values, ordering.values)
-    created_names, updated_names = [], []
+    created_names: list[str] = []
+    updated_names: list[str] = []
     for key in sorted(actual_changed_keys):
         key_lines = by_key.get(key, [])
         section = find_values_delta_section(text, key, ordering.deps, ordering.canonical_names)
@@ -391,7 +397,7 @@ def sync_values_delta_sections(
     return text, created_names, updated_names
 
 
-def prune_empty_values_delta_sections(text: str):
+def prune_empty_values_delta_sections(text: str) -> tuple[str, list[str]]:
     """Delete every "## ..." section (see lib.upgradedoc.parse_values_
     delta_sections) whose own body is entirely blank — no content at all
     between its heading and the next "## " heading (or EOF). Only ever
@@ -404,7 +410,7 @@ def prune_empty_values_delta_sections(text: str):
     remove_values_delta_section. Returns (new_text, removed_headings)."""
     lines = text.splitlines(keepends=True)
     sections = parse_values_delta_sections(text)
-    removed_headings = []
+    removed_headings: list[str] = []
     for section in reversed(sections):
         body = "".join(lines[section["start"] + 1 : section["end"]]).strip()
         if body:

@@ -64,7 +64,7 @@ def resolve_baseline_ref(repo_root: Path, baseline: str):
     return None, f"could not resolve baseline '{baseline}' to a git ref (tried {', '.join(candidates)})"
 
 
-def git_show_text(repo_root: Path, ref: str, relpath: str):
+def git_show_text(repo_root: Path, ref: str, relpath: str) -> str | None:
     """The raw text of relpath as it was at ref, or None if it doesn't
     exist there — for a caller that needs values.yaml's own literal
     lines (e.g. lib.image.version's scan_digest_pins/dotted_key_path

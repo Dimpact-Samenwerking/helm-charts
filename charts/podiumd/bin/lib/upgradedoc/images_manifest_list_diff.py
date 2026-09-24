@@ -16,6 +16,7 @@ from lib.chart.repo_and_path_resolution import full_repository_for_path
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.values_tree_primitives import version_of
 from lib.images_manifest import ManifestEntry
+from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
@@ -29,7 +30,7 @@ def compute_changed_components(
     baseline_deps: list[ChartDependency],
     values: YamlMapping,
     baseline_values: YamlMapping | None,
-):
+) -> set[str]:
     """Top-level component keys (Chart.yaml alias, or name if unaliased) that
     actually differ between the baseline and now: dependency added or
     removed, chart version bumped, or any image tag anywhere under that
@@ -78,7 +79,7 @@ def compute_changed_components(
     def subtree_paths(key: str, paths: dict[ImagePath, str]):
         return {p: version_of(t) for p, t in paths.items() if p[0] == key and t not in global_tags}
 
-    changed = set()
+    changed: set[str] = set()
     natives = native_components()
     for key in set(current_by_key) | set(baseline_by_key) | set(natives):
         if key in natives:
@@ -125,17 +126,21 @@ class ManifestDiffInputs:
     diff's own docstring for what each field means."""
 
     entries: list[ManifestEntry]
-    current_paths: dict
-    baseline_paths: dict
-    repo_map: dict
-    repo_groups: dict
-    unresolvable_paths: set
+    current_paths: dict[tuple[str, ...], str]
+    baseline_paths: dict[ImagePath, str]
+    repo_map: dict[str, tuple[str, ...]]
+    repo_groups: dict[str, list[ImagePath]]
+    unresolvable_paths: set[ImagePath]
     context: ManifestDiffContext = field(default_factory=ManifestDiffContext)
 
 
 def _digest_changed(
-    inputs: ManifestDiffInputs, sibling_fields: dict, path: tuple[str, ...], tag: str, baseline_tag: str
-):
+    inputs: ManifestDiffInputs,
+    sibling_fields: dict[ImagePath, DigestPinningException],
+    path: tuple[str, ...],
+    tag: str,
+    baseline_tag: str,
+) -> bool:
     # Only fires when BOTH sides have a resolvable digest of their own
     # to compare (see find_images_manifest_list_diff's own docstring) —
     # a bare tag with no stored digest on either side yields None here
@@ -149,7 +154,13 @@ def _digest_changed(
     return current_digest.split("@", 1)[1] != baseline_digest.split("@", 1)[1]
 
 
-def _pin_changed(inputs: ManifestDiffInputs, path_to_repo: dict, sibling_fields: dict, path: tuple[str, ...], tag: str):
+def _pin_changed(
+    inputs: ManifestDiffInputs,
+    path_to_repo: dict[ImagePath, str],
+    sibling_fields: dict[ImagePath, DigestPinningException],
+    path: tuple[str, ...],
+    tag: str,
+) -> bool:
     baseline_tag = inputs.baseline_paths.get(path)
     if baseline_tag is not None:
         return version_of(tag) != version_of(baseline_tag) or _digest_changed(
@@ -189,14 +200,17 @@ def _pin_changed(inputs: ManifestDiffInputs, path_to_repo: dict, sibling_fields:
     return version_of(tag) != version_of(historical_version)
 
 
-def _match_entries(inputs: ManifestDiffInputs, representative_of: dict, changed_paths: set):
+def _match_entries(
+    inputs: ManifestDiffInputs, representative_of: dict[ImagePath, ImagePath], changed_paths: set[ImagePath]
+) -> tuple[set[ImagePath], list[str], list[str]]:
     """(matched_paths, stale_entry_names, unmatched_entry_names) — every
     manifest entry resolved to its values-tree path (collapsed to its
     shared-repository group's representative, same as changed_paths
     already is — see find_images_manifest_list_diff's own docstring)
     and classified against changed_paths."""
-    matched_paths = set()
-    stale_entry_names, unmatched_entry_names = [], []
+    matched_paths: set[ImagePath] = set()
+    stale_entry_names: list[str] = []
+    unmatched_entry_names: list[str] = []
     for entry in inputs.entries:
         path = resolve_entry_image_path(entry["name"], inputs.current_paths.keys(), inputs.repo_map)
         # An entry can resolve to ANY path in a shared-repository group —
@@ -218,7 +232,7 @@ def _match_entries(inputs: ManifestDiffInputs, representative_of: dict, changed_
     return matched_paths, stale_entry_names, unmatched_entry_names
 
 
-def find_images_manifest_list_diff(inputs: ManifestDiffInputs):
+def find_images_manifest_list_diff(inputs: ManifestDiffInputs) -> tuple[list[ImagePath], list[str], list[str]]:
     """(missing_paths, extra_entry_names) — the images-manifest's own
     "list of changed images" checked against the FULL, actual set of
     every image tag pin whose VERSION (lib.chart.version_of — the tag

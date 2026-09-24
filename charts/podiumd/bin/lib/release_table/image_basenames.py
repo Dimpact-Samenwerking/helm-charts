@@ -3,9 +3,12 @@ supporting helpers, split out of that script for pylint's too-many-lines
 check."""
 
 from pathlib import Path
+from typing import TypedDict
 
 from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import text_at
+from lib.image.digests import DigestPin
+from lib.image.digests import VersionPin
 from lib.image.version import basenames_under_scope
 from lib.image.version import basenames_under_scope_any_tag
 from lib.image.version import image_basename
@@ -17,7 +20,15 @@ from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
 
-def resolve_image_basenames(rows: list[list[str]], chart_dir: Path):
+class ComponentRows(TypedDict):
+    """One component's rows in resolve_image_basenames: the alias its
+    rows name ("" for none) and their indices."""
+
+    alias: str
+    indices: list[int]
+
+
+def resolve_image_basenames(rows: list[list[str]], chart_dir: Path) -> list[str]:
     """A comma-joined image_basename string per row in `rows` (same
     order, same shape as extract_release_rows' own output — [section,
     vendor, used_by, name, component, alias, ...versions]) — the actual
@@ -72,12 +83,12 @@ def resolve_image_basenames(rows: list[list[str]], chart_dir: Path):
     return result
 
 
-def _by_component_row_indices(rows: list[list[str]]):
+def _by_component_row_indices(rows: list[list[str]]) -> dict[str, ComponentRows]:
     """component -> {"alias": ..., "indices": [...]} grouping resolve_
     image_basenames' own per-component pass — a MULTIPLE/UNKNOWN/blank-
     component row is never grouped here, only handled by _assign_
     multiple_row_basenames instead."""
-    by_component = {}
+    by_component: dict[str, ComponentRows] = {}
     for i, row in enumerate(rows):
         component, alias = row[4], row[5]
         if component in ("MULTIPLE", "UNKNOWN", ""):
@@ -86,7 +97,9 @@ def _by_component_row_indices(rows: list[list[str]]):
     return by_component
 
 
-def _available_basenames_for_component(lines: list[str], scope_keys: list[str]):
+def _available_basenames_for_component(
+    lines: list[str], scope_keys: list[str]
+) -> dict[str, list[DigestPin | VersionPin]]:
     """basename -> pins available under scope_keys: the digest-required
     scan (basenames_under_scope) first, then, before concluding a
     basename genuinely isn't resolvable, falling back per-basename to
@@ -107,18 +120,20 @@ def _available_basenames_for_component(lines: list[str], scope_keys: list[str]):
     missed, never overriding one it already found (so a component
     that's fully digest-pinned, the normal case, is completely
     unaffected — this scan is strictly additive)."""
-    available = {}
+    available: dict[str, list[DigestPin | VersionPin]] = {}
     for scope_key in scope_keys:
         for basename, pins in basenames_under_scope(lines, scope_key).items():
             available.setdefault(basename, []).extend(pins)
     for scope_key in scope_keys:
         for basename, pins in basenames_under_scope_any_tag(lines, scope_key).items():
             if basename not in available:
-                available[basename] = pins
+                available[basename] = [*pins]
     return available
 
 
-def _assign_component_basenames(rows: list[list[str]], result: list[str], info: dict, available: dict):
+def _assign_component_basenames(
+    rows: list[list[str]], result: list[str], info: ComponentRows, available: dict[str, list[DigestPin | VersionPin]]
+) -> None:
     """Claims `available` basenames into `result` for one component's
     own row indices (info["indices"]) — a primary (used_by-blank) row
     gets first refusal, but ONLY at an EXACT match against its own name
@@ -141,7 +156,7 @@ def _assign_component_basenames(rows: list[list[str]], result: list[str], info: 
     sub_indices = [i for i in info["indices"] if rows[i][2]]
     primary_indices = [i for i in info["indices"] if not rows[i][2]]
 
-    unclaimed_primary_indices = []
+    unclaimed_primary_indices: list[int] = []
     for i in primary_indices:
         match = exact_match(rows[i][3], available.keys())
         if match is not None:
@@ -163,8 +178,8 @@ def _assign_component_basenames(rows: list[list[str]], result: list[str], info: 
 
 
 def _assign_multiple_row_basenames(
-    rows: list[list[str]], result: list[str], global_keys: list, global_images: YamlMapping
-):
+    rows: list[list[str]], result: list[str], global_keys: list[str], global_images: YamlMapping
+) -> None:
     """Resolves every MULTIPLE-component row's own basename
     independently, via which global.images key it actually matches (see
     global_image_keys) — never through any component's own scope, since

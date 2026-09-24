@@ -129,7 +129,7 @@ def replace_version_pair(line: str, new_source: str, new_target: str):
     new_source/new_target, preserving everything else (the "# <Name> — "
     prefix, arrow style, trailing newline)."""
 
-    def repl(m: re.Match):
+    def repl(m: re.Match[str]):
         return f"{new_source} {m.group('arrow')} {new_target}"
 
     new_line, count = VERSION_PAIR_RE.subn(repl, line, count=1)
@@ -185,8 +185,8 @@ def describe_key_changes(values_key: str, baseline_subtree: YamlValue, current_s
 
 
 def missing_key_change_lines_by_key(
-    text: str, changed_component_keys: set, baseline_values: YamlMapping | None, values: YamlMapping | None
-):
+    text: str, changed_component_keys: set[str], baseline_values: YamlMapping | None, values: YamlMapping | None
+) -> dict[str, list[str]]:
     """{values_key: [line, ...]} — every describe_key_changes() line for
     a changed component that isn't already mentioned (backtick-quoted,
     matching verify-podiumd's own check_values_deltas_content
@@ -232,11 +232,11 @@ def missing_key_change_lines_by_key(
     def mentioned(span: str):
         return span in backtick_spans
 
-    by_key = {}
+    by_key: dict[str, list[str]] = {}
     for values_key in sorted(changed_component_keys):
         baseline_subtree = baseline_values.get(values_key, {}) if isinstance(baseline_values, dict) else {}
         current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
-        lines = []
+        lines: list[str] = []
         for line in describe_key_changes(values_key, baseline_subtree, current_subtree):
             spans_in_line = re.findall(r"`([^`]+)`", line)
             if line not in text and not all(mentioned(span) for span in spans_in_line):

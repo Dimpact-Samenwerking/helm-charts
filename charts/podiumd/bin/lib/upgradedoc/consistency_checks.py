@@ -4,11 +4,13 @@ dependency/native-component identities -- flags a heading that
 corresponds to no real row, or text claiming a dependency that
 doesn't exist, rather than ever guessing a match."""
 
+from collections.abc import Mapping
 from collections.abc import Sequence
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
+from lib.upgradedoc.string_and_parsing_basics import ComponentRef
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
@@ -17,7 +19,9 @@ from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
 
 
-def resolve_component_identity(text: str, deps: list[ChartDependency], canonical_names: dict | None):
+def resolve_component_identity(
+    text: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+) -> ComponentRef | None:
     """The single component `text` names — ("sidecar", path) or ("dep",
     values_key) — or None if it names no real Chart.yaml dependency,
     canonical sidecar/shared-image, or native_components component (see
@@ -47,8 +51,11 @@ def resolve_component_identity(text: str, deps: list[ChartDependency], canonical
 
 
 def find_changes_row_correspondence_gaps(
-    rows: Sequence[VersionRow], headings: list[str], deps: list[ChartDependency], canonical_names: dict
-):
+    rows: Sequence[VersionRow],
+    headings: list[str],
+    deps: list[ChartDependency],
+    canonical_names: Mapping[str, tuple[str, ...]],
+) -> tuple[list[str], list[str]]:
     """Cross-check the "Component versions" table against the "## Changes"
     section: every row naming a real component should have exactly one
     Changes heading naming that same component, and vice versa — a real
@@ -78,13 +85,13 @@ def find_changes_row_correspondence_gaps(
     each a list of the original row name / heading text, in their
     original order."""
     heading_identity_sets = [changes_heading_identities(h, deps, canonical_names) for h in headings]
-    all_heading_identities = set()
+    all_heading_identities: set[ComponentRef] = set()
     for idents in heading_identity_sets:
         if len(idents) == 1:
             all_heading_identities |= idents
 
-    row_identities = set()
-    rows_without_heading = []
+    row_identities: set[ComponentRef] = set()
+    rows_without_heading: list[str] = []
     for row in rows:
         ident = resolve_component_identity(row["name"], deps, canonical_names)
         if ident is None:
@@ -102,7 +109,7 @@ def find_changes_row_correspondence_gaps(
     return rows_without_heading, headings_without_row
 
 
-def is_exact_dependency_match(name: str, dep: ChartDependency):
+def is_exact_dependency_match(name: str, dep: ChartDependency) -> bool:
     """True if `name`, normalized (case/punctuation-insensitive), equals
     `dep`'s own name or alias EXACTLY — not just a fuzzy word-span
     containment match (see match_dependency). Distinguishes "this row
@@ -118,7 +125,9 @@ def is_exact_dependency_match(name: str, dep: ChartDependency):
     return any(normalize_name(c) == norm for c in (dep.get("name"), dep.get("alias")) if c)
 
 
-def find_wrong_or_duplicate_dependency_claims(names: list[str], deps: list[ChartDependency]):
+def find_wrong_or_duplicate_dependency_claims(
+    names: list[str], deps: list[ChartDependency]
+) -> tuple[set[str], set[str]]:
     """(duplicate_names, wrong_fuzzy_names) for a list of free-form names
     each purporting to describe a Chart.yaml dependency — a doc row's own
     Name cell, or an images-manifest "# Changes:" item's own free-form
@@ -144,12 +153,12 @@ def find_wrong_or_duplicate_dependency_claims(names: list[str], deps: list[Chart
     any name in either returned set, reporting it as wrong/stale instead —
     see lib.docs_consistency's own row loop and Changes-block loop for the
     exact pattern."""
-    name_counts = {}
+    name_counts: dict[str, int] = {}
     for name in names:
         name_counts[name] = name_counts.get(name, 0) + 1
     duplicate_names = {name for name, count in name_counts.items() if count > 1}
 
-    exact_claims = {}  # values_key -> the name that exactly claims it
+    exact_claims: dict[str, str] = {}  # values_key -> the name that exactly claims it
     for name in names:
         if name in duplicate_names:
             continue
@@ -157,7 +166,7 @@ def find_wrong_or_duplicate_dependency_claims(names: list[str], deps: list[Chart
         if dep is not None and is_exact_dependency_match(name, dep):
             exact_claims[values_key_of(dep)] = name
 
-    wrong_fuzzy_names = set()
+    wrong_fuzzy_names: set[str] = set()
     for name in names:
         if name in duplicate_names or name in exact_claims.values():
             continue
