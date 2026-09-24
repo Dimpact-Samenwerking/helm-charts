@@ -14,7 +14,9 @@ import shutil
 
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import NotRequired
+from typing import TypedDict
+from typing import TypeGuard
 
 from lib.procutil import run
 from lib.render_scope import VendorBucketScan
@@ -27,6 +29,7 @@ from lib.render_scope import resource_line
 from lib.render_scope import scan_outcome
 from lib.render_scope import scan_rendered_chart
 from lib.settings import quality_gates_kubeconform_failing_statuses
+from lib.yaml_types import shape_problem
 
 KUBECONFORM_BASE_ARGS = [
     "-strict",  # also catch unknown/duplicate fields, not just type mismatches
@@ -38,9 +41,38 @@ KUBECONFORM_BASE_ARGS = [
     "json",
 ]
 
+
 # One entry of kubeconform's JSON "resources" list (kind/name/version/
 # status/msg), and a finding as (vendored chart or None for own, resource).
-KubeconformResource = dict[str, Any]
+class KubeconformResource(TypedDict):
+    """One entry of kubeconform's JSON "resources" list: the fields this
+    module reads (kubeconform always writes all of them; the optional ones
+    are read with a fallback)."""
+
+    status: str
+    kind: NotRequired[str]
+    name: NotRequired[str]
+    msg: NotRequired[str]
+
+
+_RESOURCE_LIST_SHAPE = [{"status": str, "kind?": str, "name?": str, "msg?": str}]
+
+
+def _is_resource_list(value: object) -> TypeGuard[list[KubeconformResource]]:
+    return shape_problem(value, _RESOURCE_LIST_SHAPE) is None
+
+
+def parse_kubeconform_output(stdout: str) -> list[KubeconformResource] | None:
+    """The "resources" of kubeconform's JSON output, or None when it isn't
+    JSON of that shape (a kubeconform bug/crash, not a chart problem)."""
+    try:
+        data: object = json.loads(stdout)
+    except json.JSONDecodeError:
+        return None
+    resources = data.get("resources") if isinstance(data, dict) else None
+    return resources if _is_resource_list(resources) else None
+
+
 KubeconformEntry = tuple[str | None, KubeconformResource]
 
 
@@ -64,10 +96,7 @@ def run_kubeconform(yaml_text: str) -> list[KubeconformResource] | None:
     cache_dir.mkdir(parents=True, exist_ok=True)
     args = [*KUBECONFORM_BASE_ARGS, "-cache", str(cache_dir), "-"]
     result = run(["kubeconform", *args], input=yaml_text, capture_output=True, text=True)
-    try:
-        return json.loads(result.stdout)["resources"]
-    except (json.JSONDecodeError, KeyError):
-        return None
+    return parse_kubeconform_output(result.stdout)
 
 
 def _kubeconform_group_key(entry: KubeconformEntry) -> tuple[str, str]:

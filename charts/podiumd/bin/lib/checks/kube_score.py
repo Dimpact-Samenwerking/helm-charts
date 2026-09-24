@@ -10,6 +10,9 @@ import shutil
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NotRequired
+from typing import TypedDict
+from typing import TypeGuard
 
 from lib.procutil import run
 from lib.render_scope import OWN_TEMPLATES_PREFIX
@@ -20,6 +23,7 @@ from lib.render_scope import render_chart_docs
 from lib.render_scope import resource_line
 from lib.render_scope import scan_outcome
 from lib.settings import quality_gates_kube_score_check_id
+from lib.yaml_types import shape_problem
 
 # A finding as (object_name, container, summary); a vendored one is
 # prefixed with its sub-chart: (chart, object_name, container, summary).
@@ -27,7 +31,57 @@ KubeScoreFinding = tuple[str, str, str]
 VendoredKubeScoreFinding = tuple[str, str, str, str]
 
 
-def run_kube_score(yaml_text: str):
+class KubeScoreComment(TypedDict):
+    """One comment of a kube-score check (the fields this module reads)."""
+
+    path: NotRequired[str]
+    summary: NotRequired[str]
+
+
+class KubeScoreCheckInfo(TypedDict):
+    """The "check" identity of one kube-score check result."""
+
+    id: str
+
+
+class KubeScoreCheck(TypedDict):
+    """One check result for a scored object."""
+
+    check: KubeScoreCheckInfo
+    grade: int
+    skipped: NotRequired[bool]
+    comments: NotRequired[list[KubeScoreComment] | None]
+
+
+class KubeScoreObject(TypedDict):
+    """One object in kube-score's JSON output (the fields this module
+    reads; kube-score writes more)."""
+
+    object_name: NotRequired[str]
+    checks: NotRequired[list[KubeScoreCheck]]
+
+
+_OBJECT_LIST_SHAPE = [
+    {
+        "object_name?": str,
+        "checks?": [
+            {
+                "check": {"id": str},
+                "grade": int,
+                "skipped?": bool,
+                "comments?": ([{"path?": str, "summary?": str}], type(None)),
+            }
+        ],
+    }
+]
+
+
+def is_kube_score_objects(value: object) -> TypeGuard[list[KubeScoreObject]]:
+    """Whether parsed kube-score JSON is a list of KubeScoreObject."""
+    return shape_problem(value, _OBJECT_LIST_SHAPE) is None
+
+
+def run_kube_score(yaml_text: str) -> list[KubeScoreObject] | None:
     """Score a YAML stream with kube-score, returning the parsed list of
     scored objects (kube-score's own JSON schema — each a dict with
     object_name/checks/...) — or None if kube-score's own output couldn't
@@ -40,13 +94,17 @@ def run_kube_score(yaml_text: str):
     normalize it to [] so a CRD-only chart doesn't look like a crash."""
     result = run(["kube-score", "score", "-o", "json", "-"], input=yaml_text, capture_output=True, text=True)
     try:
-        data = json.loads(result.stdout)
+        data: object = json.loads(result.stdout)
     except json.JSONDecodeError:
         return None
-    return data or []
+    if data is None:
+        return []
+    return data if is_kube_score_objects(data) else None
 
 
-def extract_resource_findings(kube_score_objects: list, check_id: str) -> list[KubeScoreFinding]:
+def extract_resource_findings(
+    kube_score_objects: list[KubeScoreObject] | None, check_id: str
+) -> list[KubeScoreFinding]:
     """From a kube-score run's scored objects, pull every non-skipped,
     below-full-grade `check_id` finding as (object_name, container,
     summary) — object_name is kube-score's own "Kind/apiVersion/
