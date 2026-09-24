@@ -24,6 +24,45 @@
 {{- end }}
 {{- end }}
 {{- end -}}
+{{- /* oidcUrl validation: every component whose Keycloak client is rendered below must carry a
+     real configuration.oidcUrl. The chart ships example.nl defaults, and an unset value renders a
+     syntactically valid client whose redirect URIs point at example.nl — the deploy then succeeds
+     and every login fails with "Invalid parameter: redirect_uri". Fail the render instead, so the
+     mistake surfaces at deploy time rather than at the first login attempt.
+     An entry is skipped when its component is disabled (<component>.enabled=false) or when its
+     Keycloak client is disabled (keycloak.config.clients.<name>.enabled=false, for the clients
+     that have that flag: monitoring, datamigratie, zaakbrug); a component with no enabled flag
+     is always deployed and is therefore always checked. The URL checked is the one the client's
+     redirect URIs come from: configuration.oidcUrl for the Django apps and kiss, zac.contextUrl
+     for zac, pabc.settings.oidc.oidcUrl for pabc, ita.web.oidc.frontendUrl for ita and
+     keycloak.config.clients.<name>.oidcUrl for monitoring, datamigratie and zaakbrug. See IN-2868. */ -}}
+{{- $oidcClients := list
+  (dict "name" "openzaak"          "enabled" .Values.openzaak.enabled          "oidcUrl" .Values.openzaak.configuration.oidcUrl)
+  (dict "name" "openarchiefbeheer" "enabled" .Values.openarchiefbeheer.enabled "oidcUrl" .Values.openarchiefbeheer.configuration.oidcUrl)
+  (dict "name" "opennotificaties"  "enabled" .Values.opennotificaties.enabled  "oidcUrl" .Values.opennotificaties.configuration.oidcUrl)
+  (dict "name" "objecten"          "enabled" .Values.objecten.enabled          "oidcUrl" .Values.objecten.configuration.oidcUrl)
+  (dict "name" "objecttypen"       "enabled" .Values.objecttypen.enabled       "oidcUrl" .Values.objecttypen.configuration.oidcUrl)
+  (dict "name" "openklant"         "enabled" .Values.openklant.enabled         "oidcUrl" .Values.openklant.configuration.oidcUrl)
+  (dict "name" "openformulieren"   "enabled" .Values.openformulieren.enabled   "oidcUrl" .Values.openformulieren.configuration.oidcUrl)
+  (dict "name" "openinwoner"       "enabled" .Values.openinwoner.enabled       "oidcUrl" .Values.openinwoner.configuration.oidcUrl)
+  (dict "name" "referentielijsten" "enabled" .Values.referentielijsten.enabled "oidcUrl" .Values.referentielijsten.configuration.oidcUrl)
+  (dict "name" "openbeheer"        "enabled" .Values.openbeheer.enabled        "oidcUrl" .Values.openbeheer.configuration.oidcUrl)
+  (dict "name" "openbao"           "enabled" .Values.openbao.enabled           "oidcUrl" .Values.openbao.configuration.oidcUrl)
+  (dict "name" "kiss"              "enabled" .Values.kiss.enabled              "oidcUrl" .Values.kiss.configuration.oidcUrl "field" "kiss.configuration.oidcUrl")
+  (dict "name" "zac"               "enabled" .Values.zac.enabled               "oidcUrl" .Values.zac.contextUrl "field" "zac.contextUrl")
+  (dict "name" "pabc"              "enabled" .Values.pabc.enabled              "oidcUrl" .Values.pabc.settings.oidc.oidcUrl "field" "pabc.settings.oidc.oidcUrl")
+  (dict "name" "ita"               "enabled" .Values.ita.enabled               "oidcUrl" .Values.ita.web.oidc.frontendUrl "field" "ita.web.oidc.frontendUrl")
+  (dict "name" "zaakbrug"          "enabled" (and (.Values.zaakbrug.enabled | default false) (ne .Values.keycloak.config.clients.zaakbrug.enabled false)) "oidcUrl" .Values.keycloak.config.clients.zaakbrug.oidcUrl "field" "keycloak.config.clients.zaakbrug.oidcUrl")
+  (dict "name" "monitoring"        "enabled" .Values.keycloak.config.clients.monitoring.enabled   "oidcUrl" .Values.keycloak.config.clients.monitoring.oidcUrl "field" "keycloak.config.clients.monitoring.oidcUrl")
+  (dict "name" "datamigratie"      "enabled" .Values.keycloak.config.clients.datamigratie.enabled "oidcUrl" .Values.keycloak.config.clients.datamigratie.oidcUrl "field" "keycloak.config.clients.datamigratie.oidcUrl")
+-}}
+{{- range $oidcClients }}
+{{- if not (eq .enabled false) }}
+{{- if or (empty .oidcUrl) (contains "example.nl" (.oidcUrl | toString)) }}
+{{- fail (printf "%s: %s is not set for this environment, or is still the example.nl placeholder (found %q). The Keycloak client's redirect URIs are derived from it, so the deploy would succeed and every login would fail with 'Invalid parameter: redirect_uri'. Set it to the public https URL of %s." .name (.field | default (printf "%s.configuration.oidcUrl" .name)) (.oidcUrl | toString) .name) }}
+{{- end }}
+{{- end }}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -1135,6 +1174,14 @@ data:
           description: PodiumD Administrator
         - name: DMT-Functioneel-Beheerder
           description: Datamigratie Functioneel Beheerder
+        # PABC functional roles: ZAC sends the user's realm roles to PABC, so
+        # each functional role in files/pabc-dataset.json needs a realm role
+        # with the same name (attached to the group of that name below).
+        # Rendered from the dataset so the two cannot drift apart.
+{{- range $fr := (.Files.Get "files/pabc-dataset.json" | fromJson).functionalRoles }}
+        - name: {{ $fr.name | quote }}
+          description: {{ printf "PABC functionele rol %s" $fr.name | quote }}
+{{- end }}
       client:
         abc:
           - name: administrators
@@ -1214,6 +1261,7 @@ data:
             - "Administrators"
         realmRoles:
           - "podiumd-admin"
+          - "administrators"
         clientRoles:
           zac:
             - "recordmanager"
@@ -1258,6 +1306,8 @@ data:
         attributes:
           description:
             - "Behandelaars"
+        realmRoles:
+          - "behandelaars"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1268,6 +1318,8 @@ data:
         attributes:
           description:
             - "Coordinators"
+        realmRoles:
+          - "coordinators"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1279,6 +1331,8 @@ data:
         attributes:
           description:
             - "Recordmanagers"
+        realmRoles:
+          - "recordmanagers"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1291,6 +1345,8 @@ data:
         attributes:
           description:
             - "Beheerders"
+        realmRoles:
+          - "beheerders"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -1304,10 +1360,27 @@ data:
         attributes:
           description:
             - "Raadplegers"
+        realmRoles:
+          - "raadplegers"
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
             - "raadpleger"
+{{- /* A PABC functional role in files/pabc-dataset.json without a hand-written
+       group above (with its ZAC client roles) still gets a group carrying its
+       realm role, so the dataset alone decides which groups exist. */}}
+{{- $pabcRoleGroups := list "administrators" "behandelaars" "coordinators" "recordmanagers" "beheerders" "raadplegers" }}
+{{- range $fr := (.Files.Get "files/pabc-dataset.json" | fromJson).functionalRoles }}
+{{- if not (has $fr.name $pabcRoleGroups) }}
+      - name: {{ $fr.name | quote }}
+        path: "/{{ $fr.name }}"
+        attributes:
+          description:
+            - {{ printf "PABC functionele rol %s" $fr.name | quote }}
+        realmRoles:
+          - {{ $fr.name | quote }}
+{{- end }}
+{{- end }}
       - name: {{ .Values.openbao.configuration.uploadersGroup | quote }}
         path: "/{{ .Values.openbao.configuration.uploadersGroup }}"
         attributes:

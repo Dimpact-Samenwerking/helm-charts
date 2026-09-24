@@ -21,6 +21,7 @@
 # PV names are derived as `<Release.Namespace>-<chart>` and are not configurable.
 
 zac:
+  contextUrl: https://zac.ci.podiumd.test
   auth:
     secret: "placeholder"
 
@@ -44,6 +45,9 @@ keycloak:
     clients:
       monitoring:
         secret: "placeholder"
+        oidcUrl: https://monitoring.ci.podiumd.test
+      datamigratie:
+        oidcUrl: https://datamigratie.ci.podiumd.test
 
 keycloak-operator:
   jobs:
@@ -53,12 +57,14 @@ keycloak-operator:
 # Keycloak realm OIDC client secrets — required by the realm import job for every component.
 openzaak:
   configuration:
+    oidcUrl: https://openzaak.ci.podiumd.test
     secrets:
       keycloak_client_secret: "placeholder"
 
 # Prevents nil pointer in objecten/templates/secret.yaml; also provides realm secret.
 objecten:
   configuration:
+    oidcUrl: https://objecten.ci.podiumd.test
     demo:
       enabled: false
     secrets:
@@ -67,6 +73,7 @@ objecten:
 # allowInsecureImages bypasses the Bitnami image-check template for rabbitmq.
 opennotificaties:
   configuration:
+    oidcUrl: https://opennotificaties.ci.podiumd.test
     secrets:
       keycloak_client_secret: "placeholder"
   rabbitmq:
@@ -76,40 +83,49 @@ opennotificaties:
 
 objecttypen:
   configuration:
+    oidcUrl: https://objecttypen.ci.podiumd.test
     secrets:
       keycloak_client_secret: "placeholder"
 
 openarchiefbeheer:
   configuration:
+    oidcUrl: https://openarchiefbeheer.ci.podiumd.test
     secrets:
       keycloak_client_secret: "placeholder"
 
 openklant:
   configuration:
+    oidcUrl: https://openklant.ci.podiumd.test
     secrets:
       keycloak_client_secret: "placeholder"
 
 openformulieren:
   configuration:
+    oidcUrl: https://openformulieren.ci.podiumd.test
     secrets:
       keycloak_client_secret: "placeholder"
 
 openinwoner:
   configuration:
+    oidcUrl: https://openinwoner.ci.podiumd.test
     secrets:
       keycloak_client_secret: "placeholder"
 
 referentielijsten:
   configuration:
+    oidcUrl: https://referentielijsten.ci.podiumd.test
     secrets:
       keycloak_client_secret: "placeholder"
 
 openbeheer:
   configuration:
+    oidcUrl: https://openbeheer.ci.podiumd.test
     secrets:
       keycloak_client_secret: "placeholder"
 
 kiss:
+  configuration:
+    oidcUrl: https://kiss.ci.podiumd.test
   settings:
     afdelingen:
       baseUrl: "http://placeholder"
@@ -180,6 +196,8 @@ kiss:
 # render if it is missing (templates/validations.yaml).
 openbao:
   enabled: true
+  configuration:
+    oidcUrl: https://openbao.ci.podiumd.test
 
 # Frank!Gateway enabled so lint/CI render covers the full stack (gateways +
 # etcd + dashboards + SSO chain + seed hook Jobs) across all three traffic
@@ -331,3 +349,13 @@ frankgateway:
             upstream_host: openzaak.example.nl
             nodes: { "openzaak-nginx.podiumd.svc.cluster.local:80": 1 }
             type: roundrobin
+
+pabc:
+  settings:
+    oidc:
+      oidcUrl: https://pabc.ci.podiumd.test
+
+ita:
+  web:
+    oidc:
+      frontendUrl: https://ita.ci.podiumd.test

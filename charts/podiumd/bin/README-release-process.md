@@ -1,0 +1,214 @@
+# Release Process
+
+## Table of contents
+
+- [Setup](#setup)
+  - [Required external tools](#required-external-tools)
+  - [Debian setup](#debian-setup)
+  - [macOS setup](#macos-setup)
+  - [Vendored sub-charts](#vendored-sub-charts)
+- [Process steps](#process-steps)
+  - [Start a new release](#start-a-new-release)
+  - [When release is rebased on a different baseline](#when-release-is-rebased-on-a-different-baseline)
+  - [Update component versions in the release](#update-component-versions-in-the-release)
+  - [Update image versions in the release](#update-image-versions-in-the-release)
+  - [Fix and debug tools](#fix-and-debug-tools)
+  - [Check or finalize the release](#check-or-finalize-the-release)
+- [Tools overview](#tools-overview)
+
+## Setup
+
+### Required external tools
+
+`verify-podiumd` needs each of these for its checks. No script here checks or enforces a
+minimum version for any of them, so the versions below are "known-working, verified in a
+real dev environment," not a tested lower bound — an older or newer version may well work
+fine too:
+
+- `helm` — the Helm CLI itself; required by virtually every script here (lint/template/
+  dependency management/etc.), not just `verify-podiumd` (known-working: v3.22.0; also
+  confirmed working, apart from `--dry-run=client`-dependent features, on v3.9.0)
+- `helm-docs` — Helm doc (known-working: 1.14.2)
+- `yamllint` — yamllint check (known-working: 1.29.0)
+- `kubeconform` — kubeconform check (known-working: v0.8.0)
+- `shellcheck` — shellcheck check (known-working: 0.9.0)
+- `kube-score` — kube-score check (known-working: 1.20.0)
+- `docker` — CVE scan (optional — missing docker just reports the scan as skipped, never
+  blocks a run) (known-working: 29.8.0)
+- `python3-venv` (Debian only — see below) — to create the `.venv` (known-working: Python 3.11)
+
+### Debian setup
+
+`helm`/`helm-docs`/`kubeconform`/`kube-score` have no Debian package — installed straight from their own GitHub releases.
+
+```bash
+sudo apt install -y yamllint shellcheck docker.io python3-venv
+# helm
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+# helm-docs
+curl -sL "$(curl -s https://api.github.com/repos/norwoodj/helm-docs/releases/latest | grep -o 'https://[^"]*_Linux_x86_64\.deb')" -o /tmp/helm-docs.deb
+sudo dpkg -i /tmp/helm-docs.deb
+# kubeconform
+curl -sL "$(curl -s https://api.github.com/repos/yannh/kubeconform/releases/latest | grep -o 'https://[^"]*kubeconform-linux-amd64\.tar\.gz')" | sudo tar -xz -C /usr/local/bin kubeconform
+# kube-score
+curl -sL "$(curl -s https://api.github.com/repos/zegl/kube-score/releases/latest | grep -o 'https://[^"]*kube-score_[0-9.]*_linux_amd64"' | tr -d '"')" -o /tmp/kube-score
+sudo install -m 0755 /tmp/kube-score /usr/local/bin/kube-score
+# Python tools, from the project-root
+python3 -m venv .venv
+.venv/bin/pip install -r charts/podiumd/bin/requirements.txt
+```
+
+### macOS setup
+
+```bash
+brew install helm helm-docs yamllint kubeconform shellcheck kube-score
+brew install --cask docker   # or: brew install colima docker && colima start
+                              # (colima: free, no-license-limit CLI-only alternative to Docker
+                              # Desktop — unlike Desktop it doesn't self-start, `colima start`
+                              # is needed once per boot; no special flags needed for CVE scanning)
+
+# Python tools, from the project-root
+python3 -m venv .venv
+.venv/bin/pip install -r charts/podiumd/bin/requirements.txt
+```
+
+### Vendored sub-charts
+
+`charts/podiumd/charts/*.tgz` and `charts/podiumd/Chart.lock` are gitignored. When
+`Chart.yaml` moves on (branch switch, pull, `update-component-version`), they stay at
+the old versions until someone re-vendors them. A stale state makes `helm template`
+fail with a sub-chart schema error that never mentions the real cause.
+
+Every script that renders the chart or reads its vendored `.tgz` files checks this
+first, locally and in milliseconds (`lib.dependencies.ensure_vendored_dependencies`).
+When the state is stale it names the dependencies that are wrong and re-vendors them
+before it continues, on stderr:
+
+```text
+charts/podiumd/charts/ and Chart.lock do not match Chart.yaml, re-vendoring:
+  - referentielijsten: Chart.yaml wants 0.2.0, Chart.lock has 0.1.1
+  - referentielijsten: Chart.yaml wants 0.2.0, charts/ has 0.1.1
+Running helm pull referentielijsten 0.2.0 (attempt 1/3)...
+Re-vendored only what changed: fetched 1 of 25 dependencies (referentielijsten 0.2.0)
+```
+
+Re-vendoring fetches only the dependencies that changed (`helm pull`, or `helm package`
+for a `file://` chart) and rewrites `Chart.lock` with the same content and digest
+`helm dependency update` would write. That takes seconds; `helm dependency update`
+itself always re-downloads all 25 dependencies (about 80s). The full update is still
+the fallback when there is no `Chart.lock` yet, a dependency uses a version range, or
+a fetch fails. The script stops only when re-vendoring fails too, with what is still
+wrong and `Run: helm dependency update charts/podiumd`.
+
+Checked by: `fix-doc-consistency`, `list-podiumd-images`, `render-podiumd`,
+`update-component-version`, `update-image-version`, `verify-helm-secret-size`
+(against its own `--chart`), `verify-podiumd-dead-values` and
+`verify-release-table-with-podiumd` (not with `--baseline-only`).
+`update-component-version` also re-vendors as its last step, right after it bumps
+`Chart.yaml`, so the next script starts in sync. `verify-podiumd`'s "Dependencies"
+step and `fix-image-digests` re-vendor the same way as a step of their own; `verify-podiumd --skip=dependencies` still re-vendors first
+when a step that needs the sub-charts runs.
+
+## Process steps
+
+### Start a new release
+
+- create a branch from the baseline branch, name it `podiumd-<version>`
+- run `create-podiumd-version` to set the version and create (upgrade) docs
+- run `verify-podiumd` to check consistency, if not ok, fix the issues
+- run `export-confluence-release-table` to fetch the input for the release
+- run `verify-release-table-with-podiumd --baseline-only` to check the release baseline matches with confluence
+- update the confluence with the findings reported
+- commit+push the changes
+
+### When release-branch is rebased on a different baseline-branch
+
+- rebase the branch on the new baseline branch
+- run `change-podiumd-baseline` to update `charts/podiumd/etc/release-baseline.yaml`'s `upgrade_docs` key and rebase the docs
+- run `verify-podiumd` to check consistency, if not ok, fix the issues
+- commit+push the changes
+
+### Update component versions in the release
+
+A component consists of a helm-chart and a container image.
+
+- create a branch from the release branch (`podiumd-<version>`), name it `podiumd-<version>-<my_changes>`
+- run `query-release-table vendor <name>` or `query-release-table component <name>`, to show changes
+- per component:
+  - run `update-component-version <component> <app-version> <helm-version>` to update the app+helm version using the queried data
+  - check docs from the component and add relevant changes to `<baseline>-to-<version>-*.md`
+  - run `verify-podiumd` to check consistency, if not ok, fix the issues
+  - commit+push the changes
+- create a PR to merge the my-changes branch into the release branch
+
+### Update image versions in the release
+
+This updates just a container image version in a release.
+
+- create a branch from the release branch (`podiumd-<version>`), name it `podiumd-<version>-<my_changes>`
+- run `query-release-table section <overige|technische>` or `query-release-table component <name>`, to show changes
+- per images:
+  - run `update-image-version <image> <version>` to update the app (= image) version using the queried data
+  - run `verify-podiumd` to check consistency, if not ok, fix the issues
+  - commit+push the changes
+- create a PR to merge the my-changes branch into the release branch
+
+### Fix and debug tools
+
+- `fix-doc-consistency`: rebases doc filenames and components and images in them onto `charts/podiumd/etc/release-baseline.yaml`'s own `upgrade_docs` baseline (normally run automatically by `change-podiumd-baseline`, right after it writes that key)
+- `fix-helm-doc`: re-generate `charts/podiumd/README.md` using `helm-docs`
+- `fix-image-digests`: updates image digests for one specific image or all stale images (also runs `fix-helm-doc` on any real write)
+- `fix-markdown`: auto-fix whatever pymarkdown's own `fix` mode can safely resolve
+- `fix-node-selector`: insert the required `nodeSelector` into any own template missing one
+- `fix-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
+- `fix-vendored-tgz`: delete an extracted sub-chart directory shadowing its own pinned `.tgz`
+- `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
+
+### Check or finalize the release
+
+- per changes branch:
+  - merge the changes branch into the release branch
+  - fix merge conflicts
+  - run `verify-podiumd` to check consistency, if not ok, fix the issues
+  - commit+push if changes were made
+- run `verify-podiumd` to check consistency, if not ok, fix the issues or repeat previous steps
+- run `export-confluence-release-table` to fetch the input for the release
+- run `verify-release-table-with-podiumd` to check the release changes match with confluence
+
+## Tools overview
+
+Notes:
+
+- tools are re-runable
+- tools support `--help`
+
+Tools:
+
+- `change-podiumd-baseline`: change the `upgrade_docs` baseline recorded in `charts/podiumd/etc/release-baseline.yaml` and rebase the docs onto it (runs `fix-doc-consistency`, then `fix-helm-doc`), given a baseline that must resolve to an existing `podiumd-<version>` tag or `feature/podiumd-<version>` branch — never touches `release_table` (that only ever changes via `create-podiumd-version`)
+- `create-doc-version`: create the standard docs for the current target version, for whichever don't already exist — refuses if docs already exist under a different baseline (use `fix-doc-consistency` for that instead)
+- `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as the outgoing baseline release, updates version in `Chart.yaml`, records that baseline in `charts/podiumd/etc/release-baseline.yaml` and creates upgrade docs (runs `create-doc-version`) — refuses unless the outgoing→target jump is a single patch increment (records `upgrade_docs` only) or a single minor increment (records both `upgrade_docs` and `release_table`); major-version bumps and skipped versions aren't supported
+- `export-confluence-release-table`: fetch release data from confluence and store it in `charts/podiumd/etc/release-table.csv`
+- `fix-doc-consistency`: reads `charts/podiumd/etc/release-baseline.yaml`'s own `upgrade_docs` baseline (never a CLI argument — change `upgrade_docs` via `change-podiumd-baseline` instead) and rebases doc filenames and components and images in them onto it (creates the standard docs fresh instead, for whichever were never scaffolded under any baseline at all)
+- `fix-helm-doc`: re-generate `charts/podiumd/README.md` using `helm-docs`
+- `fix-image-digests`: updates image digests for one specific image or all stale images (also runs `fix-helm-doc` on any real write)
+- `fix-markdown`: auto-fix whatever pymarkdown's own `fix` mode can safely resolve
+- `fix-node-selector`: insert the required `nodeSelector` into any own template missing one
+- `fix-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
+- `fix-vendored-tgz`: delete an extracted sub-chart directory shadowing its own pinned `.tgz`
+- `list-helmchart-images`: list images in a helm chart, given chart name and version
+- `list-podiumd-images`: list images in `charts/podiumd`
+- `query-release-table`: query release data from `charts/podiumd/etc/release-table.csv` by section, vendor, component
+- `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
+- `show-component-baseline-version`: get the Helm chart AND app image version(s) of a component at BOTH `release-baseline.yaml` baselines (`upgrade_docs`, `release_table`), given the component name
+- `show-image-baseline-version`: get just the app image version(s) of a component at BOTH `release-baseline.yaml` baselines, given the component name (same shape as `show-component-baseline-version`, minus the Helm chart version)
+- `update-component-version`: update the version of component, given component
+  name, app-version and helm-version; also updates the release docs, `README.md`
+  and `images-baseline.yaml`, ending with `fix-doc-consistency`
+- `update-image-version`: update the version of image, given image name and
+  version; also updates the release docs, `README.md` and `images-baseline.yaml`,
+  ending with `fix-doc-consistency`
+- `verify-component-version`: verify that a component's helm-chart version AND app image version(s) exist, given component name, app-version and chart-version (same shape as `update-component-version`) — pre-flight check for that command
+- `verify-helm-secret-size`: estimate the size of the Helm release Secret a chart would produce vs Kubernetes' 1 MiB limit, given a chart directory (`--record` appends/updates a row in `<chart>/docs/release-secret-size.md`) — also runs automatically as part of `verify-podiumd`'s own "Release secret size" step for podiumd itself; this standalone tool is what covers any other chart (e.g. `charts/monitoring-logging`)
+- `verify-image-version`: verify that an image version exists for an already-pinned image, given image name and version (same shape as `update-image-version`) — pre-flight check for that command, no chart involved
+- `verify-podiumd`: verify podiumd's consistency, references, policies
+- `verify-release-table-with-podiumd`: verify the confluence exported release table against podiumd's implementation

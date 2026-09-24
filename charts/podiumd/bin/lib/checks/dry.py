@@ -1,0 +1,92 @@
+"""Report-only structural-duplication scan for templates/*.yaml — flags
+file pairs that look like copy-paste (the shape podiumd.storagePVC was
+factored out of) without ever failing the check; deduping is a judgment
+call a human should make, not something to gate a build on."""
+
+import difflib
+
+from pathlib import Path
+
+from lib.settings import dry_check_high_similarity_threshold
+from lib.settings import dry_check_min_significant_lines
+from lib.settings import dry_check_similarity_threshold
+
+
+def _significant_template_lines(path: Path) -> list[str]:
+    """A template's lines with blanks and full-line comments dropped, so
+    similarity scoring isn't skewed by incidental whitespace or comment
+    wording differences between two otherwise-identical templates."""
+    lines: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("#", "{{/*")):
+            continue
+        lines.append(line)
+    return lines
+
+
+def find_similar_template_pairs(templates_dir: Path, similarity_threshold: float, min_significant_lines: int):
+    """Pairwise-compare every templates/*.yaml file and flag pairs that are
+    structurally very similar — the shape of duplication podiumd.storagePVC
+    was factored out of (9 files, identical except for the literal
+    component name). Returns (ratio, path_a, path_b) tuples, highest ratio
+    first, for every pair at or above `similarity_threshold` (see
+    dry_check.similarity_threshold in lib.settings)."""
+    paths = sorted(p for p in templates_dir.rglob("*.yaml") if p.is_file())
+    significant = {p: _significant_template_lines(p) for p in paths}
+    candidates = [p for p in paths if len(significant[p]) >= min_significant_lines]
+
+    findings: list[tuple[float, Path, Path]] = []
+    for i, a in enumerate(candidates):
+        for b in candidates[i + 1 :]:
+            ratio = difflib.SequenceMatcher(None, significant[a], significant[b]).ratio()
+            if ratio >= similarity_threshold:
+                findings.append((ratio, a, b))
+    findings.sort(key=lambda f: -f[0])
+    return findings, len(candidates)
+
+
+def check_dry(chart_dir: Path):
+    """Report-only: never fails. Flags templates/*.yaml file pairs that look
+    like copy-paste duplication and suggests whether deduping (a shared
+    named template in _helpers.tpl, parameterized like podiumd.storagePVC)
+    is likely worth it, or just a coincidence of both files being short and
+    conventionally shaped. Duplication is a judgment call a human should
+    make — this only surfaces candidates."""
+    similarity_threshold = dry_check_similarity_threshold(chart_dir)
+    high_similarity_threshold = dry_check_high_similarity_threshold(chart_dir)
+    min_significant_lines = dry_check_min_significant_lines(chart_dir)
+
+    findings, candidate_count = find_similar_template_pairs(
+        chart_dir / "templates", similarity_threshold, min_significant_lines
+    )
+
+    if not findings:
+        print(
+            f"OK: no structurally-similar template pairs found "
+            f"(compared {candidate_count} template(s) with "
+            f">= {min_significant_lines} significant line(s))"
+        )
+        return True, "0 candidate(s)"
+
+    print(f"Found {len(findings)} structurally-similar template pair(s):")
+    for ratio, a, b in findings:
+        pct = round(ratio * 100)
+        rel_a, rel_b = a.relative_to(chart_dir), b.relative_to(chart_dir)
+        if ratio >= high_similarity_threshold:
+            advice = (
+                "likely worth deduping — near-identical shape, probably just a "
+                "literal parameter (e.g. a component name) differs; consider a "
+                "shared named template in _helpers.tpl, as with podiumd.storagePVC"
+            )
+        else:
+            advice = (
+                "borderline — inspect manually before deduping; could be a shared "
+                "skeleton with genuinely different content per file (e.g. different "
+                "env vars/secrets), where forcing a shared template would add more "
+                "parameters than it saves"
+            )
+        print(f"  [{pct:3d}% similar] {rel_a}  <->  {rel_b}")
+        print(f"      advice: {advice}")
+
+    return True, f"{len(findings)} candidate(s) found (report-only, not a failure)"

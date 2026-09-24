@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""
+Search etc/release-table.csv and print the matching components.
+
+Prints, as an aligned table, each row whose <column> contains <text>:
+name, component, alias, image_basename and the four version columns.
+A second table lists the tooling rows whose "used_by" names a match.
+Create the CSV with export-confluence-release-table.
+
+Usage:
+    query-release-table <column> <text>
+
+Arguments:
+    <column>  section, vendor or component
+    <text>    case-insensitive substring; "zac" matches component
+              "zaakafhandelcomponent", "open" matches both "Open Zaak"
+              and "Open Formulieren"
+
+Examples:
+    query-release-table component zac
+    query-release-table vendor maykin
+    query-release-table section technische
+"""
+
+import sys
+
+from pathlib import Path
+from typing import Literal
+from typing import TypeGuard
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
+from lib.cli import exit_on_help
+from lib.release_table.csv_rows import ReleaseTableRow
+from lib.release_table.csv_rows import read_release_table
+from lib.upgradedoc.string_and_parsing_basics import word_contains
+
+DEFAULT_INPUT = CHART_DIR / "etc" / "release-table.csv"
+
+QueryColumn = Literal["section", "vendor", "component"]
+VersionColumn = Literal["source_version_app", "source_version_helm", "target_version_app", "target_version_helm"]
+
+COLUMNS: tuple[QueryColumn, ...] = ("section", "vendor", "component")
+VERSION_COLUMNS: tuple[VersionColumn, ...] = (
+    "source_version_app",
+    "source_version_helm",
+    "target_version_app",
+    "target_version_helm",
+)
+TARGET_VERSION_COLUMNS: tuple[VersionColumn, ...] = ("target_version_app", "target_version_helm")
+TARGET_TO_SOURCE_COLUMN: dict[VersionColumn, VersionColumn] = {
+    "target_version_app": "source_version_app",
+    "target_version_helm": "source_version_helm",
+}
+
+
+def is_query_column(value: str) -> TypeGuard[QueryColumn]:
+    """Whether `value` is one of COLUMNS."""
+    return value in COLUMNS
+
+
+def matching_rows(
+    rows: list[ReleaseTableRow], column: QueryColumn | Literal["alias", "name"], text: str
+) -> list[ReleaseTableRow]:
+    """The rows whose `column` value contains `text` as a
+    case-insensitive substring — the plain single-column match every
+    query but "component" uses directly (component_matches layers its own
+    alias/name fallback on top of this)."""
+    needle = text.lower()
+    return [row for row in rows if needle in row[column].lower()]
+
+
+def component_matches(rows: list[ReleaseTableRow], text: str) -> list[ReleaseTableRow]:
+    """The row(s) a "component" query for `text` should treat as
+    matches: rows whose own "component" or "alias" column (both set by
+    export-confluence-release-table — see its component_and_alias)
+    contains `text` as a substring — e.g. "keycloak-operator" or its
+    alias find the same row either way. These are the resolved
+    Chart.yaml identifiers themselves, so they're tried first, ahead of
+    the row's own "name" — e.g. querying component "zac" should find the
+    row resolved to component "zaakafhandelcomponent" (alias "zac"), not
+    incidentally match some unrelated row whose own display name happens
+    to contain "zac". Only falls back to matching_rows(rows, "name",
+    text) if NEITHER "component" nor "alias" matches anything at all, so
+    a row that never got resolved to a real component (component is
+    "UNKNOWN" or "MULTIPLE") can still be found by its own name as a
+    last resort."""
+    from_component = matching_rows(rows, "component", text)
+    from_alias = matching_rows(rows, "alias", text)
+    seen = {id(row) for row in from_component}
+    combined = from_component + [row for row in from_alias if id(row) not in seen]
+    return combined or matching_rows(rows, "name", text)
+
+
+def used_by_rows_for(rows: list[ReleaseTableRow], matches: list[ReleaseTableRow]) -> list[ReleaseTableRow]:
+    """Every row in `rows` (excluding `matches` themselves) whose
+    non-empty "used_by" value relates to one of `matches`' own "name" or
+    "alias" values, so that a Technische-section row comes back
+    regardless of which column/text the original query actually matched
+    on. Two ways a used_by value can relate to a match:
+    - whole words of its "name" (word_contains, the matching the doc
+      scripts use) — e.g. "zac" in "Zaak - ZAC", "keycloak-operator" in
+      "Keycloak Operator"
+    - exact match of its "alias" column (set by
+      export-confluence-release-table) — e.g. used_by "ita" equals
+      "Interne Taak Afhandeling"'s own alias; "ita" itself is not a
+      substring of that name at all."""
+    names = [m["name"] for m in matches]
+    aliases = {m["alias"].lower() for m in matches if m["alias"]}
+    match_ids = {id(m) for m in matches}
+
+    result: list[ReleaseTableRow] = []
+    for row in rows:
+        used_by = row["used_by"]
+        if not used_by or id(row) in match_ids:
+            continue
+        if any(word_contains(name, used_by) for name in names) or used_by.lower() in aliases:
+            result.append(row)
+    return result
+
+
+def display_value(row: ReleaseTableRow, column: VersionColumn) -> str:
+    """`row[column]` unchanged, except a target version column shows
+    "UNCHANGED" instead of the raw value when either there's no target
+    value at all (empty cell), or the target equals its own source
+    column's value (e.g. target_version_app == source_version_app) —
+    both mean nothing actually changed for that app/helm version on this
+    release."""
+    value = row[column]
+    if column in TARGET_VERSION_COLUMNS and (not value or value == row[TARGET_TO_SOURCE_COLUMN[column]]):
+        return "UNCHANGED"
+    return value
+
+
+def print_table(rows: list[ReleaseTableRow]) -> None:
+    """Prints `rows` as a whitespace-aligned table: name/component/alias/
+    image_basename plus the four version columns (see display_value for
+    how a target column renders as "UNCHANGED"), with each column's width
+    computed from its widest cell, header included."""
+    headers = ["name", "component", "alias", "image_basename", *list(VERSION_COLUMNS)]
+    table = [
+        [row["name"], row["component"], row["alias"], row["image_basename"]]
+        + [display_value(row, col) for col in VERSION_COLUMNS]
+        for row in rows
+    ]
+    widths = [max(len(headers[i]), *(len(r[i]) for r in table)) for i in range(len(headers))]
+    print("  ".join(h.ljust(w) for h, w in zip(headers, widths, strict=False)))
+    for r in table:
+        print("  ".join(v.ljust(w) for v, w in zip(r, widths, strict=False)))
+
+
+def main():
+    """CLI entry point: matches release-table.csv rows against
+    `column`/`text` (a "component" query also matches alias/name — see
+    component_matches), printing them as a table via print_table, plus a
+    second table of any tooling rows whose "used_by" relates back to a
+    match (see used_by_rows_for)."""
+    exit_on_help(__doc__)
+    if len(sys.argv) != 3 or not is_query_column(sys.argv[1]):
+        print(__doc__)
+        sys.exit(1)
+    column, text = sys.argv[1], sys.argv[2]
+
+    if not DEFAULT_INPUT.is_file():
+        print(f"error: {DEFAULT_INPUT} not found")
+        print("Create it first with export-confluence-release-table, e.g.:")
+        print("    export-confluence-release-table --url <page-url> --user <email> --token-file <path>")
+        sys.exit(1)
+
+    rows = read_release_table(DEFAULT_INPUT)
+    matches = component_matches(rows, text) if column == "component" else matching_rows(rows, column, text)
+    if not matches:
+        print(f"no rows found where {column} contains {text!r}")
+        sys.exit(1)
+
+    print(f"Matches for {column} {text!r}:")
+    print_table(matches)
+
+    used_by_matches = used_by_rows_for(rows, matches)
+    if used_by_matches:
+        print()
+        print("Used by matched component(s):")
+        print_table(used_by_matches)
+
+
+if __name__ == "__main__":
+    main()

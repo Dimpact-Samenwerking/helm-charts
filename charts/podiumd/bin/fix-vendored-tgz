@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""
+Delete extracted sub-chart directories that shadow a vendored .tgz.
+
+Removes every charts/podiumd/charts/<name>/ directory next to a pinned
+<name>-<version>.tgz. Helm prefers the directory over the .tgz, so a
+stale directory silently replaces the pinned sub-chart. verify-podiumd
+reports these; this script deletes them.
+
+Usage:
+    fix-vendored-tgz [--dry-run]
+
+Options:
+    --dry-run   report the directories, delete nothing
+"""
+
+import shutil
+import sys
+
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
+from lib.checks.vendored_tgz import find_extracted_vendored_dirs
+
+
+def main():
+    """CLI entry point: deletes every extracted charts/podiumd/charts/<name>/
+    directory that shadows a pinned <name>-<version>.tgz, or with
+    --dry-run just lists them and exits 1 without deleting anything."""
+    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
+        print(__doc__)
+        sys.exit(0)
+    dry_run = "--dry-run" in sys.argv[1:]
+
+    extracted = find_extracted_vendored_dirs(CHART_DIR)
+    if not extracted:
+        print("OK: no vendored sub-chart has both a pinned .tgz and an extracted directory")
+        sys.exit(0)
+
+    charts_subdir = CHART_DIR / "charts"
+
+    if dry_run:
+        print(
+            f"Found {len(extracted)} extracted director{'y' if len(extracted) == 1 else 'ies'} "
+            f"shadowing a pinned .tgz (dry-run, not deleting):"
+        )
+        for name in extracted:
+            print(f"  charts/{name}/")
+        sys.exit(1)
+
+    for name in extracted:
+        shutil.rmtree(charts_subdir / name)
+        print(f"Deleted charts/{name}/ (was shadowing a pinned {name}-<version>.tgz)")
+
+    print(
+        f"Removed {len(extracted)} extracted director{'y' if len(extracted) == 1 else 'ies'} "
+        f"— re-run verify-podiumd to confirm"
+    )
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

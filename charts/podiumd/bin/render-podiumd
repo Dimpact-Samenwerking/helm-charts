@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""
+Render the podiumd chart with the same `helm template` call verify-podiumd
+uses, to inspect the manifest behind a failed check.
+
+Writes to charts/podiumd/rendered-helm.yaml unless an output file or
+--stdout is given. With --stdout only the YAML goes to stdout; messages
+go to stderr. Without extra args it renders with ci/lint-values.yaml
+(the verify-podiumd default); extra args replace that default and go to
+`helm template` as-is. The script prints which of the two it uses.
+
+Usage:
+    render-podiumd [output-file] [helm-template-args...]
+    render-podiumd --stdout [helm-template-args...]
+
+Examples:
+    render-podiumd
+    render-podiumd /tmp/podiumd.yaml
+    render-podiumd /tmp/frank.yaml -s templates/frankgateway.yaml
+    render-podiumd --stdout | grep -A5 'kind: Deployment'
+
+Requires: helm on PATH.
+"""
+
+import contextlib
+import sys
+
+from pathlib import Path
+from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
+from lib.cli import exit_on_help
+from lib.dependencies import ensure_vendored_dependencies
+from lib.render_scope import lint_args_for
+from lib.render_scope import render_chart
+from lib.render_scope import report_errors_by_subchart
+from lib.render_scope import report_largest_templates
+from lib.settings import render_report_default_output_file_name
+from lib.settings import render_report_top_n_largest_templates_shown
+
+DEFAULT_OUTPUT = CHART_DIR / render_report_default_output_file_name(CHART_DIR)
+
+
+def main():
+    """CLI entry point: renders the podiumd chart with either the default
+    CI values or any extra `helm template` args passed on the command
+    line, writing the manifest to [output-file] (default rendered-helm.
+    yaml) or to stdout with --stdout (in which case every status message
+    is redirected to stderr so stdout stays pure YAML)."""
+    exit_on_help(__doc__)
+    ensure_vendored_dependencies(CHART_DIR)
+
+    args = sys.argv[1:]
+    to_stdout = bool(args) and args[0] == "--stdout"
+    if to_stdout:
+        args = args[1:]
+        output_path = None
+    else:
+        output_path = Path(args[0]) if args else DEFAULT_OUTPUT
+        args = args[1:] if args else []
+
+    # In --stdout mode, stdout is the data channel (the rendered YAML) —
+    # every status/diagnostic message must go to stderr instead, or it
+    # would corrupt a pipe/redirect of stdout.
+    def status(*a: Any, **kw: Any):
+        print(*a, file=sys.stderr if to_stdout else None, **kw)
+
+    if args:
+        extra_args = args
+        status(f"Rendering with custom args (default -f ci/lint-values.yaml NOT applied): {' '.join(extra_args)}")
+    else:
+        extra_args = lint_args_for(CHART_DIR)
+        status(f"Rendering with default CI values: {' '.join(extra_args) or '(none found)'}")
+
+    result = render_chart(CHART_DIR, extra_args)
+    if result.returncode != 0:
+        status(result.stderr, end="" if result.stderr.endswith("\n") else "\n")
+        if to_stdout:
+            with contextlib.redirect_stdout(sys.stderr):
+                report_errors_by_subchart(result.stderr)
+        else:
+            report_errors_by_subchart(result.stderr)
+        dest = "stdout" if to_stdout else str(output_path)
+        status(f"error: helm template failed to render (nothing written to {dest})")
+        sys.exit(1)
+
+    doc_count = sum(1 for line in result.stdout.splitlines() if line.startswith("---"))
+    top_n = render_report_top_n_largest_templates_shown(CHART_DIR)
+    if output_path is None:
+        status(f"OK: rendered {doc_count} manifest(s) to stdout")
+        with contextlib.redirect_stdout(sys.stderr):
+            report_largest_templates(result.stdout, top_n)
+        sys.stdout.write(result.stdout)
+    else:
+        output_path.write_text(result.stdout, encoding="utf-8")
+        status(f"OK: rendered {doc_count} manifest(s) to {output_path}")
+        report_largest_templates(result.stdout, top_n)
+
+
+if __name__ == "__main__":
+    main()

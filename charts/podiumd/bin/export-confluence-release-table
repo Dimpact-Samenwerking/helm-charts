@@ -1,0 +1,635 @@
+#!/usr/bin/env python3
+"""
+Export the release component tables of a Confluence page to a CSV file.
+
+Writes charts/podiumd/etc/release-table.csv, one row per component, with
+its component name and alias resolved against Chart.yaml and values.yaml.
+
+Authentication: your Atlassian email plus a classic API token (a scoped
+token does not work). Create one under profile icon > Account settings >
+Security > API tokens; it is shown once. The token is read from
+--token-file, CONFLUENCE_API_TOKEN or a prompt; --token also works but
+ends up in shell history.
+
+Examples:
+    export-confluence-release-table --url <page-url> --user <email> \\
+        --token-file ~/.confluence-token
+    export-confluence-release-table --recompute-basenames
+"""
+
+import argparse
+import csv
+import getpass
+import os
+import sys
+
+from dataclasses import dataclass
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
+from lib.chart.release_baseline_basics import chart_version as read_chart_version
+from lib.confluence_tables import ReleaseColumns
+from lib.confluence_tables import TableCell
+from lib.confluence_tables import effective_header_row_count
+from lib.confluence_tables import expand_grid
+from lib.confluence_tables import extract_tables
+from lib.confluence_tables import fetch_page_html
+from lib.confluence_tables import find_versie_groups
+from lib.confluence_tables import header_paths
+from lib.confluence_tables import is_semver_compatible
+from lib.confluence_tables import major_minor
+from lib.confluence_tables import missing_required_release_columns
+from lib.confluence_tables import select_release_columns
+from lib.confluence_tables import tables_under_headings
+from lib.release_table.component_resolution import DependencyNames
+from lib.release_table.component_resolution import chart_dependencies
+from lib.release_table.component_resolution import component_and_alias
+from lib.release_table.component_resolution import global_image_keys
+from lib.release_table.component_resolution import orphan_values_yaml_keys
+from lib.release_table.csv_rows import CSV_HEADER
+from lib.release_table.image_basenames import resolve_image_basenames
+
+DEFAULT_OUTPUT = CHART_DIR / "etc" / "release-table.csv"
+
+# The four sections this export exists for, on the podiumd release-notes
+# Confluence page — pass --heading (repeatable) to override.
+DEFAULT_HEADINGS = [
+    "Product component versies",
+    "Common Ground component versies",
+    "Overige component versies",
+    "Technische component versies",
+]
+
+
+# Stripped from the end of a matched heading before it goes into the CSV's
+# "section" column — "Product component versies" -> "Product", etc. Only
+# the CSV value is shortened this way; log/warning output (which quotes
+# the heading to help you find it back on the actual page) always uses
+# the real, full heading text.
+SECTION_SUFFIX = " component versies"
+
+# How many extra rows beyond effective_header_row_count()'s own guess to
+# try as the header block — see resolve_header_row_count. Confluence
+# doesn't always tag a sub-header row (e.g. "App"/"Helm" under a <th>
+# "Versie 4.8") as <th> itself; seen in practice on the real podiumd page,
+# where the top header row uses <th> but its own sub-header row uses
+# plain <td>, undercounting the header block by exactly one row.
+MAX_HEADER_ROW_PROBE = 2
+
+
+def resolve_header_row_count(rows: list[list[TableCell]], grid: list[list[str]]) -> int:
+    """effective_header_row_count(rows, grid), extended by up to
+    MAX_HEADER_ROW_PROBE extra rows if that's what it takes for
+    select_release_columns to find every required column — see
+    MAX_HEADER_ROW_PROBE for why a table's own <th> tagging can't always
+    be trusted to mark the full header block. Falls back to the
+    untouched base count if no depth in that range resolves everything
+    (extract_release_rows will then report it as missing the usual way).
+
+    Among every depth that DOES resolve every required column, prefers
+    the DEEPEST one that additionally resolves an optional column
+    ("vendor"/"used_by"/"source_helm"/"target_helm") a shallower depth
+    still missed — never the other way around (a deeper depth is only
+    ever preferred for GAINING a column, never for losing one). Without
+    this, a table whose "Versie ..." groups have exactly one column
+    each (see select_release_columns' own position-based match for that
+    shape — real case: "Technische component versies" since its Helm
+    sub-column was dropped) already satisfies the required columns at
+    the SHALLOWEST depth, before the probe ever reaches the row where
+    "Used by" actually lives — silently losing every row's used_by
+    value (and, downstream, its component resolution) even though a
+    deeper, still-required-column-valid depth would have found it.
+    Confirmed live against the real podiumd release page — every
+    "Technische" row's used_by/component came back blank/UNKNOWN before
+    this fix."""
+    base = effective_header_row_count(rows, grid)
+    best_count, best_columns = None, None
+    for extra in range(MAX_HEADER_ROW_PROBE + 1):
+        count = base + extra
+        if count > len(grid):
+            break
+        columns = select_release_columns(header_paths(grid, count))
+        if missing_required_release_columns(columns):
+            continue
+        if best_columns is None:
+            best_count, best_columns = count, columns
+            continue
+        if any(
+            columns[key] is not None and best_columns[key] is None
+            for key in ("vendor", "used_by", "source_helm", "target_helm")
+        ):
+            best_count, best_columns = count, columns
+    return best_count if best_count is not None else base
+
+
+def parse_args():
+    """Parses this script's CLI arguments, enforcing that --url and --user
+    are both given unless --recompute-basenames is set (that mode reads
+    the already-exported CSV in place and needs no Confluence access at
+    all)."""
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--url", help="Confluence page URL (required unless --recompute-basenames)")
+    parser.add_argument("--user", help="Atlassian account email (required unless --recompute-basenames)")
+    parser.add_argument("--token", help="API token (prefer --token-file or CONFLUENCE_API_TOKEN instead)")
+    parser.add_argument("--token-file", help="path to a file containing just the API token")
+    parser.add_argument(
+        "--output", default=str(DEFAULT_OUTPUT), help="CSV output path (default: charts/podiumd/etc/release-table.csv)"
+    )
+    parser.add_argument(
+        "--heading",
+        action="append",
+        help=f"only use the table(s) under this heading; repeatable (default: {', '.join(DEFAULT_HEADINGS)})",
+    )
+    parser.add_argument(
+        "--recompute-basenames",
+        action="store_true",
+        help="only recompute the image_basename column of the existing --output CSV "
+        "from the current values.yaml; no Confluence access needed",
+    )
+    args = parser.parse_args()
+    if not args.recompute_basenames and not (args.url and args.user):
+        parser.error("--url and --user are required unless --recompute-basenames is set")
+    return args
+
+
+def normalize_version(value: str):
+    """`value` unchanged if it's empty (no version at all for that cell —
+    not a malformed one) or already semver-compatible; otherwise
+    "UNKNOWN", flagging a value this export can't treat as a real version
+    (see is_semver_compatible for what that covers)."""
+    if not value or is_semver_compatible(value):
+        return value
+    return "UNKNOWN"
+
+
+def section_name(heading: str):
+    """`heading` with SECTION_SUFFIX stripped off the end, if present —
+    "Product component versies" -> "Product". Unchanged if it doesn't end
+    with that exact suffix (e.g. a custom --heading), rather than
+    corrupting text this didn't anticipate."""
+    return heading.removesuffix(SECTION_SUFFIX)
+
+
+def check_target_matches_chart_version(target_labels: list[str], chart_dir: Path) -> None:
+    """Prints a large warning to stderr for every distinct label in
+    `target_labels` (see find_versie_groups — the second, "target",
+    "Versie ..." group found per table) whose MAJOR.MINOR doesn't match
+    chart_dir/Chart.yaml's own "version:" (patch ignored). Never raises —
+    a mismatch is worth a human's attention, not a reason to stop
+    exporting whatever the page actually says.
+
+    Silent only when chart_dir has no Chart.yaml at all — a real export
+    always runs against CHART_DIR (this script's own real parent
+    directory, which always has one); this branch exists purely so tests
+    that don't care about this check can point chart_dir at an empty
+    tmp_path without triggering it. Every OTHER way this check can't
+    actually verify anything — Chart.yaml's own "version:" isn't a valid
+    MAJOR.MINOR(.PATCH), or no table's heading yielded a resolvable
+    target-version group at all — warns instead of quietly behaving the
+    same as "verified, and it matched"."""
+    chart_yaml_path = chart_dir / "Chart.yaml"
+    if not chart_yaml_path.is_file():
+        return
+    chart_version = read_chart_version(chart_yaml_path)
+    chart_major_minor = major_minor(chart_version)
+    if chart_major_minor is None:
+        print(
+            f"WARNING: could not verify Confluence target version against Chart.yaml — "
+            f'its own "version: {chart_version}" isn\'t a valid MAJOR.MINOR(.PATCH)'
+        )
+        return
+    if not target_labels:
+        print(
+            "WARNING: could not verify Confluence target version against Chart.yaml — "
+            'no table\'s "Versie ..." heading yielded a resolvable target-version group'
+        )
+        return
+
+    mismatched = sorted({label for label in target_labels if major_minor(label) != chart_major_minor})
+    if not mismatched:
+        return
+
+    border = "!" * 72
+    print(border, file=sys.stderr)
+    print("!! WARNING: Confluence target version does NOT match Chart.yaml !!", file=sys.stderr)
+    print(f"!!   Chart.yaml version:        {chart_version}  (major.minor {chart_major_minor})", file=sys.stderr)
+    for label in mismatched:
+        print(f"!!   Confluence target heading: {label!r}  (major.minor {major_minor(label)})", file=sys.stderr)
+    print(border, file=sys.stderr)
+
+
+def recompute_image_basenames(csv_path: Path, chart_dir: Path) -> list[tuple[str, str, str, str]]:
+    """Rewrites ONLY the "image_basename" column of the CSV already at
+    `csv_path`, in place — every other column (every version, and every
+    other already-resolved column) is carried through completely
+    unchanged. Never fetches Confluence: reads the rows `csv_path`
+    already has and re-derives each row's image_basename by calling
+    resolve_image_basenames (the exact same function a real export
+    uses) against `chart_dir`'s CURRENT values.yaml — so a values.yaml-
+    only change (e.g. a component whose image gains/loses a digest pin)
+    can be picked up without Confluence credentials or a page re-scrape
+    at all. Never fabricates a value itself; whatever resolve_image_
+    basenames can't resolve stays/becomes blank exactly like a real
+    export.
+
+    Returns [(name, component, old, new), ...] for every row whose
+    image_basename actually changed, in file order — [] if nothing did.
+    Raises SystemExit if csv_path doesn't exist, or its header doesn't
+    match CSV_HEADER — this only ever operates on a CSV this same
+    script wrote."""
+    rows = _read_csv_rows(csv_path)
+
+    # resolve_image_basenames expects rows shaped exactly like extract_
+    # release_rows' own rows_out — i.e. WITHOUT the image_basename column
+    # (it inserts that itself, by position) — so strip it out here and
+    # re-insert only the (possibly new) value at that same position below.
+    basename_idx = CSV_HEADER.index("image_basename")
+    stripped = [row[:basename_idx] + row[basename_idx + 1 :] for row in rows]
+    new_basenames = resolve_image_basenames(stripped, chart_dir)
+
+    name_idx, component_idx = CSV_HEADER.index("name"), CSV_HEADER.index("component")
+    changes = _apply_new_basenames(rows, new_basenames, basename_idx, name_idx, component_idx)
+
+    _write_csv_rows(csv_path, rows)
+    return changes
+
+
+def _read_csv_rows(csv_path: Path) -> list[list[str]]:
+    """rows (list of lists) from `csv_path`'s own CSV_HEADER-shaped
+    contents — raises SystemExit if csv_path doesn't exist, or its
+    header doesn't match CSV_HEADER (see recompute_image_basenames' own
+    docstring for why that refuses to proceed)."""
+    if not csv_path.is_file():
+        msg = f"error: {csv_path} does not exist — nothing to recompute"
+        raise SystemExit(msg)
+    with csv_path.open(newline="", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        header = next(reader, None)
+        if header != CSV_HEADER:
+            msg = (
+                f"error: {csv_path}'s header doesn't match the expected CSV_HEADER — "
+                f"refusing to recompute a file this script didn't write"
+            )
+            raise SystemExit(msg)
+        return list(reader)
+
+
+def _write_csv_rows(csv_path: Path, rows: list[list[str]]):
+    """Writes CSV_HEADER + `rows` to `csv_path`, LF-terminated."""
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f, lineterminator="\n")
+        writer.writerow(CSV_HEADER)
+        writer.writerows(rows)
+
+
+def _apply_new_basenames(
+    rows: list[list[str]], new_basenames: list[str], basename_idx: int, name_idx: int, component_idx: int
+) -> list[tuple[str, str, str, str]]:
+    """Rewrites `rows`' own image_basename column (at basename_idx) in
+    place from `new_basenames` (same order) and returns [(name,
+    component, old, new), ...] for every row that actually changed."""
+    changes: list[tuple[str, str, str, str]] = []
+    for row, new_basename in zip(rows, new_basenames, strict=False):
+        old_basename = row[basename_idx]
+        if new_basename != old_basename:
+            changes.append((row[name_idx], row[component_idx], old_basename, new_basename))
+            row[basename_idx] = new_basename
+    return changes
+
+
+def apply_native_helm_marker(rows: list[list[str]]) -> None:
+    """Mutates `rows` (CSV_HEADER-shaped, post-image_basename-insert) in
+    place: for every row whose source_version_helm AND target_version_
+    helm are BOTH still empty, used_by is empty (a component's own
+    PRIMARY row — a "used_by"-tagged sidecar row is never a component in
+    its own right, so "NATIVE" would be meaningless there), and
+    component is a real, single resolved component (not "MULTIPLE",
+    "UNKNOWN", or blank — same exclusion component_and_alias's own
+    callers already apply, e.g. resolve_image_basenames), sets BOTH helm
+    columns to "NATIVE".
+
+    Distinguishes a component with genuinely no separate Helm sub-chart
+    at all (e.g. frankgateway — templated directly by podiumd's own
+    templates, never a chart of its own to version) from a table that
+    simply has no Helm sub-column to begin with (see extract_release_
+    rows) — both would otherwise leave the exact same blank cell,
+    indistinguishable in the exported CSV."""
+    for row in rows:
+        used_by, component = row[CSV_HEADER.index("used_by")], row[CSV_HEADER.index("component")]
+        if used_by or component in ("MULTIPLE", "UNKNOWN", ""):
+            continue
+        source_idx, target_idx = CSV_HEADER.index("source_version_helm"), CSV_HEADER.index("target_version_helm")
+        if not row[source_idx] and not row[target_idx]:
+            row[source_idx] = "NATIVE"
+            row[target_idx] = "NATIVE"
+
+
+def resolve_token(args: argparse.Namespace):
+    """Returns the Confluence API token to authenticate with, preferring
+    --token-file, then --token, then the CONFLUENCE_API_TOKEN environment
+    variable, and finally an interactive getpass prompt as the last
+    resort — so a token never has to be typed on the command line (where
+    it'd land in shell history) or passed as a bare env var by mistake."""
+    if args.token_file:
+        return Path(args.token_file).read_text(encoding="utf-8").strip()
+    if args.token:
+        return args.token
+    env_token = os.environ.get("CONFLUENCE_API_TOKEN")
+    if env_token:
+        return env_token
+    return getpass.getpass("Confluence API token: ")
+
+
+@dataclass
+class ComponentResolutionContext:
+    """dependencies/orphan_keys/global_keys — extract_release_rows'
+    own three component_and_alias resolution inputs, resolved once up
+    front and threaded unchanged through _rows_for_table/_release_row_
+    from_data_row so every row in every table resolves against the
+    exact same values (never re-derived per-row/per-table)."""
+
+    dependencies: list[DependencyNames]
+    orphan_keys: list[DependencyNames]
+    global_keys: list[str]
+
+
+def extract_release_rows(
+    html: str, headings: list[str] | None = None, chart_dir: Path | None = None
+) -> list[list[str]]:
+    """Return the CSV data rows (section, vendor, used_by, name,
+    component, alias, image_basename, source_version_app/helm,
+    target_version_app/helm) across every table directly under one of
+    `headings` (default DEFAULT_HEADINGS) that has the required source/
+    target App columns — "section" is the matched heading with
+    SECTION_SUFFIX stripped (see section_name). A table with no separate
+    Helm sub-column at all (see lib.confluence_tables.
+    REQUIRED_RELEASE_COLUMNS — "Technische component versies" on the
+    real page, since 2026-09) still exports, just with blank
+    source/target_version_helm cells, same as any other value this
+    export never saw a version for — EXCEPT a primary row (used_by
+    blank) for a real, single resolved component whose helm cells are
+    blank for a DIFFERENT reason: it genuinely has no separate Helm
+    sub-chart at all (e.g. frankgateway), rather than this table simply
+    lacking a Helm column — see apply_native_helm_marker, which fills
+    "NATIVE" into both cells for exactly that case. Prints a one-line
+    report per matching-heading table (rows matched, or which required
+    column it's missing) — using the real, full heading text, not the
+    shortened "section" value — and a large warning (see
+    check_target_matches_chart_version) if any table's target heading
+    doesn't match `chart_dir` (default CHART_DIR) Chart.yaml's version.
+
+    Also warns, per-row, for anything that could otherwise pass through
+    unseen: an UNKNOWN component or a non-semver version cell (see
+    _release_row_from_data_row), a MULTIPLE row whose image_basename
+    couldn't be resolved at all (see _insert_resolved_basenames), and
+    two distinct rows resolving to the exact same (component,
+    image_basename) pair (see _warn_duplicate_component_basename_
+    pairs)."""
+    headings = headings or DEFAULT_HEADINGS
+    chart_dir = chart_dir or CHART_DIR
+    dependencies = chart_dependencies(chart_dir)
+    context = ComponentResolutionContext(
+        dependencies, orphan_values_yaml_keys(chart_dir, dependencies), global_image_keys(chart_dir)
+    )
+    all_tables = extract_tables(html)
+    if not all_tables:
+        msg = "error: no <table> found on that page"
+        raise SystemExit(msg)
+
+    matching = tables_under_headings(all_tables, headings)
+    print(f"Found {len(all_tables)} table(s) on the page, {len(matching)} under a matching heading")
+    if not matching:
+        msg = f"error: no table found directly under any of: {', '.join(headings)}"
+        raise SystemExit(msg)
+
+    rows_out, unknown_count, target_labels = _rows_for_tables(matching, context)
+
+    check_target_matches_chart_version(target_labels, chart_dir)
+
+    if not rows_out:
+        msg = (
+            "error: every matching-heading table was missing a required column "
+            "(source/target Versie ... App) — see the skip reason(s) above"
+        )
+        raise SystemExit(msg)
+    if unknown_count:
+        print(f"{unknown_count} version value(s) were not semver-compatible — replaced with UNKNOWN")
+
+    _insert_resolved_basenames(rows_out, chart_dir)
+    apply_native_helm_marker(rows_out)
+    _warn_duplicate_component_basename_pairs(rows_out)
+
+    return rows_out
+
+
+def _rows_for_tables(
+    matching: list[tuple[str, list[list[TableCell]]]], context: ComponentResolutionContext
+) -> tuple[list[list[str]], int, list[str]]:
+    """_rows_for_table over every matched (heading, rows) table: returns
+    (all data rows, total non-semver cell count, target labels)."""
+    rows_out: list[list[str]] = []
+    unknown_count = 0
+    target_labels: list[str] = []
+    for heading, rows in matching:
+        table_rows, table_unknown_count, target_label = _rows_for_table(heading, rows, context)
+        rows_out.extend(table_rows)
+        unknown_count += table_unknown_count
+        if target_label is not None:
+            target_labels.append(target_label)
+    return rows_out, unknown_count, target_labels
+
+
+def _rows_for_table(
+    heading: str, rows: list[list[TableCell]], context: ComponentResolutionContext
+) -> tuple[list[list[str]], int, str | None]:
+    """The CSV data rows this one already-matched table contributes
+    (before image_basename is resolved/inserted — see extract_release_
+    rows' own docstring), plus how many of its version cells weren't
+    semver-compatible, and its own target Versie group label for
+    check_target_matches_chart_version (None if this table has no
+    target group at all) — ([], 0, None) when the table is skipped for
+    missing a required column. Prints this table's own one-line report
+    (rows matched, or which column it's missing)."""
+    grid = expand_grid(rows)
+    header_row_count = resolve_header_row_count(rows, grid)
+    paths = header_paths(grid, header_row_count)
+    groups = find_versie_groups(paths)
+    target_label = groups[1][0] if len(groups) == 2 else None
+    columns = select_release_columns(paths)
+    missing = missing_required_release_columns(columns)
+    if missing:
+        print(f'"{heading}": skipped (missing required column(s): {", ".join(missing)})')
+        return [], 0, target_label
+
+    rows_out: list[list[str]] = []
+    unknown_count = 0
+    for data_row in grid[header_row_count:]:
+        if not any(cell.strip() for cell in data_row):
+            continue
+        row, row_unknown_count = _release_row_from_data_row(data_row, heading, columns, context)
+        rows_out.append(row)
+        unknown_count += row_unknown_count
+    print(f'"{heading}": {len(rows_out)} row(s) matched')
+    return rows_out, unknown_count, target_label
+
+
+def _column_text(data_row: list[str], index: int | None) -> str:
+    """The cell at `index` of a table data row, "" when the table has no
+    such column (index None)."""
+    return data_row[index] if index is not None else ""
+
+
+def _release_row_from_data_row(
+    data_row: list[str], heading: str, columns: ReleaseColumns, context: ComponentResolutionContext
+) -> tuple[list[str], int]:
+    """One CSV data row (section, vendor, used_by, name, component,
+    alias, ...versions) resolved from one matched table's own data
+    row, plus how many of its version cells weren't semver-compatible
+    (see extract_release_rows' own aggregate count) — printing the
+    same per-row UNKNOWN-component/UNKNOWN-version warnings extract_
+    release_rows always printed inline."""
+    vendor = _column_text(data_row, columns["vendor"])
+    used_by = _column_text(data_row, columns["used_by"])
+    name = _column_text(data_row, columns["first"])
+    # used_by (when set) is a much better resolution signal than the
+    # row's own name — it's often already a literal Chart.yaml alias
+    # (e.g. "zac"), whereas a Technische row's own name (e.g. "Solr")
+    # usually shares no text with the component that uses it at all.
+    component, alias = component_and_alias(
+        used_by or name, context.dependencies, context.orphan_keys, context.global_keys
+    )
+    if component == "UNKNOWN":
+        used_by_suffix = f' (used_by "{used_by}")' if used_by else ""
+        print(
+            f'WARNING: "{name}"{used_by_suffix} did not resolve to any Chart.yaml '
+            f"dependency, orphan values.yaml key, or global image key"
+        )
+    # source_app/target_app are guaranteed resolved (see missing_
+    # required_release_columns above); source_helm/target_helm are
+    # optional and blank exactly like a missing vendor/used_by cell
+    # when this table has no Helm sub-column.
+    version_columns = ("source_version_app", "source_version_helm", "target_version_app", "target_version_helm")
+    versions = [
+        normalize_version(_column_text(data_row, columns[key]))
+        for key in ("source_app", "source_helm", "target_app", "target_helm")
+    ]
+    for column_name, value in zip(version_columns, versions, strict=False):
+        if value == "UNKNOWN":
+            print(f'WARNING: "{name}": {column_name} is not semver-compatible — replaced with UNKNOWN')
+    unknown_count = sum(1 for v in versions if v == "UNKNOWN")
+    return [section_name(heading), vendor, used_by, name, component, alias, *versions], unknown_count
+
+
+def _insert_resolved_basenames(rows_out: list[list[str]], chart_dir: Path) -> None:
+    """Resolves and inserts each row's own image_basename column (see
+    resolve_image_basenames), warning when a MULTIPLE row couldn't be
+    resolved at all — a MULTIPLE row with no resolved basename is
+    otherwise silent all the way through: this export just writes the
+    blank column, and verify-release-table-with-podiumd can't catch it
+    either (it only ever compares columns this script already
+    resolved, never re-derives — see its own module docstring) — so a
+    shared image whose row export couldn't actually pin down would go
+    untracked with no warning anywhere. Not raised as an error: a
+    human still has to add the Confluence row text this needs (see
+    component_and_alias's own docstring) before a re-export can
+    resolve it."""
+    basenames = resolve_image_basenames(rows_out, chart_dir)
+    for row, basename in zip(rows_out, basenames, strict=False):
+        if row[4] == "MULTIPLE" and not basename:
+            print(
+                f'WARNING: "{row[3]}" resolved to MULTIPLE but no image_basename could be '
+                f"resolved — its image will be untracked in {DEFAULT_OUTPUT.name}"
+            )
+        row.insert(6, basename)
+
+
+def _warn_duplicate_component_basename_pairs(rows_out: list[list[str]]) -> None:
+    """Warns for every (component, basename) pair two-or-more distinct
+    rows both resolve to — never legitimate: either an accidentally
+    duplicated Confluence row, or two differently-named rows that both
+    happen to describe the same underlying image. A blank component or
+    basename is excluded since those are already covered by their own
+    warnings above (UNKNOWN component) or are a normal, expected
+    "nothing to track here" result (a real component's own primary row
+    with no directly-pinned image at all — see resolve_image_
+    basenames's own docstring), not a duplicate."""
+    by_pair: dict[tuple[str, str], list[str]] = {}
+    for row in rows_out:
+        component, basename = row[4], row[6]
+        if component and basename:
+            by_pair.setdefault((component, basename), []).append(row[3])
+    for (component, basename), names in sorted(by_pair.items()):
+        if len(names) > 1:
+            print(
+                f'WARNING: {len(names)} rows all resolve to the same component "{component}" + '
+                f'image "{basename}": {", ".join(names)}'
+            )
+
+
+def warn_unknown_lines(rows: list[list[str]], csv_path: Path | str) -> None:
+    """Prints a warning to stderr naming every row of `csv_path` (by its
+    line number in the file) that has UNKNOWN in any column."""
+    unknown = [
+        (line, row[3], [column for column, value in zip(CSV_HEADER, row, strict=False) if value == "UNKNOWN"])
+        for line, row in enumerate(rows, start=2)
+        if "UNKNOWN" in row
+    ]
+    if not unknown:
+        return
+    print(f"WARNING: {len(unknown)} line(s) in {csv_path} contain UNKNOWN:", file=sys.stderr)
+    for line, name, columns in unknown:
+        print(f'  line {line}: "{name}" ({", ".join(columns)})', file=sys.stderr)
+
+
+def main():
+    """CLI entry point. With --recompute-basenames, only recomputes the
+    image_basename column of the CSV already at --output in place (no
+    Confluence fetch). Otherwise fetches --url, extracts the release rows
+    (extract_release_rows) and writes them fresh to --output as CSV,
+    always with LF line endings regardless of platform (see the writer's
+    own newline handling below) so re-exports don't produce spurious CRLF
+    diffs."""
+    args = parse_args()
+
+    if args.recompute_basenames:
+        changes = recompute_image_basenames(Path(args.output), CHART_DIR)
+        if changes:
+            print(f"Recomputed image_basename for {len(changes)} row(s) in {args.output}:")
+            for name, component, old, new in changes:
+                print(f'  {component} ("{name}"): {old!r} -> {new!r}')
+        else:
+            print(f"No image_basename values changed in {args.output}.")
+        warn_unknown_lines(_read_csv_rows(Path(args.output)), args.output)
+        return
+
+    token = resolve_token(args)
+
+    html = fetch_page_html(args.url, args.user, token)
+    rows = extract_release_rows(html, args.heading)
+
+    output_path = Path(args.output)
+    with output_path.open("w", newline="", encoding="utf-8") as f:
+        # csv's own "excel" dialect defaults to "\r\n" regardless of
+        # platform; with newline="" (required so it doesn't ALSO get
+        # translated by the text layer) that writes literal CRLF bytes,
+        # which every other file in this repo (and git) treats as a
+        # diff on every re-export. LF matches the rest of the repo.
+        writer = csv.writer(f, lineterminator="\n")
+        writer.writerow(CSV_HEADER)
+        writer.writerows(rows)
+
+    print(f"Wrote {len(rows)} row(s) to {output_path}")
+    warn_unknown_lines(rows, output_path)
+
+
+if __name__ == "__main__":
+    main()

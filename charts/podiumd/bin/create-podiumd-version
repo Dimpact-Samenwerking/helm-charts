@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""
+Start a new podiumd release cycle on a feature/podiumd-<X.Y.Z> branch.
+
+Takes the target version from the branch name and the outgoing version
+from Chart.yaml's version. Then:
+  - sets Chart.yaml version and appVersion to the target
+  - writes the outgoing version to charts/podiumd/etc/release-
+    baseline.yaml as upgrade_docs; on a minor bump also as release_table
+  - runs create-doc-version to create the upgrade docs
+
+The jump must be one patch step (4.9.0 -> 4.9.1) or one minor step
+(4.9.1 -> 4.10.0). Fails when the branch name has another shape, the
+jump is anything else, or a baseline to record has no podiumd-<version>
+tag or feature/podiumd-<version> branch.
+
+Usage:
+    create-podiumd-version
+
+Example:
+    # on feature/podiumd-4.9.1, Chart.yaml at 4.9.0
+    create-podiumd-version    # Chart.yaml -> 4.9.1, upgrade_docs 4.9.0
+"""
+
+import re
+import sys
+
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.historical_baselines import SEMVER_RE as CHART_VERSION_RE
+from lib.chart.paths import CHART_DIR
+from lib.chart.paths import CHART_YAML
+from lib.chart.release_baseline_basics import chart_version
+from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
+from lib.chart.release_baseline_basics import write_release_baselines
+from lib.chart.values_tree_primitives import replace_scalar_value
+from lib.cli import positional_args
+from lib.gitutil import current_branch
+from lib.gitutil import find_repo_root
+from lib.gitutil import resolve_baseline_ref
+from lib.procutil import run_script
+
+CREATE_DOC_VERSION_SCRIPT = SCRIPT_DIR / "create-doc-version"
+
+BRANCH_RE = re.compile(r"^feature/podiumd-(\d+\.\d+\.\d+)$")
+
+
+def current_chart_version():
+    """The podiumd chart's own currently-pinned version, read from
+    Chart.yaml via lib.chart.release_baseline_basics.chart_version — the
+    "baseline" being left behind by this run."""
+    return chart_version(CHART_YAML)
+
+
+def version_tuple(v: str):
+    """`v` (a plain "MAJOR.MINOR.PATCH" string) as an (int, int, int)
+    tuple, for the arithmetic comparison bump_kind needs — callers are
+    responsible for validating the shape first (see CHART_VERSION_RE in
+    main()), this raises ValueError on anything that isn't dot-separated
+    integers."""
+    return tuple(int(part) for part in v.split("."))
+
+
+def bump_kind(baseline: str, target: str):
+    """ "patch", "minor", or None (not a valid single-increment jump —
+    covers a same-or-lower target, a skipped version, and any
+    major-version change, which is out of scope for this tool
+    entirely)."""
+    b_major, b_minor, b_patch = version_tuple(baseline)
+    t_major, t_minor, t_patch = version_tuple(target)
+    if b_major == t_major and b_minor == t_minor and t_patch == b_patch + 1:
+        return "patch"
+    if b_major == t_major and t_minor == b_minor + 1 and t_patch == 0:
+        return "minor"
+    return None
+
+
+def update_chart_version(new_version: str) -> list[str]:
+    """Bump Chart.yaml's top-level "version:" and "appVersion:" (this
+    repo's own chart always keeps the two in lockstep — see git history of
+    every prior release bump) to new_version. Returns the field names
+    actually changed, in file order."""
+    lines = CHART_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
+    changed: list[str] = []
+    for i, line in enumerate(lines):
+        if re.match(r"^version:\s", line):
+            lines[i] = replace_scalar_value(line, new_version)
+            changed.append("version")
+        elif re.match(r"^appVersion:\s", line):
+            lines[i] = replace_scalar_value(line, new_version)
+            changed.append("appVersion")
+    if "version" not in changed:
+        msg = f"error: could not find a top-level 'version:' line in {CHART_YAML}"
+        raise SystemExit(msg)
+    CHART_YAML.write_text("".join(lines), encoding="utf-8")
+    return changed
+
+
+def _resolve_baseline_refs(repo_root: Path, upgrade_docs: str, release_table: str | None) -> dict[str, str]:
+    """{"upgrade_docs": ref, "release_table": ref} for the two new baseline
+    values; exits 1 if release_table is None or either value has no ref."""
+    resolved_refs: dict[str, str] = {}
+    for label, value in (("upgrade_docs", upgrade_docs), ("release_table", release_table)):
+        if value is None:
+            print(
+                "error: release_table baseline is not yet recorded in release-baseline.yaml "
+                "— cannot open a patch release without one already set (a minor-bump run "
+                "records it for the first time; there's no fallback for a patch bump)"
+            )
+            sys.exit(1)
+        ref, error = resolve_baseline_ref(repo_root, value)
+        if ref is None:
+            print(f"error: {label} baseline '{value}': {error}")
+            sys.exit(1)
+        resolved_refs[label] = ref
+    return resolved_refs
+
+
+def main():
+    """CLI entry point: opens a new podiumd release cycle — bumps
+    Chart.yaml's version/appVersion from the current branch's target
+    (parsed via BRANCH_RE) after checking the jump is a single valid
+    patch or minor increment (see bump_kind), records the outgoing
+    version as release-baseline.yaml's new upgrade_docs baseline (and, on
+    a minor bump, its new release_table baseline too), then scaffolds the
+    upgrade-path docs for that outgoing version by running
+    create-doc-version. See --help for the refusal conditions."""
+    positional_args(__doc__, 0)
+
+    repo_root = find_repo_root(CHART_DIR)
+    if repo_root is None:
+        print("error: not inside a git repository")
+        sys.exit(1)
+
+    branch = current_branch(repo_root)
+    m = BRANCH_RE.match(branch)
+    if not m:
+        print(
+            f"error: current branch '{branch or '(detached HEAD)'}' does not match "
+            f"'feature/podiumd-<MAJOR.MINOR.PATCH>' — refusing to guess the target version"
+        )
+        sys.exit(1)
+    target = m.group(1)
+
+    baseline = current_chart_version()
+    if not CHART_VERSION_RE.match(baseline):
+        print(f"error: {CHART_YAML}'s version '{baseline}' is not a plain MAJOR.MINOR.PATCH")
+        sys.exit(1)
+
+    kind = bump_kind(baseline, target)
+    if kind is None:
+        print(
+            f"error: {baseline} -> {target} is not a single patch increment (same "
+            f"major.minor, patch+1) or a single minor increment (same major, minor+1, "
+            f"patch 0) — refusing. A major-version change is out of scope for this tool; "
+            f"a skipped version or a same-or-lower target isn't supported either."
+        )
+        sys.exit(1)
+
+    # A minor bump marks a Confluence-documented release, so release_table
+    # moves with it; a patch bump keeps the recorded one.
+    new_release_table = baseline if kind == "minor" else read_release_table_baseline(CHART_DIR)
+
+    resolved_refs = _resolve_baseline_refs(repo_root, baseline, new_release_table)
+
+    changed = update_chart_version(target)
+    print(f"{CHART_YAML.name}: {', '.join(changed)} {baseline} -> {target} ({kind} bump)")
+
+    write_release_baselines(CHART_DIR, upgrade_docs=baseline, release_table=(baseline if kind == "minor" else None))
+    print(f"release-baseline.yaml: upgrade_docs {baseline} (resolved to {resolved_refs['upgrade_docs']})")
+    if kind == "minor":
+        print(f"release-baseline.yaml: release_table {baseline} (resolved to {resolved_refs['release_table']})")
+    else:
+        print(
+            f"release-baseline.yaml: release_table unchanged ({new_release_table}, "
+            f"resolved to {resolved_refs['release_table']})"
+        )
+
+    print()
+    print(f"=== Running create-doc-version (upgrade_docs baseline {baseline}) ===")
+    result = run_script([sys.executable, str(CREATE_DOC_VERSION_SCRIPT)])
+    sys.exit(result.returncode)
+
+
+if __name__ == "__main__":
+    main()

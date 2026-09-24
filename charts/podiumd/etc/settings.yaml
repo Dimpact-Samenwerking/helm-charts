@@ -1,0 +1,280 @@
+# Tunable policy constants for charts/podiumd/bin (cache TTLs, CVE
+# severity sets, retry counts, quality-gate pass/fail sets, thresholds)
+# — each key here mirrors a former hard-coded Python constant, so an
+# operator can retune one without touching code (see lib/settings.py).
+
+cve_scan:
+  high_severity_levels: ["CRITICAL", "HIGH"]
+  max_cves_per_package_before_summarizing: 5
+  # Long enough that a routine run doesn't re-pull/re-scan every image
+  # every time; short enough that a stale "no findings" cache entry
+  # doesn't silently hide a CVE disclosed against that digest since it
+  # was last scanned. The image content never changes for an unchanged
+  # digest, but trivy's own vulnerability DB does.
+  scan_cache_ttl_days: 7
+
+image_upgrade_check:
+  # A new tag can be published at any moment, so this is deliberately
+  # much shorter than cve_scan.scan_cache_ttl_days above -- caching here
+  # is purely about not re-querying every registry on every single local
+  # run within the same day, not about the answer being stable over any
+  # longer window.
+  tag_check_cache_ttl_days: 1
+
+repo_access:
+  # Short TTL -- long enough to skip a network round trip on a
+  # verify-podiumd re-run minutes or a couple of hours later while
+  # iterating on something unrelated (the actual, observed trigger for
+  # hitting Docker Hub's anonymous pull-rate limit during a real dev
+  # session), short enough that a real access change is still caught
+  # again soon.
+  cache_ttl_minutes: 30
+  request_timeout_seconds: 10
+  never_probe_host_suffixes: ["azurecr.io"]
+
+render_report:
+  top_n_largest_templates_shown: 5
+  # render-podiumd's default output file, written into the chart root.
+  # verify-helm-secret-size / verify-podiumd exclude this same file from
+  # the release Secret estimate (it's a local, gitignored debug artifact).
+  default_output_file_name: "rendered-helm.yaml"
+
+dry_check:
+  # Thresholds calibrated against this repo's own templates/ directory
+  # using two known reference points: the 9 pre-refactor storage.yaml
+  # files (see podiumd.storagePVC) -- a confirmed real dedup win -- score
+  # ~0.82 against each other; the two Keycloak realm-import jobs -- same
+  # Job skeleton, but genuinely different env/secret content, NOT worth
+  # forcing into one template -- score ~0.63. high_similarity_threshold
+  # sits between the two so the storage-file case is correctly flagged
+  # "likely worth deduping" and the Keycloak case stays "borderline".
+  similarity_threshold: 0.6
+  high_similarity_threshold: 0.75
+  # Below this many significant lines, near-any two short templates look
+  # "similar" by line-ratio alone -- not worth reporting as a candidate.
+  min_significant_lines: 8
+
+release_secret:
+  kubernetes_secret_limit_bytes: 1048576
+  warn_at_fraction_of_limit: 0.90
+
+dependency_fetch:
+  # `helm dependency update` fails intermittently on some repos (transient
+  # network blips, registry throttling) -- retried with this backoff
+  # before it's treated as a real failure.
+  retry_attempts: 3
+  retry_backoff_seconds: [5, 15, 45]
+
+quality_gates:
+  # statusError covers both "resource couldn't even be parsed" and a
+  # schema-fetch network failure; statusInvalid is a genuine schema
+  # violation. statusSkipped (no schema, expected for CRDs) and
+  # statusValid are not findings at all.
+  kubeconform_failing_statuses: ["statusError", "statusInvalid"]
+  # error/warning are shellcheck's own "likely a real bug" tiers; info/style
+  # are cosmetic suggestions and are never reported at all.
+  shellcheck_failing_levels: ["error", "warning"]
+  # A container's `command` must invoke one of these to be treated as an
+  # embedded shell script at all (this chart's own command/args convention).
+  shellcheck_shell_names: ["sh", "bash", "dash", "ksh"]
+  yamllint_failing_rules: ["key-duplicates", "syntax"]
+  markdown_disabled_rules: ["md013", "md014"]
+  # The only kube-score check this repo has a documented policy for --
+  # every other kube-score opinion (NetworkPolicy, ImagePullPolicy,
+  # SecurityContext, ...) is ignored (67+ unrelated findings otherwise).
+  kube_score_check_id: "container-resources"
+
+helm_doc:
+  # Past this many diff lines, printing every one stops being useful (a
+  # renamed top-level key can ripple through hundreds of rows) -- show a
+  # capped, representative excerpt instead.
+  max_diff_lines_shown: 40
+
+vendor_classification:
+  # Matched case-insensitively as a substring of a dependency's RESOLVED
+  # repository URL (an "@alias" is resolved via helm_repos.urls_by_alias
+  # first) -- every vendored sub-chart not covered here stays
+  # aggregate-count-only in every own/partner/other-bucketed check.
+  keywords:
+    "maykinmedia": "Maykin"
+    "infonl": "Info(NL)"
+    "worth-nl": "Worth"
+    "wearefrank": "WeAreFrank"
+    "dimpact": "Dimpact"
+    "icatt-menselijk-digitaal": "ICATT"
+  # By chart name (alias if the dependency has one) -- for a dependency
+  # whose own repository URL doesn't reveal its real vendor at all (KISS
+  # is developed by ICATT, but neither "kiss" nor its own
+  # oci://ghcr.io/klantinteractie-servicesysteem repository URL says so).
+  chart_overrides:
+    "kiss": "ICATT"
+
+helm_repos:
+  # Every Chart.yaml dependency that references a repo by "@alias" needs
+  # this to resolve to a real URL before `helm repo add`/`helm dependency
+  # update` can use it.
+  urls_by_alias:
+    "adfinis": "https://charts.adfinis.com"
+    "wiremind": "https://wiremind.github.io/wiremind-helm-charts"
+    "dimpact": "https://Dimpact-Samenwerking.github.io/helm-charts/"
+    "maykinmedia": "https://maykinmedia.github.io/charts/"
+    "kiss-elastic": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic"
+    "zac": "https://infonl.github.io/dimpact-zaakafhandelcomponent/"
+    "zgw-office-addin": "https://infonl.github.io/zgw-office-addin"
+    "worth-nl": "https://worth-nl.github.io/helm-charts"
+    "opstree": "https://ot-container-kit.github.io/helm-charts/"
+
+digest_pinning:
+  # A path here is exempt from the ordinary "@sha256:... embedded in tag"
+  # convention. sibling_field (when present) names the separate values.yaml
+  # field that actually carries the digest for this path, matching whatever
+  # its own upstream chart's template expects (see resolved_digest_pin).
+  # writable: true marks a path update-component-version may safely
+  # auto-write a fresh tag+digest to during a version bump — every other
+  # exempt path is read-only here (either it has no code path that ever
+  # writes it, or writing it isn't safe/meaningful, e.g. omc.image can't be
+  # digest-pinned in any form, and keycloak.image is a YAML *alias* of
+  # keycloak-operator.operator.config.keycloakImage's own anchor, so it
+  # never needs (or gets) its own separate write -- see update-component-
+  # version's own alias-detection).
+  exceptions:
+    "keycloak-operator.operator.image": {sibling_field: "sha", writable: true}
+    "keycloak-operator.operator.config.keycloakImage": {sibling_field: "sha", writable: true}
+    "keycloak.image": {sibling_field: "sha", writable: true}
+    "eck-operator.image": {sibling_field: "digest", writable: true}
+    "omc.image": {}
+
+component_resolution:
+  # Component names whose Chart.yaml dependency chart version and their
+  # own resolved app image version are released as the SAME number (e.g.
+  # kiss-chart, pabc: chart version == image tag observed today) -- never
+  # assumed for a component that vendors a THIRD PARTY app at its own
+  # independent version (keycloak-operator, eck-stack).
+  chart_version_lockstep_components: ["kiss-chart", "pabc", "eck-operator"]
+  # values.yaml top-level keys that are real, documentable components --
+  # with their own app version, own image(s), own upgrade-doc row -- but
+  # have NO backing Chart.yaml dependency at all: implemented directly
+  # via podiumd's own templates, not vendored as a sub-chart.
+  # frankgateway (Frank!Gateway -- WeAreFrank's Apache APISIX
+  # distribution) is the one real case today: it replaced the vendored
+  # apisix sub-chart in podiumd 4.8.2 (#385) and was ported in as native
+  # templates instead, since it needed org-specific OpenBao/Keycloak
+  # integration no generic upstream chart provides.
+  native_components: ["frankgateway"]
+  # component (name, not alias) -> the sibling dotted path holding a
+  # COMPONENT_VERSION_PATHS entry's own repository -- for the rare case
+  # where that repository IS explicitly overridable in podiumd's OWN
+  # values.yaml (redis-operator's own "imageName:"/"imageTag:" sibling-
+  # field convention). A bare "version:" field with nothing at all in
+  # podiumd's own values.yaml (eck-stack's own three -- see
+  # version_path_nested_subcharts below instead) is correctly left out.
+  version_repository_paths:
+    "redis-operator": "redisOperator.imageName"
+  # component -> {relative version-path field: nested sub-subchart name}
+  # for a bare tag/version field whose real repository has NO override
+  # anywhere in podiumd's own values.yaml -- because the operator maps
+  # the bare version to a fixed upstream image internally (the ECK
+  # operator's own version-to-image mapping for its managed
+  # Elasticsearch/Kibana/Enterprise Search CRDs). The only place that
+  # real image is documented at all is the nested sub-subchart's OWN
+  # values.yaml bundled inside the outer .tgz.
+  version_path_nested_subcharts:
+    "eck-stack":
+      "eck-elasticsearch.version": "eck-elasticsearch"
+      "eck-kibana.version": "eck-kibana"
+      "eck-enterprise-search.version": "eck-enterprise-search"
+  # component (name or alias) -> dotted values.yaml path(s) for its own
+  # image block(s), for components that ship more than one independently-
+  # versioned image (e.g. ZAC alone bundles 10+ -- opa, solr, zookeeper,
+  # curl, gotenberg...) with nothing in the chart itself saying which one
+  # is "the" app the version-management scripts (verify/update/show-
+  # component-baseline-version.py) should act on. This is that one small,
+  # unavoidable hint -- just a values.yaml path, not a registry or repo,
+  # and only needed for multi-image components; anything not listed here
+  # defaults to default_image_paths below.
+  image_paths:
+    "zgw-office-addin": ["frontend.image", "backend.image"]
+    # The default Keycloak SERVER image the operator stamps onto Keycloak
+    # CRs that don't specify their own -- deliberately overridden in
+    # values.yaml to run a Keycloak version ahead of whatever this
+    # operator chart version's own appVersion defaults to. NOT
+    # operator.image itself: that one is intentionally left with no
+    # override at all, since the adfinis chart's own template already
+    # falls back to "{{ .Values.operator.image.tag | default
+    # .Chart.AppVersion }}" with a matching "sha:" bundled for that same
+    # appVersion -- an explicit override there would only add a way for
+    # tag and digest to drift apart again. Bump the keycloak-operator
+    # dependency's own chart version in Chart.yaml to move the operator
+    # itself. Uses the adfinis chart's own split "tag:" + sibling "sha:"
+    # convention instead of an embedded @sha256 digest -- see this file's
+    # own digest_pinning.exceptions above for the write side.
+    "keycloak-operator": ["operator.config.keycloakImage"]
+    # The real running OpenBao SERVER (the upstream openbao-helm
+    # subchart's own "server" key) -- NOT "openbao.configuration.job.
+    # image", which despite reusing the same OpenBao binary is podiumd's
+    # own one-off post-deploy bao-config Job (enables OIDC auth, kv-v2
+    # mount, uploader policy), not the primary application. "server.image"
+    # has an explicit "repository:" override in values.yaml but a blank
+    # "tag:" (relies on the chart's own appVersion default) -- image_
+    # paths_for callers still resolve a real repository from that
+    # override alone.
+    "openbao": ["server.image"]
+    # ITA has no single "app" image at all -- web and poller are two
+    # co-equal images, same lockstep shape as zgw-office-addin's own
+    # frontend+backend split (both happen to share one version here, but
+    # that's not guaranteed by the chart itself, hence listing both
+    # rather than picking one as "the" primary).
+    "internetaakafhandeling": ["web.image", "poller.image"]
+    # kiss-chart's own frontend image (bare "image") and its
+    # settings.syncJobs.image (the elastic-sync CronJob) are released
+    # from the same kiss-chart version and always move together -- same
+    # co-equal lockstep shape as zgw-office-addin's frontend+backend,
+    # documented as one unit rather than treating syncJobs.image as a
+    # sidecar of the frontend. NOT syncJobs.crawlerImage/indexTemplate
+    # Image (the Elastic Open Crawler images) -- those are separate
+    # upstream projects with their own independent version lines, never
+    # bumped in lockstep with kiss-chart itself.
+    "kiss-chart": ["image", "settings.syncJobs.image"]
+    # Same bare "image" path default_image_paths below already implies
+    # for any unregistered component -- registered here anyway,
+    # deliberately, so actual_app_version's own vendored-subchart-version
+    # fallback (gated on "component in component_image_paths(...)", never
+    # default_image_paths) actually applies to it. Real bug this fixes:
+    # eck-operator existed, enabled, at the podiumd-4.9.1 baseline
+    # (Chart.yaml dependency version 3.5.0, condition eck-operator.
+    # enabled, values.yaml enabled: true) with NO explicit values.yaml
+    # "image:" override at all -- its real app version only ever resolved
+    # via the vendored eck-operator-3.5.0.tgz's own default, which this
+    # registration is what actually lets actual_app_version reach for.
+    # Without it, old_app fell through to None (indistinguishable from
+    # "genuinely didn't exist yet"), every upgrade.md-side caller then
+    # rendering the chart_version_lockstep_components-agreed-unchanged
+    # 3.5.0 -> 3.5.0 bump as "(new)" instead -- confirmed live against the
+    # real 4.9.1-to-4.9.2 doc.
+    "eck-operator": ["image"]
+  default_image_paths: ["image"]
+  # component (name, not alias -- same convention as image_paths above) ->
+  # dotted values.yaml path(s), each pointing DIRECTLY at a bare version
+  # string -- not the "<path>.image.tag" shape image_paths/default_image_
+  # paths assume (see lib.upgradedoc.actual_app_version, which tries
+  # these as a second pass, unsuffixed, only once every image_paths_for
+  # candidate has failed to resolve a tag). Exists for a component whose
+  # real app version genuinely isn't expressed as an "image: {repository,
+  # tag}" block at all:
+  # - eck-stack (kiss-eck): the ECK operator's own CRD convention -- a
+  #   bare "version:" field per managed resource (eck-elasticsearch/eck-
+  #   kibana/eck-enterprise-search all track the SAME Elastic stack
+  #   version in lockstep here), which the operator maps to real
+  #   container images internally. First of the two that resolves wins,
+  #   same "no single canonical one, list several" reasoning as image_
+  #   paths' own multi-image entries -- eck-enterprise-search deliberately
+  #   excluded since it's disabled by default in this chart, so it's not
+  #   the best of the three to lead with either way.
+  # - redis-operator: the OPERATOR's own image (as opposed to redis-ha,
+  #   the database instance it manages, which DOES use the ordinary
+  #   "image:" shape) -- the upstream chart's own "imageName:"/
+  #   "imageTag:" convention, two separate sibling string fields instead
+  #   of one nested "image:" dict.
+  version_paths:
+    "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"]
+    "redis-operator": ["redisOperator.imageTag"]

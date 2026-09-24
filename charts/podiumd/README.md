@@ -1,6 +1,6 @@
 # podiumd
 
-![Version: 4.9.1](https://img.shields.io/badge/Version-4.9.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.9.1](https://img.shields.io/badge/AppVersion-4.9.1-informational?style=flat-square)
+![Version: 4.9.2](https://img.shields.io/badge/Version-4.9.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.9.2](https://img.shields.io/badge/AppVersion-4.9.2-informational?style=flat-square)
 
 PodiumD Helm chart
 
@@ -19,7 +19,7 @@ PodiumD Helm chart
 | @maykinmedia | openklant | 1.11.0 |
 | @maykinmedia | opennotificaties | 2.0.0 |
 | @maykinmedia | openzaak | 1.14.2 |
-| @maykinmedia | referentielijsten(referentielijsten) | 0.1.1 |
+| @maykinmedia | referentielijsten(referentielijsten) | 0.2.0 |
 | @opstree | redis-operator | 0.26.1 |
 | @wiremind | clamav | 3.7.2 |
 | @worth-nl | omc(notifynl-omc-nodep) | 0.14.1 |
@@ -30,8 +30,8 @@ PodiumD Helm chart
 | https://helm.elastic.co | kiss-eck(eck-stack) | 0.20.0 |
 | https://openbao.github.io/openbao-helm | openbao | 0.28.4 |
 | https://wearefrank.github.io/charts | zaakbrug | 2.3.32 |
-| oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.0 |
-| oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.1.1 |
+| oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.2 |
+| oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.1.3 |
 | oci://ghcr.io/platform-autorisatie-beheer-component | pabc(pabc) | 1.1.1 |
 
 ## Values
@@ -43,7 +43,7 @@ PodiumD Helm chart
 | apiproxy.errorLogLevel | string | `"notice"` | nginx error_log level (debug|info|notice|warn|error|crit|alert|emerg). "debug" logs full request/response headers (incl. injected API keys/toepassing headers) and is very high-volume — use only for short-lived troubleshooting, never leave enabled given the BRP/citizen-data traffic this proxy carries. |
 | apiproxy.image.pullPolicy | string | `"IfNotPresent"` |  |
 | apiproxy.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| apiproxy.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| apiproxy.image.tag | string | `"1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"` |  |
 | apiproxy.imagePullSecrets | list | `[]` |  |
 | apiproxy.livenessProbe.initialDelaySeconds | int | `5` |  |
 | apiproxy.livenessProbe.periodSeconds | int | `10` |  |
@@ -93,7 +93,7 @@ PodiumD Helm chart
 | clamav.freshclamConfig | string | `"###############\n# General\n###############\n\nDatabaseDirectory /var/lib/clamav\nPidFile /tmp/freshclam.pid\n# CUSTOM: Set defined user\nDatabaseOwner 2000\n\n###############\n# Updates\n###############\n\nDatabaseMirror database.clamav.net\nScriptedUpdates yes\nNotifyClamd /etc/clamav/clamd.conf\nBytecode yes\n"` |  |
 | clamav.fullnameOverride | string | `"clamav"` |  |
 | clamav.image.repository | string | `"clamav/clamav"` |  |
-| clamav.image.tag | string | `"1.5.4@sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"` |  |
+| clamav.image.tag | string | `"1.5.4@sha256:0e31ce089574268aefa0b543767d66b70240ab51ed49eec53e07f18d5629d817"` |  |
 | clamav.metrics.enabled | bool | `false` |  |
 | clamav.metrics.image.repository | string | `"docker.io/sergeymakinen/clamav_exporter"` |  |
 | clamav.metrics.image.tag | string | `"v2.1.8@sha256:ac0e23e6b718f265f67de68d9fccbb8e9baccedeba19658fd78dd8a606508e24"` |  |
@@ -113,6 +113,8 @@ PodiumD Helm chart
 | eck-operator.config.validateStorageClass | bool | `false` |  |
 | eck-operator.createClusterScopedResources | bool | `false` |  |
 | eck-operator.enabled | bool | `true` |  |
+| eck-operator.image.digest | string | `"sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"` |  |
+| eck-operator.image.tag | string | `"3.5.0"` |  |
 | eck-operator.installCRDs | bool | `true` | the chart installs and upgrades the 12 *.k8s.elastic.co CRDs, in lock-step with the operator version. The CRDs carry helm.sh/resource-policy: keep, so `helm uninstall` never removes them (the Elastic CRs and their data survive). Requires cluster-scope RBAC on the deploying identity. Clusters whose CRDs predate helm ownership (kisselastic era / manual apply) need a one-time adoption: deploy with `--take-ownership` (helm >= 3.17) or annotate the CRDs once — see docs/apps/elastic/migrating-to-eck-stack.md section 4b. Installers without cluster-scope RBAC: set false and apply the CRDs manually (same doc). override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor |
 | eck-operator.managedNamespaces[0] | string | `"podiumd"` |  |
 | eck-operator.podMonitor.enabled | bool | `false` |  |
@@ -141,7 +143,7 @@ PodiumD Helm chart
 | frankgateway.dashboard.auth.sessionRedisUrl | string | `""` |  |
 | frankgateway.dashboard.auth.shim.image.pullPolicy | string | `"IfNotPresent"` |  |
 | frankgateway.dashboard.auth.shim.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| frankgateway.dashboard.auth.shim.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| frankgateway.dashboard.auth.shim.image.tag | string | `"1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"` |  |
 | frankgateway.dashboard.auth.shim.nodeSelector | object | `{}` |  |
 | frankgateway.dashboard.auth.shim.resources.limits.cpu | string | `"250m"` |  |
 | frankgateway.dashboard.auth.shim.resources.limits.memory | string | `"128Mi"` |  |
@@ -241,15 +243,16 @@ PodiumD Helm chart
 | global.imageRegistry | string | `""` |  |
 | global.images.busybox.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.busybox.repository | string | `"library/busybox"` |  |
-| global.images.busybox.tag | string | `"1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"` |  |
+| global.images.busybox.tag | string | `"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"` |  |
 | global.images.curl.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.curl.repository | string | `"curlimages/curl"` |  |
 | global.images.curl.tag | string | `"8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"` |  |
 | global.images.nginx.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.nginx.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| global.images.nginx.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
-| global.images.redis.repository | string | `"redis"` |  |
-| global.images.redis.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
+| global.images.nginx.tag | string | `"1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"` |  |
+| global.images.postgres.pullPolicy | string | `"IfNotPresent"` |  |
+| global.images.postgres.repository | string | `"library/postgres"` |  |
+| global.images.postgres.tag | string | `"16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"` |  |
 | global.settings.databaseHost | string | `""` |  |
 | ita.afdeling.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.afdeling.typeVersion | int | `1` |  |
@@ -283,7 +286,7 @@ PodiumD Helm chart
 | ita.nameOverride | string | `""` |  |
 | ita.nieuweInternetaakNotificatie | object | `{"notification":{"pollerMessage":"Poller uitgevoerd om:"},"schedule":"*/15 * * * *"}` | CronJob die behandelaars waarschuwt bij een nieuwe internetaak. Was tot 3.2.0 de enige poller; schedule en notification stonden toen onder ita.poller. Omgevingen die die sleutels overschrijven moeten ze hierheen verplaatsen, anders vallen ze stil terug op de chart-defaults. poller.notification.hourThreshold is niet meer aanwezig in subchart, dus verwijderd. |
 | ita.nodeSelector | object | `{}` |  |
-| ita.poller | object | `{"image":{"pullPolicy":"IfNotPresent","repository":"ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller","tag":"3.3.0@sha256:7690650687047c43f08c4f8320b77d821d3551d18478de9a600a2f828600c865"},"resources":{"limits":{"cpu":"100m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}}}` | ITA 3.3.0 splitste de poller in twee CronJobs, elk met een eigen POLLER_MODE. Dit blok levert alleen nog het image en de resources die ze allebei gebruiken; schedule en notification zijn verhuisd naar nieuweInternetaakNotificatie hieronder. |
+| ita.poller | object | `{"image":{"pullPolicy":"IfNotPresent","repository":"ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller","tag":"3.3.2@sha256:29b714c5efbe5e301e76ab07983751555737226a8823df711cc8f1b501145643"},"resources":{"limits":{"cpu":"100m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}}}` | ITA 3.3.0 splitste de poller in twee CronJobs, elk met een eigen POLLER_MODE. Dit blok levert alleen nog het image en de resources die ze allebei gebruiken; schedule en notification zijn verhuisd naar nieuweInternetaakNotificatie hieronder. |
 | ita.postgresql.enabled | bool | `false` |  |
 | ita.replicaCount | int | `1` |  |
 | ita.smtp.enableSsl | string | `"true"` |  |
@@ -295,12 +298,12 @@ PodiumD Helm chart
 | ita.tolerations | list | `[]` |  |
 | ita.verlopenContactverzoekHerinneringNotificatie | object | `{"enabled":true,"schedule":"0 7 * * 1-5"}` | Nieuw in ITA 3.3.0: dagelijkse herinnering voor verlopen contactverzoeken, op werkdagen om 07:00. |
 | ita.web.image.pullPolicy | string | `"IfNotPresent"` |  |
-| ita.web.image.tag | string | `"3.3.0@sha256:cb56b4809e0c840cbc72814f8a72495fd18860cb08dfb092c12ba3c2cea785df"` |  |
+| ita.web.image.tag | string | `"3.3.2@sha256:1a720a54f7de4aaec08abf28562cf2488128916274717e1edc6965b6ef31144a"` |  |
 | ita.web.oidc.authority | string | `"REP_ITA_OIDC_AUTHORITY_REP"` |  |
 | ita.web.oidc.clientId | string | `"ita"` |  |
 | ita.web.oidc.clientSecret | string | `"REP_ITA_OIDC_CLIENT_SECRET_REP"` |  |
 | ita.web.oidc.emailClaimType | string | `"email"` |  |
-| ita.web.oidc.frontendUrl | string | `"REP_ITA_OIDC_FRONTEND_URL_REP"` |  |
+| ita.web.oidc.frontendUrl | string | `""` | Public https URL of the ITA frontend; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://ita.example.nl`. |
 | ita.web.oidc.functioneelBeheerderRole | string | `"ITA_Functioneel_Beheerder"` |  |
 | ita.web.oidc.itaSystemAccessRole | string | `"ITA_Gebruiker"` |  |
 | ita.web.oidc.nameClaimType | string | `"name"` |  |
@@ -323,12 +326,12 @@ PodiumD Helm chart
 | keycloak-operator.jobs.ensureOperatorSa.image.repository | string | `"curlimages/curl"` |  |
 | keycloak-operator.jobs.ensureOperatorSa.image.tag | string | `"8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.enabled | bool | `true` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.image.registry | string | `""` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"postgres"` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16.15@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.pullPolicy | string | `"IfNotPresent"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"library/postgres"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.registry | string | `""` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.repository | string | `"python"` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag | string | `"3.14.7-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag | string | `"3.14.7-slim@sha256:caaf356f40667c496d405780745b9ac25771c189a51dfcc42430d531ea09f8a2"` |  |
 | keycloak-operator.jobs.importMasterRealm.enabled | bool | `true` |  |
 | keycloak-operator.jobs.importPodiumdRealm.enabled | bool | `true` |  |
 | keycloak-operator.jobs.keycloakUrl | string | `""` | Keycloak URL used by the realm-import jobs (keycloak-config-cli). Empty = in-cluster service (http://keycloak-service:8080). Set only when the jobs must reach Keycloak via another URL; note the public admin host can sit behind a gateway IP-allowlist that blocks cluster egress (403). |
@@ -358,15 +361,15 @@ PodiumD Helm chart
 | keycloak.config.adminFrontendUrl | string | `"https://keycloak-admin.example.nl"` |  |
 | keycloak.config.clients.datamigratie.enabled | bool | `true` |  |
 | keycloak.config.clients.datamigratie.name | string | `"Datamigratie"` |  |
-| keycloak.config.clients.datamigratie.oidcUrl | string | `"https://datamigratie.example.nl"` |  |
+| keycloak.config.clients.datamigratie.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.datamigratie.enabled) and this is empty or an example.nl URL. E.g. `https://datamigratie.example.nl`. |
 | keycloak.config.clients.datamigratie.secret | string | `""` |  |
 | keycloak.config.clients.monitoring.enabled | bool | `true` |  |
 | keycloak.config.clients.monitoring.name | string | `"Monitoring (Grafana)"` |  |
-| keycloak.config.clients.monitoring.oidcUrl | string | `"https://monitoring.example.nl"` |  |
+| keycloak.config.clients.monitoring.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.monitoring.enabled) and this is empty or an example.nl URL. E.g. `https://monitoring.example.nl`. |
 | keycloak.config.clients.monitoring.secret | string | `""` |  |
 | keycloak.config.clients.zaakbrug.enabled | bool | `true` |  |
 | keycloak.config.clients.zaakbrug.name | string | `"Zaakbrug Frank!Framework console"` |  |
-| keycloak.config.clients.zaakbrug.oidcUrl | string | `"https://zaakbrug.example.nl"` |  |
+| keycloak.config.clients.zaakbrug.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.zaakbrug.enabled, and zaakbrug.enabled) and this is empty or an example.nl URL. E.g. `https://zaakbrug.example.nl`. |
 | keycloak.config.clients.zaakbrug.secret | string | `""` |  |
 | keycloak.config.realm | string | `"podiumd"` | identity provider mapper for the admin realm adminIdentityProviderMappers: {} |
 | keycloak.config.realmDisplayName | string | `"PodiumD"` |  |
@@ -513,14 +516,14 @@ PodiumD Helm chart
 | kiss.adapter.resources.requests.memory | string | `"100Mi"` |  |
 | kiss.adapter.secret | string | `""` |  |
 | kiss.configuration.oidcSecret | string | `"<kiss>"` |  |
-| kiss.configuration.oidcUrl | string | `"https://kiss.example.nl"` |  |
+| kiss.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://kiss.example.nl`. |
 | kiss.enabled | bool | `true` |  |
 | kiss.extraEnvVars | list | `[]` | Optionally specify extra list of additional environment variables. Not necesarry for KvK / BRP headers, use the settings for these |
 | kiss.extraVolumeMounts | list | `[]` | Optionally specify extra list of additional volumeMounts, for example to trust extra ca certificates. |
 | kiss.extraVolumes | list | `[]` | Optionally specify extra list of additional volumes, for example to trust extra ca certificates. |
 | kiss.fullnameOverride | string | `"contact"` |  |
 | kiss.image.pullPolicy | string | `"IfNotPresent"` |  |
-| kiss.image.tag | string | `"3.1.1@sha256:1b7c6c3904f11b33d8490c3f0b7968da859b8b4bb73f8d9dc20744eea1720990"` |  |
+| kiss.image.tag | string | `"3.1.3@sha256:54c354712079bfce7c325427c4a5966bb3d7905e11f387835a60f8d49f5d833b"` |  |
 | kiss.imagePullSecrets | list | `[]` |  |
 | kiss.nameOverride | string | `"contact"` |  |
 | kiss.nodeSelector | object | `{}` |  |
@@ -572,7 +575,7 @@ PodiumD Helm chart
 | kiss.settings.registers | list | `[]` |  |
 | kiss.settings.syncJobs.crawlerImage | object | `{"pullPolicy":"IfNotPresent","repository":"docker.elastic.co/integrations/crawler","tag":"1.0.0@sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"}` | Elastic Open Crawler, vervangt de Enterprise Search web crawler. Draait als CronJob per site uit syncJobs.website en schrijft rechtstreeks naar Elasticsearch. |
 | kiss.settings.syncJobs.image.pullPolicy | string | `"IfNotPresent"` |  |
-| kiss.settings.syncJobs.image.tag | string | `"3.1.1@sha256:f29f8b5f33831580e4da0e0f4885b5ef69068c8391ec97322b749f1970df18e1"` |  |
+| kiss.settings.syncJobs.image.tag | string | `"3.1.3@sha256:a695ecfe738643a18ab6bb411e8a042ac09dd64c27f5dc98a469920a4a8ddcbd"` |  |
 | kiss.settings.syncJobs.indexTemplateImage | object | `{"pullPolicy":"IfNotPresent","repository":"curlimages/curl","tag":"8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"}` | pre-install/pre-upgrade hook die het search-website* index-template in Elasticsearch registreert. Heeft alleen curl nodig. |
 | kiss.settings.syncJobs.kennisbank.baseUrl | string | `""` |  |
 | kiss.settings.syncJobs.kennisbank.historyLimit | int | `1` |  |
@@ -613,7 +616,7 @@ PodiumD Helm chart
 | objecten.configuration.job.resources | object | `{}` |  |
 | objecten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | objecten.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| objecten.configuration.oidcUrl | string | `"https://objecten.example.nl"` |  |
+| objecten.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecten.example.nl`. |
 | objecten.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | objecten.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | objecten.flower.enabled | bool | `false` |  |
@@ -627,8 +630,6 @@ PodiumD Helm chart
 | objecten.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | objecten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | objecten.persistentVolume.volumeAttributeShareName | string | `"objecten"` |  |
-| objecten.redis.image.repository | string | `"redis"` |  |
-| objecten.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | objecten.resources.requests.cpu | string | `"100m"` |  |
 | objecten.resources.requests.memory | string | `"256Mi"` |  |
 | objecten.settings.allowedHosts | string | `"objecten.podiumd.svc.cluster.local"` |  |
@@ -655,7 +656,7 @@ PodiumD Helm chart
 | objecttypen.configuration.job.resources | object | `{}` |  |
 | objecttypen.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | objecttypen.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| objecttypen.configuration.oidcUrl | string | `"https://objecttypen.example.nl"` |  |
+| objecttypen.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecttypen.example.nl`. |
 | objecttypen.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | objecttypen.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | objecttypen.configuration.token | string | `"<token>"` |  |
@@ -671,8 +672,6 @@ PodiumD Helm chart
 | objecttypen.image.tag | string | `"3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"` |  |
 | objecttypen.nameOverride | string | `"objecttypen"` |  |
 | objecttypen.otel.disabled | bool | `true` |  |
-| objecttypen.redis.image.repository | string | `"redis"` |  |
-| objecttypen.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | objecttypen.resources.requests.cpu | string | `"10m"` |  |
 | objecttypen.resources.requests.memory | string | `"160Mi"` |  |
 | objecttypen.settings.allowedHosts | string | `"objecttypen.podiumd.svc.cluster.local"` |  |
@@ -712,7 +711,7 @@ PodiumD Helm chart
 | openarchiefbeheer.configuration.job.enabled | bool | `true` |  |
 | openarchiefbeheer.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openarchiefbeheer.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| openarchiefbeheer.configuration.oidcUrl | string | `"https://abc.example.nl"` |  |
+| openarchiefbeheer.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://abc.example.nl`. |
 | openarchiefbeheer.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. |
 | openarchiefbeheer.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openarchiefbeheer.enabled | bool | `false` |  |
@@ -721,7 +720,7 @@ PodiumD Helm chart
 | openarchiefbeheer.nameOverride | string | `"openarchiefbeheer"` |  |
 | openarchiefbeheer.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openarchiefbeheer.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openarchiefbeheer.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| openarchiefbeheer.nginx.image.tag | string | `"1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"` |  |
 | openarchiefbeheer.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openarchiefbeheer.nginx.resources.requests.memory | string | `"16Mi"` |  |
 | openarchiefbeheer.otel.disabled | bool | `true` |  |
@@ -730,8 +729,6 @@ PodiumD Helm chart
 | openarchiefbeheer.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openarchiefbeheer.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openarchiefbeheer.persistentVolume.volumeAttributeShareName | string | `"openarchiefbeheer"` |  |
-| openarchiefbeheer.redis.image.repository | string | `"redis"` |  |
-| openarchiefbeheer.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openarchiefbeheer.replicaCount | int | `1` |  |
 | openarchiefbeheer.resources.limits | object | `{}` |  |
 | openarchiefbeheer.resources.requests.cpu | string | `"250m"` |  |
@@ -774,7 +771,7 @@ PodiumD Helm chart
 | openbao.configuration.keycloak.realm | string | `"podiumd"` |  |
 | openbao.configuration.keycloak.url | string | `"https://keycloak.example.nl"` |  |
 | openbao.configuration.kvPath | string | `"secret"` |  |
-| openbao.configuration.oidcUrl | string | `"https://openbao.example.nl"` |  |
+| openbao.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openbao.example.nl`. |
 | openbao.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openbao.configuration.uploadersGroup | string | `"vault-uploaders"` |  |
 | openbao.configuration.uploadersRole | string | `"uploaders"` |  |
@@ -785,8 +782,9 @@ PodiumD Helm chart
 | openbao.database.password | string | `""` |  |
 | openbao.database.port | int | `5432` |  |
 | openbao.database.schemaJob.backoffLimit | int | `6` |  |
-| openbao.database.schemaJob.image.repository | string | `"docker.io/library/postgres"` |  |
-| openbao.database.schemaJob.image.tag | string | `"16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"` |  |
+| openbao.database.schemaJob.image.pullPolicy | string | `"IfNotPresent"` |  |
+| openbao.database.schemaJob.image.repository | string | `"library/postgres"` |  |
+| openbao.database.schemaJob.image.tag | string | `"16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"` |  |
 | openbao.database.schemaJob.nodeSelector | object | `{}` |  |
 | openbao.database.schemaJob.resources.limits.cpu | string | `"250m"` |  |
 | openbao.database.schemaJob.resources.limits.memory | string | `"128Mi"` |  |
@@ -832,7 +830,7 @@ PodiumD Helm chart
 | openbeheer.configuration.job.resources | object | `{}` |  |
 | openbeheer.configuration.job.restartPolicy | string | `"Never"` |  |
 | openbeheer.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| openbeheer.configuration.oidcUrl | string | `"https://openbeheer.example.nl"` |  |
+| openbeheer.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openbeheer.example.nl`. |
 | openbeheer.configuration.overwrite | bool | `false` |  |
 | openbeheer.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openbeheer.configuration.secrets.keycloak_client_secret | string | `""` |  |
@@ -846,7 +844,7 @@ PodiumD Helm chart
 | openbeheer.nameOverride | string | `"openbeheer"` |  |
 | openbeheer.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openbeheer.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openbeheer.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| openbeheer.nginx.image.tag | string | `"1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"` |  |
 | openbeheer.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openbeheer.nginx.resources.requests.memory | string | `"16Mi"` |  |
 | openbeheer.persistence.enabled | bool | `true` |  |
@@ -856,8 +854,6 @@ PodiumD Helm chart
 | openbeheer.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openbeheer.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openbeheer.persistentVolume.volumeAttributeShareName | string | `"openbeheer"` |  |
-| openbeheer.redis.image.repository | string | `"redis"` |  |
-| openbeheer.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openbeheer.replicaCount | int | `2` |  |
 | openbeheer.resources | object | `{}` |  |
 | openbeheer.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
@@ -910,17 +906,20 @@ PodiumD Helm chart
 | openformulieren.configuration.job.enabled | bool | `true` |  |
 | openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openformulieren.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| openformulieren.configuration.oidcUrl | string | `"https://openformulieren.example.nl"` |  |
+| openformulieren.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openformulieren.example.nl`. |
 | openformulieren.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openformulieren.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openformulieren.customerInteractionsConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"enabled":false,"groupIdentifier":"open-klant","groupName":"Open Klant","resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"serviceIdentifier":"openklant-api","ttlSecondsAfterFinished":600}` | Creates/updates the "Customer interactions API group" that the Communication preferences prefill plugin and the Profile (customerProfile) component use to reach Open Klant, via `manage.py shell`. Open Forms has no setup-configuration step for this model (CustomerInteractionsAPIGroupConfig) — upstream only exposes it through the admin UI (docs/configuration/prefill/communication_preferences.rst). The Klanten API service itself (`api_type: kc`) IS declarative: define it under configuration.data -> zgw_consumers.services with identifier `serviceIdentifier`. Off by default: opt-in per gemeente. See templates/openformulieren-configure-customer-interactions.yaml and docs/_UPGRADE_PATHS/4.9.1-to-4.9.2-gemeente-specific.md. |
+| openformulieren.customerInteractionsConfigJob.backoffLimit | int | `15` | Retries generously: this Job can race the openformulieren DB migration (image entrypoint) and the setup-configuration Job that creates the service — it fails fast and lets Kubernetes' Job backoff retry until both are done, rather than needing a wait container or Helm hook ordering. |
+| openformulieren.customerInteractionsConfigJob.serviceIdentifier | string | `"openklant-api"` | zgw_consumers service identifier (Service.slug) of the Open Klant klantinteracties service; must have api_type `kc`. |
 | openformulieren.flower.enabled | bool | `false` |  |
 | openformulieren.fullnameOverride | string | `"openformulieren"` |  |
-| openformulieren.image.tag | string | `"3.5.6@sha256:f5a5d51a44f39edcfb2143ae5d2ed9525b22ea377faa35fd2cce26b678f7fe83"` |  |
+| openformulieren.image.tag | string | `"3.5.8@sha256:1050b6dd1554ff6f620390870fbb2056157d792e75b9fe6e965371a2ae84f41a"` |  |
 | openformulieren.nameOverride | string | `"openformulieren"` |  |
 | openformulieren.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openformulieren.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openformulieren.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openformulieren.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| openformulieren.nginx.image.tag | string | `"1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"` |  |
 | openformulieren.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openformulieren.nginx.resources.requests.memory | string | `"16Mi"` |  |
 | openformulieren.persistence.existingClaim | string | `"openformulieren"` |  |
@@ -930,8 +929,6 @@ PodiumD Helm chart
 | openformulieren.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openformulieren.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openformulieren.persistentVolume.volumeAttributeShareName | string | `"openformulieren"` |  |
-| openformulieren.redis.image.repository | string | `"redis"` |  |
-| openformulieren.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openformulieren.resources.requests.cpu | string | `"250m"` |  |
 | openformulieren.resources.requests.memory | string | `"1Gi"` |  |
 | openformulieren.settings.allowedHosts | string | `"openformulieren-nginx.podiumd.svc.cluster.local"` |  |
@@ -962,7 +959,7 @@ PodiumD Helm chart
 | openinwoner.configuration.job.resources | object | `{}` |  |
 | openinwoner.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openinwoner.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| openinwoner.configuration.oidcUrl | string | `"https://openinwoner.example.nl"` |  |
+| openinwoner.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openinwoner.example.nl`. |
 | openinwoner.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openinwoner.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openinwoner.eck-elasticsearch.enabled | bool | `true` |  |
@@ -978,7 +975,7 @@ PodiumD Helm chart
 | openinwoner.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openinwoner.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openinwoner.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openinwoner.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| openinwoner.nginx.image.tag | string | `"1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"` |  |
 | openinwoner.nginx.resources.requests.cpu | string | `"30m"` |  |
 | openinwoner.nginx.resources.requests.memory | string | `"8Mi"` |  |
 | openinwoner.persistence.existingClaim | string | `"openinwoner"` |  |
@@ -986,8 +983,6 @@ PodiumD Helm chart
 | openinwoner.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openinwoner.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openinwoner.persistentVolume.volumeAttributeShareName | string | `"openinwoner"` |  |
-| openinwoner.redis.image.repository | string | `"redis"` |  |
-| openinwoner.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openinwoner.resources.requests.cpu | string | `"200m"` |  |
 | openinwoner.resources.requests.memory | string | `"1Gi"` |  |
 | openinwoner.settings.allowedHosts | string | `"openinwoner-nginx.podiumd.svc.cluster.local"` |  |
@@ -1021,7 +1016,7 @@ PodiumD Helm chart
 | openklant.configuration.job.resources | object | `{}` |  |
 | openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openklant.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| openklant.configuration.oidcUrl | string | `"https://openklant.example.nl"` |  |
+| openklant.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openklant.example.nl`. |
 | openklant.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openklant.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openklant.fullnameOverride | string | `"openklant"` |  |
@@ -1030,7 +1025,7 @@ PodiumD Helm chart
 | openklant.nameOverride | string | `"openklant"` |  |
 | openklant.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openklant.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openklant.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| openklant.nginx.image.tag | string | `"1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"` |  |
 | openklant.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openklant.nginx.resources.requests.memory | string | `"16Mi"` |  |
 | openklant.otel.disabled | bool | `true` |  |
@@ -1039,8 +1034,6 @@ PodiumD Helm chart
 | openklant.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openklant.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openklant.persistentVolume.volumeAttributeShareName | string | `"openklant"` |  |
-| openklant.redis.image.repository | string | `"redis"` |  |
-| openklant.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openklant.resources.requests.cpu | string | `"100m"` |  |
 | openklant.resources.requests.memory | string | `"300Mi"` |  |
 | openklant.settings.allowedHosts | string | `"openklant.podiumd.svc.cluster.local"` |  |
@@ -1070,7 +1063,7 @@ PodiumD Helm chart
 | opennotificaties.configuration.job.resources | object | `{}` |  |
 | opennotificaties.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | opennotificaties.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| opennotificaties.configuration.oidcUrl | string | `"https://opennotificaties.example.nl"` |  |
+| opennotificaties.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://opennotificaties.example.nl`. |
 | opennotificaties.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | opennotificaties.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | opennotificaties.extraEnvVars | list | `[{"name":"OPENNOTIFICATIES_PORT","value":"8000"}]` | Override OPENNOTIFICATIES_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Notificaties 1.16.2 the app reads OPENNOTIFICATIES_PORT for uwsgi_port; K8s auto-injects OPENNOTIFICATIES_PORT=tcp://<svc-ip>:80 for the opennotificaties Service, so uwsgi binds on the Service ClusterIP instead of the pod and both probes get "connection refused". Same defect as OPENZAAK_PORT above (Open Zaak 1.27.3). Only bites when the release's Service is named "opennotificaties", i.e. the chart default: environments that set fullnameOverride (the QA rigs use "notificaties") never see it. NOTE: a gemeente that sets its own opennotificaties.extraEnvVars REPLACES this list and silently loses the fix — keep this entry when overriding. The clean fix is enableServiceLinks: false, as the openzaak subchart (1.14.2) does; the opennotificaties subchart (2.0.0) has no such value yet. |
@@ -1084,8 +1077,6 @@ PodiumD Helm chart
 | opennotificaties.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | opennotificaties.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | opennotificaties.persistentVolume.volumeAttributeShareName | string | `"opennotificaties"` |  |
-| opennotificaties.redis.image.repository | string | `"redis"` |  |
-| opennotificaties.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | opennotificaties.resources.requests.cpu | string | `"100m"` |  |
 | opennotificaties.resources.requests.memory | string | `"256Mi"` |  |
 | opennotificaties.settings.allowedHosts | string | `"opennotificaties.podiumd.svc.cluster.local"` |  |
@@ -1122,7 +1113,7 @@ PodiumD Helm chart
 | openzaak.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openzaak.configuration.notificaties.enabled | bool | `true` |  |
 | openzaak.configuration.notificatiesAuthorization.enabled | bool | `true` |  |
-| openzaak.configuration.oidcUrl | string | `"https://openzaak.example.nl"` |  |
+| openzaak.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openzaak.example.nl`. |
 | openzaak.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openzaak.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openzaak.create_required_catalogi_job.activeDeadlineSeconds | int | `900` |  |
@@ -1142,7 +1133,7 @@ PodiumD Helm chart
 | openzaak.nameOverride | string | `"openzaak"` |  |
 | openzaak.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openzaak.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openzaak.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| openzaak.nginx.image.tag | string | `"1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"` |  |
 | openzaak.nginx.resources.requests.cpu | string | `"10m"` |  |
 | openzaak.nginx.resources.requests.memory | string | `"16Mi"` |  |
 | openzaak.otel.disabled | bool | `true` |  |
@@ -1151,8 +1142,6 @@ PodiumD Helm chart
 | openzaak.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openzaak.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openzaak.persistentVolume.volumeAttributeShareName | string | `"openzaak"` |  |
-| openzaak.redis.image.repository | string | `"redis"` |  |
-| openzaak.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | openzaak.resources.requests.cpu | string | `"250m"` |  |
 | openzaak.resources.requests.memory | string | `"512Mi"` |  |
 | openzaak.settings.allowedHosts | string | `"openzaak-nginx.podiumd.svc.cluster.local"` |  |
@@ -1191,7 +1180,7 @@ PodiumD Helm chart
 | pabc.resources.limits.memory | string | `"768Mi"` |  |
 | pabc.resources.requests.cpu | string | `"10m"` |  |
 | pabc.resources.requests.memory | string | `"384Mi"` |  |
-| pabc.seedJob | object | `{"enabled":false,"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"10m","memory":"128Mi"}}}` | One-shot Job that seeds the PABC database from the pabc-dataset ConfigMap. Enable together with datasetConfigMap on an environment whose PABC is still empty: without it ZAC resolves no application roles at all and every user lands on "u heeft geen toestemming om deze pagina te bekijken".  The Job name carries a checksum of the dataset and of the rendered pod template, so it runs once and stays put across upgrades; editing files/pabc-dataset.json re-seeds on purpose, and so does a change that alters the Job itself, such as a migrations image tag bump. Seeding REPLACES all PABC content. On an environment that has already been curated through the PABC UI, leave this disabled. |
+| pabc.seedJob | object | `{"enabled":false,"keycloak":{"enabled":true,"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}},"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"10m","memory":"128Mi"}}}` | One-shot Job that seeds the PABC database from the pabc-dataset ConfigMap. Enable together with datasetConfigMap on an environment whose PABC is still empty: without it ZAC resolves no application roles at all and every user lands on "u heeft geen toestemming om deze pagina te bekijken".  The Job name carries a checksum of the dataset and of the rendered pod template, so it runs once and stays put across upgrades; editing files/pabc-dataset.json re-seeds on purpose, and so does a change that alters the Job itself, such as a migrations image tag bump. Seeding REPLACES all PABC content. On an environment that has already been curated through the PABC UI, leave this disabled. |
 | pabc.settings.apiKeys[0] | string | `""` |  |
 | pabc.settings.database.host | string | `""` |  |
 | pabc.settings.database.name | string | `"pabc"` |  |
@@ -1205,7 +1194,7 @@ PodiumD Helm chart
 | pabc.settings.oidc.emailClaimType | string | `"email"` |  |
 | pabc.settings.oidc.functioneelBeheerderRole | string | `"administrator"` |  |
 | pabc.settings.oidc.nameClaimType | string | `"name"` |  |
-| pabc.settings.oidc.oidcUrl | string | `"https://pabc.example.nl"` |  |
+| pabc.settings.oidc.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://pabc.example.nl`. |
 | pabc.settings.oidc.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. PABC is a .NET app; enable when OpenIdConnect PKCE is configured in the application. |
 | pabc.settings.oidc.roleClaimType | string | `"roles"` |  |
 | persistentVolume.nodeStageSecretRefName | string | `""` |  |
@@ -1214,13 +1203,13 @@ PodiumD Helm chart
 | persistentVolume.volumeAttributeShareName | string | `""` |  |
 | redis-operator.enabled | bool | `true` |  |
 | redis-operator.featureGates.GenerateConfigInInitContainer | bool | `true` |  |
-| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"repository":"quay.io/opstree/redis","tag":"v8.6.6@sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.36.2@sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"podSecurityContext":{"fsGroup":1000},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.36.2@sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"repository":"quay.io/opstree/redis-exporter","tag":"v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}}}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecttypen        : db 0  (cache)   objecten           : db 1  (cache), db 2  (celery)   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   <future component> : db 19 (cache), db 20 (celery)   db 21–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
+| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"repository":"quay.io/opstree/redis","tag":"v8.6.6@sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.0@sha256:b421c2e9419edb98db39b6ab641669f4db7bb2acf354f22450c6b7e7176d1ff4"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"podSecurityContext":{"fsGroup":1000},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.0@sha256:b421c2e9419edb98db39b6ab641669f4db7bb2acf354f22450c6b7e7176d1ff4"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"repository":"quay.io/opstree/redis-exporter","tag":"v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}}}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecttypen        : db 0  (cache)   objecten           : db 1  (cache), db 2  (celery)   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   <future component> : db 19 (cache), db 20 (celery)   db 21–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
 | redis-operator.redis-ha.databases | int | `32` | Number of Redis databases to configure. Applied via an initContainer because `databases` is a startup-only parameter and the OT redis-operator does not include the additionalRedisConfig ConfigMap in the main redis.conf (operator limitation in v0.24.0). |
-| redis-operator.redis-ha.initContainerImage | object | `{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"}` | Image used by the initContainer that appends `databases N` to redis.conf. Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror). |
+| redis-operator.redis-ha.initContainerImage | object | `{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"}` | Image used by the initContainer that appends `databases N` to redis.conf. Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror). |
 | redis-operator.redis-ha.initContainerResources | object | `{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}}` | Resources for the initContainer that configures redis.conf. |
-| redis-operator.redis-ha.labelMasterCronJob | object | `{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.36.2@sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"}` | CronJob that periodically reconciles redis-role labels on redis-ha pods. Workaround for a known OT Redis Operator 0.24.0 bug (PR #1720) where the operator fails to apply redis-role labels after a simultaneous pod restart, leaving the redis-ha-master Service with no endpoints. Runs every 2 minutes and always reconciles from RedisReplication.status.masterNode — no early-exit if a label already exists. NOTE: PR #1720 has been included since redis-operator 0.25.0 (confirmed present in 0.26.1, the version currently pinned above). This workaround is a candidate for removal — verify the operator self-heals correctly on a simultaneous pod restart in a test environment before setting labelMasterCronJob.enabled: false. See docs/apps/redis/redis-ha.md. |
+| redis-operator.redis-ha.labelMasterCronJob | object | `{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.0@sha256:b421c2e9419edb98db39b6ab641669f4db7bb2acf354f22450c6b7e7176d1ff4"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"}` | CronJob that periodically reconciles redis-role labels on redis-ha pods. Workaround for a known OT Redis Operator 0.24.0 bug (PR #1720) where the operator fails to apply redis-role labels after a simultaneous pod restart, leaving the redis-ha-master Service with no endpoints. Runs every 2 minutes and always reconciles from RedisReplication.status.masterNode — no early-exit if a label already exists. NOTE: PR #1720 has been included since redis-operator 0.25.0 (confirmed present in 0.26.1, the version currently pinned above). This workaround is a candidate for removal — verify the operator self-heals correctly on a simultaneous pod restart in a test environment before setting labelMasterCronJob.enabled: false. See docs/apps/redis/redis-ha.md. |
 | redis-operator.redis-ha.podSecurityContext | object | `{"fsGroup":1000}` | Pod security context for Redis pods. fsGroup must match the redis container's GID (1000) so that mounted PVC data directories are writable by the redis process. |
-| redis-operator.redis-ha.preDeleteJob | object | `{"image":{"repository":"docker.io/alpine/k8s","tag":"1.36.2@sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"},"nodeSelector":{}}` | pre-delete hook Job (templates/redis-ha-pre-delete.yaml) that drains the RedisReplication CR before the redis-operator's Deployment is torn down. |
+| redis-operator.redis-ha.preDeleteJob | object | `{"image":{"repository":"docker.io/alpine/k8s","tag":"1.37.0@sha256:b421c2e9419edb98db39b6ab641669f4db7bb2acf354f22450c6b7e7176d1ff4"},"nodeSelector":{}}` | pre-delete hook Job (templates/redis-ha-pre-delete.yaml) that drains the RedisReplication CR before the redis-operator's Deployment is torn down. |
 | redis-operator.redis-ha.redisConfig.additionalRedisConfig | string | `""` | Optional extra redis.conf directives for runtime-configurable parameters. Note: startup-only parameters (e.g. databases) will NOT take effect here due to an operator limitation; use the databases field above instead. |
 | redis-operator.redis-ha.redisExporter.podMonitor | object | `{"enabled":false,"interval":"30s","scrapeTimeout":"10s"}` | PodMonitor for the redis_exporter sidecar (port 9121). Requires Prometheus Operator CRDs (monitoring.coreos.com/v1). Enable via values-enable-observability.yaml. |
 | redis-operator.redis-ha.serviceName | string | `"redis-ha"` | Grafana/Loki `app` + `service_name` label for the redis-ha pods (IN-2060). Without an explicit value the pods inherit `app.kubernetes.io/name: podiumd` from the shared chart labels and show up in Grafana as "podiumd" instead of "redis-ha". Set to "" to omit the override. |
@@ -1240,22 +1229,20 @@ PodiumD Helm chart
 | referentielijsten.configuration.job.resources | object | `{}` |  |
 | referentielijsten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | referentielijsten.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
-| referentielijsten.configuration.oidcUrl | string | `"https://referentielijsten.example.nl"` |  |
+| referentielijsten.configuration.oidcUrl | string | `""` | Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://referentielijsten.example.nl`. |
 | referentielijsten.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | referentielijsten.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | referentielijsten.enabled | bool | `false` |  |
 | referentielijsten.fullnameOverride | string | `"referentielijsten"` |  |
 | referentielijsten.image.pullPolicy | string | `"IfNotPresent"` |  |
 | referentielijsten.image.repository | string | `"maykinmedia/referentielijsten-api"` |  |
-| referentielijsten.image.tag | string | `"0.7.3@sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"` |  |
+| referentielijsten.image.tag | string | `"0.7.4@sha256:5501b48fe9b988a72adba14308748e6b5928f851ec66d108bab2fe625eb831a3"` |  |
 | referentielijsten.persistence.enabled | bool | `true` |  |
 | referentielijsten.persistence.existingClaim | string | `"referentielijsten"` |  |
 | referentielijsten.persistence.size | string | `"10Gi"` |  |
 | referentielijsten.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | referentielijsten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | referentielijsten.persistentVolume.volumeAttributeShareName | string | `"referentielijsten"` |  |
-| referentielijsten.redis.image.repository | string | `"redis"` |  |
-| referentielijsten.redis.image.tag | string | `"8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"` |  |
 | referentielijsten.replicaCount | int | `1` |  |
 | referentielijsten.settings.allowedHosts | string | `"referentielijsten-nginx.podiumd.svc.cluster.local"` |  |
 | referentielijsten.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/15"` |  |
@@ -1307,7 +1294,7 @@ PodiumD Helm chart
 | zac.brpApi.protocollering.verwerking.register | string | `""` |  |
 | zac.brpApi.url | string | `"http://brp.example.nl"` |  |
 | zac.catalogusDomein | string | `"ALG"` |  |
-| zac.contextUrl | string | `"http://zac.example.nl"` |  |
+| zac.contextUrl | string | `""` | Public URL of ZAC; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `http://zac.example.nl`. |
 | zac.db.host | string | `"postgres"` |  |
 | zac.db.name | string | `"zac"` |  |
 | zac.db.password | string | `"changeme"` |  |
@@ -1345,7 +1332,7 @@ PodiumD Helm chart
 | zac.nginx.enabled | bool | `true` |  |
 | zac.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| zac.nginx.image.tag | string | `"1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"` |  |
+| zac.nginx.image.tag | string | `"1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"` |  |
 | zac.nginx.resources.requests.cpu | string | `"50m"` |  |
 | zac.nginx.resources.requests.memory | string | `"64Mi"` |  |
 | zac.notificationsSecretKey | string | `"changeme"` |  |
@@ -1378,10 +1365,10 @@ PodiumD Helm chart
 | zac.solr-operator.resources.requests.memory | string | `"128Mi"` |  |
 | zac.solr-operator.solr.busyBoxImage.pullPolicy | string | `"IfNotPresent"` |  |
 | zac.solr-operator.solr.busyBoxImage.repository | string | `"library/busybox"` |  |
-| zac.solr-operator.solr.busyBoxImage.tag | string | `"1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"` |  |
+| zac.solr-operator.solr.busyBoxImage.tag | string | `"1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"` |  |
 | zac.solr-operator.solr.dataStorage.persistent.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down Solr (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which requires a full index resync from another replica. |
 | zac.solr-operator.solr.enabled | bool | `true` | set enabled to provision solrcloud as well |
-| zac.solr-operator.solr.image.tag | string | `"9.10.1-slim@sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb"` |  |
+| zac.solr-operator.solr.image.tag | string | `"9.10.1-slim@sha256:92a1ceccbde539cb067c05b134069250a8aa4446a62a9ada4111e4dde2b3ea26"` |  |
 | zac.solr-operator.solr.javaMem | string | `"-Xms512m -Xmx768m"` | define memory settings for solr in the solrcloud |
 | zac.solr-operator.solr.jobs.createZacCore | bool | `true` |  |
 | zac.solr-operator.solr.resources.limits.cpu | string | `"2000m"` |  |

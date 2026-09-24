@@ -1,0 +1,116 @@
+{{/*
+Open Forms has no declarative setup-configuration step for its
+CustomerInteractionsAPIGroupConfig model (the "Customer interactions API
+group" used by the Communication preferences prefill plugin and the Profile
+component) — upstream only exposes it through the admin UI. This Job
+creates/updates it directly through `manage.py shell`, using the app's own
+image so Django settings/DB env vars line up exactly with the running app.
+
+The group points at a zgw_consumers Service that IS declarative: the
+setup-configuration ServiceConfigurationStep stores its `identifier` as
+Service.slug. If that Service doesn't exist yet (setup-configuration Job not
+finished, or DB migrations still running) this script exits non-zero and
+relies on the Job's backoffLimit/activeDeadlineSeconds to retry — same
+"eventually consistent, plain Job" approach as
+openformulieren-configure-clamav.yaml, no Helm hook needed.
+
+update_or_create keyed on the group identifier makes it idempotent, so the
+Job can safely run on every deploy.
+
+spec.template on a batch/v1 Job is immutable, so a fixed Job name would make
+`helm upgrade` fail with "field is immutable" once the image or any other
+pod-template input changes while the previous Job still exists (within
+ttlSecondsAfterFinished). The pod template is therefore rendered separately
+and its checksum goes into the Job name — same approach as pabc-seed-job.yaml.
+A changed input gives a new Job that runs again; an unchanged one keeps the
+name, and Helm recreates the Job once the TTL has removed the old one.
+*/}}
+{{- define "podiumd.openformulierenCustomerInteractionsJob.podTemplate" -}}
+metadata:
+  labels:
+    {{- include "podiumd.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: openformulieren
+spec:
+  serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
+  restartPolicy: OnFailure
+  {{- if .Values.openformulieren.nodeSelector }}
+  nodeSelector:
+    {{- toYaml .Values.openformulieren.nodeSelector | nindent 4 }}
+  {{- else if .Values.nodeSelector }}
+  nodeSelector:
+    {{- toYaml .Values.nodeSelector | nindent 4 }}
+  {{- end }}
+  containers:
+    - name: configure-customer-interactions
+      image: {{ include "podiumd.image" .Values.openformulieren.image }}
+      imagePullPolicy: {{ .Values.openformulieren.image.pullPolicy | default "IfNotPresent" }}
+      command: ["/app/src/manage.py"]
+      args:
+        - shell
+        - -c
+        - |
+          from zgw_consumers.constants import APITypes
+          from zgw_consumers.models import Service
+
+          from openforms.contrib.customer_interactions.models import (
+              CustomerInteractionsAPIGroupConfig,
+          )
+
+          service_identifier = {{ .Values.openformulieren.customerInteractionsConfigJob.serviceIdentifier | quote }}
+          service = Service.objects.filter(slug=service_identifier).first()
+          if service is None:
+              raise SystemExit(
+                  f"Service {service_identifier!r} not found (yet) — define it under "
+                  "openformulieren.configuration.data -> zgw_consumers.services"
+              )
+          if service.api_type != APITypes.kc:
+              raise SystemExit(
+                  f"Service {service_identifier!r} has api_type {service.api_type!r}, "
+                  f"expected {APITypes.kc!r} (Klanten API)"
+              )
+
+          group, created = CustomerInteractionsAPIGroupConfig.objects.update_or_create(
+              identifier={{ .Values.openformulieren.customerInteractionsConfigJob.groupIdentifier | quote }},
+              defaults={
+                  "name": {{ .Values.openformulieren.customerInteractionsConfigJob.groupName | quote }},
+                  "customer_interactions_service": service,
+              },
+          )
+          print(
+              f"Customer interactions API group {group.identifier!r} "
+              f"{'created' if created else 'updated'} (service {service.slug!r})."
+          )
+      envFrom:
+        - secretRef:
+            name: openformulieren
+        - configMapRef:
+            name: openformulieren
+      resources:
+        {{- toYaml .Values.openformulieren.customerInteractionsConfigJob.resources | nindent 8 }}
+      securityContext:
+        {{- toYaml .Values.openformulieren.securityContext | nindent 8 }}
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: tmp
+      emptyDir: {}
+{{- end }}
+
+{{- if and (or .Values.openformulieren.enabled (not (hasKey .Values.openformulieren "enabled"))) .Values.openformulieren.customerInteractionsConfigJob.enabled }}
+{{- $podTemplate := include "podiumd.openformulierenCustomerInteractionsJob.podTemplate" . }}
+{{- $jobSuffix := $podTemplate | sha256sum | trunc 10 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openformulieren-configure-customer-interactions-{{ $jobSuffix }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openformulieren
+spec:
+  backoffLimit: {{ .Values.openformulieren.customerInteractionsConfigJob.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.openformulieren.customerInteractionsConfigJob.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.openformulieren.customerInteractionsConfigJob.ttlSecondsAfterFinished }}
+  template:
+    {{- $podTemplate | nindent 4 }}
+{{- end }}

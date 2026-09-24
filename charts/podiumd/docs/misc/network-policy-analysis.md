@@ -219,7 +219,7 @@ NetworkPolicy enforcement on AKS is **not automatic** — it depends on which ne
 | Azure Network Policy Manager (NPM) | `--network-policy azure` | iptables/ipset based; fully enforces standard `NetworkPolicy` |
 | Calico | `--network-policy calico` | DaemonSet based; enforces standard `NetworkPolicy` plus Calico CRDs |
 | Cilium | `--network-dataplane cilium` | eBPF based; enforces standard `NetworkPolicy` |
-| **None (default)** | *(flag omitted)* | `NetworkPolicy` objects are accepted by the API server but **silently not enforced** |
+| **None (default)** | _(flag omitted)_ | `NetworkPolicy` objects are accepted by the API server but **silently not enforced** |
 
 If the cluster was created without a `--network-policy` flag, any policies added will be stored in etcd but have no effect. Verify enforcement is active before relying on policies for security.
 
@@ -227,7 +227,7 @@ If the cluster was created without a `--network-policy` flag, any policies added
 
 With Azure CNI, pods receive IPs from the **same subnet as the AKS nodes** (unlike kubenet, where pods have a separate overlay network). This has one important consequence for egress NetworkPolicies:
 
-**Kubelet health probes originate from the node IP, not from a pod IP.** When you apply a default-deny egress policy to a pod, you are restricting outbound traffic from that pod — but kubelet liveness/readiness probes are *inbound* from the node IP. However, if you apply a default-deny *ingress* policy, you must explicitly allow ingress from the node CIDR, or liveness/readiness probes will be blocked and pods will be restarted.
+**Kubelet health probes originate from the node IP, not from a pod IP.** When you apply a default-deny egress policy to a pod, you are restricting outbound traffic from that pod — but kubelet liveness/readiness probes are _inbound_ from the node IP. However, if you apply a default-deny _ingress_ policy, you must explicitly allow ingress from the node CIDR, or liveness/readiness probes will be blocked and pods will be restarted.
 
 Concrete mitigation options:
 

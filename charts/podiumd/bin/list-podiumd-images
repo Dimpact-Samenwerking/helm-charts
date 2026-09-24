@@ -1,0 +1,520 @@
+#!/usr/bin/env python3
+"""
+List every container image the podiumd chart configures.
+
+For each Chart.yaml dependency, merges the sub-chart's default values
+with podiumd's values.yaml; also lists images set at podiumd's top
+level. Each image prints as two lines:
+
+    <key> <basename> <version>  (path: <values path>)
+        <repo>:<tag>
+
+The first line is the argument list for update-image-version,
+verify-image-version and show-image-baseline-version. When those
+scripts cannot use it, the line ends with a hint: "use MULTIPLE
+<basename>" (shared global.images.* image) or "unresolvable". The second
+line is the full image reference, digest included.
+
+Usage:
+    list-podiumd-images [--refresh]
+
+Options:
+    --refresh   `helm pull` every pinned sub-chart, ignore vendored .tgz
+
+Requires: helm on PATH; Helm repositories added (/helm-repos) unless all
+sub-charts are vendored.
+"""
+
+import shutil
+import sys
+import tarfile
+import tempfile
+
+from dataclasses import dataclass
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.chart_yaml import load_chart_yaml
+from lib.chart.nested_subchart_identity import nested_subchart_registered_paths
+from lib.chart.paths import CHART_DIR
+from lib.chart.paths import CHART_YAML
+from lib.chart.paths import VALUES_YAML
+from lib.chart.pull_and_subchart_resolution import local_chart_dir
+from lib.chart.pull_and_subchart_resolution import pull_chart as _pull_chart
+from lib.chart.pull_and_subchart_resolution import pulled_chart_dir
+from lib.chart.pull_and_subchart_resolution import require_local_chart_dir
+from lib.chart.pull_and_subchart_resolution import subchart_dependencies
+from lib.chart.registered_paths import version_paths_for
+from lib.chart.repo_and_path_resolution import full_repository_for_path
+from lib.chart.values_tree_primitives import find_images
+from lib.chart.values_tree_primitives import same_name
+from lib.chart.values_tree_primitives import text_at
+from lib.chart.values_tree_primitives import values_key_of
+from lib.chart.values_tree_primitives import version_of
+from lib.dependencies import ensure_vendored_dependencies
+from lib.image.version import MULTIPLE_KEY
+from lib.image.version import image_basename
+from lib.image.version import resolve_scoped_matches
+from lib.render_scope import CHART_NAME
+from lib.render_scope import lint_args_for
+from lib.render_scope import render_chart
+from lib.render_scope import rendered_chart_paths
+from lib.yaml_types import YamlMapping
+from lib.yaml_types import YamlValue
+from lib.yaml_types import load_yaml_mapping
+
+VENDORED_DIR = CHART_DIR / "charts"
+
+
+@dataclass
+class ChartContext:
+    """deps/root_values/rendered_paths -- podiumd's own Chart.yaml
+    dependencies, its own unmerged values.yaml, and the set of chart-tree
+    paths a real Helm render actually produced, computed once in main()
+    and needed together by both main()'s own per-dependency loop and
+    component_version_rows, so bundled here rather than threaded through
+    as three separate arguments each."""
+
+    deps: list[ChartDependency]
+    root_values: YamlMapping
+    rendered_paths: set[str]
+
+
+# (key, path, repo, tag, disabled) — one image reference to print, see
+# print_image_lines.
+ImageRow = tuple[str, str, str, str, bool]
+
+
+@dataclass
+class ImageEntry:
+    """key/basename/version/repo/tag/path/disabled -- one resolved image
+    reference, ready to print: print_image_lines' own two intermediate
+    per-row shapes (the raw (key, path, repo, tag, disabled) rows it's
+    handed, and the derived basename/version each row is printed with)
+    collapsed into one, so the final print loop destructures a single
+    name instead of carrying seven local variables of its own."""
+
+    key: str
+    basename: str
+    version: str
+    repo: str
+    tag: str
+    path: str
+    disabled: bool
+
+
+@dataclass
+class ColumnWidths:
+    """key/basename/version -- the three column widths print_image_lines'
+    rows are aligned to, bundled for the same reason as ImageEntry: one
+    name to pass around instead of three."""
+
+    key: int
+    basename: int
+    version: int
+
+
+def pull_chart(dep: ChartDependency, dest: Path):
+    """Thin wrapper around lib.chart.pull_and_subchart_resolution.pull_chart
+    that pulls `dep` at its own pinned version into `dest`, raising
+    SystemExit with a clear message on failure instead of returning an
+    (ok, stderr) tuple for the caller to check."""
+    ok, stderr = _pull_chart(dep, dep["version"], dest)
+    if not ok:
+        msg = f"error: helm pull failed for {dep['name']}@{dep['version']}\n{stderr}"
+        raise SystemExit(msg)
+
+
+def safe_extract_tgz(tgz_path: Path, dest: Path):
+    """Extract a vendored .tgz, rejecting any member that would land outside dest.
+
+    tarfile.extractall() has no member-path-containment check before Python
+    3.11.4/3.12 (the `filter` kwarg does not exist there) -- so a
+    crafted archive with "../"-escaping member names could write outside
+    `dest`. The .tgz here comes from this repo's own vendored charts/
+    directory, not attacker-controlled input, but the check is cheap and
+    makes that assumption explicit rather than implicit. Where the Python
+    version has it, filter="data" is passed as well: it also rejects
+    symlink/hardlink members pointing outside dest, absolute paths and
+    device files, which the member-name check above can't see.
+    """
+    dest_resolved = dest.resolve()
+    with tarfile.open(tgz_path) as tf:
+        for member in tf.getmembers():
+            member_path = (dest / member.name).resolve()
+            if member_path != dest_resolved and dest_resolved not in member_path.parents:
+                msg = f"error: {tgz_path} member '{member.name}' would extract outside {dest}"
+                raise SystemExit(msg)
+        # Member paths validated above.
+        if hasattr(tarfile, "data_filter"):
+            tf.extractall(dest, filter="data")
+        else:
+            tf.extractall(dest)  # nosec B202  # noqa: S202
+
+
+def load_chart(dep: ChartDependency, tmproot: Path, *, refresh: bool):
+    """Returns (chart_yaml, values) for `dep`'s own sub-chart source: read
+    straight from its source directory for a local "file://" dependency
+    (--refresh is meaningless there, see comment below); otherwise
+    extracted from the vendored charts/<name>-<version>.tgz if present and
+    `refresh` is False, or freshly `helm pull`ed into `tmproot` otherwise.
+    `values` is {} if the chart has no values.yaml at all."""
+    local_dir = local_chart_dir(CHART_DIR, dep)
+    if local_dir is not None:
+        # A "file://" dependency has no remote to pull from and no vendored
+        # .tgz shape to extract — --refresh is meaningless for it either
+        # way, since reading its own source directory is already always
+        # current, never stale.
+        require_local_chart_dir(local_dir, dep)
+        chart_dir = local_dir
+    else:
+        vendored = VENDORED_DIR / f"{dep['name']}-{dep['version']}.tgz"
+        dest = tmproot / dep["name"]
+        dest.mkdir()
+        if not refresh and vendored.exists():
+            safe_extract_tgz(vendored, dest)
+        else:
+            pull_chart(dep, dest)
+        chart_dir = pulled_chart_dir(dest)
+
+    chart_yaml = load_chart_yaml(chart_dir / "Chart.yaml")
+    values_path = chart_dir / "values.yaml"
+    values = load_yaml_mapping(values_path) if values_path.exists() else {}
+    return chart_yaml, values or {}
+
+
+def deep_merge(base: YamlValue, override: YamlValue) -> YamlValue:
+    """Recursively merges `override` onto `base` the way Helm merges a
+    parent chart's values.yaml overrides onto a sub-chart's own defaults:
+    dict values are merged key by key, and any other type (including a
+    list) in `override` replaces `base`'s value outright rather than
+    combining with it. `None` in `override` means "no override" and falls
+    back to `base`, not an explicit null."""
+    if isinstance(base, dict) and isinstance(override, dict):
+        merged = dict(base)
+        for key, value in override.items():
+            merged[key] = deep_merge(base.get(key), value)
+        return merged
+    return override if override is not None else base
+
+
+def resolution_note(values_lines: list[str], key: str, basename: str):
+    """None if <key> <basename> is real, resolvable input for update-
+    image-version/verify-image-version/show-image-baseline-version (see
+    lib.image.version.resolve_scoped_matches) — otherwise a short hint
+    so a reader doesn't copy/paste a pair that will just fail elsewhere.
+    Falls back to checking MULTIPLE_KEY (values.yaml's global.images.*
+    scope) before giving up, since that's the single most common reason
+    a per-component <key> doesn't resolve: the image lives under
+    global.images and is only ALIASED into this component, with no
+    literal pin of its own here — kept to the one thing a reader needs
+    (the key that DOES work) so it still fits on the row's short first
+    line alongside <key> <basename> <version> and the values.yaml path."""
+    if _resolves(values_lines, key, basename):
+        return None
+    if not same_name(key, MULTIPLE_KEY) and _resolves(values_lines, MULTIPLE_KEY, basename):
+        return f"use {MULTIPLE_KEY} {basename}"
+    return "unresolvable"
+
+
+def _resolves(values_lines: list[str], key: str, basename: str) -> bool:
+    """True if resolve_scoped_matches accepts <key> <basename>; it exits on failure."""
+    try:
+        resolve_scoped_matches(values_lines, key, basename)
+    except SystemExit:
+        return False
+    return True
+
+
+def _sorted_image_entries(rows: list[ImageRow]) -> list[ImageEntry]:
+    """rows: [(key, path, repo, tag, disabled), ...] -> ImageEntry list,
+    sorted the way print_image_lines prints them (by key, then path)."""
+    entries = [
+        ImageEntry(key, image_basename(repo), version_of(tag), repo, tag, path, disabled)
+        for key, path, repo, tag, disabled in rows
+    ]
+    entries.sort(key=lambda e: (e.key, e.path))
+    return entries
+
+
+def _column_widths(entries: list[ImageEntry]):
+    return ColumnWidths(
+        key=max(len(e.key) for e in entries),
+        basename=max(len(e.basename) for e in entries),
+        version=max(len(e.version) for e in entries),
+    )
+
+
+def _print_image_entry(entry: ImageEntry, values_lines: list[str], widths: ColumnWidths):
+    """Prints one entry's two lines (see print_image_lines): a short,
+    column-aligned "<key> <basename> <version> (path: ...)" line — <key>
+    <basename> <version> is exactly the copy/paste-able input for
+    update-image-version/verify-image-version/show-image-baseline-
+    version, plus a trailing "disabled" hint (never silently
+    indistinguishable from a real, live image) and any resolution_note,
+    since that's precisely what decides whether this row's <key>
+    <basename> is real input for those scripts — followed by an
+    indented line with the full "<repo>:<tag>" (digest included, never
+    truncated), for Confluence or manual lookup."""
+    note = resolution_note(values_lines, entry.key, entry.basename)
+    line = (
+        f"  {entry.key.ljust(widths.key)}  {entry.basename.ljust(widths.basename)}  "
+        f"{entry.version.ljust(widths.version)}  (path: {entry.path})"
+    )
+    hints = (["disabled"] if entry.disabled else []) + ([note] if note else [])
+    if hints:
+        line += "  — " + "; ".join(hints)
+    print(line)
+    print(f"      {entry.repo}:{entry.tag}")
+
+
+def print_image_lines(rows: list[ImageRow], values_lines: list[str]) -> None:
+    """rows: [(key, path, repo, tag, disabled), ...] — `disabled` is True
+    when this row's own chart-tree path (see lib.render_scope.
+    rendered_chart_paths and row_chart_tree_path below) never actually
+    rendered: a dependency (or one of ITS OWN nested dependencies —
+    e.g. a Maykin chart's own bundled bitnami/redis, globally disabled
+    via podiumd's top-level "tags: {redis: false}") disabled via Helm's
+    condition:/tags: mechanism. Prints two lines per row (see
+    _print_image_entry)."""
+    entries = _sorted_image_entries(rows)
+    widths = _column_widths(entries)
+    for entry in entries:
+        _print_image_entry(entry, values_lines, widths)
+
+
+def row_chart_tree_path(chart_dir: Path, dep: ChartDependency, first_segment: str):
+    """The chart-tree path (see lib.render_scope.rendered_chart_paths)
+    that actually OWNS a row nested under `dep`'s own scope at
+    `first_segment` (the row's own dep-relative path's first segment,
+    e.g. "redis" for a Maykin chart's own bundled bitnami/redis sidecar,
+    or "eck-elasticsearch" for eck-stack's own nested eck-elasticsearch
+    sub-subchart) — `dep`'s own top-level chart-tree path normally, but
+    the path of one of `dep`'s OWN declared Chart.yaml dependencies
+    instead when `first_segment` matches one of them (name or alias) —
+    same convention lib.chart.resolve_subchart_default already uses for
+    this exact question (there, for a subchart-default-only image;
+    here, for any row regardless of where its tag actually came from).
+
+    Each level is keyed by that dependency's own VALUES-KEY (alias if
+    it declares one, else its real name) — Helm's own "# Source:"
+    annotations name a chart-tree directory by alias when present,
+    confirmed live against the real chart (eck-stack, aliased
+    "kiss-eck", renders under "podiumd/charts/kiss-eck/...", never
+    ".../eck-stack/...")."""
+    nested = next(
+        (d for d in subchart_dependencies(chart_dir, dep) if first_segment in (d.get("alias"), d["name"])), None
+    )
+    base = f"{CHART_NAME}/charts/{dep.get('alias') or dep['name']}"
+    if nested is None:
+        return base
+    return f"{base}/charts/{nested.get('alias') or nested['name']}"
+
+
+def component_version_rows(dep: ChartDependency, key: str, merged: YamlMapping, ctx: ChartContext) -> list[ImageRow]:
+    """Extra (key, path, repo, tag, disabled) rows for `dep`'s own settings.
+    yaml component_resolution.version_paths/version_path_nested_
+    subcharts-registered bare version fields — the ONE image shape find_images'
+    generic "{repository, tag}" dict match structurally can never see at
+    all (redis-operator's own split imageName/imageTag sibling fields;
+    eck-stack's own eck-elasticsearch/eck-kibana/eck-enterprise-search
+    CRD-version-only fields), the exact same registry lib.upgradedoc.
+    find_component_version_tags/lib.chart.paths_by_repository already
+    resolve for the doc-generation side — reused here via the SAME
+    resolution functions, never re-derived.
+
+    Tag comes from `merged` (chart defaults + podiumd's own overrides,
+    for THIS one dependency) rather than ctx.root_values alone — unlike
+    the doc-generation side, which only ever cares about podiumd's own
+    explicit overrides, this tool's whole point is the full EFFECTIVE
+    image set, chart defaults included.
+
+    Repository comes from full_repository_for_path — the exact same
+    per-path resolution chain paths_by_repository uses (podiumd's own
+    override, then a registered sibling field, then a registered nested
+    subchart's own documented default, then the dependency's own
+    vendored subchart default) — called against VENDORED_DIR.parent
+    (podiumd's own chart root, where every dependency's vendored .tgz
+    actually lives — read via VENDORED_DIR, not the module-level
+    CHART_DIR constant directly, so this stays correct under whatever
+    tests/conftest.py's own `lpi` fixture repoints VENDORED_DIR to,
+    exactly like load_chart's own vendored-.tgz lookup already does) and
+    ctx.root_values (podiumd's own, unmerged values.yaml): the exact
+    shape those functions were built for, NOT this script's own
+    per-dependency tmproot-extracted chart_dir (a different directory
+    entirely, one level further in — the SUBCHART's own root). Never
+    pulls (allow_pull=False, matching paths_by_repository's own
+    default): whatever `load_chart` already resolved for this
+    dependency's OWN chart version is enough; a bare version field with
+    no resolvable repository anywhere (not the case for either real
+    field registered today, but always possible in principle) is
+    silently skipped — same "not every image has a resolvable
+    repository" philosophy paths_by_repository's own docstring already
+    documents, rather than printing a row with no real repository.
+
+    `ctx.rendered_paths` (see lib.render_scope.rendered_chart_paths)
+    gates each row's own `disabled` flag (see print_image_lines)
+    against ITS OWN owning chart-tree path — row_chart_tree_path, which
+    may be a NESTED path when `rel`'s own first segment matches one of
+    `dep`'s OWN declared Chart.yaml dependencies (e.g. eck-stack's own
+    eck-elasticsearch/eck-kibana/eck-enterprise-search sub-subcharts) —
+    never just `dep`'s own top-level enabled/disabled status, which a
+    per-field toggle can disagree with independently."""
+    rows: list[ImageRow] = []
+    # CHART_DIR, not VENDORED_DIR.parent -- unlike the repository
+    # resolution below, this lookup is settings.yaml-backed and tests
+    # never repoint CHART_DIR (only VENDORED_DIR), so this is the real
+    # production chart_dir either way, same result as the old
+    # self-resolving default, just explicit.
+    rels = sorted(
+        set(version_paths_for(dep["name"], CHART_DIR)) | set(nested_subchart_registered_paths(dep["name"], CHART_DIR))
+    )
+    for rel in rels:
+        tag = text_at(merged, rel)
+        if not (isinstance(tag, str) and tag):
+            continue
+        path = (key, *tuple(rel.split(".")))
+        repo = full_repository_for_path(VENDORED_DIR.parent, ctx.deps, ctx.root_values, path, allow_pull=False)
+        if not repo:
+            continue
+        chart_tree_path = row_chart_tree_path(VENDORED_DIR.parent, dep, rel.split(".", 1)[0])
+        rows.append((key, rel, repo, tag, chart_tree_path not in ctx.rendered_paths))
+    return rows
+
+
+def _compute_rendered_paths():
+    """Real ground truth for "is this dependency (or one of ITS OWN
+    nested dependencies) actually enabled" — Helm's own condition:/tags:
+    mechanism (either can apply transitively to a nested dependency too,
+    e.g. a Maykin chart's own bundled bitnami/redis, globally disabled
+    via podiumd's top-level "tags: {redis: false}") is asked directly
+    via a real render, rather than re-implemented here (see
+    row_chart_tree_path/component_version_rows). Rendered against
+    VENDORED_DIR.parent, not CHART_DIR directly, same reason
+    component_version_rows already does — stays correct under whatever
+    tests/conftest.py's own `lpi` fixture repoints VENDORED_DIR to."""
+    chart_dir = VENDORED_DIR.parent
+    extra_args = lint_args_for(chart_dir)
+    render_result = render_chart(chart_dir, extra_args)
+    if render_result.returncode != 0:
+        msg = f"error: helm template failed to render\n{render_result.stderr}"
+        raise SystemExit(msg)
+    return rendered_chart_paths(render_result.stdout)
+
+
+def _top_level_image_rows(root_values: YamlMapping, dep_keys: set[str]) -> list[ImageRow]:
+    """(key, path, repo, tag, disabled) rows for podiumd's own top-level
+    values not tied to any dependency (e.g. global.images.*) — never
+    disabled, since a top-level value isn't gated by any chart-tree
+    path."""
+    rows: list[ImageRow] = []
+    for key, value in root_values.items():
+        if key not in dep_keys:
+            rows.extend((key, path, repo, tag, False) for path, repo, tag in find_images(value))
+    return rows
+
+
+def _print_dependency_header(dep: ChartDependency, ctx: ChartContext):
+    """Prints the "=== <key> (<name> <version>) [disabled] ===" header
+    line and returns `key` (dep's own values-key: alias if it declares
+    one, else its real name)."""
+    key = values_key_of(dep)
+    dep_chart_tree_path = f"{CHART_NAME}/charts/{key}"
+    enabled = dep_chart_tree_path in ctx.rendered_paths
+    status = "" if enabled else "  [disabled]"
+    print(f"=== {key} ({dep['name']} {dep['version']}){status} ===")
+    return key
+
+
+def _merged_image_rows(dep: ChartDependency, key: str, merged: YamlMapping, ctx: ChartContext) -> list[ImageRow]:
+    """(key, path, repo, tag, disabled) rows for `dep`'s own effective
+    image set: every find_images-shaped reference in `merged` (chart
+    defaults + podiumd's own overrides), plus any component_version_
+    rows extras (see its own docstring for the split-field shapes
+    find_images can't see structurally)."""
+    rows: list[ImageRow] = []
+    for path, repo, tag in find_images(merged):
+        # find_images' own path is a dotted STRING (e.g.
+        # "redis.image"), not a tuple — its first dotted segment
+        # is what row_chart_tree_path needs.
+        chart_tree_path = row_chart_tree_path(VENDORED_DIR.parent, dep, path.split(".", 1)[0])
+        rows.append((key, path, repo, tag, chart_tree_path not in ctx.rendered_paths))
+    rows.extend(component_version_rows(dep, key, merged, ctx))
+    return rows
+
+
+def _print_dependency_images(
+    dep: ChartDependency, tmproot: Path, ctx: ChartContext, values_lines: list[str], *, refresh: bool
+):
+    """Prints one Chart.yaml dependency's "=== <key> (<name> <version>)
+    ===" section: its own appVersion/sub-chart dependencies, then every
+    resolved image reference (chart defaults merged with podiumd's own
+    overrides, plus any component_version_rows extras) — see main()."""
+    key = _print_dependency_header(dep, ctx)
+
+    try:
+        chart_yaml, defaults = load_chart(dep, tmproot, refresh=refresh)
+    except SystemExit as e:
+        print(f"  {e}\n")
+        return
+
+    print(f"  appVersion: {chart_yaml.get('appVersion', 'n/a')}")
+
+    sub_deps = chart_yaml.get("dependencies", [])
+    if sub_deps:
+        print("  sub-chart dependencies:")
+        for d in sub_deps:
+            print(f"    - {d['name']}: {d['version']}")
+
+    overrides = ctx.root_values.get(key, {})
+    merged = deep_merge(defaults, overrides)
+    rows = _merged_image_rows(dep, key, merged if isinstance(merged, dict) else {}, ctx)
+    if rows:
+        print_image_lines(rows, values_lines)
+    else:
+        print("  (no image references found)")
+    print()
+
+
+def main():
+    """CLI entry point: renders the real podiumd chart once to determine
+    which dependency (sub-)trees are actually enabled, then for each
+    Chart.yaml dependency loads and merges its own values with podiumd's
+    overrides (plus any top-level images not tied to a dependency) and
+    prints every resolved image reference. --refresh forces a fresh `helm
+    pull` per dependency instead of reusing a locally vendored .tgz."""
+    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
+        print(__doc__)
+        sys.exit(0)
+    refresh = "--refresh" in sys.argv[1:]
+    ensure_vendored_dependencies(VENDORED_DIR.parent)
+
+    deps = load_chart_dependencies(CHART_YAML)
+    root_values = load_yaml_mapping(VALUES_YAML)
+    dep_keys = {values_key_of(dep) for dep in deps}
+    values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
+    ctx = ChartContext(deps=deps, root_values=root_values, rendered_paths=_compute_rendered_paths())
+
+    tmproot = Path(tempfile.mkdtemp(prefix="list-podiumd-images-"))
+    try:
+        top_level_images = _top_level_image_rows(root_values, dep_keys)
+        if top_level_images:
+            print("=== podiumd top-level values (not part of a dependency) ===")
+            print_image_lines(top_level_images, values_lines)
+            print()
+
+        for dep in ctx.deps:
+            _print_dependency_images(dep, tmproot, ctx, values_lines, refresh=refresh)
+    finally:
+        shutil.rmtree(tmproot, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main()

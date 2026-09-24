@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""
+List the images and sub-chart dependencies of one podiumd dependency
+chart at a given version.
+
+Pulls the chart (a file:// dependency is read from its source directory).
+Each image prints as "<key> <basename> <version>  (path: ...)", the
+argument order update-image-version and verify-image-version take,
+followed by an indented "<repo>:<tag>" line.
+
+Usage:
+    list-helmchart-images <chart-name-or-alias> <chart-version>
+
+Arguments:
+    <chart-name-or-alias>   Chart.yaml dependency name or alias
+    <chart-version>         chart version to inspect (for a file://
+                            dependency only checked against the source)
+
+Examples:
+    list-helmchart-images zac 1.0.297
+    list-helmchart-images zgw-office-addin 0.0.92
+    list-helmchart-images mi-data 1.0.0
+
+Requires: helm on PATH, with the podiumd Helm repositories added.
+"""
+
+import shutil
+import sys
+import tempfile
+
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.chart_yaml import chart_dependencies
+from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.chart_yaml import load_chart_yaml
+from lib.chart.paths import CHART_DIR
+from lib.chart.paths import CHART_YAML
+from lib.chart.pull_and_subchart_resolution import chart_ref
+from lib.chart.pull_and_subchart_resolution import local_chart_dir
+from lib.chart.pull_and_subchart_resolution import pull_chart
+from lib.chart.pull_and_subchart_resolution import pulled_chart_dir
+from lib.chart.pull_and_subchart_resolution import require_local_chart_dir
+from lib.chart.values_tree_primitives import find_dependency as _find_dependency
+from lib.chart.values_tree_primitives import find_images
+from lib.chart.values_tree_primitives import values_key_of
+from lib.chart.values_tree_primitives import version_of
+from lib.cli import positional_args
+from lib.image.version import image_basename
+from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
+
+
+def find_dependency(name_or_alias: str):
+    """Looks up `name_or_alias` among podiumd's own Chart.yaml dependencies
+    (matching either the dependency's name or its alias) and raises
+    SystemExit with a clear error if there's no match — this script only
+    ever operates on a dependency podiumd itself declares."""
+    deps = load_chart_dependencies(CHART_YAML)
+    dep = _find_dependency(deps, name_or_alias)
+    if dep is None:
+        msg = f"error: no dependency named or aliased '{name_or_alias}' found in {CHART_YAML}"
+        raise SystemExit(msg)
+    return dep
+
+
+def _print_image_references(values_yaml: YamlMapping, key: str):
+    """Prints every image reference in `values_yaml` — each as the "<key>
+    <basename> <version>  (path: ...)" line plus an indented "<repo>:<tag>"
+    line (see module docstring for why that shape matters), column-aligned
+    across all entries by basename/version width."""
+    images = find_images(values_yaml)
+    if not images:
+        print("\nNo image references found in values.yaml")
+        return
+
+    print("\nImage references:")
+    entries = [(key, image_basename(repo), version_of(tag), repo, tag, path) for path, repo, tag in images]
+    entries.sort(key=lambda e: e[5])
+    bwidth = max(len(e[1]) for e in entries)
+    vwidth = max(len(e[2]) for e in entries)
+    for key_, basename, version, repo, tag, path in entries:
+        print(f"  {key_}  {basename.ljust(bwidth)}  {version.ljust(vwidth)}  (path: {path})")
+        print(f"      {repo}:{tag}")
+
+
+def report_chart(chart_dir: Path, requested_version: str, key: str):
+    """Prints `chart_dir`'s Chart.yaml/values.yaml contents: chart name,
+    version and appVersion, its own sub-chart dependencies, and every image
+    reference found in values.yaml (see _print_image_references). Warns to
+    stderr, but doesn't fail, if `chart_dir`'s actual version differs from
+    `requested_version` (e.g. a local "file://" dependency, which only
+    ever has one real version)."""
+    chart_yaml = load_chart_yaml(chart_dir / "Chart.yaml")
+    values_yaml = load_yaml_mapping(chart_dir / "values.yaml")
+
+    actual_version = chart_yaml["version"]
+    if actual_version != requested_version:
+        print(
+            f"note: {chart_dir} is actually version {actual_version!r}, not the requested {requested_version!r}",
+            file=sys.stderr,
+        )
+
+    print(f"\nChart: {chart_yaml['name']} {actual_version} (appVersion: {chart_yaml.get('appVersion', 'n/a')})")
+
+    sub_deps = chart_dependencies(chart_yaml)
+    if sub_deps:
+        print("\nSub-chart dependencies:")
+        for d in sub_deps:
+            print(f"  - {d['name']}: {d['version']}")
+
+    _print_image_references(values_yaml, key)
+
+
+def main():
+    """CLI entry point: resolves <chart-name-or-alias> to a podiumd
+    dependency, then either reads its source straight from a local
+    "file://" path or `helm pull`s <chart-version> into a scratch tempdir
+    (always cleaned up), and reports its images and sub-chart dependencies
+    via report_chart."""
+    name_or_alias, version = positional_args(__doc__, 2)
+    dep = find_dependency(name_or_alias)
+    key = values_key_of(dep)
+
+    local_dir = local_chart_dir(CHART_DIR, dep)
+    if local_dir is not None:
+        require_local_chart_dir(local_dir, dep)
+        print(f"Reading local chart source: {local_dir}")
+        report_chart(local_dir, version, key)
+        return
+
+    tmpdir = Path(tempfile.mkdtemp(prefix="list-helmchart-images-"))
+    try:
+        ref, _ = chart_ref(dep)
+        print(f"Pulling {ref} @ {version} ...")
+        ok, stderr = pull_chart(dep, version, tmpdir)
+        if not ok:
+            msg = f"error: helm pull failed for {ref}@{version}\n{stderr}"
+            raise SystemExit(msg)
+        report_chart(pulled_chart_dir(tmpdir), version, key)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main()

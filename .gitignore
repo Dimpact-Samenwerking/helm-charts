@@ -1,5 +1,6 @@
 /.idea/
 /.cache/
+/.venv/
 /charts/**/charts/
 /charts/**/Chart.lock
 /http-client.private.env.json
@@ -13,3 +14,6 @@
 /charts/podiumd/scripts/aks-blue-login.sh
 /charts/podiumd/scripts/cluster-overview.py
 /charts/podiumd/rendered-helm.yaml
+
+__pycache__/
+.pytest_cache/

@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""
+Check that an image version exists upstream before pinning it.
+
+Resolves <key> <basename> to exactly one image pin in the current
+values.yaml and checks that <image-version> exists in its registry.
+Writes nothing. Pre-flight check for update-image-version; when the
+Helm chart version changes too, use verify-component-version.
+
+Usage:
+    verify-image-version <key> <basename> <image-version>
+
+Arguments:
+    <key>            Chart.yaml dependency name or alias, or "MULTIPLE"
+                     for a base image shared via values.yaml global.images
+    <basename>       last "/" segment of the image repository
+    <image-version>  tag to check
+
+Examples:
+    verify-image-version zac zaakafhandelcomponent 5.4.4
+    verify-image-version keycloak-operator python 3.15.7-slim
+    verify-image-version MULTIPLE curl 8.22.0
+
+Exits non-zero when <key> <basename> does not match exactly one pin, or
+when <image-version> does not exist.
+"""
+
+import sys
+
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.paths import CHART_YAML
+from lib.chart.paths import VALUES_YAML
+from lib.cli import positional_args
+from lib.image.version import check_basename_version
+from lib.image.version import resolve_key_scope
+
+
+def main():
+    """CLI entry point: resolves <key> <basename> to the current values.
+    yaml pin(s) and checks whether <image-version> already exists upstream
+    for each, printing FOUND/MISSING per match. Exits non-zero if <key>
+    <basename> doesn't resolve uniquely, or if the version is missing for
+    any resolved pin."""
+    key, basename, image_version = positional_args(__doc__, 3)
+
+    deps = load_chart_dependencies(CHART_YAML)
+    key = resolve_key_scope(key, deps)
+
+    lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
+    results = check_basename_version(lines, key, basename, image_version)
+
+    print(f"Checking image version {image_version!r} for {key!r} {basename!r}:")
+    ok = True
+    for r in results:
+        status = "FOUND  " if r["exists"] else "MISSING"
+        suffix = f"  digest={r['digest']}" if r["digest"] else ""
+        print(f"  [{status}] {r['host']}/{r['repo_path']}:{image_version}{suffix}")
+        ok = ok and r["exists"]
+
+    print()
+    print("OK: image version exists" if ok else "FAIL: image version does not exist yet")
+    sys.exit(0 if ok else 1)
+
+
+if __name__ == "__main__":
+    main()

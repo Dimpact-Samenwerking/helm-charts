@@ -332,7 +332,7 @@ In the Keycloak admin console for the `podiumd` realm:
 
 1. **Clients → `zaakbrug` → Roles** — confirm `administrators` / `zaakbrug_admin`
    / `dataadmin` exist (seeded by the realm import, step 6).
-2. **Users → _\<user>_ → Role mapping → Assign role** — filter by the `zaakbrug`
+2. **Users →** ***\<user>*** **→ Role mapping → Assign role** — filter by the `zaakbrug`
    client and assign the appropriate client role (directly, or via a group /
    composite realm role your gemeente already uses).
 3. The user opens `https://<env>-zaakbrug.<gemeente-domain>/iaf/gui`, is

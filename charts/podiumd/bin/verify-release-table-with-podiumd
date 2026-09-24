@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""
+Compare charts/podiumd/etc/release-table.csv with Chart.yaml and
+values.yaml.
+
+Reports:
+  - version mismatches: target_version_helm or target_version_app
+    differs from the current pin (compared as literal text, so "v1.0"
+    and "1.0" differ)
+  - missing from release-table.csv: a dependency without a row or
+    without any recorded chart version, or a pinned image no row names;
+    each finding says which Confluence table to add it to and what the
+    row needs
+  - missing from the chart: a row whose component or image is no longer
+    in Chart.yaml or values.yaml
+Rows with component "MULTIPLE" are checked against global.images.
+Rows with component "UNKNOWN" are listed as unresolved, not as failures.
+Uses the local chart and vendored sub-charts; only the baseline-side
+check may run `helm pull` for a baseline sub-chart that isn't vendored.
+
+Usage:
+    verify-release-table-with-podiumd [--baseline-only]
+
+Options:
+    --baseline-only   only check source_version_* against the
+                      release_table baseline; a blank source version is
+                      a finding when the item already existed there
+
+Exit code: 1 when a finding is reported, or with --baseline-only when
+the release_table baseline cannot be resolved; 0 otherwise.
+"""
+
+import sys
+
+from collections.abc import Mapping
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
+from lib.chart.paths import CHART_YAML
+from lib.chart.paths import VALUES_YAML
+from lib.chart.release_baseline_basics import release_table_baseline
+from lib.dependencies import ensure_vendored_dependencies
+from lib.release_baseline import resolve_baseline_chart_state
+from lib.release_table.csv_rows import ReleaseTableRow
+from lib.release_table.state import ChartState
+from lib.release_table_verification import compare
+
+# isort: off
+# Fenced from import sorting: isort and ruff's isort rules attach these
+# comment lines to different imports.
+#
+# basenames_under_scope_any_tag isn't used by this script's own code
+# below -- kept imported only so the tests/ suite's `vrt` fixture (which
+# loads this whole script as a module) can still reach it as
+# vrt.basenames_under_scope_any_tag.
+# pylint: disable-next=unused-import
+from lib.image.version import basenames_under_scope_any_tag  # noqa: F401
+
+# primary_image_repositories: same test-only re-export reason as
+# basenames_under_scope_any_tag above (vrt.primary_image_repositories,
+# monkeypatched by tests to fake subchart-fallback image resolution).
+# pylint: disable-next=unused-import
+from lib.chart.pull_and_subchart_resolution import primary_image_repositories  # noqa: F401
+
+# is_primary_image: same test-only re-export reason as
+# basenames_under_scope_any_tag above (vrt.is_primary_image).
+# pylint: disable-next=unused-import
+from lib.release_table_verification import is_primary_image  # noqa: F401
+from lib.chart.chart_yaml import load_chart_dependencies
+from lib.yaml_types import load_yaml_mapping
+from lib.release_table.csv_rows import read_release_table
+# isort: on
+
+RELEASE_TABLE_CSV = CHART_DIR / "etc" / "release-table.csv"
+
+
+SECTIONS = [
+    ("mismatches", "Version mismatches"),
+    ("ambiguous", "Ambiguous pins (can't verify)"),
+    ("missing_from_release_table", "Missing from release-table.csv"),
+    ("missing_from_chart", "Missing from Chart.yaml / values.yaml"),
+]
+
+
+def print_report(findings: Mapping[str, list[str]], unresolved: list[ReleaseTableRow]) -> bool:
+    """Prints every non-empty findings[key] section (in SECTIONS' order,
+    items sorted), plus a "Skipped" block for `unresolved` rows (see
+    compare — a release-table.csv row whose component couldn't be
+    resolved to a Chart.yaml dependency or values.yaml key at all), or a
+    single "OK" line when there's nothing to report. Returns True if
+    anything was printed, so main() can use it directly as the process's
+    exit-status signal."""
+    any_findings = False
+    for key, title in SECTIONS:
+        items = findings.get(key)
+        if not items:
+            continue
+        any_findings = True
+        print(f"\n{title}:")
+        for item in sorted(items):
+            print(f"  {item}")
+
+    if unresolved:
+        print(f"\nSkipped ({len(unresolved)} row(s) with an unresolved component in release-table.csv):")
+        for row in sorted(unresolved, key=lambda r: r["name"]):
+            print(f"  - '{row['name']}' (component={row['component'] or '(blank)'})")
+
+    if not any_findings:
+        print("OK: release-table.csv matches Chart.yaml / values.yaml")
+    return any_findings
+
+
+def _resolve_baseline_state(chart_dir: Path):
+    """The release_table baseline's own ChartState (see main()), or None
+    with a WARNING already printed — either because release-baseline.yaml
+    has no release_table key set yet, or that ref couldn't be resolved
+    (see lib.release_baseline.resolve_baseline_chart_state). Either way,
+    None is exactly what tells compare() to skip every source-side check
+    entirely rather than risk a false "didn't exist at baseline" flood
+    (see compare()'s own docstring)."""
+    baseline_ref = release_table_baseline(chart_dir)
+    if baseline_ref is None:
+        print("WARNING: release_table baseline not set in release-baseline.yaml — skipping source-version checks\n")
+        return None
+    _resolved_ref, deps, values, lines, error = resolve_baseline_chart_state(chart_dir, baseline_ref)
+    if error:
+        print(f'WARNING: release_table baseline "{baseline_ref}": {error} — skipping source-version checks\n')
+        return None
+    return ChartState(chart_dir, deps, values, lines)
+
+
+def main():
+    """CLI entry point: loads release-table.csv plus Chart.yaml/values.yaml
+    (and, when release-baseline.yaml's release_table key resolves, the
+    same state as of that baseline — see resolve_baseline_chart_state),
+    runs compare() over every dependency/component, prints the results
+    via print_report, and exits 1 if anything was found. `--baseline-only`
+    restricts the run to the source-side presence checks (see compare's
+    own docstring) and requires the baseline to have resolved; with no
+    resolvable baseline otherwise, the source-version checks are skipped
+    with a warning rather than failing the whole run."""
+    args = sys.argv[1:]
+    if args in (["-h"], ["--help"]):
+        print(__doc__)
+        sys.exit(0)
+    if args not in ([], ["--baseline-only"]):
+        print(__doc__)
+        sys.exit(1)
+    baseline_only = args == ["--baseline-only"]
+    if not baseline_only:
+        # --baseline-only skips every target-side check, the only ones
+        # that read this checkout's own vendored charts/*.tgz.
+        ensure_vendored_dependencies(CHART_DIR)
+
+    if not RELEASE_TABLE_CSV.is_file():
+        print(f"error: {RELEASE_TABLE_CSV} not found")
+        print("Create it first with export-confluence-release-table.")
+        sys.exit(1)
+    rows = read_release_table(RELEASE_TABLE_CSV)
+
+    deps = load_chart_dependencies(CHART_YAML) if CHART_YAML.is_file() else []
+    values = load_yaml_mapping(VALUES_YAML) if VALUES_YAML.is_file() else {}
+    lines = VALUES_YAML.read_text(encoding="utf-8").splitlines() if VALUES_YAML.is_file() else []
+
+    # None on ANY failure here — see compare()'s own docstring for why
+    # that distinction matters: a baseline that couldn't be resolved
+    # must skip the new source-checks entirely, never be silently
+    # treated as "resolved, genuinely empty", which would flood every
+    # row with a false finding instead. The existing target-checks are
+    # completely unaffected either way — only the new source-checks are
+    # ever gated on this.
+    baseline = _resolve_baseline_state(CHART_DIR)
+
+    if baseline_only and baseline is None:
+        print(
+            "error: --baseline-only has nothing to check — the release_table baseline could not be "
+            "resolved (see the WARNING above)"
+        )
+        sys.exit(1)
+
+    findings, unresolved = compare(
+        rows,
+        ChartState(CHART_DIR, deps, values, lines),
+        baseline=baseline,
+        baseline_only=baseline_only,
+    )
+    any_findings = print_report(findings, unresolved)
+    sys.exit(1 if any_findings else 0)
+
+
+if __name__ == "__main__":
+    main()

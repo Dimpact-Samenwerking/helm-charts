@@ -1,0 +1,551 @@
+"""check_shellcheck / find_shell_scripts / extract_shell_scripts /
+run_shellcheck — lints every shell script embedded in a container's
+command/args (this chart's `command: [".../sh", "-c"], args: [<script>]` /
+`command: [...], args: ["-c", <script>]` convention). Same own/vendored
+scope split as check_yamllint/check_kubeconform: only error/warning-level
+findings in this chart's OWN templates fail; a partner-vendor finding
+(Maykin/Info(NL)/ICATT/Worth/WeAreFrank/Dimpact/local) is printed per-item
+but never fails; any other vendored finding only ever gets a one-line
+aggregate count; info/style are cosmetic and never reported anywhere. All
+`helm`/`shellcheck` subprocess calls are mocked via vp.run;
+friendly_vendor_charts is mocked too, since these tests use tmp_path (no
+real Chart.yaml) — no real shellcheck or helm invocation happens in these
+tests."""
+
+import json
+
+from pathlib import Path
+from types import ModuleType
+from types import SimpleNamespace
+
+import pytest
+
+SHELL_NAMES = {"sh", "bash", "dash", "ksh"}
+
+
+def sc_result(comments, returncode=1):
+    return SimpleNamespace(
+        returncode=returncode,
+        stdout=json.dumps({"comments": comments}),
+        stderr="",
+    )
+
+
+def no_friendly_vendors(libshellcheckcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("lib.render_scope.friendly_vendor_charts", lambda chart_dir: {})
+
+
+RENDERED = (
+    "---\n"
+    "# Source: podiumd/templates/keycloak-ensure-operator-sa.yaml\n"
+    "apiVersion: batch/v1\n"
+    "kind: Job\n"
+    "metadata:\n"
+    "  name: keycloak-ensure-operator-sa\n"
+    "spec:\n"
+    "  template:\n"
+    "    spec:\n"
+    "      containers:\n"
+    "        - name: wait\n"
+    "          image: curlimages/curl\n"
+    '          command: ["/bin/sh", "-c"]\n'
+    "          args:\n"
+    "            - |\n"
+    "              set -euo pipefail\n"
+    "              echo hi\n"
+    "---\n"
+    "# Source: podiumd/charts/zac/templates/deployment.yaml\n"
+    "apiVersion: apps/v1\n"
+    "kind: Deployment\n"
+    "metadata:\n"
+    "  name: zac\n"
+    "spec:\n"
+    "  template:\n"
+    "    spec:\n"
+    "      initContainers:\n"
+    "        - name: wait-for-db\n"
+    '          command: ["sh", "-c", "until nc -z db 5432; do sleep 1; done"]\n'
+)
+# Absolute (1-based) rendered-output start lines for the two resources above
+# (the line right after each's own "# Source:" comment) — see
+# build_resource_locations in lib.render_scope.
+JOB_RENDERED_LINE = 3
+DEPLOYMENT_RENDERED_LINE = 20
+
+
+# --- find_shell_scripts ---
+
+
+def test_find_shell_scripts_detects_command_then_args_pattern(libshellcheckcheck: ModuleType):
+    manifest = {
+        "spec": {
+            "containers": [
+                {"name": "a", "command": ["/bin/sh", "-c"], "args": ["echo hi"]},
+            ]
+        }
+    }
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
+    assert len(found) == 1
+    _source, _path, shell, script = found[0]
+    assert shell == "sh"
+    assert script == "echo hi"
+
+
+def test_find_shell_scripts_detects_command_only_pattern(libshellcheckcheck: ModuleType):
+    manifest = {"command": ["sh", "-c", "echo hi"]}
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
+    assert len(found) == 1
+    assert found[0][2] == "sh"
+    assert found[0][3] == "echo hi"
+
+
+def test_find_shell_scripts_ignores_non_shell_commands(libshellcheckcheck: ModuleType):
+    manifest = {"command": ["/usr/bin/curl", "-c", "not-a-shell-flag-context"]}
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
+    # "curl" is not a recognized shell name, so this must not be treated as one
+    assert found == []
+
+
+def test_find_shell_scripts_tolerates_scalar_args_alongside_list_command(libshellcheckcheck: ModuleType):
+    """A malformed manifest where command is a list but args is a scalar
+    string (a bare-rendered `args: {{ .Values.x }}`, a CRD instance, a
+    hand-written Pod) must not raise `list + str` — the scan just uses the
+    list half and lets yamllint/kubeconform report the bad field."""
+    manifest = {
+        "spec": {
+            "containers": [
+                {"name": "a", "command": ["sh", "-c", "echo hi"], "args": "{{ .Values.extraArgs }}"},
+            ]
+        }
+    }
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
+    assert [f[3] for f in found] == ["echo hi"]
+
+    # command scalar + args list: also must not raise (shell name is
+    # unknowable from a scalar command, so nothing is extracted).
+    manifest = {"command": "/bin/sh", "args": ["-c", "echo hi"]}
+    assert libshellcheckcheck.find_shell_scripts(manifest, "x.yaml", SHELL_NAMES) == []
+
+
+def test_find_shell_scripts_recurses_into_nested_structures(libshellcheckcheck: ModuleType):
+    manifest = {
+        "spec": {
+            "template": {
+                "spec": {
+                    "initContainers": [
+                        {"name": "a", "command": ["bash", "-c", "echo one"]},
+                    ],
+                    "containers": [
+                        {"name": "b", "command": ["dash", "-c", "echo two"]},
+                    ],
+                }
+            }
+        }
+    }
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml", SHELL_NAMES)
+    assert {f[3] for f in found} == {"echo one", "echo two"}
+
+
+# --- extract_shell_scripts ---
+# unlike find_shell_scripts (source, path, shell, script_text),
+# extract_shell_scripts also carries the containing resource's own
+# (kind, namespace, name) — constant across every script found in the
+# same doc — so a finding can later be resolved to a rendered-output
+# line via lib.render_scope.resource_line.
+
+
+def test_extract_shell_scripts_carries_resource_identity(libshellcheckcheck: ModuleType):
+    docs = [
+        (
+            "podiumd/templates/x.yaml",
+            (
+                "kind: Job\nmetadata:\n  name: foo\n  namespace: bar\n"
+                'spec:\n  containers:\n    - command: ["sh", "-c", "echo hi"]\n'
+            ),
+        )
+    ]
+    found = libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES)
+    assert len(found) == 1
+    _source, _path, _shell, _script, kind, namespace, name = found[0]
+    assert (kind, namespace, name) == ("Job", "bar", "foo")
+
+
+def test_extract_shell_scripts_no_identity_when_doc_is_not_a_single_object(libshellcheckcheck: ModuleType):
+    """A top-level list (not a single k8s object) has no resource identity
+    at all — kind/namespace/name must degrade to None rather than crash,
+    and _shellcheck_location must skip the rendered-line lookup for it."""
+    docs = [("podiumd/templates/x.yaml", '- command: ["sh", "-c", "echo hi"]\n')]
+    found = libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES)
+    assert len(found) == 1
+    _source, _path, _shell, _script, kind, namespace, name = found[0]
+    assert (kind, namespace, name) == (None, None, None)
+
+
+def test_extract_shell_scripts_skips_unparseable_doc(libshellcheckcheck: ModuleType):
+    docs = [("podiumd/templates/x.yaml", "not: [valid, yaml: at all")]
+    assert libshellcheckcheck.extract_shell_scripts(docs, SHELL_NAMES) == []
+
+
+# --- check_shellcheck ---
+
+
+def fake_render_chart(rendered=RENDERED, returncode=0):
+    def render_chart(chart_dir, extra_args):
+        return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
+
+    return render_chart
+
+
+@pytest.fixture(autouse=True)
+def _default_render(monkeypatch: pytest.MonkeyPatch):
+    """check_shellcheck now gets its render via lib.render_scope.render_
+    chart(chart_dir, extra_args), not a run([...]) call of its own —
+    default every test in this file to the standard RENDERED fixture
+    text; a test needing different rendered content (or a render
+    failure) overrides this via its own monkeypatch.setattr(
+    "lib.render_scope.render_chart", ...) call."""
+    monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart(RENDERED))
+
+
+def sequenced_run(own_comments, vendored_comments=None, sc_returncode=1):
+    """check_shellcheck's own remaining run([...]) calls are ALL
+    "shellcheck" now (the render moved to render_chart, see
+    _default_render above) — one call per embedded script found, own
+    scripts first (in render order), then vendored."""
+    calls = {"n": 0}
+
+    def run(cmd, **kwargs):
+        calls["n"] += 1
+        comments = own_comments if calls["n"] == 1 else (vendored_comments or [])
+        return sc_result(comments, returncode=sc_returncode)
+
+    return run
+
+
+def test_check_shellcheck_no_findings_passes(
+    vp: ModuleType, libshellcheckcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(
+        libshellcheckcheck, "run", sequenced_run(own_comments=[], vendored_comments=[], sc_returncode=0)
+    )
+
+    ok, detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is True
+    assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
+
+
+def test_check_shellcheck_own_warning_fails(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[
+                {
+                    "level": "warning",
+                    "code": 3040,
+                    "line": 1,
+                    "message": "In POSIX sh, set option pipefail is undefined.",
+                },
+            ]
+        ),
+    )
+
+    ok, detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is False
+    assert "1 real" in detail
+    out = capsys.readouterr().out
+    assert "WARNING" in out
+    assert "SC3040" in out
+    assert "pipefail" in out
+
+
+def test_check_shellcheck_own_error_fails(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[
+                {"level": "error", "code": 1072, "line": 2, "message": "Unexpected token."},
+            ]
+        ),
+    )
+
+    ok, _detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is False
+    out = capsys.readouterr().out
+    assert "ERROR" in out
+
+
+def test_check_shellcheck_location_includes_script_line_and_column(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Beyond source/path, each location also shows shellcheck's own
+    line (and column, when shellcheck reports one) — position within
+    the embedded script text, not the rendered YAML."""
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[
+                {
+                    "level": "warning",
+                    "code": 2086,
+                    "line": 3,
+                    "column": 6,
+                    "message": "Double quote to prevent globbing and word splitting.",
+                },
+            ]
+        ),
+    )
+
+    ok, _detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is False
+    out = capsys.readouterr().out
+    assert f"script line 3:6 (rendered line {JOB_RENDERED_LINE})" in out
+
+
+def test_check_shellcheck_location_line_without_column(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    """A finding with a line but no column still shows the line alone,
+    not a bare trailing colon."""
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[
+                {"level": "error", "code": 1072, "line": 2, "message": "Unexpected token."},
+            ]
+        ),
+    )
+
+    ok, _detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is False
+    out = capsys.readouterr().out
+    assert "script line 2" in out
+    assert "script line 2:" not in out
+    assert f"(rendered line {JOB_RENDERED_LINE})" in out
+
+
+def test_check_shellcheck_info_and_style_never_reported(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    """info/style findings are cosmetic — not just non-failing, not
+    mentioned in output or detail at all, same policy as yamllint."""
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[
+                {"level": "info", "code": 2086, "line": 1, "message": "Double quote to prevent globbing."},
+                {"level": "style", "code": 2006, "line": 2, "message": "Use $(...) instead of legacy backticks."},
+            ]
+        ),
+    )
+
+    ok, detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is True
+    assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
+    out = capsys.readouterr().out
+    assert "2086" not in out
+    assert "2006" not in out
+
+
+def test_check_shellcheck_repeated_root_cause_is_grouped(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+
+    # two own scripts with the identical shellcheck finding
+    rendered = (
+        "---\n"
+        "# Source: podiumd/templates/a.yaml\n"
+        "spec:\n"
+        "  containers:\n"
+        '    - command: ["/bin/sh", "-c"]\n'
+        '      args: ["set -euo pipefail\\necho a"]\n'
+        "---\n"
+        "# Source: podiumd/templates/b.yaml\n"
+        "spec:\n"
+        "  containers:\n"
+        '    - command: ["/bin/sh", "-c"]\n'
+        '      args: ["set -euo pipefail\\necho b"]\n'
+    )
+    monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart(rendered))
+
+    def run(cmd, **kwargs):
+        return sc_result(
+            [
+                {
+                    "level": "warning",
+                    "code": 3040,
+                    "line": 1,
+                    "message": "In POSIX sh, set option pipefail is undefined.",
+                },
+            ]
+        )
+
+    monkeypatch.setattr(libshellcheckcheck, "run", run)
+    ok, detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is False
+    assert "2 real" in detail
+    out = capsys.readouterr().out
+    assert out.count("[WARNING") == 1  # one grouped line, not two
+    assert "x2" in out
+
+
+def test_check_shellcheck_other_vendor_finding_never_fails(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[],
+            vendored_comments=[{"level": "error", "code": 1072, "line": 1, "message": "Unexpected token."}],
+        ),
+    )
+
+    ok, detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is True
+    assert "0 real (own)" in detail
+    assert "1 other-vendor" in detail
+    out = capsys.readouterr().out
+    assert "outside this repo's scope" in out
+    assert "never a failure" in out
+    assert "Unexpected token" not in out  # not dumped in detail
+
+
+def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(
+    vp: ModuleType,
+    libshellcheckcheck: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    """A vendored sub-chart from a listed partner org (here: zac -> Info(NL))
+    gets its finding printed individually — unlike a plain vendored
+    finding, which only ever gets an aggregate count — but must still
+    never fail."""
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    monkeypatch.setattr("lib.render_scope.friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
+    monkeypatch.setattr(
+        libshellcheckcheck,
+        "run",
+        sequenced_run(
+            own_comments=[],
+            vendored_comments=[{"level": "error", "code": 1072, "line": 1, "message": "Unexpected token."}],
+        ),
+    )
+
+    ok, detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is True
+    assert "0 real (own)" in detail
+    assert "1 partner-vendor" in detail
+    assert "0 other-vendor" in detail
+    out = capsys.readouterr().out
+    assert "reported for visibility, never a failure" in out
+    assert "Info(NL)" in out
+    assert "Unexpected token" in out  # per-item detail, not just a count
+    assert "podiumd/charts/zac/templates/deployment.yaml" in out
+    assert "script line 1" in out  # location detail survives alongside the vendor tag
+    assert f"(rendered line {DEPLOYMENT_RENDERED_LINE})" in out
+
+
+def test_check_shellcheck_no_scripts_found_passes(
+    vp: ModuleType, libshellcheckcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(
+        "lib.render_scope.render_chart",
+        fake_render_chart("---\n# Source: podiumd/templates/x.yaml\nkind: ConfigMap\n"),
+    )
+
+    def run(cmd, **kwargs):
+        msg = "shellcheck should never be invoked — no scripts to check"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(libshellcheckcheck, "run", run)
+    ok, detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is True
+    assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
+
+
+def test_check_shellcheck_missing_binary_fails(vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(vp.shutil, "which", lambda name: None)
+    ok, detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is False
+    assert "not installed" in detail
+
+
+def test_check_shellcheck_render_failure_fails(
+    vp: ModuleType, libshellcheckcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    monkeypatch.setattr("lib.render_scope.render_chart", fake_render_chart("", returncode=1))
+    ok, detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is False
+    assert "failed to render" in detail
+
+
+def test_check_shellcheck_unparseable_output_fails(
+    vp: ModuleType, libshellcheckcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+
+    def run(cmd, **kwargs):
+        return SimpleNamespace(returncode=1, stdout="not json", stderr="")
+
+    monkeypatch.setattr(libshellcheckcheck, "run", run)
+    ok, detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is False
+    assert "unparseable" in detail

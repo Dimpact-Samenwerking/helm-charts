@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""
+Show a component's Helm chart and app image versions at both baselines.
+
+Reads Chart.yaml and values.yaml, via git show, as they were at each
+baseline in etc/release-baseline.yaml: upgrade_docs and release_table.
+A baseline "X.Y.Z" means git tag podiumd-X.Y.Z, else branch
+feature/podiumd-X.Y.Z or origin/feature/podiumd-X.Y.Z. A missing
+baseline is skipped; exits non-zero only when neither can be shown.
+For the image versions only, use show-image-baseline-version.
+
+Usage:
+    show-component-baseline-version <component>
+
+Arguments:
+    <component>   Chart.yaml dependency name or alias, or a native
+                  component (e.g. frankgateway), which has no chart version
+
+Examples:
+    show-component-baseline-version zac
+    show-component-baseline-version zgw-office-addin
+    show-component-baseline-version openformulieren
+    show-component-baseline-version frankgateway
+"""
+
+import sys
+
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.baseline_report import show_baseline_section
+from lib.chart.paths import CHART_DIR
+from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
+from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.repo_and_path_resolution import component_state_at_baseline
+from lib.cli import positional_args
+
+
+def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, component: str):
+    """Prints this component's state at `baseline` (labeled `label`,
+    "upgrade_docs" or "release_table") — see lib.baseline_report.
+    show_baseline_section for the shared "skip if None / print the
+    error / blank line" wrapper this only needs to supply its own
+    resolve-and-print body for. Returns True if the component's state
+    was actually shown."""
+
+    def resolve(baseline_value: str):
+        ref, dep, values_key, image_paths, app_versions, error = component_state_at_baseline(
+            chart_dir, "charts/podiumd", baseline_value, component
+        )
+        if error or image_paths is None:
+            return f"error: {error}"
+
+        if dep is None:
+            print(f"  Component: {component} (native, no Chart.yaml dependency; values key: {values_key})")
+        else:
+            print(f"  Component: {component} (Chart.yaml dependency: {dep['name']}, values key: {values_key})")
+        print(f"  Baseline: {baseline_value} (resolved to {ref})")
+        if dep is not None:
+            print(f"  Helm chart version: {dep['version']}")
+        if app_versions:
+            print("  App version(s):")
+            for name, tag in app_versions:
+                version = tag.split("@", 1)[0]
+                print(f"    {name}: {version}  ({tag})")
+        else:
+            print(
+                f"  App version: no tag override found at {', '.join(image_paths)} "
+                f"under '{values_key}:' — chart default applies"
+            )
+        return None
+
+    return show_baseline_section(label, baseline, resolve)
+
+
+def main():
+    """CLI entry point: prints `component`'s Helm chart version and app
+    image version(s) at both the upgrade_docs and release_table baselines,
+    exiting 1 only if neither baseline could be shown at all."""
+    (component,) = positional_args(__doc__, 1)
+
+    chart_dir = CHART_DIR
+
+    upgrade_docs = read_upgrade_docs_baseline(chart_dir)
+    release_table = read_release_table_baseline(chart_dir)
+
+    shown_upgrade_docs = show_at_baseline(chart_dir, "upgrade_docs", upgrade_docs, component)
+    shown_release_table = show_at_baseline(chart_dir, "release_table", release_table, component)
+
+    if not shown_upgrade_docs and not shown_release_table:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

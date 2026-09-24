@@ -1,0 +1,678 @@
+#!/usr/bin/env python3
+"""
+Bump every values.yaml image tag pin sharing an image basename, scoped to
+<key>, to a new version.
+
+Checks the version exists upstream and resolves its digest before writing
+anything. Then updates the docs for the current target version, if they
+exist (upgrade doc, values-deltas, images-<target>.yaml), runs
+fix-helm-doc and then fix-doc-consistency, which also regenerates
+images-baseline.yaml. Fails when <key>
+<basename> does not match exactly one repository.
+
+Usage:
+    update-image-version <key> <basename> <new-version>
+
+Arguments:
+    <key>           Chart.yaml dependency name or alias, or MULTIPLE for
+                    an image shared via global.images
+    <basename>      last path segment of the image repository
+    <new-version>   new image tag
+
+Examples:
+    update-image-version zac zaakafhandelcomponent 5.4.4
+    update-image-version keycloak-operator python 3.15.7-slim
+    update-image-version MULTIPLE curl 8.22.0
+
+To bump a component's app and chart version together, use
+update-component-version. Re-render the chart (verify-podiumd) before
+committing.
+"""
+
+import sys
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TypedDict
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.paths import CHART_DIR
+from lib.chart.paths import CHART_YAML
+from lib.chart.paths import DOC_DIR
+from lib.chart.paths import IMAGES_DIR
+from lib.chart.paths import VALUES_YAML
+from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.release_baseline_basics import chart_version
+from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
+from lib.chart.repo_and_path_resolution import doc_row_name
+from lib.chart.values_tree_primitives import dep_for_values_key
+from lib.chart.values_tree_primitives import dotted_key_path
+from lib.chart.values_tree_primitives import find_dependency
+from lib.cli import positional_args
+from lib.component_docs.baseline_doc_stubs import baseline_doc_paths
+from lib.component_docs.baseline_doc_stubs import images_manifest_path
+from lib.component_docs.baseline_doc_stubs import load_baseline_state
+from lib.component_docs.baseline_doc_stubs import load_baseline_values
+from lib.component_docs.changes_section import ComponentIdentity
+from lib.component_docs.changes_section import OrderingContext
+from lib.component_docs.changes_section import VersionChange
+from lib.component_docs.changes_section import make_changes_section
+from lib.component_docs.doc_updates import ValuesDeltaEntry
+from lib.component_docs.doc_updates import complete_docs_and_finish
+from lib.component_docs.doc_updates import print_missing_upgrade_doc
+from lib.component_docs.doc_updates import reset_upgrade_doc
+from lib.component_docs.doc_updates import rewrite_upgrade_doc
+from lib.component_docs.doc_updates import write_removed_values_delta_section
+from lib.component_docs.doc_updates import write_values_delta_entry
+from lib.component_docs.images_manifest_entries import ImagePathUpdate
+from lib.component_docs.images_manifest_entries import ManifestUpdateTarget
+from lib.component_docs.images_manifest_entries import remove_component_from_images_manifest
+from lib.component_docs.images_manifest_entries import update_images_manifest
+from lib.component_docs.values_delta_sections import ValuesDeltaOrdering
+from lib.component_docs.values_delta_sections import remove_values_delta_section
+from lib.component_docs.values_delta_sections import values_delta_section_heading
+from lib.dependencies import ensure_vendored_dependencies
+from lib.image.docs import ImageBump
+from lib.image.docs import make_image_changes_section
+from lib.image.docs import remove_image_manifest_entry
+from lib.image.docs import resolve_basename_baseline_version
+from lib.image.docs import update_image_manifest
+from lib.image.version import PinUpdate
+from lib.image.version import resolve_key_scope
+from lib.image.version import update_image_version
+from lib.procutil import run_script
+from lib.registry import parse_repo
+from lib.upgradedoc.app_version_and_image_paths import BaselineComponentQuery
+from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import resolve_baseline_component_versions
+from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
+from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
+
+FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
+
+
+class ComponentGroup(TypedDict):
+    """One top-level component's share of a basename bump (see
+    group_changes_by_component), keyed by image path within it."""
+
+    paths: list[str]
+    old_app_by_path: dict[str, str]
+    repos: dict[str, str]
+    new_tags_by_path: dict[str, str]
+
+
+def group_changes_by_component(
+    changes: list[PinUpdate], values_lines_before_write: list[str]
+) -> tuple[dict[str, ComponentGroup], list[tuple[str, str | None]]]:
+    """{values_key: {"paths": [dotted image path, ...], "old_app_by_path",
+    "repos", "new_tags_by_path"}} for every distinct top-level component a
+    basename bump's changes touch, plus [(full dotted "...tag" path,
+    old_version), ...] for every change, in file order — the shape both
+    the single-component and shared-image doc-update paths need, derived
+    once here so each `changes` entry's values-tree location is only
+    resolved a single time."""
+    groups: dict[str, ComponentGroup] = {}
+    full_paths: list[tuple[str, str | None]] = []
+    for c in changes:
+        path_parts = dotted_key_path(values_lines_before_write, c["line"] - 1).split(".")
+        values_key, image_path = path_parts[0], ".".join(path_parts[1:-1])
+        full_paths.append((".".join(path_parts), c["old_version"]))
+        g = groups.setdefault(values_key, {"paths": [], "old_app_by_path": {}, "repos": {}, "new_tags_by_path": {}})
+        if image_path not in g["paths"]:
+            g["paths"].append(image_path)
+        g["old_app_by_path"][image_path] = c["old_version"]
+        g["repos"][image_path] = c["repository"]
+        g["new_tags_by_path"][image_path] = f"{c['new_version']}@{c['new_digest']}"
+    return groups, full_paths
+
+
+@dataclass
+class ComponentBump:
+    """dep/values_key/group -- one basename bump's own single-component
+    match (see group_changes_by_component's own docstring for `group`'s
+    shape: paths/old_app_by_path/repos/new_tags_by_path), bundled since
+    every doc-update phase of update_docs_single_component below needs
+    some subset of all three."""
+
+    dep: ChartDependency
+    values_key: str
+    group: ComponentGroup
+
+
+@dataclass
+class _BaselineResolution:
+    """upgrade_docs_baseline/old_app/old_chart_str/reset_to_baseline/
+    baseline_deps/baseline_values -- update_docs_single_component's own
+    baseline-comparison phase output, threaded into every doc-update
+    phase below so each only computes it once (see resolve_baseline_
+    component_versions' own docstring for why a blank baseline app
+    version can't just be re-derived independently per phase)."""
+
+    upgrade_docs_baseline: str | None
+    old_app: str | None
+    old_chart_str: str | None
+    reset_to_baseline: bool
+    baseline_deps: list[ChartDependency] | None = None
+    baseline_values: YamlMapping | None = None
+
+
+@dataclass
+class _SingleComponentDocContext:
+    """friendly/chart_name/target/change/ordering/baseline -- everything
+    every doc-update phase of update_docs_single_component needs except
+    the bump's own paths/repos/tags (see ComponentBump), computed once up
+    front and threaded through unchanged."""
+
+    friendly: str
+    chart_name: str
+    target: str
+    change: VersionChange
+    ordering: OrderingContext
+    baseline: _BaselineResolution
+
+
+def _single_component_baseline_resolution(bump: ComponentBump, chart_name: str, chart_version_str: str):
+    """Compare against the TRUE release upgrade_docs_baseline
+    (git-resolved), not "whatever this script itself last left on disk"
+    -- see update-component-version's own main() for why (a component
+    bumped more than once in one release cycle collapses to a single
+    upgrade_docs_baseline -> final entry instead of accumulating each
+    intermediate hop; a bump that nets out to no change vs
+    upgrade_docs_baseline has nothing left to document at all)."""
+    upgrade_docs_baseline = read_upgrade_docs_baseline(CHART_DIR)
+    image_paths = bump.group["paths"]
+    old_app = bump.group["old_app_by_path"][image_paths[0]]
+    old_chart_str = chart_version_str
+    baseline_deps = baseline_values = None
+    reset_to_baseline = False
+    if upgrade_docs_baseline is not None:
+        baseline_deps, baseline_values = load_baseline_state(CHART_YAML, VALUES_YAML, upgrade_docs_baseline)
+    if baseline_deps is not None:
+        current_deps = load_chart_dependencies(CHART_YAML)
+        current_values = load_yaml_mapping(VALUES_YAML)
+        changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
+        # compute_changed_components returns top-level values.yaml keys.
+        reset_to_baseline = bump.values_key not in changed_keys
+        # resolve_baseline_component_versions (lib.upgradedoc) is the
+        # single shared source of truth for this resolution — see its own
+        # docstring for exactly why a blank baseline app-version tag isn't
+        # the same as "resolution failed, fall back to whatever old_app
+        # already held" (real bug, confirmed live: mi's own bump showed a
+        # stale "2.71.0 -> 2.90.0" transition instead of "2.90.0 (new)"),
+        # and why old_chart is gated by that same signal rather than
+        # always trusting baseline_dep's own raw Chart.yaml version.
+        # update-component-version's own main() calls the exact same
+        # helper, so the two scripts can never drift on this again.
+        baseline_dep = dep_for_values_key(baseline_deps, bump.values_key)
+        old_app, old_chart_str = resolve_baseline_component_versions(
+            BaselineComponentQuery(
+                baseline_values,
+                baseline_dep,
+                bump.values_key,
+                image_paths[0],
+                chart_name,
+                chart_version_str,
+                chart_dir=CHART_DIR,
+            )
+        )
+    return _BaselineResolution(
+        upgrade_docs_baseline, old_app, old_chart_str, reset_to_baseline, baseline_deps, baseline_values
+    )
+
+
+def _update_single_component_upgrade_doc(
+    upgrade_path: Path | None, context: _SingleComponentDocContext, bump: ComponentBump
+):
+    if upgrade_path is None:
+        print_missing_upgrade_doc(context.baseline.upgrade_docs_baseline, context.target)
+        return
+
+    if context.baseline.reset_to_baseline:
+        reset_upgrade_doc(upgrade_path, context.friendly, context.ordering, context.baseline.upgrade_docs_baseline)
+        return
+
+    identity = ComponentIdentity(context.friendly, context.chart_name, bump.values_key)
+    section = make_changes_section(identity, context.target, context.change, bump.group["paths"])
+    rewrite_upgrade_doc(upgrade_path, context.friendly, context.change, section, context.ordering)
+
+
+def _update_single_component_values_deltas(
+    values_deltas_path: Path | None,
+    context: _SingleComponentDocContext,
+    bump: ComponentBump,
+    *,
+    upgrade_path_exists: bool,
+):
+    if values_deltas_path is None:
+        if upgrade_path_exists:
+            print()
+            print(
+                f"No values-deltas.md found for upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
+                " — skipping that update."
+            )
+        return
+
+    text = values_deltas_path.read_text(encoding="utf-8")
+    text, section_removed = remove_values_delta_section(
+        text, context.friendly, context.ordering.deps, context.ordering.canonical_names
+    )
+    if context.baseline.reset_to_baseline:
+        values_deltas_path.write_text(text, encoding="utf-8")
+        print()
+        print(f"=== Updating {values_deltas_path.name} ===")
+        print(
+            f"  {context.friendly} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
+            f" version — {'removed its section' if section_removed else 'nothing to remove'}"
+        )
+        return
+
+    baseline_values_at_release = (
+        context.baseline.baseline_values
+        if context.baseline.baseline_deps is not None
+        else (
+            load_baseline_values(VALUES_YAML, context.baseline.upgrade_docs_baseline)
+            if context.baseline.upgrade_docs_baseline
+            else None
+        )
+    )
+    key_lines = []
+    no_baseline_ref = baseline_values_at_release is None
+    if not no_baseline_ref:
+        baseline_subtree = baseline_values_at_release.get(bump.values_key, {})
+        current_subtree = (context.ordering.values or {}).get(bump.values_key, {})
+        key_lines = describe_key_changes(bump.values_key, baseline_subtree, current_subtree)
+
+    # A pure image-tag bump with no values-schema change needs no
+    # section here at all — see sync_values_delta_sections' own
+    # docstring for why a heading with nothing under it is worse
+    # than no heading.
+    if key_lines:
+        heading_line = values_delta_section_heading(
+            context.friendly,
+            context.change.old_app,
+            context.change.new_app,
+            context.change.new_chart,
+            context.change.new_chart,
+        )
+        write_values_delta_entry(
+            values_deltas_path,
+            text,
+            ValuesDeltaEntry(context.friendly, heading_line, key_lines),
+            ValuesDeltaOrdering(context.ordering.deps, context.ordering.values, context.ordering.canonical_names),
+        )
+    elif section_removed:
+        write_removed_values_delta_section(values_deltas_path, text, context.friendly)
+    if no_baseline_ref:
+        print()
+        print(
+            f"  note: could not resolve upgrade_docs_baseline {context.baseline.upgrade_docs_baseline} to a git ref"
+            " — skipping added/removed/renamed key detection for values-deltas.md"
+        )
+
+
+def _update_single_component_images_manifest(context: _SingleComponentDocContext, bump: ComponentBump):
+    images_path = images_manifest_path(IMAGES_DIR, context.target)
+    if not images_path.is_file():
+        print()
+        print(f"No images-{context.target}.yaml found — skipping that update.")
+        return
+
+    manifest_target = ManifestUpdateTarget(images_path, context.friendly, bump.values_key)
+    path_update = ImagePathUpdate(bump.group["paths"], bump.group["repos"], bump.group["new_tags_by_path"])
+
+    if context.baseline.reset_to_baseline:
+        changes_action, entry_removals = remove_component_from_images_manifest(manifest_target, path_update)
+        print()
+        print(f"=== Updating {images_path.name} ===")
+        if changes_action:
+            print(
+                f"  {context.friendly} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
+                " version — removed 'changes:' list entry"
+            )
+        for name in entry_removals:
+            print(f"  removed entry '{name}' (back at its upgrade_docs_baseline version)")
+        return
+
+    # A missing entry is added by the fix-doc-consistency run at the end of main().
+    changes_action, entry_updates, _missing_entries = update_images_manifest(
+        manifest_target, context.change, path_update, context.ordering.deps, context.ordering.values or {}
+    )
+    print()
+    print(f"=== Updating {images_path.name} ===")
+    if changes_action:
+        print(f"  {changes_action} 'changes:' list entry")
+    for name in entry_updates:
+        print(f"  updated entry '{name}'")
+
+
+def update_docs_single_component(new_version: str, bump: ComponentBump, ordering: OrderingContext, target: str):
+    """The exact update-component-version doc-update flow (see that
+    script's own main() for the version this was factored out of),
+    applied to a bump of a dependency's own primary image — old_chart/
+    new_chart are the SAME (Chart.yaml's own version), since a basename
+    bump never touches Chart.yaml. The doc row is named
+    `bump.values_key`."""
+    chart_name = bump.dep["name"]
+    friendly = bump.values_key
+    chart_version_str = str(bump.dep["version"])
+
+    baseline = _single_component_baseline_resolution(bump, chart_name, chart_version_str)
+    change = VersionChange(baseline.old_app, new_version, baseline.old_chart_str, chart_version_str)
+    context = _SingleComponentDocContext(friendly, chart_name, target, change, ordering, baseline)
+
+    upgrade_path, values_deltas_path = baseline_doc_paths(DOC_DIR, baseline.upgrade_docs_baseline, target)
+    _update_single_component_upgrade_doc(upgrade_path, context, bump)
+    _update_single_component_values_deltas(
+        values_deltas_path, context, bump, upgrade_path_exists=upgrade_path is not None
+    )
+    _update_single_component_images_manifest(context, bump)
+
+
+@dataclass
+class SharedImageBump:
+    """name/changes/pinned -- one bump documented as an image row (see
+    update_docs_shared_image's own docstring): `name` is its doc row
+    name (lib.chart.repo_and_path_resolution.doc_row_name), `changes`
+    is update_image_version's raw per-pin change list, `pinned` is
+    [(path, old_version), ...] for every place it's pinned, all
+    threaded through every doc-update phase below."""
+
+    name: str
+    changes: list[PinUpdate]
+    pinned: list[tuple[str, str | None]]
+
+
+@dataclass
+class _SharedImageBaselineResolution:
+    """upgrade_docs_baseline/old_version/reset_to_baseline/pinned --
+    update_docs_shared_image's own baseline-comparison phase output (see
+    resolve_basename_baseline_version's own docstring for why old_version
+    has two different fallback sources depending on whether
+    baseline_values itself resolved at all). `pinned` here may already be
+    the baseline-normalized rewrite of the bump's own raw pinned list."""
+
+    upgrade_docs_baseline: str | None
+    old_version: str | None
+    reset_to_baseline: bool
+    pinned: list[tuple[str, str | None]]
+
+
+@dataclass
+class _SharedImageDocContext:
+    """target/change/ordering/baseline -- everything every doc-update
+    phase of update_docs_shared_image needs except the bump's own
+    basename/changes (see SharedImageBump), computed once up front and
+    threaded through unchanged. `change` here is a VersionChange with
+    `new_chart="-"` (see make_changes_section's own docstring for what
+    that renders as -- a shared image bump never has its own Helm chart
+    version)."""
+
+    target: str
+    change: VersionChange
+    ordering: OrderingContext
+    baseline: _SharedImageBaselineResolution
+
+
+def _shared_image_baseline_resolution(new_version: str, bump: SharedImageBump):
+    """Compare against the TRUE release upgrade_docs_baseline
+    (git-resolved) rather than "whatever's on disk right before this run"
+    -- same reasoning as update_docs_single_component/update-component-
+    version's main(). A basename bump always targets every matching pin
+    uniformly, so resolve_basename_baseline_version only has an opinion
+    when every touched pin actually started at the same
+    upgrade_docs_baseline version.
+
+    old_version is None for two DIFFERENT reasons this used to conflate:
+    resolve_basename_baseline_version's own "didn't all agree, or any of
+    them isn't found there at all" (see its own docstring) is
+    authoritative once baseline_values itself resolved at all — the exact
+    same #1/#5-class gap already fixed in update_docs_single_component/
+    update-component-version's own baseline resolution (see lib.
+    upgradedoc.resolve_baseline_component_versions): falling back to
+    changes[0]["old_version"] unconditionally meant "genuinely never
+    uniformly pinned at the true baseline" got conflated with "whatever
+    this basename happened to be pinned at immediately BEFORE this
+    specific run" -- wrong once ANY earlier bump this same cycle already
+    moved it (e.g. a component bumped 8.20.0 -> 8.21.0 earlier in the
+    cycle, then 8.21.0 -> 8.22.0 this run, would wrongly show "8.21.0 ->
+    8.22.0" instead of the TRUE cumulative "8.20.0 -> 8.22.0"). Only fall
+    back to the pre-run value when baseline_values itself is None -- the
+    git ref genuinely couldn't be resolved at all, not "resolved but this
+    basename has no opinion there"."""
+    upgrade_docs_baseline = read_upgrade_docs_baseline(CHART_DIR)
+    baseline_values = (
+        load_baseline_values(VALUES_YAML, upgrade_docs_baseline) if upgrade_docs_baseline is not None else None
+    )
+    baseline_version = (
+        resolve_basename_baseline_version(baseline_values, bump.pinned) if baseline_values is not None else None
+    )
+    old_version = baseline_version if baseline_values is not None else bump.changes[0]["old_version"]
+    reset_to_baseline = baseline_version is not None and normalize_version(new_version) == normalize_version(
+        baseline_version
+    )
+    pinned = bump.pinned
+    if baseline_values is not None:
+        # Keep each path's own per-path old version (used by
+        # make_image_changes_section's per-pin listing) consistent with
+        # the single collapsed old_version above -- otherwise a second
+        # bump in the same cycle would show the FIRST bump's target
+        # (e.g. "8.21.0") as each pin's "old" value instead of the true
+        # upgrade_docs_baseline (e.g. "8.20.0"), or (baseline_version is
+        # None) a real per-path transition below a "(new)" heading that
+        # contradicts it.
+        pinned = [(path, baseline_version) for path, _old_version in pinned]
+    return _SharedImageBaselineResolution(upgrade_docs_baseline, old_version, reset_to_baseline, pinned)
+
+
+def _update_shared_image_upgrade_doc(upgrade_path: Path | None, context: _SharedImageDocContext, bump: SharedImageBump):
+    if upgrade_path is None:
+        print_missing_upgrade_doc(context.baseline.upgrade_docs_baseline, context.target)
+        return
+
+    if context.baseline.reset_to_baseline:
+        reset_upgrade_doc(upgrade_path, bump.name, context.ordering, context.baseline.upgrade_docs_baseline)
+        return
+
+    section = make_image_changes_section(
+        bump.name, context.target, context.change.old_app, context.change.new_app, context.baseline.pinned
+    )
+    rewrite_upgrade_doc(upgrade_path, bump.name, context.change, section, context.ordering)
+
+
+def _update_shared_image_values_deltas(
+    values_deltas_path: Path | None,
+    context: _SharedImageDocContext,
+    bump: SharedImageBump,
+    *,
+    upgrade_path_exists: bool,
+):
+    # A shared image's own basename bump never touches any values.yaml
+    # SCHEMA — there's no per-component subtree to diff, unlike a real
+    # dependency's own key (see lib.component_docs.sync_values_delta_
+    # sections' own docstring for why a version-only change needs no
+    # values-deltas.md section at all) — so this only ever removes a
+    # stale section left over from an earlier bump within this same
+    # release cycle, never creates a new one.
+    if values_deltas_path is None:
+        if upgrade_path_exists:
+            print()
+            print(
+                f"No values-deltas.md found for upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
+                " — skipping that update."
+            )
+        return
+
+    text = values_deltas_path.read_text(encoding="utf-8")
+    text, section_removed = remove_values_delta_section(
+        text, bump.name, context.ordering.deps, context.ordering.canonical_names
+    )
+    if context.baseline.reset_to_baseline:
+        values_deltas_path.write_text(text, encoding="utf-8")
+        print()
+        print(f"=== Updating {values_deltas_path.name} ===")
+        print(
+            f"  {bump.name} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
+            f" version — {'removed its section' if section_removed else 'nothing to remove'}"
+        )
+    elif section_removed:
+        write_removed_values_delta_section(values_deltas_path, text, bump.name)
+
+
+def _update_shared_image_manifest_entry(
+    images_path: Path, repository: str, c: PinUpdate, context: _SharedImageDocContext, bump: SharedImageBump
+):
+    _host, repo_path = parse_repo(repository)
+    if context.baseline.reset_to_baseline:
+        changes_action, entry_removed = remove_image_manifest_entry(images_path, bump.name, repo_path)
+        if changes_action:
+            print("  removed 'changes:' list entry")
+        if entry_removed:
+            print(f"  removed entry for {repo_path} (back at its upgrade_docs_baseline version)")
+        return
+
+    # A missing entry is added by the fix-doc-consistency run at the end of main().
+    changes_action, entry_updated = update_image_manifest(
+        images_path,
+        ImageBump(bump.name, repo_path, context.baseline.old_version, c["new_version"], c["new_digest"]),
+        context.ordering,
+    )
+    if changes_action:
+        print(f"  {changes_action} 'changes:' list entry")
+    if entry_updated:
+        print(f"  updated entry for {repo_path}")
+
+
+def _update_shared_image_images_manifest(context: _SharedImageDocContext, bump: SharedImageBump):
+    images_path = images_manifest_path(IMAGES_DIR, context.target)
+    if not images_path.is_file():
+        print()
+        print(f"No images-{context.target}.yaml found — skipping that update.")
+        return
+
+    by_repository: dict[str, PinUpdate] = {}
+    for c in bump.changes:
+        by_repository.setdefault(c["repository"], c)
+    print()
+    print(f"=== Updating {images_path.name} ===")
+    for repository, c in sorted(by_repository.items()):
+        _update_shared_image_manifest_entry(images_path, repository, c, context, bump)
+
+
+def update_docs_shared_image(new_version: str, target: str, bump: SharedImageBump, ordering: OrderingContext):
+    """The 4.8.1-to-4.8.2-upgrade.md convention for an image that is not
+    a dependency's own primary image (a shared global image, a sidecar,
+    or a native component's image): a table row keyed by bump.name
+    (Helm chart column "-" — see
+    lib.upgradedoc.component_order_key's "unmatched sorts last" rule for
+    why it naturally lands after every real component), a "### <name>
+    ..." Changes block listing every place it's pinned, a values-deltas
+    bullet, and one images-manifest entry per distinct repository (rare
+    for the SAME basename to span more than one, but not impossible)."""
+    baseline = _shared_image_baseline_resolution(new_version, bump)
+    change = VersionChange(baseline.old_version, new_version, None, "-")
+    context = _SharedImageDocContext(target, change, ordering, baseline)
+
+    upgrade_path, values_deltas_path = baseline_doc_paths(DOC_DIR, baseline.upgrade_docs_baseline, target)
+    _update_shared_image_upgrade_doc(upgrade_path, context, bump)
+    _update_shared_image_values_deltas(values_deltas_path, context, bump, upgrade_path_exists=upgrade_path is not None)
+    _update_shared_image_images_manifest(context, bump)
+
+
+def _ordering_and_row_name(
+    deps: list[ChartDependency], values: YamlMapping, values_key: str, group: ComponentGroup
+) -> tuple[OrderingContext, str | None]:
+    """(OrderingContext, doc row name or None) for a bump of `group`'s
+    first image path under `values_key` (see doc_row_name)."""
+    all_paths = [p for p, _tag in find_all_image_and_version_paths(values, deps)] + [
+        p for p, _tag in global_image_paths(values)
+    ]
+    ordering = OrderingContext(deps, values, canonical_sidecar_row_names(CHART_DIR, deps, values, all_paths))
+    bumped_path = (values_key, *filter(None, group["paths"][0].split(".")))
+    return ordering, doc_row_name(CHART_DIR, deps, values, bumped_path, all_paths)
+
+
+def update_docs(basename: str, new_version: str, changes: list[PinUpdate], values_lines_before_write: list[str]):
+    """Updates the current target's upgrade docs for this run's `changes`
+    (all under one values.yaml key/scope — see the module docstring for
+    why). The doc row name comes from doc_row_name, the same name
+    fix-doc-consistency and check_docs_consistency resolve. Dispatches
+    to update_docs_single_component for a dependency's own primary
+    image, else to update_docs_shared_image (chart column "-")."""
+    deps = load_chart_dependencies(CHART_YAML)
+    target = chart_version(CHART_YAML)
+    values = load_yaml_mapping(VALUES_YAML)
+
+    # <key> <basename> already resolved to a single scope (see
+    # lib.image.version.resolve_scoped_matches) before any pin was
+    # touched, so `changes` can only ever belong to ONE top-level
+    # values.yaml key here — either a real Chart.yaml dependency (the
+    # common case) or "global" (the MULTIPLE_KEY case, which never has
+    # one, since no dependency is literally named "global").
+    groups, full_paths = group_changes_by_component(changes, values_lines_before_write)
+    values_key, group = next(iter(groups.items()))
+
+    ordering, row_name = _ordering_and_row_name(deps, values, values_key, group)
+    row_name = row_name or basename
+
+    dep = find_dependency(deps, values_key)
+    if dep is not None and row_name == values_key:
+        update_docs_single_component(new_version, ComponentBump(dep, values_key, group), ordering, target)
+        return
+
+    update_docs_shared_image(new_version, target, SharedImageBump(row_name, changes, full_paths), ordering)
+
+
+def main():
+    """CLI entry point: resolves <key> <basename> to a single image pin
+    scope, bumps every matching values.yaml tag pin to <new-version>
+    (re-resolving digests against the registry), updates the matching
+    upgrade docs for the current target if they exist, and runs
+    fix-helm-doc and fix-doc-consistency. A no-op (already
+    at that version everywhere) prints a message and returns without
+    touching anything."""
+    key, basename, new_version = positional_args(__doc__, 3)
+    ensure_vendored_dependencies(CHART_DIR)
+
+    deps = load_chart_dependencies(CHART_YAML)
+    key = resolve_key_scope(key, deps)
+
+    values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
+
+    changes = update_image_version(VALUES_YAML, key, basename, new_version)
+    if not changes:
+        print(f"'{basename}' under '{key}' is already at {new_version} everywhere it's pinned — nothing to do.")
+        return
+
+    print(f"=== Writing {VALUES_YAML} ===")
+    for c in changes:
+        print(f"  values.yaml:{c['line']}  ({c['repository']})")
+        print(f"    {c['old_version']}@{c['old_digest']}")
+        print(f"    {c['new_version']}@{c['new_digest']}")
+    print()
+    print(f"Updated {len(changes)} pin(s).")
+
+    update_docs(basename, new_version, changes, values_lines)
+
+    print()
+    print("=== Regenerating README.md (fix-helm-doc) ===")
+    run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
+
+    # fix-doc-consistency completes the docs update_docs wrote (missing
+    # images-manifest entries, order, images-baseline.yaml) the same way
+    # check_docs_consistency expects them.
+    complete_docs_and_finish()
+
+
+if __name__ == "__main__":
+    main()

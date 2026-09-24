@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""
+Check that a component's chart version and app image version(s) exist.
+
+Pre-flight check for update-component-version, same arguments. Pulls the
+target chart version and checks every app image tag against the
+registry, using the image repositories from that chart version. Writes
+nothing. For a single already-pinned image, use verify-image-version.
+
+Usage:
+    verify-component-version <component> <app-version> <chart-version>
+
+Arguments:
+    <component>       Chart.yaml dependency name or alias (e.g. zac), or a
+                      native component with chart-version "native"
+    <app-version>     app image tag
+    <chart-version>   Helm chart version, or "native" for a component
+                      without a Chart.yaml dependency (e.g. frankgateway);
+                      its image repositories are then read from values.yaml
+
+Examples:
+    verify-component-version zac 5.4.3 1.0.297
+    verify-component-version zgw-office-addin 0.12.0 0.0.92
+    verify-component-version frankgateway 104 native
+
+Exit code: 0 when all versions exist, non-zero otherwise.
+
+Requires: helm on PATH; Helm repositories added (/helm-repos).
+"""
+
+import sys
+
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.paths import CHART_DIR
+from lib.chart.paths import CHART_YAML
+from lib.chart.pull_and_subchart_resolution import check_image_versions
+from lib.chart.pull_and_subchart_resolution import native_component_values
+from lib.chart.pull_and_subchart_resolution import print_image_version_results
+from lib.chart.pull_and_subchart_resolution import verify_chart_version
+from lib.chart.registered_paths import image_paths_for
+from lib.chart.registered_paths import is_native_chart_version
+from lib.chart.registered_paths import resolve_native_component
+from lib.chart.values_tree_primitives import require_dependency
+from lib.cli import positional_args
+
+
+def find_dependency(name_or_alias: str):
+    """Looks up `name_or_alias` among podiumd's own Chart.yaml dependencies
+    (matching either the dependency's name or its alias) and raises
+    SystemExit with a clear error if there's no match."""
+    return require_dependency(CHART_YAML, name_or_alias)
+
+
+def main():
+    """CLI entry point: pulls <component>'s target <chart-version> to get
+    its real values.yaml (a chart-version bump can move a repository path
+    or add a sidecar), or reads podiumd's values.yaml for "native", then
+    checks <app-version> exists upstream for every
+    one of that component's registered app image path(s). Exits non-zero
+    if the chart version can't be pulled, or any app image version is
+    missing."""
+    component, app_version, chart_version = positional_args(__doc__, 3)
+
+    if is_native_chart_version(chart_version):
+        chart_name = resolve_native_component(CHART_DIR, component)
+        print(f"No Chart.yaml dependency for {chart_name} — image repositories come from values.yaml")
+        values = native_component_values(CHART_DIR, chart_name)
+    else:
+        dep = find_dependency(component)
+        chart_name = dep["name"]
+        values = verify_chart_version(CHART_DIR, dep, chart_version)  # exits 1 itself if missing
+    # image_paths_for is keyed by the Chart.yaml "name", never the alias
+    # the user may have passed (e.g. "kiss" for dependency "kiss-chart").
+    results = check_image_versions(values, image_paths_for(chart_name, CHART_DIR), app_version)
+
+    print()
+    print(f"Checking app version {app_version!r} for {component}:")
+    ok = print_image_version_results(results, app_version)
+
+    print()
+    print("OK: chart + image version(s) exist" if ok else "FAIL: one or more app image versions do not exist yet")
+    sys.exit(0 if ok else 1)
+
+
+if __name__ == "__main__":
+    main()

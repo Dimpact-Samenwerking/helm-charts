@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""
+Show the version of one image at both release-baseline.yaml baselines
+(upgrade_docs and release_table).
+
+Reads charts/podiumd/values.yaml as it was at each baseline with
+`git show`; no checkout needed. A baseline is resolved to the
+podiumd-<version> tag, else the feature/podiumd-<version> branch. A
+missing baseline or unresolved image is noted; the script fails only when
+neither baseline shows anything.
+
+Usage:
+    show-image-baseline-version <key> <basename>
+
+Arguments:
+    <key>        Chart.yaml dependency name or alias (e.g. zac), or
+                 MULTIPLE for an image shared via global.images
+    <basename>   last path segment of the image repository
+
+Examples:
+    show-image-baseline-version zac zaakafhandelcomponent
+    show-image-baseline-version keycloak-operator python
+    show-image-baseline-version MULTIPLE curl
+"""
+
+import sys
+
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.baseline_report import show_baseline_section
+from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.paths import CHART_DIR
+from lib.chart.release_baseline_basics import release_table_baseline as read_release_table_baseline
+from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.cli import positional_args
+from lib.image.version import resolve_key_scope
+from lib.image.version import resolve_scoped_matches
+from lib.release_baseline import resolve_baseline_values
+
+
+def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, key: str, basename: str):
+    """Prints <key> <basename>'s resolved pin(s) at `baseline` (labeled
+    `label`, "upgrade_docs" or "release_table") — see lib.baseline_
+    report.show_baseline_section for the shared "skip if None / print
+    the error / blank line" wrapper this only needs to supply its own
+    resolve-and-print body for: values.yaml's own text at that baseline
+    comes from lib.release_baseline.resolve_baseline_values (the
+    values.yaml-only sibling of the same shared ref-resolution + git-
+    show primitive show-component-baseline-version's own component_
+    state_at_baseline builds on — this script never needs Chart.yaml at
+    all) — never a separate git_show_text call of its own. Returns True
+    if the image's state was actually shown."""
+
+    def resolve(baseline_value: str):
+        ref, _baseline_values, baseline_lines, error = resolve_baseline_values(chart_dir, baseline_value)
+        if error:
+            return f"error: {error}"
+
+        try:
+            matches = resolve_scoped_matches(baseline_lines, key, basename)
+        except SystemExit as e:
+            return str(e)  # already "error: ..." — resolve_scoped_matches' own prefix, not added twice
+
+        print(f"  Baseline: {baseline_value} (resolved to {ref})")
+        for m in matches:
+            print(f"    {m['repository']}: {m['version']}  (sha256:{m['digest']})")
+        return None
+
+    return show_baseline_section(label, baseline, resolve)
+
+
+def main():
+    """CLI entry point: prints <key> <basename>'s resolved image pin(s) at
+    both the upgrade_docs and release_table baselines, exiting 1 only if
+    neither baseline could show anything at all."""
+    key, basename = positional_args(__doc__, 2)
+
+    chart_dir = CHART_DIR
+    key = resolve_key_scope(key, load_chart_dependencies(chart_dir / "Chart.yaml"))
+
+    upgrade_docs = read_upgrade_docs_baseline(chart_dir)
+    release_table = read_release_table_baseline(chart_dir)
+
+    shown_upgrade_docs = show_at_baseline(chart_dir, "upgrade_docs", upgrade_docs, key, basename)
+    shown_release_table = show_at_baseline(chart_dir, "release_table", release_table, key, basename)
+
+    if not shown_upgrade_docs and not shown_release_table:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

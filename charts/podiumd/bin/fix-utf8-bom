@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""
+Strip a UTF-8 BOM (bytes EF BB BF) from charts/podiumd/values.yaml.
+
+A BOM breaks YAML tooling. verify-podiumd reports it; this script
+removes it in place. Does nothing when there is no BOM.
+
+Usage:
+    fix-utf8-bom [--dry-run]
+
+Options:
+    --dry-run  report only, write nothing
+"""
+
+import sys
+
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.values_tree_primitives import UTF8_BOM as BOM
+
+VALUES_PATH = SCRIPT_DIR.parents[0] / "values.yaml"
+
+
+def main():
+    """CLI entry point: strips a leading UTF-8 BOM from values.yaml in
+    place, or with --dry-run just reports whether one is present (exit 1)
+    without writing anything."""
+    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
+        print(__doc__)
+        sys.exit(0)
+    dry_run = "--dry-run" in sys.argv[1:]
+
+    data = VALUES_PATH.read_bytes()
+    if not data.startswith(BOM):
+        print(f"OK: no BOM in {VALUES_PATH}")
+        sys.exit(0)
+
+    if dry_run:
+        print(f"BOM found in {VALUES_PATH} (dry-run, not writing)")
+        sys.exit(1)
+
+    VALUES_PATH.write_bytes(data[len(BOM) :])
+    print(f"BOM removed from {VALUES_PATH} — re-stage this file before committing")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

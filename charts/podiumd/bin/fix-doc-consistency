@@ -1,0 +1,995 @@
+#!/usr/bin/env python3
+"""
+Rebase and repair the upgrade docs of the current target version.
+
+Reads the target from Chart.yaml "version:" and the baseline from
+etc/release-baseline.yaml "upgrade_docs". Renames every
+docs/_UPGRADE_PATHS/<old>-to-<target>-*.md to the baseline and fixes
+titles, headings and cross-references. Creates missing docs as TODO stubs.
+
+Also repairs the content against Chart.yaml and values.yaml:
+  - upgrade doc: component version table and "## Changes" sections,
+    adding missing rows, removing rows unchanged vs the baseline and
+    sorting them in values.yaml order
+  - values-deltas doc: adds missing component sections and nested key
+    added/removed lines
+  - docs/images/images-<target>.yaml: fixes entries, adds missing ones
+    and removes images unchanged vs the baseline; review the
+    "name:"/"url:" of added entries by hand (ACR mirror name)
+  - docs/images/images-baseline.yaml: regenerated
+Issues it cannot fix are printed for manual review.
+
+Run change-podiumd-baseline to change the baseline; this script never
+writes release-baseline.yaml. Exits 1 when that file or key is missing.
+
+Usage:
+    fix-doc-consistency
+
+Example:
+    fix-doc-consistency
+        # target 4.9.0, upgrade_docs "4.8.3": renames *-to-4.9.0-*.md
+        # to 4.8.3-to-4.9.0-*.md and repairs their content
+"""
+
+import sys
+
+from dataclasses import dataclass
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.chart_yaml import parse_chart_dependencies
+from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
+from lib.chart.paths import CHART_YAML
+from lib.chart.paths import DOC_DIR
+from lib.chart.paths import IMAGES_DIR
+from lib.chart.paths import VALUES_YAML
+from lib.chart.pull_and_subchart_resolution import global_image_paths
+from lib.chart.release_baseline_basics import chart_version
+from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
+from lib.chart.repo_and_path_resolution import paths_by_repository
+from lib.chart.repo_and_path_resolution import repo_group_representative
+from lib.cli import positional_args
+from lib.component_docs.baseline_doc_stubs import IMAGES_STUB_TEMPLATE
+from lib.component_docs.baseline_doc_stubs import STANDARD_SUFFIXES
+from lib.component_docs.baseline_doc_stubs import STUB_TEMPLATES
+from lib.component_docs.baseline_doc_stubs import existing_doc_baselines
+from lib.component_docs.changes_section import BaselineState
+from lib.component_docs.changes_section import ComponentState
+from lib.component_docs.changes_section import DocContext
+from lib.component_docs.changes_section import OrderingContext
+from lib.component_docs.changes_section import add_missing_component_rows
+from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
+from lib.component_docs.images_manifest_changes_header import renumber_images_manifest_changes_items
+from lib.component_docs.values_delta_sections import ValuesDeltaBaseline
+from lib.component_docs.values_delta_sections import ValuesDeltaOrdering
+from lib.component_docs.values_delta_sections import prune_empty_values_delta_sections
+from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
+from lib.component_docs.values_delta_sections import sync_values_delta_sections
+from lib.dependencies import ensure_vendored_dependencies
+from lib.fix_doc_consistency.baseline_and_images_manifest_handling import extract_images_baseline
+from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_images_manifest_baseline
+from lib.fix_doc_consistency.baseline_and_images_manifest_handling import update_sibling_doc_refs
+from lib.fix_doc_consistency.component_version_table import fix_changes_heading_app_versions
+from lib.fix_doc_consistency.component_version_table import fix_component_version_table
+from lib.fix_doc_consistency.component_version_table import fix_values_delta_heading_app_versions
+from lib.fix_doc_consistency.component_version_table import remove_unchanged_component_rows
+from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifest_changes_items
+from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
+from lib.gitutil import git_show_text
+from lib.images_manifest import try_parse_images_manifest
+from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
+
+# isort: off
+# Fenced from import sorting (through "isort: on" below): isort and ruff's
+# isort rules attach these comments to different imports.
+#
+# resolve_entry_version below is test-only, see cdb.resolve_entry_version
+# in tests/fix-doc-consistency -- pylint attributes unused-import to the
+# "from" line of a multi-import statement, not the unused name's own line.
+from lib.fix_doc_consistency.manifest_entries_core import (  # pylint: disable=unused-import
+    ManifestEntriesContext,
+    fix_images_manifest_entries,
+    resolve_entry_version,  # noqa: F401
+)
+from lib.fix_doc_consistency.manifest_entries_new_and_urls import (
+    MissingEntriesContext,
+    add_missing_images_manifest_entries,
+    remove_stale_images_manifest_entries,
+    fix_images_manifest_entry_names,
+    fix_images_manifest_entry_urls,
+)
+
+# ensure_blank_lines_around_headings below is test-only, see
+# cdb.ensure_blank_lines_around_headings in tests/fix-doc-consistency.
+from lib.fix_doc_consistency.text_helpers_and_repo_rename import (  # pylint: disable=unused-import
+    collapse_multiple_blank_lines,
+    ensure_blank_lines_around_headings,  # noqa: F401
+    find_collisions,
+    git_mv,
+    join_and,
+    remaining_mentions,
+    update_component_versions_heading,
+    update_title_line,
+)
+
+# isort: on
+from lib.gitutil import baseline_ref_candidates
+from lib.gitutil import find_repo_root
+from lib.gitutil import git_show_yaml
+from lib.gitutil import resolve_git_ref
+from lib.image.baseline_refresh import refresh_images_baseline
+from lib.image.docs import add_missing_changes_sections
+from lib.image.docs import add_missing_sidecar_rows
+from lib.image.docs import update_stale_app_version_headings
+from lib.image.manifest_entry_pins import sync_entry_pins
+from lib.settings import digest_pinning_exceptions
+from lib.upgradedoc.app_version_and_image_paths import ImagePath
+from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
+from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
+from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
+from lib.upgradedoc.images_manifest_ordering import ManifestSortContext
+from lib.upgradedoc.images_manifest_ordering import images_manifest_display_name_positions
+from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_positions
+from lib.upgradedoc.images_manifest_ordering import sort_images_manifest_entries
+from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.upgradedoc.sorting_and_ordering import sort_changes_blocks
+from lib.upgradedoc.sorting_and_ordering import sort_upgrade_doc_rows
+from lib.upgradedoc.sorting_and_ordering import sort_values_delta_sections
+
+# isort: off
+# canonical_version_cell below is test-only, see cdb.canonical_version_cell
+# in tests/fix-doc-consistency. Fenced from import sorting, same reason as above.
+from lib.upgradedoc.version_cells_and_key_changes import (  # pylint: disable=unused-import
+    canonical_version_cell,  # noqa: F401
+)
+# isort: on
+
+
+def current_chart_version():
+    """Returns the rebase target: charts/podiumd/Chart.yaml's own
+    "version:" field."""
+    return chart_version(CHART_YAML)
+
+
+# The exact shape a baseline argument must have — bare MAJOR.MINOR.PATCH,
+# matching every doc filename's own "<baseline>-to-<target>-*.md" pattern
+# (see lib.component_docs.DOC_FILENAME_RE_TMPL). Anything else (a flag
+# like "--help", a git ref, a version with a suffix) is rejected up front
+# by main(), rather than silently being treated as a literal baseline and
+# renaming docs to nonsense like "--help-to-4.9.0-upgrade.md".
+# (BASELINE_VERSION_RE is lib.chart.historical_baselines.SEMVER_RE, imported under this
+# script's own established name.)
+
+
+def images_manifest_path(target: str):
+    """Returns the path of the images manifest for `target`
+    (docs/images/images-<target>.yaml), whether or not it exists yet."""
+    return IMAGES_DIR / f"images-{target}.yaml"
+
+
+def load_target_state():
+    """Returns (deps, values) as they currently are on disk: charts/
+    podiumd/Chart.yaml's own dependencies list and values.yaml's parsed
+    contents — the "current" side of every baseline-vs-target comparison
+    this script makes, paired with load_baseline_state's own (deps,
+    values) for the old baseline."""
+    values = load_yaml_mapping(VALUES_YAML)
+    return load_chart_dependencies(CHART_YAML), values
+
+
+def load_baseline_state(new_baseline: str) -> tuple[list[ChartDependency], YamlMapping] | tuple[None, None]:
+    """(deps, values) as they were at new_baseline's resolved git ref, or
+    (None, None) if it can't be resolved (e.g. that release hasn't been cut
+    yet) — callers skip table-version correction gracefully in that case."""
+    repo_root = find_repo_root(CHART_YAML.parent)
+    if repo_root is None:
+        return None, None
+    ref = resolve_git_ref(repo_root, baseline_ref_candidates(new_baseline))
+    if ref is None:
+        return None, None
+    rel_chart_dir = CHART_YAML.parent.relative_to(repo_root)
+    baseline_chart_text = git_show_text(repo_root, ref, f"{rel_chart_dir}/Chart.yaml")
+    if baseline_chart_text is None:
+        return None, None
+    baseline_values = git_show_yaml(repo_root, ref, f"{rel_chart_dir}/values.yaml") or {}
+    return parse_chart_dependencies(baseline_chart_text, f"{ref}:{rel_chart_dir}/Chart.yaml"), baseline_values
+
+
+@dataclass
+class RebaseState:
+    """The baseline being rebased onto/from and the dependency/values
+    trees on each side, bundled so content-fixing phases below take one
+    argument instead of six."""
+
+    target: str
+    new_baseline: str
+    target_deps: list[ChartDependency]
+    target_values: YamlMapping
+    baseline_deps: list[ChartDependency] | None
+    baseline_values: YamlMapping | None
+
+
+def _parse_cli_args():
+    """Handles -h/--help and rejects any other argument."""
+    positional_args(__doc__, 0)
+
+
+def _load_and_validate_baseline():
+    """Reads/validates release-baseline.yaml's upgrade_docs baseline,
+    exiting on error. Returns (new_baseline, target)."""
+    new_baseline = read_upgrade_docs_baseline(CHART_YAML.parent)
+    if new_baseline is None:
+        print(
+            "error: release-baseline.yaml has no upgrade_docs key (or the file doesn't "
+            "exist yet) — run create-podiumd-version (new release cycle) or "
+            "change-podiumd-baseline <baseline> (existing cycle) to set it first"
+        )
+        sys.exit(1)
+
+    if not BASELINE_VERSION_RE.match(new_baseline):
+        print(f"error: '{new_baseline}' is not a valid MAJOR.MINOR.PATCH version")
+        sys.exit(1)
+    return new_baseline, current_chart_version()
+
+
+def _check_no_collisions(target: str) -> dict[str, list[tuple[str, Path]]]:
+    """Returns by_suffix, exiting on error if two source docs would
+    collide on the same renamed target filename."""
+    by_suffix = existing_doc_baselines(DOC_DIR, target)
+    collisions = find_collisions(by_suffix)
+    if not collisions:
+        return by_suffix
+    print(f"error: multiple source docs would collide on the same target for '{target}':")
+    for suffix, entries in sorted(collisions.items()):
+        print(f"  {suffix}:")
+        for baseline, path in sorted(entries):
+            print(f"    {path.name}  (baseline {baseline})")
+    print()
+    print("Refusing to rename anything — resolve the collision above first.")
+    sys.exit(1)
+
+
+@dataclass
+class DocRename:
+    """One doc _rebase_docs is currently handling, bundled so the two
+    per-doc rebase helpers below take one argument instead of three."""
+
+    path: Path
+    old_baseline: str
+    suffix: str
+
+
+@dataclass
+class RebaseAccumulator:
+    """The two lists every per-doc rebase helper appends findings to
+    across the whole run, bundled into one argument instead of two."""
+
+    todo_stub_docs: list[str]
+    # (doc name, line numbers still naming the old baseline)
+    review_notes: list[tuple[str, list[int]]]
+
+
+def _rebase_already_at_baseline(doc: DocRename, target: str, new_baseline: str, acc: RebaseAccumulator):
+    """doc is already at new_baseline — still checks for a stale
+    sibling-doc reference, a stranded stub TODO, or an unrelated double
+    blank line. Appends to acc.todo_stub_docs in place when stripped."""
+    text = doc.path.read_text(encoding="utf-8")
+    text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
+    todo_stripped = False
+    if doc.suffix == "upgrade":
+        text, todo_stripped = strip_stale_upgrade_placeholders(text)
+    elif doc.suffix == "values-deltas":
+        text, todo_stripped = strip_stale_values_deltas_todo_stub(text)
+    collapsed_text = collapse_multiple_blank_lines(text)
+    blank_lines_fixed = collapsed_text != text
+    if not (refs_changed or blank_lines_fixed or todo_stripped):
+        print(f"  {doc.path.name}: already baseline {new_baseline} — unchanged")
+        return
+    doc.path.write_text(collapsed_text, encoding="utf-8")
+    parts: list[str] = []
+    if todo_stripped:
+        parts.append("removed stale TODO placeholder")
+        acc.todo_stub_docs.append(doc.path.name)
+    if refs_changed:
+        parts.append("fixed stale sibling doc reference(s)")
+    if blank_lines_fixed:
+        parts.append("collapsed multiple blank line(s)")
+    print(f"  {doc.path.name}: already baseline {new_baseline} — {join_and(parts)}")
+
+
+def _rebase_doc_to_new_baseline(doc: DocRename, target: str, new_baseline: str, acc: RebaseAccumulator):
+    """Renames doc onto new_baseline, rewriting its title/heading/
+    sibling-refs/stub-TODO/blank-lines. Appends to acc in place."""
+    new_name = f"{new_baseline}-to-{target}-{doc.suffix}.md"
+    new_path = DOC_DIR / new_name
+    text = doc.path.read_text(encoding="utf-8")
+
+    text, title_changed = update_title_line(text, doc.old_baseline, target, new_baseline)
+    text, heading_changed = update_component_versions_heading(text, doc.old_baseline, target, new_baseline)
+    text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
+    todo_stripped = False
+    if doc.suffix == "upgrade":
+        text, todo_stripped = strip_stale_upgrade_placeholders(text)
+    elif doc.suffix == "values-deltas":
+        text, todo_stripped = strip_stale_values_deltas_todo_stub(text)
+
+    if doc.path != new_path:
+        git_mv(doc.path, new_path)
+    new_path.write_text(collapse_multiple_blank_lines(text), encoding="utf-8")
+
+    print(f"  {doc.path.name} -> {new_name}")
+    if title_changed:
+        print(f"    title line: {doc.old_baseline} -> {new_baseline}")
+    if heading_changed:
+        print(f"    'Component versions' heading: {doc.old_baseline} -> {new_baseline}")
+    if refs_changed:
+        print(f"    sibling doc references: -> {new_baseline}-to-{target}-*.md")
+    if todo_stripped:
+        print("    removed stale TODO placeholder")
+        acc.todo_stub_docs.append(new_name)
+
+    leftovers = remaining_mentions(text, doc.old_baseline)
+    if leftovers:
+        acc.review_notes.append((new_name, leftovers))
+
+
+def _rebase_docs(
+    target: str, new_baseline: str, by_suffix: dict[str, list[tuple[str, Path]]]
+) -> tuple[list[tuple[str, list[int]]], list[str]]:
+    """Renames/rebases every doc onto new_baseline, stubbing any standard
+    doc missing entirely. Returns (review_notes, todo_stub_docs)."""
+    acc = RebaseAccumulator(todo_stub_docs=[], review_notes=[])
+    all_suffixes = sorted(set(by_suffix) | set(STANDARD_SUFFIXES))
+    for suffix in all_suffixes:
+        if suffix not in by_suffix:
+            new_name = f"{new_baseline}-to-{target}-{suffix}.md"
+            new_path = DOC_DIR / new_name
+            new_path.write_text(
+                STUB_TEMPLATES[suffix].format(upgrade_docs_baseline=new_baseline, target=target), encoding="utf-8"
+            )
+            print(f"  {new_name}: created (was missing)")
+            continue
+
+        [(old_baseline, path)] = by_suffix[suffix]
+        doc = DocRename(path, old_baseline, suffix)
+        if old_baseline == new_baseline:
+            _rebase_already_at_baseline(doc, target, new_baseline, acc)
+            continue
+
+        _rebase_doc_to_new_baseline(doc, target, new_baseline, acc)
+
+    return acc.review_notes, acc.todo_stub_docs
+
+
+def _bump_images_manifest_baseline(target: str, new_baseline: str, review_notes: list[tuple[str, list[int]]]):
+    """Stubs images-<target>.yaml if missing, else rebases its baseline
+    header/sibling-refs onto new_baseline. Appends to review_notes in
+    place. Returns images_path."""
+    images_path = images_manifest_path(target)
+    if not images_path.is_file():
+        images_path.write_text(
+            IMAGES_STUB_TEMPLATE.format(upgrade_docs_baseline=new_baseline, target=target), encoding="utf-8"
+        )
+        print(f"  {images_path.name}: created (was missing)")
+        return images_path
+
+    text = images_path.read_text(encoding="utf-8")
+    old_images_baseline = extract_images_baseline(text)
+    if old_images_baseline == new_baseline:
+        print(f"  {images_path.name}: already baseline {new_baseline} — unchanged")
+        return images_path
+
+    text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
+    text, baseline_changed = update_images_manifest_baseline(text, target, new_baseline)
+    images_path.write_text(text, encoding="utf-8")
+    print(f"  {images_path.name}: baseline updated")
+    if refs_changed:
+        print(f"    doc references -> {new_baseline}-to-{target}-*.md")
+    if baseline_changed:
+        print(f"    baseline header line(s): -> {new_baseline}")
+    if old_images_baseline:
+        leftovers = remaining_mentions(text, old_images_baseline)
+        if leftovers:
+            review_notes.append((images_path.name, leftovers))
+    return images_path
+
+
+def _load_rebase_state(target: str, new_baseline: str):
+    """Loads the target's current (deps, values) and new_baseline's own
+    historical (deps, values) into one RebaseState."""
+    target_deps, target_values = load_target_state()
+    baseline_deps, baseline_values = load_baseline_state(new_baseline)
+    return RebaseState(target, new_baseline, target_deps, target_values, baseline_deps, baseline_values)
+
+
+def _remove_unchanged_component_rows(
+    text: str, upgrade_path: Path, resolution: ResolutionContext, new_baseline: str
+) -> tuple[str, bool]:
+    """Removes a table row (and its '### ...' Changes section) whose app
+    and chart are both unchanged vs baseline. Returns (text, changed)."""
+    text, removed_names = remove_unchanged_component_rows(text, resolution)
+    if removed_names:
+        print()
+        print(f"=== Removing unchanged component row(s) + Changes section(s) from {upgrade_path.name} ===")
+        for name in removed_names:
+            print(f"  {name} (same app and chart version as {new_baseline})")
+    return text, bool(removed_names)
+
+
+def _correct_component_table(text: str, upgrade_path: Path, resolution: ResolutionContext, new_baseline: str):
+    """Fixes wrong app/chart-version cells in upgrade_path's Component-
+    versions table. Returns (text, changed)."""
+    text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(text, resolution)
+    if changed_rows:
+        print()
+        print(f"=== Correcting component version table in {upgrade_path.name} ===")
+        for name, app_cell, chart_cell in changed_rows:
+            print(f"  {name}: app {app_cell}  |  chart {chart_cell}")
+    if unresolved_names:
+        print()
+        print(
+            f"Could not verify source version for {len(unresolved_names)} component(s) in "
+            f"{upgrade_path.name} — baseline {new_baseline} doesn't resolve to a git ref, "
+            f"or the component didn't exist there yet. Table left as-is for these; review "
+            f"by hand."
+        )
+        for name in unresolved_names:
+            print(f"  {name}")
+    if unmatched_names:
+        print()
+        print(
+            f"Could not match {len(unmatched_names)} component(s) in {upgrade_path.name} "
+            f"to a Chart.yaml dependency, left as-is:"
+        )
+        for name in unmatched_names:
+            print(f"  {name}")
+    return text, bool(changed_rows)
+
+
+def _add_missing_component_and_sidecar_rows(
+    text: str, state: RebaseState, upgrade_path: Path, actual_changed_keys: set[str]
+) -> tuple[str, list[str], list[str]]:
+    """Adds a table row + Changes section for a changed component/
+    sidecar image missing one. Returns (text, added_names, added_sidecar_names)."""
+    doc_ctx = DocContext(CHART_YAML.parent, state.target, upgrade_docs_baseline=state.new_baseline)
+    target_state = ComponentState(state.target_deps, state.target_values)
+    baseline_state = BaselineState(state.baseline_deps, state.baseline_values)
+
+    text, added_names = add_missing_component_rows(text, doc_ctx, target_state, baseline_state, actual_changed_keys)
+    if added_names:
+        print()
+        print(f"=== Adding missing component row(s) + Changes section(s) to {upgrade_path.name} ===")
+        for name in added_names:
+            print(f"  {name}")
+
+    if state.baseline_deps is None:
+        return text, added_names, []
+
+    text, added_sidecar_names = add_missing_sidecar_rows(text, doc_ctx, target_state, state.baseline_values)
+    if added_sidecar_names:
+        print()
+        print(f"=== Adding missing sidecar/shared-image row(s) + Changes section(s) to {upgrade_path.name} ===")
+        for name in added_sidecar_names:
+            print(f"  {name}")
+    return text, added_names, added_sidecar_names
+
+
+def _fix_upgrade_doc_headings(
+    text: str, state: RebaseState, upgrade_path: Path, resolution: ResolutionContext
+) -> tuple[str, dict[str, ImagePath], bool]:
+    """Adds missing '### ...' Changes sections and fixes stale/wrong
+    heading app-versions. Returns (text, canonical_names, changed)."""
+    current_paths = dict(find_image_tag_paths(state.target_values))
+    current_paths.update(global_image_paths(state.target_values))
+    canonical_names = canonical_sidecar_row_names(
+        CHART_YAML.parent, state.target_deps, state.target_values, current_paths.keys()
+    )
+
+    text, added_section_names = add_missing_changes_sections(
+        text, state.target_deps, state.target_values, state.target, canonical_names
+    )
+    if added_section_names:
+        print()
+        print(f"=== Adding missing '### ...' Changes section(s) to {upgrade_path.name} ===")
+        for name in added_section_names:
+            print(f"  {name}")
+
+    text, updated_stale_headings = update_stale_app_version_headings(
+        text,
+        DocContext(CHART_YAML.parent, state.target),
+        OrderingContext(state.target_deps, state.target_values, canonical_names),
+    )
+    if updated_stale_headings:
+        print()
+        print(f"=== Updating '### ...' Changes section(s) missing their app version in {upgrade_path.name} ===")
+        for heading in updated_stale_headings:
+            print(f"  {heading}")
+
+    text, updated_wrong_headings = fix_changes_heading_app_versions(text, resolution)
+    if updated_wrong_headings:
+        print()
+        print(
+            f"=== Correcting '### ...' Changes section heading(s) with the wrong name/app-version "
+            f"transition in {upgrade_path.name} ==="
+        )
+        for heading in updated_wrong_headings:
+            print(f"  {heading}")
+
+    changed = bool(added_section_names or updated_stale_headings or updated_wrong_headings)
+    return text, canonical_names, changed
+
+
+def _reorder_upgrade_doc(
+    text: str,
+    upgrade_path: Path,
+    target_deps: list[ChartDependency],
+    target_values: YamlMapping,
+    canonical_names: dict[str, ImagePath],
+):
+    """Reorders upgrade_path's table rows and Changes blocks to match
+    values.yaml's own component order. Returns (text, changed)."""
+    text, moved_rows = sort_upgrade_doc_rows(text, target_deps, target_values, canonical_names)
+    text, moved_blocks = sort_changes_blocks(text, target_deps, target_values, canonical_names)
+    if moved_rows or moved_blocks:
+        print()
+        print(f"=== Reordering {upgrade_path.name} to match values.yaml's component order ===")
+        for name, old_pos, new_pos in moved_rows:
+            print(f"  table row '{name}': position {old_pos} -> {new_pos}")
+        for heading, old_pos, new_pos in moved_blocks:
+            print(f"  changes block '### {heading}': position {old_pos} -> {new_pos}")
+    return text, bool(moved_rows or moved_blocks)
+
+
+def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys: set[str]):
+    """Removes unchanged rows, corrects upgrade_path's table, adds missing
+    rows/sections, fixes headings, reorders, and writes back only if
+    something changed."""
+    if not upgrade_path.is_file():
+        return
+    text = upgrade_path.read_text(encoding="utf-8")
+    resolution = ResolutionContext(
+        CHART_YAML.parent,
+        ComponentState(state.target_deps, state.target_values),
+        BaselineState(state.baseline_deps, state.baseline_values),
+        upgrade_docs_baseline=state.new_baseline,
+    )
+
+    text, rows_removed = _remove_unchanged_component_rows(text, upgrade_path, resolution, state.new_baseline)
+    text, table_changed = _correct_component_table(text, upgrade_path, resolution, state.new_baseline)
+    text, added_names, added_sidecar_names = _add_missing_component_and_sidecar_rows(
+        text, state, upgrade_path, actual_changed_keys
+    )
+    text, canonical_names, headings_changed = _fix_upgrade_doc_headings(text, state, upgrade_path, resolution)
+    text, reordered = _reorder_upgrade_doc(text, upgrade_path, state.target_deps, state.target_values, canonical_names)
+
+    # Checked regardless of whether anything ABOVE changed — a
+    # pre-existing double blank line must never survive untouched.
+    collapsed_text = collapse_multiple_blank_lines(text)
+    blank_lines_fixed = collapsed_text != text
+    if blank_lines_fixed:
+        print()
+        print(f"=== Collapsing multiple consecutive blank line(s) in {upgrade_path.name} ===")
+
+    changed = [
+        rows_removed,
+        table_changed,
+        bool(added_names),
+        bool(added_sidecar_names),
+        headings_changed,
+        reordered,
+        blank_lines_fixed,
+    ]
+    if any(changed):
+        upgrade_path.write_text(collapsed_text, encoding="utf-8")
+
+
+def _correct_images_manifest_names(images_path: Path, repo_map: dict[str, ImagePath]):
+    """Renames an entry whose "name:" isn't its url minus the registry
+    host (e.g. "python" for docker.io/library/python)."""
+    text = images_path.read_text(encoding="utf-8")
+    new_text, renamed = fix_images_manifest_entry_names(text, repo_map)
+    if renamed:
+        images_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Correcting entry name(s) in {images_path.name} ===")
+        for old_name, new_name in renamed:
+            print(f"  {old_name} -> {new_name}")
+
+
+def _sync_images_manifest_entry_pins(images_path: Path, state: RebaseState) -> None:
+    """Sets each entry's version/digest to the tag values.yaml pins."""
+    text = images_path.read_text(encoding="utf-8")
+    new_text, synced = sync_entry_pins(
+        text, CHART_YAML.parent, state.target_deps, state.target_values, digest_pinning_exceptions(CHART_YAML.parent)
+    )
+    if synced:
+        images_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Syncing entry version/digest in {images_path.name} with values.yaml ===")
+        for name in synced:
+            print(f"  {name}")
+
+
+def _correct_images_manifest_entries(images_path: Path, state: RebaseState, repo_map: dict[str, ImagePath]):
+    """Corrects images-manifest entry comments (source -> target
+    version)."""
+    text = images_path.read_text(encoding="utf-8")
+    new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
+        text,
+        ManifestEntriesContext(
+            CHART_YAML.parent,
+            state.target_deps,
+            state.target_values,
+            state.baseline_values,
+            repo_map,
+            upgrade_docs_baseline=state.new_baseline,
+        ),
+    )
+    if changed_entries:
+        images_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Correcting entry comments in {images_path.name} ===")
+        for name, source, target_ver in changed_entries:
+            print(f"  {name}: {source} -> {target_ver}")
+    if unresolved_entry_names:
+        print()
+        print(
+            f"Could not verify source/target version for {len(unresolved_entry_names)} "
+            f"entry(s) in {images_path.name} — no preceding comment, unresolvable "
+            f"values-tree path, or baseline {state.new_baseline} doesn't resolve to a git ref. "
+            f"Left as-is; review by hand."
+        )
+        for name in unresolved_entry_names:
+            print(f"  {name}")
+
+
+def _correct_images_manifest_urls(images_path: Path, state: RebaseState, repo_map: dict[str, ImagePath]):
+    """Corrects images-manifest entry url(s)."""
+    text = images_path.read_text(encoding="utf-8")
+    new_text, changed_urls, unresolved_url_names = fix_images_manifest_entry_urls(
+        text, CHART_YAML.parent, state.target_deps, state.target_values, repo_map
+    )
+    if changed_urls:
+        images_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Correcting entry url(s) in {images_path.name} ===")
+        for name, old_url, new_url in changed_urls:
+            print(f"  {name}: {old_url} -> {new_url}")
+    if unresolved_url_names:
+        print()
+        print(
+            f"Could not verify the fully host-qualified url for {len(unresolved_url_names)} "
+            f"entry(s) in {images_path.name} — unresolvable values-tree path or repository. "
+            f"Left as-is; review by hand."
+        )
+        for name in unresolved_url_names:
+            print(f"  {name}")
+
+
+def _missing_entries_context(state: RebaseState):
+    return MissingEntriesContext(
+        CHART_YAML.parent,
+        state.target_deps,
+        state.target_values,
+        state.baseline_values,
+        allow_pull=True,
+        upgrade_docs_baseline=state.new_baseline,
+    )
+
+
+def _remove_stale_images_manifest_entries(images_path: Path, state: RebaseState):
+    """Removes an entry whose image is unchanged vs baseline (version and
+    digest), with its comment and '# Changes:' item. Skipped if
+    baseline_values is empty."""
+    if not state.baseline_values:
+        return
+    text = images_path.read_text(encoding="utf-8")
+    new_text, removed_entry_names = remove_stale_images_manifest_entries(text, _missing_entries_context(state))
+    if removed_entry_names:
+        images_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Removing unchanged entr(y/ies) from {images_path.name} ===")
+        for name in removed_entry_names:
+            print(f"  {name} (same version and digest as {state.new_baseline})")
+
+
+def _add_missing_images_manifest_entries(images_path: Path, state: RebaseState):
+    """Adds a missing entry for any changed image, and backfills a
+    missing '# Changes:' header item. Skipped if baseline_values is
+    empty."""
+    if not state.baseline_values:
+        return
+    text = images_path.read_text(encoding="utf-8")
+    ctx = _missing_entries_context(state)
+    new_text, added_entry_names, skipped_entry_names, backfilled_header_names = add_missing_images_manifest_entries(
+        text, ctx
+    )
+    if added_entry_names:
+        images_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Adding missing entr(y/ies) to {images_path.name} ===")
+        for name in added_entry_names:
+            print(f"  {name} (review 'name:' for the correct ACR mirror slug)")
+    if skipped_entry_names:
+        print()
+        print(
+            f"Could not add an entry for {len(skipped_entry_names)} changed image(s) in "
+            f"{images_path.name} — no resolvable repository, or its values.yaml tag has no "
+            f"digest pinned yet. Add by hand."
+        )
+        for name in skipped_entry_names:
+            print(f"  {name}")
+    if backfilled_header_names:
+        images_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Adding missing '# Changes:' header item(s) to {images_path.name} ===")
+        for name in backfilled_header_names:
+            print(f"  {name} (entry already existed — only its header item was missing)")
+
+
+def _dedupe_images_manifest_changes_items(images_path: Path):
+    """Removes a duplicate '# Changes:' header item."""
+    lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    removed_duplicate_items = dedupe_images_manifest_changes_items(lines)
+    if removed_duplicate_items:
+        images_path.write_text("".join(lines), encoding="utf-8")
+        print()
+        print(f"=== Removing duplicate '# Changes:' header item(s) from {images_path.name} ===")
+        for item_text in removed_duplicate_items:
+            print(f"  {item_text}")
+
+
+def _reorder_manifest_text(
+    before_sort: str, sort_context: ManifestSortContext
+) -> tuple[str, list[tuple[str, int, int]], list[tuple[str, int, int]]]:
+    """Computes before_sort's reordered text without touching disk.
+    Returns (text, moved_header_items, moved_entries)."""
+    entries_for_header_sort = try_parse_images_manifest(before_sort) or []
+    entry_positions = images_manifest_entry_positions(before_sort, sort_context)
+    display_name_positions = images_manifest_display_name_positions(before_sort, sort_context)
+    lines = before_sort.splitlines(keepends=True)
+    moved_header_items = sort_images_manifest_changes_items(
+        lines, entries_for_header_sort, entry_positions, display_name_positions
+    )
+    text = "".join(lines)
+    text, moved_entries = sort_images_manifest_entries(text, sort_context)
+    return text, moved_header_items, moved_entries
+
+
+def _sort_images_manifest(
+    images_path: Path, state: RebaseState, repo_map: dict[str, ImagePath], canonical_names: dict[str, ImagePath]
+):
+    """Reorders images_path's entries and '# Changes:' header items to
+    match values.yaml's own component order."""
+    before_sort = images_path.read_text(encoding="utf-8")
+    sort_context = ManifestSortContext(state.target_deps, state.target_values, repo_map, canonical_names)
+    text, moved_header_items, moved_entries = _reorder_manifest_text(before_sort, sort_context)
+    if text == before_sort:
+        return
+    images_path.write_text(text, encoding="utf-8")
+    print()
+    print(f"=== Reordering {images_path.name} to match values.yaml's component order ===")
+    for item_text, old_pos, new_pos in moved_header_items:
+        print(f"  '# Changes:' item {old_pos} -> {new_pos}: {item_text}")
+    for name, old_pos, new_pos in moved_entries:
+        print(f"  entry '{name}': position {old_pos} -> {new_pos}")
+    if not moved_header_items and not moved_entries:
+        print("  (blank lines within group(s) tidied)")
+
+
+def _renumber_images_manifest_changes_items(images_path: Path):
+    """Fixes a gap or wrong number in the '# Changes:' list (e.g. a hand
+    edit that didn't renumber what followed) — invisible to dedupe/sort
+    above, which only fix RELATIVE order, not ABSOLUTE numbers."""
+    lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    if renumber_images_manifest_changes_items(lines):
+        images_path.write_text("".join(lines), encoding="utf-8")
+        print()
+        print(f"=== Renumbering '# Changes:' list in {images_path.name} ===")
+
+
+def _fix_images_manifest_content(state: RebaseState, images_path: Path):
+    """Corrects entry urls and then names (so a corrected url gives the
+    name in the same run), removes unchanged entries, corrects entry
+    comments, adds missing entries, dedupes and reorders/renumbers the
+    '# Changes:' header list."""
+    if not images_path.is_file():
+        return
+    target_paths = [p for p, _tag in find_all_image_and_version_paths(state.target_values, state.target_deps)] + [
+        p for p, _tag in global_image_paths(state.target_values)
+    ]
+    repo_groups = paths_by_repository(CHART_YAML.parent, state.target_deps, state.target_values, target_paths)
+    repo_map = {
+        repo: repo_group_representative(group_paths, state.target_deps) for repo, group_paths in repo_groups.items()
+    }
+    canonical_names = canonical_sidecar_row_names(
+        CHART_YAML.parent, state.target_deps, state.target_values, target_paths
+    )
+
+    _correct_images_manifest_urls(images_path, state, repo_map)
+    _correct_images_manifest_names(images_path, repo_map)
+    _sync_images_manifest_entry_pins(images_path, state)
+    _remove_stale_images_manifest_entries(images_path, state)
+    _correct_images_manifest_entries(images_path, state, repo_map)
+    _add_missing_images_manifest_entries(images_path, state)
+    _dedupe_images_manifest_changes_items(images_path)
+    _sort_images_manifest(images_path, state, repo_map, canonical_names)
+    _renumber_images_manifest_changes_items(images_path)
+
+
+def _sync_values_delta_sections(
+    text: str,
+    state: RebaseState,
+    values_deltas_path: Path,
+    changed_keys: set[str],
+    canonical_names: dict[str, ImagePath],
+):
+    """Adds a new '## ...' section, and missing key-change mentions to
+    existing ones. Returns (text, changed)."""
+    text, created_names, updated_names = sync_values_delta_sections(
+        text,
+        CHART_YAML.parent,
+        ValuesDeltaOrdering(state.target_deps, state.target_values, canonical_names),
+        ValuesDeltaBaseline(state.baseline_deps, state.baseline_values),
+        changed_keys,
+    )
+    if created_names:
+        print()
+        print(f"=== Adding new component section(s) to {values_deltas_path.name} ===")
+        for name in created_names:
+            print(f"  {name}")
+    if updated_names:
+        print()
+        print(f"=== Adding missing key-change mention(s) to {values_deltas_path.name} ===")
+        for name in updated_names:
+            print(f"  {name}")
+    return text, bool(created_names or updated_names)
+
+
+def _fix_values_delta_headings(text: str, state: RebaseState, upgrade_path: Path, values_deltas_path: Path):
+    """Corrects '## ...' headings whose name/app-version transition no
+    longer matches upgrade_path's own (already-corrected, authoritative)
+    table. Returns (text, changed)."""
+    upgrade_doc_text = upgrade_path.read_text(encoding="utf-8") if upgrade_path.is_file() else ""
+    text, updated_delta_headings = fix_values_delta_heading_app_versions(
+        upgrade_doc_text,
+        text,
+        ResolutionContext(
+            CHART_YAML.parent,
+            ComponentState(state.target_deps, state.target_values),
+            BaselineState(state.baseline_deps, state.baseline_values),
+            upgrade_docs_baseline=state.new_baseline,
+        ),
+    )
+    if updated_delta_headings:
+        print()
+        print(
+            f"=== Correcting '## ...' section heading(s) with the wrong name/app-version "
+            f"transition in {values_deltas_path.name} ==="
+        )
+        for heading in updated_delta_headings:
+            print(f"  {heading}")
+    return text, bool(updated_delta_headings)
+
+
+def _prune_empty_values_delta_sections(text: str, values_deltas_path: Path):
+    """Removes any '## ...' section left with no actual content. Returns
+    (text, changed)."""
+    text, pruned_headings = prune_empty_values_delta_sections(text)
+    if pruned_headings:
+        print()
+        print(f"=== Removing empty section(s) from {values_deltas_path.name} ===")
+        for heading in pruned_headings:
+            print(f"  '## {heading}'")
+    return text, bool(pruned_headings)
+
+
+def _sort_values_delta_sections(
+    text: str, state: RebaseState, values_deltas_path: Path, canonical_names: dict[str, ImagePath]
+):
+    """Reorders values_deltas_path's '## ...' sections to match
+    values.yaml's own component order. Returns (text, changed)."""
+    text, moved_sections = sort_values_delta_sections(text, state.target_deps, state.target_values, canonical_names)
+    if moved_sections:
+        print()
+        print(f"=== Reordering {values_deltas_path.name} to match values.yaml's component order ===")
+        for heading, old_pos, new_pos in moved_sections:
+            print(f"  '## {heading}': position {old_pos} -> {new_pos}")
+    return text, bool(moved_sections)
+
+
+def _fix_values_deltas(state: RebaseState, upgrade_path: Path, values_deltas_path: Path):
+    """Adds sections/mentions, fixes headings, prunes empty sections,
+    reorders, and writes back only if something changed."""
+    if not values_deltas_path.is_file():
+        return
+    if state.baseline_deps is None or state.baseline_values is None:
+        print()
+        print(
+            f"Could not resolve baseline {state.new_baseline} to a git ref — skipping "
+            f"added/removed/renamed key detection for {values_deltas_path.name}."
+        )
+        return
+
+    changed_keys = compute_changed_components(
+        state.target_deps, state.baseline_deps, state.target_values, state.baseline_values
+    )
+    text = values_deltas_path.read_text(encoding="utf-8")
+    target_paths = [p for p, _tag in find_all_image_and_version_paths(state.target_values, state.target_deps)] + [
+        p for p, _tag in global_image_paths(state.target_values)
+    ]
+    canonical_names = canonical_sidecar_row_names(
+        CHART_YAML.parent, state.target_deps, state.target_values, target_paths
+    )
+
+    text, sections_changed = _sync_values_delta_sections(text, state, values_deltas_path, changed_keys, canonical_names)
+    text, headings_changed = _fix_values_delta_headings(text, state, upgrade_path, values_deltas_path)
+    text, pruned = _prune_empty_values_delta_sections(text, values_deltas_path)
+    text, reordered = _sort_values_delta_sections(text, state, values_deltas_path, canonical_names)
+
+    # Checked regardless of whether anything ABOVE changed.
+    collapsed_text = collapse_multiple_blank_lines(text)
+    blank_lines_fixed = collapsed_text != text
+    if blank_lines_fixed:
+        print()
+        print(f"=== Collapsing multiple consecutive blank line(s) in {values_deltas_path.name} ===")
+
+    if any([sections_changed, headings_changed, pruned, reordered, blank_lines_fixed]):
+        values_deltas_path.write_text(collapsed_text, encoding="utf-8")
+
+
+def main():
+    """CLI entry point: rebases every upgrade-path doc and the images
+    manifest onto release-baseline.yaml's own upgrade_docs baseline (see
+    module docstring for the full list of what gets fixed)."""
+    _parse_cli_args()
+    ensure_vendored_dependencies(CHART_YAML.parent)
+    new_baseline, target = _load_and_validate_baseline()
+    by_suffix = _check_no_collisions(target)
+
+    print(f"=== Bumping baseline for target {target} to {new_baseline} ===")
+    review_notes, todo_stub_docs = _rebase_docs(target, new_baseline, by_suffix)
+    images_path = _bump_images_manifest_baseline(target, new_baseline, review_notes)
+
+    state = _load_rebase_state(target, new_baseline)
+    actual_changed_keys: set[str] = (
+        compute_changed_components(state.target_deps, state.baseline_deps, state.target_values, state.baseline_values)
+        if state.baseline_deps is not None
+        else set()
+    )
+
+    upgrade_path = DOC_DIR / f"{new_baseline}-to-{target}-upgrade.md"
+    _fix_upgrade_doc(state, upgrade_path, actual_changed_keys)
+    _fix_images_manifest_content(state, images_path)
+    values_deltas_path = DOC_DIR / f"{new_baseline}-to-{target}-values-deltas.md"
+    _fix_values_deltas(state, upgrade_path, values_deltas_path)
+
+    if todo_stub_docs:
+        print()
+        print(f"removed stale TODO placeholder from {len(todo_stub_docs)} doc(s): {', '.join(todo_stub_docs)}")
+
+    if review_notes:
+        print()
+        print("Review these lines by hand — old baseline text may remain in free-form prose:")
+        for name, lines in review_notes:
+            print(f"  {name}: line(s) {', '.join(map(str, lines))}")
+
+    refresh_images_baseline(
+        CHART_YAML.parent, state.target_deps, state.target_values, IMAGES_DIR / "images-baseline.yaml"
+    )
+
+    print()
+    print("Done.")
+
+
+if __name__ == "__main__":
+    main()

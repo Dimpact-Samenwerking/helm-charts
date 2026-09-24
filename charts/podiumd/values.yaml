@@ -14,7 +14,7 @@ global:
   images:
     nginx: &nginxImage
       repository: nginxinc/nginx-unprivileged
-      tag: "1.31.5@sha256:4210a3296e7cae7b4f355da48192cd5ea51c88acf9892b95bff967cede85a915"
+      tag: "1.31.6@sha256:31e97ebaac04c19c8e7da6012c5776e86a4414695565200719d6113cb68d0b78"
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
@@ -22,11 +22,12 @@ global:
       pullPolicy: IfNotPresent
     busybox: &busyboxImage
       repository: library/busybox
-      tag: "1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
+      tag: "1.38.0-glibc@sha256:99813cb178ace2cd9c6c53ee3bddef5d2f5708aa438335111d7a9e3c5e1aaebe"
       pullPolicy: IfNotPresent
-    redis: &redisImage
-      repository: redis
-      tag: "8.10.1@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5"
+    postgres: &postgresImage
+      repository: library/postgres
+      tag: "16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"
+      pullPolicy: IfNotPresent
 
 tags:
   eck-operator.enabled: false
@@ -112,12 +113,9 @@ keycloak-operator:
         registry: ""
         repository: python
         # Digest-pinned to a specific patch rather than the floating 3.14-slim minor tag.
-        tag: "3.14.7-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"
+        tag: "3.14.7-slim@sha256:caaf356f40667c496d405780745b9ac25771c189a51dfcc42430d531ea09f8a2"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
-      image:
-        registry: ""
-        repository: postgres
-        tag: "16.15@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94"
+      image: *postgresImage
     ensureOperatorSa:
       enabled: true
       # Container: curl-based job to provision the keycloak-operator service account client.
@@ -215,12 +213,14 @@ keycloak:
         name: Monitoring (Grafana)
         enabled: true
         secret: ""
-        oidcUrl: "https://monitoring.example.nl"
+        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.monitoring.enabled) and this is empty or an example.nl URL. E.g. `https://monitoring.example.nl`.
+        oidcUrl: ""
       datamigratie:
         name: Datamigratie
         enabled: true
         secret: ""
-        oidcUrl: "https://datamigratie.example.nl"
+        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.datamigratie.enabled) and this is empty or an example.nl URL. E.g. `https://datamigratie.example.nl`.
+        oidcUrl: ""
       # zaakbrug Frank!Framework console OAuth2 client. Only rendered into the
       # podiumd realm import when zaakbrug.enabled=true. Env values supply the
       # secret (REP placeholder from Key Vault: zaakbrug-oauth-client-secret)
@@ -229,7 +229,8 @@ keycloak:
         name: Zaakbrug Frank!Framework console
         enabled: true
         secret: ""
-        oidcUrl: "https://zaakbrug.example.nl"
+        # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while this client is enabled (keycloak.config.clients.zaakbrug.enabled, and zaakbrug.enabled) and this is empty or an example.nl URL. E.g. `https://zaakbrug.example.nl`.
+        oidcUrl: ""
   name: "keycloak"
   features:
     enabled: []
@@ -534,7 +535,7 @@ redis-operator:
       schedule: "*/2 * * * *"
       image: &redisHaK8sImage
         repository: docker.io/alpine/k8s
-        tag: "1.36.2@sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"
+        tag: "1.37.0@sha256:b421c2e9419edb98db39b6ab641669f4db7bb2acf354f22450c6b7e7176d1ff4"
       nodeSelector: {}
       resources:
         requests:
@@ -673,7 +674,8 @@ openzaak:
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
       # openzaak_openbeheer_secret: "<openzaak_openbeheer_secret>"
-    oidcUrl: https://openzaak.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openzaak.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   create_required_catalogi_job:
@@ -732,8 +734,6 @@ openzaak:
     storageClassName: podiumd-standard
   image:
     tag: "1.29.3@sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 250m
@@ -938,7 +938,8 @@ opennotificaties:
     #     items:
     #       - domain: opennotificaties.test.opengem.nl
     #         name: Open Notificaties
-    oidcUrl: https://opennotificaties.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://opennotificaties.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -983,8 +984,6 @@ opennotificaties:
     storageClassName: podiumd-standard
   image:
     tag: "1.16.2@sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 100m
@@ -1135,7 +1134,8 @@ objecten:
     #           make_users_staff: true
     #           superuser_group_names:
     #             - Registreerders
-    oidcUrl: https://objecten.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecten.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -1163,8 +1163,6 @@ objecten:
   image:
     repository: maykinmedia/objects-api
     tag: "3.6.2@sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 100m
@@ -1272,7 +1270,8 @@ objecttypen:
     #           superuser_group_names:
     #             - Superusers
     token: "<token>"
-    oidcUrl: https://objecttypen.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://objecttypen.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -1291,8 +1290,6 @@ objecttypen:
   image:
     repository: maykinmedia/objecttypes-api
     tag: "3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"
-  redis:
-    image: *redisImage
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1330,7 +1327,8 @@ openarchiefbeheer:
     disabled: true
   configuration:
     enabled: true
-    oidcUrl: https://abc.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://abc.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client.
     pkceEnabled: false
     job:
@@ -1482,8 +1480,6 @@ openarchiefbeheer:
   image:
     #repository: maykinmedia/open-archiefbeheer
     tag: "2.0.0@sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
-  redis:
-    image: *redisImage
 
   resources:
     limits: {}
@@ -1569,6 +1565,12 @@ openklant:
     #         token: "REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
     #         contact_person: Person 1
     #         email: person-1@example.com
+    #       # Token used by Open Formulieren (service `openklant-api` in
+    #       # openformulieren.configuration.data) — keep both values in sync.
+    #       - identifier: openformulieren
+    #         token: "REP_OPENKLANT_CREDENTIALS_OPENFORMULIEREN_TOKEN_REP"
+    #         contact_person: Person 1
+    #         email: person-1@example.com
 
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
@@ -1616,7 +1618,8 @@ openklant:
     #           sync: true
     #           sync_pattern: "*"
     #           default_groups: []
-    oidcUrl: https://openklant.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openklant.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -1647,8 +1650,6 @@ openklant:
   image:
     repository: maykinmedia/open-klant
     tag: "2.15.0@sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 100m
@@ -1792,6 +1793,28 @@ openformulieren:
     #       auth_type: zgw
     #       client_id: open-formulieren
     #       secret: {value_from: {env: openzaak_openformulieren_secret}}
+
+    #     # Open Klant (klantinteracties) connection, used by the "Communication
+    #     # preferences" prefill plugin and the "Profile" (customerProfile) form
+    #     # component — see docs/configuration/prefill/communication_preferences.rst
+    #     # in open-formulieren/open-forms.
+    #     # - api_type MUST be `kc` (Klanten API); the API group dropdown only
+    #     #   lists services of that type.
+    #     # - The token MUST be registered in Open Klant too: add an
+    #     #   `openformulieren` item to openklant.configuration.data
+    #     #   (tokenauth.items) with the same token value.
+    #     # - Open Forms 3.5.x has NO setup-configuration step for the
+    #     #   "Customer interactions API group": set
+    #     #   openformulieren.customerInteractionsConfigJob.enabled: true to have
+    #     #   the chart create it (its serviceIdentifier must match this
+    #     #   identifier).
+    #     - identifier: openklant-api
+    #       label: Open Klant - Klantinteracties API
+    #       api_root: https://openklant.example.nl/klantinteracties/api/v1/
+    #       api_type: kc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: "Token REP_OPENKLANT_CREDENTIALS_OPENFORMULIEREN_TOKEN_REP"
     #   objects_api_config_enable: true
     #   objects_api:
     #     groups:
@@ -1830,7 +1853,8 @@ openformulieren:
     #           "submission_id": "{{ "{{" }} submission.kenmerk {{ "}}" }}",
     #           "language_code": "{{ "{{" }} submission.language_code {{ "}}" }}"
     #         }
-    oidcUrl: https://openformulieren.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openformulieren.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   # -- Seeds Open Forms' GlobalConfiguration singleton (enable_virus_scan,
@@ -1853,6 +1877,38 @@ openformulieren:
     # docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes'
     # Job backoff retry until both are ready, rather than needing a wait
     # container or Helm hook ordering.
+    backoffLimit: 15
+    activeDeadlineSeconds: 1200
+    ttlSecondsAfterFinished: 600
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+  # -- Creates/updates the "Customer interactions API group" that the
+  # Communication preferences prefill plugin and the Profile (customerProfile)
+  # component use to reach Open Klant, via `manage.py shell`. Open Forms has no
+  # setup-configuration step for this model (CustomerInteractionsAPIGroupConfig)
+  # — upstream only exposes it through the admin UI
+  # (docs/configuration/prefill/communication_preferences.rst). The Klanten API
+  # service itself (`api_type: kc`) IS declarative: define it under
+  # configuration.data -> zgw_consumers.services with identifier
+  # `serviceIdentifier`. Off by default: opt-in per gemeente. See
+  # templates/openformulieren-configure-customer-interactions.yaml and
+  # docs/_UPGRADE_PATHS/4.9.1-to-4.9.2-gemeente-specific.md.
+  customerInteractionsConfigJob:
+    enabled: false
+    # -- zgw_consumers service identifier (Service.slug) of the Open Klant
+    # klantinteracties service; must have api_type `kc`.
+    serviceIdentifier: openklant-api
+    groupIdentifier: open-klant
+    groupName: Open Klant
+    # -- Retries generously: this Job can race the openformulieren DB migration
+    # (image entrypoint) and the setup-configuration Job that creates the
+    # service — it fails fast and lets Kubernetes' Job backoff retry until both
+    # are done, rather than needing a wait container or Helm hook ordering.
     backoffLimit: 15
     activeDeadlineSeconds: 1200
     ttlSecondsAfterFinished: 600
@@ -1886,9 +1942,7 @@ openformulieren:
     volumeAttributeShareName: openformulieren
     storageClassName: podiumd-standard
   image:
-    tag: "3.5.6@sha256:f5a5d51a44f39edcfb2143ae5d2ed9525b22ea377faa35fd2cce26b678f7fe83"
-  redis:
-    image: *redisImage
+    tag: "3.5.8@sha256:1050b6dd1554ff6f620390870fbb2056157d792e75b9fe6e965371a2ae84f41a"
   resources:
     requests:
       cpu: 250m
@@ -2053,7 +2107,8 @@ openinwoner:
       keycloak_client_secret: ""
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
       # openklant_openinwoner_token: "<openklant_openinwoner_token>"
-    oidcUrl: https://openinwoner.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openinwoner.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   # -- Seeds Open Inwoner's SiteConfiguration singleton (enable_virus_scan,
@@ -2129,8 +2184,6 @@ openinwoner:
     storageClassName: podiumd-standard
   image:
     tag: "2.4.3@sha256:c2ff751143c260874a1ebcdcc7e07dc213cffee70c3ea5a9589948e3f5da43e4"
-  redis:
-    image: *redisImage
   resources:
     requests:
       cpu: 200m
@@ -2308,7 +2361,8 @@ referentielijsten:
     #           make_users_staff: true
     #           superuser_group_names:
     #             - administrators
-    oidcUrl: https://referentielijsten.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://referentielijsten.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   replicaCount: 1
@@ -2323,9 +2377,7 @@ referentielijsten:
   image:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
-    tag: "0.7.3@sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
-  redis:
-    image: *redisImage
+    tag: "0.7.4@sha256:5501b48fe9b988a72adba14308748e6b5928f851ec66d108bab2fe625eb831a3"
 
   settings:
     allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
@@ -2445,7 +2497,8 @@ openbeheer:
     #   api_configuration:
     #     selectielijst_service_identifier: selectielijst-service
     #     objecttypen_service_identifier: objecttypen-service
-    oidcUrl: https://openbeheer.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openbeheer.example.nl`.
+    oidcUrl: ""
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   replicaCount: 2
@@ -2453,8 +2506,6 @@ openbeheer:
     repository: maykinmedia/open-beheer
     pullPolicy: IfNotPresent
     tag: "0.9.1@sha256:7c1dfaff1d069afe5d45e421f813078d8112b13c3cf65b5f547e866f6aad4e31"
-  redis:
-    image: *redisImage
   nameOverride: openbeheer
   fullnameOverride: openbeheer
   securityContext:
@@ -2548,6 +2599,9 @@ eck-operator:
   # cluster-scope RBAC: set false and apply the CRDs manually (same doc).
   # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
   installCRDs: true
+  image:
+    tag: "3.5.0"
+    digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
   createClusterScopedResources: false
   config:
     # no RBAC access to cluster-wide storage classes, hence disable storage class validation
@@ -2635,7 +2689,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: "3.1.1@sha256:1b7c6c3904f11b33d8490c3f0b7968da859b8b4bb73f8d9dc20744eea1720990"
+    tag: "3.1.3@sha256:54c354712079bfce7c325427c4a5966bb3d7905e11f387835a60f8d49f5d833b"
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
@@ -2802,7 +2856,7 @@ kiss:
     syncJobs:
       image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-        tag: "3.1.1@sha256:f29f8b5f33831580e4da0e0f4885b5ef69068c8391ec97322b749f1970df18e1"
+        tag: "3.1.3@sha256:a695ecfe738643a18ab6bb411e8a042ac09dd64c27f5dc98a469920a4a8ddcbd"
         pullPolicy: IfNotPresent
       # -- Elastic Open Crawler, vervangt de Enterprise Search web crawler.
       # Draait als CronJob per site uit syncJobs.website en schrijft
@@ -2870,7 +2924,8 @@ kiss:
 
   # this is used for keycloak
   configuration:
-    oidcUrl: https://kiss.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://kiss.example.nl`.
+    oidcUrl: ""
     oidcSecret: "<kiss>"
 
   imagePullSecrets: []
@@ -2991,7 +3046,8 @@ zac:
         header: ""            # iConnect: "x-toepassing" | eServices: "x-request-application" | 2Secure: "x-applicatie"
         value: ""
   catalogusDomein: ALG
-  contextUrl: http://zac.example.nl
+  # -- Public URL of ZAC; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `http://zac.example.nl`.
+  contextUrl: ""
   db:
     host: postgres
     name: zac
@@ -3118,10 +3174,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb
+      # library/solr:9.10.1-slim@sha256:92a1ceccbde539cb067c05b134069250a8aa4446a62a9ada4111e4dde2b3ea26
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb
+        tag: 9.10.1-slim@sha256:92a1ceccbde539cb067c05b134069250a8aa4446a62a9ada4111e4dde2b3ea26
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -3232,7 +3288,7 @@ clamav:
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     repository: clamav/clamav
-    tag: "1.5.4@sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"
+    tag: "1.5.4@sha256:0e31ce089574268aefa0b543767d66b70240ab51ed49eec53e07f18d5629d817"
   metrics:
     enabled: false
     image:
@@ -3492,7 +3548,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "3.3.0@sha256:cb56b4809e0c840cbc72814f8a72495fd18860cb08dfb092c12ba3c2cea785df"
+      tag: "3.3.2@sha256:1a720a54f7de4aaec08abf28562cf2488128916274717e1edc6965b6ef31144a"
       pullPolicy: IfNotPresent
 
     service:
@@ -3501,7 +3557,8 @@ ita:
 
     oidc:
       authority: "REP_ITA_OIDC_AUTHORITY_REP"
-      frontendUrl: "REP_ITA_OIDC_FRONTEND_URL_REP"
+      # -- Public https URL of the ITA frontend; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://ita.example.nl`.
+      frontendUrl: ""
       clientId: "ita"
       clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
       # -- Enable PKCE (S256) on the Keycloak client for ITA.
@@ -3530,7 +3587,7 @@ ita:
   poller:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "3.3.0@sha256:7690650687047c43f08c4f8320b77d821d3551d18478de9a600a2f828600c865"
+      tag: "3.3.2@sha256:29b714c5efbe5e301e76ab07983751555737226a8823df711cc8f1b501145643"
       pullPolicy: IfNotPresent
 
     resources:
@@ -3621,6 +3678,23 @@ pabc:
         cpu: "10m"
       limits:
         memory: "512Mi"
+    # Keycloak side of the seed (test environments only, runs only with
+    # seedJob.enabled): a second Job (pabc-keycloak-groups-job-*) that makes
+    # sure every functional role in files/pabc-dataset.json exists as a realm
+    # role and as a group in the podiumd realm, with that role attached to the
+    # group. ZAC sends the user's realm roles (not the group names) to PABC as
+    # functional roles, so without these a seeded PABC still grants nothing.
+    # The Job only adds (kcadm create/add-roles) and never touches client
+    # roles or removes anything. Needs keycloak-operator.enabled and
+    # keycloak-operator.jobs.ensureOperatorSa.clientSecret.
+    keycloak:
+      enabled: true
+      resources:
+        requests:
+          memory: "256Mi"
+          cpu: "50m"
+        limits:
+          memory: "512Mi"
   initContainers:
     waitFor:
       image:
@@ -3648,7 +3722,8 @@ pabc:
       nameClaimType: "name"
       roleClaimType: "roles"
       emailClaimType: "email"
-      oidcUrl: "https://pabc.example.nl"
+      # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://pabc.example.nl`.
+      oidcUrl: ""
 
     keycloakAdmin:
       clientId: "pabc-keycloak-admin"
@@ -4456,7 +4531,8 @@ openbao:
     enabled: true
     # External URL OpenBao is reached on (Gateway/Ingress). Drives the Keycloak
     # client redirectUris and the OIDC role allowed_redirect_uris.
-    oidcUrl: https://openbao.example.nl
+    # -- Public https URL of this component; the Keycloak client's redirect URIs are built from it. No default: the render fails while the component is enabled and this is empty or an example.nl URL. E.g. `https://openbao.example.nl`.
+    oidcUrl: ""
     # Keycloak OIDC client secret for the `openbao` client. Empty => auto-generated
     # and kept stable across upgrades by keycloak-podiumd-realm-secrets.yaml
     # (identical pattern to the other apps' OIDC secrets).
@@ -4527,9 +4603,7 @@ openbao:
       backoffLimit: 6
       # Post-success log window (Job is not hook-deleted on success).
       ttlSecondsAfterFinished: 600
-      image:
-        repository: docker.io/library/postgres
-        tag: "16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+      image: *postgresImage
       nodeSelector: {}
       resources:
         requests:
