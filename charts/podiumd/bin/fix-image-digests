@@ -43,6 +43,7 @@ from lib.chart.repo_and_path_resolution import subchart_default_repository
 from lib.chart.repo_and_path_resolution import subchart_needs_vendoring
 from lib.dependencies import check_dependencies as vendor_dependencies
 from lib.dependencies import ensure_repos_configured
+from lib.image.digests import DigestPin
 from lib.image.digests import scan_digest_pins
 from lib.image.version import resolve_scoped_matches
 from lib.procutil import run_script
@@ -55,7 +56,7 @@ FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
 
 
-def _resolve_pin_repositories(pins: list, chart_dir: Path, lines: list[str], deps: list[ChartDependency]):
+def _resolve_pin_repositories(pins: list[DigestPin], chart_dir: Path, lines: list[str], deps: list[ChartDependency]):
     """Resolves each pin's "repository:" in place via its vendored
     subchart default (see lib.chart.subchart_default_repository) and
     returns the pins still left unresolved after that. If any of those
@@ -128,11 +129,11 @@ def _check_target(repository: str, version: str, group: list, values_path: Path)
     return None, None
 
 
-def _group_pins_by_target(pins: list):
+def _group_pins_by_target(pins: list[DigestPin]) -> dict[tuple[str, str], list[DigestPin]]:
     """(repository, version) -> [pin, ...] grouping for every pin with a
     resolved repository, so a repository:tag shared by several values.yaml
     pins is only checked against the registry once (see _check_target)."""
-    targets = {}
+    targets: dict[tuple[str, str], list[DigestPin]] = {}
     for p in pins:
         if p["repository"]:
             targets.setdefault((p["repository"], p["version"]), []).append(p)

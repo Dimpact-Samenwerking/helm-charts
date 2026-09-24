@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
+from typing import TypedDict
 from typing import TypeVar
 
 from lib.chart.chart_yaml import load_chart_dependencies
@@ -84,6 +85,26 @@ REF_COMMENT_RE = re.compile(
 )
 
 
+class DigestPin(TypedDict):
+    """One digest-pinned "tag: <version>@sha256:<digest>" line of
+    values.yaml (see scan_digest_pins); line is 1-based."""
+
+    line: int
+    version: str
+    digest: str
+    repository: str | None
+
+
+class VersionPin(TypedDict):
+    """One "tag:" line of values.yaml, digest-pinned or not (see
+    scan_version_pins): digest is None for a bare tag."""
+
+    line: int
+    version: str
+    digest: str | None
+    repository: str | None
+
+
 def find_sibling_registry(lines: list[str], tag_line_index: int, tag_indent: int):
     """The value of a sibling "registry:" key at the same indent as the
     "tag:" pin at tag_line_index, if present — e.g. redis-ha's split
@@ -104,7 +125,7 @@ def find_sibling_registry(lines: list[str], tag_line_index: int, tag_indent: int
     return None
 
 
-def find_inconsistent_version_pins(pins: list):
+def find_inconsistent_version_pins(pins: list[DigestPin]):
     """Every repository pinned as a literal (non-alias) "tag:" in more than
     one place across values.yaml — always a real problem, just one of two
     different kinds:
@@ -156,7 +177,7 @@ def find_inconsistent_version_pins(pins: list):
     return findings
 
 
-def resolve_pin_repo(lines: list[str], tag_line_index: int, tag_indent: int):
+def resolve_pin_repo(lines: list[str], tag_line_index: int, tag_indent: int) -> str | None:
     """Resolve the upstream repository for a "tag:" pin at tag_line_index.
     Most pins have an active sibling "repository:" key. A minority of
     components (e.g. office_converter, opa, solr-operator) deliberately
@@ -190,11 +211,11 @@ def resolve_pin_repo(lines: list[str], tag_line_index: int, tag_indent: int):
     return None
 
 
-def scan_digest_pins(lines: list):
+def scan_digest_pins(lines: list[str]) -> list[DigestPin]:
     """Yield one record per "tag: <version>@sha256:<digest>" pin in
     values.yaml, with its resolved upstream repository. A single image (e.g.
     nginx-unprivileged) is typically pinned many times across the file."""
-    pins = []
+    pins: list[DigestPin] = []
     for i, raw in enumerate(lines):
         m = DIGEST_PIN_RE.match(raw)
         if not m:
@@ -211,7 +232,7 @@ def scan_digest_pins(lines: list):
     return pins
 
 
-def scan_version_pins(lines: list):
+def scan_version_pins(lines: list[str]) -> list[VersionPin]:
     """The SAME shape scan_digest_pins returns, but for EVERY "tag:" pin
     (see VERSION_PIN_RE) whether or not it's digest-pinned — "digest" is
     None for a bare tag, never a reason to skip it. Exists solely for
@@ -224,7 +245,7 @@ def scan_version_pins(lines: list):
     caller keeps using scan_digest_pins unchanged — this is strictly
     additive, never a replacement for the real digest-pinning guarantee
     those enforce."""
-    pins = []
+    pins: list[VersionPin] = []
     for i, raw in enumerate(lines):
         m = VERSION_PIN_RE.match(raw)
         if not m:

@@ -36,6 +36,8 @@ from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import strip_registry_host
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import version_of
+from lib.image.digests import DigestPin
+from lib.image.digests import VersionPin
 from lib.image.version import GLOBAL_IMAGES_SCOPE
 from lib.image.version import MULTIPLE_KEY
 from lib.image.version import basenames_under_scope_any_tag
@@ -110,7 +112,7 @@ def confluence_table_hint(rows: list[ReleaseTableRow], component: str):
     return GENERIC_TABLE_HINT
 
 
-def is_primary_image(component: str, lines: list[str], pin: dict, chart_dir: Path | None = None):
+def is_primary_image(component: str, lines: list[str], pin: DigestPin | VersionPin, chart_dir: Path | None = None):
     """True if `pin` (one of basenames_under_scope_any_tag()'s own pins, with its
     own "line") sits at one of `component`'s own primary application
     image path(s) — see lib.chart.image_paths_for / settings.yaml's
