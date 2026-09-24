@@ -354,13 +354,15 @@ def _parse_cli_args():
 # Checked BEFORE the explicit-repository/subchart-default split, since
 # these paths DO have a "repository:" too.
 def _load_split_tag_sha_paths():
-    """digest_pinning.exceptions, filtered to writable: true entries and
-    reshaped to (values_key, path) -> sibling_field (see the comment
-    above)."""
+    """digest_pinning.exceptions, filtered to writable: true entries that
+    name a sibling_field and reshaped to (values_key, path) ->
+    sibling_field (see the comment above). A writable entry without a
+    sibling_field has no split pin to write, so its path takes the
+    ordinary tag-update route."""
     return {
         (tuple_path[0], ".".join(tuple_path[1:])): entry["sibling_field"]
         for tuple_path, entry in digest_pinning_exceptions(CHART_DIR).items()
-        if entry["writable"]
+        if entry["writable"] and entry["sibling_field"] is not None
     }
 
 
