@@ -19,6 +19,7 @@ from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import values_tree_position
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
+from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import text_names
 
 NUMBER_WORDS = [
@@ -189,14 +190,14 @@ def renumber_images_manifest_changes_items(lines: list[str]):
     changed = False
     for slot, idx in enumerate(item_indices):
         expected = slot + 1
-        m = CHANGES_ITEM_RE.match(lines[idx])
+        m = match_located_line(CHANGES_ITEM_RE, lines[idx])
         if int(m.group("num")) != expected:
             lines[idx] = CHANGES_ITEM_RE.sub(lambda mm, n=expected: f"#   {n}. {mm.group('rest')}", lines[idx])
             changed = True
 
     if header_has_count:
         count_word, noun = images_manifest_changes_count_word(len(item_indices))
-        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+        header_m = match_located_line(CHANGES_HEADER_RE, lines[header_idx])
         new_header = f"{header_m.group('indent')}{count_word} {noun}:\n"
         if lines[header_idx] != new_header:
             lines[header_idx] = new_header
@@ -274,7 +275,7 @@ def remove_changes_item(lines: list[str], item_indices: list[int], match_idx: in
     del lines[match_idx]
     remaining_indices = [i - 1 if i > match_idx else i for i in item_indices if i != match_idx]
     for new_num, idx in enumerate(remaining_indices, start=1):
-        m = CHANGES_ITEM_RE.match(lines[idx])
+        m = match_located_line(CHANGES_ITEM_RE, lines[idx])
         lines[idx] = f"#   {new_num}. {m.group('rest')}\n"
     return remaining_indices
 

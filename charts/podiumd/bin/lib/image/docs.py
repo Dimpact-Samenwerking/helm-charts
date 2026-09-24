@@ -70,6 +70,7 @@ from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
+from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
@@ -619,7 +620,7 @@ def _update_manifest_changes_header(lines: list[str], bump: ImageBump, ordering:
     item_text = f"{bump.basename} {image_manifest_version_text(bump.old_version, bump.new_version)}."
 
     if match_idx is not None:
-        m = CHANGES_ITEM_RE.match(lines[match_idx])
+        m = match_located_line(CHANGES_ITEM_RE, lines[match_idx])
         lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
         return "updated"
     if ordering.values is not None:

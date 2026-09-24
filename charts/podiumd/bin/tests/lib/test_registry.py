@@ -7,6 +7,7 @@ git repo (git log needs a real working tree)."""
 import json
 import subprocess
 import urllib.error
+import urllib.request
 
 from email.message import Message
 from io import BytesIO
@@ -85,6 +86,7 @@ def test_registry_tag_exists_fetches_token_for_docker_hub(libregistry, monkeypat
         calls.append(url)
         if "auth.docker.io" in url:
             return FakeResponse(body=json.dumps({"token": "faketoken"}).encode())
+        assert isinstance(arg, urllib.request.Request)
         assert arg.headers.get("Authorization") == "Bearer faketoken"
         return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "b" * 64})
 
@@ -152,6 +154,7 @@ def test_registry_tag_exists_discovers_token_via_bearer_challenge(libregistry, m
         calls.append(url)
         if "docker-auth.elastic.co" in url:
             return FakeResponse(body=json.dumps({"token": "elastictoken"}).encode())
+        assert isinstance(arg, urllib.request.Request)
         if arg.headers.get("Authorization") == "Bearer elastictoken":
             return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "e" * 64})
         raise urllib.error.HTTPError(
@@ -269,6 +272,7 @@ def test_registry_tag_exists_head_method_threaded_through_bearer_challenge_retry
         url = arg if isinstance(arg, str) else arg.full_url
         if "docker-auth.elastic.co" in url:
             return FakeResponse(body=json.dumps({"token": "elastictoken"}).encode())
+        assert isinstance(arg, urllib.request.Request)
         calls.append(arg.get_method())
         if arg.headers.get("Authorization") == "Bearer elastictoken":
             return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "e" * 64})
@@ -389,6 +393,7 @@ def test_list_tags_fetches_token_for_docker_hub(libregistry, monkeypatch):
         calls.append(url)
         if "auth.docker.io" in url:
             return FakeResponse(body=json.dumps({"token": "faketoken"}).encode())
+        assert isinstance(arg, urllib.request.Request)
         assert arg.headers.get("Authorization") == "Bearer faketoken"
         return FakeResponse(body=json.dumps({"tags": ["3.14-slim"]}).encode())
 
@@ -439,6 +444,7 @@ def test_list_tags_discovers_token_via_bearer_challenge(libregistry, monkeypatch
         url = arg if isinstance(arg, str) else arg.full_url
         if "docker-auth.elastic.co" in url:
             return FakeResponse(body=json.dumps({"token": "elastictoken"}).encode())
+        assert isinstance(arg, urllib.request.Request)
         if arg.headers.get("Authorization") == "Bearer elastictoken":
             return FakeResponse(body=json.dumps({"tags": ["1.0.0"]}).encode())
         raise urllib.error.HTTPError(

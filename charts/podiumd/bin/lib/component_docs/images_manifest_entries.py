@@ -27,6 +27,7 @@ from lib.upgradedoc.app_version_and_image_paths import resolve_entry_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
+from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
@@ -198,7 +199,7 @@ def _update_changes_header_item(
     item_text = _changes_header_item_text(target.friendly, change)
 
     if match_idx is not None:
-        m = CHANGES_ITEM_RE.match(lines[match_idx])
+        m = match_located_line(CHANGES_ITEM_RE, lines[match_idx])
         lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
         return "updated"
 
@@ -297,7 +298,7 @@ def _remove_changes_header_item(lines: list[str], friendly: str):
     remaining = len(remove_changes_item(lines, item_indices, match_idx))
     if header_has_count and header_idx is not None:
         count_word, noun = images_manifest_changes_count_word(remaining)
-        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+        header_m = match_located_line(CHANGES_HEADER_RE, lines[header_idx])
         lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
     # else: bare "# Changes:" header — left as-is, same convention
     # update_images_manifest's own insertion path follows.

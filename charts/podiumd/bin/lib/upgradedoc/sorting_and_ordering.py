@@ -11,6 +11,7 @@ from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import values_key_of
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
 from lib.upgradedoc.string_and_parsing_basics import match_dependency
+from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 
@@ -257,7 +258,7 @@ def parse_upgrade_doc_changes_blocks(text: str):
         end = heading_indices[j + 1] if j + 1 < len(heading_indices) else section_end
         blocks.append(
             {
-                "heading": CHANGES_BLOCK_HEADING_RE.match(lines[start]).group(1),
+                "heading": match_located_line(CHANGES_BLOCK_HEADING_RE, lines[start]).group(1),
                 "start": start,
                 "end": end,
             }
@@ -348,7 +349,7 @@ def parse_values_delta_sections(text: str):
         end = heading_indices[j + 1] if j + 1 < len(heading_indices) else len(lines)
         sections.append(
             {
-                "heading": VALUES_DELTA_SECTION_HEADING_RE.match(lines[start]).group(1),
+                "heading": match_located_line(VALUES_DELTA_SECTION_HEADING_RE, lines[start]).group(1),
                 "start": start,
                 "end": end,
             }

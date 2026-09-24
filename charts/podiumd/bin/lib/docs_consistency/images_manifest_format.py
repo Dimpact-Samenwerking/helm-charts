@@ -49,6 +49,7 @@ from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import extract_target_version
 from lib.upgradedoc.string_and_parsing_basics import match_dependency
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
+from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 
 
@@ -150,7 +151,7 @@ def _images_manifest_changes_items(lines: list[str]):
     if header_idx is None:
         return []
     spans, _block_end = images_manifest_changes_item_spans(lines, header_idx)
-    return [(CHANGES_ITEM_RE.match(lines[start]).group("rest"), start, end) for start, end in spans]
+    return [(match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest"), start, end) for start, end in spans]
 
 
 def find_images_manifest_changes_items_out_of_order(
@@ -322,7 +323,7 @@ def check_images_manifest_changes_numbering(images_path_name: str, text: str):
     issues = []
     for slot, idx in enumerate(item_indices):
         expected = slot + 1
-        actual = int(CHANGES_ITEM_RE.match(lines[idx]).group("num"))
+        actual = int(match_located_line(CHANGES_ITEM_RE, lines[idx]).group("num"))
         if actual != expected:
             issues.append(
                 f'{images_path_name}: "# Changes:" item numbered {actual} should be {expected} '

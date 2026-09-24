@@ -11,6 +11,7 @@ from lib.component_docs.images_manifest_changes_header import find_images_manife
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
 from lib.docs_consistency.images_manifest_format import match_changes_item_to_entry
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
+from lib.upgradedoc.string_and_parsing_basics import match_located_line
 
 
 def _renumbered_changes_block(chunks: list):
@@ -38,7 +39,7 @@ def _deduped_item_chunks(lines: list[str], spans: list[tuple[int, int]]):
     keep_chunks = []
     removed = []
     for start, end in spans:
-        rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
+        rest = match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest")
         full_text = rest + "".join(lines[start + 1 : end])
         if full_text in seen:
             removed.append(rest)
@@ -53,7 +54,7 @@ def _update_changes_header_count(lines: list[str], header_idx: int, total: int):
     "three changes:") to match `total`, mutating lines[header_idx]."""
     count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
     noun = "change" if total == 1 else "changes"
-    header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+    header_m = match_located_line(CHANGES_HEADER_RE, lines[header_idx])
     lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
 
 
@@ -109,7 +110,7 @@ def _resolved_changes_items(
     in their ORIGINAL (pre-sort) order."""
     items: list[dict[str, Any]] = []
     for start, end in item_bounds:
-        rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
+        rest = match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest")
         display_name = match_changes_item_display_name(rest, display_name_positions or {})
         if display_name is not None and display_name_positions:
             position = display_name_positions[display_name]

@@ -130,7 +130,9 @@ def packaged_files(chart_dir: Path):
                 rel = PurePosixPath(*rel.parts[1:]) if len(rel.parts) > 1 else rel
                 if str(rel) == rendered_output_name:
                     continue
-                out[str(rel)] = tar.extractfile(member).read()
+                extracted = tar.extractfile(member)
+                if extracted is not None:
+                    out[str(rel)] = extracted.read()
     return out
 
 

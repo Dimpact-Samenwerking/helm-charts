@@ -17,5 +17,5 @@ def qrt():
     spec = importlib.util.spec_from_file_location("query_release_table", SCRIPT_PATH, loader=loader)
     assert spec is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    loader.exec_module(module)
     return module

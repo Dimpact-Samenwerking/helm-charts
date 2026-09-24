@@ -734,7 +734,9 @@ def check_images_source(
     silently forced into "wasn't pinned anywhere" (which would be
     actively wrong: something WAS pinned, this just couldn't confirm
     what) and never a crash."""
-    resolver = _BaselineSourceResolver(ref, comparison)
+    if comparison.baseline is None:
+        return  # no baseline, nothing to verify against (every caller already checks)
+    resolver = _BaselineSourceResolver(ref, comparison.baseline, comparison.current)
     for row in rows:
         basenames = split_basenames(row["image_basename"])
         if not basenames:
@@ -751,10 +753,10 @@ class _BaselineSourceResolver:
     release_table baseline (see that function's docstring). Pulls the
     baseline dependency's primary image repositories at most once."""
 
-    def __init__(self, ref: ComponentRef, comparison: Comparison):
+    def __init__(self, ref: ComponentRef, baseline: ChartState, current: ChartState):
         self.ref = ref
-        self.comparison = comparison
-        baseline = comparison.baseline
+        self.baseline = baseline
+        self.current = current
         self.baseline_basenames = basenames_under_scope_any_tag(baseline.lines, ref.scope_key)
         self.baseline_dep = (
             find_dependency(baseline.deps, ref.dep["name"]) if ref.dep is not None and baseline.deps else None
@@ -764,7 +766,7 @@ class _BaselineSourceResolver:
     def resolve_subchart_source(self, basename: str):
         """(version, None) from the subchart-default fallback, (None, error)
         when it can't be verified, (None, None) when it doesn't apply."""
-        baseline = self.comparison.baseline
+        baseline = self.baseline
         if self.baseline_dep is None:
             return None, None
         if self._subchart_repos_state is None:
@@ -791,10 +793,10 @@ class _BaselineSourceResolver:
     def _unscoped_fallback_pins(self, basename: str):
         """find_matches_any_tag pins for basename at the baseline, kept only
         when their repository matches basename's CURRENT scoped repository."""
-        fallback_pins = find_matches_any_tag(self.comparison.baseline.lines, basename)
+        fallback_pins = find_matches_any_tag(self.baseline.lines, basename)
         if not fallback_pins:
             return fallback_pins
-        current_repo = repository_for_basename_in_scope(self.comparison.current.lines, self.ref.scope_key, basename)
+        current_repo = repository_for_basename_in_scope(self.current.lines, self.ref.scope_key, basename)
         return [
             p
             for p in fallback_pins

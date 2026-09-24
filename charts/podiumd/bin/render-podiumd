@@ -92,7 +92,7 @@ def main():
 
     doc_count = sum(1 for line in result.stdout.splitlines() if line.startswith("---"))
     top_n = render_report_top_n_largest_templates_shown(CHART_DIR)
-    if to_stdout:
+    if output_path is None:
         status(f"OK: rendered {doc_count} manifest(s) to stdout")
         with contextlib.redirect_stdout(sys.stderr):
             report_largest_templates(result.stdout, top_n)

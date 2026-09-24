@@ -313,3 +313,14 @@ def changes_heading_identities(heading: str, deps: list, canonical_names: dict |
         )
     ]
     return {("dep", key) for key in kept}
+
+
+def match_located_line(pattern: re.Pattern[str], line: str) -> re.Match[str]:
+    """pattern.match(line) for a line the caller already located with the
+    same pattern. Raises ValueError if it does not match: that is a bug in
+    the caller, not a problem in the document."""
+    m = pattern.match(line)
+    if m is None:
+        msg = f"line does not match {pattern.pattern!r}: {line!r}"
+        raise ValueError(msg)
+    return m
