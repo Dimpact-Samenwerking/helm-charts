@@ -95,7 +95,7 @@ keycloak-operator:
     config:
       keycloakImage:
         repository: &keycloakImageRepo quay.io/keycloak/keycloak
-        tag: &keycloakImageVersion "26.7.3"
+        tag: &keycloakImageVersion "26.7.4"
         sha: &keycloakImageDigest "ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
   serviceAccount:
     create: false
