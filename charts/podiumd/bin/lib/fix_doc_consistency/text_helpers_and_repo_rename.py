@@ -16,7 +16,7 @@ HEADING_LINE_RE = re.compile(r"^#{1,6}\s")
 FENCE_LINE_RE = re.compile(r"^\s*```")
 
 
-def find_collisions(by_suffix: dict):
+def find_collisions(by_suffix: dict[str, list[tuple[str, Path]]]):
     """suffix -> [(baseline, path), ...] for every suffix with more than one
     source file — these would collide on the same rename destination."""
     return {suffix: entries for suffix, entries in by_suffix.items() if len(entries) > 1}
@@ -97,7 +97,7 @@ def ensure_blank_lines_around_headings(text: str):
     adds a blank line at the very top/bottom of the file — nothing there
     to separate a heading from."""
     lines = text.splitlines(keepends=True)
-    result = []
+    result: list[str] = []
     in_fence = False
     for i, line in enumerate(lines):
         if FENCE_LINE_RE.match(line):

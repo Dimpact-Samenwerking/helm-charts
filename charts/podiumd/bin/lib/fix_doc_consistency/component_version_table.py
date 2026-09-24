@@ -10,12 +10,14 @@ from lib.chart.historical_baselines import historical_app_version_for_path
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
+from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_ordering import header_name_segment
 from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.resolve_component_row import ResolvedRow
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.resolve_component_row import resolve_component_row
+from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.string_and_parsing_basics import TableRow
@@ -34,13 +36,13 @@ class HeadingFixInputs:
     through unchanged (only their own VALUES differ — "###" vs "##"
     blocks/marker — never their shape)."""
 
-    resolved_by_values_key: dict
-    canonical_names: dict
-    blocks: list
+    resolved_by_values_key: dict[str, tuple[str, ResolvedRow]]
+    canonical_names: dict[str, ImagePath]
+    blocks: list[HeadingBlock]
     heading_marker: str
 
 
-def _dep_old_app_for_new_dependency(resolution: ResolutionContext, resolved: ResolvedRow):
+def _dep_old_app_for_new_dependency(resolution: ResolutionContext, resolved: ResolvedRow) -> str | None:
     """The APP cell's own "old" version for a Chart.yaml dependency with
     NO baseline value at all (resolved["baseline_resolved"] is False,
     resolved["dep"] is not None, resolved["target_app"] is not None) —
@@ -68,7 +70,9 @@ def _dep_old_app_for_new_dependency(resolution: ResolutionContext, resolved: Res
     return old_app
 
 
-def _new_dependency_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow, resolution: ResolutionContext):
+def _new_dependency_row_update(
+    lines: list[str], row: TableRow, resolved: ResolvedRow, resolution: ResolutionContext
+) -> tuple[str, str, str] | None:
     """The baseline_resolved=False row-rewrite mechanics for
     fix_component_version_table's own row loop — a genuinely brand-new
     component (or a sidecar whose current tag can't even be resolved,
@@ -117,7 +121,7 @@ def _new_dependency_row_update(lines: list[str], row: TableRow, resolved: Resolv
     return (row["name"], cells[1], cells[2])
 
 
-def _existing_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow):
+def _existing_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow) -> tuple[str, str, str] | None:
     """The baseline_resolved=True row-rewrite mechanics for
     fix_component_version_table's own row loop — a component that
     existed at both the baseline and target ref gets a real
@@ -171,7 +175,9 @@ def _existing_row_update(lines: list[str], row: TableRow, resolved: ResolvedRow)
     return (row["name"], cells[1], cells[2])
 
 
-def fix_component_version_table(text: str, resolution: ResolutionContext):
+def fix_component_version_table(
+    text: str, resolution: ResolutionContext
+) -> tuple[str, list[tuple[str, str, str]], list[str], list[str]]:
     """Rewrite each "Component versions" table row's App/Helm-chart cells to
     the actual baseline (source) and target versions found in git/Chart.yaml/
     values.yaml. A row is only rewritten when both its source and target are
@@ -196,7 +202,9 @@ def fix_component_version_table(text: str, resolution: ResolutionContext):
     unresolved_names)."""
     lines = text.splitlines(keepends=True)
     rows = parse_upgrade_doc_rows(text)
-    changed_rows, unmatched_names, unresolved_names = [], [], []
+    changed_rows: list[tuple[str, str, str]] = []
+    unmatched_names: list[str] = []
+    unresolved_names: list[str] = []
 
     current_paths = dict(find_image_tag_paths(resolution.target.values))
     current_paths.update(global_image_paths(resolution.target.values))
@@ -248,7 +256,9 @@ def fix_component_version_table(text: str, resolution: ResolutionContext):
     return "".join(lines), changed_rows, unmatched_names, unresolved_names
 
 
-def _resolved_rows_by_values_key(upgrade_doc_text: str, resolution: ResolutionContext, canonical_names: dict):
+def _resolved_rows_by_values_key(
+    upgrade_doc_text: str, resolution: ResolutionContext, canonical_names: dict[str, ImagePath]
+) -> dict[str, tuple[str, ResolvedRow]]:
     """{values_key: (row_name, resolved)} for every resolvable row (see
     resolve_component_row - "dependency", "native", AND "sidecar" kind
     alike; only "unmatched" or a row with no resolvable target_app at
@@ -278,7 +288,7 @@ def _resolved_rows_by_values_key(upgrade_doc_text: str, resolution: ResolutionCo
     that reconciles a sidecar heading's own dotted-tuple identity (from
     changes_heading_identities) against this dotted-STRING key - see its
     own docstring."""
-    resolved_by_values_key = {}
+    resolved_by_values_key: dict[str, tuple[str, ResolvedRow]] = {}
     for row in parse_upgrade_doc_rows(upgrade_doc_text):
         resolved = resolve_component_row(row["name"], canonical_names, resolution)
         if resolved["kind"] != "unmatched" and resolved["target_app"] is not None:
@@ -295,8 +305,8 @@ def _chart_clause(heading: str):
 
 
 def _heading_resolved_row(
-    heading: str, resolution: ResolutionContext, inputs: HeadingFixInputs, canonical_path_to_name: dict
-):
+    heading: str, resolution: ResolutionContext, inputs: HeadingFixInputs, canonical_path_to_name: dict[ImagePath, str]
+) -> tuple[str, ResolvedRow, str | None, str | None] | None:
     """The (row_name, resolved, old_app, expected_bare_name) tuple
     _heading_replacement needs to decide whether/how to rewrite
     `heading`, or None when the heading names something this whole
@@ -309,10 +319,10 @@ def _heading_resolved_row(
     if len(idents) != 1:
         return None
     kind, values_key = next(iter(idents))
-    if kind == "sidecar":
+    if kind == "sidecar" and isinstance(values_key, tuple):
         lookup_key = ".".join(values_key)
         expected_bare_name = canonical_path_to_name.get(values_key)
-    elif kind == "dep":
+    elif kind == "dep" and isinstance(values_key, str):
         lookup_key = values_key
         expected_bare_name = values_key
     else:
@@ -331,8 +341,11 @@ def _heading_resolved_row(
 
 
 def _heading_replacement(
-    block: dict, resolution: ResolutionContext, inputs: HeadingFixInputs, canonical_path_to_name: dict
-):
+    block: HeadingBlock,
+    resolution: ResolutionContext,
+    inputs: HeadingFixInputs,
+    canonical_path_to_name: dict[ImagePath, str],
+) -> tuple[str, str] | None:
     """The rewritten heading LINE text (marker + name + app-version +
     chart clause, no trailing newline) and the block's ORIGINAL heading
     text, when `block` needs correcting, or None when it's already
@@ -381,7 +394,9 @@ def _heading_replacement(
     return f"{inputs.heading_marker} {corrected_name} {expected_app_heading}{_chart_clause(heading)}", heading
 
 
-def _fix_heading_app_versions(text: str, resolution: ResolutionContext, inputs: HeadingFixInputs):
+def _fix_heading_app_versions(
+    text: str, resolution: ResolutionContext, inputs: HeadingFixInputs
+) -> tuple[str, list[str]]:
     """Shared implementation for fix_changes_heading_app_versions
     (-upgrade.md's own "### ..." Changes-section headings) and fix_
     values_delta_heading_app_versions (-values-deltas.md's own "## ..."
@@ -426,7 +441,7 @@ def _fix_heading_app_versions(text: str, resolution: ResolutionContext, inputs: 
     found via a reverse lookup, never the dotted path itself."""
     canonical_path_to_name = {path: name for name, path in inputs.canonical_names.items()}
     lines = text.splitlines(keepends=True)
-    updated_headings = []
+    updated_headings: list[str] = []
     for block in inputs.blocks:
         replacement = _heading_replacement(block, resolution, inputs, canonical_path_to_name)
         if replacement is None:

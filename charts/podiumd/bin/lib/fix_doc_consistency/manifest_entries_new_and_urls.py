@@ -6,6 +6,7 @@ import re
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
@@ -31,6 +32,7 @@ from lib.images_manifest import ManifestEntry
 from lib.images_manifest import try_parse_images_manifest
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
+from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
@@ -58,7 +60,7 @@ class UrlFixContext:
     chart_dir: Path
     deps: list[ChartDependency]
     target_values: YamlMapping
-    repo_map: dict | None = None
+    repo_map: dict[str, ImagePath] | None = None
 
 
 @dataclass
@@ -82,8 +84,8 @@ class BaselineResolution:
     """baseline_paths/baseline_repo_groups — grouped together since
     _baseline_setup computes both from baseline_values in one pass."""
 
-    baseline_paths: dict
-    baseline_repo_groups: dict
+    baseline_paths: dict[ImagePath, str]
+    baseline_repo_groups: dict[str, list[ImagePath]]
 
 
 @dataclass
@@ -91,9 +93,9 @@ class RepoResolution:
     """repo_groups/repo_map/path_to_repo — grouped together since
     _repo_setup computes all three from target_values in one pass."""
 
-    repo_groups: dict
-    repo_map: dict
-    path_to_repo: dict
+    repo_groups: dict[str, list[ImagePath]]
+    repo_map: dict[str, ImagePath]
+    path_to_repo: dict[ImagePath, str]
 
 
 @dataclass
@@ -106,13 +108,13 @@ class MissingEntriesResolution:
     RepoResolution rather than each field living here directly, purely to
     stay under pylint's max-instance-attributes."""
 
-    current_paths: dict
+    current_paths: dict[ImagePath, str]
     baseline: BaselineResolution
     repo: RepoResolution
-    unresolvable_paths: set
-    canonical_names: dict
-    key_order: list
-    sibling_fields: dict
+    unresolvable_paths: set[ImagePath]
+    canonical_names: dict[str, ImagePath]
+    key_order: list[str]
+    sibling_fields: dict[ImagePath, DigestPinningException]
 
 
 @dataclass
@@ -127,7 +129,7 @@ class AddedEntryFields:
     pinned_tag: str
 
 
-def _entry_url_line_index(lines: list[str], line_idx: int):
+def _entry_url_line_index(lines: list[str], line_idx: int) -> int | None:
     """The line index of this entry's own "url:" field, within its own
     block (up to the next entry or blank line) — None if it has none."""
     block_end = len(lines)
@@ -143,6 +145,10 @@ def _entry_url_line_index(lines: list[str], line_idx: int):
 
 def _entry_url_status(
     entry: ManifestEntry, line_idx: int, lines: list[str], current_paths: dict[ImagePath, str], context: UrlFixContext
+) -> (
+    tuple[Literal["unresolved"], str]
+    | tuple[Literal["changed"], tuple[str, str, str]]
+    | tuple[Literal["unchanged"], None]
 ):
     """("unresolved", name) / ("changed", (name, old_url, new_url)) /
     ("unchanged", None) for a single images-manifest entry's own "url:"
@@ -174,8 +180,12 @@ def _entry_url_status(
 
 
 def fix_images_manifest_entry_urls(
-    text: str, chart_dir: Path, deps: list[ChartDependency], target_values: YamlMapping, repo_map: dict | None = None
-):
+    text: str,
+    chart_dir: Path,
+    deps: list[ChartDependency],
+    target_values: YamlMapping,
+    repo_map: dict[str, ImagePath] | None = None,
+) -> tuple[str, list[tuple[str, str, str]], list[str]]:
     """Rewrite each images-manifest entry's own "url:" field to the REAL,
     fully host-qualified repository for its matched values-tree path
     (lib.chart.full_repository_for_path — the same convention add_
@@ -214,15 +224,16 @@ def fix_images_manifest_entry_urls(
     current_paths = dict(find_all_image_and_version_paths(target_values, deps))
     current_paths.update(global_image_paths(target_values))
 
-    changed_names, unresolved_names = [], []
+    changed_names: list[tuple[str, str, str]] = []
+    unresolved_names: list[str] = []
     for entry, line_idx in zip(entries, entry_line_indices, strict=False):
-        status, payload = _entry_url_status(
+        status = _entry_url_status(
             entry, line_idx, lines, current_paths, UrlFixContext(chart_dir, deps, target_values, repo_map)
         )
-        if status == "unresolved":
-            unresolved_names.append(payload)
-        elif status == "changed":
-            changed_names.append(payload)
+        if status[0] == "unresolved":
+            unresolved_names.append(status[1])
+        elif status[0] == "changed":
+            changed_names.append(status[1])
 
     return "".join(lines), changed_names, unresolved_names
 
@@ -241,7 +252,7 @@ def _images_manifest_changes_header_text(lines: list[str]):
     return "".join(lines[header_idx:block_end])
 
 
-def _baseline_setup(context: MissingEntriesContext):
+def _baseline_setup(context: MissingEntriesContext) -> tuple[dict[ImagePath, str], dict[str, list[ImagePath]]]:
     """(baseline_paths, baseline_repo_groups) — baseline_repo_groups
     grouped against baseline_values (NOT target_values — "where did
     this repository already live in the baseline tree"), reused across
@@ -261,7 +272,9 @@ def _baseline_setup(context: MissingEntriesContext):
     return baseline_paths, baseline_repo_groups
 
 
-def _repo_setup(context: MissingEntriesContext, current_paths: dict[ImagePath, str]):
+def _repo_setup(
+    context: MissingEntriesContext, current_paths: dict[ImagePath, str]
+) -> tuple[dict[str, list[ImagePath]], dict[str, ImagePath], dict[ImagePath, str]]:
     """(repo_groups, repo_map, path_to_repo) for `context`'s own
     target_values."""
     repo_groups = paths_by_repository(context.chart_dir, context.deps, context.target_values, current_paths.keys())
@@ -270,7 +283,9 @@ def _repo_setup(context: MissingEntriesContext, current_paths: dict[ImagePath, s
     return repo_groups, repo_map, path_to_repo
 
 
-def _missing_paths_for_entries(text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution):
+def _missing_paths_for_entries(
+    text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
+) -> list[ImagePath]:
     """The list of paths find_images_manifest_list_diff reports as
     changed vs baseline but with no images-manifest entry yet — `text`
     is only ever parsed here, never needed again afterward."""
@@ -295,7 +310,9 @@ def _missing_paths_for_entries(text: str, context: MissingEntriesContext, resolu
     return missing_paths
 
 
-def _missing_entries_setup(text: str, context: MissingEntriesContext):
+def _missing_entries_setup(
+    text: str, context: MissingEntriesContext
+) -> tuple[MissingEntriesResolution, list[ImagePath]]:
     """(resolution, missing_paths) — add_missing_images_manifest_
     entries' own one-time setup phase: current_paths/baseline_paths/
     repo groups/canonical names/key order/digest-pinning exceptions
@@ -331,7 +348,7 @@ def _pinned_tag_for_path(
     resolution: MissingEntriesResolution,
     current_tag: str,
     name: str,
-):
+) -> str | None:
     """The resolved digest-pinned tag for `path` (see resolved_digest_
     pin) — when allow_pull is set and no digest is pinned locally at
     all, tries a real registry lookup instead of giving up immediately
@@ -364,7 +381,7 @@ def _pinned_tag_for_path(
 
 def _entry_fields_for_missing_path(
     path: tuple[str, ...], context: MissingEntriesContext, resolution: MissingEntriesResolution
-):
+) -> tuple[str, AddedEntryFields | None]:
     """(name, AddedEntryFields | None) for `path` — fields is None when
     it can't be resolved to a real repository or a digest-pinned tag at
     all (the caller reports `name` as skipped in that case; `name` is
@@ -395,7 +412,7 @@ def _entry_old_version_and_digest_change(
     pinned_tag: str,
     context: MissingEntriesContext,
     resolution: MissingEntriesResolution,
-):
+) -> tuple[str | None, bool]:
     """(old_version, digest_only_change) for a newly-added entry's own
     comment — old_version from the exact baseline path when one exists
     (flagging a same-version/changed-digest re-pin via digest_only_
@@ -451,12 +468,14 @@ def _manifest_lines_for_insert(text: str):
     return lines
 
 
-def _entry_insertion_keys(lines: list[str], context: MissingEntriesContext, resolution: MissingEntriesResolution):
+def _entry_insertion_keys(
+    lines: list[str], context: MissingEntriesContext, resolution: MissingEntriesResolution
+) -> tuple[list[int], list[tuple[int, ...]]]:
     """(entry_line_indices, entry_keys) — every existing entry's own
     line index and sort key (see images_manifest_order_key), used to
     find where a new entry belongs (see insertion_index)."""
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    entry_keys = []
+    entry_keys: list[tuple[int, ...]] = []
     for idx in entry_line_indices:
         m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[idx])
         entry_path = (
@@ -539,7 +558,7 @@ def _insert_added_entry(
 
 def _backfilled_header_target(
     lines: list[str], header_text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
-):
+) -> tuple[ImagePath, str, str, str] | None:
     """The (entry_path, entry_name, entry_old, entry_new) for the FIRST
     entry (in manifest order) whose own display name isn't already
     mentioned anywhere in `header_text` — None if every entry is already
@@ -572,13 +591,15 @@ def _backfilled_header_target(
     return None
 
 
-def _backfill_header_items(text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution):
+def _backfill_header_items(
+    text: str, context: MissingEntriesContext, resolution: MissingEntriesResolution
+) -> tuple[str, list[str]]:
     """Second pass: insert a header item for any entry that already has
     its own comment+entry block (e.g. added by an earlier run, before
     header-list support existed) but was never given one. Old/new
     version for a backfilled item are read from the entry's own existing
     comment, never recomputed. Returns (text, backfilled_names)."""
-    backfilled_names = []
+    backfilled_names: list[str] = []
     while True:
         lines = text.splitlines(keepends=True)
         ensure_images_manifest_changes_header(lines)
@@ -603,7 +624,9 @@ def _backfill_header_items(text: str, context: MissingEntriesContext, resolution
     return text, backfilled_names
 
 
-def add_missing_images_manifest_entries(text: str, context: MissingEntriesContext):
+def add_missing_images_manifest_entries(
+    text: str, context: MissingEntriesContext
+) -> tuple[str, list[str], list[str], list[str]]:
     """Insert a new entry (+ its own "# <name> — <old> -> <new>" comment,
     and a matching numbered item in the "# Changes:" header list) for
     every image lib.upgradedoc.find_images_manifest_list_diff's own
@@ -679,7 +702,8 @@ def add_missing_images_manifest_entries(text: str, context: MissingEntriesContex
     Returns (new_text, added_names, skipped_names, backfilled_names)."""
     resolution, missing_paths = _missing_entries_setup(text, context)
 
-    added_names, skipped_names = [], []
+    added_names: list[str] = []
+    skipped_names: list[str] = []
     for path in missing_paths:
         name, fields = _entry_fields_for_missing_path(path, context, resolution)
         if fields is None:
