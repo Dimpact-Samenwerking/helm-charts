@@ -95,6 +95,17 @@ def test_resolve_pin_repo_commented_repository_key_fallback(libimagedigests: Mod
     assert libimagedigests.resolve_pin_repo(lines, 2, 6) == "maykinmedia/open-archiefbeheer"
 
 
+def test_resolve_pin_repo_commented_repository_key_at_other_indent_ignored(libimagedigests: ModuleType):
+    """A "#repository:" comment belonging to a parent or neighbouring block
+    (different indent than the tag) is not this pin's repository."""
+    lines = [
+        "  #repository: some/other-image",
+        "  image:",
+        '    tag: "2.0.0@sha256:aaaa"',
+    ]
+    assert libimagedigests.resolve_pin_repo(lines, 2, 4) is None
+
+
 def test_resolve_pin_repo_unresolved_returns_none(libimagedigests: ModuleType):
     lines = [
         "  image:",

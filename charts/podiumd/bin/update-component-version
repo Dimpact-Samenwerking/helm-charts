@@ -499,10 +499,11 @@ def _write_split_tag_sha_pin(
     if located is None:
         msg = f"error: could not find '{ctx.values_key}.{path}.tag' in {VALUES_YAML}"
         raise SystemExit(msg)
-    write_tag_and_sha(
+    tag_written = write_tag_and_sha(
         values_lines, located, SiblingWrite(ctx.app_version, digest_hex, sibling_field, f"{ctx.values_key}.{path}")
     )
-    acc.new_tags_by_path[path] = f"{ctx.app_version}@sha256:{digest_hex}"
+    if tag_written:
+        acc.new_tags_by_path[path] = f"{ctx.app_version}@sha256:{digest_hex}"
     sibling_idx = located[2]
     print(
         f"  {ctx.values_key}.{path}: {host}/{repo_path}:{ctx.app_version} -> sha256:{digest_hex}"
@@ -514,7 +515,10 @@ def _write_delegated_tags(ctx: BumpContext, delegated_paths: list[str], acc: Tag
     """Delegate delegated_paths to lib.image.version.update_image_version,
     keyed by each path's own real repository basename (not necessarily
     this component's own name) so a shared image is updated everywhere
-    it's pinned. Updates acc.new_tags_by_path/acc.repos in place."""
+    it's pinned. Updates acc.new_tags_by_path/acc.repos in place. Raises
+    SystemExit when update_image_version reports no change at a path's
+    own line (already at the target version, or another path sharing its
+    basename changed instead)."""
     if not delegated_paths:
         return
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
@@ -537,7 +541,14 @@ def _write_delegated_tags(ctx: BumpContext, delegated_paths: list[str], acc: Tag
             print(f"  values.yaml:{c['line']}  ({c['repository']})")
             print(f"    {c['old_version']}@{c['old_digest']}")
             print(f"    {c['new_version']}@{c['new_digest']}")
-        own_change = next(c for c in changes if c["line"] == own_line)
+        own_change = next((c for c in changes if c["line"] == own_line), None)
+        if own_change is None:
+            msg = (
+                f"error: update_image_version reported no change at values.yaml:{own_line} "
+                f"({ctx.values_key}.{path}); is it already at the target version, or does "
+                "another path share this basename?"
+            )
+            raise SystemExit(msg)
         acc.new_tags_by_path[path] = f"{own_change['new_version']}@{own_change['new_digest']}"
 
 
@@ -590,12 +601,16 @@ def _update_image_tags(
 
 
 def _resolve_against_baseline(
-    ctx: BumpContext, baseline_deps: list[ChartDependency], baseline_values: YamlMapping | None, friendly: str
+    ctx: BumpContext,
+    baseline_deps: list[ChartDependency],
+    baseline_values: YamlMapping | None,
+    friendly: str,
+    image_path: str,
 ):
     """When baseline_deps resolved to a real git ref: whether `friendly` is
     back at its baseline version, and old_app/old_chart resolved against
-    it (see resolve_baseline_component_versions). Returns (old_app,
-    old_chart, reset_to_baseline)."""
+    it at image_path (see resolve_baseline_component_versions). Returns
+    (old_app, old_chart, reset_to_baseline)."""
     current_deps = load_chart_dependencies(CHART_YAML)
     current_values = load_yaml_mapping(VALUES_YAML)
     changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
@@ -607,7 +622,7 @@ def _resolve_against_baseline(
             baseline_values,
             baseline_dep,
             ctx.values_key,
-            ctx.image_paths[0],
+            image_path,
             ctx.chart_name,
             ctx.new_chart,
             chart_dir=CHART_DIR,
@@ -620,7 +635,9 @@ def _resolve_against_baseline(
     return old_app, old_chart, reset_to_baseline
 
 
-def _resolve_baseline_comparison(ctx: BumpContext, target: str, old_app_by_path: dict[str, str | None]):
+def _resolve_baseline_comparison(
+    ctx: BumpContext, target: str, old_app_by_path: dict[str, str | None], paths_to_update: list[str]
+):
     """Compare against the TRUE release upgrade_docs_baseline (git-
     resolved), not "whatever this script last left on disk" — the only
     way a component bumped more than once in one cycle still documents as
@@ -628,7 +645,9 @@ def _resolve_baseline_comparison(ctx: BumpContext, target: str, old_app_by_path:
     friendly = ctx.values_key
     # Fallback "old" values when upgrade_docs_baseline can't be resolved.
     old_chart = None if ctx.no_chart else str(ctx.dep["version"])
-    old_app = old_app_by_path.get(ctx.image_paths[0])
+    # The first path that changed, so a bump to a later image path isn't missed.
+    image_path = paths_to_update[0] if paths_to_update else ctx.image_paths[0]
+    old_app = old_app_by_path.get(image_path)
 
     upgrade_docs_baseline = _read_upgrade_docs_baseline(CHART_DIR)
     upgrade_path, values_deltas_path = baseline_doc_paths(upgrade_docs_baseline, target)
@@ -638,7 +657,9 @@ def _resolve_baseline_comparison(ctx: BumpContext, target: str, old_app_by_path:
         baseline_deps, baseline_values = load_baseline_state(upgrade_docs_baseline)
     reset_to_baseline = False
     if baseline_deps is not None:
-        old_app, old_chart, reset_to_baseline = _resolve_against_baseline(ctx, baseline_deps, baseline_values, friendly)
+        old_app, old_chart, reset_to_baseline = _resolve_against_baseline(
+            ctx, baseline_deps, baseline_values, friendly, image_path
+        )
 
     return BaselineComparison(
         old_app,
@@ -804,6 +825,17 @@ def _update_images_manifest_section(
         _write_images_manifest_updates(ctx, comparison, manifest_target, path_update)
 
 
+def _run_fix_helm_doc() -> None:
+    """Regenerate README.md via fix-helm-doc. Raises SystemExit when it
+    fails, since README.md would otherwise stay stale."""
+    print()
+    print("=== Regenerating README.md (fix-helm-doc) ===")
+    result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
+    if result.returncode != 0:
+        msg = f"error: fix-helm-doc failed (exit {result.returncode}); README.md was not regenerated"
+        raise SystemExit(msg)
+
+
 def main():
     """CLI entry point: verifies requested versions exist upstream before
     writing anything, then updates Chart.yaml/values.yaml, refreshes the
@@ -832,15 +864,13 @@ def main():
         print(f"  {old_v}  ->  {new_v}")
 
     target = current_chart_version()
-    comparison = _resolve_baseline_comparison(ctx, target, old_app_by_path)
+    comparison = _resolve_baseline_comparison(ctx, target, old_app_by_path, paths_to_update)
 
     _update_upgrade_doc_section(ctx, comparison, target, paths_to_update)
     _update_values_deltas_section(ctx, comparison)
     _update_images_manifest_section(ctx, comparison, paths_to_update, (new_tags_by_path, repos))
 
-    print()
-    print("=== Regenerating README.md (fix-helm-doc) ===")
-    run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
+    _run_fix_helm_doc()
 
     # The doc steps above only read a vendored .tgz whose version didn't change.
     print()
