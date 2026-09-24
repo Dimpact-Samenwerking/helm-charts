@@ -15,7 +15,8 @@ Reports:
     in Chart.yaml or values.yaml
 Rows with component "MULTIPLE" are checked against global.images.
 Rows with component "UNKNOWN" are listed as unresolved, not as failures.
-Uses only the local chart and vendored sub-charts, no network.
+Uses the local chart and vendored sub-charts; only the baseline-side
+check may run `helm pull` for a baseline sub-chart that isn't vendored.
 
 Usage:
     verify-release-table-with-podiumd [--baseline-only]
