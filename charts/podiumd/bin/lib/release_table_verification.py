@@ -50,6 +50,8 @@ from lib.release_table.state import ChartState
 from lib.release_table.state import Comparison
 from lib.release_table.state import ComponentRef
 from lib.release_table.state import Observed
+from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
 
 UNRESOLVED_COMPONENTS = ("", "UNKNOWN")
 
@@ -477,6 +479,49 @@ def _record_image_result(ref: ComponentRef, row: ReleaseTableRow, basename: str,
     )
 
 
+def _unscoped_fallback_pins(
+    ref: ComponentRef, state: ChartState, basename: str, findings: Findings
+) -> tuple[list[VersionPin] | None, bool]:
+    """(pins, ambiguous) for check_images' unscoped fallback: a basename is a
+    repository identity, so it may be pinned under a sibling scope (e.g.
+    keycloak-config-cli under "keycloak"). Ambiguous, with a finding
+    recorded, when the matches span several repositories."""
+    pins = find_matches_any_tag(state.lines, basename) or None
+    repos = {repository_group_key(p["repository"]) for p in pins or [] if p["repository"]}
+    if len(repos) > 1:
+        findings["ambiguous"].append(
+            f"[IMAGE] '{basename}' matches {len(repos)} different repositories outside "
+            f"'{ref.scope_key}' own scope ({', '.join(sorted(repos))}) -- can't tell which one "
+            f"this row means"
+        )
+        return pins, True
+    return pins, False
+
+
+def _check_primary_row_without_basename(
+    ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartState, findings: Findings, primary_basename: str | None
+) -> None:
+    """Compares the component's single blank-image_basename row against
+    actual_app_version via _record_image_result, when no other row claims
+    primary_basename and the row records an app version ("v" ignored)."""
+    if ref.component == MULTIPLE_KEY:
+        return
+    blank_rows = [row for row in rows if not split_basenames(row["image_basename"])]
+    if len(blank_rows) != 1:
+        return
+    if primary_basename is not None and any(primary_basename in split_basenames(r["image_basename"]) for r in rows):
+        return
+    actual = actual_app_version(state.values, ref.scope_key, ref.component, state.chart_dir, ref.dep)
+    row = blank_rows[0]
+    target = row["target_version_app"]
+    recorded = target if is_verifiable_target(target) else row["source_version_app"]
+    if not actual or not is_verifiable_target(recorded):
+        return
+    if normalize_version(actual) == normalize_version(recorded):
+        actual = recorded
+    _record_image_result(ref, row, primary_basename or "primary image", actual, findings)
+
+
 def check_images(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartState, findings: Findings):
     """The TARGET-side counterpart to check_images_source: resolves every
     basename release-table.csv's rows for `ref.component` list under
@@ -486,9 +531,10 @@ def check_images(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartSta
     live under a sibling scope, e.g. keycloak-config-cli under top-level
     "keycloak") and compares each resolved version against that row's own
     verifiable target_version_app, recording a mismatch (see
-    _record_image_result) when they disagree. A pin resolving to more
-    than one distinct version is reported as "ambiguous" instead of
-    compared. After the per-row pass, a second pass walks every ACTUAL
+    _record_image_result) when they disagree; a blank-image_basename
+    primary row too (_check_primary_row_without_basename). A pin with
+    several versions, or an unscoped match across several repositories,
+    is reported as "ambiguous" instead of compared. After the per-row pass, a second pass walks every ACTUAL
     basename pinned under `ref.scope_key` that no row claimed at all,
     recording a "missing_from_release_table" finding (with a fix-it hint
     from missing_image_hint, which also needs to know whether it's this
@@ -496,10 +542,7 @@ def check_images(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartSta
     only a sidecar needs "Used by")."""
     actual_basenames = basenames_under_scope_any_tag(state.lines, ref.scope_key)
     csv_basenames: set[str] = set()
-    # Resolved once per component (not per pin) — see primary_image_basename;
-    # only ever consulted below for a basename release-table.csv doesn't
-    # track yet, to decide whether it's this component's own primary image
-    # (no "Used by" needed) or a sidecar (always needs one).
+    # Resolved once per component (not per pin) — see primary_image_basename.
     primary_basename = None if ref.component == MULTIPLE_KEY else primary_image_basename(ref, state)
 
     for row in rows:
@@ -511,16 +554,9 @@ def check_images(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartSta
             csv_basenames.add(basename)
             pins = actual_basenames.get(basename)
             if pins is None:
-                # Not under this component's own scope — a plain,
-                # unscoped find_matches fallback (unlike update-image-
-                # version/verify-image-version/show-image-baseline-
-                # version's own required <key> <basename>, which would
-                # reject this): a basename is a real repository identity,
-                # not a values.yaml path, so it can legitimately be
-                # pinned under a sibling scope instead (e.g. keycloak-
-                # config-cli lives under top-level "keycloak", not
-                # "keycloak-operator").
-                pins = find_matches_any_tag(state.lines, basename) or None
+                pins, ambiguous = _unscoped_fallback_pins(ref, state, basename, findings)
+                if ambiguous:
+                    continue
             if pins is None:
                 findings["missing_from_chart"].append(
                     f"[IMAGE] release-table image '{basename}' for component '{ref.component}' "
@@ -536,6 +572,8 @@ def check_images(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartSta
                 )
                 continue
             _record_image_result(ref, row, basename, next(iter(versions)), findings)
+
+    _check_primary_row_without_basename(ref, rows, state, findings, primary_basename)
 
     for basename, pins in actual_basenames.items():
         if basename not in csv_basenames:
