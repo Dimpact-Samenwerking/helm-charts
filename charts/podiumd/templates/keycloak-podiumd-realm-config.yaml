@@ -29,12 +29,13 @@
      syntactically valid client whose redirect URIs point at example.nl — the deploy then succeeds
      and every login fails with "Invalid parameter: redirect_uri". Fail the render instead, so the
      mistake surfaces at deploy time rather than at the first login attempt.
-     Components disabled via .enabled=false are skipped; a component with no enabled flag is
-     always deployed and is therefore always checked. The URL checked is the one the client's
+     An entry is skipped when its component is disabled (<component>.enabled=false) or when its
+     Keycloak client is disabled (keycloak.config.clients.<name>.enabled=false, for the clients
+     that have that flag: monitoring, datamigratie, zaakbrug); a component with no enabled flag
+     is always deployed and is therefore always checked. The URL checked is the one the client's
      redirect URIs come from: configuration.oidcUrl for the Django apps and kiss, zac.contextUrl
-     for zac, pabc.settings.oidc.oidcUrl for pabc and keycloak.config.clients.<name>.oidcUrl for
-     monitoring, datamigratie and zaakbrug (those three are gated on the client's own enabled
-     flag; zaakbrug also on zaakbrug.enabled). See IN-2868. */ -}}
+     for zac, pabc.settings.oidc.oidcUrl for pabc, ita.web.oidc.frontendUrl for ita and
+     keycloak.config.clients.<name>.oidcUrl for monitoring, datamigratie and zaakbrug. See IN-2868. */ -}}
 {{- $oidcClients := list
   (dict "name" "openzaak"          "enabled" .Values.openzaak.enabled          "oidcUrl" .Values.openzaak.configuration.oidcUrl)
   (dict "name" "openarchiefbeheer" "enabled" .Values.openarchiefbeheer.enabled "oidcUrl" .Values.openarchiefbeheer.configuration.oidcUrl)
@@ -50,6 +51,7 @@
   (dict "name" "kiss"              "enabled" .Values.kiss.enabled              "oidcUrl" .Values.kiss.configuration.oidcUrl "field" "kiss.configuration.oidcUrl")
   (dict "name" "zac"               "enabled" .Values.zac.enabled               "oidcUrl" .Values.zac.contextUrl "field" "zac.contextUrl")
   (dict "name" "pabc"              "enabled" .Values.pabc.enabled              "oidcUrl" .Values.pabc.settings.oidc.oidcUrl "field" "pabc.settings.oidc.oidcUrl")
+  (dict "name" "ita"               "enabled" .Values.ita.enabled               "oidcUrl" .Values.ita.web.oidc.frontendUrl "field" "ita.web.oidc.frontendUrl")
   (dict "name" "zaakbrug"          "enabled" (and .Values.zaakbrug.enabled .Values.keycloak.config.clients.zaakbrug.enabled) "oidcUrl" .Values.keycloak.config.clients.zaakbrug.oidcUrl "field" "keycloak.config.clients.zaakbrug.oidcUrl")
   (dict "name" "monitoring"        "enabled" .Values.keycloak.config.clients.monitoring.enabled   "oidcUrl" .Values.keycloak.config.clients.monitoring.oidcUrl "field" "keycloak.config.clients.monitoring.oidcUrl")
   (dict "name" "datamigratie"      "enabled" .Values.keycloak.config.clients.datamigratie.enabled "oidcUrl" .Values.keycloak.config.clients.datamigratie.oidcUrl "field" "keycloak.config.clients.datamigratie.oidcUrl")
