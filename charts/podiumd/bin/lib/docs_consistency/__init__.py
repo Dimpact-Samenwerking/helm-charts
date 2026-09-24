@@ -10,7 +10,6 @@ function's own docstring for why podiumd needs two baselines now."""
 import re
 
 from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
@@ -25,6 +24,15 @@ from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.values_delta_sections import has_stale_gemeente_specific_placeholder
 from lib.component_docs.values_delta_sections import strip_stale_values_deltas_todo_stub
+from lib.docs_consistency.check_context import ComponentRowsResult
+from lib.docs_consistency.check_context import DocQuery
+from lib.docs_consistency.check_context import DocScanState
+from lib.docs_consistency.check_context import DocsCheckContext
+from lib.docs_consistency.check_context import Findings
+from lib.docs_consistency.check_context import ImagePaths
+from lib.docs_consistency.check_context import ManifestEntryScan
+from lib.docs_consistency.check_context import RowContext
+from lib.docs_consistency.check_context import RowLookup
 from lib.docs_consistency.images_manifest_format import ManifestCheckContext
 from lib.docs_consistency.images_manifest_format import check_images_manifest_format
 from lib.docs_consistency.markdown_format import check_baseline_doc_set
@@ -65,10 +73,6 @@ from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
 
-# A component as resolve_component_identity names it: ("dep", values_key)
-# or ("sidecar", values-tree path).
-ComponentIdentity = tuple[str, str | ImagePath]
-
 
 def parse_upgrade_doc_rows(doc_path: Path) -> list[TableRow]:
     """lib.upgradedoc.string_and_parsing_basics.parse_upgrade_doc_rows
@@ -77,141 +81,6 @@ def parse_upgrade_doc_rows(doc_path: Path) -> list[TableRow]:
     already-read text, so this thin wrapper saves each of them repeating
     the same read_text() call."""
     return _parse_upgrade_doc_rows(doc_path.read_text(encoding="utf-8"))
-
-
-@dataclass
-class Findings:
-    """check_docs_consistency's own running "what got checked" / "what
-    mismatched" accumulators, threaded through every phase helper below
-    instead of each one returning a pair the caller has to unpack and
-    extend by hand -- that unpacking is exactly where this function's
-    own local-variable count used to come from."""
-
-    checked: list[str]
-    mismatches: list[str]
-
-
-@dataclass
-class ImagePaths:
-    """current/baseline image-tag-path maps, bundled since every check
-    that compares "the image at this path" always needs both sides at
-    once, never just one alone."""
-
-    current: dict[ImagePath, str | None]
-    baseline: dict[ImagePath, str | None]
-
-
-@dataclass
-class DocQuery:
-    """The four values that together pick out WHICH doc set/filenames
-    check_docs_consistency is even looking for (podiumd_version/
-    upgrade_docs_baseline/is_bare_version) and where (doc_dir) --
-    bundled purely to keep DocsCheckContext's own attribute count under
-    pylint's too-many-instance-attributes, since these four always
-    travel together anyway."""
-
-    doc_dir: Path
-    podiumd_version: str
-    upgrade_docs_baseline: str | None
-    is_bare_version: bool
-
-
-@dataclass
-class DocsCheckContext:
-    """check_docs_consistency's own chart_dir/deps/values/baseline/
-    image-path state, resolved once by _build_docs_check_context and
-    read (never mutated) by every phase helper below -- the "Component
-    versions" table section, the images-manifest section and the
-    values-deltas section all need some subset of exactly this, never
-    anything else from the outer function. `current`/`baseline` are
-    ComponentState (see lib.component_docs.changes_section) -- the same
-    deps/values pairing resolve_component_row's own ResolutionContext
-    already uses."""
-
-    chart_dir: Path
-    current: ComponentState
-    baseline: BaselineState
-    baseline_ref: str | None
-    doc_query: DocQuery
-    image_paths: ImagePaths
-    actual_changed_keys: set[str]
-
-
-@dataclass
-class DocScanState:
-    """Everything derived from the one selected upgrade doc itself (its
-    path, parsed "Component versions" rows, and canonical sidecar/
-    shared-image names) -- bundled since the missing-row, ordering and
-    Changes-heading checks below all need the same three, just to
-    compare them against each other and against the doc's own text in
-    different ways."""
-
-    doc_path: Path
-    rows: list[TableRow]
-    canonical_names: dict[str, ImagePath]
-
-
-@dataclass
-class RowContext:
-    """_check_component_rows' own doc_path/baseline_ref pair, threaded
-    into each per-row sub-check purely to keep argument counts down."""
-
-    doc_path: Path
-    baseline_ref: str | None
-
-
-@dataclass
-class RowLookup:
-    """_check_component_rows' own canonical_names/stale_names pair --
-    bundled purely to keep that function's own argument count down.
-    `stale_names` is duplicate_names | wrong_fuzzy_names (see
-    find_wrong_or_duplicate_dependency_claims): rows already reported
-    as wrong-or-stale there, skipped here so resolve_component_row
-    doesn't ALSO report them as "does not match a dependency"."""
-
-    canonical_names: dict[str, ImagePath]
-    stale_names: set[str]
-
-
-@dataclass
-class ComponentRowsResult:
-    """_check_component_rows' own five outputs, bundled since every one
-    of them is consumed by a LATER check in the same "Component
-    versions" table section (missing-row-for-changed-key, missing-
-    sidecar-row, and Changes-heading checks) -- never by the row loop
-    itself, so returning five separate values would just make every
-    caller unpack all five immediately anyway."""
-
-    mismatches: list[str]
-    changed_component_keys: set[str]
-    # (kind, values_key) identity -> its resolved, real app version (see
-    # resolve_component_identity) — populated for every "dep" row whose
-    # own actual_app_version resolves to something. Used by the Changes-
-    # heading checks to catch a heading whose own text never shows an
-    # app-version pair at all for a component that DOES have one.
-    resolved_app_by_identity: dict[ComponentIdentity, str]
-    # Same identity keying as resolved_app_by_identity, holding the
-    # BASELINE side instead (None when the component is genuinely new at
-    # the baseline). Used, together with resolved_app_by_identity, to
-    # catch a Changes heading whose own "(new)"/"(unchanged)"/"X -> Y"
-    # wording DISAGREES with what the row itself would render there — a
-    # real, observed bug: a heading can show the CORRECT current version
-    # yet the WRONG transition wording (e.g. "(unchanged)" for a
-    # component that's actually new), which changes_heading_has_app_
-    # version's own "is some version shown at all" check can never catch.
-    baseline_app_by_identity: dict[ComponentIdentity, str | None]
-    matched_sidecar_paths: set[ImagePath]
-
-
-@dataclass
-class ManifestEntryScan:
-    """_check_images_manifest_entry's own images_path/repo_map/
-    sibling_fields triple -- bundled purely to keep that function's own
-    argument count down."""
-
-    images_path: Path
-    repo_map: dict[str, ImagePath]
-    sibling_fields: dict[ImagePath, DigestPinningException]
 
 
 def _pointer_consistency_mismatches(chart_dir: Path, doc_dir: Path, upgrade_docs_baseline: str, podiumd_version: str):

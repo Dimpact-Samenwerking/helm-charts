@@ -9,6 +9,9 @@ from types import ModuleType
 
 import pytest
 
+from lib.docs_consistency.check_context import ComponentRowsResult
+from lib.docs_consistency.check_context import RowContext
+
 # --- match_changes_item_to_entry ---
 
 
@@ -69,8 +72,8 @@ def _source_app_mismatches(libdocsconsistency: ModuleType, app_source: str, base
         "baseline_chart": "1.0.0",
         "baseline_app": baseline_app,
     }
-    row_ctx = libdocsconsistency.RowContext(Path("4.8.5-to-4.9.0-upgrade.md"), "podiumd-4.8.5")
-    result = libdocsconsistency.ComponentRowsResult([], set(), {}, {}, set())
+    row_ctx = RowContext(Path("4.8.5-to-4.9.0-upgrade.md"), "podiumd-4.8.5")
+    result = ComponentRowsResult([], set(), {}, {}, set())
     libdocsconsistency._check_row_baseline_versions(row, row_ctx, resolved, "mi", result)
     return result.mismatches
 
