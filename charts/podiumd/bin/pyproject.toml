@@ -275,17 +275,13 @@ exclude = [
     "**/__pycache__",
 ]
 typeCheckingMode = "strict"
-reportMissingTypeArgument = false
-reportUnknownArgumentType = false
-reportUnknownParameterType = false
-reportUnknownMemberType = false
-reportUnknownVariableType = false
 reportUnusedImport = false  # done by ruff F401
 reportUntypedBaseClass = false # dony by ruff N801
 
-# tests/ only: pytest fixture parameters (tmp_path, monkeypatch, capsys,
-# module fixtures) and monkeypatch lambdas are not annotated. Every other
-# rule still applies to tests/.
+# tests/ only: fake functions, parametrize arguments and monkeypatch
+# lambdas are not annotated, and script modules are loaded as ModuleType,
+# so Unknown types remain in tests/. Every other rule still applies to
+# tests/.
 [[tool.basedpyright.executionEnvironments]]
 root = "tests"
 # An execution environment resolves imports from its own root; tests
@@ -293,3 +289,7 @@ root = "tests"
 extraPaths = ["."]
 reportMissingParameterType = false
 reportUnknownLambdaType = false
+reportUnknownArgumentType = false
+reportUnknownParameterType = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
