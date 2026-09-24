@@ -26,6 +26,7 @@ from lib.chart.registered_paths import component_chart_versions
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
 from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
+from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
@@ -275,7 +276,7 @@ def has_stale_gemeente_specific_placeholder(text: str):
     return any(line.strip() == GEMEENTE_SPECIFIC_STUB_LINE.strip() for line in text.splitlines())
 
 
-def append_values_delta_section_body(text: str, section: dict, new_lines: list[str]):
+def append_values_delta_section_body(text: str, section: HeadingBlock, new_lines: list[str]):
     """Append new_lines at the end of an EXISTING values-deltas.md
     section (see find_values_delta_section) — right before its own next
     "## " heading (or EOF) — blank-line-separated from whatever already

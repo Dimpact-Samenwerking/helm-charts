@@ -38,6 +38,7 @@ from lib.component_docs.baseline_doc_stubs import UPGRADE_CHANGES_STUB_TODO_LINE
 from lib.component_docs.baseline_doc_stubs import UPGRADE_INTRO_STUB_TODO_LINE
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.consistency_checks import resolve_component_identity
+from lib.upgradedoc.sorting_and_ordering import HeadingBlock
 from lib.upgradedoc.sorting_and_ordering import changes_section_bounds
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import insertion_index
@@ -528,7 +529,7 @@ def strip_stale_upgrade_placeholders(text: str):
     return "".join(lines), True
 
 
-def remove_changes_block(text: str, block: dict | None) -> tuple[str, bool]:
+def remove_changes_block(text: str, block: HeadingBlock | None) -> tuple[str, bool]:
     """Delete `block` (one parse_upgrade_doc_changes_blocks entry) from
     text, with its trailing blank line(s) so removal doesn't leave a
     double gap. Returns (new_text, removed); (text, False) if block is

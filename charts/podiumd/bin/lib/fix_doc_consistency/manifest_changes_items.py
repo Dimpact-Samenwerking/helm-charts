@@ -2,7 +2,7 @@
 maintenance (dedupe + reorder), split out of that script for pylint's
 too-many-lines check."""
 
-from typing import Any
+from typing import TypedDict
 
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
@@ -13,6 +13,17 @@ from lib.docs_consistency.images_manifest_format import match_changes_item_to_en
 from lib.images_manifest import ManifestEntry
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
+
+
+class ChangesItem(TypedDict):
+    """One "# Changes:" item of an images manifest: its line span
+    (`start`, exclusive `end`), its text after the number (`rest`) and its
+    sort key (`key`, the position of the entry it describes)."""
+
+    start: int
+    end: int
+    rest: str
+    key: int
 
 
 def _renumbered_changes_block(chunks: list):
@@ -104,7 +115,7 @@ def _resolved_changes_items(
     entries: list[ManifestEntry],
     entry_positions: dict,
     display_name_positions: dict | None,
-):
+) -> list[ChangesItem]:
     """Resolves each item's own sort key: exact display-name match first
     (see match_changes_item_display_name/display_name_positions), falling
     back to match_changes_item_to_entry's fuzzy basename-in-text search
@@ -113,7 +124,7 @@ def _resolved_changes_items(
     item_bounds is a list of (start, end) line-index pairs, one per item.
     Returns a list of {"start", "end", "rest", "key"} dicts, one per item,
     in their ORIGINAL (pre-sort) order."""
-    items: list[dict[str, Any]] = []
+    items: list[ChangesItem] = []
     for start, end in item_bounds:
         rest = match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest")
         display_name = match_changes_item_display_name(rest, display_name_positions or {})

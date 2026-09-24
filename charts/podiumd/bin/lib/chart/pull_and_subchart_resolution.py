@@ -24,6 +24,7 @@ from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.vendored_files import vendored_chart_file
 from lib.procutil import run
+from lib.registry import ImagePathTagCheck
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.yaml_types import YamlMapping
@@ -182,7 +183,7 @@ def native_component_values(chart_dir: Path, name: str) -> YamlMapping:
     return mapping_at(load_yaml_mapping(chart_dir / "values.yaml"), name)
 
 
-def check_image_versions(values: YamlMapping, image_paths: list[str], app_version: str):
+def check_image_versions(values: YamlMapping, image_paths: list[str], app_version: str) -> list[ImagePathTagCheck]:
     """[{"path", "repository", "host", "repo_path", "exists", "digest"},
     ...] for every path in `image_paths` (see image_paths_for) that has a
     "repository:" in `values` (a pulled chart's own values.yaml — see
@@ -212,7 +213,7 @@ def check_image_versions(values: YamlMapping, image_paths: list[str], app_versio
         )
         raise SystemExit(msg)
 
-    results = []
+    results: list[ImagePathTagCheck] = []
     for path, repo in repos:
         host, repo_path = parse_repo(repo)
         exists, digest = registry_tag_exists(host, repo_path, app_version)
@@ -222,7 +223,7 @@ def check_image_versions(values: YamlMapping, image_paths: list[str], app_versio
     return results
 
 
-def print_image_version_results(results: list[dict], app_version: str) -> bool:
+def print_image_version_results(results: list[ImagePathTagCheck], app_version: str) -> bool:
     """Prints a FOUND/MISSING line per check_image_versions result.
     Returns True when every image version exists."""
     for r in results:

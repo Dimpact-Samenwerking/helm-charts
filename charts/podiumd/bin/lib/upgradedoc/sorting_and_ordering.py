@@ -6,6 +6,7 @@ order machinery all three sorts are built on."""
 import re
 
 from itertools import pairwise
+from typing import TypedDict
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import native_components
@@ -21,6 +22,16 @@ CHANGES_BLOCK_HEADING_RE = re.compile(r"^###\s+(.+)$")
 
 
 VALUES_DELTA_SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
+
+
+class HeadingBlock(TypedDict):
+    """One heading and the lines it spans: `start` is the heading line's
+    0-based index, `end` is exclusive (see parse_upgrade_doc_changes_blocks
+    and parse_values_delta_sections)."""
+
+    heading: str
+    start: int
+    end: int
 
 
 def values_key_order(values: YamlMapping | None):
@@ -248,7 +259,7 @@ def changes_section_bounds(lines: list[str]) -> tuple[int | None, int]:
     return changes_idx, section_end
 
 
-def parse_upgrade_doc_changes_blocks(text: str):
+def parse_upgrade_doc_changes_blocks(text: str) -> list[HeadingBlock]:
     """(heading, start, end) for every "### ..." item directly under the
     "## Changes" section of an upgrade doc — start is the heading line's
     0-based index, end is exclusive (the next "### " heading, the next
@@ -263,7 +274,7 @@ def parse_upgrade_doc_changes_blocks(text: str):
         return []
 
     heading_indices = [i for i in range(changes_idx + 1, section_end) if CHANGES_BLOCK_HEADING_RE.match(lines[i])]
-    blocks = []
+    blocks: list[HeadingBlock] = []
     for j, start in enumerate(heading_indices):
         end = heading_indices[j + 1] if j + 1 < len(heading_indices) else section_end
         blocks.append(
@@ -344,7 +355,7 @@ def sort_changes_blocks(
     return prefix + "".join(new_texts) + suffix, moved
 
 
-def parse_values_delta_sections(text: str):
+def parse_values_delta_sections(text: str) -> list[HeadingBlock]:
     """(heading, start, end) for every top-level "## ..." heading in a
     values-deltas.md doc — start is the heading line's 0-based index,
     end is exclusive (the next "## " heading, or EOF). Unlike parse_
@@ -358,7 +369,7 @@ def parse_values_delta_sections(text: str):
     intro prose) is never part of any section this returns."""
     lines = text.splitlines(keepends=True)
     heading_indices = [i for i, line in enumerate(lines) if VALUES_DELTA_SECTION_HEADING_RE.match(line)]
-    sections = []
+    sections: list[HeadingBlock] = []
     for j, start in enumerate(heading_indices):
         end = heading_indices[j + 1] if j + 1 < len(heading_indices) else len(lines)
         sections.append(

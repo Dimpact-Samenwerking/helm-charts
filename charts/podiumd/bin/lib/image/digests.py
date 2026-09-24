@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
+from typing import Literal
 from typing import TypedDict
 from typing import TypeVar
 
@@ -105,6 +106,15 @@ class VersionPin(TypedDict):
     repository: str | None
 
 
+class RepeatedPin(TypedDict):
+    """A repository pinned literally in more than one place (see
+    find_inconsistent_version_pins): "duplicate" when every pin agrees,
+    "drift" when they differ; pins groups the lines by (version, digest)."""
+
+    kind: Literal["duplicate", "drift"]
+    pins: list[tuple[tuple[str, str], list[int]]]
+
+
 def find_sibling_registry(lines: list[str], tag_line_index: int, tag_indent: int):
     """The value of a sibling "registry:" key at the same indent as the
     "tag:" pin at tag_line_index, if present — e.g. redis-ha's split
@@ -125,7 +135,7 @@ def find_sibling_registry(lines: list[str], tag_line_index: int, tag_indent: int
     return None
 
 
-def find_inconsistent_version_pins(pins: list[DigestPin]):
+def find_inconsistent_version_pins(pins: list[DigestPin]) -> dict[str, RepeatedPin]:
     """Every repository pinned as a literal (non-alias) "tag:" in more than
     one place across values.yaml — always a real problem, just one of two
     different kinds:
@@ -160,17 +170,17 @@ def find_inconsistent_version_pins(pins: list[DigestPin]):
     "pins": [((version, digest), [line, ...]), ...]}} for every
     repository pinned literally in more than one place; a repository
     pinned only once (the common case) is omitted entirely."""
-    by_repo = {}
+    by_repo: dict[str, list[tuple[str, str, int]]] = {}
     for p in pins:
         if not p["repository"]:
             continue
         by_repo.setdefault(p["repository"], []).append((p["version"], p["digest"], p["line"]))
 
-    findings = {}
+    findings: dict[str, RepeatedPin] = {}
     for repo, entries in by_repo.items():
         if len(entries) < 2:
             continue
-        pairs = {}
+        pairs: dict[tuple[str, str], list[int]] = {}
         for version, digest, line in entries:
             pairs.setdefault((version, digest), []).append(line)
         findings[repo] = {"kind": "duplicate" if len(pairs) == 1 else "drift", "pins": list(pairs.items())}
