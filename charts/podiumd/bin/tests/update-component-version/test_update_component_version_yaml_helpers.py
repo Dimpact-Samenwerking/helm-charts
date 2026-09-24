@@ -36,6 +36,18 @@ def test_find_child_key_line_ignores_deeper_nested_same_name():
     assert idx == 1
 
 
+def test_find_child_key_line_returns_none_when_only_a_deeper_nested_match_exists():
+    """No direct "tag:" child: the grandchild's "tag:" under a sibling
+    sub-block must not be returned as if it were one."""
+    lines = [
+        "image:\n",
+        "  other: 1\n",
+        "  nested:\n",
+        "    tag: inner\n",
+    ]
+    assert tag_sha_lines.find_child_key_line(lines, "tag", 0, 0, len(lines)) is None
+
+
 # --- locate_dotted_key_line ---
 
 

@@ -4,6 +4,8 @@ monolithic test_update_component_version.py for pylint's too-many-lines
 check. block_real_subprocess_calls (used across nearly the whole original
 file) now lives in conftest.py as a session-wide autouse fixture."""
 
+import subprocess
+
 from pathlib import Path
 from types import ModuleType
 
@@ -183,6 +185,26 @@ def test_main_invokes_fix_helm_doc(
     ucv.main()
 
     assert any(str(ucv.FIX_HELM_DOC_SCRIPT) in cmd for cmd in calls)
+
+
+def test_main_fails_when_fix_helm_doc_fails(ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A failing fix-helm-doc leaves README.md stale, so main() must stop
+    with an error instead of carrying on."""
+    setup_repo(tmp_path, monkeypatch, ucv)
+    mock_verify_passes(monkeypatch, ucv)
+    mock_registry_passes(monkeypatch, ucv, "b")
+    real_run = subprocess.run
+
+    def fake_run(cmd, *args, **kwargs):
+        if cmd and cmd[0] == "git":
+            return real_run(cmd, *args, **kwargs)
+        return subprocess.CompletedProcess(cmd, 3 if str(ucv.FIX_HELM_DOC_SCRIPT) in cmd else 0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
+
+    with pytest.raises(SystemExit, match=r"fix-helm-doc failed \(exit 3\)"):
+        ucv.main()
 
 
 def test_main_re_vendors_after_writing_chart_yaml(
@@ -614,7 +636,7 @@ def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_r
     assert located is not None
     anchor_tag_idx, anchor_tag_indent, anchor_sha_idx = located
     assert anchor_sha_idx is not None
-    tag_sha_lines.write_tag_and_sha(
+    assert tag_sha_lines.write_tag_and_sha(
         lines,
         (anchor_tag_idx, anchor_tag_indent, anchor_sha_idx),
         tag_sha_lines.SiblingWrite("26.7.3", "d" * 64, "sha", "keycloak-operator.operator.config.keycloakImage"),
@@ -631,11 +653,13 @@ def test_write_tag_and_sha_alias_reference_left_untouched_anchor_still_updated_r
     original_alias_tag_line = lines[alias_tag_idx]
     original_alias_sha_line = lines[alias_sha_idx]
 
-    tag_sha_lines.write_tag_and_sha(
+    tag_written = tag_sha_lines.write_tag_and_sha(
         lines,
         (alias_tag_idx, alias_tag_indent, alias_sha_idx),
         tag_sha_lines.SiblingWrite("26.7.3", "d" * 64, "sha", "keycloak.image"),
     )
+
+    assert tag_written is False
 
     # left completely untouched — never clobbered into a literal
     assert lines[alias_tag_idx] == original_alias_tag_line == "    tag: *keycloakImageVersion\n"

@@ -25,24 +25,27 @@ def find_block_end(lines: list[str], block_start: int, indent: int) -> int:
 
 
 def find_child_key_line(lines: list[str], key: str, parent_indent: int, block_start: int, block_end: int) -> int | None:
-    """The immediate child "<key>:" line inside [block_start, block_end) —
-    smallest indent strictly greater than parent_indent, so a same-named key
-    nested deeper inside a grandchild block is never mistaken for it."""
+    """The immediate child "<key>:" line inside [block_start, block_end),
+    matched only at the block's own immediate-child indent level, so a
+    same-named key nested deeper under a sibling sub-block is never
+    mistaken for a direct child that doesn't exist."""
     key_re = re.compile(rf"^(\s*){re.escape(key)}:\s*(.*)$")
     candidates: list[tuple[int, int]] = []
+    child_indents: list[int] = []
     for i in range(block_start, block_end):
         line = lines[i]
         if not line.strip() or line.lstrip().startswith("#"):
             continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent > parent_indent:
+            child_indents.append(indent)
         m = key_re.match(line)
-        if m:
-            indent = len(m.group(1))
-            if indent > parent_indent:
-                candidates.append((indent, i))
+        if m and len(m.group(1)) > parent_indent:
+            candidates.append((len(m.group(1)), i))
     if not candidates:
         return None
-    candidates.sort()
-    return candidates[0][1]
+    child_level = min(child_indents)
+    return next((i for indent, i in candidates if indent == child_level), None)
 
 
 def locate_dotted_key_line(lines: list[str], dotted_path: str) -> tuple[int, int] | None:
@@ -116,14 +119,17 @@ class SiblingWrite:
     label: str
 
 
-def write_tag_and_sha(lines: list[str], location: tuple[int, int, int | None], write: SiblingWrite) -> None:
+def write_tag_and_sha(lines: list[str], location: tuple[int, int, int | None], write: SiblingWrite) -> bool:
     """Write write.new_version/new_digest_hex into the "tag:"/sibling-field
     lines at `location` (locate_tag_and_sha's own return value), inserting
     a sibling line if none exists. Either line is skipped instead, with a
-    printed note, if it's a bare YAML alias reference. Mutates `lines`."""
+    printed note, if it's a bare YAML alias reference. Mutates `lines`.
+    Returns whether the tag line itself was written (False for an alias
+    reference, which keeps resolving to its anchor's value)."""
     tag_line_index, tag_indent, sibling_line_index = location
     sibling_value = f"sha256:{write.new_digest_hex}" if write.sibling_field == "digest" else write.new_digest_hex
-    if is_alias_reference_line(lines[tag_line_index]):
+    tag_written = not is_alias_reference_line(lines[tag_line_index])
+    if not tag_written:
         print(f"  {write.label}.tag: *alias reference — inherits from its own anchor, not written directly")
     else:
         lines[tag_line_index] = replace_scalar_value(lines[tag_line_index], write.new_version)
@@ -138,3 +144,4 @@ def write_tag_and_sha(lines: list[str], location: tuple[int, int, int | None], w
     else:
         indent_str = " " * tag_indent
         lines.insert(tag_line_index + 1, f'{indent_str}{write.sibling_field}: "{sibling_value}"\n')
+    return tag_written
