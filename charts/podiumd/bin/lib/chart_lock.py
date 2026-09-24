@@ -82,7 +82,7 @@ _GO_JSON_ESCAPES = {
 }
 
 
-def resolved_repository(dep: ChartDependency | ChartLockDependency, required_repos: dict):
+def resolved_repository(dep: ChartDependency | ChartLockDependency, required_repos: dict[str, str]) -> str:
     """dep's repository as Helm stores it in Chart.lock: an "@alias"
     resolved through `required_repos` (lib.settings.
     helm_repos_urls_by_alias), anything else (plain URL, oci://, file://)
@@ -97,7 +97,7 @@ def _go_json_dependency(dep: ChartDependency | ChartLockDependency):
     """dep as Go's json.Marshal writes a chart.Dependency: declared field
     order, omitempty fields left out when empty, version always a string
     (see lib.dependencies._dependency_key for why str())."""
-    out = {}
+    out: dict[str, object] = {}
     for field, omitempty in _DEPENDENCY_JSON_FIELDS:
         value = dep.get(field)
         if field == "version" and value is not None:
@@ -108,7 +108,7 @@ def _go_json_dependency(dep: ChartDependency | ChartLockDependency):
     return out
 
 
-def _go_json(value: list):
+def _go_json(value: object) -> str:
     """json.Marshal output for value: no whitespace and Go's HTML-safe
     escapes. Key order is the caller's (see _sorted_nested_maps)."""
     text = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
@@ -117,7 +117,7 @@ def _go_json(value: list):
     return text
 
 
-def _sorted_nested_maps(value: str | list | dict):
+def _sorted_nested_maps(value: YamlValue) -> YamlValue:
     """value with every dict below the top-level dependency fields sorted
     by key, the order Go marshals a map[string]interface{} in."""
     if isinstance(value, dict):
@@ -127,22 +127,25 @@ def _sorted_nested_maps(value: str | list | dict):
     return value
 
 
-def helm_lock_digest(chart_deps: list[ChartDependency], lock_deps: list[ChartLockDependency], required_repos: dict):
+def helm_lock_digest(
+    chart_deps: list[ChartDependency], lock_deps: list[ChartLockDependency], required_repos: dict[str, str]
+) -> str:
     """The `digest:` Helm writes into Chart.lock for Chart.yaml's
     `chart_deps` and the lock's own `lock_deps` — see the module
     docstring for the exact recipe."""
-    req = []
+    req: list[dict[str, object]] = []
     for dep in chart_deps:
         encoded = _go_json_dependency({**dep, "repository": resolved_repository(dep, required_repos)})
-        if "import-values" in encoded:
-            encoded["import-values"] = _sorted_nested_maps(encoded["import-values"])
+        import_values = dep.get("import-values")
+        if import_values:
+            encoded["import-values"] = _sorted_nested_maps(import_values)
         req.append(encoded)
     locked = [_go_json_dependency(dep) for dep in lock_deps]
     data = _go_json([req, locked])
     return "sha256:" + hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
-def lock_dependencies(chart_deps: list[ChartDependency], required_repos: dict) -> list[ChartLockDependency]:
+def lock_dependencies(chart_deps: list[ChartDependency], required_repos: dict[str, str]) -> list[ChartLockDependency]:
     """Chart.lock's `dependencies:` list for Chart.yaml's `chart_deps`,
     in Chart.yaml order — only name/repository/version, the three fields
     Helm writes there. Assumes every version is exact (lib.dependencies
@@ -158,7 +161,7 @@ def lock_dependencies(chart_deps: list[ChartDependency], required_repos: dict) -
     ]
 
 
-def write_chart_lock(chart_dir: Path, chart_deps: list[ChartDependency], required_repos: dict):
+def write_chart_lock(chart_dir: Path, chart_deps: list[ChartDependency], required_repos: dict[str, str]) -> None:
     """(Re)writes chart_dir/Chart.lock for `chart_deps` the way `helm
     dependency update` would: dependency list, digest, and a fresh
     `generated:` timestamp, keys sorted (Helm marshals the lock through
