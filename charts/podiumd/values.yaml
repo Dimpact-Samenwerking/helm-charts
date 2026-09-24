@@ -1565,6 +1565,12 @@ openklant:
     #         token: "REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
     #         contact_person: Person 1
     #         email: person-1@example.com
+    #       # Token used by Open Formulieren (service `openklant-api` in
+    #       # openformulieren.configuration.data) — keep both values in sync.
+    #       - identifier: openformulieren
+    #         token: "REP_OPENKLANT_CREDENTIALS_OPENFORMULIEREN_TOKEN_REP"
+    #         contact_person: Person 1
+    #         email: person-1@example.com
 
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
@@ -1787,6 +1793,28 @@ openformulieren:
     #       auth_type: zgw
     #       client_id: open-formulieren
     #       secret: {value_from: {env: openzaak_openformulieren_secret}}
+
+    #     # Open Klant (klantinteracties) connection, used by the "Communication
+    #     # preferences" prefill plugin and the "Profile" (customerProfile) form
+    #     # component — see docs/configuration/prefill/communication_preferences.rst
+    #     # in open-formulieren/open-forms.
+    #     # - api_type MUST be `kc` (Klanten API); the API group dropdown only
+    #     #   lists services of that type.
+    #     # - The token MUST be registered in Open Klant too: add an
+    #     #   `openformulieren` item to openklant.configuration.data
+    #     #   (tokenauth.items) with the same token value.
+    #     # - Open Forms 3.5.x has NO setup-configuration step for the
+    #     #   "Customer interactions API group": set
+    #     #   openformulieren.customerInteractionsConfigJob.enabled: true to have
+    #     #   the chart create it (its serviceIdentifier must match this
+    #     #   identifier).
+    #     - identifier: openklant-api
+    #       label: Open Klant - Klantinteracties API
+    #       api_root: https://openklant.example.nl/klantinteracties/api/v1/
+    #       api_type: kc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: "Token REP_OPENKLANT_CREDENTIALS_OPENFORMULIEREN_TOKEN_REP"
     #   objects_api_config_enable: true
     #   objects_api:
     #     groups:
@@ -1849,6 +1877,38 @@ openformulieren:
     # docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes'
     # Job backoff retry until both are ready, rather than needing a wait
     # container or Helm hook ordering.
+    backoffLimit: 15
+    activeDeadlineSeconds: 1200
+    ttlSecondsAfterFinished: 600
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+  # -- Creates/updates the "Customer interactions API group" that the
+  # Communication preferences prefill plugin and the Profile (customerProfile)
+  # component use to reach Open Klant, via `manage.py shell`. Open Forms has no
+  # setup-configuration step for this model (CustomerInteractionsAPIGroupConfig)
+  # — upstream only exposes it through the admin UI
+  # (docs/configuration/prefill/communication_preferences.rst). The Klanten API
+  # service itself (`api_type: kc`) IS declarative: define it under
+  # configuration.data -> zgw_consumers.services with identifier
+  # `serviceIdentifier`. Off by default: opt-in per gemeente. See
+  # templates/openformulieren-configure-customer-interactions.yaml and
+  # docs/_UPGRADE_PATHS/4.9.1-to-4.9.2-gemeente-specific.md.
+  customerInteractionsConfigJob:
+    enabled: false
+    # -- zgw_consumers service identifier (Service.slug) of the Open Klant
+    # klantinteracties service; must have api_type `kc`.
+    serviceIdentifier: openklant-api
+    groupIdentifier: open-klant
+    groupName: Open Klant
+    # -- Retries generously: this Job can race the openformulieren DB migration
+    # (image entrypoint) and the setup-configuration Job that creates the
+    # service — it fails fast and lets Kubernetes' Job backoff retry until both
+    # are done, rather than needing a wait container or Helm hook ordering.
     backoffLimit: 15
     activeDeadlineSeconds: 1200
     ttlSecondsAfterFinished: 600
