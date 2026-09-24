@@ -10,7 +10,9 @@ import shutil
 
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import NotRequired
+from typing import TypedDict
+from typing import TypeGuard
 
 import yaml
 
@@ -26,10 +28,41 @@ from lib.render_scope import scan_outcome
 from lib.render_scope import scan_rendered_chart
 from lib.settings import quality_gates_shellcheck_failing_levels
 from lib.settings import quality_gates_shellcheck_shell_names
+from lib.yaml_types import shape_problem
+
 
 # One entry of shellcheck's JSON "comments" list (level/code/line/column/
 # message), and a finding as (source, path, comment, kind, namespace, name).
-ShellcheckComment = dict[str, Any]
+class ShellcheckComment(TypedDict):
+    """One entry of shellcheck's json1 "comments" list: the fields this
+    module reads (positions are 1-based, within the script shellcheck was
+    given)."""
+
+    level: str
+    code: int
+    message: str
+    line: NotRequired[int]
+    column: NotRequired[int]
+
+
+_COMMENT_LIST_SHAPE = [{"level": str, "code": int, "message": str, "line?": int, "column?": int}]
+
+
+def _is_comment_list(value: object) -> TypeGuard[list[ShellcheckComment]]:
+    return shape_problem(value, _COMMENT_LIST_SHAPE) is None
+
+
+def parse_shellcheck_output(stdout: str) -> list[ShellcheckComment] | None:
+    """The "comments" of shellcheck's json1 output, or None when it isn't
+    JSON of that shape (a shellcheck bug/crash, not a chart problem)."""
+    try:
+        data: object = json.loads(stdout)
+    except json.JSONDecodeError:
+        return None
+    comments = data.get("comments") if isinstance(data, dict) else None
+    return comments if _is_comment_list(comments) else None
+
+
 ShellcheckFinding = tuple[str, str, ShellcheckComment, str | None, str | None, str | None]
 
 
@@ -107,10 +140,7 @@ def run_shellcheck(shell: str, script_text: str) -> list[ShellcheckComment] | No
     output couldn't be parsed as JSON (a shellcheck bug/crash, not a chart
     problem)."""
     result = run(["shellcheck", "-s", shell, "-f", "json1", "-"], input=script_text, capture_output=True, text=True)
-    try:
-        return json.loads(result.stdout)["comments"]
-    except (json.JSONDecodeError, KeyError):
-        return None
+    return parse_shellcheck_output(result.stdout)
 
 
 def _shellcheck_group_key(finding: ShellcheckFinding):

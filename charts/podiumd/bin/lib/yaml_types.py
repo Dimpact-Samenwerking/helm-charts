@@ -124,3 +124,53 @@ def scalar_text(value: YamlValue) -> str | None:
     if isinstance(value, int | float) and not isinstance(value, bool):
         return str(value)
     return None
+
+
+def _alternatives_problem(value: object, shape: tuple[object, ...], where: str) -> str | None:
+    problems = [shape_problem(value, alternative, where) for alternative in shape]
+    return None if None in problems else next(p for p in problems if p is not None)
+
+
+def _list_problem_of(value: object, item_shape: object, where: str) -> str | None:
+    if not isinstance(value, list):
+        return f"{where or '(top level)'}: expected a list, got {type(value).__name__}"
+    items: list[object] = value
+    return first_problem(*(shape_problem(item, item_shape, f"{where}[{i}]") for i, item in enumerate(items)))
+
+
+def _mapping_problem_of(value: object, shape: dict[str, object], where: str) -> str | None:
+    if not isinstance(value, dict):
+        return f"{where or '(top level)'}: expected a mapping, got {type(value).__name__}"
+    mapping: dict[object, object] = value
+    for spec, key_shape in shape.items():
+        key = spec.removesuffix("?")
+        if key not in mapping:
+            if spec.endswith("?"):
+                continue
+            return f"{where or '(top level)'}: missing {key!r}"
+        problem = shape_problem(mapping[key], key_shape, yaml_path(where, key))
+        if problem is not None:
+            return problem
+    return None
+
+
+def shape_problem(value: object, shape: object, where: str = "") -> str | None:
+    """None if parsed JSON/YAML `value` has `shape`, else what is wrong
+    with it. `shape` is a type (checked with isinstance; a bool never
+    counts as an int), a tuple of alternative shapes, a one-item list
+    [item_shape] for a list of those, or a dict {key: shape} for a mapping
+    that has (at least) those keys, where a key written "key?" may be
+    missing. Used by the TypeGuard of a TypedDict whose fields the shape
+    spells out."""
+    if isinstance(shape, tuple):
+        return _alternatives_problem(value, shape, where)
+    if isinstance(shape, list):
+        return _list_problem_of(value, shape[0], where)
+    if isinstance(shape, dict):
+        return _mapping_problem_of(value, shape, where)
+    if not isinstance(shape, type):
+        msg = f"not a shape: {shape!r}"
+        raise TypeError(msg)
+    if isinstance(value, shape) and not (isinstance(value, bool) and shape is int):
+        return None
+    return f"{where or '(top level)'}: expected {shape.__name__}, got {type(value).__name__}"
