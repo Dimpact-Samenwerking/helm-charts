@@ -3,13 +3,14 @@
 find_changes_item and remove_changes_section, which resolve names the
 same way check_docs_consistency does (match_canonical_sidecar_name)."""
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.images_manifest_changes_header import find_changes_item
 from lib.upgradedoc.string_and_parsing_basics import match_canonical_sidecar_name
 from lib.upgradedoc.string_and_parsing_basics import text_names
 
-DEPS = [{"name": "openbao", "version": "0.20.0"}]
+DEPS: list[ChartDependency] = [{"name": "openbao", "version": "0.20.0"}]
 SIDECAR_PATH = ("openbao", "csi", "image")
 ORDERING = OrderingContext(DEPS, {"openbao": {}}, {"openbao - openbao-csi-provider": SIDECAR_PATH})
 POSTGRES_PATH = ("zac", "postgres", "image")

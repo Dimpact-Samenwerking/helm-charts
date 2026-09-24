@@ -101,7 +101,7 @@ class ManifestDiffContext:
     own docstring for what each one means."""
 
     chart_dir: Path | None = None
-    deps: list | None = None
+    deps: list[ChartDependency] | None = None
     upgrade_docs_baseline: str | None = None
     values: dict | None = None
     baseline_values: dict | None = None

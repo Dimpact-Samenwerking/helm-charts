@@ -775,7 +775,7 @@ class _BaselineManifestContext:
     front rather than per repository."""
 
     chart_dir: Path
-    deps: list
+    deps: list[ChartDependency]
     values: dict
     key_order: list
     sibling_fields: dict

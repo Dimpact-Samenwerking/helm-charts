@@ -50,7 +50,7 @@ class EntryResolution:
     below, whose own `values` a caller hands over instead, for a
     function that computes current_paths itself)."""
 
-    deps: list
+    deps: list[ChartDependency]
     current_paths: dict
     repo_map: dict
     canonical_names: dict
@@ -67,7 +67,7 @@ class ManifestSortContext:
     paths combined, see _images_manifest_sorted_groups), never whatever a
     caller happened to precompute for something else."""
 
-    deps: list
+    deps: list[ChartDependency]
     values: dict
     repo_map: dict
     canonical_names: dict

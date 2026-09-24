@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yaml
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
 from lib.chart.historical_baselines import baseline_tag_for_sidecar_path
 from lib.chart.historical_baselines import historical_app_version_for_path
@@ -35,7 +36,7 @@ class ManifestEntriesContext:
     the same six together."""
 
     chart_dir: Path | None
-    deps: list
+    deps: list[ChartDependency]
     target_values: dict
     baseline_values: dict | None
     repo_map: dict | None = None

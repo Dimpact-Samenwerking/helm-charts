@@ -80,7 +80,7 @@ class ChartState:
     per snapshot."""
 
     chart_dir: Path
-    deps: list
+    deps: list[ChartDependency]
     values: dict | None
     lines: list
 

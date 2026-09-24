@@ -13,6 +13,7 @@ from pathlib import Path
 
 import yaml
 
+from lib.chart.chart_yaml import ChartDependency
 from lib.chart.pull_and_subchart_resolution import global_image_paths
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import paths_by_repository
@@ -64,7 +65,7 @@ class ManifestCheckContext:
 
     upgrade_docs_baseline: str | None
     podiumd_version: str
-    deps: list
+    deps: list[ChartDependency]
     values: dict
     baseline_values: dict | None
     chart_dir: Path | None = None
