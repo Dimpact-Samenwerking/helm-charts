@@ -27,6 +27,7 @@ Split out of the script for pylint's too-many-lines threshold (1000)."""
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
+from typing import Literal
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.pull_and_subchart_resolution import primary_image_repositories
@@ -52,6 +53,12 @@ from lib.release_table.state import Observed
 
 UNRESOLVED_COMPONENTS = ("", "UNKNOWN")
 
+# Finding category ("mismatches", "ambiguous", "missing_from_release_table",
+# "missing_from_chart") -> its finding lines, as compare() collects them.
+Findings = defaultdict[str, list[str]]
+# What _SourceResolver.resolve_at_baseline found for one basename.
+BaselineResolution = tuple[Literal["found"], str, str] | tuple[Literal["ambiguous"], str] | tuple[Literal["absent"]]
+
 
 def split_basenames(value: str):
     """A CSV "basenames" cell (comma-separated, e.g. for a MULTIPLE_KEY
@@ -69,7 +76,7 @@ def is_verifiable_target(target: str):
     return bool(target) and target != "UNKNOWN"
 
 
-def report_mismatch(findings: dict, tag: str, row: ReleaseTableRow, label: str, observed: Observed):
+def report_mismatch(findings: Findings, tag: str, row: ReleaseTableRow, label: str, observed: Observed):
     """Appends a "release-table target != actual" line to
     findings["mismatches"] for `row`, formatted as "[tag] name (label):
     release-table target <target> != <actual_source> <actual>" (see
@@ -275,7 +282,7 @@ def missing_chart_version_hint(ref: ComponentRef, state: ChartState, rows: list[
     return f'Confluence: fill in the Helm version cell on "{name}" ({where}) with {chart_version}'
 
 
-def check_chart_version(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartState, findings: dict):
+def check_chart_version(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartState, findings: Findings):
     """The TARGET-side counterpart to check_chart_version_source: for every
     release-table.csv row belonging to `ref.dep`, compares its verifiable
     target_version_helm against ref.dep["version"] (Chart.yaml's actual
@@ -320,7 +327,7 @@ def check_chart_version_source(
     dep: ChartDependency,
     rows: list[ReleaseTableRow],
     baseline_deps: list[ChartDependency],
-    findings: dict,
+    findings: Findings,
     *,
     strict_presence: bool = False,
 ):
@@ -435,7 +442,7 @@ def missing_image_hint(
     return f"Confluence: add row to {where} — {what}, App version (currently) {version_text}"
 
 
-def _record_image_result(ref: ComponentRef, row: ReleaseTableRow, basename: str, actual: str, findings: dict):
+def _record_image_result(ref: ComponentRef, row: ReleaseTableRow, basename: str, actual: str, findings: Findings):
     """Per-basename comparison once `actual` has resolved to exactly one
     version (see check_images) — split out so the row/basename double
     loop above it never nests deeper than a plain "for/for/if" itself."""
@@ -470,7 +477,7 @@ def _record_image_result(ref: ComponentRef, row: ReleaseTableRow, basename: str,
     )
 
 
-def check_images(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartState, findings: dict):
+def check_images(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartState, findings: Findings):
     """The TARGET-side counterpart to check_images_source: resolves every
     basename release-table.csv's rows for `ref.component` list under
     `ref.scope_key` (via basenames_under_scope_any_tag, falling back to
@@ -488,7 +495,7 @@ def check_images(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartSta
     component's own primary image — see primary_image_basename — since
     only a sidecar needs "Used by")."""
     actual_basenames = basenames_under_scope_any_tag(state.lines, ref.scope_key)
-    csv_basenames = set()
+    csv_basenames: set[str] = set()
     # Resolved once per component (not per pin) — see primary_image_basename;
     # only ever consulted below for a basename release-table.csv doesn't
     # track yet, to decide whether it's this component's own primary image
@@ -542,7 +549,11 @@ def check_images(ref: ComponentRef, rows: list[ReleaseTableRow], state: ChartSta
 
 
 def _check_image_source_pin(
-    ref: ComponentRef, row: ReleaseTableRow, basename: str, resolve_at_baseline: Callable, findings: dict
+    ref: ComponentRef,
+    row: ReleaseTableRow,
+    basename: str,
+    resolve_at_baseline: Callable[[str], BaselineResolution],
+    findings: Findings,
 ):
     """Per-basename comparison against the release_table baseline (see
     check_images_source) — split out so the row/basename double loop
@@ -552,15 +563,14 @@ def _check_image_source_pin(
     source = row["source_version_app"]
     verifiable_source = is_verifiable_target(source)
     result = resolve_at_baseline(basename)
-    tag = result[0]
-    if tag == "ambiguous":
+    if result[0] == "ambiguous":
         findings["ambiguous"].append(f"[IMAGE-SOURCE] {result[1]}")
         return
     if not verifiable_source:
         # strict_presence blank-source check: "found" means the blank
         # wasn't justified; "absent" means stay silent (genuinely absent
         # at the release_table baseline).
-        if tag == "found":
+        if result[0] == "found":
             _, actual, label = result
             findings["mismatches"].append(
                 f"[IMAGE-SOURCE-PRESENCE] {row['name']} ({ref.component}.{basename}): release-table "
@@ -568,7 +578,7 @@ def _check_image_source_pin(
                 f"baseline ({label} {actual}) — source_version_app was never filled in for this image"
             )
         return
-    if tag == "found":
+    if result[0] == "found":
         _, actual, label = result
         if actual != source:
             findings["mismatches"].append(
@@ -597,7 +607,7 @@ def check_images_source(
     ref: ComponentRef,
     rows: list[ReleaseTableRow],
     comparison: Comparison,
-    findings: dict,
+    findings: Findings,
     *,
     strict_presence: bool = False,
 ):
@@ -762,7 +772,7 @@ class _BaselineSourceResolver:
             and strip_registry_host(p["repository"]) == strip_registry_host(current_repo)
         ]
 
-    def resolve_at_baseline(self, basename: str):
+    def resolve_at_baseline(self, basename: str) -> BaselineResolution:
         """The full tier resolution for `basename` at the release_table
         baseline, shared by both the verifiable-source comparison and the
         strict_presence blank-source check (so the two can never drift
@@ -812,7 +822,7 @@ def _check_dependency(
     dep: ChartDependency,
     rows_by_component: dict[str, list[ReleaseTableRow]],
     comparison: Comparison,
-    findings: dict,
+    findings: Findings,
     *,
     baseline_only: bool,
 ):
@@ -848,7 +858,7 @@ def _check_unmatched_component(
     component: str,
     rows_for_component: list[ReleaseTableRow],
     comparison: Comparison,
-    findings: dict,
+    findings: Findings,
     *,
     baseline_only: bool,
 ):
@@ -877,7 +887,7 @@ def _check_unmatched_component(
 
 def compare(
     rows: list[ReleaseTableRow], state: ChartState, baseline: ChartState | None = None, *, baseline_only: bool = False
-):
+) -> tuple[dict[str, list[str]], list[ReleaseTableRow]]:
     """{"mismatches", "ambiguous", "missing_from_release_table",
     "missing_from_chart"}: str -> [str, ...], plus the separate list of
     rows whose component export-confluence-release-table never
@@ -913,13 +923,13 @@ def compare(
     whether those source-side checks run at all (still gated purely on
     `baseline` being resolved), only what they additionally verify once
     they do run."""
-    findings = defaultdict(list)
-    unresolved = []
+    findings: Findings = defaultdict(list)
+    unresolved: list[ReleaseTableRow] = []
     state = ChartState(state.chart_dir, state.deps, state.values if isinstance(state.values, dict) else {}, state.lines)
     comparison = Comparison(state, baseline)
 
-    rows_by_component = defaultdict(list)
-    multiple_rows = []
+    rows_by_component: defaultdict[str, list[ReleaseTableRow]] = defaultdict(list)
+    multiple_rows: list[ReleaseTableRow] = []
     for row in rows:
         component = row["component"]
         if component == MULTIPLE_KEY:

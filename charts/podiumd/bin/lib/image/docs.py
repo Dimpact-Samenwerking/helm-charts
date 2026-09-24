@@ -21,6 +21,7 @@ import re
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.historical_baselines import baseline_lookup
@@ -71,6 +72,7 @@ from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import values_key_order
+from lib.upgradedoc.string_and_parsing_basics import ComponentRef
 from lib.upgradedoc.string_and_parsing_basics import VersionRow
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import extract_source_version
@@ -310,7 +312,9 @@ def add_missing_sidecar_rows(
     return text, added_names
 
 
-def build_changes_section_for_row(row: VersionRow, ident: tuple, deps: list[ChartDependency], target: str):
+def build_changes_section_for_row(
+    row: VersionRow, ident: ComponentRef, deps: list[ChartDependency], target: str
+) -> str | None:
     """The "### ..." Changes section for a single table row + its already-
     resolved identity (see resolve_component_identity) — make_changes_
     section for a real Chart.yaml dependency, make_image_changes_section
@@ -323,7 +327,6 @@ def build_changes_section_for_row(row: VersionRow, ident: tuple, deps: list[Char
     add_missing_component_rows uses for the same reason. None if `ident`
     names a "dep" identity whose Chart.yaml dependency can't be found
     (shouldn't happen — ident was itself resolved against `deps`)."""
-    kind, value = ident
     if row["app"] is None:
         chart_bit = row["chart"] or row["chart_source"] or "-"
         return (
@@ -331,8 +334,9 @@ def build_changes_section_for_row(row: VersionRow, ident: tuple, deps: list[Char
             f"TODO: describe this component's changes — its app version could not be "
             f"resolved from the table row.\n\n"
         )
-    if kind == "dep":
-        dep = dep_for_values_key(deps, value)
+    if ident[0] == "dep":
+        values_key = ident[1]
+        dep = dep_for_values_key(deps, values_key)
         if dep is None:
             return None
         # version_paths_for wins outright when registered — a component
@@ -343,7 +347,7 @@ def build_changes_section_for_row(row: VersionRow, ident: tuple, deps: list[Char
         # shape) would point the bullet at a path that doesn't exist.
         version_paths = version_paths_for(dep["name"])
         image_paths = [] if version_paths else image_paths_for(dep["name"])
-        identity = ComponentIdentity(row["name"], dep["name"], value)
+        identity = ComponentIdentity(row["name"], dep["name"], values_key)
         change = VersionChange(
             row["app_source"] or row["app"],
             row["app"],
@@ -351,7 +355,7 @@ def build_changes_section_for_row(row: VersionRow, ident: tuple, deps: list[Char
             row["chart"] or str(dep["version"]),
         )
         return make_changes_section(identity, target, change, image_paths, version_paths)
-    dotted_path = ".".join(value) + ".tag"
+    dotted_path = ".".join(ident[1]) + ".tag"
     return make_image_changes_section(
         row["name"],
         target,
@@ -423,13 +427,13 @@ class _StaleHeadingContext:
     ordering: OrderingContext
 
 
-def _rows_by_identity(text: str, ctx: _StaleHeadingContext):
+def _rows_by_identity(text: str, ctx: _StaleHeadingContext) -> dict[ComponentRef, VersionRow]:
     """{identity: row} for every "Component versions" table row in
     `text` that resolves to a real identity (see resolve_component_
     identity) — update_stale_app_version_headings' own way of looking up
     a stale heading's matching row. Split out purely to keep its own
     local-variable count down."""
-    rows_by_identity = {}
+    rows_by_identity: dict[ComponentRef, VersionRow] = {}
     for row in parse_upgrade_doc_rows(text):
         ident = resolve_component_identity(row["name"], ctx.ordering.deps, ctx.ordering.canonical_names)
         if ident is not None:
@@ -437,14 +441,14 @@ def _rows_by_identity(text: str, ctx: _StaleHeadingContext):
     return rows_by_identity
 
 
-def _stale_app_version_headings(text: str, ctx: _StaleHeadingContext):
+def _stale_app_version_headings(text: str, ctx: _StaleHeadingContext) -> list[tuple[str, tuple[Literal["dep"], str]]]:
     """[(heading, ident), ...] for every "### ..." Changes heading in
     `text` that's missing its own primary-image app version (see
     changes_heading_has_app_version) AND resolves to exactly one real
     "dep" identity (never a sidecar — see update_stale_app_version_
     headings' own docstring for why). Split out purely to keep its own
     local-variable count down."""
-    stale = []
+    stale: list[tuple[str, tuple[Literal["dep"], str]]] = []
     for heading in [b["heading"] for b in parse_upgrade_doc_changes_blocks(text)]:
         if changes_heading_has_app_version(heading):
             continue
@@ -459,8 +463,12 @@ def _stale_app_version_headings(text: str, ctx: _StaleHeadingContext):
 
 
 def _rewrite_stale_heading(
-    text: str, heading: str, ident: tuple[str, ...], rows_by_identity: dict, ctx: _StaleHeadingContext
-):
+    text: str,
+    heading: str,
+    ident: tuple[Literal["dep"], str],
+    rows_by_identity: dict[ComponentRef, VersionRow],
+    ctx: _StaleHeadingContext,
+) -> tuple[str, bool]:
     """Rewrites `heading`'s own "### ..." block in `text` from its
     matching table row (see build_changes_section_for_row), if its
     actual_app_version resolves at all — (new_text, True) if rewritten,

@@ -99,13 +99,13 @@ from lib.yaml_types import load_yaml_mapping
 from lib.yaml_types import parse_yaml_mapping
 
 
-def b64(data: bytes):
+def b64(data: bytes) -> str:
     """`data` (raw bytes) base64-encoded to a str, the same shape Helm's
     Go structs store file contents in (Chart.Templates[].Data etc.)."""
     return base64.b64encode(data).decode()
 
 
-def packaged_files(chart_dir: Path):
+def packaged_files(chart_dir: Path) -> dict[str, bytes]:
     """`helm package` (no dependency update) applies .helmignore exactly the
     way `helm install`/`template` loading does — this repo's podiumd chart
     relies on that to keep docs/ci/scripts out of the release Secret (see
@@ -125,7 +125,7 @@ def packaged_files(chart_dir: Path):
             msg = f"helm package failed: {result.stderr.strip()}"
             raise RuntimeError(msg)
         tgz_path = next(Path(tmp).glob("*.tgz"))
-        out = {}
+        out: dict[str, bytes] = {}
         with tarfile.open(tgz_path, "r:gz") as tar:
             for member in tar.getmembers():
                 if not member.isfile():
@@ -182,14 +182,15 @@ def check_subchart_freshness(chart_dir: Path, metadata: YamlMapping):
     return warnings
 
 
-def bucket_files(paths: dict):
+def bucket_files(paths: dict[str, bytes]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     """Mirror helm's loader.LoadFiles bucketing: everything under charts/ is
     a subchart (excluded — dependencies is an unexported Go field, never
     serialized), templates/ files go to Templates, the rest to Files —
     except the specially-parsed Chart.yaml/Chart.lock/values.yaml/
     values.schema.json, which the caller handles separately."""
     special = {"Chart.yaml", "Chart.lock", "values.yaml", "values.schema.json"}
-    templates, files = [], []
+    templates: list[dict[str, str]] = []
+    files: list[dict[str, str]] = []
     for rel in sorted(paths):
         if rel.startswith("charts/") or rel in special:
             continue
@@ -391,7 +392,7 @@ def record_result(chart_dir: Path, chart_name: str, version: str, encoded_bytes:
     return doc_path
 
 
-def values_file_from_extra_args(extra_args: list):
+def values_file_from_extra_args(extra_args: list[str]) -> Path | None:
     """The values file path lib.render_scope.lint_args_for(chart_dir)
     encodes into extra_args as ["-f", "<path>"] (or [] if it found none)
     — reused here by check_release_secret_size instead of re-deriving/

@@ -25,8 +25,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
+from typing import Literal
+from typing import TypedDict
 
-from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.values_tree_primitives import values_key_of
 from lib.image.digests import cached_tag_exists
@@ -65,15 +66,36 @@ def is_denylisted_host(host: str, denylisted_host_suffixes: tuple[str, ...]):
 # real YAML AST with position info.
 DEP_NAME_RE = re.compile(r'^\s*-\s*name:\s*"?([\w.\-]+)"?\s*(?:#.*)?$')
 
+# (host, repo_path, version) of a registry artifact.
+RegistryTarget = tuple[str, str, str]
+# (name, line, kind, target) of a Chart.yaml dependency — see dependency_repos.
+DependencyRepo = tuple[str, int | None, str, str | RegistryTarget]
+# (kind, description, test_kind, target) — see _build_entries.
+AccessEntry = tuple[str, str, str, str | RegistryTarget]
+# (kind, description, error) of an unreachable entry.
+AccessFailure = tuple[str, str, str | None]
+# (kind, description, host) of an entry on a denylisted host.
+DeniedEntry = tuple[str, str, str]
+ProbeResult = (
+    tuple[Literal["denied"], str, str, str] | tuple[Literal["failure"], str, str, str | None] | tuple[Literal["ok"]]
+)
 
-def _dependency_line_numbers(chart_yaml_text: str):
+
+class _ChartGroup(TypedDict):
+    """The Chart.yaml dependencies sharing one (kind, target)."""
+
+    names: list[str]
+    lines: list[int]
+
+
+def _dependency_line_numbers(chart_yaml_text: str) -> dict[str, int]:
     """name -> 1-indexed line number of its "- name: <name>" entry."""
     return {
         m.group(1): i + 1 for i, line in enumerate(chart_yaml_text.splitlines()) for m in [DEP_NAME_RE.match(line)] if m
     }
 
 
-def dependency_repos(chart_dir: Path):
+def dependency_repos(chart_dir: Path) -> list[DependencyRepo]:
     """(name, line, kind, target) for every Chart.yaml dependency that
     needs network access to resolve — kind "http" (target is the repo's
     base URL, an "@alias" already resolved via
@@ -91,7 +113,7 @@ def dependency_repos(chart_dir: Path):
     chart_yaml_path = chart_dir / "Chart.yaml"
     deps = load_chart_dependencies(chart_yaml_path)
     line_numbers = _dependency_line_numbers(chart_yaml_path.read_text(encoding="utf-8"))
-    repos = []
+    repos: list[DependencyRepo] = []
     for dep in deps:
         repository = resolve_dependency_repo(dep.get("repository", ""), required_repos)
         name = values_key_of(dep)
@@ -107,7 +129,7 @@ def dependency_repos(chart_dir: Path):
     return repos
 
 
-def image_repos(values_path: Path):
+def image_repos(values_path: Path) -> list[tuple[RegistryTarget, list[int]]]:
     """(lines, target) grouped by unique (host, repo_path, version) — for
     every digest-pinned image in values.yaml whose repository resolves
     WITHOUT the vendored subchart-default fallback
@@ -118,7 +140,7 @@ def image_repos(values_path: Path):
     that exact (repository, version) — the same image is often pinned
     several times over."""
     pins = scan_digest_pins(values_path.read_text(encoding="utf-8").splitlines())
-    grouped = {}
+    grouped: dict[RegistryTarget, list[int]] = {}
     for p in pins:
         if not p["repository"]:
             continue
@@ -183,20 +205,22 @@ class ProbeConfig:
     settings."""
 
     chart_dir: Path
-    denylisted_host_suffixes: tuple
+    denylisted_host_suffixes: tuple[str, ...]
     cache_ttl_minutes: float
     timeout_seconds: float
 
 
-def _build_entries(chart_deps: list[ChartDependency], img_targets: list):
+def _build_entries(
+    chart_deps: list[DependencyRepo], img_targets: list[tuple[RegistryTarget, list[int]]]
+) -> list[AccessEntry]:
     """(kind, description, test_kind, target) for every unique repo/image
     check_repo_access needs to probe — Chart.yaml dependencies grouped by
     (kind, target) so everything sharing one repo (e.g. every
     @maykinmedia chart) is tested once, values.yaml image pins grouped
     separately since image_repos already groups by exact (host,
     repo_path, version)."""
-    entries = []
-    grouped_chart = {}
+    entries: list[AccessEntry] = []
+    grouped_chart: dict[tuple[str, str | RegistryTarget], _ChartGroup] = {}
     for name, line, kind, target in chart_deps:
         info = grouped_chart.setdefault((kind, target), {"names": [], "lines": []})
         info["names"].append(name)
@@ -206,7 +230,7 @@ def _build_entries(chart_deps: list[ChartDependency], img_targets: list):
         location = "Chart.yaml"
         if info["lines"]:
             location += ":" + ",".join(str(n) for n in sorted(info["lines"]))
-        if kind == "http":
+        if isinstance(target, str):
             endpoint = target
         else:
             host, repo_path, version = target
@@ -221,7 +245,7 @@ def _build_entries(chart_deps: list[ChartDependency], img_targets: list):
     return entries
 
 
-def _probe_entry(config: ProbeConfig, entry: tuple):
+def _probe_entry(config: ProbeConfig, entry: AccessEntry) -> ProbeResult:
     """Probes one repo/image entry — denylist check, cache hit, or a real
     reachability check — printing its own result line same as
     check_repo_access always has. Returns ("denied", kind, description,
@@ -251,7 +275,7 @@ def _probe_entry(config: ProbeConfig, entry: tuple):
         print(f"  [OK] {kind:5}  {description}  (cached)")
         return ("ok",)
 
-    if test_kind == "http":
+    if isinstance(target, str):
         ok, error = _check_http_repo(target, config.timeout_seconds)
     else:
         host, repo_path, version = target
@@ -265,13 +289,15 @@ def _probe_entry(config: ProbeConfig, entry: tuple):
     return ("ok",)
 
 
-def _format_result(checked: int, total_refs: int, failures: list, denied: list):
+def _format_result(
+    checked: int, total_refs: int, failures: list[AccessFailure], denied: list[DeniedEntry]
+) -> tuple[bool, str]:
     """Final (ok, message) check_repo_access returns — a combined message
     covering both unreachable/unauthorized entries and denylisted-host
     entries, or a plain success count when neither happened."""
     if not (failures or denied):
         return True, f"{checked} repo(s)/image(s) reachable ({total_refs} references)"
-    parts = []
+    parts: list[str] = []
     if failures:
         parts.append(
             f"{len(failures)}/{checked} repo(s)/image(s) unreachable or unauthorized — "
@@ -332,8 +358,8 @@ def check_repo_access(chart_dir: Path):
         f"Checking access to {len(entries)} unique repo(s)/image(s) for {total_refs} network-resolved reference(s)..."
     )
 
-    failures = []
-    denied = []
+    failures: list[AccessFailure] = []
+    denied: list[DeniedEntry] = []
     for entry in entries:
         result = _probe_entry(config, entry)
         if result[0] == "denied":
