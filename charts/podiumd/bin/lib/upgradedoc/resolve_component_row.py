@@ -231,7 +231,7 @@ def _sidecar_baseline_app(resolution: ResolutionContext, sidecar_path: tuple[str
     return baseline_app
 
 
-def _dependency_baseline_result(resolution: ResolutionContext, values_key: str, dep: ChartDependency):
+def _dependency_baseline_result(resolution: ResolutionContext, values_key: str):
     """A real dependency's own baseline_resolved/baseline_chart/
     baseline_app trio — whether the Chart.yaml dependency line itself
     existed at the baseline ref at all (baseline_resolved), and its
@@ -249,9 +249,13 @@ def _dependency_baseline_result(resolution: ResolutionContext, values_key: str, 
     # "image:" block was only added to podiumd's own values.yaml this
     # release) — before concluding "genuinely new", check the same
     # historical images-<version>.yaml search the sidecar branch uses.
-    baseline_app = actual_app_version(baseline_values, values_key, dep["name"])
+    # baseline_dep is matched by values_key (alias), so its "name" is the
+    # baseline's own chart name — it differs from the target's when a
+    # chart was renamed under the same alias (objecten: openobject ->
+    # objecten), and image paths are registered per chart name.
+    baseline_app = actual_app_version(baseline_values, values_key, baseline_dep["name"])
     if baseline_app is None and baseline_values:
-        for path in image_paths_for(dep["name"], chart_dir):
+        for path in image_paths_for(baseline_dep["name"], chart_dir):
             baseline_app = historical_app_version_for_path(
                 chart_dir, deps, values, (values_key, *tuple(path.split("."))), resolution.upgrade_docs_baseline
             )
@@ -289,9 +293,7 @@ def _add_baseline_result(resolution: ResolutionContext, match: RowMatch, result:
         result["baseline_app"] = baseline_app
         result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
     elif match.dep is not None:
-        resolved, baseline_chart, baseline_app = _dependency_baseline_result(
-            resolution, result["values_key"], match.dep
-        )
+        resolved, baseline_chart, baseline_app = _dependency_baseline_result(resolution, result["values_key"])
         result["baseline_resolved"] = resolved
         result["baseline_chart"] = baseline_chart
         result["baseline_app"] = baseline_app

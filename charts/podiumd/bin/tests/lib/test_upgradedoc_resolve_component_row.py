@@ -137,6 +137,30 @@ def test_resolve_component_row_dependency_baseline_dep_exists_values_entry_missi
     assert resolved["baseline_app"] is None
 
 
+def test_resolve_component_row_dependency_chart_renamed_under_same_alias_uses_baseline_chart_name(
+    libupgradedocresolverow: ModuleType,
+):
+    """The baseline dependency is matched by alias, so its chart name can
+    differ from the target's (real case: objecten's openobject ->
+    objecten rename). Its app version is read at the image path(s)
+    registered for the baseline's own chart name ("openbao" ->
+    "server.image"), not the target's (unregistered -> "image")."""
+    deps = [{"name": "renamed-vault", "alias": "vault", "version": "0.20.0"}]
+    values = {"vault": {"image": {"tag": "2.2.0@sha256:aaaa"}}}
+    baseline_deps = [{"name": "openbao", "alias": "vault", "version": "0.19.0"}]
+    baseline_values = {"vault": {"server": {"image": {"tag": "2.1.0@sha256:bbbb"}}}}
+
+    resolved = libupgradedocresolverow.resolve_component_row(
+        "vault", {}, _resolution(libupgradedocresolverow, None, deps, values, baseline_deps, baseline_values)
+    )
+
+    assert resolved["kind"] == "dependency"
+    assert resolved["target_app"] == "2.2.0"
+    assert resolved["baseline_resolved"] is True
+    assert resolved["baseline_chart"] == "0.19.0"
+    assert resolved["baseline_app"] == "2.1.0"
+
+
 def test_resolve_component_row_dependency_missing_from_baseline_is_false(
     libupgradedocresolverow: ModuleType, tmp_path: Path
 ):
