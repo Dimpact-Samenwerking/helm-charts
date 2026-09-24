@@ -12,7 +12,6 @@ paths specifically) check_subchart_image_visibility (lib.
 checks.digest_pinning) and list-podiumd-images."""
 
 import re
-import subprocess  # nosec B404
 
 from collections import Counter
 from collections.abc import Callable
@@ -28,6 +27,7 @@ import yaml
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
+from lib.procutil import RunResult
 from lib.procutil import run
 from lib.settings import helm_repos_urls_by_alias
 from lib.settings import vendor_classification_chart_overrides
@@ -53,11 +53,10 @@ def lint_args_for(chart_dir: Path) -> list[str]:
     return []
 
 
-# subprocess is imported for this CompletedProcess type only; commands run via lib.procutil.run.
-_render_cache: dict[tuple[str, tuple[str, ...]], subprocess.CompletedProcess[str]] = {}
+_render_cache: dict[tuple[str, tuple[str, ...]], RunResult] = {}
 
 
-def render_chart(chart_dir: Path, extra_args: list[str]) -> subprocess.CompletedProcess[str]:
+def render_chart(chart_dir: Path, extra_args: list[str]) -> RunResult:
     """Run `helm template <CHART_NAME> <chart_dir> <extra_args>`. Returns
     the raw subprocess result; every caller decides for itself what a
     non-zero returncode means and how to report it.
@@ -103,7 +102,7 @@ def report_largest_templates(rendered_text: str, top_n: int):
     a render. Prints nothing if rendered_text has no "# Source:" lines at
     all (e.g. an empty or failed render)."""
     source_re = re.compile(r"^# Source: (.+)$")
-    counts = Counter()
+    counts: Counter[str] = Counter()
     current = None
     for line in rendered_text.splitlines():
         m = source_re.match(line)
@@ -156,7 +155,7 @@ def report_errors_by_subchart(error_text: str):
         print(f"  {chart}: {n}")
 
 
-def chart_name_from_source(source: str | None):
+def chart_name_from_source(source: str | None) -> str:
     """The leaf chart name at the end of `source`'s embedded "<tree>/
     templates/..." path (see CHART_TREE_PATH_RE/chart_tree_paths) — e.g.
     "eck-operator" out of ".../charts/openinwoner/charts/eck-operator/
@@ -226,7 +225,7 @@ def rendered_chart_paths(rendered_text: str) -> set[str]:
     return paths | ancestors
 
 
-def resolve_dependency_repo(repository: str, required_repos: dict):
+def resolve_dependency_repo(repository: str, required_repos: dict[str, str]) -> str:
     """`repository` (a Chart.yaml dependency's `repository:` field), with
     an "@alias" resolved to its real URL via `required_repos` (see
     lib.settings.helm_repos_urls_by_alias) — anything else (a plain
@@ -237,7 +236,7 @@ def resolve_dependency_repo(repository: str, required_repos: dict):
     return repository
 
 
-def friendly_vendor_charts(chart_dir: Path):
+def friendly_vendor_charts(chart_dir: Path) -> dict[str, str]:
     """Chart name -> vendor label, for every Chart.yaml dependency whose
     (resolved) repository matches a vendor_classification.keywords entry
     (see lib.settings.vendor_classification_keywords — vendored sub-charts

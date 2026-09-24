@@ -6,10 +6,28 @@
 import subprocess  # nosec B404
 import sys
 
-from typing import Any
+from pathlib import Path
+from typing import Literal
+from typing import Required
+from typing import TextIO
+from typing import TypedDict
+from typing import Unpack
+
+# What run() returns.
+RunResult = subprocess.CompletedProcess[str]
 
 
-def run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
+class RunOptions(TypedDict, total=False):
+    """The subprocess.run keywords run() passes on. Always text mode."""
+
+    text: Required[Literal[True]]
+    capture_output: bool
+    input: str
+    cwd: Path
+    stdout: TextIO
+
+
+def run(cmd: list[str], **kwargs: Unpack[RunOptions]) -> RunResult:
     """For `helm`/`git`/etc. calls that capture output — never raises on a
     non-zero exit, so callers decide what a failure means for them."""
     # cmd is always a fixed argv list built by the caller (e.g. ["git", "mv", ...]),
@@ -18,7 +36,7 @@ def run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
     return subprocess.run(cmd, check=False, **kwargs)  # nosec B603  # noqa: S603
 
 
-def run_script(cmd: list[str], *, check: bool = False, **kwargs: Any) -> subprocess.CompletedProcess[Any]:
+def run_script(cmd: list[str], *, check: bool = False) -> subprocess.CompletedProcess[bytes]:
     """For delegating to a sibling script (`[sys.executable, "other.py",
     ...]`) that inherits stdout/stderr, so its output interleaves with the
     caller's own prints in real time. Flushes the caller's stdout first —
@@ -28,4 +46,4 @@ def run_script(cmd: list[str], *, check: bool = False, **kwargs: Any) -> subproc
     flushes at process exit."""
     sys.stdout.flush()
     # Same fixed-argv-list guarantee as run() above.
-    return subprocess.run(cmd, check=check, **kwargs)  # nosec B603  # noqa: S603
+    return subprocess.run(cmd, check=check)  # nosec B603  # noqa: S603

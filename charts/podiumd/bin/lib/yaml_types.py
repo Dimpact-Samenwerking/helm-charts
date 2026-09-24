@@ -33,6 +33,16 @@ def yaml_path(where: str, key: str) -> str:
     return f"{where}.{key}" if where else key
 
 
+def is_object_list(value: object) -> TypeGuard[list[object]]:
+    """Whether `value` is a list (of anything)."""
+    return isinstance(value, list)
+
+
+def is_object_dict(value: object) -> TypeGuard[dict[object, object]]:
+    """Whether `value` is a dict (of anything)."""
+    return isinstance(value, dict)
+
+
 def _list_problem(items: list[object], where: str) -> str | None:
     return next((p for i, item in enumerate(items) if (p := yaml_problem(item, f"{where}[{i}]")) is not None), None)
 
@@ -53,9 +63,9 @@ def yaml_problem(value: object, where: str = "") -> str | None:
     produce), located by its dotted path."""
     if value is None or isinstance(value, str | int | float | bool | datetime.date):
         return None
-    if isinstance(value, list):
+    if is_object_list(value):
         return _list_problem(value, where)
-    if isinstance(value, dict):
+    if is_object_dict(value):
         return _mapping_problem(value, where)
     return f"{where or '(top level)'}: unexpected {type(value).__name__}"
 
@@ -81,7 +91,7 @@ def first_problem(*problems: str | None) -> str | None:
 def is_yaml_mapping(value: object) -> TypeGuard[YamlMapping]:
     """Whether `value` is a mapping with str keys whose values are all
     YamlValues."""
-    return isinstance(value, dict) and yaml_problem(value) is None
+    return is_object_dict(value) and yaml_problem(value) is None
 
 
 def parse_yaml_mapping(text: str, source: str) -> YamlMapping:
@@ -126,23 +136,29 @@ def scalar_text(value: YamlValue) -> str | None:
     return None
 
 
+def _is_object_tuple(value: object) -> TypeGuard[tuple[object, ...]]:
+    return isinstance(value, tuple)
+
+
 def _alternatives_problem(value: object, shape: tuple[object, ...], where: str) -> str | None:
     problems = [shape_problem(value, alternative, where) for alternative in shape]
     return None if None in problems else next(p for p in problems if p is not None)
 
 
 def _list_problem_of(value: object, item_shape: object, where: str) -> str | None:
-    if not isinstance(value, list):
+    if not is_object_list(value):
         return f"{where or '(top level)'}: expected a list, got {type(value).__name__}"
-    items: list[object] = value
-    return first_problem(*(shape_problem(item, item_shape, f"{where}[{i}]") for i, item in enumerate(items)))
+    return first_problem(*(shape_problem(item, item_shape, f"{where}[{i}]") for i, item in enumerate(value)))
 
 
-def _mapping_problem_of(value: object, shape: dict[str, object], where: str) -> str | None:
-    if not isinstance(value, dict):
+def _mapping_problem_of(value: object, shape: dict[object, object], where: str) -> str | None:
+    if not is_object_dict(value):
         return f"{where or '(top level)'}: expected a mapping, got {type(value).__name__}"
-    mapping: dict[object, object] = value
+    mapping = value
     for spec, key_shape in shape.items():
+        if not isinstance(spec, str):
+            msg = f"not a shape key: {spec!r}"
+            raise TypeError(msg)
         key = spec.removesuffix("?")
         if key not in mapping:
             if spec.endswith("?"):
@@ -162,11 +178,11 @@ def shape_problem(value: object, shape: object, where: str = "") -> str | None:
     that has (at least) those keys, where a key written "key?" may be
     missing. Used by the TypeGuard of a TypedDict whose fields the shape
     spells out."""
-    if isinstance(shape, tuple):
+    if _is_object_tuple(shape):
         return _alternatives_problem(value, shape, where)
-    if isinstance(shape, list):
+    if is_object_list(shape):
         return _list_problem_of(value, shape[0], where)
-    if isinstance(shape, dict):
+    if is_object_dict(shape):
         return _mapping_problem_of(value, shape, where)
     if not isinstance(shape, type):
         msg = f"not a shape: {shape!r}"

@@ -19,11 +19,6 @@ def test_run_script_runs_the_command(libprocutil):
     assert result.returncode == 0
 
 
-def test_run_script_passes_through_kwargs(libprocutil):
-    result = libprocutil.run_script(["echo", "hello"], capture_output=True, text=True)
-    assert result.stdout.strip() == "hello"
-
-
 def test_run_script_flushes_stdout_before_running(libprocutil, monkeypatch):
     """The whole point of run_script over a bare subprocess.run: flush the
     caller's own buffered prints first, so they can't appear after the

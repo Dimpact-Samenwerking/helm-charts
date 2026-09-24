@@ -35,9 +35,8 @@ import tempfile
 import time
 
 from pathlib import Path
-from typing import Any
 from typing import TextIO
-from typing import cast
+from typing import Unpack
 
 import yaml
 
@@ -48,6 +47,7 @@ from lib.chart_lock import parse_chart_lock_dependencies
 from lib.chart_lock import resolved_repository
 from lib.chart_lock import write_chart_lock
 from lib.checks.vendored_tgz import TGZ_NAME_RE
+from lib.procutil import RunOptions
 from lib.procutil import run
 from lib.settings import dependency_fetch_retry_attempts
 from lib.settings import dependency_fetch_retry_backoff_seconds
@@ -58,7 +58,7 @@ from lib.yaml_types import YamlShapeError
 _EXACT_VERSION_RE = re.compile(r"^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
 
 
-def _dependency_key(dep: ChartDependency | ChartLockDependency, required_repos: dict):
+def _dependency_key(dep: ChartDependency | ChartLockDependency, required_repos: dict[str, str]) -> tuple[str, str, str]:
     """(name, version, repository) — the identity a dependency's own
     Chart.lock entry and its current Chart.yaml entry must agree on for
     vendored_state_matches_chart_yaml to trust the lock file at all.
@@ -134,14 +134,14 @@ def _tgz_problems(chart_dir: Path, chart_deps: list[ChartDependency]):
     instead (parsed with lib.checks.vendored_tgz.TGZ_NAME_RE, the same
     <name>-<version>.tgz split that check already uses)."""
     charts_dir = chart_dir / "charts"
-    vendored = {}
+    vendored: dict[str, list[str]] = {}
     if charts_dir.is_dir():
         for path in charts_dir.glob("*.tgz"):
             match = TGZ_NAME_RE.match(path.name)
             if match:
                 vendored.setdefault(match["name"], []).append(match["version"])
 
-    problems = []
+    problems: list[str] = []
     for name, version in sorted({(d.get("name"), str(d.get("version"))) for d in chart_deps}):
         if (charts_dir / f"{name}-{version}.tgz").is_file():
             continue
@@ -153,7 +153,7 @@ def _tgz_problems(chart_dir: Path, chart_deps: list[ChartDependency]):
     return problems
 
 
-def _dependency_state(chart_dir: Path):
+def _dependency_state(chart_dir: Path) -> tuple[list[ChartDependency], list[str]]:
     """(chart_deps, problems): Chart.yaml's current dependency list, plus
     every reason the vendored state (Chart.lock + charts/*.tgz) doesn't
     match it — see vendored_dependency_problems. The one shared
@@ -285,7 +285,12 @@ def ensure_repos_configured(chart_dir: Path):
     return True, "repos configured"
 
 
-def _run_with_retries(chart_dir: Path, cmd: list[str], label: str, out: TextIO, **run_kwargs: Any):
+def _output_stream(out: TextIO | None) -> TextIO:
+    """`out`, or the current sys.stdout when it is None."""
+    return sys.stdout if out is None else out
+
+
+def _run_with_retries(chart_dir: Path, cmd: list[str], label: str, out: TextIO, **run_kwargs: Unpack[RunOptions]):
     """run(cmd, **run_kwargs), retried per settings.yaml dependency_fetch
     (transient network blips, registry throttling), announcing each
     attempt on `out` as "Running <label> (attempt n/N)...". Flushes `out`
@@ -324,7 +329,10 @@ def _usable_lock_dependencies(chart_dir: Path):
 
 
 def _changed_dependencies(
-    chart_dir: Path, chart_deps: list[ChartDependency], lock_deps: list[ChartLockDependency], required_repos: dict
+    chart_dir: Path,
+    chart_deps: list[ChartDependency],
+    lock_deps: list[ChartLockDependency],
+    required_repos: dict[str, str],
 ):
     """The Chart.yaml dependencies update_changed_dependencies must fetch:
     those whose (name, version, repository) Chart.lock doesn't list (see
@@ -332,7 +340,7 @@ def _changed_dependencies(
     One entry per (name, version, repository), so the same chart listed
     twice under two aliases is fetched once."""
     locked = {_dependency_key(dep, required_repos) for dep in lock_deps}
-    changed = {}
+    changed: dict[tuple[str, str, str], ChartDependency] = {}
     for dep in chart_deps:
         key = _dependency_key(dep, required_repos)
         tgz = chart_dir / "charts" / f"{key[0]}-{key[1]}.tgz"
@@ -341,7 +349,7 @@ def _changed_dependencies(
     return list(changed.values())
 
 
-def _fetch_command(chart_dir: Path, dep: ChartDependency, required_repos: dict, dest: Path):
+def _fetch_command(chart_dir: Path, dep: ChartDependency, required_repos: dict[str, str], dest: Path):
     """The helm command that writes dep's <name>-<version>.tgz into
     `dest`, the same source `helm dependency update` would use: `helm
     package` for a file:// chart, `helm pull` straight from the oci://
@@ -360,7 +368,7 @@ def _fetch_command(chart_dir: Path, dep: ChartDependency, required_repos: dict, 
     return ["helm", "pull", name, "--repo", repo, "--version", version, "--destination", str(dest)]
 
 
-def _fetch_dependency(chart_dir: Path, dep: ChartDependency, required_repos: dict, dest: Path, out: TextIO):
+def _fetch_dependency(chart_dir: Path, dep: ChartDependency, required_repos: dict[str, str], dest: Path, out: TextIO):
     """Fetches one dependency's .tgz into `dest` (see _fetch_command),
     retried like the full update. (ok, reason-if-not)."""
     name, version = dep.get("name"), str(dep.get("version"))
@@ -405,8 +413,7 @@ def update_changed_dependencies(chart_dir: Path, out: TextIO | None = None):
     resolves one) — or a fetch failed; update_vendored_dependencies then
     falls back to a full `helm dependency update`. Progress goes to
     `out` (default: stdout)."""
-    if out is None:
-        out = cast("TextIO", sys.stdout)
+    out = _output_stream(out)
     chart_deps, _problems = _dependency_state(chart_dir)
     if not chart_deps:
         return False, "Chart.yaml has no dependencies"
@@ -446,7 +453,7 @@ def _full_dependency_update(chart_dir: Path, out: TextIO):
     shutil.rmtree(chart_dir / "charts", ignore_errors=True)
     (chart_dir / "Chart.lock").unlink(missing_ok=True)
     cmd = ["helm", "dependency", "update", str(chart_dir)]
-    result = _run_with_retries(chart_dir, cmd, "helm dependency update", out, stdout=out)
+    result = _run_with_retries(chart_dir, cmd, "helm dependency update", out, text=True, stdout=out)
     if result.returncode != 0:
         attempts = dependency_fetch_retry_attempts(chart_dir)
         return False, f"helm dependency update failed after {attempts} attempt(s)"
@@ -463,8 +470,7 @@ def update_vendored_dependencies(chart_dir: Path, out: TextIO | None = None):
     the local repo config, so ensure_repos_configured must have run
     first. Progress goes to `out` (default: stdout). Returns (ok,
     detail)."""
-    if out is None:
-        out = cast("TextIO", sys.stdout)
+    out = _output_stream(out)
     if vendored_state_matches_chart_yaml(chart_dir):
         print(
             "Chart.lock already matches Chart.yaml and every dependency is vendored — skipping helm dependency update",
