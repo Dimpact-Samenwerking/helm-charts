@@ -25,6 +25,8 @@ Examples:
 import sys
 
 from pathlib import Path
+from typing import Literal
+from typing import TypeGuard
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -40,13 +42,31 @@ from lib.upgradedoc.string_and_parsing_basics import word_contains
 
 DEFAULT_INPUT = CHART_DIR / "etc" / "release-table.csv"
 
-COLUMNS = ("section", "vendor", "component")
-VERSION_COLUMNS = ("source_version_app", "source_version_helm", "target_version_app", "target_version_helm")
-TARGET_VERSION_COLUMNS = ("target_version_app", "target_version_helm")
-TARGET_TO_SOURCE_COLUMN = {"target_version_app": "source_version_app", "target_version_helm": "source_version_helm"}
+QueryColumn = Literal["section", "vendor", "component"]
+VersionColumn = Literal["source_version_app", "source_version_helm", "target_version_app", "target_version_helm"]
+
+COLUMNS: tuple[QueryColumn, ...] = ("section", "vendor", "component")
+VERSION_COLUMNS: tuple[VersionColumn, ...] = (
+    "source_version_app",
+    "source_version_helm",
+    "target_version_app",
+    "target_version_helm",
+)
+TARGET_VERSION_COLUMNS: tuple[VersionColumn, ...] = ("target_version_app", "target_version_helm")
+TARGET_TO_SOURCE_COLUMN: dict[VersionColumn, VersionColumn] = {
+    "target_version_app": "source_version_app",
+    "target_version_helm": "source_version_helm",
+}
 
 
-def matching_rows(rows: list[ReleaseTableRow], column: str, text: str):
+def is_query_column(value: str) -> TypeGuard[QueryColumn]:
+    """Whether `value` is one of COLUMNS."""
+    return value in COLUMNS
+
+
+def matching_rows(
+    rows: list[ReleaseTableRow], column: QueryColumn | Literal["alias", "name"], text: str
+) -> list[ReleaseTableRow]:
     """The rows whose `column` value contains `text` as a
     case-insensitive substring — the plain single-column match every
     query but "component" uses directly (component_matches layers its own
@@ -55,7 +75,7 @@ def matching_rows(rows: list[ReleaseTableRow], column: str, text: str):
     return [row for row in rows if needle in row[column].lower()]
 
 
-def component_matches(rows: list[ReleaseTableRow], text: str):
+def component_matches(rows: list[ReleaseTableRow], text: str) -> list[ReleaseTableRow]:
     """The row(s) a "component" query for `text` should treat as
     matches: rows whose own "component" or "alias" column (both set by
     export-confluence-release-table — see its component_and_alias)
@@ -77,7 +97,7 @@ def component_matches(rows: list[ReleaseTableRow], text: str):
     return combined or matching_rows(rows, "name", text)
 
 
-def used_by_rows_for(rows: list[ReleaseTableRow], matches: list[ReleaseTableRow]):
+def used_by_rows_for(rows: list[ReleaseTableRow], matches: list[ReleaseTableRow]) -> list[ReleaseTableRow]:
     """Every row in `rows` (excluding `matches` themselves) whose
     non-empty "used_by" value relates to one of `matches`' own "name" or
     "alias" values, so that a Technische-section row comes back
@@ -94,7 +114,7 @@ def used_by_rows_for(rows: list[ReleaseTableRow], matches: list[ReleaseTableRow]
     aliases = {m["alias"].lower() for m in matches if m["alias"]}
     match_ids = {id(m) for m in matches}
 
-    result = []
+    result: list[ReleaseTableRow] = []
     for row in rows:
         used_by = row["used_by"]
         if not used_by or id(row) in match_ids:
@@ -104,7 +124,7 @@ def used_by_rows_for(rows: list[ReleaseTableRow], matches: list[ReleaseTableRow]
     return result
 
 
-def display_value(row: ReleaseTableRow, column: str):
+def display_value(row: ReleaseTableRow, column: VersionColumn) -> str:
     """`row[column]` unchanged, except a target version column shows
     "UNCHANGED" instead of the raw value when either there's no target
     value at all (empty cell), or the target equals its own source
@@ -117,7 +137,7 @@ def display_value(row: ReleaseTableRow, column: str):
     return value
 
 
-def print_table(rows: list[ReleaseTableRow]):
+def print_table(rows: list[ReleaseTableRow]) -> None:
     """Prints `rows` as a whitespace-aligned table: name/component/alias/
     image_basename plus the four version columns (see display_value for
     how a target column renders as "UNCHANGED"), with each column's width
@@ -141,7 +161,7 @@ def main():
     second table of any tooling rows whose "used_by" relates back to a
     match (see used_by_rows_for)."""
     exit_on_help(__doc__)
-    if len(sys.argv) != 3 or sys.argv[1] not in COLUMNS:
+    if len(sys.argv) != 3 or not is_query_column(sys.argv[1]):
         print(__doc__)
         sys.exit(1)
     column, text = sys.argv[1], sys.argv[2]

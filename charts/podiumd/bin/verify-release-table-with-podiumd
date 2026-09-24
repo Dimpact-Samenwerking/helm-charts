@@ -31,6 +31,7 @@ the release_table baseline cannot be resolved; 0 otherwise.
 
 import sys
 
+from collections.abc import Mapping
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -45,6 +46,7 @@ from lib.chart.paths import VALUES_YAML
 from lib.chart.release_baseline_basics import release_table_baseline
 from lib.dependencies import ensure_vendored_dependencies
 from lib.release_baseline import resolve_baseline_chart_state
+from lib.release_table.csv_rows import ReleaseTableRow
 from lib.release_table.state import ChartState
 from lib.release_table_verification import compare
 
@@ -85,7 +87,7 @@ SECTIONS = [
 ]
 
 
-def print_report(findings: dict, unresolved: list[dict[str, str]]):
+def print_report(findings: Mapping[str, list[str]], unresolved: list[ReleaseTableRow]) -> bool:
     """Prints every non-empty findings[key] section (in SECTIONS' order,
     items sorted), plus a "Skipped" block for `unresolved` rows (see
     compare — a release-table.csv row whose component couldn't be
