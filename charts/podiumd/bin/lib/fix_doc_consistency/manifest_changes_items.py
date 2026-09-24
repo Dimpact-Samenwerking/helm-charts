@@ -26,14 +26,14 @@ class ChangesItem(TypedDict):
     key: int
 
 
-def _renumbered_changes_block(chunks: list):
+def _renumbered_changes_block(chunks: list[list[str]]) -> list[str]:
     """Renumbers a list of "# Changes:" item chunks (each chunk the item's
     own raw lines, already in their final relative order) to match their
     position in `chunks` (1-based), returning the concatenated new block
     lines -- shared by dedupe/sort, which each build `chunks` differently
     (kept items in dedupe's case, reordered items in sort's) but then
     renumber and splice them back the same way."""
-    new_block = []
+    new_block: list[str] = []
     for slot, chunk in enumerate(chunks):
         chunk = list(chunk)
         chunk[0] = CHANGES_ITEM_RE.sub(lambda m, n=slot + 1: f"#   {n}. {m.group('rest')}", chunk[0])
@@ -41,15 +41,15 @@ def _renumbered_changes_block(chunks: list):
     return new_block
 
 
-def _deduped_item_chunks(lines: list[str], spans: list[tuple[int, int]]):
+def _deduped_item_chunks(lines: list[str], spans: list[tuple[int, int]]) -> tuple[list[list[str]], list[str]]:
     """Each item's FULL text (its own first line's "rest" plus any wrapped
     continuation lines) compared verbatim -- the first occurrence of a
     given text wins, every later exact repeat is dropped. Returns
     (keep_chunks, removed) -- keep_chunks the surviving items' own raw
     lines, removed the dropped items' "rest" text."""
-    seen = set()
-    keep_chunks = []
-    removed = []
+    seen: set[str] = set()
+    keep_chunks: list[list[str]] = []
+    removed: list[str] = []
     for start, end in spans:
         rest = match_located_line(CHANGES_ITEM_RE, lines[start]).group("rest")
         full_text = rest + "".join(lines[start + 1 : end])
@@ -70,7 +70,7 @@ def _update_changes_header_count(lines: list[str], header_idx: int, total: int):
     lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
 
 
-def dedupe_images_manifest_changes_items(lines: list[str]):
+def dedupe_images_manifest_changes_items(lines: list[str]) -> list[str]:
     """Remove an exact-duplicate item from the images-manifest's own "#
     Changes:" numbered list — the real bug a multi-image "lockstep"
     component (zgw-office-addin's frontend + backend, eck-stack's
@@ -113,8 +113,8 @@ def _resolved_changes_items(
     lines: list[str],
     item_bounds: list[tuple[int, int]],
     entries: list[ManifestEntry],
-    entry_positions: dict,
-    display_name_positions: dict | None,
+    entry_positions: dict[str, int],
+    display_name_positions: dict[str, int] | None,
 ) -> list[ChangesItem]:
     """Resolves each item's own sort key: exact display-name match first
     (see match_changes_item_display_name/display_name_positions), falling
@@ -138,8 +138,11 @@ def _resolved_changes_items(
 
 
 def sort_images_manifest_changes_items(
-    lines: list[str], entries: list[ManifestEntry], entry_positions: dict, display_name_positions: dict | None = None
-):
+    lines: list[str],
+    entries: list[ManifestEntry],
+    entry_positions: dict[str, int],
+    display_name_positions: dict[str, int] | None = None,
+) -> list[tuple[str, int, int]]:
     """Reorder the images-manifest's own "# Changes:" numbered item list
     (see _find_images_manifest_changes_header) to MIRROR the entry
     list's own final order (entry_positions — see lib.upgradedoc.

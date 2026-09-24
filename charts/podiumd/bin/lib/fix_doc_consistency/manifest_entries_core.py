@@ -5,6 +5,7 @@ lines check."""
 import re
 
 from collections.abc import Callable
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,7 +18,9 @@ from lib.chart.pull_and_subchart_resolution import resolved_digest_pin
 from lib.chart.repo_and_path_resolution import paths_by_repository
 from lib.images_manifest import ManifestEntry
 from lib.images_manifest import try_parse_images_manifest
+from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
+from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import resolve_entry_image_path
 from lib.upgradedoc.grouped_comments_and_changes_block import find_grouped_preceding_comment_line
@@ -40,7 +43,7 @@ class ManifestEntriesContext:
     deps: list[ChartDependency]
     target_values: YamlMapping
     baseline_values: YamlMapping | None
-    repo_map: dict | None = None
+    repo_map: dict[str, ImagePath] | None = None
     upgrade_docs_baseline: str | None = None
 
 
@@ -53,8 +56,8 @@ class _BaselineSetup:
     rather than living there directly, purely to stay under pylint's
     max-instance-attributes."""
 
-    baseline_paths: dict
-    baseline_repo_groups: dict
+    baseline_paths: dict[ImagePath, str]
+    baseline_repo_groups: dict[str, list[ImagePath]]
 
 
 @dataclass
@@ -64,13 +67,13 @@ class _ManifestEntriesSetup:
     lib.chart.repo_and_path_resolution's own setup-once-share-
     everywhere shape)."""
 
-    lines: list
+    lines: list[str]
     entries: list[ManifestEntry]
-    entry_line_indices: list
-    current_paths: dict
+    entry_line_indices: list[int]
+    current_paths: dict[ImagePath, str]
     baseline: _BaselineSetup
-    sibling_fields: dict
-    same_group: Callable
+    sibling_fields: dict[ImagePath, DigestPinningException]
+    same_group: Callable[[ManifestEntry, ManifestEntry], bool]
 
 
 @dataclass
@@ -81,12 +84,15 @@ class _ManifestFixState:
     directly rather than returning results back up for the loop to
     merge."""
 
-    changed_entries: list
-    unresolved_names: list
-    fixed_comment_versions: dict
+    changed_entries: list[tuple[str, str | None, str]]
+    unresolved_names: list[str]
+    # comment line index -> the (baseline, target) versions written there
+    fixed_comment_versions: dict[int, tuple[str | None, str]]
 
 
-def resolve_entry_version(entry: ManifestEntry, paths: dict, repo_map: dict | None = None):
+def resolve_entry_version(
+    entry: ManifestEntry, paths: Mapping[ImagePath, str | None], repo_map: dict[str, ImagePath] | None = None
+) -> str | None:
     """The app version pinned at the values-tree path this images-manifest
     entry resolves to, or None if it can't be resolved (no matching
     path, or that path has no version, e.g. the component didn't exist yet)."""
@@ -95,7 +101,7 @@ def resolve_entry_version(entry: ManifestEntry, paths: dict, repo_map: dict | No
     return tag.split("@")[0] if tag else None
 
 
-def _manifest_entries_setup(text: str, context: ManifestEntriesContext):
+def _manifest_entries_setup(text: str, context: ManifestEntriesContext) -> _ManifestEntriesSetup | None:
     """None when text isn't parsable/isn't a list — the "nothing to do,
     hand caller-visible text back unchanged" case fix_images_manifest_
     entries itself used to return early for."""
@@ -124,7 +130,7 @@ def _manifest_entries_setup(text: str, context: ManifestEntriesContext):
     # None-safe handling.
     sibling_fields = digest_pinning_exceptions(context.chart_dir) if context.chart_dir is not None else {}
 
-    def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry):
+    def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
         return images_manifest_entries_share_group(entry_a, entry_b, current_paths, context.repo_map)
 
     return _ManifestEntriesSetup(
@@ -138,7 +144,9 @@ def _manifest_entries_setup(text: str, context: ManifestEntriesContext):
     )
 
 
-def _fallback_actual_baseline(context: ManifestEntriesContext, setup: _ManifestEntriesSetup, path: tuple[str, ...]):
+def _fallback_actual_baseline(
+    context: ManifestEntriesContext, setup: _ManifestEntriesSetup, path: tuple[str, ...]
+) -> str | None:
     """Two-tier fallback used only when no direct baseline_paths match
     exists (see fix_images_manifest_entries' own docstring): whether
     this same repository already lives somewhere else in
@@ -230,7 +238,9 @@ def _process_manifest_entry(
         state.changed_entries.append((name, actual_baseline, actual_target))
 
 
-def fix_images_manifest_entries(text: str, context: ManifestEntriesContext):
+def fix_images_manifest_entries(
+    text: str, context: ManifestEntriesContext
+) -> tuple[str, list[tuple[str, str | None, str]], list[str]]:
     """Rewrite each images-manifest entry's preceding comment to state the
     actual source (baseline) and target versions for the image at its
     matched values-tree path. An entry is only rewritten when both ends are

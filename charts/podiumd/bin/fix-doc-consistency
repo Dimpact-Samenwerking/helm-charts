@@ -127,6 +127,7 @@ from lib.image.docs import add_missing_sidecar_rows
 from lib.image.docs import update_stale_app_version_headings
 from lib.image.manifest_entry_pins import sync_entry_pins
 from lib.settings import digest_pinning_exceptions
+from lib.upgradedoc.app_version_and_image_paths import ImagePath
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
 from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
@@ -180,7 +181,7 @@ def load_target_state():
     return load_chart_dependencies(CHART_YAML), values
 
 
-def load_baseline_state(new_baseline: str):
+def load_baseline_state(new_baseline: str) -> tuple[list[ChartDependency], YamlMapping] | tuple[None, None]:
     """(deps, values) as they were at new_baseline's resolved git ref, or
     (None, None) if it can't be resolved (e.g. that release hasn't been cut
     yet) — callers skip table-version correction gracefully in that case."""
@@ -206,9 +207,9 @@ class RebaseState:
 
     target: str
     new_baseline: str
-    target_deps: list
+    target_deps: list[ChartDependency]
     target_values: YamlMapping
-    baseline_deps: list | None
+    baseline_deps: list[ChartDependency] | None
     baseline_values: YamlMapping | None
 
 
@@ -235,7 +236,7 @@ def _load_and_validate_baseline():
     return new_baseline, current_chart_version()
 
 
-def _check_no_collisions(target: str):
+def _check_no_collisions(target: str) -> dict[str, list[tuple[str, Path]]]:
     """Returns by_suffix, exiting on error if two source docs would
     collide on the same renamed target filename."""
     by_suffix = existing_doc_baselines(DOC_DIR, target)
@@ -267,8 +268,9 @@ class RebaseAccumulator:
     """The two lists every per-doc rebase helper appends findings to
     across the whole run, bundled into one argument instead of two."""
 
-    todo_stub_docs: list
-    review_notes: list
+    todo_stub_docs: list[str]
+    # (doc name, line numbers still naming the old baseline)
+    review_notes: list[tuple[str, list[int]]]
 
 
 def _rebase_already_at_baseline(doc: DocRename, target: str, new_baseline: str, acc: RebaseAccumulator):
@@ -288,7 +290,7 @@ def _rebase_already_at_baseline(doc: DocRename, target: str, new_baseline: str, 
         print(f"  {doc.path.name}: already baseline {new_baseline} — unchanged")
         return
     doc.path.write_text(collapsed_text, encoding="utf-8")
-    parts = []
+    parts: list[str] = []
     if todo_stripped:
         parts.append("removed stale TODO placeholder")
         acc.todo_stub_docs.append(doc.path.name)
@@ -335,7 +337,9 @@ def _rebase_doc_to_new_baseline(doc: DocRename, target: str, new_baseline: str, 
         acc.review_notes.append((new_name, leftovers))
 
 
-def _rebase_docs(target: str, new_baseline: str, by_suffix: dict):
+def _rebase_docs(
+    target: str, new_baseline: str, by_suffix: dict[str, list[tuple[str, Path]]]
+) -> tuple[list[tuple[str, list[int]]], list[str]]:
     """Renames/rebases every doc onto new_baseline, stubbing any standard
     doc missing entirely. Returns (review_notes, todo_stub_docs)."""
     acc = RebaseAccumulator(todo_stub_docs=[], review_notes=[])
@@ -361,7 +365,7 @@ def _rebase_docs(target: str, new_baseline: str, by_suffix: dict):
     return acc.review_notes, acc.todo_stub_docs
 
 
-def _bump_images_manifest_baseline(target: str, new_baseline: str, review_notes: list):
+def _bump_images_manifest_baseline(target: str, new_baseline: str, review_notes: list[tuple[str, list[int]]]):
     """Stubs images-<target>.yaml if missing, else rebases its baseline
     header/sibling-refs onto new_baseline. Appends to review_notes in
     place. Returns images_path."""
@@ -433,8 +437,8 @@ def _correct_component_table(text: str, upgrade_path: Path, resolution: Resoluti
 
 
 def _add_missing_component_and_sidecar_rows(
-    text: str, state: RebaseState, upgrade_path: Path, actual_changed_keys: set
-):
+    text: str, state: RebaseState, upgrade_path: Path, actual_changed_keys: set[str]
+) -> tuple[str, list[str], list[str]]:
     """Adds a table row + Changes section for a changed component/
     sidecar image missing one. Returns (text, added_names, added_sidecar_names)."""
     doc_ctx = DocContext(CHART_YAML.parent, state.target, upgrade_docs_baseline=state.new_baseline)
@@ -460,7 +464,9 @@ def _add_missing_component_and_sidecar_rows(
     return text, added_names, added_sidecar_names
 
 
-def _fix_upgrade_doc_headings(text: str, state: RebaseState, upgrade_path: Path, resolution: ResolutionContext):
+def _fix_upgrade_doc_headings(
+    text: str, state: RebaseState, upgrade_path: Path, resolution: ResolutionContext
+) -> tuple[str, dict[str, ImagePath], bool]:
     """Adds missing '### ...' Changes sections and fixes stale/wrong
     heading app-versions. Returns (text, canonical_names, changed)."""
     current_paths = dict(find_image_tag_paths(state.target_values))
@@ -504,7 +510,11 @@ def _fix_upgrade_doc_headings(text: str, state: RebaseState, upgrade_path: Path,
 
 
 def _reorder_upgrade_doc(
-    text: str, upgrade_path: Path, target_deps: list[ChartDependency], target_values: YamlMapping, canonical_names: dict
+    text: str,
+    upgrade_path: Path,
+    target_deps: list[ChartDependency],
+    target_values: YamlMapping,
+    canonical_names: dict[str, ImagePath],
 ):
     """Reorders upgrade_path's table rows and Changes blocks to match
     values.yaml's own component order. Returns (text, changed)."""
@@ -520,7 +530,7 @@ def _reorder_upgrade_doc(
     return text, bool(moved_rows or moved_blocks)
 
 
-def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys: set):
+def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys: set[str]):
     """Corrects upgrade_path's table, adds missing rows/sections, fixes
     headings, reorders, and writes back only if something changed."""
     if not upgrade_path.is_file():
@@ -574,7 +584,7 @@ def _sync_images_manifest_entry_pins(images_path: Path, state: RebaseState) -> N
             print(f"  {name}")
 
 
-def _correct_images_manifest_entries(images_path: Path, state: RebaseState, repo_map: dict):
+def _correct_images_manifest_entries(images_path: Path, state: RebaseState, repo_map: dict[str, ImagePath]):
     """Corrects images-manifest entry comments (source -> target
     version)."""
     text = images_path.read_text(encoding="utf-8")
@@ -607,7 +617,7 @@ def _correct_images_manifest_entries(images_path: Path, state: RebaseState, repo
             print(f"  {name}")
 
 
-def _correct_images_manifest_urls(images_path: Path, state: RebaseState, repo_map: dict):
+def _correct_images_manifest_urls(images_path: Path, state: RebaseState, repo_map: dict[str, ImagePath]):
     """Corrects images-manifest entry url(s)."""
     text = images_path.read_text(encoding="utf-8")
     new_text, changed_urls, unresolved_url_names = fix_images_manifest_entry_urls(
@@ -683,7 +693,9 @@ def _dedupe_images_manifest_changes_items(images_path: Path):
             print(f"  {item_text}")
 
 
-def _reorder_manifest_text(before_sort: str, sort_context: ManifestSortContext):
+def _reorder_manifest_text(
+    before_sort: str, sort_context: ManifestSortContext
+) -> tuple[str, list[tuple[str, int, int]], list[tuple[str, int, int]]]:
     """Computes before_sort's reordered text without touching disk.
     Returns (text, moved_header_items, moved_entries)."""
     entries_for_header_sort = try_parse_images_manifest(before_sort) or []
@@ -698,7 +710,9 @@ def _reorder_manifest_text(before_sort: str, sort_context: ManifestSortContext):
     return text, moved_header_items, moved_entries
 
 
-def _sort_images_manifest(images_path: Path, state: RebaseState, repo_map: dict, canonical_names: dict):
+def _sort_images_manifest(
+    images_path: Path, state: RebaseState, repo_map: dict[str, ImagePath], canonical_names: dict[str, ImagePath]
+):
     """Reorders images_path's entries and '# Changes:' header items to
     match values.yaml's own component order."""
     before_sort = images_path.read_text(encoding="utf-8")
@@ -754,7 +768,11 @@ def _fix_images_manifest_content(state: RebaseState, images_path: Path):
 
 
 def _sync_values_delta_sections(
-    text: str, state: RebaseState, values_deltas_path: Path, changed_keys: set, canonical_names: dict
+    text: str,
+    state: RebaseState,
+    values_deltas_path: Path,
+    changed_keys: set[str],
+    canonical_names: dict[str, ImagePath],
 ):
     """Adds a new '## ...' section, and missing key-change mentions to
     existing ones. Returns (text, changed)."""
@@ -816,7 +834,9 @@ def _prune_empty_values_delta_sections(text: str, values_deltas_path: Path):
     return text, bool(pruned_headings)
 
 
-def _sort_values_delta_sections(text: str, state: RebaseState, values_deltas_path: Path, canonical_names: dict):
+def _sort_values_delta_sections(
+    text: str, state: RebaseState, values_deltas_path: Path, canonical_names: dict[str, ImagePath]
+):
     """Reorders values_deltas_path's '## ...' sections to match
     values.yaml's own component order. Returns (text, changed)."""
     text, moved_sections = sort_values_delta_sections(text, state.target_deps, state.target_values, canonical_names)
@@ -882,7 +902,7 @@ def main():
     images_path = _bump_images_manifest_baseline(target, new_baseline, review_notes)
 
     state = _load_rebase_state(target, new_baseline)
-    actual_changed_keys = (
+    actual_changed_keys: set[str] = (
         compute_changed_components(state.target_deps, state.baseline_deps, state.target_values, state.baseline_values)
         if state.baseline_deps is not None
         else set()
