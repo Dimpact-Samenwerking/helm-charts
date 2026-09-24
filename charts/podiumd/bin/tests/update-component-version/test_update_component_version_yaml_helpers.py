@@ -252,3 +252,22 @@ def test_update_values_yaml_missing_path_raises(ucv, tmp_path, monkeypatch):
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
     with pytest.raises(SystemExit):
         ucv.update_values_yaml("zac", ["frontend.image"], {"frontend.image": "1.0.0@sha256:zzzz"})
+
+
+# --- _load_split_tag_sha_paths ---
+
+
+def test_load_split_tag_sha_paths_skips_writable_entry_without_sibling_field(ucv, monkeypatch):
+    # A writable entry naming no sibling_field has no split pin to write;
+    # it used to be kept with a None sibling field, which would have
+    # written a literal "None:" key next to its tag.
+    monkeypatch.setattr(
+        ucv,
+        "digest_pinning_exceptions",
+        lambda _chart_dir: {
+            ("keycloak", "image"): {"sibling_field": "sha", "writable": True},
+            ("zac", "image"): {"sibling_field": None, "writable": True},
+            ("omc", "image"): {"sibling_field": "digest", "writable": False},
+        },
+    )
+    assert ucv._load_split_tag_sha_paths() == {("keycloak", "image"): "sha"}
