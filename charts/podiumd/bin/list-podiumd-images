@@ -32,7 +32,6 @@ import tempfile
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -68,6 +67,7 @@ from lib.render_scope import lint_args_for
 from lib.render_scope import render_chart
 from lib.render_scope import rendered_chart_paths
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import YamlValue
 from lib.yaml_types import load_yaml_mapping
 
 VENDORED_DIR = CHART_DIR / "charts"
@@ -84,7 +84,12 @@ class ChartContext:
 
     deps: list[ChartDependency]
     root_values: YamlMapping
-    rendered_paths: set
+    rendered_paths: set[str]
+
+
+# (key, path, repo, tag, disabled) — one image reference to print, see
+# print_image_lines.
+ImageRow = tuple[str, str, str, str, bool]
 
 
 @dataclass
@@ -179,7 +184,7 @@ def load_chart(dep: ChartDependency, tmproot: Path, *, refresh: bool):
     return chart_yaml, values or {}
 
 
-def deep_merge(base: object, override: object) -> Any:
+def deep_merge(base: YamlValue, override: YamlValue) -> YamlValue:
     """Recursively merges `override` onto `base` the way Helm merges a
     parent chart's values.yaml overrides onto a sub-chart's own defaults:
     dict values are merged key by key, and any other type (including a
@@ -222,7 +227,7 @@ def _resolves(values_lines: list[str], key: str, basename: str) -> bool:
     return True
 
 
-def _sorted_image_entries(rows: list):
+def _sorted_image_entries(rows: list[ImageRow]) -> list[ImageEntry]:
     """rows: [(key, path, repo, tag, disabled), ...] -> ImageEntry list,
     sorted the way print_image_lines prints them (by key, then path)."""
     entries = [
@@ -264,7 +269,7 @@ def _print_image_entry(entry: ImageEntry, values_lines: list[str], widths: Colum
     print(f"      {entry.repo}:{entry.tag}")
 
 
-def print_image_lines(rows: list, values_lines: list[str]):
+def print_image_lines(rows: list[ImageRow], values_lines: list[str]) -> None:
     """rows: [(key, path, repo, tag, disabled), ...] — `disabled` is True
     when this row's own chart-tree path (see lib.render_scope.
     rendered_chart_paths and row_chart_tree_path below) never actually
@@ -307,7 +312,7 @@ def row_chart_tree_path(chart_dir: Path, dep: ChartDependency, first_segment: st
     return f"{base}/charts/{nested.get('alias') or nested['name']}"
 
 
-def component_version_rows(dep: ChartDependency, key: str, merged: YamlMapping, ctx: ChartContext):
+def component_version_rows(dep: ChartDependency, key: str, merged: YamlMapping, ctx: ChartContext) -> list[ImageRow]:
     """Extra (key, path, repo, tag, disabled) rows for `dep`'s own settings.
     yaml component_resolution.version_paths/version_path_nested_
     subcharts-registered bare version fields — the ONE image shape find_images'
@@ -356,7 +361,7 @@ def component_version_rows(dep: ChartDependency, key: str, merged: YamlMapping, 
     eck-elasticsearch/eck-kibana/eck-enterprise-search sub-subcharts) —
     never just `dep`'s own top-level enabled/disabled status, which a
     per-field toggle can disagree with independently."""
-    rows = []
+    rows: list[ImageRow] = []
     # CHART_DIR, not VENDORED_DIR.parent -- unlike the repository
     # resolution below, this lookup is settings.yaml-backed and tests
     # never repoint CHART_DIR (only VENDORED_DIR), so this is the real
@@ -398,12 +403,12 @@ def _compute_rendered_paths():
     return rendered_chart_paths(render_result.stdout)
 
 
-def _top_level_image_rows(root_values: YamlMapping, dep_keys: set[str]):
+def _top_level_image_rows(root_values: YamlMapping, dep_keys: set[str]) -> list[ImageRow]:
     """(key, path, repo, tag, disabled) rows for podiumd's own top-level
     values not tied to any dependency (e.g. global.images.*) — never
     disabled, since a top-level value isn't gated by any chart-tree
     path."""
-    rows = []
+    rows: list[ImageRow] = []
     for key, value in root_values.items():
         if key not in dep_keys:
             rows.extend((key, path, repo, tag, False) for path, repo, tag in find_images(value))
@@ -422,13 +427,13 @@ def _print_dependency_header(dep: ChartDependency, ctx: ChartContext):
     return key
 
 
-def _merged_image_rows(dep: ChartDependency, key: str, merged: YamlMapping, ctx: ChartContext):
+def _merged_image_rows(dep: ChartDependency, key: str, merged: YamlMapping, ctx: ChartContext) -> list[ImageRow]:
     """(key, path, repo, tag, disabled) rows for `dep`'s own effective
     image set: every find_images-shaped reference in `merged` (chart
     defaults + podiumd's own overrides), plus any component_version_
     rows extras (see its own docstring for the split-field shapes
     find_images can't see structurally)."""
-    rows = []
+    rows: list[ImageRow] = []
     for path, repo, tag in find_images(merged):
         # find_images' own path is a dotted STRING (e.g.
         # "redis.image"), not a tuple — its first dotted segment
@@ -464,7 +469,7 @@ def _print_dependency_images(
 
     overrides = ctx.root_values.get(key, {})
     merged = deep_merge(defaults, overrides)
-    rows = _merged_image_rows(dep, key, merged, ctx)
+    rows = _merged_image_rows(dep, key, merged if isinstance(merged, dict) else {}, ctx)
     if rows:
         print_image_lines(rows, values_lines)
     else:
