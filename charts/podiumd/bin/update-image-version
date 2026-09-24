@@ -33,7 +33,7 @@ import sys
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -102,7 +102,19 @@ from lib.yaml_types import load_yaml_mapping
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
-def group_changes_by_component(changes: list[PinUpdate], values_lines_before_write: list[str]):
+class ComponentGroup(TypedDict):
+    """One top-level component's share of a basename bump (see
+    group_changes_by_component), keyed by image path within it."""
+
+    paths: list[str]
+    old_app_by_path: dict[str, str]
+    repos: dict[str, str]
+    new_tags_by_path: dict[str, str]
+
+
+def group_changes_by_component(
+    changes: list[PinUpdate], values_lines_before_write: list[str]
+) -> tuple[dict[str, ComponentGroup], list[tuple[str, str | None]]]:
     """{values_key: {"paths": [dotted image path, ...], "old_app_by_path",
     "repos", "new_tags_by_path"}} for every distinct top-level component a
     basename bump's changes touch, plus [(full dotted "...tag" path,
@@ -110,8 +122,8 @@ def group_changes_by_component(changes: list[PinUpdate], values_lines_before_wri
     the single-component and shared-image doc-update paths need, derived
     once here so each `changes` entry's values-tree location is only
     resolved a single time."""
-    groups = {}
-    full_paths = []
+    groups: dict[str, ComponentGroup] = {}
+    full_paths: list[tuple[str, str | None]] = []
     for c in changes:
         path_parts = dotted_key_path(values_lines_before_write, c["line"] - 1).split(".")
         values_key, image_path = path_parts[0], ".".join(path_parts[1:-1])
@@ -135,7 +147,7 @@ class ComponentBump:
 
     dep: ChartDependency
     values_key: str
-    group: dict
+    group: ComponentGroup
 
 
 @dataclass
@@ -151,7 +163,7 @@ class _BaselineResolution:
     old_app: str | None
     old_chart_str: str | None
     reset_to_baseline: bool
-    baseline_deps: list | None = None
+    baseline_deps: list[ChartDependency] | None = None
     baseline_values: YamlMapping | None = None
 
 
@@ -377,8 +389,8 @@ class SharedImageBump:
     threaded through every doc-update phase below."""
 
     name: str
-    changes: list
-    pinned: list
+    changes: list[PinUpdate]
+    pinned: list[tuple[str, str | None]]
 
 
 @dataclass
@@ -393,7 +405,7 @@ class _SharedImageBaselineResolution:
     upgrade_docs_baseline: str | None
     old_version: str | None
     reset_to_baseline: bool
-    pinned: list
+    pinned: list[tuple[str, str | None]]
 
 
 @dataclass
@@ -518,7 +530,7 @@ def _update_shared_image_values_deltas(
 
 
 def _update_shared_image_manifest_entry(
-    images_path: Path, repository: str, c: dict, context: _SharedImageDocContext, bump: SharedImageBump
+    images_path: Path, repository: str, c: PinUpdate, context: _SharedImageDocContext, bump: SharedImageBump
 ):
     _host, repo_path = parse_repo(repository)
     if context.baseline.reset_to_baseline:
@@ -551,7 +563,7 @@ def _update_shared_image_images_manifest(context: _SharedImageDocContext, bump: 
         print(f"No images-{context.target}.yaml found — skipping that update.")
         return
 
-    by_repository = {}
+    by_repository: dict[str, PinUpdate] = {}
     for c in bump.changes:
         by_repository.setdefault(c["repository"], c)
     print()
@@ -581,7 +593,7 @@ def update_docs_shared_image(new_version: str, target: str, bump: SharedImageBum
 
 
 def _ordering_and_row_name(
-    deps: list[ChartDependency], values: YamlMapping, values_key: str, group: dict[str, Any]
+    deps: list[ChartDependency], values: YamlMapping, values_key: str, group: ComponentGroup
 ) -> tuple[OrderingContext, str | None]:
     """(OrderingContext, doc row name or None) for a bump of `group`'s
     first image path under `values_key` (see doc_row_name)."""
