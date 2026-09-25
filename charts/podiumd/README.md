@@ -1308,7 +1308,7 @@ PodiumD Helm chart
 | zac.global.curlImage.repository | string | `"curlimages/curl"` |  |
 | zac.global.curlImage.tag | string | `"8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777"` |  |
 | zac.image.pullPolicy | string | `"IfNotPresent"` |  |
-| zac.image.tag | string | `"5.4.4@sha256:2809ee2d2dc1ca166b88878a50d2850c7e972651f3ee5c35f44e92127c67773a"` |  |
+| zac.image.tag | string | `"5.4.5@sha256:9d14affb67d7bb7fce01af220e4b28c190188c5f1355d787735bd7e669fa57e3"` |  |
 | zac.initContainer.enabled | bool | `true` |  |
 | zac.initContainer.resources.requests.cpu | string | `"50m"` |  |
 | zac.initContainer.resources.requests.memory | string | `"256Mi"` |  |
