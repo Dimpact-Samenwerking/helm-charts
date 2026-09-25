@@ -1649,7 +1649,7 @@ openklant:
     storageClassName: podiumd-standard
   image:
     repository: maykinmedia/open-klant
-    tag: "2.15.0@sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"
+    tag: "2.18.1@sha256:40f689b2eabbcf55b7026802c22f57a47d2adfef503c2b99846bd0014cfcc9b0"
   resources:
     requests:
       cpu: 100m
