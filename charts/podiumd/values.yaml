@@ -4522,7 +4522,7 @@ openbao:
   snapshotAgent:
     image:
       repository: ghcr.io/openbao/openbao-snapshot-agent
-      tag: "0.3.0@sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"
+      tag: "0.4.5@sha256:ef2c80770e30bba3fcf4d7911cb829607efcea7e7c1a917210c9fa1ba55a8249"
 
   # --- podiumd-side wiring (consumed by the openbao-* templates) ----------------
   configuration:
