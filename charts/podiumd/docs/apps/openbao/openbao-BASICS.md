@@ -62,8 +62,8 @@ local raft/file storage.
 
 Public. The hostname is chosen per environment — the chart imposes no naming
 scheme; the host comes solely from `openbao.configuration.oidcUrl`. PodiumD
-convention: `<env>-openbao.<gemeente>.nl` (e.g.
-`ontw-openbao.dim2.dimpact.nl`). The Gateway/Ingress route (created
+convention: `<env>-openbao-admin.<gemeente>.nl` (e.g.
+`ontw-openbao-admin.dim2.dimpact.nl`). The Gateway/Ingress route (created
 deploy-side in ADO `ExternalsPodiumD` `infra.yml`, not by this chart) points at
 service `<release>-openbao-active:8200` over **HTTP** — TLS terminates at the
 gateway, and the gateway certificate **SAN must cover the OpenBao hostname**.
@@ -113,7 +113,7 @@ in the deep dive.
    the shared PostgreSQL server; put the password in the environment Key Vault
    (`REP_OPENBAO_DB_PASSWORD_REP`).
 2. **Route + certificate.** Deploy-side Gateway/Ingress route for the chosen
-   hostname (convention `<env>-openbao.<gemeente>.nl`) →
+   hostname (convention `<env>-openbao-admin.<gemeente>.nl`) →
    `<release>-openbao-active:8200` (HTTP); extend the gateway certificate SAN
    with the hostname.
 3. **Set values.** `openbao.enabled: true`, the OIDC/public URL values, and —

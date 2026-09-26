@@ -34,8 +34,8 @@ Infra to provision per environment (one line each):
 | Piece | What DevOps must provide |
 |---|---|
 | **Database** | Azure PostgreSQL db `openbao` + role `openbao-admin`; password in Key Vault (`REP_OPENBAO_DB_PASSWORD_REP`). Tables auto-created by the schema Job. |
-| **Ingress / route** | Gateway/Ingress (`infra.yml`) → service `<release>-openbao-active:8200` over **HTTP** (TLS terminated at gateway), host per environment from `openbao.configuration.oidcUrl` (convention `<env>-openbao.<gemeente>.nl`). |
-| **TLS cert** | Gateway cert **SAN must cover the OpenBao host** (`<env>-openbao.<gemeente>.nl`); pods run no TLS (`tls_disable=1`), so no server cert needed. |
+| **Ingress / route** | Gateway/Ingress (`infra.yml`) → service `<release>-openbao-active:8200` over **HTTP** (TLS terminated at gateway), host per environment from `openbao.configuration.oidcUrl` (convention `<env>-openbao-admin.<gemeente>.nl`). |
+| **TLS cert** | Gateway cert **SAN must cover the OpenBao host** (`<env>-openbao-admin.<gemeente>.nl`); pods run no TLS (`tls_disable=1`), so no server cert needed. |
 | **Storage** | **None** — no PVC (PostgreSQL storage backend, `dataStorage.enabled=false`). |
 | **Secrets** | `openbao-db` (chart-rendered) · `openbao-bootstrap-token` key `token` (**seeded by `scripts/openbao-mint-config-token.sh`** — a scoped periodic token, NOT the root token) · `openbao-oidc-secret` (auto-generated, kept stable). |
 | **Identity** | User-assigned MI + federated credential for SA `openbao`; set client-id in `server.serviceAccount.annotations`. (KV unseal key provisioned but unused — Shamir.) |
@@ -188,8 +188,8 @@ environment's `infra.yml`**, not by this chart. The route MUST satisfy:
   re-originated as cleartext inside the cluster.
 - **External host:** must equal the host in `openbao.configuration.oidcUrl` —
   the chart imposes no hostname scheme; each environment picks its own host
-  (PodiumD convention `<env>-openbao.<gemeente>.nl`, e.g.
-  `ontw-openbao.dim2.dimpact.nl`). This host drives the Keycloak
+  (PodiumD convention `<env>-openbao-admin.<gemeente>.nl`, e.g.
+  `ontw-openbao-admin.dim2.dimpact.nl`). This host drives the Keycloak
   client `redirectUris` and the OIDC role `allowed_redirect_uris`; a mismatch
   breaks OIDC login (`redirect_uri` rejected).
 - **UI:** the server sets `ui = true`; the OIDC callback path used is
@@ -206,7 +206,7 @@ cert) is what matters:
 
 - The certificate presented for the OpenBao route **must include the external
   OpenBao host as a Subject Alternative Name (SAN)** — e.g.
-  `<env>-openbao.<gemeente>.nl`. A wildcard SAN (`*.<gemeente>.nl`) that
+  `<env>-openbao-admin.<gemeente>.nl`. A wildcard SAN (`*.<gemeente>.nl`) that
   already covers the chosen host is acceptable.
 - The host, its SAN, and `openbao.configuration.oidcUrl` must all agree.
 - The **in-cluster** listener uses no TLS (`tls_disable = 1`), so **no
@@ -341,7 +341,7 @@ openbao:
 
   configuration:
     enabled: true
-    oidcUrl: https://<env>-openbao.<gemeente>.nl   # == external route host / cert SAN
+    oidcUrl: https://<env>-openbao-admin.<gemeente>.nl   # == external route host / cert SAN
     keycloak:
       url: https://<env>-keycloak.<gemeente>.nl
       realm: podiumd
@@ -386,7 +386,7 @@ are placeholders and **must** be overridden per environment.
      in Azure Key Vault (pipeline reads `REP_OPENBAO_DB_PASSWORD_REP`).
    - Managed Identity + federated credential for SA `openbao`, client-id noted.
    - Gateway/Ingress route → `<release>-openbao-active:8200` (HTTP), external
-     host `<env>-openbao.<gemeente>.nl`, TLS cert whose **SAN covers that host**.
+     host `<env>-openbao-admin.<gemeente>.nl`, TLS cert whose **SAN covers that host**.
 2. **Chart values:** set the §4 overrides for the environment.
 3. **Deploy** (`helm dep build` first if the `.tgz` is not vendored). The
    schema Job creates the tables; the server starts sealed/uninitialised; the
@@ -430,7 +430,7 @@ are placeholders and **must** be overridden per environment.
   sub-chart StatefulSet/Services.
 - **Sealed/unsealed:** `bao status` inside a server pod reports `Initialized
   true`, `Sealed false` after step 4.
-- **Route + cert:** `curl -sSf https://<env>-openbao.<gemeente>.nl/v1/sys/health`
+- **Route + cert:** `curl -sSf https://<env>-openbao-admin.<gemeente>.nl/v1/sys/health`
   returns JSON over a valid TLS chain (SAN matches host).
 - **OIDC login (UI):** browse to the host, choose OIDC, authenticate as a
   realm user with the `openbao:uploaders` role (e.g. `su-openbao` created by
