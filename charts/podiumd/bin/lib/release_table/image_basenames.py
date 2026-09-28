@@ -5,19 +5,14 @@ check."""
 from pathlib import Path
 from typing import TypedDict
 
-from lib.chart.values_tree_primitives import mapping_at
-from lib.chart.values_tree_primitives import text_at
+from lib.chart.registered_paths import image_paths_for
+from lib.chart.values_tree_primitives import dotted_key_path
 from lib.image.digests import DigestPin
 from lib.image.digests import VersionPin
 from lib.image.version import basenames_under_scope
 from lib.image.version import basenames_under_scope_any_tag
-from lib.image.version import image_basename
 from lib.release_table.component_resolution import exact_match
-from lib.release_table.component_resolution import extra_scope_keys_by_component
-from lib.release_table.component_resolution import global_image_keys
-from lib.release_table.component_resolution import match_one
-from lib.yaml_types import YamlMapping
-from lib.yaml_types import load_yaml_mapping
+from lib.release_table.component_resolution import global_image_basenames
 
 
 class ComponentRows(TypedDict):
@@ -33,52 +28,35 @@ def resolve_image_basenames(rows: list[list[str]], chart_dir: Path) -> list[str]
     order, same shape as extract_release_rows' own output — [section,
     vendor, used_by, name, component, alias, ...versions]) — the actual
     values.yaml repository basename(s) each row's version numbers
-    describe. Matches each row's own "used by"-tagged sibling images by
-    NAME against the candidate basenames found under its component's own
-    values.yaml subtree (see basenames_under_scope + match_one) — not
-    by values-tree PATH, since a path segment often describes a job's
-    ROLE ("ensurePodiumdAdminUser") rather than the image itself
-    ("python"), and keys mix kebab-case/camelCase inconsistently, while
-    the actual repository basename is exactly the thing a human-curated
-    name is written to describe.
-
-    A component's scope isn't only its own top-level values.yaml key —
-    it also includes any orphan key that itself resolves to that same
-    dependency (see extra_scope_keys_by_component), since a
-    component's actual image sometimes lives under a values.yaml block
-    that predates/sits outside the Chart.yaml dependency that now
-    manages it (e.g. keycloak-operator's own "Keycloak" row resolves its
-    image under the separate "keycloak" block, not "keycloak-operator"
-    itself). How "available" basenames are gathered for a scope (the
-    digest-required scan, then a per-basename digest-optional fallback)
-    is documented on _available_basenames_for_component; how they're
-    then claimed — primary-exact-match first, then used_by-tagged
-    siblings, then whatever's left to any unclaimed primary — is
-    documented on _assign_component_basenames. A MULTIPLE row resolves
-    independently via which global.images key it actually matches (see
-    _assign_multiple_row_basenames/global_image_keys) — never through a
-    component's own scope, since by definition it isn't owned by any
-    single one. "" wherever nothing can be resolved (component UNKNOWN/
-    blank, or a genuinely ambiguous or missing match) — never a
-    guess."""
+    describe, resolved by EXACT matching only (see lib.release_table.
+    component_resolution.exact_match) against the basenames found under
+    the component's own values.yaml key (see
+    _available_basenames_for_component):
+    - a "used by"-tagged row names its image exactly, e.g. "Frank
+      Gateway Etcd (etcd)";
+    - a component's own row (no "used by") gets the basename its name
+      matches exactly (e.g. "Keycloak"), else every basename on one of
+      the component's registered primary image paths (image_paths_for)
+      that no "used by" row claimed — see _assign_component_basenames;
+    - a MULTIPLE row names a global.images key or its image basename
+      exactly, e.g. "Nginx (unprivileged)" — see
+      _assign_multiple_row_basenames.
+    "" wherever nothing resolves exactly — never a guess."""
     values_path = chart_dir / "values.yaml"
     if not values_path.is_file():
         return ["" for _ in rows]
     lines = values_path.read_text(encoding="utf-8").splitlines()
-    values = load_yaml_mapping(values_path)
-    global_keys = global_image_keys(chart_dir)
-    global_images = mapping_at(values, "global.images")
 
     result = [""] * len(rows)
-    extra_scopes = extra_scope_keys_by_component(chart_dir)
     by_component = _by_component_row_indices(rows)
 
     for component, info in by_component.items():
-        scope_keys = [info["alias"] or component, *extra_scopes.get(component, [])]
-        available = _available_basenames_for_component(lines, scope_keys)
-        _assign_component_basenames(rows, result, info, available)
+        scope_key = info["alias"] or component
+        available = _available_basenames_for_component(lines, [scope_key])
+        primary = _registered_primary_basenames(lines, scope_key, image_paths_for(component, chart_dir), available)
+        _assign_component_basenames(rows, result, info, available, primary)
 
-    _assign_multiple_row_basenames(rows, result, global_keys, global_images)
+    _assign_multiple_row_basenames(rows, result, global_image_basenames(chart_dir))
 
     return result
 
@@ -131,28 +109,41 @@ def _available_basenames_for_component(
     return available
 
 
+def _registered_primary_basenames(
+    lines: list[str], scope_key: str, primary_paths: list[str], available: dict[str, list[DigestPin | VersionPin]]
+) -> set[str]:
+    """The `available` basenames with a pin on one of the component's
+    registered primary image paths (`primary_paths`, from
+    image_paths_for, relative to `scope_key`) — e.g. pabc's "pabc-api"
+    and "pabc-migrations" for ["image", "migrations.image"]."""
+    registered = {f"{scope_key}.{path}.tag" for path in primary_paths}
+    return {
+        basename
+        for basename, pins in available.items()
+        if any(dotted_key_path(lines, pin["line"] - 1) in registered for pin in pins)
+    }
+
+
 def _assign_component_basenames(
-    rows: list[list[str]], result: list[str], info: ComponentRows, available: dict[str, list[DigestPin | VersionPin]]
+    rows: list[list[str]],
+    result: list[str],
+    info: ComponentRows,
+    available: dict[str, list[DigestPin | VersionPin]],
+    primary: set[str],
 ) -> None:
     """Claims `available` basenames into `result` for one component's
-    own row indices (info["indices"]) — a primary (used_by-blank) row
-    gets first refusal, but ONLY at an EXACT match against its own name
-    (see exact_match) — claimed BEFORE any used_by-tagged sibling gets
-    a turn, so a component whose own default image basename happens to
-    EQUAL its plain display name outright (e.g. frankgateway's own
-    "frank-gateway" image) can't be mistakenly grabbed by a sibling row
-    instead, just because every "<Component> <Role>"-named sibling's
-    text trivially contains that same shared component-name prefix too.
-    Deliberately NOT extended to match_one's weaker fuzzy-containment
-    tier: a primary row's name merely CONTAINING a basename (e.g. "Redis
-    Operator" containing "redis") is exactly the ambiguous case where a
-    sibling ("Redis-ha") can be the more specific, correct owner instead
-    — letting primary win there too regressed that case while fixing
-    frankgateway (verified against real data). Every used_by-tagged
-    sibling row then claims its own match via the weaker match_one,
-    and finally whatever's left unclaimed is handed to any primary row
-    that didn't exactly match anything — e.g. zgw-office-addin's
-    frontend AND backend both landing on "Office Add-in"."""
+    own row indices (info["indices"]), exact matches only (see
+    exact_match):
+    1. a component row (no "used by") whose name matches a basename
+       exactly claims it — first, so a "<Component> <Role>" sibling can
+       never take the component's own image (real case: frankgateway's
+       own "frank-gateway" image, and openbao's server image, which has
+       no tag pin of its own and only shows up as "openbao");
+    2. every "used by" row claims the basename its name matches exactly;
+    3. every still-unclaimed component row gets the remaining `primary`
+       basenames (the registered primary image paths, see
+       _registered_primary_basenames) — e.g. zgw-office-addin's frontend
+       AND backend both landing on "ZGW Office Add-in"."""
     sub_indices = [i for i in info["indices"] if rows[i][2]]
     primary_indices = [i for i in info["indices"] if not rows[i][2]]
 
@@ -166,31 +157,30 @@ def _assign_component_basenames(
             unclaimed_primary_indices.append(i)
 
     for i in sub_indices:
-        match = match_one(rows[i][3], available.keys())
+        match = exact_match(rows[i][3], available.keys())
         if match is not None:
             result[i] = match
             del available[match]
 
-    if unclaimed_primary_indices and available:
-        basenames = ",".join(sorted(available))
+    remaining = sorted(basename for basename in available if basename in primary)
+    if unclaimed_primary_indices and remaining:
         for i in unclaimed_primary_indices:
-            result[i] = basenames
+            result[i] = ",".join(remaining)
 
 
-def _assign_multiple_row_basenames(
-    rows: list[list[str]], result: list[str], global_keys: list[str], global_images: YamlMapping
-) -> None:
+def _assign_multiple_row_basenames(rows: list[list[str]], result: list[str], basename_by_key: dict[str, str]) -> None:
     """Resolves every MULTIPLE-component row's own basename
-    independently, via which global.images key it actually matches (see
-    global_image_keys) — never through any component's own scope, since
-    by definition a MULTIPLE row isn't owned by any single one."""
+    independently, via the global.images entry it names exactly — by
+    its key ("Nginx (unprivileged)" -> "nginx"), else by its image
+    basename ("... (nginx-unprivileged)") — never through any component's own
+    scope, since by definition a MULTIPLE row isn't owned by any single
+    one."""
     for i, row in enumerate(rows):
         used_by, name, component = row[2], row[3], row[4]
         if component != "MULTIPLE":
             continue
-        matched_key = match_one(used_by or name, global_keys)
-        if matched_key is None:
-            continue
-        repo = text_at(global_images, f"{matched_key}.repository")
-        if repo:
-            result[i] = image_basename(repo)
+        key = exact_match(used_by or name, basename_by_key.keys())
+        if key is not None:
+            result[i] = basename_by_key[key]
+        else:
+            result[i] = exact_match(used_by or name, basename_by_key.values()) or ""

@@ -50,7 +50,7 @@ from lib.confluence_tables import tables_under_headings
 from lib.release_table.component_resolution import DependencyNames
 from lib.release_table.component_resolution import chart_dependencies
 from lib.release_table.component_resolution import component_and_alias
-from lib.release_table.component_resolution import global_image_keys
+from lib.release_table.component_resolution import global_image_names
 from lib.release_table.component_resolution import native_component_keys
 from lib.release_table.component_resolution import orphan_values_yaml_keys
 from lib.release_table.csv_rows import CSV_HEADER
@@ -402,7 +402,7 @@ def extract_release_rows(
     context = ComponentResolutionContext(
         dependencies,
         orphan_values_yaml_keys(chart_dir, dependencies),
-        global_image_keys(chart_dir),
+        global_image_names(chart_dir),
         native_component_keys(chart_dir),
     )
     all_tables = extract_tables(html)

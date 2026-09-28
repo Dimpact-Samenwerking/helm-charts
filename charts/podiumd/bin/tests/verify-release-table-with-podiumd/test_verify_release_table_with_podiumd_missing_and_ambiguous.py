@@ -130,7 +130,7 @@ def test_compare_reports_image_pinned_but_not_tracked(vrt: ModuleType):
 def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt: ModuleType):
     """The finding's own second line must name the exact Confluence table
     (read off this component's own existing row) and exactly what a new
-    row needs to say — a Name containing the missing basename — so
+    row needs to say — a Name ending in the exact identifier in brackets — so
     resolve_image_basenames/component_and_alias resolve it on the next
     export, not just a vague pointer to "add it somewhere". No "Used by"
     mentioned: "Product component versies" (like Common Ground/Overige)
@@ -144,7 +144,7 @@ def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt: Mod
     findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
     assert '\n      Confluence: add row to "Product component versies"' in hint
-    assert 'Name containing "zaakafhandelcomponent"' in hint
+    assert 'Name "<name> (zac)"' in hint
     assert "Used by" not in hint
     assert "App version (currently) 5.4.3" in hint
 
@@ -167,7 +167,7 @@ def test_compare_missing_primary_image_uses_own_table_without_used_by(vrt: Modul
     findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
     assert '\n      Confluence: add row to "Technische component versies"' in hint
-    assert 'Name containing "zaakafhandelcomponent"' in hint
+    assert 'Name "<name> (zac)"' in hint
     assert "Used by" not in hint
 
 
@@ -190,7 +190,7 @@ def test_compare_missing_sidecar_image_always_goes_to_technische_with_used_by(vr
     findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_WITH_SIDECAR_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "opentelemetry-collector-contrib" in m)
     assert '\n      Confluence: add row to "Technische component versies"' in hint
-    assert '"Used by": "zac", Name containing "opentelemetry-collector-contrib"' in hint
+    assert '"Used by": "zac", Name "<name> (opentelemetry-collector-contrib)"' in hint
 
 
 # --- compare(): missing from Chart.yaml / values.yaml ---
@@ -371,15 +371,15 @@ def test_compare_reports_global_image_with_no_release_table_row(vrt: ModuleType)
 
 
 def test_compare_missing_multiple_image_hint_has_no_used_by_and_guesses_technische(vrt: ModuleType):
-    """A MULTIPLE row resolves purely from its own Name relating to the
-    global image key -- no "Used by" needed (see
+    """A MULTIPLE row resolves purely from its own Name naming the global
+    image key or basename exactly -- no "Used by" needed (see
     resolve_image_basenames). With zero existing "MULTIPLE" rows to read
     a section from at all, "Technische" is still a safe guess (every
     global.images entry is, by convention, exported there)."""
     findings, _ = vrt.compare([], vrt.ChartState(None, [], {}, values_lines(GLOBAL_CURL_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "'global' image 'curl'" in m)
     assert '\n      Confluence: add row to "Technische component versies"' in hint
-    assert 'Name containing "curl"' in hint
+    assert 'Name "<name> (curl)"' in hint
     assert "Used by" not in hint
     assert "App version (currently) 8.22.0" in hint
 

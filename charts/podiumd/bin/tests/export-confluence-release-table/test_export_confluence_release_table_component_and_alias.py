@@ -1,5 +1,5 @@
 """chart_dependencies, normalize_name, name_candidates, component_and_alias,
-orphan_values_yaml_keys, global_image_keys, extract_release_rows — with
+orphan_values_yaml_keys, global_image_names, extract_release_rows — with
 fetch_page_html mocked out, so no network access or real Confluence page
 is needed."""
 
@@ -191,15 +191,14 @@ def test_component_and_alias_case_insensitive(ecrt: ModuleType):
     assert ecrt.component_and_alias("INTERNE TAAK AFHANDELING", deps) == ("internetaakafhandeling", "ita")
 
 
-def test_component_and_alias_resolves_via_alias_substring(ecrt: ModuleType):
-    """ "Zaak - ZAC" doesn't equal dependency name "zaakafhandelcomponent"
-    exactly, but its own alias "zac" is a literal substring of "Zaak -
-    ZAC" (spaces/dash stripped: "zaakzac") — this is the rule that
-    resolves most real components (the exact-match rule alone only ever
-    fires for a name that's coincidentally identical to its Chart.yaml
-    dependency name, like "Interne Taak Afhandeling")."""
+def test_component_and_alias_alias_substring_no_longer_matches(ecrt: ModuleType):
+    """Only exact matches: alias "zac" merely contained in "Zaak - ZAC"
+    is UNKNOWN; either part of "Zaak - ZAC (zaakafhandelcomponent)" or
+    "Zaak (ZAC)" names the dependency exactly."""
     deps = [("zaakafhandelcomponent", "zac")]
-    assert ecrt.component_and_alias("Zaak - ZAC", deps) == ("zaakafhandelcomponent", "zac")
+    assert ecrt.component_and_alias("Zaak - ZAC", deps) == ("UNKNOWN", "")
+    assert ecrt.component_and_alias("Zaak - ZAC (zaakafhandelcomponent)", deps) == ("zaakafhandelcomponent", "zac")
+    assert ecrt.component_and_alias("Zaak (ZAC)", deps) == ("zaakafhandelcomponent", "zac")
 
 
 def test_component_and_alias_resolves_via_bracketed_alias_exact_match(ecrt: ModuleType):
@@ -211,12 +210,12 @@ def test_component_and_alias_resolves_via_bracketed_alias_exact_match(ecrt: Modu
     assert ecrt.component_and_alias("Platform Autorisatie Beheer Component (PABC)", deps) == ("pabc", "pabc")
 
 
-def test_component_and_alias_resolves_via_name_relation_without_alias(ecrt: ModuleType):
-    """A dependency with no alias at all can still resolve, purely by its
-    own name relating to (here: being contained in) the bracketed part
-    of the component's name."""
+def test_component_and_alias_name_relation_no_longer_matches(ecrt: ModuleType):
+    """ "openinwoner" merely contained in "Open Inwoner platform" is
+    UNKNOWN; "Open Inwoner (Portaal)" names it exactly."""
     deps = [("openinwoner", "")]
-    assert ecrt.component_and_alias("Portaal (Open Inwoner platform)", deps) == ("openinwoner", "")
+    assert ecrt.component_and_alias("Portaal (Open Inwoner platform)", deps) == ("UNKNOWN", "")
+    assert ecrt.component_and_alias("Open Inwoner (Portaal)", deps) == ("openinwoner", "")
 
 
 def test_component_and_alias_exact_match_takes_priority_over_alias_relation(ecrt: ModuleType):
@@ -251,20 +250,18 @@ def test_component_and_alias_multiple_when_two_dependencies_share_exact_alias(ec
     assert ecrt.component_and_alias("shared", deps) == ("MULTIPLE", "MULTIPLE")
 
 
-def test_component_and_alias_multiple_alias_relation_matches_is_multiple(ecrt: ModuleType):
-    """A genuine ambiguity at the (looser, substring) alias-relation
-    tier: "some kiss eck" isn't an exact alias match for either dependency
-    (ruling out tier 2), but contains both "kiss-chart"'s alias "kiss"
-    and "eck-stack"'s alias "kiss-eck" as whole words."""
-    deps = [("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")]
-    assert ecrt.component_and_alias("some kiss eck", deps) == ("MULTIPLE", "MULTIPLE")
+def test_component_and_alias_two_exact_matches_is_multiple(ecrt: ModuleType):
+    """Each part of "Foo (Bar)" exactly names a different dependency: an
+    ambiguity, never a guess."""
+    deps = [("foo", ""), ("bar", "")]
+    assert ecrt.component_and_alias("Foo (Bar)", deps) == ("MULTIPLE", "MULTIPLE")
 
 
-def test_component_and_alias_multiple_name_relation_matches_is_multiple(ecrt: ModuleType):
-    """Same ambiguity, but at the (alias-less) name-relation tier: "foo"
-    relates to both dependency names "foo-bar" and "foo-baz"."""
+def test_component_and_alias_shared_prefix_is_unknown_not_multiple(ecrt: ModuleType):
+    """ "foo" is only a prefix of "foo-bar" and "foo-baz": no exact match
+    at all."""
     deps = [("foo-bar", ""), ("foo-baz", "")]
-    assert ecrt.component_and_alias("foo", deps) == ("MULTIPLE", "MULTIPLE")
+    assert ecrt.component_and_alias("foo", deps) == ("UNKNOWN", "")
 
 
 def test_component_and_alias_never_relates_mid_word(ecrt: ModuleType) -> None:
@@ -319,12 +316,13 @@ def test_component_and_alias_resolves_via_orphan_key(ecrt: ModuleType):
 
 def test_component_and_alias_real_dependency_always_wins_over_orphan_key(ecrt: ModuleType):
     """An orphan key must never hijack a name that already resolves
-    through a real dependency, even if the orphan key would also
-    relate — orphan "widget" must not steal "Widget" away from
-    dependency "widget-operator" via the name-relation tier."""
+    through a real dependency: "Widget operator (widget)" names both
+    dependency "widget-operator" and orphan key "widget" exactly, and
+    the dependency wins."""
     deps = [("widget-operator", "")]
     orphans = [("widget", "")]
-    assert ecrt.component_and_alias("Widget", deps, orphans) == ("widget-operator", "")
+    assert ecrt.component_and_alias("Widget operator (widget)", deps, orphans) == ("widget-operator", "")
+    assert ecrt.component_and_alias("Widget", deps, orphans) == ("widget", "")
 
 
 def test_component_and_alias_native_component_exact_match_beats_loose_dependency(ecrt: ModuleType):
@@ -342,47 +340,53 @@ def test_component_and_alias_native_component_exact_match_beats_loose_dependency
 
 
 def test_component_and_alias_orphan_key_multiple(ecrt: ModuleType):
-    """The same ambiguity detection applies to the orphan-key fallback
-    pool: two orphan keys relating to the same text is MULTIPLE, not a
-    silent pick."""
+    """The same ambiguity detection applies to the orphan-key pool: two
+    orphan keys each named exactly is MULTIPLE, not a silent pick."""
     orphans = [("foo-bar", ""), ("foo-baz", "")]
-    assert ecrt.component_and_alias("foo", [], orphans) == ("MULTIPLE", "MULTIPLE")
+    assert ecrt.component_and_alias("Foo Bar (foo baz)", [], orphans) == ("MULTIPLE", "MULTIPLE")
 
 
 def test_component_and_alias_still_unknown_when_no_orphan_key_relates_either(ecrt: ModuleType):
     assert ecrt.component_and_alias("Open Zaak", [], [("frankgateway", "")]) == ("UNKNOWN", "")
 
 
-# --- global_image_keys ---
+# --- global_image_names ---
 
 
-def test_global_image_keys_returns_keys_under_global_images(ecrt: ModuleType, tmp_path: Path):
+def test_global_image_names_returns_keys_under_global_images(ecrt: ModuleType, tmp_path: Path):
     write_values_yaml_with_global_images(tmp_path, ["nginx", "curl", "busybox"])
-    assert ecrt.global_image_keys(tmp_path) == ["nginx", "curl", "busybox"]
+    assert ecrt.global_image_names(tmp_path) == ["nginx", "curl", "busybox"]
 
 
-def test_global_image_keys_missing_values_yaml_returns_empty(ecrt: ModuleType, tmp_path: Path):
-    assert ecrt.global_image_keys(tmp_path) == []
+def test_global_image_names_adds_each_image_basename(ecrt: ModuleType, tmp_path: Path):
+    (tmp_path / "values.yaml").write_text(
+        "global:\n  images:\n    nginx:\n      repository: nginxinc/nginx-unprivileged\n"
+        "    curl:\n      repository: curlimages/curl\n",
+        encoding="utf-8",
+    )
+    assert ecrt.global_image_names(tmp_path) == ["nginx", "curl", "nginx-unprivileged"]
 
 
-def test_global_image_keys_missing_global_images_returns_empty(ecrt: ModuleType, tmp_path: Path):
+def test_global_image_names_missing_values_yaml_returns_empty(ecrt: ModuleType, tmp_path: Path):
+    assert ecrt.global_image_names(tmp_path) == []
+
+
+def test_global_image_names_missing_global_images_returns_empty(ecrt: ModuleType, tmp_path: Path):
     write_values_yaml(tmp_path, ["frankgateway"])
-    assert ecrt.global_image_keys(tmp_path) == []
+    assert ecrt.global_image_names(tmp_path) == []
 
 
 # --- component_and_alias: global image key fallback ---
 
 
 def test_component_and_alias_global_image_key_is_always_multiple(ecrt: ModuleType):
-    """ "Nginx unprivileged" relates to nothing else at all, but does
-    relate to global image key "nginx" — a key that exists specifically
-    because it's shared, via YAML anchor, across multiple unrelated
-    components, so it's reported as MULTIPLE rather than a single
-    component, even though only one key matched."""
-    assert ecrt.component_and_alias("Nginx unprivileged", [], [], ["nginx", "curl", "busybox"]) == (
-        "MULTIPLE",
-        "MULTIPLE",
-    )
+    """ "Nginx (unprivileged)" names global image key "nginx" exactly — a
+    key that exists specifically because it's shared, via YAML anchor,
+    across multiple unrelated components — so it's MULTIPLE. "Nginx
+    unprivileged" only contains the key: UNKNOWN."""
+    keys = ["nginx", "curl", "busybox"]
+    assert ecrt.component_and_alias("Nginx (unprivileged)", [], [], keys) == ("MULTIPLE", "MULTIPLE")
+    assert ecrt.component_and_alias("Nginx unprivileged", [], [], keys) == ("UNKNOWN", "")
 
 
 def test_component_and_alias_real_dependency_always_wins_over_global_image_key(ecrt: ModuleType):

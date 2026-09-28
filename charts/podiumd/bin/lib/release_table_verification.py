@@ -399,11 +399,13 @@ def missing_image_hint(
     export-confluence-release-table's own resolve_image_basenames/
     component_and_alias resolve it right back to this same component/
     basename on the next export — a human is free to phrase the row's
-    actual "Name" however reads best (e.g. "ZAC Gotenberg", not
-    literally "gotenberg"); the one hard requirement, spelled out here
-    so a re-export doesn't silently leave it unresolved again, is that
-    the text contain `basename` (matched by substring — see lib
-    "_related" in export-confluence-release-table).
+    actual "Name" however reads best, as long as it ends in the exact
+    identifier between brackets (the export matches exactly, see lib.
+    release_table.component_resolution.exact_match): "<name> (<image
+    basename>)" for a sidecar or MULTIPLE row (e.g. "ZAC Gotenberg
+    (gotenberg)"), "<name> (<scope key>)" for a component's own row,
+    whose primary image basenames then follow from its registered
+    image paths.
 
     A real (non-MULTIPLE) component's own PRIMARY image (see
     is_primary_image) goes on whichever table its own existing row is
@@ -437,10 +439,10 @@ def missing_image_hint(
     version_text = ", ".join(sorted(versions))
     if ref.component != MULTIPLE_KEY and not primary:
         where = TECHNISCHE_TABLE_HINT
-        what = f'"Used by": "{ref.scope_key}", Name containing "{basename}"'
+        what = f'"Used by": "{ref.scope_key}", Name "<name> ({basename})"'
     else:
         where = confluence_table_hint(rows, ref.component)
-        what = f'Name containing "{basename}"'
+        what = f'Name "<name> ({ref.scope_key if primary else basename})"'
     return f"Confluence: add row to {where} — {what}, App version (currently) {version_text}"
 
 

@@ -1,4 +1,4 @@
-"""main() integration tests, and basenames_under_scope / match_one /
+"""main() integration tests, and basenames_under_scope / exact_match /
 resolve_image_basenames — with fetch_page_html mocked out, so no network
 access or real Confluence page is needed."""
 
@@ -10,8 +10,7 @@ from types import ModuleType
 import pytest
 
 from lib.image.version import basenames_under_scope
-from lib.release_table.component_resolution import extra_scope_keys_by_component
-from lib.release_table.component_resolution import match_one
+from lib.release_table.component_resolution import exact_match
 
 
 def write_chart_yaml_with_dependencies(chart_dir, deps):
@@ -235,7 +234,7 @@ def test_main_writes_lf_line_endings(ecrt: ModuleType, tmp_path: Path, monkeypat
     assert b"\n" in raw
 
 
-# --- basenames_under_scope / match_one / resolve_image_basenames ---
+# --- basenames_under_scope / exact_match / resolve_image_basenames ---
 
 DIGEST_A = "a" * 64
 DIGEST_B = "b" * 64
@@ -246,37 +245,34 @@ def write_values_yaml_raw(chart_dir, text):
     (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
 
 
-def test_match_one_exact_beats_containment():
-    """ "Solr" exactly equals candidate "solr", so it must win outright —
-    even though "solr" also relates to "solr-operator" by containment."""
-    assert match_one("Solr", {"solr", "solr-operator"}) == "solr"
+def test_exact_match_whole_name():
+    assert exact_match("Solr", {"solr", "solr-operator"}) == "solr"
 
 
-def test_match_one_falls_back_to_unambiguous_containment():
-    """ "Redis-ha" doesn't exactly equal any candidate, but relates to
-    exactly one ("redis", contained in "redisha") — resolved via the
-    fallback tier."""
-    assert match_one("Redis-ha", {"redis-operator", "redis", "redis-exporter"}) == "redis"
+def test_exact_match_never_falls_back_to_containment():
+    """ "Redis-ha" only contains "redis" — no exact match, so no match:
+    the Confluence name must say "Redis HA (redis)"."""
+    assert exact_match("Redis-ha", {"redis-operator", "redis", "redis-exporter"}) is None
+    assert exact_match("Redis HA (redis)", {"redis-operator", "redis", "redis-exporter"}) == "redis"
 
 
-def test_match_one_bracket_content_resolves_a_role_named_row():
+def test_exact_match_bracket_content_resolves_a_role_named_row():
     """ "Zookeeper operator hooks (k8s-kubectl)" shares no text at all with
     "k8s-kubectl" as a whole string, but name_candidates' bracket
     extraction tries the bracket content on its own, which matches
     exactly."""
-    assert match_one("Zookeeper operator hooks (k8s-kubectl)", {"k8s-kubectl", "solr"}) == "k8s-kubectl"
+    assert exact_match("Zookeeper operator hooks (k8s-kubectl)", {"k8s-kubectl", "solr"}) == "k8s-kubectl"
 
 
-def test_match_one_ambiguous_exact_match_is_none():
+def test_exact_match_ambiguous_is_none():
     """ "Foo (Bar)" yields candidates "foobar", "foo", AND "bar" (see
     name_candidates) — two DIFFERENT options each exactly matching a
-    different one of those candidates is still an ambiguity, never a
-    guess."""
-    assert match_one("Foo (Bar)", {"foo", "bar"}) is None
+    different one of those candidates is an ambiguity, never a guess."""
+    assert exact_match("Foo (Bar)", {"foo", "bar"}) is None
 
 
-def test_match_one_no_relation_is_none():
-    assert match_one("ITA Poller", {"internetaakafhandeling.poller"}) is None
+def test_exact_match_no_match_is_none():
+    assert exact_match("ITA Poller", {"internetaakafhandeling.poller"}) is None
 
 
 def test_basenames_under_scope_finds_nested_pins(tmp_path: Path):
@@ -378,8 +374,8 @@ zac:
 
 def test_resolve_image_basenames_primary_row_gets_leftover_after_technische_claims(ecrt: ModuleType, tmp_path: Path):
     """Once every "used_by"-tagged sibling has claimed its own basename,
-    whatever's left under that component's scope — here, just its own
-    top-level image — goes to the primary (used_by-blank) row."""
+    the component's registered primary image (here the default "image"
+    path) goes to the primary (used_by-blank) row."""
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -435,14 +431,11 @@ frankgateway:
 
 def test_resolve_image_basenames_primary_row_first_refusal_is_exact_match_only(ecrt: ModuleType, tmp_path: Path):
     """redis-operator's own primary row name ("Redis Operator") merely
-    CONTAINS basename "redis" as a substring ("redisoperator") — a much
-    weaker signal than frankgateway's EXACT match. Letting primary claim
-    on this fuzzy tier too regressed this real case: "redis" (the actual
-    Redis server image) belongs to the more specific "Redis-ha" sibling
-    row, not the generic "Redis Operator" umbrella row (whose own target
-    version is the operator CHART's own release number, not any single
-    image's version at all — it correctly stays blank, exactly as before
-    this whole fix)."""
+    CONTAINS basename "redis" — never a match: "redis" (the actual Redis
+    server image) belongs to the sibling row naming it exactly ("Redis
+    HA (redis)"), not the generic "Redis Operator" umbrella row (whose
+    own target version is the operator CHART's own release number, not
+    any single image's version at all — it correctly stays blank)."""
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -459,17 +452,19 @@ redis-operator:
     )
     rows = [
         ["Overige", "", "", "Redis Operator", "redis-operator", "", "1", "1", "1", "1"],
-        ["Technische", "", "redis-operator", "Redis-ha", "redis-operator", "", "1", "1", "1", "1"],
+        ["Technische", "", "redis-operator", "Redis HA (redis)", "redis-operator", "", "1", "1", "1", "1"],
         ["Technische", "", "redis-operator", "Redis Exporter", "redis-operator", "", "1", "1", "1", "1"],
     ]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["", "redis", "redis-exporter"]
+    rows[1][3] = "Redis-ha"  # only contains "redis": no exact match
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["", "", "redis-exporter"]
 
 
 def test_resolve_image_basenames_primary_row_gets_multiple_leftover_basenames(ecrt: ModuleType, tmp_path: Path):
-    """A component with no Technische breakdown at all (e.g.
-    zgw-office-addin, whose frontend and backend always move in
-    lockstep and share one row/version) gets every leftover basename
-    comma-joined onto its single primary row."""
+    """A component with several registered primary images (zgw-office-
+    addin's frontend and backend, which always move in lockstep and
+    share one row/version) gets all of them comma-joined onto its
+    single primary row."""
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -534,33 +529,6 @@ def test_resolve_image_basenames_unknown_component_is_blank(ecrt: ModuleType, tm
     assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
 
 
-def test_resolve_image_basenames_finds_image_under_a_related_orphan_key(ecrt: ModuleType, tmp_path: Path):
-    """A dependency's app image can live under a separate, related
-    values.yaml block (here "widget" for dependency "widget-operator"):
-    an orphan key that itself relates to the dependency (see
-    extra_scope_keys_by_component) must be scanned too, not just the
-    dependency's own top-level key."""
-    write_chart_yaml_with_dependencies(tmp_path, [("widget-operator", None)])
-    write_values_yaml_raw(
-        tmp_path,
-        f"""\
-widget-operator:
-  initImage:
-    repository: python
-    tag: "3.14.7-slim@sha256:{DIGEST_A}"
-widget:
-  image:
-    repository: example/widget
-    tag: "1.2.3@sha256:{DIGEST_B}"
-""",
-    )
-    rows = [
-        ["Overige", "", "", "Widget", "widget-operator", "", "1", "1", "1", "1"],
-        ["Technische", "", "widget-operator", "Python", "widget-operator", "", "1", "1", "1", "1"],
-    ]
-    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["widget", "python"]
-
-
 def test_resolve_image_basenames_native_component_scans_its_own_key(ecrt: ModuleType, tmp_path: Path):
     """The native keycloak component (default native_components) is its
     own component: its server image and keycloak-config-cli resolve
@@ -591,21 +559,6 @@ keycloak-operator:
         ["Technische", "", "keycloak", "Keycloak Config CLI", "keycloak", "", "", "", "1", ""],
     ]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["keycloak", "keycloak-operator", "keycloak-config-cli"]
-
-
-def test_extra_scope_keys_by_component_ignores_multiple_and_unrelated_orphan_keys(tmp_path: Path):
-    write_chart_yaml_with_dependencies(tmp_path, [("widget-operator", None)])
-    write_values_yaml_raw(tmp_path, "widget: {}\nunrelated: {}\n")
-    extra = extra_scope_keys_by_component(tmp_path)
-    assert extra == {"widget-operator": ["widget"]}
-
-
-def test_extra_scope_keys_by_component_never_adds_a_native_component_key(tmp_path: Path):
-    """ "keycloak" relates to dependency "keycloak-operator", but it is a
-    native component (default native_components), not extra scope."""
-    write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None)])
-    write_values_yaml_raw(tmp_path, "keycloak: {}\n")
-    assert extra_scope_keys_by_component(tmp_path) == {}
 
 
 def test_extract_release_rows_end_to_end_populates_image_basename(ecrt: ModuleType, tmp_path: Path):
@@ -719,3 +672,52 @@ keycloak-operator:
     )
     rows = [["Overige", "", "", "Keycloak", "keycloak-operator", "", "1", "1", "1", "1"]]
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["keycloak"]
+
+
+def test_resolve_image_basenames_unclaimed_sidecar_is_not_given_to_the_primary_row(ecrt: ModuleType, tmp_path: Path):
+    """An unclaimed image that isn't on a registered primary path (here
+    zac's otel collector, with no row naming it) stays unassigned — the
+    primary row gets only its own registered primary image, and
+    verify-release-table-with-podiumd reports the untracked image."""
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zaakafhandelcomponent
+    tag: "5.0.0@sha256:{DIGEST_A}"
+  opentelemetry-collector:
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: "0.158.0@sha256:{DIGEST_B}"
+""",
+    )
+    rows = [["Product", "", "", "ZAC (zaakafhandelcomponent)", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"]]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["zaakafhandelcomponent"]
+
+
+def test_resolve_image_basenames_multiple_row_resolves_via_global_image_basename(ecrt: ModuleType, tmp_path: Path):
+    """A MULTIPLE row may name the global.images entry by its image
+    basename instead of its key: "Nginx (nginx-unprivileged)"."""
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
+global:
+  images:
+    nginx:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.6@sha256:{DIGEST_A}"
+""",
+    )
+    rows = [
+        ["Overige", "", "", "Nginx (unprivileged)", "MULTIPLE", "MULTIPLE", "1", "", "1", ""],
+        ["Overige", "", "", "Nginx (nginx-unprivileged)", "MULTIPLE", "MULTIPLE", "1", "", "1", ""],
+        ["Overige", "", "", "Nginx unprivileged", "MULTIPLE", "MULTIPLE", "1", "", "1", ""],
+        ["Overige", "", "", "Nginx proxy", "MULTIPLE", "MULTIPLE", "1", "", "1", ""],
+    ]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == [
+        "nginx-unprivileged",
+        "nginx-unprivileged",
+        "nginx-unprivileged",
+        "",
+    ]
