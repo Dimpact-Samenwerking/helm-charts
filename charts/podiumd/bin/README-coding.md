@@ -10,6 +10,7 @@ the test suite and the linters. For installing the tools themselves (`ruff`,
 - [Running the tests](#running-the-tests)
 - [Running the linters](#running-the-linters)
   - [ruff (lint + format)](#ruff-lint--format)
+  - [shellcheck (shell scripts)](#shellcheck-shell-scripts)
   - [vulture (dead code)](#vulture-dead-code)
   - [bandit (security)](#bandit-security)
   - [pylint](#pylint)
@@ -92,6 +93,18 @@ blank lines, quote style). Still worth running `ruff format --check` again
 right after formatting once, to confirm it's idempotent (0 further changes) —
 it always has been so far, but that's a cheap, worthwhile sanity check whenever
 a lot of files change at once.
+
+### shellcheck (shell scripts)
+
+```bash
+shellcheck run_python_checks
+```
+
+Lints the shell scripts under `bin/`: every file whose first line is a
+`sh`/`bash`/`dash`/`ksh` shebang, plus any `*.sh` file. Today that is only
+`run_python_checks` itself. shellcheck has no configuration here; a
+deliberate exception gets a `# shellcheck disable=SCxxxx` comment on the line
+it applies to, with the reason.
 
 ### vulture (dead code)
 
@@ -198,7 +211,8 @@ cd charts/podiumd/bin
 ```
 
 Runs everything above fastest-first, stopping at the first failure: `ruff
-check` (~0.03s) → `ruff format --check` (~0.05s) → `pymarkdown` (~0.5s) →
+check` (~0.03s) → `shellcheck` (~0.05s) → `ruff format --check` (~0.05s) →
+`pymarkdown` (~0.5s) →
 `vulture` (~0.5s) →
 `bandit` (~1.7s) → `pylint` (~6s) → `basedpyright` (~8.6s) → `pytest` (the
 full suite, ~2-3 minutes) — measured, not guessed, so a real problem in the
@@ -211,6 +225,7 @@ docs, with the same rules as `verify-podiumd`'s markdown check, which skips
 ```bash
 cd charts/podiumd/bin
 ruff check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
+shellcheck run_python_checks
 ruff format --check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 pymarkdown -d md013,md014 -s 'plugins.md024.siblings_only=$!True' scan ./*.md
 vulture lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
