@@ -17,6 +17,8 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.nested_subchart_identity import nested_subchart_documented_image_repository
 from lib.chart.nested_subchart_identity import nested_subchart_name_for
 from lib.chart.nested_subchart_identity import version_repository_path_for
+from lib.chart.pull_and_subchart_resolution import formatted_repo
+from lib.chart.pull_and_subchart_resolution import own_full_repository
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.pull_and_subchart_resolution import subchart_values
 from lib.chart.registered_paths import image_paths_for
@@ -29,7 +31,6 @@ from lib.chart.values_tree_primitives import find_dependency
 from lib.chart.values_tree_primitives import strip_registry_host
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
-from lib.registry import parse_repo
 from lib.release_baseline import resolve_baseline_chart_state
 from lib.yaml_types import YamlMapping
 
@@ -258,7 +259,7 @@ def _grouped_repository_for_path(
     the tier order) — podiumd's own explicit override checked first,
     regardless of whether `dep` is even known; every other tier needs a
     real `dep` to resolve anything at all."""
-    own_repo = _full_repo_from_own_override(values, path)
+    own_repo = own_full_repository(values, path)
     if own_repo is not None:
         return strip_registry_host(own_repo)
     if dep is None:
@@ -273,7 +274,7 @@ def repository_group_key(repository: str) -> str:
     and "library/" added), then the host stripped. "python" and
     "docker.io/library/python" both give "library/python",
     "mcr.microsoft.com/azure-cli" gives "azure-cli"."""
-    return strip_registry_host(_formatted_repo(repository))
+    return strip_registry_host(formatted_repo(repository))
 
 
 def _grouped_repository_from_dependency(
@@ -403,7 +404,7 @@ def full_repository_for_path(
     None when `path` doesn't resolve to a repository at all — same
     "nothing to fall back to" cases as paths_by_repository's own
     docstring."""
-    own_repo = _full_repo_from_own_override(values, path)
+    own_repo = own_full_repository(values, path)
     if own_repo is not None:
         return own_repo
 
@@ -412,31 +413,6 @@ def full_repository_for_path(
     if dep is None:
         return None
     return _full_repo_from_dependency(chart_dir, dep, path, values, allow_pull=allow_pull)
-
-
-def _formatted_repo(repo: str):
-    """A "repository:" string as-read, resolved to its full host-
-    qualified form via parse_repo (Docker Hub inferred when no host is
-    embedded, a no-op when one already is)."""
-    host, repo_path = parse_repo(repo)
-    return f"{host}/{repo_path}"
-
-
-def _full_repo_from_own_override(values: YamlMapping | None, path: tuple[str, ...]):
-    """full_repository_for_path's own "podiumd values.yaml override"
-    tier (see that function's own docstring for the registry-sibling /
-    Docker-Hub-inference rules), or None when there's no own override
-    at `path` at all."""
-    own_repo = text_at(values, ".".join(path) + ".repository")
-    if not (isinstance(own_repo, str) and own_repo):
-        return None
-    registry = text_at(values, ".".join(path) + ".registry")
-    if isinstance(registry, str) and registry:
-        registry_head = registry.partition("/")[0]
-        if "." in registry_head or ":" in registry_head or registry_head == "localhost":
-            return f"{registry}/{own_repo}"
-        return _formatted_repo(f"{registry}/{own_repo}")
-    return _formatted_repo(own_repo)
 
 
 def _full_repo_from_dependency(
@@ -450,14 +426,14 @@ def _full_repo_from_dependency(
     if sibling_rel:
         sibling_repo = text_at(values, f"{path[0]}.{sibling_rel}")
         if isinstance(sibling_repo, str) and sibling_repo:
-            return _formatted_repo(sibling_repo)
+            return formatted_repo(sibling_repo)
 
     nested_rel = ".".join(path[1:])
     nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel, chart_dir)
     if nested_chart_name and chart_dir is not None:
         nested_repo = nested_subchart_documented_image_repository(chart_dir, dep, nested_chart_name)
         if nested_repo:
-            return _formatted_repo(nested_repo)
+            return formatted_repo(nested_repo)
 
     if chart_dir is None:
         return None
@@ -465,7 +441,7 @@ def _full_repo_from_dependency(
     if sub_values is None:
         return None
     repo = text_at(sub_values, ".".join(path[1:]) + ".repository")
-    return _formatted_repo(repo) if isinstance(repo, str) and repo else None
+    return formatted_repo(repo) if isinstance(repo, str) and repo else None
 
 
 def repository_path_map(

@@ -206,6 +206,40 @@ def test_check_image_versions_raises_when_no_path_has_a_repository(
         libchartpullandsubchartresolution.check_image_versions(values, ["image"], "5.4.3")
 
 
+def test_check_image_versions_honours_sibling_registry(
+    monkeypatch: pytest.MonkeyPatch, libchartpullandsubchartresolution: ModuleType
+):
+    """openbao's server.image splits "registry: quay.io" from "repository:
+    openbao/openbao" — the check must go to quay.io, not Docker Hub."""
+    checked = []
+
+    def fake_registry_tag_exists(host, repo, tag):
+        checked.append((host, repo))
+        return True, "sha256:fake"
+
+    monkeypatch.setattr(libchartpullandsubchartresolution, "registry_tag_exists", fake_registry_tag_exists)
+    values = {"server": {"image": {"registry": "quay.io", "repository": "openbao/openbao"}}}
+    libchartpullandsubchartresolution.check_image_versions(values, ["server.image"], "2.5.5")
+    assert checked == [("quay.io", "openbao/openbao")]
+
+
+# --- component_check_values ---
+
+
+def test_component_check_values_overlays_podiumd_values_without_mutating(
+    libchartpullandsubchartresolution: ModuleType,
+):
+    """podiumd's own component block is merged over the chart's values:
+    its overrides win and its own image blocks (openbao's
+    configuration.job.image, unknown to the chart) are added."""
+    chart_values = {"server": {"image": {"registry": "quay.io", "repository": "openbao/openbao", "tag": ""}}}
+    podiumd = {"configuration": {"job": {"image": {"repository": "quay.io/openbao/openbao"}}}}
+    merged = libchartpullandsubchartresolution.component_check_values(chart_values, podiumd)
+    assert merged["configuration"]["job"]["image"]["repository"] == "quay.io/openbao/openbao"
+    assert merged["server"]["image"]["repository"] == "openbao/openbao"
+    assert "configuration" not in chart_values
+
+
 # --- version_of ---
 
 

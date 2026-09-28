@@ -41,14 +41,18 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
 from lib.chart.pull_and_subchart_resolution import check_image_versions
+from lib.chart.pull_and_subchart_resolution import component_check_values
 from lib.chart.pull_and_subchart_resolution import native_component_values
 from lib.chart.pull_and_subchart_resolution import print_image_version_results
 from lib.chart.pull_and_subchart_resolution import verify_chart_version
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import is_native_chart_version
 from lib.chart.registered_paths import resolve_native_component
+from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import require_dependency
+from lib.chart.values_tree_primitives import values_key_of
 from lib.cli import positional_args
+from lib.yaml_types import load_yaml_mapping
 
 
 def find_dependency(name_or_alias: str):
@@ -75,7 +79,9 @@ def main():
     else:
         dep = find_dependency(component)
         chart_name = dep["name"]
-        values = verify_chart_version(CHART_DIR, dep, chart_version)  # exits 1 itself if missing
+        chart_values = verify_chart_version(CHART_DIR, dep, chart_version)  # exits 1 itself if missing
+        podiumd_values = load_yaml_mapping(CHART_DIR / "values.yaml")
+        values = component_check_values(chart_values, mapping_at(podiumd_values, values_key_of(dep)))
     # image_paths_for is keyed by the Chart.yaml "name", never the alias
     # the user may have passed (e.g. "kiss" for dependency "kiss-chart").
     results = check_image_versions(values, image_paths_for(chart_name, CHART_DIR), app_version)

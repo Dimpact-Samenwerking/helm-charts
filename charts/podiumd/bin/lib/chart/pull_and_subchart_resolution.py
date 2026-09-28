@@ -8,6 +8,7 @@ paths (its own image repositories, whichever source resolved), and
 resolved_digest_pin (an unrelated but equally small digest-pin leaf,
 grouped here rather than starting its own module)."""
 
+import copy
 import shutil
 import sys
 import tempfile
@@ -20,6 +21,7 @@ from lib.chart.chart_yaml import parse_chart_app_version
 from lib.chart.chart_yaml import parse_chart_dependencies
 from lib.chart.nested_subchart_identity import nested_subchart_raw_text
 from lib.chart.registered_paths import image_paths_for
+from lib.chart.values_tree_primitives import deep_merge
 from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
@@ -191,6 +193,45 @@ def native_component_values(chart_dir: Path, name: str) -> YamlMapping:
     return mapping_at(load_yaml_mapping(chart_dir / "values.yaml"), name)
 
 
+def formatted_repo(repo: str):
+    """A "repository:" string as-read, resolved to its full host-
+    qualified form via parse_repo (Docker Hub inferred when no host is
+    embedded, a no-op when one already is)."""
+    host, repo_path = parse_repo(repo)
+    return f"{host}/{repo_path}"
+
+
+def own_full_repository(values: YamlMapping | None, path: tuple[str, ...]):
+    """The fully host-qualified repository of the image block at `path`
+    in `values`, honouring a sibling "registry:" key (e.g. openbao's
+    server.image "registry: quay.io" + "repository: openbao/openbao"),
+    or None when `path` has no "repository:" at all. See lib.chart.
+    repo_and_path_resolution.full_repository_for_path for the full
+    resolution chain this is the first tier of."""
+    own_repo = text_at(values, ".".join(path) + ".repository")
+    if not (isinstance(own_repo, str) and own_repo):
+        return None
+    registry = text_at(values, ".".join(path) + ".registry")
+    if isinstance(registry, str) and registry:
+        registry_head = registry.partition("/")[0]
+        if "." in registry_head or ":" in registry_head or registry_head == "localhost":
+            return f"{registry}/{own_repo}"
+        return formatted_repo(f"{registry}/{own_repo}")
+    return formatted_repo(own_repo)
+
+
+def component_check_values(chart_values: YamlMapping, component_values: YamlMapping | None) -> YamlMapping:
+    """A copy of a chart's own values.yaml with podiumd's own values for
+    that component (its top-level values.yaml block) merged on top, the
+    way Helm layers them — so check_image_versions sees podiumd's own
+    "repository:" overrides and podiumd-only image blocks (e.g. openbao's
+    configuration.job.image). Shared by update-component-version and
+    verify-component-version."""
+    merged = copy.deepcopy(chart_values)
+    deep_merge(merged, component_values or {})
+    return merged
+
+
 def check_image_versions(values: YamlMapping, image_paths: list[str], app_version: str) -> list[ImagePathTagCheck]:
     """[{"path", "repository", "host", "repo_path", "exists", "digest"},
     ...] for every path in `image_paths` (see image_paths_for) that has a
@@ -211,8 +252,8 @@ def check_image_versions(values: YamlMapping, image_paths: list[str], app_versio
     repos = [
         (path, repo)
         for path in image_paths
-        for repo in [text_at(values, f"{path}.repository")]
-        if isinstance(repo, str) and repo
+        for repo in [own_full_repository(values, tuple(path.split(".")))]
+        if repo is not None
     ]
     if not repos:
         msg = (

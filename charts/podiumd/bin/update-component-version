@@ -28,7 +28,6 @@ Examples:
 Re-render the chart (verify-podiumd) before committing.
 """
 
-import copy
 import re
 import sys
 
@@ -49,6 +48,7 @@ from lib.chart.paths import DOC_DIR
 from lib.chart.paths import IMAGES_DIR
 from lib.chart.paths import VALUES_YAML
 from lib.chart.pull_and_subchart_resolution import check_image_versions
+from lib.chart.pull_and_subchart_resolution import component_check_values
 from lib.chart.pull_and_subchart_resolution import print_image_version_results
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
 from lib.chart.registered_paths import chart_version_lockstep_components
@@ -63,7 +63,6 @@ from lib.chart.values_tag_sha_lines import find_child_key_line
 from lib.chart.values_tag_sha_lines import locate_dotted_key_line
 from lib.chart.values_tag_sha_lines import locate_tag_and_sha
 from lib.chart.values_tag_sha_lines import write_tag_and_sha
-from lib.chart.values_tree_primitives import deep_merge
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import replace_scalar_value
@@ -165,8 +164,7 @@ def verify_component_version(
         print("FAIL: chart version does not exist — refusing to change any files")
         sys.exit(1)
 
-    values_for_check = copy.deepcopy(upstream_values)
-    deep_merge(values_for_check, component_values or {})
+    values_for_check = component_check_values(upstream_values, component_values)
     print(f"\nChecking app version {app_version!r} for {values_key_of(dep)}:")
     return _check_and_print_image_versions(values_for_check, image_paths, app_version)
 
