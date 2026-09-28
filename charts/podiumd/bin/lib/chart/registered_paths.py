@@ -7,6 +7,7 @@ component's own PRIMARY image path (as opposed to a sidecar)."""
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
+from lib.chart.paths import CHART_DIR
 from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import same_name
 from lib.chart.values_tree_primitives import values_key_of
@@ -25,7 +26,7 @@ def component_image_paths(chart_dir: Path | None = None):
     lockstep_mismatches iterates this WHOLE dict directly (not per-
     component), so it needs a whole-dict self-resolving wrapper too, not
     just the per-component image_paths_for below."""
-    chart_dir = chart_dir or Path(__file__).resolve().parents[2]
+    chart_dir = chart_dir or CHART_DIR
     return component_resolution_image_paths(chart_dir)
 
 
@@ -43,7 +44,7 @@ def image_paths_for(component: str, chart_dir: Path | None = None):
     paths = component_image_paths(chart_dir)
     if component in paths:
         return paths[component]
-    resolved = chart_dir or Path(__file__).resolve().parents[2]
+    resolved = chart_dir or CHART_DIR
     return component_resolution_default_image_paths(resolved)
 
 
@@ -64,7 +65,7 @@ def component_version_paths(chart_dir: Path | None = None):
     version_paths — same whole-dict shape as component_image_paths above,
     needed for the exact same reason (lib.checks.lockstep.find_lockstep_
     mismatches iterates this whole dict too)."""
-    chart_dir = chart_dir or Path(__file__).resolve().parents[2]
+    chart_dir = chart_dir or CHART_DIR
     return component_resolution_version_paths(chart_dir)
 
 
@@ -98,7 +99,7 @@ def native_components(chart_dir: Path | None = None):
     """Self-resolving wrapper around lib.settings.component_resolution_
     native_components — same shape as chart_version_lockstep_components
     below."""
-    chart_dir = chart_dir or Path(__file__).resolve().parents[2]
+    chart_dir = chart_dir or CHART_DIR
     return component_resolution_native_components(chart_dir)
 
 
@@ -151,10 +152,8 @@ def chart_version_lockstep_components(chart_dir: Path | None = None):
     ceremony (unlike lib.settings' own accessors, which always take it
     explicitly); this preserves that property for a caller with no
     chart_dir in scope, while still accepting an explicit override for
-    tests. bin/lib/chart.py always lives at <chart_dir>/bin/lib/chart.py,
-    so parents[2] from this file's own location IS chart_dir when no
-    override is given."""
-    chart_dir = chart_dir or Path(__file__).resolve().parents[2]
+    tests. Defaults to lib.chart.paths.CHART_DIR."""
+    chart_dir = chart_dir or CHART_DIR
     return component_resolution_chart_version_lockstep_components(chart_dir)
 
 

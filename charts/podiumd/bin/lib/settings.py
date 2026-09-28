@@ -11,8 +11,11 @@ missing (or null). A value that IS present must have the expected
 shape (see lib.yaml_types.shape_problem): a wrong type exits with an
 error naming the offending key, never a silent fallback to the default.
 
-Every accessor call re-reads settings.yaml from the chart_dir it is
-given (no caching); they are called a handful of times per run."""
+settings.yaml is parsed once per file version (path, mtime, size) and
+cached: the component-resolution accessors are called thousands of
+times per run."""
+
+import copy
 
 from pathlib import Path
 from typing import NoReturn
@@ -26,6 +29,8 @@ from lib.yaml_types import shape_problem
 
 SETTINGS_FILE_NAME = "etc/settings.yaml"
 
+_settings_cache: dict[tuple[Path, int, int], YamlMapping] = {}
+
 
 def _load_settings(chart_dir: Path) -> YamlMapping:
     """The parsed contents of chart_dir/etc/settings.yaml, or {} if the
@@ -36,7 +41,11 @@ def _load_settings(chart_dir: Path) -> YamlMapping:
     path = chart_dir / SETTINGS_FILE_NAME
     if not path.is_file():
         return {}
-    return load_yaml_mapping(path)
+    stat = path.stat()
+    key = (path.resolve(), stat.st_mtime_ns, stat.st_size)
+    if key not in _settings_cache:
+        _settings_cache[key] = load_yaml_mapping(path)
+    return copy.deepcopy(_settings_cache[key])
 
 
 def _setting(chart_dir: Path, section: str, key: str) -> YamlValue:
@@ -443,6 +452,7 @@ def component_resolution_image_paths(chart_dir: Path):
     "openbao": ["server.image"],
     "internetaakafhandeling": ["web.image", "poller.image"],
     "kiss-chart": ["image", "settings.syncJobs.image"],
+    "pabc": ["image", "migrations.image"],
     "eck-operator": ["image"]} — see etc/settings.yaml's own
     component_resolution.image_paths comment for the reasoning behind
     each entry."""
@@ -457,6 +467,7 @@ def component_resolution_image_paths(chart_dir: Path):
                 "openbao": ["server.image"],
                 "internetaakafhandeling": ["web.image", "poller.image"],
                 "kiss-chart": ["image", "settings.syncJobs.image"],
+                "pabc": ["image", "migrations.image"],
                 "eck-operator": ["image"],
             },
         )

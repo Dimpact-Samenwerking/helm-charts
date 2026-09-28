@@ -172,6 +172,7 @@ ACCESSOR_CASES = [
             "openbao": ["server.image"],
             "internetaakafhandeling": ["web.image", "poller.image"],
             "kiss-chart": ["image", "settings.syncJobs.image"],
+            "pabc": ["image", "migrations.image"],
             "eck-operator": ["image"],
         },
         {"widget": ["image"]},

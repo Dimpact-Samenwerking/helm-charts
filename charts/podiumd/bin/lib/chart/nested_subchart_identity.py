@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
+from lib.chart.paths import CHART_DIR
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.vendored_files import vendored_chart_file
 from lib.settings import component_resolution_version_path_nested_subcharts
@@ -61,11 +62,11 @@ def nested_subchart_registered_paths(component: str, chart_dir: Path | None = No
     one's own caller (lib.upgradedoc.find_component_version_tags) has
     no chart_dir at all, itself called from find_all_image_and_version_
     paths — 9+ call sites across 5 files, several levels removed from
-    any chart_dir-bearing function. Self-resolves via Path(__file__).
-    parents[2] by default (same pattern as lib.chart.chart_version_
-    lockstep_components), while still accepting an explicit override
-    for tests."""
-    chart_dir = chart_dir or Path(__file__).resolve().parents[2]
+    any chart_dir-bearing function. Defaults to lib.chart.paths.
+    CHART_DIR (same pattern as lib.chart.chart_version_lockstep_
+    components), while still accepting an explicit override for
+    tests."""
+    chart_dir = chart_dir or CHART_DIR
     return list(component_resolution_version_path_nested_subcharts(chart_dir).get(component, {}))
 
 

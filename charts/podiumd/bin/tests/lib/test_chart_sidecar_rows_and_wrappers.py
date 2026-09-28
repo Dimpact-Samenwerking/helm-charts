@@ -480,6 +480,7 @@ def test_component_image_paths_self_resolves_against_real_chart_dir(libchartregi
         "openbao": ["server.image"],
         "internetaakafhandeling": ["web.image", "poller.image"],
         "kiss-chart": ["image", "settings.syncJobs.image"],
+        "pabc": ["image", "migrations.image"],
         "eck-operator": ["image"],
     }
 
