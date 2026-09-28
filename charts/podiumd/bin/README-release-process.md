@@ -109,6 +109,26 @@ Checked by: `fix-doc-consistency`, `list-podiumd-images`, `render-podiumd`,
 step and `fix-image-digests` re-vendor the same way as a step of their own; `verify-podiumd --skip=dependencies` still re-vendors first
 when a step that needs the sub-charts runs.
 
+## Confluence release tables
+
+`export-confluence-release-table` resolves every Confluence row by exact
+matches only: after ignoring case, spaces and punctuation, the whole name,
+or the part before or inside its brackets, must equal an identifier. A row
+that doesn't match exactly gets component `UNKNOWN` and an empty image, and
+the export warns about it. Name rows as `<readable name> (<identifier>)`:
+
+- a component row: the Chart.yaml dependency name or alias, or the native
+  component (`etc/settings.yaml` `native_components`), e.g.
+  `ZAC (zaakafhandelcomponent)`, `Open Inwoner (Portaal)`, `Keycloak`; its
+  image follows from the component's registered image paths
+- a "Technische component versies" row: "Used by" names the component, the
+  name ends in the image basename, e.g. `Frank Gateway Etcd (etcd)`
+- a shared `global.images` image: the key or its image basename, e.g.
+  `Nginx (unprivileged)`
+
+`verify-release-table-with-podiumd` prints the exact name a missing row
+needs.
+
 ## Process steps
 
 ### Start a new release
