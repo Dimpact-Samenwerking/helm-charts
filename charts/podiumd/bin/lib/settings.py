@@ -12,8 +12,9 @@ shape (see lib.yaml_types.shape_problem): a wrong type exits with an
 error naming the offending key, never a silent fallback to the default.
 
 settings.yaml is parsed once per file version (path, mtime, size) and
-cached: the component-resolution accessors are called thousands of
-times per run."""
+cached (see lib.yaml_types.cached_file_mapping): the component-
+resolution accessors are called thousands of times per run. Each read
+copies only the value it returns."""
 
 import copy
 
@@ -24,12 +25,11 @@ from typing import TypedDict
 from lib.chart.values_tree_primitives import get_path
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlValue
+from lib.yaml_types import cached_file_mapping
 from lib.yaml_types import load_yaml_mapping
 from lib.yaml_types import shape_problem
 
 SETTINGS_FILE_NAME = "etc/settings.yaml"
-
-_settings_cache: dict[tuple[Path, int, int], YamlMapping] = {}
 
 
 def _load_settings(chart_dir: Path) -> YamlMapping:
@@ -37,21 +37,19 @@ def _load_settings(chart_dir: Path) -> YamlMapping:
     file doesn't exist yet — same missing-file tolerance as lib.chart.
     _release_baselines. Not a public accessor itself: callers want one
     of the named functions below, each of which reads one specific
-    dotted key and applies its own hard-coded default."""
+    dotted key and applies its own hard-coded default. The mapping is
+    shared by every caller (see cached_file_mapping) — never change it."""
     path = chart_dir / SETTINGS_FILE_NAME
     if not path.is_file():
         return {}
-    stat = path.stat()
-    key = (path.resolve(), stat.st_mtime_ns, stat.st_size)
-    if key not in _settings_cache:
-        _settings_cache[key] = load_yaml_mapping(path)
-    return copy.deepcopy(_settings_cache[key])
+    return cached_file_mapping(path, "", lambda: load_yaml_mapping(path)) or {}
 
 
 def _setting(chart_dir: Path, section: str, key: str) -> YamlValue:
     """settings[section][key], or None when settings.yaml, the section or
-    the key is missing (or null) — the caller then uses its default."""
-    return get_path(_load_settings(chart_dir), f"{section}.{key}")
+    the key is missing (or null) — the caller then uses its default. A
+    copy, so a caller can't change the cached settings."""
+    return copy.deepcopy(get_path(_load_settings(chart_dir), f"{section}.{key}"))
 
 
 def _wrong_type(section: str, key: str, expected: str) -> NoReturn:

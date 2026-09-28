@@ -26,12 +26,14 @@ from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
 from lib.chart.vendored_files import vendored_chart_file
+from lib.chart.vendored_files import vendored_chart_path
 from lib.procutil import run
 from lib.registry import ImagePathTagCheck
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.settings import DigestPinningException
 from lib.yaml_types import YamlMapping
+from lib.yaml_types import cached_file_mapping
 from lib.yaml_types import load_yaml_mapping
 from lib.yaml_types import parse_yaml_mapping
 from lib.yaml_types import scalar_text
@@ -288,9 +290,18 @@ def subchart_values(chart_dir: Path, dep: ChartDependency, version: str | None =
     ["version"], i.e. the currently-pinned version) — the same file Helm
     merges podiumd's own values.yaml under at render time. None if that
     exact version isn't vendored (not pulled yet, or a different version
-    is) or the .tgz doesn't have the expected layout."""
-    raw = vendored_chart_file(chart_dir, dep, "values.yaml", version)
-    return None if raw is None else parse_yaml_mapping(raw.decode("utf-8"), f"{dep['name']} values.yaml")
+    is) or the .tgz doesn't have the expected layout. Parsed once per
+    archive version (see cached_file_mapping); each call gets its own
+    copy, since callers merge into it."""
+    tgz_path = vendored_chart_path(chart_dir, dep, version)
+    if not tgz_path.is_file():
+        return None
+
+    def parse() -> YamlMapping | None:
+        raw = vendored_chart_file(chart_dir, dep, "values.yaml", version)
+        return None if raw is None else parse_yaml_mapping(raw.decode("utf-8"), f"{dep['name']} values.yaml")
+
+    return copy.deepcopy(cached_file_mapping(tgz_path, "values.yaml", parse))
 
 
 def subchart_app_version(chart_dir: Path, dep: ChartDependency, version: str | None = None):

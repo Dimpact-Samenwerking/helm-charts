@@ -6,6 +6,7 @@ this module."""
 
 import datetime
 
+from collections.abc import Callable
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TypeGuard
@@ -123,6 +124,21 @@ def is_yaml_value(value: object) -> TypeGuard[YamlValue]:
 def load_yaml_mapping(path: Path) -> YamlMapping:
     """parse_yaml_mapping of the file at `path`."""
     return parse_yaml_mapping(path.read_text(encoding="utf-8"), str(path))
+
+
+_file_mapping_cache: dict[tuple[Path, int, int, str], YamlMapping | None] = {}
+
+
+def cached_file_mapping(path: Path, part: str, load: Callable[[], YamlMapping | None]) -> YamlMapping | None:
+    """load()'s result, computed once per version of the file at `path`
+    (its resolved path, mtime and size) and `part` (what load reads from
+    it, e.g. an archive member; "" for the whole file). The result is
+    shared by every caller: copy whatever you change."""
+    stat = path.stat()
+    key = (path.resolve(), stat.st_mtime_ns, stat.st_size, part)
+    if key not in _file_mapping_cache:
+        _file_mapping_cache[key] = load()
+    return _file_mapping_cache[key]
 
 
 def scalar_text(value: YamlValue) -> str | None:

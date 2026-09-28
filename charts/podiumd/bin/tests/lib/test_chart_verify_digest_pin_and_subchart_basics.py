@@ -464,6 +464,27 @@ def test_subchart_values_missing_member_returns_none(tmp_path: Path, libchartpul
     assert libchartpullandsubchartresolution.subchart_values(tmp_path, dep) is None
 
 
+def test_subchart_values_returns_a_fresh_copy_each_call(tmp_path: Path, libchartpullandsubchartresolution: ModuleType):
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
+    dep = {"name": "openzaak", "version": "1.14.2"}
+    first = libchartpullandsubchartresolution.subchart_values(tmp_path, dep)
+    assert first is not None
+    first["image"] = "changed"
+    assert libchartpullandsubchartresolution.subchart_values(tmp_path, dep) == {
+        "image": {"repository": "openzaak/open-zaak"}
+    }
+
+
+def test_subchart_values_rereads_a_replaced_tgz(tmp_path: Path, libchartpullandsubchartresolution: ModuleType):
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
+    dep = {"name": "openzaak", "version": "1.14.2"}
+    assert libchartpullandsubchartresolution.subchart_values(tmp_path, dep) is not None
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "example/other-repository-name"}})
+    assert libchartpullandsubchartresolution.subchart_values(tmp_path, dep) == {
+        "image": {"repository": "example/other-repository-name"}
+    }
+
+
 # --- subchart_app_version ---
 
 

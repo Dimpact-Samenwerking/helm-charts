@@ -337,3 +337,18 @@ def test_digest_pinning_exceptions_partial_entry_defaults_missing_keys(libsettin
     result = libsettings.digest_pinning_exceptions(tmp_path)
     assert result[("writable-no-sibling", "image")] == {"sibling_field": None, "writable": True}
     assert result[("sibling-not-writable", "image")] == {"sibling_field": "sha", "writable": False}
+
+
+def test_setting_returns_a_copy_of_the_cached_value(libsettings: ModuleType, tmp_path: Path):
+    write_settings(tmp_path, FULL_SETTINGS)
+    levels = libsettings._setting(tmp_path, "cve_scan", "high_severity_levels")
+    assert isinstance(levels, list)
+    levels.append("CHANGED")
+    assert libsettings._setting(tmp_path, "cve_scan", "high_severity_levels") == ["CRITICAL", "HIGH", "MEDIUM"]
+
+
+def test_settings_are_reread_after_the_file_changes(libsettings: ModuleType, tmp_path: Path):
+    write_settings(tmp_path, FULL_SETTINGS)
+    assert libsettings.repo_access_cache_ttl_minutes(tmp_path) == 60
+    write_settings(tmp_path, {"repo_access": {"cache_ttl_minutes": 120}})
+    assert libsettings.repo_access_cache_ttl_minutes(tmp_path) == 120
