@@ -51,6 +51,7 @@ from lib.release_table.component_resolution import DependencyNames
 from lib.release_table.component_resolution import chart_dependencies
 from lib.release_table.component_resolution import component_and_alias
 from lib.release_table.component_resolution import global_image_keys
+from lib.release_table.component_resolution import native_component_keys
 from lib.release_table.component_resolution import orphan_values_yaml_keys
 from lib.release_table.csv_rows import CSV_HEADER
 from lib.release_table.image_basenames import resolve_image_basenames
@@ -351,8 +352,8 @@ def resolve_token(args: argparse.Namespace):
 
 @dataclass
 class ComponentResolutionContext:
-    """dependencies/orphan_keys/global_keys — extract_release_rows'
-    own three component_and_alias resolution inputs, resolved once up
+    """dependencies/orphan_keys/global_keys/native_keys — extract_
+    release_rows' own component_and_alias resolution inputs, resolved once up
     front and threaded unchanged through _rows_for_table/_release_row_
     from_data_row so every row in every table resolves against the
     exact same values (never re-derived per-row/per-table)."""
@@ -360,6 +361,7 @@ class ComponentResolutionContext:
     dependencies: list[DependencyNames]
     orphan_keys: list[DependencyNames]
     global_keys: list[str]
+    native_keys: list[DependencyNames]
 
 
 def extract_release_rows(
@@ -398,7 +400,10 @@ def extract_release_rows(
     chart_dir = chart_dir or CHART_DIR
     dependencies = chart_dependencies(chart_dir)
     context = ComponentResolutionContext(
-        dependencies, orphan_values_yaml_keys(chart_dir, dependencies), global_image_keys(chart_dir)
+        dependencies,
+        orphan_values_yaml_keys(chart_dir, dependencies),
+        global_image_keys(chart_dir),
+        native_component_keys(chart_dir),
     )
     all_tables = extract_tables(html)
     if not all_tables:
@@ -505,7 +510,7 @@ def _release_row_from_data_row(
     # (e.g. "zac"), whereas a Technische row's own name (e.g. "Solr")
     # usually shares no text with the component that uses it at all.
     component, alias = component_and_alias(
-        used_by or name, context.dependencies, context.orphan_keys, context.global_keys
+        used_by or name, context.dependencies, context.orphan_keys, context.global_keys, context.native_keys
     )
     if component == "UNKNOWN":
         used_by_suffix = f' (used_by "{used_by}")' if used_by else ""

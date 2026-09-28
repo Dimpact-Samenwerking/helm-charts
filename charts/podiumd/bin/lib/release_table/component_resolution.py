@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.registered_paths import native_components
 from lib.chart.values_tree_primitives import mapping_at
 from lib.upgradedoc.string_and_parsing_basics import normalize_name
 from lib.upgradedoc.string_and_parsing_basics import word_contains
@@ -82,10 +83,9 @@ def orphan_values_yaml_keys(chart_dir: Path, dependencies: Sequence[DependencyNa
     values.yaml. component_and_alias only ever tries these as a last
     resort, after every real dependency, so an orphan key can never
     outrank (and thus never regress) a resolution that already works
-    through a real dependency — e.g. values.yaml's own "keycloak" block
-    (the Keycloak instance's own config, separate from the
-    "keycloak-operator" dependency that manages it) must not hijack
-    "Keycloak" away from correctly resolving to "keycloak-operator"."""
+    through a real dependency. A native component's key (see
+    native_component_keys) is an orphan key too, but component_and_alias
+    also tries it in its exact tiers."""
     values_yaml_path = chart_dir / "values.yaml"
     if not values_yaml_path.is_file():
         return []
@@ -93,6 +93,14 @@ def orphan_values_yaml_keys(chart_dir: Path, dependencies: Sequence[DependencyNa
     known = {normalize_name(dependency_name) for dependency_name, _ in dependencies}
     known |= {normalize_name(alias) for _, alias in dependencies if alias}
     return [(key, "") for key in values if normalize_name(key) not in known]
+
+
+def native_component_keys(chart_dir: Path) -> list[DependencyNames]:
+    """[(name, ""), ...] for every lib.chart.registered_paths.
+    native_components entry (e.g. "frankgateway", "keycloak"): a real
+    component without a Chart.yaml dependency, which component_and_alias
+    matches exactly just like a dependency's own name."""
+    return [(name, "") for name in sorted(native_components(chart_dir))]
 
 
 def global_image_keys(chart_dir: Path) -> list[str]:
@@ -184,6 +192,7 @@ def component_and_alias(
     dependencies: Sequence[DependencyNames],
     orphan_keys: Sequence[DependencyNames] = (),
     global_image_key_names: Sequence[str] = (),
+    native_keys: Sequence[DependencyNames] = (),
 ) -> DependencyNames:
     """(component, alias) for `name` (the CSV "name" column value),
     resolved against `dependencies` (see chart_dependencies) by trying
@@ -203,6 +212,11 @@ def component_and_alias(
        name "openzaak" exactly equals "Open Zaak", or "openinwoner" is
        contained in "Open Inwoner platform" (the bracketed part of
        "Portaal (Open Inwoner platform)")
+    `native_keys` (see native_component_keys) join `dependencies` in the
+    two exact tiers only: "Keycloak" exactly names the native keycloak
+    component, so it never falls through to the loose tier-4 relation
+    with dependency "keycloak-operator".
+
     Tiers 2 and 3 are both about the alias, split apart specifically so
     an exact alias match (tier 2) never loses to a same-tier ambiguity
     that only exists because some OTHER dependency's alias happens to
@@ -251,7 +265,7 @@ def component_and_alias(
     def relates_to_global_key() -> bool:
         return any(_related(candidate, key) for candidate in candidates for key in global_image_key_names)
 
-    exact = _resolve_against(candidates, dependencies, _EXACT_TIERS)
+    exact = _resolve_against(candidates, [*dependencies, *native_keys], _EXACT_TIERS)
     if exact:
         return exact
     loose = _resolve_against(candidates, dependencies, _RELATION_TIERS)
@@ -314,18 +328,17 @@ def match_one(text: str, options: Collection[str]) -> str | None:
 def extra_scope_keys_by_component(chart_dir: Path) -> dict[str, list[str]]:
     """{dependency_name: [orphan_key, ...]} for every orphan values.yaml
     key (see orphan_values_yaml_keys) that itself relates to exactly one
-    real Chart.yaml dependency — e.g. orphan key "keycloak" (podiumd's
-    own Keycloak instance config, values.yaml's separate top-level block
-    from "keycloak-operator") relates to dependency "keycloak-operator"
-    the exact same way component_and_alias would resolve it from row
-    text, so that dependency's own image scan must ALSO look under
-    "keycloak" — its actual app image (keycloak.image.tag) lives there,
-    not under keycloak-operator's own key at all. Only ever ADDS a scope
-    on top of a dependency's own key, mirroring component_and_alias's
-    own real-dependency-first priority; an orphan key relating to more
-    than one dependency (MULTIPLE) or none at all contributes nothing."""
+    real Chart.yaml dependency the same way component_and_alias would
+    resolve it from row text, so that dependency's own image scan ALSO
+    looks under that key. Only ever ADDS a scope on top of a
+    dependency's own key, mirroring component_and_alias's own real-
+    dependency-first priority; an orphan key relating to more than one
+    dependency (MULTIPLE) or none at all contributes nothing, and a
+    native component's key (e.g. "keycloak", which relates to
+    "keycloak-operator") never does: it is its own component."""
     dependencies = chart_dependencies(chart_dir)
-    orphan_keys = orphan_values_yaml_keys(chart_dir, dependencies)
+    natives = {name for name, _ in native_component_keys(chart_dir)}
+    orphan_keys = [key for key in orphan_values_yaml_keys(chart_dir, dependencies) if key[0] not in natives]
     extra: dict[str, list[str]] = {}
     for key, _ in orphan_keys:
         resolved = _resolve_against(_candidate_parts(key), dependencies)

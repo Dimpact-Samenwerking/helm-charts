@@ -535,39 +535,77 @@ def test_resolve_image_basenames_unknown_component_is_blank(ecrt: ModuleType, tm
 
 
 def test_resolve_image_basenames_finds_image_under_a_related_orphan_key(ecrt: ModuleType, tmp_path: Path):
-    """keycloak-operator's real app image lives under the separate
-    "keycloak" values.yaml block (podiumd's own Keycloak instance
-    config), not under "keycloak-operator" itself — an orphan key that
-    itself relates to the dependency (see extra_scope_keys_by_component)
-    must be scanned too, not just the dependency's own top-level key."""
+    """A dependency's app image can live under a separate, related
+    values.yaml block (here "widget" for dependency "widget-operator"):
+    an orphan key that itself relates to the dependency (see
+    extra_scope_keys_by_component) must be scanned too, not just the
+    dependency's own top-level key."""
+    write_chart_yaml_with_dependencies(tmp_path, [("widget-operator", None)])
+    write_values_yaml_raw(
+        tmp_path,
+        f"""\
+widget-operator:
+  initImage:
+    repository: python
+    tag: "3.14.7-slim@sha256:{DIGEST_A}"
+widget:
+  image:
+    repository: example/widget
+    tag: "1.2.3@sha256:{DIGEST_B}"
+""",
+    )
+    rows = [
+        ["Overige", "", "", "Widget", "widget-operator", "", "1", "1", "1", "1"],
+        ["Technische", "", "widget-operator", "Python", "widget-operator", "", "1", "1", "1", "1"],
+    ]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["widget", "python"]
+
+
+def test_resolve_image_basenames_native_component_scans_its_own_key(ecrt: ModuleType, tmp_path: Path):
+    """The native keycloak component (default native_components) is its
+    own component: its server image and keycloak-config-cli resolve
+    under "keycloak", and keycloak-operator's scan no longer includes
+    that key."""
     write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None)])
     write_values_yaml_raw(
         tmp_path,
         f"""\
-keycloak-operator:
-  jobs:
-    ensurePodiumdAdminUser:
-      initImage:
-        repository: python
-        tag: "3.14.7-slim@sha256:{DIGEST_A}"
 keycloak:
   image:
     repository: quay.io/keycloak/keycloak
-    tag: "26.7.2@sha256:{DIGEST_B}"
+    tag: "26.7.3@sha256:{DIGEST_A}"
+  keycloakConfigCli:
+    image:
+      repository: adorsys/keycloak-config-cli
+      tag: "6.5.1-26.5.5@sha256:{DIGEST_B}"
+keycloak-operator:
+  operator:
+    image:
+      repository: quay.io/keycloak/keycloak-operator
+      tag: "26.7.3@sha256:{DIGEST_A}"
 """,
     )
     rows = [
-        ["Overige", "", "", "Keycloak", "keycloak-operator", "", "1", "1", "1", "1"],
-        ["Technische", "", "keycloak-operator", "Python", "keycloak-operator", "", "1", "1", "1", "1"],
+        ["Overige", "", "", "Keycloak", "keycloak", "", "1", "NATIVE", "1", "NATIVE"],
+        ["Overige", "", "", "Keycloak operator", "keycloak-operator", "", "1", "1", "1", "1"],
+        ["Technische", "", "keycloak", "Keycloak Config CLI", "keycloak", "", "", "", "1", ""],
     ]
-    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["keycloak", "python"]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["keycloak", "keycloak-operator", "keycloak-config-cli"]
 
 
 def test_extra_scope_keys_by_component_ignores_multiple_and_unrelated_orphan_keys(tmp_path: Path):
-    write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None), ("frankgateway", None)])
-    write_values_yaml_raw(tmp_path, "keycloak: {}\nunrelated: {}\n")
+    write_chart_yaml_with_dependencies(tmp_path, [("widget-operator", None)])
+    write_values_yaml_raw(tmp_path, "widget: {}\nunrelated: {}\n")
     extra = extra_scope_keys_by_component(tmp_path)
-    assert extra == {"keycloak-operator": ["keycloak"]}
+    assert extra == {"widget-operator": ["widget"]}
+
+
+def test_extra_scope_keys_by_component_never_adds_a_native_component_key(tmp_path: Path):
+    """ "keycloak" relates to dependency "keycloak-operator", but it is a
+    native component (default native_components), not extra scope."""
+    write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None)])
+    write_values_yaml_raw(tmp_path, "keycloak: {}\n")
+    assert extra_scope_keys_by_component(tmp_path) == {}
 
 
 def test_extract_release_rows_end_to_end_populates_image_basename(ecrt: ModuleType, tmp_path: Path):

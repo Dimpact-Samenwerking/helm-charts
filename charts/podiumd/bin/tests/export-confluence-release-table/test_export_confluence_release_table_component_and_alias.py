@@ -320,13 +320,25 @@ def test_component_and_alias_resolves_via_orphan_key(ecrt: ModuleType):
 def test_component_and_alias_real_dependency_always_wins_over_orphan_key(ecrt: ModuleType):
     """An orphan key must never hijack a name that already resolves
     through a real dependency, even if the orphan key would also
-    relate — e.g. values.yaml's own "keycloak" block (the Keycloak
-    instance's own config) must not steal "Keycloak" away from
-    correctly resolving to dependency "keycloak-operator" via the
-    name-relation tier."""
+    relate — orphan "widget" must not steal "Widget" away from
+    dependency "widget-operator" via the name-relation tier."""
+    deps = [("widget-operator", "")]
+    orphans = [("widget", "")]
+    assert ecrt.component_and_alias("Widget", deps, orphans) == ("widget-operator", "")
+
+
+def test_component_and_alias_native_component_exact_match_beats_loose_dependency(ecrt: ModuleType):
+    """A native component (native_keys) is matched in the exact tiers:
+    "Keycloak" (or used_by "keycloak") names native "keycloak" exactly,
+    so it never falls through to the loose relation with dependency
+    "keycloak-operator" — while "Keycloak operator" still names that
+    dependency exactly."""
     deps = [("keycloak-operator", "")]
-    orphans = [("keycloak", "")]
-    assert ecrt.component_and_alias("Keycloak", deps, orphans) == ("keycloak-operator", "")
+    orphans = [("keycloak", ""), ("frankgateway", "")]
+    natives = [("frankgateway", ""), ("keycloak", "")]
+    assert ecrt.component_and_alias("Keycloak", deps, orphans, (), natives) == ("keycloak", "")
+    assert ecrt.component_and_alias("keycloak", deps, orphans, (), natives) == ("keycloak", "")
+    assert ecrt.component_and_alias("Keycloak operator", deps, orphans, (), natives) == ("keycloak-operator", "")
 
 
 def test_component_and_alias_orphan_key_multiple(ecrt: ModuleType):
