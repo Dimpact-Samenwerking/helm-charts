@@ -284,6 +284,8 @@ keycloak:
     metadata:
       labels:
         app: keycloak
+        # Set by hand, deliberately not aliased to *keycloakImageVersion:
+        # this label may move independently of the server image.
         version: 26.7.3
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:

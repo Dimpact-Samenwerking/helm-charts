@@ -200,16 +200,13 @@ component_resolution:
     # CRs that don't specify their own -- deliberately overridden in
     # values.yaml to run a Keycloak version ahead of whatever this
     # operator chart version's own appVersion defaults to. NOT
-    # operator.image itself: that one is intentionally left with no
-    # override at all, since the adfinis chart's own template already
-    # falls back to "{{ .Values.operator.image.tag | default
-    # .Chart.AppVersion }}" with a matching "sha:" bundled for that same
-    # appVersion -- an explicit override there would only add a way for
-    # tag and digest to drift apart again. Bump the keycloak-operator
-    # dependency's own chart version in Chart.yaml to move the operator
-    # itself. Uses the adfinis chart's own split "tag:" + sibling "sha:"
-    # convention instead of an embedded @sha256 digest -- see this file's
-    # own digest_pinning.exceptions above for the write side.
+    # operator.image: values.yaml pins that one explicitly too, but the
+    # operator and server versions may move independently of each other
+    # from time to time, so the two are deliberately not registered as
+    # one lockstep group. Uses the adfinis chart's own split "tag:" +
+    # sibling "sha:" convention instead of an embedded @sha256 digest --
+    # see this file's own digest_pinning.exceptions above for the write
+    # side.
     "keycloak-operator": ["operator.config.keycloakImage"]
     # The real running OpenBao SERVER (the upstream openbao-helm
     # subchart's own "server" key) -- NOT "openbao.configuration.job.
