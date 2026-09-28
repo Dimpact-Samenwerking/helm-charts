@@ -122,6 +122,17 @@ def test_resolve_token_empty_token_file_exits_with_message(ecrt: ModuleType, tmp
         ecrt.resolve_token(args)
 
 
+def test_resolve_token_aborted_prompt_exits_with_message(ecrt: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("CONFLUENCE_API_TOKEN", raising=False)
+
+    def abort(prompt: str) -> str:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(ecrt.getpass, "getpass", abort)
+    with pytest.raises(SystemExit, match="no Confluence API token given"):
+        ecrt.resolve_token(make_args())
+
+
 def test_resolve_token_falls_back_to_token_arg(ecrt: ModuleType):
     args = make_args(token="s3cr3t-from-arg")
     assert ecrt.resolve_token(args) == "s3cr3t-from-arg"

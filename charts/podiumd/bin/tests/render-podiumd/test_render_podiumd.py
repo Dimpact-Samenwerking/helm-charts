@@ -328,3 +328,34 @@ def test_stale_vendored_dependencies_re_vendored_before_rendering(
 
     assert rendered == [[]]
     assert sorted(path.name for path in (tmp_path / "charts").iterdir()) == ["kiss-chart-3.1.1.tgz"]
+
+
+def test_missing_output_directory_exits_before_rendering(
+    rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(tmp_path / "missing" / "out.yaml")])
+
+    def fail_if_called(chart_dir, extra_args):
+        msg = "must not render"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(rp, "render_chart", fail_if_called)
+    with pytest.raises(SystemExit, match="does not exist"):
+        rp.main()
+
+
+def test_leading_helm_flag_is_not_taken_as_output_file(rp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    default_output = tmp_path / "rendered-helm.yaml"
+    monkeypatch.setattr(rp, "DEFAULT_OUTPUT", default_output)
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", "-f", "my.yaml"])
+    captured = {}
+
+    def fake_render(chart_dir, extra_args):
+        captured["extra_args"] = extra_args
+        return SimpleNamespace(returncode=0, stdout="---\n# Source: a.yaml\nkind: Foo\n", stderr="")
+
+    monkeypatch.setattr(rp, "render_chart", fake_render)
+    rp.main()
+    assert captured["extra_args"] == ["-f", "my.yaml"]
+    assert default_output.is_file()
+    assert not Path("-f").exists()

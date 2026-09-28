@@ -51,6 +51,7 @@ from lib.chart.registered_paths import resolve_native_component
 from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import require_dependency
 from lib.chart.values_tree_primitives import values_key_of
+from lib.cli import network_errors
 from lib.cli import positional_args
 from lib.yaml_types import load_yaml_mapping
 
@@ -96,4 +97,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with network_errors("container registry"):
+        main()

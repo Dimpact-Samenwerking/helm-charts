@@ -23,7 +23,6 @@ display/...") URLs alike — the API root differs (".../wiki/rest/api" vs
 import base64
 import json
 import re
-import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -36,6 +35,7 @@ from typing import IO
 from typing import TypedDict
 
 from lib.chart.values_tree_primitives import get_path
+from lib.cli import network_errors
 from lib.yaml_types import is_yaml_value
 
 PAGE_ID_RE = re.compile(r"/pages/(\d+)")
@@ -73,7 +73,12 @@ def fetch_page_html(
 ) -> str:
     """The page's raw storage-format body (body.storage.value) via the
     Confluence REST API — see the module docstring for why storage, not
-    the rendered view. `urlopen` is overridable for tests."""
+    the rendered view. `urlopen` is overridable for tests. Raises
+    SystemExit when `url` isn't an http(s) URL, the request fails or the
+    response isn't the expected JSON."""
+    if urllib.parse.urlparse(url).scheme not in ("http", "https"):
+        msg = f"error: --url {url} must start with https://"
+        raise SystemExit(msg)
     page_id = page_id_from_url(url)
     api_url = f"{api_base_url(url)}/content/{page_id}?expand=body.storage"
     auth = base64.b64encode(f"{user}:{token}".encode()).decode()
@@ -85,13 +90,10 @@ def fetch_page_html(
         },
     )
     try:
-        with urlopen(request) as response:
+        with network_errors("Confluence"), urlopen(request) as response:
             data: object = json.load(response)
-    except urllib.error.HTTPError as e:
-        msg = f"error: Confluence API request failed: HTTP {e.code} {e.reason}"
-        raise SystemExit(msg) from e
-    except urllib.error.URLError as e:
-        msg = f"error: could not reach Confluence: {e.reason}"
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        msg = f"error: Confluence didn't answer with JSON ({e}) — check --url (a login page?)"
         raise SystemExit(msg) from e
     value = get_path(data, "body.storage.value") if is_yaml_value(data) else None
     if not isinstance(value, str):

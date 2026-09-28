@@ -166,6 +166,37 @@ def test_fetch_page_html_url_error_raises(libconfluencetables: ModuleType):
         )
 
 
+def test_fetch_page_html_non_json_response_raises(libconfluencetables: ModuleType):
+    class LoginPageResponse(FakeResponse):
+        def read(self):
+            return b"<html>Log in</html>"
+
+    def fake_urlopen(request: urllib.request.Request):
+        return LoginPageResponse({})
+
+    with pytest.raises(SystemExit, match="didn't answer with JSON"):
+        libconfluencetables.fetch_page_html(
+            "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+            "kees@info.nl",
+            "s3cr3t",
+            urlopen=fake_urlopen,
+        )
+
+
+def test_fetch_page_html_url_without_scheme_raises(libconfluencetables: ModuleType):
+    def fake_urlopen(request: urllib.request.Request):
+        msg = "must not be called"
+        raise AssertionError(msg)
+
+    with pytest.raises(SystemExit, match="must start with https://"):
+        libconfluencetables.fetch_page_html(
+            "example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+            "kees@info.nl",
+            "s3cr3t",
+            urlopen=fake_urlopen,
+        )
+
+
 # --- extract_tables ---
 
 

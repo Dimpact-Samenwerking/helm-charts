@@ -34,6 +34,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.chart.release_baseline_basics import chart_version as read_chart_version
+from lib.cli import check_output_path
+from lib.cli import read_user_file
 from lib.confluence_tables import ReleaseColumns
 from lib.confluence_tables import TableCell
 from lib.confluence_tables import effective_header_row_count
@@ -340,17 +342,10 @@ def resolve_token(args: argparse.Namespace):
     variable, and finally an interactive getpass prompt as the last
     resort — so a token never has to be typed on the command line (where
     it'd land in shell history) or passed as a bare env var by mistake.
-    Raises SystemExit when --token-file can't be read or is empty."""
+    Raises SystemExit when --token-file can't be read or is empty, or the
+    prompt is aborted."""
     if args.token_file:
-        token_file = Path(args.token_file).expanduser()
-        if not token_file.is_file():
-            msg = f"error: --token-file {args.token_file} does not exist or is not a file"
-            raise SystemExit(msg)
-        try:
-            token = token_file.read_text(encoding="utf-8").strip()
-        except (OSError, UnicodeDecodeError) as e:
-            msg = f"error: --token-file {args.token_file} can't be read: {e}"
-            raise SystemExit(msg) from e
+        token = read_user_file(Path(args.token_file).expanduser(), "--token-file").strip()
         if not token:
             msg = f"error: --token-file {args.token_file} is empty"
             raise SystemExit(msg)
@@ -360,7 +355,11 @@ def resolve_token(args: argparse.Namespace):
     env_token = os.environ.get("CONFLUENCE_API_TOKEN")
     if env_token:
         return env_token
-    return getpass.getpass("Confluence API token: ")
+    try:
+        return getpass.getpass("Confluence API token: ")
+    except (KeyboardInterrupt, EOFError) as e:
+        msg = "error: no Confluence API token given"
+        raise SystemExit(msg) from e
 
 
 @dataclass
@@ -629,12 +628,13 @@ def main():
         warn_unknown_lines(_read_csv_rows(Path(args.output)), args.output)
         return
 
+    output_path = Path(args.output)
+    check_output_path(output_path, "--output")
     token = resolve_token(args)
 
     html = fetch_page_html(args.url, args.user, token)
     rows = extract_release_rows(html, args.heading)
 
-    output_path = Path(args.output)
     with output_path.open("w", newline="", encoding="utf-8") as f:
         # csv's own "excel" dialect defaults to "\r\n" regardless of
         # platform; with newline="" (required so it doesn't ALSO get

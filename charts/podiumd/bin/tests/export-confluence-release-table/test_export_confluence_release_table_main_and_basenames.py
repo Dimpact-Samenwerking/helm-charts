@@ -721,3 +721,32 @@ global:
         "nginx-unprivileged",
         "",
     ]
+
+
+def test_main_missing_output_directory_exits_before_fetching(
+    ecrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    output_path = tmp_path / "missing" / "out.csv"
+    monkeypatch.setattr(
+        ecrt.sys,
+        "argv",
+        [
+            "export-confluence-release-table",
+            "--url",
+            "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+            "--user",
+            "kees@info.nl",
+            "--token",
+            "s3cr3t",
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    def fail_if_called(*args: object) -> str:
+        msg = "must not fetch"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(ecrt, "fetch_page_html", fail_if_called)
+    with pytest.raises(SystemExit, match="does not exist"):
+        ecrt.main()

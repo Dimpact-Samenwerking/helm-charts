@@ -291,3 +291,19 @@ def test_main_help_flag_prints_usage_and_exits_zero(
         vhss.main()
     assert exc_info.value.code == 0
     assert "Estimate the size of the Helm release Secret" in capsys.readouterr().out
+
+
+def test_main_missing_values_file_exits_with_message(vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    monkeypatch.setattr(
+        "sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path), "-f", str(tmp_path / "nope.yaml")]
+    )
+    with pytest.raises(SystemExit, match="does not exist or is not a file"):
+        vhss.main()
+
+
+def test_main_invalid_values_file_exits_with_message(vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    values_path = tmp_path / "values.yaml"
+    values_path.write_text("- a list\n- not a mapping\n", encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["verify-helm-secret-size", "--chart", str(tmp_path), "-f", str(values_path)])
+    with pytest.raises(SystemExit, match="is not a valid values file"):
+        vhss.main()
