@@ -89,12 +89,21 @@ spec:
         {{- toYaml .Values.openformulieren.customerInteractionsConfigJob.resources | nindent 8 }}
       securityContext:
         {{- toYaml .Values.openformulieren.securityContext | nindent 8 }}
+      {{- /* Mount the subchart's extra volumes too: envFrom brings in EXTRA_VERIFY_CERTS
+           (openformulieren.extraVerifyCerts), and Open Forms opens that file at
+           startup, before this script runs. */}}
       volumeMounts:
         - name: tmp
           mountPath: /tmp
+        {{- if .Values.openformulieren.extraVolumeMounts }}
+        {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.openformulieren.extraVolumeMounts "context" $ ) | nindent 8 }}
+        {{- end }}
   volumes:
     - name: tmp
       emptyDir: {}
+    {{- if .Values.openformulieren.extraVolumes }}
+    {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.openformulieren.extraVolumes "context" $ ) | nindent 4 }}
+    {{- end }}
 {{- end }}
 
 {{- if and (or .Values.openformulieren.enabled (not (hasKey .Values.openformulieren "enabled"))) .Values.openformulieren.customerInteractionsConfigJob.enabled }}

@@ -104,6 +104,21 @@ openformulieren:
     oidcUrl: https://openformulieren.ci.podiumd.test
     secrets:
       keycloak_client_secret: "placeholder"
+  # Every PodiumD environment mounts its CA bundle this way. The umbrella's
+  # openformulieren Jobs must mount it too, because envFrom sets
+  # EXTRA_VERIFY_CERTS and Open Forms opens that file at startup.
+  extraVerifyCerts: /etc/ssl/verify-certs/verify-certs.pem
+  extraVolumes:
+    - name: verify-certs
+      configMap:
+        name: openformulieren-verify-certs
+  extraVolumeMounts:
+    - name: verify-certs
+      mountPath: /etc/ssl/verify-certs
+  clamavConfigJob:
+    enabled: true
+  customerInteractionsConfigJob:
+    enabled: true
 
 openinwoner:
   configuration:

@@ -88,10 +88,19 @@ spec:
             {{- toYaml .Values.openformulieren.clamavConfigJob.resources | nindent 12 }}
           securityContext:
             {{- toYaml .Values.openformulieren.securityContext | nindent 12 }}
+          {{- /* Mount the subchart's extra volumes too: envFrom brings in EXTRA_VERIFY_CERTS
+               (openformulieren.extraVerifyCerts), and Open Forms opens that file at
+               startup, before this script runs. */}}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if .Values.openformulieren.extraVolumeMounts }}
+            {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.openformulieren.extraVolumeMounts "context" $ ) | nindent 12 }}
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if .Values.openformulieren.extraVolumes }}
+        {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.openformulieren.extraVolumes "context" $ ) | nindent 8 }}
+        {{- end }}
 {{- end }}
