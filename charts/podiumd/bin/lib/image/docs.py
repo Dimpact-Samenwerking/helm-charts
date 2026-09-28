@@ -57,8 +57,7 @@ from lib.component_docs.images_manifest_changes_header import find_images_manife
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_block
 from lib.component_docs.images_manifest_changes_header import insert_images_manifest_header_item
 from lib.component_docs.images_manifest_changes_header import remove_changes_item
-from lib.registry import parse_repo
-from lib.registry import registry_tag_exists
+from lib.image.digests import cached_tag_exists
 from lib.settings import DigestPinningException
 from lib.settings import digest_pinning_exceptions
 from lib.upgradedoc.app_version_and_image_paths import ImagePath
@@ -852,8 +851,7 @@ def _resolve_baseline_entry(
         new_version, digest = pinned.split("@", 1)
     else:
         new_version = tag.split("@", 1)[0]
-        host, repo_path = parse_repo(full_repo)
-        exists, digest = registry_tag_exists(host, repo_path, new_version)
+        exists, digest = cached_tag_exists(ctx.chart_dir, full_repo, new_version)
         if not exists or not digest:
             return None
 
@@ -956,8 +954,9 @@ def regenerate_images_baseline_manifest(
     fix added, reused here so the two can never drift on what a
     repository's real url is); `version`/`digest` come from the pin's
     own embedded "@sha256:..." suffix (lib.chart.resolved_digest_pin)
-    when it has one, else a live registry lookup (lib.registry.
-    registry_tag_exists) — matching the file's own header comment
+    when it has one, else a registry lookup (lib.image.digests.
+    cached_tag_exists, which reuses a fresh Repo access cache entry) —
+    matching the file's own header comment
     ("Digests are ... resolved live against the source registry").
 
     Repository resolution itself (paths_by_repository/full_repository_

@@ -678,11 +678,11 @@ def test_regenerate_images_baseline_manifest_embedded_digest_used_directly(
     values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
-    def fail_if_called(host, repo, tag):
-        msg = "registry_tag_exists must not be called for an already-digest-pinned tag"
+    def fail_if_called(chart_dir, repository, version, timeout=None):
+        msg = "cached_tag_exists must not be called for an already-digest-pinned tag"
         raise AssertionError(msg)
 
-    monkeypatch.setattr(libimagedocs, "registry_tag_exists", fail_if_called)
+    monkeypatch.setattr(libimagedocs, "cached_tag_exists", fail_if_called)
 
     written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
@@ -697,7 +697,7 @@ def test_regenerate_images_baseline_manifest_live_lookup_for_bare_tag(
     libimagedocs: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """A bare tag with no embedded digest of its own falls back to a live
-    registry lookup (lib.registry.registry_tag_exists) for its digest —
+    registry lookup (lib.image.digests.cached_tag_exists) for its digest —
     matching the file's own header comment ("Digests are resolved live
     against the source registry")."""
     deps = [{"name": "openbao", "version": "2.0.0"}]
@@ -706,11 +706,11 @@ def test_regenerate_images_baseline_manifest_live_lookup_for_bare_tag(
 
     calls = []
 
-    def fake_registry_tag_exists(host, repo, tag):
-        calls.append((host, repo, tag))
+    def fake_cached_tag_exists(chart_dir, repository, version, timeout=None):
+        calls.append((repository, version))
         return True, "sha256:" + "e" * 64
 
-    monkeypatch.setattr(libimagedocs, "registry_tag_exists", fake_registry_tag_exists)
+    monkeypatch.setattr(libimagedocs, "cached_tag_exists", fake_cached_tag_exists)
 
     written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
@@ -718,7 +718,7 @@ def test_regenerate_images_baseline_manifest_live_lookup_for_bare_tag(
 
     assert skipped == []
     assert written == 1
-    assert calls == [("docker.io", "openbao/openbao", "2.0.0")]
+    assert calls == [("docker.io/openbao/openbao", "2.0.0")]
     assert f'digest: "sha256:{"e" * 64}"' in images_baseline_path.read_text(encoding="utf-8")
 
 
@@ -732,7 +732,7 @@ def test_regenerate_images_baseline_manifest_skips_when_live_lookup_fails(
     values = {"openbao": {"image": {"repository": "openbao/openbao", "tag": "2.0.0"}}}
     images_baseline_path = tmp_path / "images-baseline.yaml"
 
-    monkeypatch.setattr(libimagedocs, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr(libimagedocs, "cached_tag_exists", lambda chart_dir, repository, version: (False, None))
 
     written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, set()
@@ -884,7 +884,9 @@ def test_regenerate_images_baseline_manifest_includes_subchart_default_only_imag
         chart_yaml={"name": "eck-operator", "version": "3.5.0", "appVersion": "3.5.0"},
     )
     images_baseline_path = tmp_path / "images-baseline.yaml"
-    monkeypatch.setattr(libimagedocs, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "a" * 64))
+    monkeypatch.setattr(
+        libimagedocs, "cached_tag_exists", lambda chart_dir, repository, version: (True, "sha256:" + "a" * 64)
+    )
 
     written, skipped, _changed = libimagedocs.regenerate_images_baseline_manifest(
         tmp_path, deps, values, images_baseline_path, {"podiumd/charts/eck-operator"}

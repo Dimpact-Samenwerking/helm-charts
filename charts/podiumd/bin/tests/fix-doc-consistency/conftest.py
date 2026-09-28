@@ -42,8 +42,8 @@ def stub_registry_tag_exists(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch):
     tag has no embedded "@sha256:..." of its own — most test fixtures
     always embed one (never actually reaching this), but a fixture that
     doesn't would otherwise make every `cdb.main()`-calling test attempt
-    a REAL network call, with no default timeout (lib.registry.
-    registry_tag_exists's own `timeout` param) — real slowdown observed
+    a REAL network call, with no default timeout (lib.image.digests.
+    cached_tag_exists's own `timeout` param) — real slowdown observed
     live (fix-doc-consistency's own suite: ~13s -> ~130s) once this step
     was wired in unconditionally. Stubbed safe by default, same
     convention tests/update-image-version/conftest.py's own stub_fix_
@@ -55,7 +55,9 @@ def stub_registry_tag_exists(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch):
     same as any other autouse default."""
     import lib.image.docs as image_docs
 
-    monkeypatch.setattr(image_docs, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "0" * 64))
+    monkeypatch.setattr(
+        image_docs, "cached_tag_exists", lambda chart_dir, repository, version: (True, "sha256:" + "0" * 64)
+    )
 
 
 @pytest.fixture(autouse=True)

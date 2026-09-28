@@ -86,3 +86,19 @@ def test_cached_file_mapping_keys_on_part(tmp_path: Path):
     path.write_bytes(b"x")
     assert cached_file_mapping(path, "values.yaml", lambda: {"part": "values"}) == {"part": "values"}
     assert cached_file_mapping(path, "Chart.yaml", lambda: {"part": "chart"}) == {"part": "chart"}
+
+
+def test_load_yaml_mapping_sees_a_same_size_rewrite(tmp_path: Path):
+    path = tmp_path / "values.yaml"
+    path.write_text("tag: 5.4.4\n", encoding="utf-8")
+    assert load_yaml_mapping(path) == {"tag": "5.4.4"}
+    path.write_text("tag: 5.4.5\n", encoding="utf-8")
+    assert load_yaml_mapping(path) == {"tag": "5.4.5"}
+
+
+def test_load_yaml_mapping_returns_a_fresh_copy_each_call(tmp_path: Path):
+    path = tmp_path / "values.yaml"
+    path.write_text("a:\n  b: 1\n", encoding="utf-8")
+    first = load_yaml_mapping(path)
+    first["a"] = "changed"
+    assert load_yaml_mapping(path) == {"a": {"b": 1}}
