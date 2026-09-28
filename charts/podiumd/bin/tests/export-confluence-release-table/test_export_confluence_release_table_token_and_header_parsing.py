@@ -102,6 +102,26 @@ def test_resolve_token_prefers_token_file(ecrt: ModuleType, tmp_path: Path):
     assert ecrt.resolve_token(args) == "s3cr3t-from-file"
 
 
+def test_resolve_token_missing_token_file_exits_with_message(ecrt: ModuleType, tmp_path: Path):
+    args = make_args(token_file=str(tmp_path / "missing.txt"))
+    with pytest.raises(SystemExit, match=r"missing\.txt does not exist or is not a file"):
+        ecrt.resolve_token(args)
+
+
+def test_resolve_token_directory_token_file_exits_with_message(ecrt: ModuleType, tmp_path: Path):
+    args = make_args(token_file=str(tmp_path))
+    with pytest.raises(SystemExit, match="does not exist or is not a file"):
+        ecrt.resolve_token(args)
+
+
+def test_resolve_token_empty_token_file_exits_with_message(ecrt: ModuleType, tmp_path: Path):
+    token_file = tmp_path / "token.txt"
+    token_file.write_text("  \n", encoding="utf-8")
+    args = make_args(token_file=str(token_file))
+    with pytest.raises(SystemExit, match="is empty"):
+        ecrt.resolve_token(args)
+
+
 def test_resolve_token_falls_back_to_token_arg(ecrt: ModuleType):
     args = make_args(token="s3cr3t-from-arg")
     assert ecrt.resolve_token(args) == "s3cr3t-from-arg"

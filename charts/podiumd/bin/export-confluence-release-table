@@ -339,9 +339,22 @@ def resolve_token(args: argparse.Namespace):
     --token-file, then --token, then the CONFLUENCE_API_TOKEN environment
     variable, and finally an interactive getpass prompt as the last
     resort — so a token never has to be typed on the command line (where
-    it'd land in shell history) or passed as a bare env var by mistake."""
+    it'd land in shell history) or passed as a bare env var by mistake.
+    Raises SystemExit when --token-file can't be read or is empty."""
     if args.token_file:
-        return Path(args.token_file).read_text(encoding="utf-8").strip()
+        token_file = Path(args.token_file).expanduser()
+        if not token_file.is_file():
+            msg = f"error: --token-file {args.token_file} does not exist or is not a file"
+            raise SystemExit(msg)
+        try:
+            token = token_file.read_text(encoding="utf-8").strip()
+        except (OSError, UnicodeDecodeError) as e:
+            msg = f"error: --token-file {args.token_file} can't be read: {e}"
+            raise SystemExit(msg) from e
+        if not token:
+            msg = f"error: --token-file {args.token_file} is empty"
+            raise SystemExit(msg)
+        return token
     if args.token:
         return args.token
     env_token = os.environ.get("CONFLUENCE_API_TOKEN")
