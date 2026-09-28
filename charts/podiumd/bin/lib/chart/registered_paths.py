@@ -205,8 +205,9 @@ def is_primary_image_path(path: tuple[str, ...], deps: list[ChartDependency], ch
     unchanged; thread a real one only where already in scope.
 
     ALSO True for a path with NO owning Chart.yaml dependency at all
-    (podiumd's own directly-templated top-level block — "keycloak",
-    "apiproxy", "frankgateway", the shared "global" anchor — see this
+    (podiumd's own directly-templated top-level block — the native
+    "keycloak"/"frankgateway" components, "apiproxy", the shared
+    "global" anchor — see this
     module's own image_repository_check-adjacent docstrings for the
     real cases): there's no PARENT for such a path to be a SIDECAR of,
     so it's treated as its own standalone/primary entity, never subject

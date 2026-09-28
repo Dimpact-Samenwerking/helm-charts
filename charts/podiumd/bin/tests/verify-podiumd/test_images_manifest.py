@@ -984,19 +984,19 @@ def test_images_manifest_format_changes_item_resolves_via_canonical_path_segment
     """Regression test (real bug, real doc): a canonical sidecar Changes
     item whose own "basename" is a values-tree PATH SEGMENT, not a real
     image-repository basename (see lib.chart.canonical_sidecar_row_names'
-    own self-referential-basename fallback — real case: "keycloak-
-    operator - operator" for keycloak-operator.operator.image, whose repo
-    basename "keycloak-operator" would otherwise collide with its own
-    dependency's values key) must resolve directly via its own known
-    values-tree path, not match_changes_item_to_entry's basename-word
-    matching — there's no entry whose own name/repository is "operator"
-    to word-match against at all, so that fallback alone would always,
-    wrongly, report this as unmatched."""
-    deps = [{"name": "keycloak-operator", "version": "1.13.0"}]
+    own self-referential-basename fallback — e.g. "redis-operator -
+    controller" for a redis-operator.controller.image sidecar, whose repo
+    basename "redis-operator" would otherwise collide with its own
+    dependency's values key; the original real case was keycloak-
+    operator.operator.image, before it became keycloak-operator's own
+    registered primary) must resolve directly via its own known values-
+    tree path, not match_changes_item_to_entry's basename-word matching —
+    there's no entry whose own name/repository is "controller" to word-
+    match against at all, so that fallback alone would always, wrongly,
+    report this as unmatched."""
+    deps = [{"name": "redis-operator", "version": "0.27.0"}]
     values = {
-        "keycloak-operator": {
-            "operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.3"}}
-        }
+        "redis-operator": {"controller": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "0.27.0"}}}
     }
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
@@ -1004,12 +1004,12 @@ def test_images_manifest_format_changes_item_resolves_via_canonical_path_segment
     images_path.write_text(
         "# Baseline: podiumd 4.8.5.\n#\n# podiumd 4.9.0 vs 4.8.5.\n\n"
         "# Changes:\n"
-        "#   1. keycloak-operator - operator 26.6.4 -> 26.7.3.\n"
+        "#   1. redis-operator - controller 0.26.1 -> 0.27.0.\n"
         "#\n\n"
-        "#   sidecar: keycloak-operator - operator 26.6.4 -> 26.7.3\n"
-        "- name: keycloak/keycloak-operator\n"
-        "  url: keycloak/keycloak-operator\n"
-        '  version: "26.7.3"\n'
+        "#   sidecar: redis-operator - controller 0.26.1 -> 0.27.0\n"
+        "- name: opstree/redis-operator\n"
+        "  url: opstree/redis-operator\n"
+        '  version: "0.27.0"\n'
         '  digest: "sha256:eee"\n'
     )
 
@@ -1034,11 +1034,9 @@ def test_images_manifest_format_changes_item_canonical_path_segment_target_misma
     """Once resolved via its own known path, a real target-version
     mismatch must still be caught — the canonical-path-segment
     resolution isn't a free pass."""
-    deps = [{"name": "keycloak-operator", "version": "1.13.0"}]
+    deps = [{"name": "redis-operator", "version": "0.27.0"}]
     values = {
-        "keycloak-operator": {
-            "operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.3"}}
-        }
+        "redis-operator": {"controller": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "0.27.0"}}}
     }
     (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
     (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
@@ -1046,12 +1044,12 @@ def test_images_manifest_format_changes_item_canonical_path_segment_target_misma
     images_path.write_text(
         "# Baseline: podiumd 4.8.5.\n#\n# podiumd 4.9.0 vs 4.8.5.\n\n"
         "# Changes:\n"
-        "#   1. keycloak-operator - operator 26.6.4 -> 9.9.9.\n"
+        "#   1. redis-operator - controller 0.26.1 -> 9.9.9.\n"
         "#\n\n"
-        "#   sidecar: keycloak-operator - operator 26.6.4 -> 9.9.9\n"
-        "- name: keycloak/keycloak-operator\n"
-        "  url: keycloak/keycloak-operator\n"
-        '  version: "26.7.3"\n'
+        "#   sidecar: redis-operator - controller 0.26.1 -> 9.9.9\n"
+        "- name: opstree/redis-operator\n"
+        "  url: opstree/redis-operator\n"
+        '  version: "0.27.0"\n'
         '  digest: "sha256:eee"\n'
     )
 

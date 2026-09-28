@@ -344,18 +344,20 @@ def test_main_native_component_rejects_unregistered_component(
         ucv.main()
 
 
+NEW_KEYCLOAK_DIGEST = "d" * 64
+KEYCLOAK_OLD_DIGEST = "c" * 64
+
+
 def setup_keycloak_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
-    """The real values.yaml structure: operator.image has NO override at
-    all (relies entirely on the vendored adfinis chart's own
-    "{{ .Values.operator.image.tag | default .Chart.AppVersion }}" +
-    matching "sha:" default — deliberately not managed by
-    update-component-version or settings.yaml's component_resolution.
-    image_paths, since an explicit override here would only reintroduce
-    a way for tag and digest to drift apart). operator.config.
-    keycloakImage IS an explicit, intentional override (a Keycloak
-    server version ahead of this operator chart version's own
-    appVersion) — the one path this component's component_resolution.
-    image_paths entry actually manages."""
+    """The real values.yaml structure: keycloak.image is the native
+    keycloak component's own primary image (the Keycloak SERVER) and
+    holds the &keycloakImage* anchors; keycloak-operator.operator.image
+    is keycloak-operator's own registered primary (the operator
+    container), pinned explicitly; operator.config.keycloakImage only
+    aliases keycloak.image's anchors, so the operator's default server
+    image always follows it. Both images use the adfinis/podiumd split
+    "tag:" + sibling "sha:" convention, and operator and server versions
+    move independently of each other."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
@@ -368,16 +370,23 @@ def setup_keycloak_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         encoding="utf-8",
     )
     values_yaml.write_text(
+        "keycloak:\n"
+        "  image:\n"
+        "    repository: &keycloakImageRepo quay.io/keycloak/keycloak\n"
+        '    tag: &keycloakImageVersion "26.7.2"\n'
+        f'    sha: &keycloakImageDigest "{KEYCLOAK_OLD_DIGEST}"\n'
         "keycloak-operator:\n"
         "  enabled: true\n"
         "  operator:\n"
         "    image:\n"
         "      repository: quay.io/keycloak/keycloak-operator\n"
+        '      tag: "26.7.2"\n'
+        f'      sha: "{OLD_DIGEST}"\n'
         "    config:\n"
         "      keycloakImage:\n"
-        "        repository: quay.io/keycloak/keycloak\n"
-        '        tag: "26.7.2"\n'
-        f'        sha: "{OLD_DIGEST}"\n',
+        "        repository: *keycloakImageRepo\n"
+        "        tag: *keycloakImageVersion\n"
+        "        sha: *keycloakImageDigest\n",
         encoding="utf-8",
     )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
@@ -392,30 +401,75 @@ def setup_keycloak_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     return chart_yaml, values_yaml
 
 
-def test_main_bumps_only_config_keycloak_image_not_operator_image(
+KEYCLOAK_ALIAS_BLOCK = (
+    "    config:\n"
+    "      keycloakImage:\n"
+    "        repository: *keycloakImageRepo\n"
+    "        tag: *keycloakImageVersion\n"
+    "        sha: *keycloakImageDigest\n"
+)
+
+
+def test_main_keycloak_operator_bumps_only_operator_image_not_server_image(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """update-component-version keycloak-operator 26.7.3 1.12.1 must
-    bump ONLY operator.config.keycloakImage, written as tag + separate
-    sha (never a combined @sha256 pin, which would be an invalid double
-    digest for the adfinis chart's own template) — operator.image is
-    deliberately left completely untouched, with no override added."""
+    bump ONLY operator.image (keycloak-operator's own primary), written
+    as tag + separate sha (never a combined @sha256 pin, which would be
+    an invalid double digest for the adfinis chart's own template) — the
+    Keycloak SERVER image (keycloak.image's anchors, and the
+    operator.config.keycloakImage aliases of them) is a separate native
+    component and is left completely untouched."""
     _chart_yaml, values_yaml = setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv, "b")
 
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "d" * 64))
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + NEW_KEYCLOAK_DIGEST))
     monkeypatch.setattr("sys.argv", ["update-component-version", "keycloak-operator", "26.7.3", "1.12.1"])
 
     ucv.main()  # success path does not raise
 
     updated = values_yaml.read_text(encoding="utf-8")
-    assert updated.count('tag: "26.7.3"') == 1
-    assert f'sha: "{"d" * 64}"' in updated  # config.keycloakImage's own new sha, replaced
+    assert (
+        "    image:\n"
+        "      repository: quay.io/keycloak/keycloak-operator\n"
+        '      tag: "26.7.3"\n'
+        f'      sha: "{NEW_KEYCLOAK_DIGEST}"\n'
+    ) in updated
     assert OLD_DIGEST not in updated
-    assert "26.7.2" not in updated
     assert "@sha256" not in updated  # never embedded -- would double-digest this chart's template
-    # operator.image itself: untouched, still no tag/sha override at all
-    assert "  operator:\n    image:\n      repository: quay.io/keycloak/keycloak-operator\n    config:\n" in updated
+    # the server image: anchors and aliases untouched
+    assert '    tag: &keycloakImageVersion "26.7.2"\n' in updated
+    assert f'    sha: &keycloakImageDigest "{KEYCLOAK_OLD_DIGEST}"\n' in updated
+    assert KEYCLOAK_ALIAS_BLOCK in updated
+
+
+def test_main_native_keycloak_bumps_server_image_anchor_site_only(
+    ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """update-component-version keycloak 26.7.3 native bumps the Keycloak
+    SERVER image at its anchor site (keycloak.image, keeping the
+    &keycloakImage* anchors) as tag + separate sha; the operator.config.
+    keycloakImage aliases follow it without their own write, and
+    keycloak-operator's own operator.image and Chart.yaml dependency are
+    left untouched."""
+    chart_yaml, values_yaml = setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv)
+    original_chart_yaml = chart_yaml.read_text(encoding="utf-8")
+    mock_verify_passes(monkeypatch, ucv, "b")
+
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + NEW_KEYCLOAK_DIGEST))
+    monkeypatch.setattr("sys.argv", ["update-component-version", "keycloak", "26.7.3", "native"])
+
+    ucv.main()  # success path does not raise
+
+    updated = values_yaml.read_text(encoding="utf-8")
+    assert chart_yaml.read_text(encoding="utf-8") == original_chart_yaml
+    assert '    tag: &keycloakImageVersion "26.7.3"\n' in updated
+    assert f'    sha: &keycloakImageDigest "{NEW_KEYCLOAK_DIGEST}"\n' in updated
+    assert KEYCLOAK_OLD_DIGEST not in updated
+    assert "@sha256" not in updated
+    assert KEYCLOAK_ALIAS_BLOCK in updated
+    # operator.image: untouched
+    assert f'      tag: "26.7.2"\n      sha: "{OLD_DIGEST}"\n' in updated
 
 
 def setup_eck_operator_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):

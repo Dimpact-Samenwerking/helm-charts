@@ -148,7 +148,8 @@ def test_main_adds_missing_row_with_component_specific_image_path(
     capsys: pytest.CaptureFixture[str],
 ):
     """keycloak-operator's real app version lives at its own registered
-    lib.chart.COMPONENT_IMAGE_PATHS split-path — actual_app_version
+    component_resolution.image_paths entry (operator.image, split
+    "tag:"/"sha:") rather than "<key>.image.tag" — actual_app_version
     resolves it just like a plain "<key>.image.tag" component, so the
     new row gets a full app-version cell and Changes section, not a
     TODO stub."""

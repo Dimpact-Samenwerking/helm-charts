@@ -23,10 +23,11 @@ def test_actual_app_version_missing_returns_none(libupgradedocappversion: Module
 
 
 def test_actual_app_version_uses_component_for_aliased_registry_lookup(libupgradedocappversion: ModuleType):
-    # keycloak-operator's own COMPONENT_IMAGE_PATHS entry only applies when
-    # the registry is queried by the dependency's real name — pass it
-    # explicitly whenever the values.yaml key (alias) differs.
-    values = {"kc": {"operator": {"config": {"keycloakImage": {"tag": "26.7.2@sha256:abc"}}}}}
+    # keycloak-operator's own component_resolution.image_paths entry
+    # (operator.image) only applies when the registry is queried by the
+    # dependency's real name — pass it explicitly whenever the values.yaml
+    # key (alias) differs.
+    values = {"kc": {"operator": {"image": {"tag": "26.7.2@sha256:abc"}}}}
     assert libupgradedocappversion.actual_app_version(values, "kc", "keycloak-operator") == "26.7.2"
     assert libupgradedocappversion.actual_app_version(values, "kc") is None
 

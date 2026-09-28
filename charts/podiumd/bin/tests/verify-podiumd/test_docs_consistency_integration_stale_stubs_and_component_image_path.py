@@ -191,19 +191,20 @@ def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(
     """A row that matches neither a Chart.yaml dependency nor a
     canonical sidecar/shared-image name (see
     lib.chart.canonical_sidecar_row_names) is a real, reportable
-    mismatch now — not a silently-skipped info print. "Keycloak" isn't
-    a dependency this fixture's Chart.yaml has at all, and doesn't
-    match the "<component> - <basename>"/"<basename>" form
-    update-image-version itself writes."""
+    mismatch now — not a silently-skipped info print. "Grafana" isn't
+    a dependency this fixture's Chart.yaml has at all, nor a
+    native_components component, and doesn't match the
+    "<component> - <basename>"/"<basename>" form update-image-version
+    itself writes."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
-    doc.write_text(doc.read_text() + "| Keycloak | 1.0.0 → 1.0.1 | 1.0.0 (unchanged) | n/a |\n")
+    doc.write_text(doc.read_text() + "| Grafana | 1.0.0 → 1.0.1 | 1.0.0 (unchanged) | n/a |\n")
 
     ok, _detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
     assert ok is False
     out = capsys.readouterr().out
     assert (
-        '4.8.5-to-4.9.0-upgrade.md: doc row "Keycloak" does not match a Chart.yaml dependency '
+        '4.8.5-to-4.9.0-upgrade.md: doc row "Grafana" does not match a Chart.yaml dependency '
         "or a canonical sidecar/shared-image name"
     ) in out
 
@@ -517,14 +518,14 @@ KEYCLOAK_VALUES_DELTAS_DOC = (
 
 
 def keycloak_values(tag):
-    return f'keycloak-operator:\n  operator:\n    config:\n      keycloakImage:\n        tag: "{tag}"\n'
+    return f'keycloak-operator:\n  operator:\n    image:\n      tag: "{tag}"\n'
 
 
 @pytest.fixture
 def keycloak_chart_repo(tmp_path: Path):
     """keycloak-operator's own real primary app image lives at the
-    non-standard "operator.config.keycloakImage.tag" split-path
-    convention, registered in lib.chart.COMPONENT_IMAGE_PATHS — the
+    non-standard "operator.image.tag" path, registered in
+    component_resolution.image_paths (not the default "image") — the
     real-world case that used to be invisible to actual_app_version's
     own two hardcoded shapes (<key>.image.tag, frontend/backend), and
     is why the doc row below (app version pinned at "-") must now be

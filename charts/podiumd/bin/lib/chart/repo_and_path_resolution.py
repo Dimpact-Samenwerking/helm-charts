@@ -129,17 +129,11 @@ def repo_group_representative(repo_paths: list[tuple[str, ...]], deps: list[Char
        when NO tier-2 (or tier-1 "global") member exists.
     4. (lowest) a real dependency's own SIDECAR path.
 
-    Real case tier 2 exists for: "keycloak.image" (tier 3 — podiumd's
-    own directly-templated top-level override) and "keycloak-operator.
-    operator.config.keycloakImage" (tier 2 — keycloak-operator's own
-    component_image_paths()-registered primary image) share the exact
-    same repository, kept in sync by convention (see the real hand-
-    written comment above the images-manifest entry). Both count as
-    "primary" under is_primary_image_path's own rule, so ranking by
-    that alone still landed on whichever was discovered LAST during
-    values.yaml's own top-level traversal (keycloak, since it sorts
-    after keycloak-operator there) — the tier split here is what
-    actually prefers real ownership over "no parent at all"."""
+    Real case: "keycloak.image" (tier 3 — the native keycloak
+    component's own primary image, holding the YAML anchors) and
+    "keycloak-operator.operator.config.keycloakImage" (tier 4 — a
+    keycloak-operator sidecar aliasing those anchors) share one
+    repository; the anchor site wins, whatever the traversal order."""
     by_values_key = {values_key_of(dep): dep for dep in deps}
 
     def rank(path: tuple[str, ...]):
@@ -555,13 +549,21 @@ def canonical_sidecar_row_names(
     proxy) are registered the exact same "<values_key> - <basename>"
     way — it has no Chart.yaml dependency at all, but it's still the
     real owner of its own subordinate images, the same as any dependency
-    is of its own."""
-    sidecar_paths, global_paths = _classify_sidecar_and_global_paths(chart_dir, deps, paths)
-    global_repos = _global_repository_set(values, global_paths)
+    is of its own.
+
+    A sidecar path whose own repository is also some owner's PRIMARY
+    image (real case: keycloak-operator.operator.config.keycloakImage,
+    a YAML alias of the native keycloak component's own keycloak.image)
+    is excluded the same way: that owner's own plain-name row already
+    covers it (see doc_row_name)."""
+    sidecar_paths, global_paths, primary_paths = _classify_image_paths(chart_dir, deps, paths)
+    covered_repos = _global_repository_set(values, global_paths) | set(
+        repository_path_map(chart_dir, deps, values, primary_paths, allow_pull=allow_pull)
+    )
 
     names: dict[str, tuple[str, ...]] = {}
     for repo, path in repository_path_map(chart_dir, deps, values, sidecar_paths, allow_pull=allow_pull).items():
-        if repo in global_repos:
+        if repo in covered_repos:
             continue
         row_name = _sidecar_row_name(repo, path)
         if row_name is not None:
@@ -584,15 +586,20 @@ def doc_row_name(
     (ending in the image key, e.g. ("redis-operator", "redis-ha",
     "image")): path[0] for the primary image of a dependency or native
     component, else the canonical_sidecar_row_names name of the image's
-    repository among `all_paths`. None when neither applies.
+    repository among `all_paths` — or, when that repository is also an
+    owner's primary image (see canonical_sidecar_row_names), that
+    owner's own row name. None when neither applies.
     update-image-version names its rows with this, so they match what
     fix-doc-consistency and check_docs_consistency resolve."""
     names = canonical_sidecar_row_names(chart_dir, deps, values, all_paths)
-    owner_name = _owner_name(deps, native_components(chart_dir), path)
-    if owner_name is not None and ".".join(path[1:]) in set(image_paths_for(owner_name, chart_dir)):
+    _sidecar_paths, _global_paths, primary_paths = _classify_image_paths(chart_dir, deps, [*all_paths, path])
+    if path in primary_paths:
         return path[0]
     for group in paths_by_repository(chart_dir, deps, values, all_paths).values():
         if path in group:
+            primary = next((group_path for group_path in group if group_path in primary_paths), None)
+            if primary is not None:
+                return primary[0]
             return next((name for name, name_path in names.items() if name_path in group), None)
     return None
 
@@ -610,17 +617,19 @@ def _owner_name(deps: list[ChartDependency], natives: frozenset[str], path: tupl
     return path[0] if path[0] in natives else None
 
 
-def _classify_sidecar_and_global_paths(
+def _classify_image_paths(
     chart_dir: Path | None, deps: list[ChartDependency], paths: Collection[tuple[str, ...]]
-) -> tuple[list[tuple[str, ...]], list[tuple[str, ...]]]:
-    """(sidecar_paths, global_paths) split of `paths` for canonical_
-    sidecar_row_names — a path pinned under the shared "global" top-
-    level key is handled entirely separately from one nested under a
-    real dependency or native_components component's own subtree. An
-    owner's primary image (image_paths_for) is neither."""
+) -> tuple[list[tuple[str, ...]], list[tuple[str, ...]], list[tuple[str, ...]]]:
+    """(sidecar_paths, global_paths, primary_paths) split of `paths` for
+    canonical_sidecar_row_names/doc_row_name — a path pinned under the
+    shared "global" top-level key, one nested under a real dependency or
+    native_components component's own subtree, and an owner's own
+    primary image (image_paths_for). A path with no owner at all is in
+    none of the three."""
     natives = native_components(chart_dir)
     sidecar_paths: list[tuple[str, ...]] = []
     global_paths: list[tuple[str, ...]] = []
+    primary_paths: list[tuple[str, ...]] = []
     for path in paths:
         if not path:
             continue
@@ -628,9 +637,13 @@ def _classify_sidecar_and_global_paths(
             global_paths.append(path)
             continue
         owner_name = _owner_name(deps, natives, path)
-        if owner_name is not None and ".".join(path[1:]) not in set(image_paths_for(owner_name, chart_dir)):
+        if owner_name is None:
+            continue
+        if ".".join(path[1:]) in set(image_paths_for(owner_name, chart_dir)):
+            primary_paths.append(path)
+        else:
             sidecar_paths.append(path)
-    return sidecar_paths, global_paths
+    return sidecar_paths, global_paths, primary_paths
 
 
 def _global_repository_set(values: YamlMapping, global_paths: list[tuple[str, ...]]) -> set[str]:

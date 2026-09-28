@@ -4,7 +4,7 @@ resolution + all the precheck/content-check stages together.
 
 Split from test_docs_consistency_integration.py (pylint too-many-lines): this
 file covers the first half of the sidecar-image section — the redis-operator
-sidecar and keycloak-operator split tag/sha cases."""
+sidecar and keycloak/keycloak-operator split tag/sha cases."""
 
 import subprocess
 
@@ -263,8 +263,8 @@ KEYCLOAK_SPLIT_UPGRADE_DOC = """\
 
 | Component | App version | Helm chart | Notes |
 | --- | --- | --- | --- |
-| keycloak-operator | {app_source} → {app_target} | 1.13.0 (unchanged) | - |
-| keycloak-operator - operator | {op_source} → {op_target} | - | - |
+| keycloak | {app_source} → {app_target} | - | - |
+| keycloak-operator | {op_source} → {op_target} | 1.13.0 (unchanged) | - |
 
 See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
 """
@@ -278,16 +278,16 @@ KEYCLOAK_SPLIT_IMAGES_MANIFEST = """\
 # Images new or changed in podiumd 4.9.0 vs {baseline}.
 #
 # Changes:
-#   1. keycloak-operator {app_source} -> {app_target}.
-#   2. keycloak-operator - operator {op_source} -> {op_target}.
+#   1. keycloak {app_source} -> {app_target}.
+#   2. keycloak-operator {op_source} -> {op_target}.
 #
 
-# keycloak-operator {app_source} -> {app_target}
+# keycloak {app_source} -> {app_target}
 - name: keycloak/keycloak
   url: keycloak/keycloak
   version: "{app_target}"
   digest: "sha256:{app_digest}"
-#   sidecar: keycloak-operator - operator {op_source} -> {op_target}
+# keycloak-operator {op_source} -> {op_target}
 - name: keycloak/keycloak-operator
   url: keycloak/keycloak-operator
   version: "{op_target}"
@@ -296,13 +296,19 @@ KEYCLOAK_SPLIT_IMAGES_MANIFEST = """\
 
 
 def keycloak_split_values(app_tag, app_digest, op_tag, op_digest):
-    """keycloak-operator's own split tag:/sha: convention (see
-    lib.chart.SPLIT_TAG_SHA_PATHS) for both its primary app image
-    (operator.config.keycloakImage, aliased into the top-level
-    keycloak.image the same way podiumd's own values.yaml does) and its
-    own operator image (operator.image) — neither ever embeds "@sha256"
-    in "tag:" directly, unlike every other image in the chart."""
+    """The split tag:/sha: convention (see lib.settings.digest_pinning_
+    exceptions) for both the native keycloak component's own primary
+    image (keycloak.image, the Keycloak server, holding the anchors that
+    keycloak-operator.operator.config.keycloakImage aliases — the same
+    shape podiumd's own values.yaml uses) and keycloak-operator's own
+    primary image (operator.image) — neither ever embeds "@sha256" in
+    "tag:" directly, unlike every other image in the chart."""
     return (
+        f"keycloak:\n"
+        f"  image:\n"
+        f"    repository: &keycloakImageRepo quay.io/keycloak/keycloak\n"
+        f'    tag: &keycloakImageVersion "{app_tag}"\n'
+        f'    sha: &keycloakImageDigest "{app_digest}"\n'
         f"keycloak-operator:\n"
         f"  operator:\n"
         f"    image:\n"
@@ -311,14 +317,9 @@ def keycloak_split_values(app_tag, app_digest, op_tag, op_digest):
         f'      sha: "{op_digest}"\n'
         f"    config:\n"
         f"      keycloakImage:\n"
-        f"        repository: quay.io/keycloak/keycloak\n"
-        f'        tag: "{app_tag}"\n'
-        f'        sha: "{app_digest}"\n'
-        f"keycloak:\n"
-        f"  image:\n"
-        f"    repository: quay.io/keycloak/keycloak\n"
-        f'    tag: "{app_tag}"\n'
-        f'    sha: "{app_digest}"\n'
+        f"        repository: *keycloakImageRepo\n"
+        f"        tag: *keycloakImageVersion\n"
+        f"        sha: *keycloakImageDigest\n"
     )
 
 
@@ -326,7 +327,7 @@ def keycloak_split_values(app_tag, app_digest, op_tag, op_digest):
 def keycloak_split_chart_repo(tmp_path: Path):
     """keycloak.image (and keycloak-operator's own operator.image) pin
     their digest via a separate sibling "sha:" field, never embedded in
-    "tag:" (lib.chart.SPLIT_TAG_SHA_PATHS) — the per-entry version/digest
+    "tag:" (lib.settings.digest_pinning_exceptions) — the per-entry version/digest
     check further down in check_docs_consistency must resolve that split
     shape (lib.chart.resolved_digest_pin) before comparing against the
     images-manifest entry's own "version@digest", not compare the bare
@@ -368,7 +369,7 @@ def keycloak_split_chart_repo(tmp_path: Path):
         )
     )
     git("add", "-A", cwd=repo_root)
-    git("commit", "-q", "-m", "bump keycloak-operator's split tag/sha images", cwd=repo_root)
+    git("commit", "-q", "-m", "bump keycloak's and keycloak-operator's split tag/sha images", cwd=repo_root)
 
     return chart_dir
 
@@ -377,7 +378,7 @@ def test_split_tag_sha_path_digest_is_resolved_not_compared_as_bare_tag(
     vp: ModuleType, keycloak_split_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     """Regression test: keycloak.image's digest lives in a separate
-    "sha:" field (lib.chart.SPLIT_TAG_SHA_PATHS), never embedded in
+    "sha:" field (lib.settings.digest_pinning_exceptions), never embedded in
     "tag:". The per-entry images-manifest check used to compare the bare
     "tag:" string directly against the manifest's "version@digest",
     which can never match for a split-tag/sha path — every correctly

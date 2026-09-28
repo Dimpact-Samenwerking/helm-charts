@@ -720,10 +720,10 @@ def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skip
 
 @pytest.fixture
 def keycloak_operator_chart_dir(tmp_path: Path):
-    """keycloak-operator's own primary image (operator.config.keycloakImage)
-    uses the adfinis chart's own split "tag:"/"sha:" convention — its
-    "tag:" alone never carries "@sha256:...", the real case
-    resolved_digest_pin exists for."""
+    """keycloak-operator's own primary image (operator.image) uses the
+    adfinis chart's own split "tag:"/"sha:" convention — its "tag:" alone
+    never carries "@sha256:...", the real case resolved_digest_pin exists
+    for."""
     write(
         tmp_path / "Chart.yaml",
         yaml.safe_dump(
@@ -738,12 +738,10 @@ def keycloak_operator_chart_dir(tmp_path: Path):
             {
                 "keycloak-operator": {
                     "operator": {
-                        "config": {
-                            "keycloakImage": {
-                                "repository": "quay.io/keycloak/keycloak",
-                                "tag": "26.7.2",
-                                "sha": "9d1f1b2b",
-                            }
+                        "image": {
+                            "repository": "quay.io/keycloak/keycloak-operator",
+                            "tag": "26.7.2",
+                            "sha": "9d1f1b2b",
                         }
                     }
                 },
@@ -765,18 +763,14 @@ def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(
     target_values = {
         "keycloak-operator": {
             "operator": {
-                "config": {
-                    "keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.2", "sha": "9d1f1b2b"}
-                }
+                "image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.2", "sha": "9d1f1b2b"}
             }
         }
     }
     baseline_values = {
         "keycloak-operator": {
             "operator": {
-                "config": {
-                    "keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.6.4", "sha": "eeeeeeee"}
-                }
+                "image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.6.4", "sha": "eeeeeeee"}
             }
         }
     }
@@ -794,7 +788,7 @@ def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(
     assert skipped == []
     assert added == ["keycloak-operator"]
     assert "# keycloak-operator 26.6.4 -> 26.7.2" in new_text
-    assert "- name: keycloak/keycloak" in new_text
+    assert "- name: keycloak/keycloak-operator" in new_text
     assert 'version: "26.7.2"' in new_text
     assert 'digest: "sha256:9d1f1b2b"' in new_text
 
@@ -811,9 +805,7 @@ def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still
         yaml.safe_dump(
             {
                 "keycloak-operator": {
-                    "operator": {
-                        "config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.2"}}
-                    }
+                    "operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.2"}}
                 },
             }
         ),
@@ -822,12 +814,12 @@ def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still
     deps = [{"name": "keycloak-operator", "version": "1.12.1"}]
     target_values = {
         "keycloak-operator": {
-            "operator": {"config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.2"}}}
+            "operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.2"}}
         }
     }
     baseline_values = {
         "keycloak-operator": {
-            "operator": {"config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.6.4"}}}
+            "operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.6.4"}}
         }
     }
 

@@ -133,8 +133,8 @@ digest_pinning:
   # auto-write a fresh tag+digest to during a version bump — every other
   # exempt path is read-only here (either it has no code path that ever
   # writes it, or writing it isn't safe/meaningful, e.g. omc.image can't be
-  # digest-pinned in any form, and keycloak.image is a YAML *alias* of
-  # keycloak-operator.operator.config.keycloakImage's own anchor, so it
+  # digest-pinned in any form, and keycloak-operator.operator.config.
+  # keycloakImage is a YAML *alias* of keycloak.image's own anchor, so it
   # never needs (or gets) its own separate write -- see update-component-
   # version's own alias-detection).
   exceptions:
@@ -161,8 +161,11 @@ component_resolution:
   # distribution) is the one real case today: it replaced the vendored
   # apisix sub-chart in podiumd 4.8.2 (#385) and was ported in as native
   # templates instead, since it needed org-specific OpenBao/Keycloak
-  # integration no generic upstream chart provides.
-  native_components: ["frankgateway"]
+  # integration no generic upstream chart provides. keycloak is the
+  # Keycloak server: the CR, its image and keycloak-config-cli are
+  # podiumd's own templates on top of the keycloak-operator dependency,
+  # so its images are documented as "keycloak - <basename>" rows.
+  native_components: ["frankgateway", "keycloak"]
   # component (name, not alias) -> the sibling dotted path holding a
   # COMPONENT_VERSION_PATHS entry's own repository -- for the rare case
   # where that repository IS explicitly overridable in podiumd's OWN
@@ -196,18 +199,14 @@ component_resolution:
   # defaults to default_image_paths below.
   image_paths:
     "zgw-office-addin": ["frontend.image", "backend.image"]
-    # The default Keycloak SERVER image the operator stamps onto Keycloak
-    # CRs that don't specify their own -- deliberately overridden in
-    # values.yaml to run a Keycloak version ahead of whatever this
-    # operator chart version's own appVersion defaults to. NOT
-    # operator.image: values.yaml pins that one explicitly too, but the
-    # operator and server versions may move independently of each other
-    # from time to time, so the two are deliberately not registered as
-    # one lockstep group. Uses the adfinis chart's own split "tag:" +
-    # sibling "sha:" convention instead of an embedded @sha256 digest --
-    # see this file's own digest_pinning.exceptions above for the write
-    # side.
-    "keycloak-operator": ["operator.config.keycloakImage"]
+    # The operator image itself. The Keycloak SERVER image is the primary
+    # image of the native keycloak component (keycloak.image, the default
+    # ["image"]); operator.config.keycloakImage only aliases its anchors.
+    # Operator and server versions may move independently of each other,
+    # so they are deliberately not one lockstep group. Uses the adfinis
+    # chart's own split "tag:" + sibling "sha:" convention instead of an
+    # embedded @sha256 digest -- see digest_pinning.exceptions above.
+    "keycloak-operator": ["operator.image"]
     # The real running OpenBao SERVER (the upstream openbao-helm
     # subchart's own "server" key) -- NOT "openbao.configuration.job.
     # image", which despite reusing the same OpenBao binary is podiumd's

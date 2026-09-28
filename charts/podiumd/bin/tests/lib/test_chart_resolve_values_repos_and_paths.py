@@ -505,45 +505,48 @@ def test_repo_group_representative_global_beats_real_dependency_primary(libchart
 
 
 def test_repo_group_representative_real_dependency_primary_beats_orphan(libchartrepoandpathresolution: ModuleType):
-    """The keycloak/keycloak-operator case: "keycloak.image" is podiumd's
-    own directly-templated top-level override (tier 2 — no owning
-    Chart.yaml dependency at all) and "keycloak-operator.operator.
-    config.keycloakImage" is keycloak-operator's own COMPONENT_IMAGE_
-    PATHS-registered primary image (tier 1 — real ownership). Both count
-    as "primary" under is_primary_image_path alone, and "keycloak" sorts
-    after "keycloak-operator" in values.yaml top-level traversal, so a
-    naive "last path wins" pick lands on the orphan — real ownership
-    must win instead."""
-    deps = [{"name": "keycloak-operator", "alias": "", "version": "26.7.3"}]
+    """A real Chart.yaml dependency's own registered primary image (tier
+    2 — real ownership) and a top-level block with no owning dependency
+    at all (tier 3 — an "orphan", e.g. podiumd's own directly-templated
+    override) share one repository. Both count as "primary" under
+    is_primary_image_path alone, and the orphan comes LAST in values.yaml
+    top-level traversal, so a naive "last path wins" pick lands on the
+    orphan — real ownership must win instead."""
+    deps = [{"name": "openzaak", "alias": "", "version": "1.14.2"}]
     repo_paths = [
-        ("keycloak-operator", "operator", "config", "keycloakImage"),
-        ("keycloak", "image"),
+        ("openzaak", "image"),
+        ("openzaak-standalone", "image"),
     ]
 
-    assert libchartrepoandpathresolution.repo_group_representative(repo_paths, deps) == (
-        "keycloak-operator",
-        "operator",
-        "config",
-        "keycloakImage",
-    )
+    assert libchartrepoandpathresolution.repo_group_representative(repo_paths, deps) == ("openzaak", "image")
 
 
 def test_repo_group_representative_order_independent(libchartrepoandpathresolution: ModuleType):
     """Same case, paths given in the opposite order — the real
     dependency's own path must still win, not just "whichever came
     first"."""
-    deps = [{"name": "keycloak-operator", "alias": "", "version": "26.7.3"}]
+    deps = [{"name": "openzaak", "alias": "", "version": "1.14.2"}]
     repo_paths = [
-        ("keycloak", "image"),
-        ("keycloak-operator", "operator", "config", "keycloakImage"),
+        ("openzaak-standalone", "image"),
+        ("openzaak", "image"),
     ]
 
-    assert libchartrepoandpathresolution.repo_group_representative(repo_paths, deps) == (
-        "keycloak-operator",
-        "operator",
-        "config",
-        "keycloakImage",
-    )
+    assert libchartrepoandpathresolution.repo_group_representative(repo_paths, deps) == ("openzaak", "image")
+
+
+def test_repo_group_representative_native_primary_beats_dependency_sidecar(libchartrepoandpathresolution: ModuleType):
+    """The real keycloak/keycloak-operator case: "keycloak.image" is the
+    native keycloak component's own primary image (no Chart.yaml
+    dependency) and "keycloak-operator.operator.config.keycloakImage" is
+    only a YAML alias of it — a SIDECAR of keycloak-operator, whose own
+    primary is operator.image. The anchor site must win, in either
+    order, even though keycloak-operator is the real dependency."""
+    deps = [{"name": "keycloak-operator", "alias": "", "version": "1.13.0"}]
+    sidecar = ("keycloak-operator", "operator", "config", "keycloakImage")
+    native = ("keycloak", "image")
+
+    assert libchartrepoandpathresolution.repo_group_representative([native, sidecar], deps) == native
+    assert libchartrepoandpathresolution.repo_group_representative([sidecar, native], deps) == native
 
 
 def test_repo_group_representative_orphan_only_falls_back_to_last(libchartrepoandpathresolution: ModuleType):
@@ -578,26 +581,49 @@ def test_repo_group_representative_sidecars_only_falls_back_to_last(libchartrepo
 def test_repository_path_map_prefers_dependency_own_primary_over_orphan(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """Integration-level version of the keycloak/keycloak-operator case
-    through repository_path_map itself — the map entry for the shared
-    repository resolves to the real dependency's own path, not podiumd's
-    orphan top-level override, matching -upgrade.md's own dependency-
-    first name resolution (never routed through this map at all)."""
-    dep = {"name": "keycloak-operator", "alias": "", "version": "26.7.3"}
+    """Integration-level version of the dependency-primary-beats-orphan
+    case through repository_path_map itself — the map entry for the
+    shared repository resolves to the real dependency's own path, not an
+    orphan top-level override listed after it, matching -upgrade.md's
+    own dependency-first name resolution (never routed through this map
+    at all)."""
+    dep = {"name": "openzaak", "alias": "", "version": "1.14.2"}
     own_values = {
-        "keycloak-operator": {
-            "operator": {"config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}}}
-        },
-        "keycloak": {"image": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}},
+        "openzaak": {"image": {"repository": "docker.io/openzaak/open-zaak", "tag": "1.20.0"}},
+        "openzaak-standalone": {"image": {"repository": "docker.io/openzaak/open-zaak", "tag": "1.20.0"}},
     }
     paths = [
-        ("keycloak-operator", "operator", "config", "keycloakImage"),
-        ("keycloak", "image"),
+        ("openzaak", "image"),
+        ("openzaak-standalone", "image"),
     ]
 
     mapping = libchartrepoandpathresolution.repository_path_map(tmp_path, [dep], own_values, paths, allow_pull=False)
 
-    assert mapping == {"keycloak/keycloak": ("keycloak-operator", "operator", "config", "keycloakImage")}
+    assert mapping == {"openzaak/open-zaak": ("openzaak", "image")}
+
+
+def test_repository_path_map_keycloak_server_resolves_to_native_anchor_site(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
+    """The real keycloak shape: keycloak.image (native keycloak's own
+    primary, holding the anchors) and keycloak-operator.operator.config.
+    keycloakImage (its alias, a keycloak-operator sidecar) share one
+    repository — the map resolves it to the native anchor site."""
+    dep = {"name": "keycloak-operator", "alias": "", "version": "1.13.0"}
+    own_values = {
+        "keycloak": {"image": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}},
+        "keycloak-operator": {
+            "operator": {"config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}}}
+        },
+    }
+    paths = [
+        ("keycloak", "image"),
+        ("keycloak-operator", "operator", "config", "keycloakImage"),
+    ]
+
+    mapping = libchartrepoandpathresolution.repository_path_map(tmp_path, [dep], own_values, paths, allow_pull=False)
+
+    assert mapping == {"keycloak/keycloak": ("keycloak", "image")}
 
 
 # --- paths_by_repository ---

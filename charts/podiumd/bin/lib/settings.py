@@ -407,8 +407,9 @@ def component_resolution_chart_version_lockstep_components(chart_dir: Path):
 
 def component_resolution_native_components(chart_dir: Path):
     """component_resolution.native_components — replaces lib.chart.
-    NATIVE_COMPONENTS, a frozenset, default frozenset({"frankgateway"})."""
-    return frozenset(_text_list(chart_dir, "component_resolution", "native_components", ["frankgateway"]))
+    NATIVE_COMPONENTS, a frozenset, default frozenset({"frankgateway",
+    "keycloak"})."""
+    return frozenset(_text_list(chart_dir, "component_resolution", "native_components", ["frankgateway", "keycloak"]))
 
 
 def component_resolution_version_repository_paths(chart_dir: Path):
@@ -448,7 +449,7 @@ def component_resolution_image_paths(chart_dir: Path):
     values.yaml path(s) for its own image block(s), for a component that
     ships more than one independently-versioned image), default
     {"zgw-office-addin": ["frontend.image", "backend.image"],
-    "keycloak-operator": ["operator.config.keycloakImage"],
+    "keycloak-operator": ["operator.image"],
     "openbao": ["server.image"],
     "internetaakafhandeling": ["web.image", "poller.image"],
     "kiss-chart": ["image", "settings.syncJobs.image"],
@@ -463,7 +464,7 @@ def component_resolution_image_paths(chart_dir: Path):
             "image_paths",
             {
                 "zgw-office-addin": ["frontend.image", "backend.image"],
-                "keycloak-operator": ["operator.config.keycloakImage"],
+                "keycloak-operator": ["operator.image"],
                 "openbao": ["server.image"],
                 "internetaakafhandeling": ["web.image", "poller.image"],
                 "kiss-chart": ["image", "settings.syncJobs.image"],

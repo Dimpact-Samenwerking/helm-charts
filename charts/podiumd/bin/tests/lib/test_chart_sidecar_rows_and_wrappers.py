@@ -113,24 +113,56 @@ def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(
 def test_canonical_sidecar_row_names_self_referential_basename_falls_back_to_path_segment(
     tmp_path: Path, libchartrepoandpathresolution: ModuleType
 ):
-    """A nested image whose OWN repository basename happens to equal the
-    parent dependency's own values key (real case: keycloak-operator.
-    operator.image, the operator's own container — NOT registered in
-    COMPONENT_IMAGE_PATHS, unlike operator.config.keycloakImage) must
-    never produce a "<key> - <key>" canonical name — that reads as a
-    confusing repeat, not a real distinct-image name. Falls back to the
-    values-tree path's own second-to-last segment instead ("operator"),
-    giving "keycloak-operator - operator" — distinct from "this IS the
+    """A nested SIDECAR image whose OWN repository basename happens to
+    equal the parent dependency's own values key (e.g. redis-operator.
+    redisOperator.image, the operator's own container, when redis-
+    operator's registered primary is the default "image") must never
+    produce a "<key> - <key>" canonical name — that reads as a confusing
+    repeat, not a real distinct-image name. Falls back to the values-tree
+    path's own second-to-last segment instead ("redisOperator"), giving
+    "redis-operator - redisOperator" — distinct from "this IS the
     dependency's own row" (match_dependency already covers that case by
-    the bare dependency name), and clearly still identifies which
-    nested image this is."""
-    dep = {"name": "keycloak-operator", "alias": "", "version": "1.12.1"}
-    values = {"keycloak-operator": {"operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator"}}}}
-    paths = [("keycloak-operator", "operator", "image")]
+    the bare dependency name), and clearly still identifies which nested
+    image this is."""
+    dep = {"name": "redis-operator", "alias": "", "version": "0.26.1"}
+    values = {"redis-operator": {"redisOperator": {"image": {"repository": "quay.io/opstree/redis-operator"}}}}
+    paths = [("redis-operator", "redisOperator", "image")]
 
     names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
 
-    assert names == {"keycloak-operator - operator": ("keycloak-operator", "operator", "image")}
+    assert names == {"redis-operator - redisOperator": ("redis-operator", "redisOperator", "image")}
+
+
+def test_canonical_sidecar_row_names_excludes_sidecar_aliasing_an_owners_primary(
+    tmp_path: Path, libchartrepoandpathresolution: ModuleType
+):
+    """The real keycloak shape: keycloak-operator.operator.config.
+    keycloakImage is a keycloak-operator sidecar, but its repository is
+    the native keycloak component's own PRIMARY image (keycloak.image,
+    which it aliases) — the "keycloak" row already covers it, so it gets
+    no "keycloak-operator - keycloak" row of its own. keycloak-operator's
+    own primary (operator.image) is not a sidecar either."""
+    dep = {"name": "keycloak-operator", "alias": "", "version": "1.13.0"}
+    values = {
+        "keycloak": {"image": {"repository": "quay.io/keycloak/keycloak"}},
+        "keycloak-operator": {
+            "operator": {
+                "image": {"repository": "quay.io/keycloak/keycloak-operator"},
+                "config": {"keycloakImage": {"repository": "quay.io/keycloak/keycloak"}},
+            }
+        },
+    }
+    paths = [
+        ("keycloak", "image"),
+        ("keycloak-operator", "operator", "image"),
+        ("keycloak-operator", "operator", "config", "keycloakImage"),
+    ]
+
+    names = libchartrepoandpathresolution.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+    row_names = [libchartrepoandpathresolution.doc_row_name(tmp_path, [dep], values, p, paths) for p in paths]
+
+    assert names == {}
+    assert row_names == ["keycloak", "keycloak-operator", "keycloak"]
 
 
 def test_canonical_sidecar_row_names_self_referential_basename_no_fallback_segment_is_excluded(
@@ -476,7 +508,7 @@ def test_component_image_paths_self_resolves_against_real_chart_dir(libchartregi
     against a synthetic chart_dir handed in by a test."""
     assert libchartregisteredpaths.component_image_paths() == {
         "zgw-office-addin": ["frontend.image", "backend.image"],
-        "keycloak-operator": ["operator.config.keycloakImage"],
+        "keycloak-operator": ["operator.image"],
         "openbao": ["server.image"],
         "internetaakafhandeling": ["web.image", "poller.image"],
         "kiss-chart": ["image", "settings.syncJobs.image"],

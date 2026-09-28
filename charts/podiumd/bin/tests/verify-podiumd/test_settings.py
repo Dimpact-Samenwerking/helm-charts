@@ -145,7 +145,12 @@ ACCESSOR_CASES = [
         frozenset({"kiss-chart", "pabc"}),
         frozenset,
     ),
-    ("component_resolution_native_components", frozenset({"frankgateway"}), frozenset({"other-native"}), frozenset),
+    (
+        "component_resolution_native_components",
+        frozenset({"frankgateway", "keycloak"}),
+        frozenset({"other-native"}),
+        frozenset,
+    ),
     (
         "component_resolution_version_repository_paths",
         {"redis-operator": "redisOperator.imageName"},
@@ -168,7 +173,7 @@ ACCESSOR_CASES = [
         "component_resolution_image_paths",
         {
             "zgw-office-addin": ["frontend.image", "backend.image"],
-            "keycloak-operator": ["operator.config.keycloakImage"],
+            "keycloak-operator": ["operator.image"],
             "openbao": ["server.image"],
             "internetaakafhandeling": ["web.image", "poller.image"],
             "kiss-chart": ["image", "settings.syncJobs.image"],

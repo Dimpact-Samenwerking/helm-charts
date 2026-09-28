@@ -171,7 +171,8 @@ def repo_with_undocumented_component_bumps(tmp_path: Path):
     exists to fill in. "openformulieren" and "keycloak-operator" both
     have a resolvable app image (the former via actual_app_version's
     default "<key>.image.tag" shape, the latter via its own registered
-    lib.chart.COMPONENT_IMAGE_PATHS split-path entry); "redis-operator"
+    component_resolution.image_paths entry, operator.image, with the
+    adfinis chart's split "tag:"/"sha:" convention); "redis-operator"
     is chart-only — no matching values.yaml image at all — the genuine
     case that forces a TODO-stub Changes section instead of full
     prose."""
@@ -203,7 +204,7 @@ def repo_with_undocumented_component_bumps(tmp_path: Path):
             {
                 "zac": {"image": {"tag": "5.0.1@sha256:bbbb"}},
                 "openformulieren": {"image": {"tag": "3.4.10@sha256:cccc"}},
-                "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.6.4", "sha": "eeee"}}}},
+                "keycloak-operator": {"operator": {"image": {"tag": "26.6.4", "sha": "eeee"}}},
             }
         ),
     )
@@ -238,7 +239,7 @@ def repo_with_undocumented_component_bumps(tmp_path: Path):
             {
                 "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
                 "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
-                "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.7.3", "sha": "ffff"}}}},
+                "keycloak-operator": {"operator": {"image": {"tag": "26.7.3", "sha": "ffff"}}},
             }
         ),
     )
