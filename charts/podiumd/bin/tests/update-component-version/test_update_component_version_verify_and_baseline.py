@@ -210,3 +210,39 @@ def test_load_baseline_values_none_outside_git_repo(ucv: ModuleType, tmp_path: P
     values_yaml.write_text("zac: {}\n", encoding="utf-8")
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
     assert ucv.load_baseline_values("4.8.5") is None
+
+
+# --- check_chart_version_lockstep ---
+
+
+def test_check_chart_version_lockstep_refuses_differing_versions(
+    ucv: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    monkeypatch.setattr(
+        ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset({"internetaakafhandeling"})
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        ucv.check_chart_version_lockstep("internetaakafhandeling", "3.3.3", "3.3.2", no_chart=False)
+
+    assert exc_info.value.code == 1
+    assert "app version 3.3.3 != chart version 3.3.2" in capsys.readouterr().out
+
+
+def test_check_chart_version_lockstep_accepts_equal_versions(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset({"internetaakafhandeling"})
+    )
+    ucv.check_chart_version_lockstep("internetaakafhandeling", "3.3.3", "3.3.3", no_chart=False)
+
+
+def test_check_chart_version_lockstep_ignores_unregistered_component(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset({"internetaakafhandeling"})
+    )
+    ucv.check_chart_version_lockstep("zac", "5.4.3", "1.0.297", no_chart=False)
+
+
+def test_check_chart_version_lockstep_ignores_native_component(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(ucv, "chart_version_lockstep_components", lambda chart_dir: frozenset({"frankgateway"}))
+    ucv.check_chart_version_lockstep("frankgateway", "104", "native", no_chart=True)

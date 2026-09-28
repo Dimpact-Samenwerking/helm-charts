@@ -384,13 +384,14 @@ def helm_repos_urls_by_alias(chart_dir: Path):
 def component_resolution_chart_version_lockstep_components(chart_dir: Path):
     """component_resolution.chart_version_lockstep_components — replaces
     lib.chart.CHART_VERSION_LOCKSTEP_COMPONENTS, a frozenset, default
-    frozenset({"kiss-chart", "pabc", "eck-operator"})."""
+    frozenset({"kiss-chart", "pabc", "eck-operator",
+    "internetaakafhandeling"})."""
     return frozenset(
         _text_list(
             chart_dir,
             "component_resolution",
             "chart_version_lockstep_components",
-            ["kiss-chart", "pabc", "eck-operator"],
+            ["kiss-chart", "pabc", "eck-operator", "internetaakafhandeling"],
         )
     )
 

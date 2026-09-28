@@ -3,7 +3,9 @@
 Bump a component's app image version and Helm chart version.
 
 Checks both versions exist upstream before writing anything; a version
-already at the requested value is left as is. Writes Chart.yaml and
+already at the requested value is left as is. Refuses when the component
+is in etc/settings.yaml's chart_version_lockstep_components and the two
+versions differ. Writes Chart.yaml and
 values.yaml, updates the docs for the current target version (upgrade
 doc, values-deltas, images-<target>.yaml), runs fix-helm-doc, re-vendors
 the bumped sub-chart and runs fix-doc-consistency, which also regenerates
@@ -49,6 +51,7 @@ from lib.chart.paths import VALUES_YAML
 from lib.chart.pull_and_subchart_resolution import check_image_versions
 from lib.chart.pull_and_subchart_resolution import print_image_version_results
 from lib.chart.pull_and_subchart_resolution import resolve_chart_values
+from lib.chart.registered_paths import chart_version_lockstep_components
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import is_native_chart_version
 from lib.chart.registered_paths import resolve_native_component
@@ -406,6 +409,22 @@ def _resolve_bump_context(component: str, app_version: str, chart_version: str):
         values,
         image_paths,
     )
+
+
+def check_chart_version_lockstep(chart_name: str, app_version: str, chart_version: str, *, no_chart: bool) -> None:
+    """Exits 1 when chart_name is in chart_version_lockstep_components and
+    app_version differs from chart_version — the same rule
+    lib.checks.lockstep.find_chart_version_mismatches enforces afterwards
+    in verify-podiumd, checked here before any file is touched."""
+    if no_chart or chart_name not in chart_version_lockstep_components(CHART_DIR):
+        return
+    if app_version != chart_version:
+        print(
+            f"FAIL: {chart_name} releases its chart and app image as the same version "
+            f"(chart_version_lockstep_components), but app version {app_version} != "
+            f"chart version {chart_version} — refusing to change any files"
+        )
+        sys.exit(1)
 
 
 def _verify_versions(ctx: BumpContext):
@@ -850,6 +869,7 @@ def main():
     ensure_vendored_dependencies(CHART_DIR)
     split_tag_sha_paths = _load_split_tag_sha_paths()
     ctx = _resolve_bump_context(component, app_version, chart_version)
+    check_chart_version_lockstep(ctx.chart_name, app_version, chart_version, no_chart=ctx.no_chart)
 
     upstream_images, chart_unchanged = _verify_versions(ctx)
     paths_to_update, old_app_by_path = _compute_paths_to_update(ctx)

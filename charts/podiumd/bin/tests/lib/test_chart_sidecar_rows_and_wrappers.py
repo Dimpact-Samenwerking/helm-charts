@@ -367,7 +367,7 @@ def test_chart_version_lockstep_components_self_resolves_against_real_chart_dir(
     proves the self-resolving default actually works end to end, not just
     against a synthetic chart_dir handed in by a test."""
     assert libchartregisteredpaths.chart_version_lockstep_components() == frozenset(
-        {"kiss-chart", "pabc", "eck-operator"}
+        {"kiss-chart", "pabc", "eck-operator", "internetaakafhandeling"}
     )
 
 

@@ -147,10 +147,12 @@ digest_pinning:
 component_resolution:
   # Component names whose Chart.yaml dependency chart version and their
   # own resolved app image version are released as the SAME number (e.g.
-  # kiss-chart, pabc: chart version == image tag observed today) -- never
-  # assumed for a component that vendors a THIRD PARTY app at its own
-  # independent version (keycloak-operator, eck-stack).
-  chart_version_lockstep_components: ["kiss-chart", "pabc", "eck-operator"]
+  # kiss-chart, pabc, internetaakafhandeling: chart version == image tag
+  # observed today) -- never assumed for a component that vendors a THIRD
+  # PARTY app at its own independent version (keycloak-operator,
+  # eck-stack). update-component-version refuses differing versions for
+  # these; verify-podiumd's "Lockstep versions" step catches drift.
+  chart_version_lockstep_components: ["kiss-chart", "pabc", "eck-operator", "internetaakafhandeling"]
   # values.yaml top-level keys that are real, documentable components --
   # with their own app version, own image(s), own upgrade-doc row -- but
   # have NO backing Chart.yaml dependency at all: implemented directly
@@ -235,6 +237,11 @@ component_resolution:
     # upstream projects with their own independent version lines, never
     # bumped in lockstep with kiss-chart itself.
     "kiss-chart": ["image", "settings.syncJobs.image"]
+    # pabc-api (bare "image") and its migrations Job image are released
+    # from the same pabc version and always move together -- same co-equal
+    # lockstep shape as kiss-chart above. NOT initContainers.waitFor.image
+    # (k8s-wait-for), a separate upstream project on its own version line.
+    "pabc": ["image", "migrations.image"]
     # Same bare "image" path default_image_paths below already implies
     # for any unregistered component -- registered here anyway,
     # deliberately, so actual_app_version's own vendored-subchart-version

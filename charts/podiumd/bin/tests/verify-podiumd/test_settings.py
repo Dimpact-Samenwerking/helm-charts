@@ -141,7 +141,7 @@ ACCESSOR_CASES = [
     ),
     (
         "component_resolution_chart_version_lockstep_components",
-        frozenset({"kiss-chart", "pabc", "eck-operator"}),
+        frozenset({"kiss-chart", "pabc", "eck-operator", "internetaakafhandeling"}),
         frozenset({"kiss-chart", "pabc"}),
         frozenset,
     ),
