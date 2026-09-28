@@ -174,7 +174,7 @@ ACCESSOR_CASES = [
         {
             "zgw-office-addin": ["frontend.image", "backend.image"],
             "keycloak-operator": ["operator.image"],
-            "openbao": ["server.image"],
+            "openbao": ["server.image", "configuration.job.image"],
             "internetaakafhandeling": ["web.image", "poller.image"],
             "kiss-chart": ["image", "settings.syncJobs.image"],
             "pabc": ["image", "migrations.image"],

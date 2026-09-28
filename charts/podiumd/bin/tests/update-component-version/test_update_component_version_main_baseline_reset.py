@@ -522,9 +522,9 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     """Regression test (real bug, real doc): openbao's own "server.image.
-    tag" is deliberately left blank at the baseline too (see settings.
-    yaml's component_resolution.image_paths["openbao"]'s own comment) —
-    its real baseline
+    tag" was left blank at the baseline (podiumd <= 4.9.3 relied on the
+    chart's appVersion; the fixture registers only server.image, as
+    settings.yaml did then) — its real baseline
     app version only resolves via the vendored-.tgz subchart_app_version
     fallback, which the raw baseline_values.yaml tag read used to never
     attempt. Its chart version (0.28.4) isn't bumped by this run either,
@@ -555,6 +555,10 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
     monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
     monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "settings.yaml").write_text(
+        'component_resolution:\n  image_paths:\n    openbao: ["server.image"]\n', encoding="utf-8"
+    )
     _make_vendored_tgz(
         tmp_path / "charts", "openbao", "0.28.4", {"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.0"}
     )

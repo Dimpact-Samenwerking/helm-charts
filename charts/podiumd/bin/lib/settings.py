@@ -463,7 +463,7 @@ def component_resolution_image_paths(chart_dir: Path):
     ships more than one independently-versioned image), default
     {"zgw-office-addin": ["frontend.image", "backend.image"],
     "keycloak-operator": ["operator.image"],
-    "openbao": ["server.image"],
+    "openbao": ["server.image", "configuration.job.image"],
     "internetaakafhandeling": ["web.image", "poller.image"],
     "kiss-chart": ["image", "settings.syncJobs.image"],
     "pabc": ["image", "migrations.image"],
@@ -478,7 +478,7 @@ def component_resolution_image_paths(chart_dir: Path):
             {
                 "zgw-office-addin": ["frontend.image", "backend.image"],
                 "keycloak-operator": ["operator.image"],
-                "openbao": ["server.image"],
+                "openbao": ["server.image", "configuration.job.image"],
                 "internetaakafhandeling": ["web.image", "poller.image"],
                 "kiss-chart": ["image", "settings.syncJobs.image"],
                 "pabc": ["image", "migrations.image"],

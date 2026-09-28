@@ -509,7 +509,7 @@ def test_component_image_paths_self_resolves_against_real_chart_dir(libchartregi
     assert libchartregisteredpaths.component_image_paths() == {
         "zgw-office-addin": ["frontend.image", "backend.image"],
         "keycloak-operator": ["operator.image"],
-        "openbao": ["server.image"],
+        "openbao": ["server.image", "configuration.job.image"],
         "internetaakafhandeling": ["web.image", "poller.image"],
         "kiss-chart": ["image", "settings.syncJobs.image"],
         "pabc": ["image", "migrations.image"],

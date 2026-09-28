@@ -208,15 +208,13 @@ component_resolution:
     # embedded @sha256 digest -- see digest_pinning.exceptions above.
     "keycloak-operator": ["operator.image"]
     # The real running OpenBao SERVER (the upstream openbao-helm
-    # subchart's own "server" key) -- NOT "openbao.configuration.job.
-    # image", which despite reusing the same OpenBao binary is podiumd's
-    # own one-off post-deploy bao-config Job (enables OIDC auth, kv-v2
-    # mount, uploader policy), not the primary application. "server.image"
-    # has an explicit "repository:" override in values.yaml but a blank
-    # "tag:" (relies on the chart's own appVersion default) -- image_
-    # paths_for callers still resolve a real repository from that
-    # override alone.
-    "openbao": ["server.image"]
+    # subchart's own "server" key) and podiumd's own post-deploy
+    # bao-config Job (enables OIDC auth, kv-v2 mount, uploader policy),
+    # which runs the same OpenBao binary and must match the server
+    # version. Both are pinned explicitly -- the server not left to the
+    # chart's appVersion default -- so a chart bump can't move the server
+    # while the Job stays behind; update-component-version bumps both.
+    "openbao": ["server.image", "configuration.job.image"]
     # ITA has no single "app" image at all -- web and poller are two
     # co-equal images, same lockstep shape as zgw-office-addin's own
     # frontend+backend split (both happen to share one version here, but

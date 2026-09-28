@@ -4573,12 +4573,13 @@ openbao:
       # log ("configured" vs "skipped") stays readable until this TTL expires.
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
-      # bao CLI image. Tag pinned explicitly (not "") — unlike the server, this
-      # standalone Job cannot resolve the subchart appVersion. Keep in step with
-      # the openbao subchart appVersion (OpenBao v2.5.5 @ chart 0.28.4).
+      # bao CLI image. Tag pinned explicitly (not ""): this standalone Job
+      # cannot resolve the subchart appVersion. Defines the &openbaoImageTag
+      # anchor openbao.server.image.tag aliases below (an alias must follow
+      # its anchor), so the server and this Job always run the same OpenBao.
       image:
         repository: quay.io/openbao/openbao
-        tag: "2.5.5@sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"
+        tag: &openbaoImageTag "2.5.5@sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"
       nodeSelector: {}
       resources:
         requests:
@@ -4627,7 +4628,10 @@ openbao:
     image:
       registry: quay.io
       repository: openbao/openbao
-      tag: ""                # "" => chart appVersion (OpenBao v2.5.5)
+      # Pinned explicitly (not "" => chart appVersion): a chart bump must not
+      # move the server silently. Aliases configuration.job.image's tag above;
+      # bump with update-component-version openbao <app> <chart>.
+      tag: *openbaoImageTag
     # Workload-identity SA. The user-assigned MI + federated credential and the
     # "Key Vault Crypto User" role on the unseal key are provisioned out-of-band
     # (base-infra). The client-id annotation is set in the per-env override.
