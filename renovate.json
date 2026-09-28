@@ -18,6 +18,11 @@
       "description": "PABC: chart and api/migrations images share one version (chart_version_lockstep_components in charts/podiumd/etc/settings.yaml)",
       "matchPackageNames": ["ghcr.io/platform-autorisatie-beheer-component/**"],
       "groupName": "pabc"
+    },
+    {
+      "description": "keycloak-config-cli tags are <cli-version>-<keycloak-version> (e.g. 6.5.1-26.5.5): track both parts, keeping the Keycloak major. verify-podiumd checks the embedded version against the Keycloak server image (embedded_version_images in charts/podiumd/etc/settings.yaml)",
+      "matchPackageNames": ["adorsys/keycloak-config-cli"],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-(?<compatibility>\\d+)\\.(?<build>\\d+)\\.(?<revision>\\d+)$"
     }
   ]
 }

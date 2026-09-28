@@ -175,11 +175,14 @@ keycloak:
       key: ""
   keycloakConfigCli:
     # image parameters for keycloak-config-cli
-    # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.5.1-26
+    # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.5.1-26.5.5
+    # Explicit "-<keycloak-version>" build tag, never the floating "-26": that
+    # alias points at the 26.1.0 build, not the newest. verify-podiumd checks
+    # the embedded Keycloak version against *keycloakImageVersion.
     image:
       registry: ""
       repository: adorsys/keycloak-config-cli
-      tag: "6.5.1-26@sha256:1b22dfaa9ae0c71f74b0342f9221a6510f272da5def683dbba26a98e6b1b1411"
+      tag: "6.5.1-26.5.5@sha256:0955d98c8a341898b7aa177477edf8a1e90569ae50bbe7598141c1270b773274"
   podTemplate:
     metadata:
       labels:

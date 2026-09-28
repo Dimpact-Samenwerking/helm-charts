@@ -13,6 +13,7 @@ from lib.chart.values_tree_primitives import same_name
 from lib.chart.values_tree_primitives import values_key_of
 from lib.settings import component_resolution_chart_version_lockstep_components
 from lib.settings import component_resolution_default_image_paths
+from lib.settings import component_resolution_embedded_version_images
 from lib.settings import component_resolution_image_paths
 from lib.settings import component_resolution_native_components
 from lib.settings import component_resolution_version_paths
@@ -262,3 +263,11 @@ def component_chart_versions(
     if key in native_components(chart_dir):
         return None, key, None, "-"
     return None
+
+
+def embedded_version_images(chart_dir: Path | None = None):
+    """Self-resolving wrapper around lib.settings.component_resolution_
+    embedded_version_images — same shape as chart_version_lockstep_
+    components above."""
+    chart_dir = chart_dir or CHART_DIR
+    return component_resolution_embedded_version_images(chart_dir)

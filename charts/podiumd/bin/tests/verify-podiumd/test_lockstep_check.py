@@ -1,5 +1,5 @@
 """check_lockstep_versions / find_lockstep_mismatches /
-find_chart_version_mismatches — every component registered as
+find_chart_version_mismatches / find_embedded_version_mismatches — every component registered as
 "lockstep" in lib.chart (component_image_paths()/component_version_
 paths() multi-path entries, and chart_version_lockstep_components())
 must actually agree on one version in values.yaml/Chart.yaml."""
@@ -26,6 +26,11 @@ def _lockstep_registries(liblockstepcheck: ModuleType, monkeypatch: pytest.Monke
     )
     monkeypatch.setattr(
         liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset({"kiss-chart", "pabc"})
+    )
+    monkeypatch.setattr(
+        liblockstepcheck,
+        "embedded_version_images",
+        lambda: {"keycloak.keycloakConfigCli.image": "keycloak.image"},
     )
 
 
@@ -262,3 +267,69 @@ def test_check_fails_and_reports_multi_path_drift(
     out = capsys.readouterr().out
     assert "zgw-office-addin" in out
     assert "frontend.image" in out and "backend.image" in out
+
+
+# --- find_embedded_version_mismatches ---
+
+
+def _keycloak_values(config_cli_tag: str, keycloak_tag: str = "26.7.3"):
+    return {
+        "keycloak": {
+            "image": {"tag": keycloak_tag},
+            "keycloakConfigCli": {"image": {"tag": config_cli_tag}},
+        }
+    }
+
+
+def test_embedded_version_older_same_major_no_mismatch(liblockstepcheck: ModuleType):
+    values = _keycloak_values("6.5.1-26.5.5@sha256:aaa")
+    assert liblockstepcheck.find_embedded_version_mismatches(values) == []
+
+
+def test_embedded_version_equal_no_mismatch(liblockstepcheck: ModuleType):
+    values = _keycloak_values("6.5.1-26.7.3")
+    assert liblockstepcheck.find_embedded_version_mismatches(values) == []
+
+
+def test_floating_tag_without_full_embedded_version_reported(liblockstepcheck: ModuleType):
+    values = _keycloak_values("6.5.1-26@sha256:aaa")
+    findings = liblockstepcheck.find_embedded_version_mismatches(values)
+    assert findings == [("keycloak.keycloakConfigCli.image", "tag 6.5.1-26 embeds no full MAJOR.MINOR.PATCH version")]
+
+
+def test_embedded_version_other_major_reported(liblockstepcheck: ModuleType):
+    values = _keycloak_values("6.5.1-25.0.1")
+    [(path, problem)] = liblockstepcheck.find_embedded_version_mismatches(values)
+    assert path == "keycloak.keycloakConfigCli.image"
+    assert "built for major 25" in problem
+
+
+def test_embedded_version_newer_than_followed_image_reported(liblockstepcheck: ModuleType):
+    values = _keycloak_values("6.5.1-26.8.0")
+    [(_path, problem)] = liblockstepcheck.find_embedded_version_mismatches(values)
+    assert "newer version than keycloak.image 26.7.3" in problem
+
+
+def test_embedded_version_compares_numerically(liblockstepcheck: ModuleType):
+    """26.10.0 is newer than 26.9.0, although lexically smaller."""
+    values = _keycloak_values("6.5.1-26.9.0", keycloak_tag="26.10.0")
+    assert liblockstepcheck.find_embedded_version_mismatches(values) == []
+
+
+def test_embedded_version_skipped_when_a_tag_is_missing(liblockstepcheck: ModuleType):
+    values = {"keycloak": {"image": {"tag": "26.7.3"}}}
+    assert liblockstepcheck.find_embedded_version_mismatches(values) == []
+
+
+def test_check_lockstep_versions_fails_on_embedded_version_mismatch(
+    liblockstepcheck: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    (tmp_path / "Chart.yaml").write_text("apiVersion: v2\nname: podiumd\nversion: 1.0.0\n", encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(
+        'keycloak:\n  image:\n    tag: "26.7.3"\n  keycloakConfigCli:\n    image:\n      tag: "6.5.1-26"\n',
+        encoding="utf-8",
+    )
+    ok, summary = liblockstepcheck.check_lockstep_versions(tmp_path)
+    assert not ok
+    assert summary == "1 mismatch(es)"
+    assert "keycloak.keycloakConfigCli.image: tag 6.5.1-26 embeds no full" in capsys.readouterr().out

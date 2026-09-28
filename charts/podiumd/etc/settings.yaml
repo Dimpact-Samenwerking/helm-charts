@@ -256,6 +256,14 @@ component_resolution:
     # real 4.9.1-to-4.9.2 doc.
     "eck-operator": ["image"]
   default_image_paths: ["image"]
+  # Dotted values.yaml image path whose tag embeds the version of the
+  # image it is built against -> dotted values.yaml path of that image.
+  # keycloak-config-cli tags are "<own>-<keycloak-version>": pin the
+  # explicit build (e.g. 6.5.1-26.5.5), never the floating "-26" alias.
+  # verify-podiumd's "Lockstep versions" step fails when the embedded
+  # version is missing, has another major, or is newer than the image.
+  embedded_version_images:
+    "keycloak.keycloakConfigCli.image": "keycloak.image"
   # component (name, not alias -- same convention as image_paths above) ->
   # dotted values.yaml path(s), each pointing DIRECTLY at a bare version
   # string -- not the "<path>.image.tag" shape image_paths/default_image_

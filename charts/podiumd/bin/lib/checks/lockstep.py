@@ -20,6 +20,12 @@ components() entry (settings.yaml's own signal that a component's
 Chart.yaml dependency version and its own resolved app image version
 are released as the SAME number) must agree with each other.
 
+find_embedded_version_mismatches — every lib.chart.embedded_version_
+images() entry (an image whose tag embeds the version of the image it
+is built against, e.g. keycloak-config-cli "6.5.1-26.5.5" is built for
+Keycloak 26.5.5) must embed a full MAJOR.MINOR.PATCH version with the
+same major as that image, and no newer than it.
+
 These are genuinely different things being checked, not two flavors of
 the same one: find_lockstep_mismatches compares several values-tree
 PATHS against EACH OTHER; find_chart_version_mismatches compares ONE
@@ -33,6 +39,8 @@ sharing a version number is normal and not a mismatch — the exact
 opposite mistake same_group's own docstring already warns against (the
 kiss/kiss-elastic-sync precedent)."""
 
+import re
+
 from pathlib import Path
 
 from lib.chart.chart_yaml import ChartDependency
@@ -40,6 +48,7 @@ from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.registered_paths import chart_version_lockstep_components
 from lib.chart.registered_paths import component_image_paths
 from lib.chart.registered_paths import component_version_paths
+from lib.chart.registered_paths import embedded_version_images
 from lib.chart.registered_paths import image_paths_for
 from lib.chart.registered_paths import version_paths_for
 from lib.chart.values_tree_primitives import find_dependency
@@ -138,16 +147,59 @@ def find_chart_version_mismatches(
     return findings
 
 
+EMBEDDED_VERSION_RE = re.compile(r"-(\d+)\.(\d+)\.(\d+)$")
+PLAIN_VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+
+
+def _version_parts(match: re.Match[str] | None) -> tuple[int, int, int] | None:
+    if match is None:
+        return None
+    major, minor, patch = (int(part) for part in match.groups())
+    return major, minor, patch
+
+
+def find_embedded_version_mismatches(values: YamlMapping | None) -> list[tuple[str, str]]:
+    """[(path, problem)] for every
+    lib.chart.embedded_version_images() entry whose tag doesn't embed a
+    full version (e.g. the floating "6.5.1-26"), embeds a different
+    major than the followed image's version, or embeds a newer one.
+    Entries whose path or followed path has no tag are skipped."""
+    findings: list[tuple[str, str]] = []
+    base = values if isinstance(values, dict) else {}
+    for path, followed_path in sorted(embedded_version_images().items()):
+        tag = text_at(base, f"{path}.tag")
+        followed_tag = text_at(base, f"{followed_path}.tag")
+        if not tag or not followed_tag:
+            continue
+        own = version_of(tag)
+        followed = version_of(followed_tag)
+        embedded_parts = _version_parts(EMBEDDED_VERSION_RE.search(own))
+        followed_parts = _version_parts(PLAIN_VERSION_RE.match(followed))
+        if embedded_parts is None:
+            problem = f"tag {own} embeds no full MAJOR.MINOR.PATCH version"
+        elif followed_parts is None:
+            problem = f"{followed_path} version {followed} is not a plain MAJOR.MINOR.PATCH"
+        elif embedded_parts[0] != followed_parts[0]:
+            problem = f"tag {own} is built for major {embedded_parts[0]}, {followed_path} runs {followed}"
+        elif embedded_parts > followed_parts:
+            problem = f"tag {own} is built for a newer version than {followed_path} {followed}"
+        else:
+            continue
+        findings.append((path, problem))
+    return findings
+
+
 def check_lockstep_versions(chart_dir: Path):
-    """Runs find_lockstep_mismatches and find_chart_version_mismatches
-    against chart_dir's own Chart.yaml/values.yaml and reports every
+    """Runs find_lockstep_mismatches, find_chart_version_mismatches and
+    find_embedded_version_mismatches against chart_dir's own Chart.yaml/values.yaml and reports every
     mismatch found."""
     deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     values = load_yaml_mapping(chart_dir / "values.yaml")
 
     path_mismatches = find_lockstep_mismatches(deps, values)
     chart_version_mismatches = find_chart_version_mismatches(deps, values)
-    total = len(path_mismatches) + len(chart_version_mismatches)
+    embedded_mismatches = find_embedded_version_mismatches(values)
+    total = len(path_mismatches) + len(chart_version_mismatches) + len(embedded_mismatches)
 
     if not total:
         print("OK: every registered lockstep group agrees on one version")
@@ -170,5 +222,13 @@ def check_lockstep_versions(chart_dir: Path):
         )
         for component, values_key, chart_version, app_version in chart_version_mismatches:
             print(f"  {component}: Chart.yaml version {chart_version} != {values_key} image version {app_version}")
+
+    if embedded_mismatches:
+        print(
+            f"Found {len(embedded_mismatches)} image(s) whose tag embeds a version that disagrees with the "
+            f"image it is built against (see lib.chart.embedded_version_images()):"
+        )
+        for path, problem in embedded_mismatches:
+            print(f"  {path}: {problem}")
 
     return False, f"{total} mismatch(es)"

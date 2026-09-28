@@ -443,6 +443,19 @@ def component_resolution_version_path_nested_subcharts(chart_dir: Path):
     )
 
 
+def component_resolution_embedded_version_images(chart_dir: Path):
+    """component_resolution.embedded_version_images, a dict (dotted
+    values.yaml image path whose tag embeds the version of the image it
+    is built against -> dotted values.yaml path of that image), default
+    {"keycloak.keycloakConfigCli.image": "keycloak.image"}."""
+    return _text_map(
+        chart_dir,
+        "component_resolution",
+        "embedded_version_images",
+        {"keycloak.keycloakConfigCli.image": "keycloak.image"},
+    )
+
+
 def component_resolution_image_paths(chart_dir: Path):
     """component_resolution.image_paths — replaces lib.chart.
     COMPONENT_IMAGE_PATHS, a dict (component name/alias -> dotted
