@@ -89,8 +89,11 @@ from lib.yaml_types import YamlMapping
 def make_image_changes_section(
     basename: str, target: str, old_version: str | None, new_version: str | None, pinned: list[tuple[str, str | None]]
 ) -> str:
-    """The "### <basename> <old> → <new>" Changes block for a shared
-    image basename bump. `pinned` is [(dotted_path, old_version), ...]
+    """The "### <basename> <old> → <new>" Changes block for an image
+    basename bump; the intro calls the image "shared" only when every
+    bumped pin is under global.images (see global_image_paths) — a
+    component's own sidecar (e.g. "keycloak - keycloak-config-cli") is
+    not shared. `pinned` is [(dotted_path, old_version), ...]
     for every values.yaml tag pin actually bumped (see
     lib.image.version.update_image_version's own return value) — listed
     individually rather than assuming one uniform "old" version, since a
@@ -111,15 +114,18 @@ def make_image_changes_section(
     about version changes, and there isn't one to report in either
     case."""
     suffix = version_change_suffix(old_version, new_version)
+    image = (
+        f"shared **{basename}**" if pinned and all(p.startswith("global.") for p, _ in pinned) else f"**{basename}**"
+    )
     if old_version is None:
         heading_suffix = f"{new_version} {suffix}"
-        intro = f"PodiumD {target} introduces the shared **{basename}** image at {new_version},\n"
+        intro = f"PodiumD {target} introduces the {image} image at {new_version},\n"
     elif suffix:
         heading_suffix = f"{new_version} {suffix}"
-        intro = f"PodiumD {target} keeps the shared **{basename}** image at {new_version},\n"
+        intro = f"PodiumD {target} keeps the {image} image at {new_version},\n"
     else:
         heading_suffix = f"{old_version} → {new_version}"
-        intro = f"PodiumD {target} upgrades the shared **{basename}** image to {new_version},\n"
+        intro = f"PodiumD {target} upgrades the {image} image to {new_version},\n"
     lines = [f"### {basename} {heading_suffix}\n\n", intro, "pinned at:\n\n"]
     for path, path_old_version in pinned:
         path_suffix = version_change_suffix(path_old_version, new_version)

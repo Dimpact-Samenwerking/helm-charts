@@ -275,6 +275,23 @@ def test_make_image_changes_section_old_equals_new_renders_unchanged(libimagedoc
     assert "keeps the shared **redis** image" in section
 
 
+def test_make_image_changes_section_component_sidecar_is_not_called_shared(libimagedocs: ModuleType):
+    """Only a global.images pin is a shared image: a component's own
+    sidecar (keycloak's keycloak-config-cli) is just "the ... image"."""
+    pinned = [("keycloak.keycloakConfigCli.image.tag", "6.5.1-26")]
+    section = libimagedocs.make_image_changes_section(
+        "keycloak - keycloak-config-cli", "4.9.3", "6.5.1-26", "6.5.1-26.5.5", pinned
+    )
+    assert "upgrades the **keycloak - keycloak-config-cli** image to 6.5.1-26.5.5" in section
+    assert "shared" not in section
+
+
+def test_make_image_changes_section_global_image_is_called_shared(libimagedocs: ModuleType):
+    pinned = [("global.images.curl.tag", "8.21.0")]
+    section = libimagedocs.make_image_changes_section("curl", "4.9.3", "8.21.0", "8.22.0", pinned)
+    assert "upgrades the shared **curl** image to 8.22.0" in section
+
+
 # --- update_image_manifest ---
 
 
