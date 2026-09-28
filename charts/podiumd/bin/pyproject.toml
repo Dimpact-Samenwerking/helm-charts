@@ -126,6 +126,7 @@ check-typed-exception = true  # Enable additional checks for try-except-pass
 "fix-image-digests" = ["E402"]
 "fix-markdown" = ["E402"]
 "fix-node-selector" = ["E402"]
+"fix-oidc-url-coverage" = ["E402"]
 "fix-utf8-bom" = ["E402"]
 "fix-vendored-tgz" = ["E402"]
 "list-helmchart-images" = ["E402"]

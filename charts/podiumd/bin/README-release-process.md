@@ -180,6 +180,7 @@ This updates just a container image version in a release.
 - `fix-image-digests`: updates image digests for one specific image or all stale images (also runs `fix-helm-doc` on any real write)
 - `fix-markdown`: auto-fix whatever pymarkdown's own `fix` mode can safely resolve
 - `fix-node-selector`: insert the required `nodeSelector` into any own template missing one
+- `fix-oidc-url-coverage`: add the missing `$oidcClients` entry for any Keycloak client redirect URI value the realm-config template doesn't guard yet
 - `fix-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
 - `fix-vendored-tgz`: delete an extracted sub-chart directory shadowing its own pinned `.tgz`
 - `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
@@ -213,6 +214,7 @@ Tools:
 - `fix-image-digests`: updates image digests for one specific image or all stale images (also runs `fix-helm-doc` on any real write)
 - `fix-markdown`: auto-fix whatever pymarkdown's own `fix` mode can safely resolve
 - `fix-node-selector`: insert the required `nodeSelector` into any own template missing one
+- `fix-oidc-url-coverage`: add the missing `$oidcClients` entry for any Keycloak client redirect URI value the realm-config template doesn't guard yet
 - `fix-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
 - `fix-vendored-tgz`: delete an extracted sub-chart directory shadowing its own pinned `.tgz`
 - `list-helmchart-images`: list images in a helm chart, given chart name and version

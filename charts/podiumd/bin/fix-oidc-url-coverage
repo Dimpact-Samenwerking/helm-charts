@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""
+Add a missing `$oidcClients` entry to the Keycloak realm-config template.
+
+Fixes what verify-podiumd's "OIDC URL coverage" step reports: every
+`.Values.<path>` a Keycloak client builds its redirectUris from needs an
+entry with that path as its "oidcUrl" in the `$oidcClients` list of
+templates/keycloak-podiumd-realm-config.yaml. Each new entry is appended
+to that list:
+
+    name     <X> for keycloak.config.clients.<X>.*, else the top-level key
+    enabled  .Values.<block>.enabled
+    oidcUrl  the uncovered path
+    field    the path, only when it isn't <name>.configuration.oidcUrl
+
+A path whose <block>.enabled is neither a values.yaml key nor a
+Chart.yaml dependency condition is left unchanged and reported for
+manual review.
+
+Usage:
+    fix-oidc-url-coverage [--dry-run]
+
+Options:
+    --dry-run   report only, write nothing
+"""
+
+import sys
+
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+# Not installed as a package -- sys.path must be patched before
+# lib.* can be imported, so these imports can't move to the top.
+# pylint: disable=wrong-import-position
+from lib.chart.chart_yaml import ChartDependency
+from lib.chart.chart_yaml import load_chart_dependencies
+from lib.chart.paths import CHART_DIR
+from lib.chart.values_tree_primitives import dep_for_values_key
+from lib.chart.values_tree_primitives import mapping_at
+from lib.checks.oidc_url_coverage import OIDC_CLIENTS_LIST_RE
+from lib.checks.oidc_url_coverage import REALM_CONFIG_TEMPLATE
+from lib.checks.oidc_url_coverage import scan_oidc_url_coverage
+from lib.cli import exit_on_help
+from lib.yaml_types import YamlMapping
+from lib.yaml_types import load_yaml_mapping
+
+KEYCLOAK_CLIENTS_PREFIX = "keycloak.config.clients."
+
+
+def client_block(values_path: str) -> tuple[str, str]:
+    """(name, block) for a dotted values path without ".Values.": the
+    keycloak.config.clients.<X> block and name <X> for a path under it,
+    else the top-level key as both — e.g. "ita.web.oidc.frontendUrl" ->
+    ("ita", "ita")."""
+    if values_path.startswith(KEYCLOAK_CLIENTS_PREFIX):
+        name = values_path.removeprefix(KEYCLOAK_CLIENTS_PREFIX).split(".")[0]
+        return name, KEYCLOAK_CLIENTS_PREFIX + name
+    top = values_path.split(".")[0]
+    return top, top
+
+
+def has_enabled_switch(block: str, values: YamlMapping, deps: list[ChartDependency]) -> bool:
+    """True when `<block>.enabled` is a key in values.yaml, or the
+    condition of the Chart.yaml dependency whose values key is `block`
+    (e.g. openzaak, whose enabled default lives in the subchart)."""
+    parent, _, key = f"{block}.enabled".rpartition(".")
+    if key in mapping_at(values, parent):
+        return True
+    dep = dep_for_values_key(deps, block)
+    conditions = (dep or {}).get("condition", "")
+    return f"{block}.enabled" in [c.strip() for c in conditions.split(",")]
+
+
+def _pad_to(text: str, column: int) -> str:
+    """`text` padded with spaces to `column` characters, or with one
+    space when it's already that long."""
+    return text.ljust(column) if len(text) < column else text + " "
+
+
+def entry_line(values_path: str, first_entry: str) -> str:
+    """The `(dict ...)` line for `values_path`, with "enabled" and
+    "oidcUrl" aligned to their columns in `first_entry` (the list's
+    first existing entry line) where they fit."""
+    name, block = client_block(values_path)
+    indent = first_entry[: len(first_entry) - len(first_entry.lstrip())]
+    line = _pad_to(f'{indent}(dict "name" "{name}"', first_entry.find('"enabled"'))
+    line = _pad_to(f'{line}"enabled" .Values.{block}.enabled', first_entry.find('"oidcUrl"'))
+    line += f'"oidcUrl" .Values.{values_path}'
+    if values_path != f"{name}.configuration.oidcUrl":
+        line += f' "field" "{values_path}"'
+    return line + ")"
+
+
+def find_fixes(text: str, values: YamlMapping, deps: list[ChartDependency]) -> tuple[list[str], list[str]] | None:
+    """(new entry lines, unresolved ".Values.<path>"s) for the template
+    `text`, or None when it has no `$oidcClients` list or that list has
+    no entry to align to."""
+    result = scan_oidc_url_coverage(text)
+    list_m = OIDC_CLIENTS_LIST_RE.search(text)
+    if result is None or list_m is None:
+        return None
+    first_entry = next((line for line in list_m.group("body").splitlines() if '"oidcUrl"' in line), None)
+    if first_entry is None:
+        return None
+    entries: list[str] = []
+    unresolved: list[str] = []
+    for path in dict.fromkeys(path for _client, _line, path in result[0]):
+        values_path = path.removeprefix(".Values.")
+        if has_enabled_switch(client_block(values_path)[1], values, deps):
+            entries.append(entry_line(values_path, first_entry))
+        else:
+            unresolved.append(path)
+    return entries, unresolved
+
+
+def apply_fixes(text: str, entries: list[str]) -> str:
+    """`text` with `entries` appended after the last line of the
+    `$oidcClients` list, before its closing `-}}`."""
+    list_m = OIDC_CLIENTS_LIST_RE.search(text)
+    if list_m is None or not entries:
+        return text
+    end = list_m.end("body")
+    insert_at = len(text[:end].rstrip("- \t\n"))
+    return text[:insert_at] + "".join(f"\n{entry}" for entry in entries) + text[insert_at:]
+
+
+def main():
+    """CLI entry point: appends a `$oidcClients` entry for every
+    uncovered redirect URI path and (unless --dry-run) writes the
+    template back. Exits 1 if anything is left unresolved or, in dry-run
+    mode, whenever an entry would be added."""
+    exit_on_help(__doc__)
+    args = sys.argv[1:]
+    if args not in ([], ["--dry-run"]):
+        print(__doc__)
+        sys.exit(1)
+    dry_run = bool(args)
+
+    template = CHART_DIR / REALM_CONFIG_TEMPLATE
+    if not template.is_file():
+        print(f"error: {REALM_CONFIG_TEMPLATE} not found")
+        sys.exit(1)
+    text = template.read_text(encoding="utf-8")
+    values = load_yaml_mapping(CHART_DIR / "values.yaml")
+    deps = load_chart_dependencies(CHART_DIR / "Chart.yaml")
+    fixes = find_fixes(text, values, deps)
+    if fixes is None:
+        print(f"error: no `$oidcClients := list ...` entries found in {REALM_CONFIG_TEMPLATE}")
+        sys.exit(1)
+    entries, unresolved = fixes
+
+    action = "would add" if dry_run else "added"
+    for entry in entries:
+        print(f"  {REALM_CONFIG_TEMPLATE}: {action} {entry.strip()}")
+    for path in unresolved:
+        print(f"  {REALM_CONFIG_TEMPLATE}: {path}: no enabled switch found for its block — add the entry by hand")
+
+    if not entries and not unresolved:
+        print("OK: every Keycloak client redirect URI built from .Values has a matching $oidcClients oidcUrl entry")
+        sys.exit(0)
+    if dry_run:
+        print(f"\n{len(entries)} $oidcClients entry(ies) would be added (dry-run, not writing)")
+        sys.exit(1)
+    if entries:
+        template.write_text(apply_fixes(text, entries), encoding="utf-8")
+    print(
+        f"\nAdded {len(entries)} $oidcClients entry(ies)"
+        + (f"; {len(unresolved)} left unresolved — review by hand" if unresolved else "")
+    )
+    sys.exit(1 if unresolved else 0)
+
+
+if __name__ == "__main__":
+    main()

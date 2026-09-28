@@ -116,7 +116,8 @@ def scan_oidc_url_coverage(
 def check_oidc_url_coverage(chart_dir: Path) -> tuple[bool, str]:
     """Fails if any Keycloak client in the realm-config template builds a
     redirect URI from a `.Values` path with no `$oidcClients` entry (see
-    module docstring), printing each clientId and uncovered path. Also
+    module docstring), printing each clientId and uncovered path and
+    pointing at fix-oidc-url-coverage. Also
     fails, clearly, when the template or its `$oidcClients` list is
     missing — this check's whole premise is gone then, and passing
     silently would hide that. Redirect URIs with no `.Values` path are
@@ -147,4 +148,5 @@ def check_oidc_url_coverage(chart_dir: Path) -> tuple[bool, str]:
     )
     for client_id, line_no, path in uncovered:
         print(f"  {REALM_CONFIG_TEMPLATE}:{line_no}  clientId {client_id}: {path}")
-    return False, f"{len(uncovered)} uncovered"
+    print("Run fix-oidc-url-coverage to add the missing $oidcClients entries.")
+    return False, f"{len(uncovered)} uncovered — run fix-oidc-url-coverage to fix"

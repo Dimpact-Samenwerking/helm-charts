@@ -67,6 +67,7 @@ def test_uncovered_values_path_fails_naming_client_and_path(
     assert "1 uncovered" in detail
     out = capsys.readouterr().out
     assert "clientId kiss: .Values.kiss.configuration.oidcUrl" in out
+    assert "Run fix-oidc-url-coverage" in out
     assert "openzaak" not in out
 
 
@@ -145,7 +146,7 @@ def test_multiple_redirect_uri_lines_in_one_client_each_checked(
     write_realm_config(tmp_path, realm(client))
     ok, detail = vp.check_oidc_url_coverage(tmp_path)
     assert ok is False
-    assert detail == "1 uncovered"
+    assert detail == "1 uncovered — run fix-oidc-url-coverage to fix"
     out = capsys.readouterr().out
     assert "clientId openbao: .Values.openbao.configuration.oidcUrl" in out
     assert "clientId openbao: .Values.openzaak" not in out
