@@ -2,5 +2,22 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "description": "ITA: chart and web/poller images share one version (chart_version_lockstep_components in charts/podiumd/etc/settings.yaml)",
+      "matchPackageNames": ["ghcr.io/interne-taak-afhandeling/**"],
+      "groupName": "internetaakafhandeling"
+    },
+    {
+      "description": "KISS: chart and frontend/elastic-sync images share one version (chart_version_lockstep_components in charts/podiumd/etc/settings.yaml)",
+      "matchPackageNames": ["ghcr.io/klantinteractie-servicesysteem/**"],
+      "groupName": "kiss"
+    },
+    {
+      "description": "PABC: chart and api/migrations images share one version (chart_version_lockstep_components in charts/podiumd/etc/settings.yaml)",
+      "matchPackageNames": ["ghcr.io/platform-autorisatie-beheer-component/**"],
+      "groupName": "pabc"
+    }
   ]
 }
