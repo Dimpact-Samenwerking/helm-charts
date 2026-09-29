@@ -53,7 +53,7 @@ Infra to provision per environment (one line each):
 | **Identity** | User-assigned MI + federated credential for SA `openbao`; set client-id in `server.serviceAccount.annotations`. (The Azure KV *crypto key* for auto-unseal is provisioned but unused — Shamir, §3.6.) |
 | **Images / egress** | Allow `quay.io/openbao/openbao:2.5.5` + `docker.io/library/postgres:16-alpine` (or mirror to ACR + override). |
 | **One-time bootstrap** | `bao operator init -key-shares=1 -key-threshold=1`; store the key and root token in Key Vault; unseal all 3 pods; mint + seed the scoped config token (`scripts/openbao-mint-config-token.sh`), then revoke the root token; re-run deploy; check `kubectl logs job/openbao-config`. |
-| **Every restart / upgrade** | Unseal all 3 pods with `openbao-unseal-key` from Key Vault (§5.1). |
+| **Every restart / upgrade** | Unseal all 3 pods with `openbao-unseal-key` from Key Vault (§5.1). ADO `ExternalsPodiumD` environments script the bootstrap and unseal after every deploy automatically (§5.2). |
 
 Values to set: `openbao.enabled=true`, `openbao.database.host`,
 `openbao.configuration.oidcUrl`, `openbao.configuration.keycloak.url`,
@@ -458,6 +458,10 @@ Throughout: `<kv>` is the environment Key Vault (`kv-<env>-<gemeente>` for
 `ExternalsPodiumD` environments), `<ctx>` the kube-context and `<ns>` the
 namespace. Name them on every command.
 
+> **Environments deployed from ADO `ExternalsPodiumD`** have scripts for steps
+> 3–4 and for §5.1 — see §5.2. The manual runbook below is what those scripts
+> do, and the procedure for any other deployment.
+
 1. **Infra (base-infra / `infra.yml` / Terraform), out-of-band:**
    - PostgreSQL: create db `openbao` + role `openbao-admin`; store its password
      in Azure Key Vault (pipeline reads `REP_OPENBAO_DB_PASSWORD_REP`).
@@ -544,6 +548,48 @@ streamed input). Every line must end `sealed=false`.
 
 > This is the single biggest operational cost of Shamir, and the reason §9
 > item 4 stays open: KV auto-unseal would remove it.
+
+### 5.2 Scripted bootstrap and unseal (ADO `ExternalsPodiumD`)
+
+The `ExternalsPodiumD` deploy configuration scripts the parts of §5 and §5.1
+that have to happen on every environment, in `pipelines/scripts/` (introduced
+with the ontw-dim1 Frank!Gateway rollout on PodiumD 4.9.3, 2026-09). The order
+differs from the manual runbook: the vault is initialised **before** the first
+deploy that enables OpenBao, not after.
+
+1. **Bootstrap, once per environment, by an operator:**
+
+   ```bash
+   python3 pipelines/scripts/openbao_bootstrap.py --env <env>-<gemeente>
+   ```
+
+   It starts a temporary pod (`openbao-bootstrap`) against the environment's
+   `openbao` database, creates the tables (the same DDL as the
+   `openbao-db-schema` Job), initialises the vault with one key share, and
+   proves the key unseals it. It then shows the unseal key and root token once,
+   waits until the operator has stored them as `openbao-unseal-key` and
+   `openbao-root-token`, checks that `openbao-unseal-key` in Key Vault holds
+   exactly that key (not the Terraform placeholder), and removes the temporary
+   pod. The database password comes from Key Vault secret `openbao`
+   (SSC-managed, like the other database passwords — not Terraform). Use
+   `--dry-run` to see the plan first. `--reset-existing-vault` empties the
+   tables first and **destroys any vault already in that database**.
+2. **Deploy** with the Applications pipeline. Before the Helm deploy,
+   `openbao_unseal.py --check` stops the run when `podiumd.yml` enables
+   OpenBao but the Key Vault has no `openbao-unseal-key`. After the deploy,
+   `openbao_unseal.py` unseals every sealed OpenBao pod with that key — so
+   §5.1 is automatic for deploys through this pipeline. It talks to OpenBao
+   over `kubectl port-forward` and its HTTP API, so the key never appears on a
+   command line, in a pod's process list or in the audit log.
+3. **Still manual after that first deploy:** mint the config token with the
+   root token (§5 step 5, `scripts/openbao-mint-config-token.sh`), create the
+   Frank!Gateway reader-token Secret (§5 step 7), then revoke the root token
+   (§5 step 8).
+
+What the scripts do not cover: a pod that restarts **between** deploys (node
+drain, eviction, OOMKill) stays sealed until the next deploy or a manual
+unseal (§5.1). The `--check` only tests that the secret exists; a key that is
+still the Terraform placeholder passes it and fails at the unseal step.
 
 ---
 
