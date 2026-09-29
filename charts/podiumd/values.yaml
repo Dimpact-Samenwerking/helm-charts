@@ -4519,14 +4519,14 @@ openbao:
   csi:
     image:
       repository: quay.io/openbao/openbao-csi-provider
-      tag: "2.0.2@sha256:3cb312e88c62c926caec03bf69497a16805a29daabb5ad2c7a236ab43bb241db"
+      tag: "2.0.3@sha256:ad30d5f6223f30f62e8df6e444b84af5b05402a70c09712415dd1d7f139c027e"
 
   # Scheduled snapshot-to-S3 CronJob (upstream subchart default: OFF, same as
   # here). Not currently used — pinned anyway so it's ready if that ever changes.
   snapshotAgent:
     image:
       repository: ghcr.io/openbao/openbao-snapshot-agent
-      tag: "0.3.0@sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"
+      tag: "0.4.5@sha256:ef2c80770e30bba3fcf4d7911cb829607efcea7e7c1a917210c9fa1ba55a8249"
 
   # --- podiumd-side wiring (consumed by the openbao-* templates) ----------------
   configuration:
@@ -4579,7 +4579,7 @@ openbao:
       # its anchor), so the server and this Job always run the same OpenBao.
       image:
         repository: quay.io/openbao/openbao
-        tag: &openbaoImageTag "2.5.5@sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"
+        tag: &openbaoImageTag "2.6.3@sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889"
       nodeSelector: {}
       resources:
         requests:
