@@ -124,7 +124,7 @@ def test_resolution_note_unresolvable_pair_reports_generic_reason(lpi):
 # --- print_image_lines ---
 
 
-def test_print_image_lines_leads_with_key_basename_version_and_path(lpi, capsys: pytest.CaptureFixture[str]):
+def test_print_image_lines_prints_arguments_then_reference_then_path(lpi, capsys: pytest.CaptureFixture[str]):
     lines = [
         "pabc:",
         "  image:",
@@ -132,10 +132,11 @@ def test_print_image_lines_leads_with_key_basename_version_and_path(lpi, capsys:
         f'    tag: "1.1.1@sha256:{"a" * 64}"',
     ]
     lpi.print_image_lines([("pabc", "image", "ghcr.io/x/pabc-api", f"1.1.1@sha256:{'a' * 64}", False)], lines)
-    first_line, detail_line = capsys.readouterr().out.splitlines()
-    assert "pabc  pabc-api  1.1.1  (path: image)" in first_line
-    assert "—" not in first_line  # resolvable -- no trailing note
-    assert detail_line.strip() == f"ghcr.io/x/pabc-api:1.1.1@sha256:{'a' * 64}"
+    assert capsys.readouterr().out.splitlines() == [
+        "  pabc  pabc-api  1.1.1",  # resolvable: no trailing note
+        f"      ghcr.io/x/pabc-api:1.1.1@sha256:{'a' * 64}",
+        "      (path: image)",
+    ]
 
 
 def test_print_image_lines_appends_note_when_not_resolvable(lpi, capsys: pytest.CaptureFixture[str]):
@@ -149,7 +150,7 @@ def test_print_image_lines_appends_disabled_hint_for_a_never_rendered_row(lpi, c
     bundled redis disabled via "tags: {redis: false}") is labelled "disabled"
     rather than dropped; with an unresolvable note both show, disabled first."""
     lpi.print_image_lines([("openzaak", "redis.image", "redis", "8.0", True)], [])
-    first_line, _detail_line = capsys.readouterr().out.splitlines()
+    first_line, _detail_line, _path_line = capsys.readouterr().out.splitlines()
     assert "disabled; unresolvable" in first_line
 
 
@@ -164,9 +165,10 @@ def test_print_image_lines_puts_note_on_first_line_not_the_detail_line(lpi, caps
         f'      tag: "8.21.0@sha256:{"a" * 64}"',
     ]
     lpi.print_image_lines([("zac", "global.curlImage", "curlimages/curl", f"8.21.0@sha256:{'a' * 64}", False)], lines)
-    first_line, detail_line = capsys.readouterr().out.splitlines()
+    first_line, detail_line, path_line = capsys.readouterr().out.splitlines()
     assert "use MULTIPLE curl" in first_line
     assert "—" not in detail_line
+    assert "—" not in path_line
 
 
 # --- component_version_rows ---
@@ -619,8 +621,9 @@ def test_main_nested_tags_disabled_sidecar_is_labeled_disabled_not_dropped(
     assert "=== openzaak (openzaak 1.14.2) ===" in out  # enabled -- no [disabled] header
     assert "openzaak/open-zaak:1.14.2" in out
 
-    redis_line = next(line for line in out.splitlines() if "redis.image" in line)
-    assert "disabled" in redis_line
+    out_lines = out.splitlines()
+    path_index = next(i for i, line in enumerate(out_lines) if line.strip() == "(path: redis.image)")
+    assert "disabled" in out_lines[path_index - 2]
 
 
 def test_main_render_failure_raises(lpi, monkeypatch: pytest.MonkeyPatch):

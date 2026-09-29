@@ -4,9 +4,9 @@ List the images and sub-chart dependencies of one podiumd dependency
 chart at a given version.
 
 Pulls the chart (a file:// dependency is read from its source directory).
-Each image prints as "<key> <image-basename> <image-version>  (path: ...)", the
+Each image prints as "<key> <image-basename> <image-version>", the
 argument order update-image-version and verify-image-version take,
-followed by an indented "<repo>:<tag>" line.
+followed by indented "<repo>:<tag>" and "(path: <values path>)" lines.
 
 Usage:
     list-helmchart-images <component> <chart-version>
@@ -77,10 +77,10 @@ def _print_image_references(values_yaml: YamlMapping, key: str):
     entries = [(key, image_basename(repo), version_of(tag), repo, tag, path) for path, repo, tag in images]
     entries.sort(key=lambda e: e[5])
     bwidth = max(len(e[1]) for e in entries)
-    vwidth = max(len(e[2]) for e in entries)
     for key_, basename, version, repo, tag, path in entries:
-        print(f"  {key_}  {basename.ljust(bwidth)}  {version.ljust(vwidth)}  (path: {path})")
+        print(f"  {key_}  {basename.ljust(bwidth)}  {version}")
         print(f"      {repo}:{tag}")
+        print(f"      (path: {path})")
 
 
 def report_chart(chart_dir: Path, requested_version: str, key: str):

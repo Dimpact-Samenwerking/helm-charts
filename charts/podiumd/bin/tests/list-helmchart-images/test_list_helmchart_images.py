@@ -60,8 +60,11 @@ def test_report_chart_prints_chart_deps_and_images(lhi, tmp_path: Path, capsys: 
     out = capsys.readouterr().out
     assert "Chart: zaakafhandelcomponent 1.0.297 (appVersion: 5.5)" in out
     assert "opentelemetry-collector: 0.169.0" in out
-    assert "zac  zaakafhandelcomponent  5.4.3" in out
-    assert "ghcr.io/infonl/zaakafhandelcomponent:5.4.3@sha256:abc" in out
+    assert (
+        "  zac  zaakafhandelcomponent  5.4.3\n"
+        "      ghcr.io/infonl/zaakafhandelcomponent:5.4.3@sha256:abc\n"
+        "      (path: image)\n"
+    ) in out
 
 
 def test_report_chart_no_image_references(lhi, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
