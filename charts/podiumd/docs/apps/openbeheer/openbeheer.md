@@ -37,7 +37,7 @@ The detailed sections below expand on any row.
 | Open Zaak ZGW consumer | **infra** | client `openbeheer` | _(uses the ZGW secret)_ | Register in Open Zaak admin; `auth_type: zgw`. |
 | Objecttypen token holder | **infra** | token | _(uses the API token)_ | Register in Objecttypen admin; `auth_type: api_key`. |
 | PersistentVolume + PVC | **helm** | PV `<ns>-openbeheer`, PVC `openbeheer` | `persistence.*` | `templates/openbeheer-storage.yaml`; RWX, Retain, `resource-policy: keep`. |
-| Ingress / HTTPRoute | **helm** | host `oidcUrl` → svc `openbeheer-nginx:80` (never `openbeheer`) | `openbeheer.ingress.*` | Sub-chart `ingress.yaml`; **opt-in per env** (Traefik / `extraIngress` for App Gateway). |
+| Ingress / HTTPRoute | **helm** | host `oidcUrl` → svc `openbeheer-nginx:80` | `openbeheer.ingress.*` | Sub-chart `ingress.yaml`; **opt-in per env** (Traefik / `extraIngress` for App Gateway). |
 | TLS certificate | **helm** | secret `openbeheer-tls` | ingress annotation `cert-manager.io/cluster-issuer` | cert-manager, issuer `letsencrypt-prod`. |
 | Keycloak OIDC client | **helm** | client `openbeheer`, realm `podiumd` | `configuration.oidcUrl`, `configuration.pkceEnabled` | `keycloak-podiumd-realm-config.yaml`; auto. |
 | Secrets / ConfigMap / Deployment / Job | **helm** | — | the `openbeheer` values block | Rendered by the sub-chart (`replicaCount: 2`). |
@@ -75,12 +75,10 @@ template but ships it disabled. Enable it per environment (same shape as
 sub-chart's nginx `Service` `openbeheer-nginx` (`ClusterIP`, port 80) — the sub-chart's `ingress.yaml`
 targets that service itself.
 
-**Route to `openbeheer-nginx`, not to `openbeheer`.** The sub-chart renders two services. Only
-`openbeheer-nginx` serves the frontend: its `location /` falls back to `/static/frontend/index.html`
-and it proxies `/admin`, `/oidc`, `/static` and `/api/` on to the Django backend. The `openbeheer`
-service is that backend. An HTTPRoute, App Gateway backend or ExternalName that points at
-`openbeheer` still passes the `/admin/` and Keycloak login checks, but `/` shows only the text
-"This is the Open Beheer backend" instead of the application.
+**Route to `openbeheer-nginx`.** It serves the frontend — its `location /` falls back to
+`/static/frontend/index.html` — and proxies `/admin`, `/oidc`, `/static` and `/api/` on to the
+Django backend service `openbeheer`. Every HTTPRoute, App Gateway backend or ExternalName for
+Open Beheer targets `openbeheer-nginx` port 80.
 
 ```yaml
 openbeheer:
