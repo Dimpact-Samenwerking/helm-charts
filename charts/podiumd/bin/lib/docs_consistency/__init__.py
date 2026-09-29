@@ -19,6 +19,7 @@ from lib.chart.yaml_alias_groups import alias_groups
 from lib.component_docs.aliased_pin_bullets import find_missing_pin_bullets
 from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
+from lib.component_docs.changes_section import pointers_without_blank_line
 from lib.component_docs.changes_section import resolve_component_own_version_change
 from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
@@ -572,6 +573,11 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
         _check_changes_heading_correspondence(ctx, scan, rows_result, changes_headings, doc_text)
     )
     findings.mismatches.extend(_missing_pin_bullet_mismatches(ctx, doc_path, doc_text))
+    findings.mismatches.extend(
+        f"{doc_path.name}: '### {heading}' has no blank line before the \"- Image / digest\" pointer; "
+        "run fix-doc-consistency to add it"
+        for heading, _ in pointers_without_blank_line(doc_text)
+    )
 
 
 def _check_images_manifest_entry(

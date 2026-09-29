@@ -11,7 +11,8 @@ Also repairs the content against Chart.yaml and values.yaml:
   - upgrade doc: component version table and "## Changes" sections,
     adding missing rows, removing rows unchanged vs the baseline and
     sorting them in values.yaml order; a pin bullet for every values
-    path that shares a YAML anchor with a documented pin
+    path that shares a YAML anchor with a documented pin; a blank line
+    before each "- Image / digest" pointer
   - values-deltas doc: adds missing component sections and nested key
     added/removed lines
   - docs/images/images-<target>.yaml: fixes entries, adds missing ones
@@ -67,6 +68,7 @@ from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import OrderingContext
+from lib.component_docs.changes_section import add_blank_line_before_pointers
 from lib.component_docs.changes_section import add_missing_component_rows
 from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import renumber_images_manifest_changes_items
@@ -500,6 +502,17 @@ def _add_missing_pin_bullets(text: str, upgrade_path: Path) -> tuple[str, bool]:
     return text, bool(added)
 
 
+def _add_blank_line_before_pointers(text: str, upgrade_path: Path) -> tuple[str, bool]:
+    """Separate each "- Image / digest" pointer from the bullets above it. Returns (text, changed)."""
+    text, headings = add_blank_line_before_pointers(text)
+    if headings:
+        print()
+        print(f"=== Adding a blank line before the image digest pointer in {upgrade_path.name} ===")
+        for heading in headings:
+            print(f"  '### {heading}'")
+    return text, bool(headings)
+
+
 def _reorder_upgrade_doc(
     text: str,
     upgrade_path: Path,
@@ -544,6 +557,8 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
     text, canonical_names, step_changed = _fix_upgrade_doc_headings(text, state, upgrade_path, resolution)
     changed.append(step_changed)
     text, step_changed = _add_missing_pin_bullets(text, upgrade_path)
+    changed.append(step_changed)
+    text, step_changed = _add_blank_line_before_pointers(text, upgrade_path)
     changed.append(step_changed)
     text, step_changed = _reorder_upgrade_doc(
         text, upgrade_path, state.target_deps, state.target_values, canonical_names

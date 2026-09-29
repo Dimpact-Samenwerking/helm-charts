@@ -38,6 +38,7 @@ from lib.component_docs.changes_section import insert_changes_section
 from lib.component_docs.changes_section import make_changes_section
 from lib.component_docs.changes_section import remove_changes_block
 from lib.component_docs.changes_section import remove_changes_section
+from lib.component_docs.changes_section import render_changes_section
 from lib.component_docs.changes_section import update_component_table
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import find_changes_item
@@ -68,8 +69,10 @@ from lib.upgradedoc.string_and_parsing_basics import extract_source_version
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.version_cells_and_key_changes import image_manifest_version_text
+from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
 from lib.upgradedoc.version_cells_and_key_changes import replace_version_pair
 from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
+from lib.upgradedoc.version_cells_and_key_changes import version_transition
 from lib.yaml_types import YamlMapping
 
 
@@ -83,28 +86,19 @@ def make_image_changes_section(
     versions may differ. A None old version renders "(new)"; one equal to
     `new_version` renders "(unchanged)".
     """
-    suffix = version_change_suffix(old_version, new_version)
     image = (
         f"shared **{basename}**" if pinned and all(p.startswith("global.") for p, _ in pinned) else f"**{basename}**"
     )
     if old_version is None:
-        heading_suffix = f"{new_version} {suffix}"
         intro = f"PodiumD {target} introduces the {image} image at {new_version},\n"
-    elif suffix:
-        heading_suffix = f"{new_version} {suffix}"
+    elif version_change_suffix(old_version, new_version):
         intro = f"PodiumD {target} keeps the {image} image at {new_version},\n"
     else:
-        heading_suffix = f"{old_version} → {new_version}"
         intro = f"PodiumD {target} upgrades the {image} image to {new_version},\n"
-    lines = [f"### {basename} {heading_suffix}\n\n", intro, "pinned at:\n\n"]
-    for path, path_old_version in pinned:
-        path_suffix = version_change_suffix(path_old_version, new_version)
-        if path_suffix:
-            lines.append(f"- `{path}` `{new_version}` {path_suffix}\n")
-        else:
-            lines.append(f"- `{path}` `{path_old_version}` → `{new_version}`\n")
-    lines.append(f"\n- Image / digest: see [`images-{target}.yaml`](../images/images-{target}.yaml).\n\n")
-    return "".join(lines)
+    bullets = [f"- `{path}` {pin_version_text(path_old, new_version)}\n" for path, path_old in pinned]
+    return render_changes_section(
+        f"{basename} {version_transition(old_version, new_version)}", [intro, "pinned at:\n"], bullets, target
+    )
 
 
 @dataclass

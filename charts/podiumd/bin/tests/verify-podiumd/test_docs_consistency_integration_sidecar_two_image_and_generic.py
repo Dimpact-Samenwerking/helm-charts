@@ -391,3 +391,38 @@ def test_changes_block_must_name_every_path_sharing_the_pins_anchor(
     out = capsys.readouterr().out
     finding = "but not `redis-operator.redis-ha.preDeleteJob.image.tag`, which shares its YAML anchor"
     assert (finding in out) == (alias_bullet == "missing")
+
+
+@pytest.mark.parametrize("blank_line", ["missing", "present"])
+def test_changes_block_needs_a_blank_line_before_the_image_digest_pointer(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str], blank_line: str
+):
+    """update-component-version wrote the pointer right after the last pin bullet."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.0"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    (chart_dir / "values.yaml").write_text(REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.1"))
+    extra = "- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`\n"
+    doc = ALIASED_PIN_DOC.replace("{extra}", extra)
+    if blank_line == "missing":
+        doc = doc.replace(extra + "\n", extra)
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(doc)
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="1.37.0", app_target="1.37.1")
+    )
+
+    vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
+
+    finding = 'has no blank line before the "- Image / digest" pointer'
+    assert (finding in capsys.readouterr().out) == (blank_line == "missing")

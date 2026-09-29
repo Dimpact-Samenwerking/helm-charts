@@ -39,7 +39,8 @@ from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 from lib.upgradedoc.string_and_parsing_basics import text_names
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
-from lib.upgradedoc.version_cells_and_key_changes import version_change_suffix
+from lib.upgradedoc.version_cells_and_key_changes import pin_version_text
+from lib.upgradedoc.version_cells_and_key_changes import version_transition
 from lib.yaml_types import YamlMapping
 
 
@@ -214,28 +215,66 @@ def make_changes_section(
             if chart_changed
             else f" (chart {change.new_chart}, unchanged)"
         )
-    app_suffix = version_change_suffix(change.old_app, change.new_app)
-    app_heading = f"{change.new_app} {app_suffix}" if app_suffix else f"{change.old_app} → {change.new_app}"
-    lines = [f"### {identity.friendly} {app_heading}{chart_suffix}\n\n"]
+    heading = f"{identity.friendly} {version_transition(change.old_app, change.new_app)}{chart_suffix}"
     if change.old_app is None:
-        lines.append(f"PodiumD {target} introduces **{identity.friendly}** at app version {change.new_app}.\n\n")
+        intro = [f"PodiumD {target} introduces **{identity.friendly}** at app version {change.new_app}.\n"]
     elif normalize_version(change.old_app) == normalize_version(change.new_app):
-        lines.append(f"**{identity.friendly}**'s own app version ({change.new_app}) is unchanged this hop.\n\n")
+        intro = [f"**{identity.friendly}**'s own app version ({change.new_app}) is unchanged this hop.\n"]
     else:
-        lines.append(f"PodiumD {target} upgrades **{identity.friendly}** from app version {change.old_app}\n")
-        lines.append(f"to {change.new_app}.\n\n")
-    pin_suffix = f"`{change.new_app}` {app_suffix}" if app_suffix else f"`{change.old_app}` → `{change.new_app}`"
+        intro = [
+            f"PodiumD {target} upgrades **{identity.friendly}** from app version {change.old_app}\n",
+            f"to {change.new_app}.\n",
+        ]
+    pin_text = pin_version_text(change.old_app, change.new_app)
+    bullets: list[str] = []
     if chart_changed:
-        lines.append(f"- Helm chart `{identity.chart_name}` `{change.old_chart}` → `{change.new_chart}` in\n")
-        lines.append("  `charts/podiumd/Chart.yaml`.\n")
+        bullets.append(f"- Helm chart `{identity.chart_name}` `{change.old_chart}` → `{change.new_chart}` in\n")
+        bullets.append("  `charts/podiumd/Chart.yaml`.\n")
     for path in image_paths:
-        lines.append(f"- Image tag pin `{identity.values_key}.{path}.tag` {pin_suffix} in\n")
-        lines.append("  `charts/podiumd/values.yaml`.\n")
+        bullets.append(f"- Image tag pin `{identity.values_key}.{path}.tag` {pin_text} in\n")
+        bullets.append("  `charts/podiumd/values.yaml`.\n")
     for path in version_paths:
-        lines.append(f"- Version pin `{identity.values_key}.{path}` {pin_suffix} in\n")
-        lines.append("  `charts/podiumd/values.yaml`.\n")
-    lines.append(f"- Image / digest: see [`images-{target}.yaml`](../images/images-{target}.yaml).\n\n")
-    return "".join(lines)
+        bullets.append(f"- Version pin `{identity.values_key}.{path}` {pin_text} in\n")
+        bullets.append("  `charts/podiumd/values.yaml`.\n")
+    return render_changes_section(heading, intro, bullets, target)
+
+
+IMAGE_DIGEST_POINTER_PREFIX = "- Image / digest: see "
+
+
+def image_digest_pointer(target: str) -> str:
+    """The "- Image / digest" line that ends every Changes section."""
+    return f"{IMAGE_DIGEST_POINTER_PREFIX}[`images-{target}.yaml`](../images/images-{target}.yaml).\n"
+
+
+def pointers_without_blank_line(text: str) -> list[tuple[str, int]]:
+    """(heading, line index) of each Changes-block pointer line whose previous line is not blank."""
+    lines = text.splitlines(keepends=True)
+    return [
+        (block["heading"], i)
+        for block in parse_upgrade_doc_changes_blocks(text)
+        for i in range(block["start"] + 1, block["end"])
+        if lines[i].startswith(IMAGE_DIGEST_POINTER_PREFIX) and lines[i - 1].strip()
+    ]
+
+
+def add_blank_line_before_pointers(text: str) -> tuple[str, list[str]]:
+    """Insert the blank lines pointers_without_blank_line reports; returns (text, headings)."""
+    found = pointers_without_blank_line(text)
+    lines = text.splitlines(keepends=True)
+    for _, i in reversed(found):
+        lines.insert(i, "\n")
+    return "".join(lines), [heading for heading, _ in found]
+
+
+def render_changes_section(heading: str, intro: Sequence[str], bullets: Sequence[str], target: str) -> str:
+    """A "### <heading>" Changes block: heading, intro, bullets and the image digest pointer.
+
+    `intro` and `bullets` are lines ending in one "\\n"; the parts get one
+    blank line between them.
+    """
+    parts = [f"### {heading}\n", "".join(intro), "".join(bullets), image_digest_pointer(target)]
+    return "\n".join(part for part in parts if part) + "\n"
 
 
 def _is_bare_placeholder_span(lines: list[str], start: int, end: int, placeholder_text: str):

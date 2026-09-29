@@ -39,6 +39,18 @@ def image_manifest_version_text(old: str | None, new: str | None, *, digest_only
     return f"{new} {suffix}" if suffix else f"{old} -> {new}"
 
 
+def version_transition(old: str | None, new: str | None) -> str:
+    """Upgrade-doc heading version text: "1.2 → 1.3", "1.3 (new)" or "1.3 (unchanged)"."""
+    suffix = version_change_suffix(old, new)
+    return f"{new} {suffix}" if suffix else f"{old} → {new}"
+
+
+def pin_version_text(old: str | None, new: str | None) -> str:
+    """Upgrade-doc pin bullet version text: "`1.2` → `1.3`", "`1.3` (new)" or "`1.3` (unchanged)"."""
+    suffix = version_change_suffix(old, new)
+    return f"`{new}` {suffix}" if suffix else f"`{old}` → `{new}`"
+
+
 def canonical_version_cell(actual_source: str, actual_target: str | None):
     """A "Component versions" table cell in the established style:
     "<target> (unchanged)" when source==target, else "<source> → <target>"."""
