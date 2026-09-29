@@ -14,10 +14,12 @@ Usage:
     update-component-version <component> <app-version> <chart-version>
 
 Arguments:
-    <component>       component name or alias
-    <app-version>     new app image version
-    <chart-version>   new Helm chart version, or "native" for a component
-                      without a Chart.yaml dependency (e.g. frankgateway)
+    <component>       Chart.yaml dependency name or alias, or a native
+                      component (defined in podiumd itself, e.g.
+                      frankgateway)
+    <app-version>     app image tag
+    <chart-version>   Helm chart version, or "native" for a native
+                      component
 
 Examples:
     update-component-version zac 5.4.3 1.0.297

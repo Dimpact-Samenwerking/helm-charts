@@ -9,7 +9,7 @@ Usage:
     fix-helm-doc [--dry-run]
 
 Options:
-    --dry-run   report drift only, write nothing
+    --dry-run   report what would change, write nothing
 
 Requires: helm-docs on PATH (https://github.com/norwoodj/helm-docs).
 """

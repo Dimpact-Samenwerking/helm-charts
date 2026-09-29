@@ -146,7 +146,7 @@ def text_names(text: str, name: str) -> bool:
     """Whether `text` (a table row's Name cell, a "### ..." heading or a
     "# Changes:" item) names `name`. A plain name matches at word
     boundaries (_word_aligned_spans), so "mi" never matches "AdminUser".
-    A canonical "<key> - <basename>" sidecar name (lib.chart.canonical_
+    A canonical "<key> - <image-basename>" sidecar name (lib.chart.canonical_
     sidecar_row_names) only matches text that starts with exactly its
     words, followed by nothing or a version: "zac - postgres" never
     matches "zac - postgres-exporter 1.0", and a plain name never

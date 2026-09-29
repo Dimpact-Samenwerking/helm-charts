@@ -1,4 +1,4 @@
-"""Sidecar-bump doc updates: row/section named "<values_key> - <basename>"
+"""Sidecar-bump doc updates: row/section named "<values_key> - <image-basename>"
 with chart "-", as check_docs_consistency expects. registry_tag_exists is
 patched on lib.image.version, whose globals it resolves through."""
 

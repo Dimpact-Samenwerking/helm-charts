@@ -189,7 +189,7 @@ def test_changes_heading_identities_does_not_double_count_an_alias_nested_inside
 
 
 def test_changes_heading_identities_self_referential_sidecar_shape_resolves_to_nothing(libupgradedocbasics: ModuleType):
-    """Regression: a "<parent> - <basename>" heading matching no real sidecar (e.g. self-referential
+    """Regression: a "<parent> - <image-basename>" heading matching no real sidecar (e.g. self-referential
     "openbao - openbao") resolves to nothing, not a plain word match on "openbao"."""
     deps = [{"name": "openbao", "version": "0.28.4"}]
     idents = libupgradedocbasics.changes_heading_identities("openbao - openbao 2.5.5 → 2.5.5", deps, {})

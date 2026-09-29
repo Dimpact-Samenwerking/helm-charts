@@ -2,26 +2,28 @@
 """
 Check that an image version exists upstream before pinning it.
 
-Resolves <key> <basename> to exactly one image pin in the current
+Resolves <key> <image-basename> to exactly one image pin in the current
 values.yaml and checks that <image-version> exists in its registry.
 Writes nothing. Pre-flight check for update-image-version; when the
 Helm chart version changes too, use verify-component-version.
 
 Usage:
-    verify-image-version <key> <basename> <image-version>
+    verify-image-version <key> <image-basename> <image-version>
 
 Arguments:
-    <key>            Chart.yaml dependency name or alias, or "MULTIPLE"
-                     for a base image shared via values.yaml global.images
-    <basename>       last "/" segment of the image repository
-    <image-version>  tag to check
+    <key>             top-level values.yaml key: a Chart.yaml dependency
+                      name or alias, a native component (defined in
+                      podiumd itself, e.g. frankgateway) or MULTIPLE for
+                      global.images
+    <image-basename>  last path segment of the image repository
+    <image-version>   image tag
 
 Examples:
     verify-image-version zac zaakafhandelcomponent 5.4.4
     verify-image-version keycloak-operator python 3.15.7-slim
     verify-image-version MULTIPLE curl 8.22.0
 
-Exits non-zero when <key> <basename> does not match exactly one pin, or
+Exits non-zero when <key> <image-basename> does not match exactly one pin, or
 when <image-version> does not exist.
 """
 

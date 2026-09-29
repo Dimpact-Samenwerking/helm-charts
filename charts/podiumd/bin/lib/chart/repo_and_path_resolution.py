@@ -300,9 +300,9 @@ def canonical_sidecar_row_names(
 ) -> dict[str, tuple[str, ...]]:
     """{canonical doc-row name: values-tree path} for image paths that aren't a dependency's primary image.
 
-    - "<values_key> - <basename>" for a sidecar of a dependency or native
+    - "<values_key> - <image-basename>" for a sidecar of a dependency or native
       component (e.g. "redis-operator - redis-exporter").
-    - "<basename>" for an image under "global".
+    - "<image-basename>" for an image under "global".
 
     Primary images are left to match_dependency. A sidecar whose repository
     is also a global image or an owner's primary image is excluded, so one
@@ -398,7 +398,7 @@ def _global_repository_set(values: YamlMapping, global_paths: list[tuple[str, ..
 
 
 def _sidecar_row_name(repo: str, path: tuple[str, ...]):
-    """The "<values_key> - <basename>" row name for one sidecar path, or None if there is no distinct name."""
+    """The "<values_key> - <image-basename>" row name for one sidecar path, or None if there is no distinct name."""
     basename = repo.rsplit("/", 1)[-1]
     if basename.lower() != path[0].lower():
         return f"{path[0]} - {basename}"

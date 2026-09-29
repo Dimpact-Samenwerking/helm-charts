@@ -4,8 +4,8 @@ Show a component's Helm chart and app image versions at both baselines.
 
 Reads Chart.yaml and values.yaml, via git show, as they were at each
 baseline in etc/release-baseline.yaml: upgrade_docs and release_table.
-A baseline "X.Y.Z" means git tag podiumd-X.Y.Z, else branch
-feature/podiumd-X.Y.Z or origin/feature/podiumd-X.Y.Z. A missing
+A baseline X.Y.Z resolves to tag podiumd-X.Y.Z, else branch
+feature/podiumd-X.Y.Z (local or origin). A missing
 baseline is skipped; exits non-zero only when neither can be shown.
 For the image versions only, use show-image-baseline-version.
 
@@ -13,8 +13,10 @@ Usage:
     show-component-baseline-version <component>
 
 Arguments:
-    <component>   Chart.yaml dependency name or alias, or a native
-                  component (e.g. frankgateway), which has no chart version
+    <component>       Chart.yaml dependency name or alias, or a native
+                      component (defined in podiumd itself, e.g.
+                      frankgateway)
+    A native component has no chart version.
 
 Examples:
     show-component-baseline-version zac

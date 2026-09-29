@@ -153,5 +153,5 @@ def test_main_unresolvable_target_propagates(viv: ModuleType, tmp_path: Path, mo
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     monkeypatch.setattr("sys.argv", ["verify-image-version", "foo", "totally-unknown", "1.0.0"])
 
-    with pytest.raises(SystemExit, match="no image pin with basename 'totally-unknown' found under 'foo'"):
+    with pytest.raises(SystemExit, match="no image pin with image basename 'totally-unknown' found under 'foo'"):
         viv.main()

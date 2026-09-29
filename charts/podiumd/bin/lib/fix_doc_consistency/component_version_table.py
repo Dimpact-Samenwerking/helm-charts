@@ -164,7 +164,7 @@ def fix_component_version_table(
         # Same resolver as the checker, so fixer and checker can't drift apart.
         resolved = resolve_component_row(row["name"], canonical_names, resolution)
         if resolved["kind"] == "unmatched":
-            # A "<key> - <basename>" row without a resolvable repository is
+            # A "<key> - <image-basename>" row without a resolvable repository is
             # unresolved, never matched against a dependency sharing its first word.
             if " - " in row["name"]:
                 unresolved_names.append(row["name"])

@@ -3,19 +3,21 @@
 Show the version of one image at both release-baseline.yaml baselines
 (upgrade_docs and release_table).
 
-Reads charts/podiumd/values.yaml as it was at each baseline with
-`git show`; no checkout needed. A baseline is resolved to the
-podiumd-<version> tag, else the feature/podiumd-<version> branch. A
-missing baseline or unresolved image is noted; the script fails only when
-neither baseline shows anything.
+Reads charts/podiumd/values.yaml as it was at each baseline with `git
+show`; no checkout needed. A baseline X.Y.Z resolves to tag
+podiumd-X.Y.Z, else branch feature/podiumd-X.Y.Z (local or origin). A
+missing baseline or unresolved image is noted; the script fails only
+when neither baseline shows anything.
 
 Usage:
-    show-image-baseline-version <key> <basename>
+    show-image-baseline-version <key> <image-basename>
 
 Arguments:
-    <key>        Chart.yaml dependency name or alias (e.g. zac), or
-                 MULTIPLE for an image shared via global.images
-    <basename>   last path segment of the image repository
+    <key>             top-level values.yaml key: a Chart.yaml dependency
+                      name or alias, a native component (defined in
+                      podiumd itself, e.g. frankgateway) or MULTIPLE for
+                      global.images
+    <image-basename>  last path segment of the image repository
 
 Examples:
     show-image-baseline-version zac zaakafhandelcomponent

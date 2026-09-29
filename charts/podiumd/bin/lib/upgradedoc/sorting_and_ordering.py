@@ -69,7 +69,7 @@ def component_order_key(
     Returns (values_key_index, is_sidecar): the index in key_order of the
     top-level key name resolves to (via match_dependency, then
     match_native_component), or len(key_order) if unresolved. is_sidecar puts a
-    "<parent> - <basename>" name after its parent, which resolves to the same key.
+    "<parent> - <image-basename>" name after its parent, which resolves to the same key.
 
     canonical_names is consulted only when no dependency matches, so a bare
     global shared-image name (e.g. "nginx-unprivileged") sorts at its real

@@ -11,7 +11,7 @@ Usage:
     fix-markdown [--dry-run]
 
 Options:
-    --dry-run   list the files that would change, write nothing
+    --dry-run   report what would change, write nothing
 """
 
 import shutil

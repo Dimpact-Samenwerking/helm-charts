@@ -11,13 +11,18 @@ After a write it runs fix-helm-doc (README.md) and fix-doc-consistency
 (docs/images/images-<target>.yaml), which contain the same digests.
 
 Usage:
-    fix-image-digests [--dry-run] [<key> <basename>]
+    fix-image-digests [--dry-run] [<key> <image-basename>]
 
 Arguments:
-    <key> <basename>  only this image; <key> is a Chart.yaml dependency or
-                      "MULTIPLE" for a global.images base image, as in
-                      update-image-version
-    --dry-run         report stale digests, write nothing
+    <key>             top-level values.yaml key: a Chart.yaml dependency
+                      name or alias, a native component (defined in
+                      podiumd itself, e.g. frankgateway) or MULTIPLE for
+                      global.images
+    <image-basename>  last path segment of the image repository
+    Both given: only this image.
+
+Options:
+    --dry-run         report what would change, write nothing
 
 Examples:
     fix-image-digests
@@ -169,7 +174,7 @@ def _parse_args(argv: list[str]):
     dry_run = "--dry-run" in argv
     positional = [a for a in argv if not a.startswith("-")]
     if len(positional) not in (0, 2):
-        print(f"error: expected either no target, or <key> <basename> — got: {', '.join(positional)}")
+        print(f"error: expected either no target, or <key> <image-basename> — got: {', '.join(positional)}")
         sys.exit(1)
     key, basename = positional or (None, None)
     return dry_run, key, basename

@@ -179,7 +179,7 @@ def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(
     """A row matching neither a dependency nor a canonical sidecar/shared-image name is a mismatch.
 
     "Grafana" is neither a dependency, a native_components entry, nor an
-    update-image-version "<component> - <basename>"/"<basename>" row."""
+    update-image-version "<component> - <image-basename>"/"<image-basename>" row."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text() + "| Grafana | 1.0.0 → 1.0.1 | 1.0.0 (unchanged) | n/a |\n")
 

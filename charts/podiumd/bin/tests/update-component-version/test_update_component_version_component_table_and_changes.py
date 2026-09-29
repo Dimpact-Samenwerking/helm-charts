@@ -17,7 +17,7 @@ def test_find_component_row_no_match_returns_none(libcomponentdocschanges: Modul
 
 
 def test_find_component_row_plain_name_does_not_match_its_own_sidecar_rows(libcomponentdocschanges: ModuleType):
-    """Regression: a "<key> - <basename>" sidecar row starts with its owner's
+    """Regression: a "<key> - <image-basename>" sidecar row starts with its owner's
     name but must not match a lookup for the owner itself, or
     update_component_table overwrites the sidecar row."""
     rows = [

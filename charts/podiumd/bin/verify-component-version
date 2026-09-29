@@ -11,12 +11,13 @@ Usage:
     verify-component-version <component> <app-version> <chart-version>
 
 Arguments:
-    <component>       Chart.yaml dependency name or alias (e.g. zac), or a
-                      native component with chart-version "native"
+    <component>       Chart.yaml dependency name or alias, or a native
+                      component (defined in podiumd itself, e.g.
+                      frankgateway)
     <app-version>     app image tag
-    <chart-version>   Helm chart version, or "native" for a component
-                      without a Chart.yaml dependency (e.g. frankgateway);
-                      its image repositories are then read from values.yaml
+    <chart-version>   Helm chart version, or "native" for a native
+                      component
+    With "native", image repositories are read from values.yaml.
 
 Examples:
     verify-component-version zac 5.4.3 1.0.297

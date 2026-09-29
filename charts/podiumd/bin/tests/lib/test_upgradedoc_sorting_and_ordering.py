@@ -73,7 +73,7 @@ def test_component_order_key_matched_dep_not_in_key_order_sorts_last(libupgraded
 
 
 def test_component_order_key_sidecar_sorts_after_its_own_parent_row(libupgradedocsorting: ModuleType):
-    """A "<parent> - <basename>" sidecar shares its parent's index; the secondary key sorts it after."""
+    """A "<parent> - <image-basename>" sidecar shares its parent's index; the secondary key sorts it after."""
     assert libupgradedocsorting.component_order_key(
         "redis-operator", [*DEPS, {"name": "redis-operator", "version": "0.26.0"}], [*KEY_ORDER, "redis-operator"]
     ) == (3, 0)

@@ -322,7 +322,7 @@ def _check_component_rows(
             result.mismatches.append(
                 f'{row_ctx.doc_path.name}: doc row "{row["name"]}" does not match a Chart.yaml '
                 f'dependency or a canonical sidecar/shared-image name ("<component> - '
-                f'<basename>" or "<basename>", the exact form update-image-version writes) '
+                f'<image-basename>" or "<image-basename>", the exact form update-image-version writes) '
                 f"— wrong phrasing, or a stale row"
             )
             continue

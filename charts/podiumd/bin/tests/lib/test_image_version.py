@@ -172,7 +172,7 @@ def test_resolve_scoped_matches_no_match_under_key_raises(libimageversion: Modul
         "    repository: curlimages/curl",
         '    tag: "8.21.0@sha256:' + "a" * 64 + '"',
     ]
-    with pytest.raises(SystemExit, match="no image pin with basename 'curl' found under 'b'"):
+    with pytest.raises(SystemExit, match="no image pin with image basename 'curl' found under 'b'"):
         libimageversion.resolve_scoped_matches(lines, "b", "curl")
 
 
@@ -261,7 +261,7 @@ def test_check_basename_version_dedupes_shared_repository(libimageversion: Modul
 
 
 def test_check_basename_version_no_match_raises(libimageversion: ModuleType):
-    with pytest.raises(SystemExit, match="no image pin with basename 'curl' found under 'a'"):
+    with pytest.raises(SystemExit, match="no image pin with image basename 'curl' found under 'a'"):
         libimageversion.check_basename_version([], "a", "curl", "8.22.0")
 
 
@@ -330,7 +330,7 @@ def test_update_image_version_no_match_raises(libimageversion: ModuleType, tmp_p
     values_path = write_values(
         tmp_path, 'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:' + "a" * 64 + '"\n'
     )
-    with pytest.raises(SystemExit, match="no image pin with basename 'curl' found under 'a'"):
+    with pytest.raises(SystemExit, match="no image pin with image basename 'curl' found under 'a'"):
         libimageversion.update_image_version(values_path, "a", "curl", "8.22.0")
 
 

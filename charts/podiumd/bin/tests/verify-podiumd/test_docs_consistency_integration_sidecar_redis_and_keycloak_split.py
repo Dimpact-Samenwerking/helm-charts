@@ -14,7 +14,7 @@ def git(*args, cwd):
 
 
 # --- sidecar image (nested under a dependency, not its primary image): row named
-# "<values_key> - <basename>", as update-image-version writes it ---
+# "<values_key> - <image-basename>", as update-image-version writes it ---
 
 REDIS_CHART_YAML = """\
 apiVersion: v2
@@ -146,7 +146,7 @@ def test_sidecar_row_wrong_source_app_vs_baseline_is_caught(
 def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(
     vp: ModuleType, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
-    """A row for the sidecar not in the exact canonical "<values_key> - <basename>" form
+    """A row for the sidecar not in the exact canonical "<values_key> - <image-basename>" form
     is a mismatch: neither skipped nor fuzzy-matched."""
     doc = redis_sidecar_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text().replace("redis-operator - redis", "Redis (redis-ha)"))
@@ -420,7 +420,7 @@ def test_sidecar_missing_from_images_manifest_uses_canonical_name(
     vp: ModuleType, redis_sidecar_chart_repo, capsys: pytest.CaptureFixture[str]
 ):
     """A sidecar missing from images-manifest is reported by its canonical
-    "<values_key> - <basename>" name, not the dotted values path."""
+    "<values_key> - <image-basename>" name, not the dotted values path."""
     images_path = redis_sidecar_chart_repo / "docs" / "images" / "images-4.9.0.yaml"
     images_path.write_text(
         "# Baseline: podiumd 4.8.5 (test @ 0000000).\n"

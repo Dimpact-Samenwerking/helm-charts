@@ -626,7 +626,7 @@ def test_main_default_updates_sliding_and_pinned_alike(
     assert "nginxinc/nginx-unprivileged:1.31.3  (sliding)" in out
 
 
-# --- main(): <key> <basename> scopes to one image ---
+# --- main(): <key> <image-basename> scopes to one image ---
 
 
 def test_main_target_updates_sliding_pin(sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -712,7 +712,7 @@ def test_main_target_resolves_given_key_and_basename(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     """<key> "zac" scopes the search to that component's own values.yaml
-    subtree, where <basename> "zaakafhandelcomponent" is pinned."""
+    subtree, where <image-basename> "zaakafhandelcomponent" is pinned."""
     values_path = tmp_path / "values.yaml"
     old_nginx = "a" * 64
     old_zac, new_zac = "b" * 64, "d" * 64
@@ -742,7 +742,7 @@ def test_main_unknown_target_raises(sid: ModuleType, tmp_path: Path, monkeypatch
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx", "totally-unknown"])
 
-    with pytest.raises(SystemExit, match="no image pin with basename 'totally-unknown' found under 'nginx'"):
+    with pytest.raises(SystemExit, match="no image pin with image basename 'totally-unknown' found under 'nginx'"):
         sid.main()
 
 

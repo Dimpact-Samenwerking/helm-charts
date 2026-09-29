@@ -181,7 +181,7 @@ def find_images_manifest_faulty_headers(
       entry may be silently sharing a preceding entry's header, since
       same_group's same-version test is only a proxy for a lockstep bump.
     - "wrong_name": the header's name segment (see header_name_segment) isn't
-      exactly "<parent> - <basename>" (see path_display_name). Exact equality,
+      exactly "<parent> - <image-basename>" (see path_display_name). Exact equality,
       because one sidecar name can be a prefix of another.
 
     Primary images (see is_primary_image_path) are exempt. Unresolvable entries

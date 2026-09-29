@@ -7,16 +7,18 @@ Checks the version exists upstream and resolves its digest before
 writing. Then updates the target version's docs if they exist (upgrade
 doc, values-deltas, images-<target>.yaml) and runs fix-helm-doc and
 fix-doc-consistency (which also regenerates images-baseline.yaml).
-Fails when <key> <basename> does not match exactly one repository.
+Fails when <key> <image-basename> does not match exactly one repository.
 
 Usage:
-    update-image-version <key> <basename> <new-version>
+    update-image-version <key> <image-basename> <image-version>
 
 Arguments:
-    <key>           Chart.yaml dependency name or alias, or MULTIPLE for
-                    an image shared via global.images
-    <basename>      last path segment of the image repository
-    <new-version>   new image tag
+    <key>             top-level values.yaml key: a Chart.yaml dependency
+                      name or alias, a native component (defined in
+                      podiumd itself, e.g. frankgateway) or MULTIPLE for
+                      global.images
+    <image-basename>  last path segment of the image repository
+    <image-version>   image tag
 
 Examples:
     update-image-version zac zaakafhandelcomponent 5.4.4

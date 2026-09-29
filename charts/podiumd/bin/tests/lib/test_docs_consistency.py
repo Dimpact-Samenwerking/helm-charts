@@ -12,7 +12,7 @@ from lib.docs_consistency.check_context import RowContext
 
 
 def test_match_changes_item_to_entry_canonical_sidecar_name_matches_own_basename(libimagesmanifest: ModuleType):
-    """A "<key> - <basename>" sidecar name matches on its basename only.
+    """A "<key> - <image-basename>" sidecar name matches on its basename only.
 
     "keycloak-operator - postgres" must match "postgres", not "keycloak".
     """

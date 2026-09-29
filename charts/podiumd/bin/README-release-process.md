@@ -146,7 +146,7 @@ A component consists of a helm-chart and a container image.
 - create a branch from the release branch (`podiumd-<version>`), name it `podiumd-<version>-<my_changes>`
 - run `query-release-table vendor <name>` or `query-release-table component <name>`, to show changes
 - per component:
-  - run `update-component-version <component> <app-version> <helm-version>` to update the app+helm version using the queried data
+  - run `update-component-version <component> <app-version> <chart-version>` to update the app+helm version using the queried data
   - check docs from the component and add relevant changes to `<baseline>-to-<version>-*.md`
   - run `verify-podiumd` to check consistency, if not ok, fix the issues
   - commit+push the changes
@@ -159,7 +159,7 @@ This updates just a container image version in a release.
 - create a branch from the release branch (`podiumd-<version>`), name it `podiumd-<version>-<my_changes>`
 - run `query-release-table section <overige|technische>` or `query-release-table component <name>`, to show changes
 - per images:
-  - run `update-image-version <key> <basename> <version>` to update the image version using the queried data
+  - run `update-image-version <key> <image-basename> <image-version>` to update the image version using the queried data
   - run `verify-podiumd` to check consistency, if not ok, fix the issues
   - commit+push the changes
 - create a PR to merge the my-changes branch into the release branch
@@ -213,11 +213,11 @@ Tools:
 - `query-release-table`: query release data from `charts/podiumd/etc/release-table.csv` by section, vendor, component
 - `render-podiumd`: render the chart, to match line numbers in `verify-podiumd` output
 - `show-component-baseline-version`: show a component's Helm chart and app image versions at both baselines
-- `show-image-baseline-version`: show one image's version at both baselines, given `<key> <basename>`
+- `show-image-baseline-version`: show one image's version at both baselines, given `<key> <image-basename>`
 - `update-component-version`: update the version of component, given component
   name, app-version and helm-version; also updates the release docs, `README.md`
   and `images-baseline.yaml`, ending with `fix-doc-consistency`
-- `update-image-version`: update an image version, given `<key> <basename>` and
+- `update-image-version`: update an image version, given `<key> <image-basename>` and
   version; also updates the release docs, `README.md` and `images-baseline.yaml`,
   ending with `fix-doc-consistency`
 - `verify-component-version`: check a component's chart and app image versions exist; pre-flight for `update-component-version`

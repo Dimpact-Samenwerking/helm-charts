@@ -12,7 +12,7 @@ def test_path_display_name_primary_dependency_image_uses_bare_key(libupgradedocc
 
 
 def test_path_display_name_sidecar_uses_canonical_name(libupgradedoccomments: ModuleType):
-    """A nested sidecar path displays as its canonical "<key> - <basename>" name."""
+    """A nested sidecar path displays as its canonical "<key> - <image-basename>" name."""
     deps = [{"name": "redis-operator", "version": "1.0.0"}]
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
     assert (

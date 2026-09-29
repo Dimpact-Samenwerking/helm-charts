@@ -15,10 +15,9 @@ Usage:
 Example:
     nohup verify-podiumd-dead-values > dead-values.log 2>&1 &
 
-Requires helm on PATH.
+Requires: helm on PATH.
 
-Exit code: 1 when helm is not installed; otherwise 0, whatever the scan
-finds (report only).
+Exit code: 1 when helm is not installed, otherwise 0 (report only).
 """
 
 import shutil

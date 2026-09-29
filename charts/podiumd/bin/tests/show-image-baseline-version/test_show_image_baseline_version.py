@@ -1,4 +1,4 @@
-"""main() against a real temp git repo: <key> <basename> resolved against
+"""main() against a real temp git repo: <key> <image-basename> resolved against
 values.yaml as of each release-baseline.yaml baseline (via `git show`)."""
 
 import subprocess
@@ -100,7 +100,7 @@ def test_main_no_pin_at_baseline_is_noted_not_fatal(
 
     out = capsys.readouterr().out
     assert f"ghcr.io/infonl/zaakafhandelcomponent: 5.0.2  (sha256:{'a' * 64})" in out
-    assert "no image pin with basename 'zaakafhandelcomponent' found under 'zac'" in out
+    assert "no image pin with image basename 'zaakafhandelcomponent' found under 'zac'" in out
 
 
 def test_main_missing_release_table_key_is_noted_not_an_error(
@@ -145,7 +145,10 @@ def test_main_unknown_key_fails(
     with pytest.raises(SystemExit) as exc_info:
         sibv.main()
     assert exc_info.value.code == 1
-    assert "no image pin with basename 'zaakafhandelcomponent' found under 'totally-unknown'" in capsys.readouterr().out
+    assert (
+        "no image pin with image basename 'zaakafhandelcomponent' found under 'totally-unknown'"
+        in capsys.readouterr().out
+    )
 
 
 def test_main_requires_exactly_two_arguments(sibv: ModuleType, monkeypatch: pytest.MonkeyPatch):

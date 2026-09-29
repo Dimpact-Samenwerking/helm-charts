@@ -9,10 +9,8 @@ usage() {
 Usage: run_python_checks [-h|--help]
 
 Runs ruff check, shellcheck, ruff format --check, pymarkdown, vulture,
-bandit, pylint, basedpyright, and pytest against this charts/podiumd/bin/
-toolset, fastest first, stopping
-at the first failure. Must be run from charts/podiumd/bin/ itself (or
-invoked as ./run_python_checks from there) -- see README-coding.md.
+bandit, pylint, basedpyright and pytest on charts/podiumd/bin/, fastest
+first. Stops at the first failure. Run from charts/podiumd/bin/.
 EOF
 }
 

@@ -7,14 +7,13 @@ its component name and alias resolved against Chart.yaml and values.yaml.
 
 Authentication: your Atlassian email plus a classic API token (a scoped
 token does not work). Create one under profile icon > Account settings >
-Security > API tokens; it is shown once. The token is read from
---token-file, CONFLUENCE_API_TOKEN or a prompt; --token also works but
-ends up in shell history.
+Security > API tokens. The token is read from --token, --token-file,
+CONFLUENCE_API_TOKEN or a prompt.
 
 Examples:
     export-confluence-release-table --url <page-url> --user <email> \\
         --token-file ~/.confluence-token
-    export-confluence-release-table --recompute-basenames
+    export-confluence-release-table --recompute-image-basenames
 """
 
 import argparse
@@ -104,13 +103,13 @@ def resolve_header_row_count(rows: list[list[TableCell]], grid: list[list[str]])
 
 
 def parse_args():
-    """Parse CLI args; --url and --user are required unless --recompute-basenames."""
+    """Parse CLI args; --url and --user are required unless --recompute-image-basenames."""
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--url", help="Confluence page URL (required unless --recompute-basenames)")
-    parser.add_argument("--user", help="Atlassian account email (required unless --recompute-basenames)")
+    parser.add_argument("--url", help="Confluence page URL (required unless --recompute-image-basenames)")
+    parser.add_argument("--user", help="Atlassian account email (required unless --recompute-image-basenames)")
     parser.add_argument("--token", help="API token (prefer --token-file or CONFLUENCE_API_TOKEN instead)")
     parser.add_argument("--token-file", help="path to a file containing just the API token")
     parser.add_argument(
@@ -122,14 +121,14 @@ def parse_args():
         help=f"only use the table(s) under this heading; repeatable (default: {', '.join(DEFAULT_HEADINGS)})",
     )
     parser.add_argument(
-        "--recompute-basenames",
+        "--recompute-image-basenames",
         action="store_true",
         help="only recompute the image_basename column of the existing --output CSV "
         "from the current values.yaml; no Confluence access needed",
     )
     args = parser.parse_args()
-    if not args.recompute_basenames and not (args.url and args.user):
-        parser.error("--url and --user are required unless --recompute-basenames is set")
+    if not args.recompute_image_basenames and not (args.url and args.user):
+        parser.error("--url and --user are required unless --recompute-image-basenames is set")
     return args
 
 
@@ -470,7 +469,7 @@ def main():
     """CLI entry point."""
     args = parse_args()
 
-    if args.recompute_basenames:
+    if args.recompute_image_basenames:
         changes = recompute_image_basenames(Path(args.output), CHART_DIR)
         if changes:
             print(f"Recomputed image_basename for {len(changes)} row(s) in {args.output}:")

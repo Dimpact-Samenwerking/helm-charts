@@ -154,7 +154,7 @@ def test_print_image_lines_appends_disabled_hint_for_a_never_rendered_row(lpi, c
 
 
 def test_print_image_lines_puts_note_on_first_line_not_the_detail_line(lpi, capsys: pytest.CaptureFixture[str]):
-    """The note decides whether <key> <basename> is usable, so it belongs on
+    """The note decides whether <key> <image-basename> is usable, so it belongs on
     the first line, not the repo:tag line."""
     lines = [
         "global:",

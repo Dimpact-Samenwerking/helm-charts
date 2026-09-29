@@ -6,14 +6,14 @@ For each Chart.yaml dependency, merges the sub-chart's default values
 with podiumd's values.yaml; also lists images set at podiumd's top
 level. Each image prints as two lines:
 
-    <key> <basename> <version>  (path: <values path>)
+    <key> <image-basename> <image-version>  (path: <values path>)
         <repo>:<tag>
 
 The first line is the argument list for update-image-version,
-verify-image-version and show-image-baseline-version. When those
-scripts cannot use it, the line ends with a hint: "use MULTIPLE
-<basename>" (shared global.images.* image) or "unresolvable". The second
-line is the full image reference, digest included.
+verify-image-version and show-image-baseline-version. When those scripts
+cannot use it, the line ends with a hint: "use MULTIPLE
+<image-basename>" (shared global.images.* image) or "unresolvable". The
+second line is the full image reference, digest included.
 
 Usage:
     list-podiumd-images [--refresh]
@@ -176,7 +176,7 @@ def deep_merge(base: YamlValue, override: YamlValue) -> YamlValue:
 
 
 def resolution_note(values_lines: list[str], key: str, basename: str):
-    """None if <key> <basename> resolves for the image scripts, else a short hint.
+    """None if <key> <image-basename> resolves for the image scripts, else a short hint.
 
     Suggests MULTIPLE_KEY when the image only resolves under global.images
     (the usual cause).
@@ -189,7 +189,7 @@ def resolution_note(values_lines: list[str], key: str, basename: str):
 
 
 def _resolves(values_lines: list[str], key: str, basename: str) -> bool:
-    """True if resolve_scoped_matches accepts <key> <basename>; it exits on failure."""
+    """True if resolve_scoped_matches accepts <key> <image-basename>; it exits on failure."""
     try:
         resolve_scoped_matches(values_lines, key, basename)
     except SystemExit:
@@ -216,7 +216,7 @@ def _column_widths(entries: list[ImageEntry]):
 
 
 def _print_image_entry(entry: ImageEntry, values_lines: list[str], widths: ColumnWidths):
-    """Print an entry's two lines: aligned "<key> <basename> <version> (path: ...)"
+    """Print an entry's two lines: aligned "<key> <image-basename> <image-version> (path: ...)"
     with "disabled"/resolution hints, then the full "<repo>:<tag>"."""
     note = resolution_note(values_lines, entry.key, entry.basename)
     line = (

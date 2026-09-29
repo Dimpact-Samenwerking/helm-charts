@@ -102,7 +102,7 @@ def _group_by_basename_in_scope(lines: list[str], pins: list[PinT], scope_key: s
 
 
 def repository_for_basename_in_scope(lines: list[str], scope_key: str, basename: str) -> str | None:
-    """The one repository <scope_key>.<basename> resolves to in `lines`, or None.
+    """The one repository <scope_key>.<image-basename> resolves to in `lines`, or None.
 
     Scoped match first, else the unscoped find_matches_any_tag (e.g.
     keycloak-config-cli lives under "keycloak", not "keycloak-operator").
@@ -124,10 +124,10 @@ GLOBAL_IMAGES_SCOPE = "global"
 
 
 def resolve_key_scope(key: str, deps: list[ChartDependency]) -> str:
-    """The top-level values.yaml key for CLI <key>, accepting a dependency's name or alias.
+    """The top-level values.yaml key for CLI <key>, mapping a dependency's name or alias to it.
 
-    MULTIPLE_KEY and keys matching no dependency (native components, typos)
-    pass through; resolve_scoped_matches reports a bad one.
+    MULTIPLE_KEY and keys matching no dependency (components defined in
+    podiumd itself, typos) pass through; resolve_scoped_matches reports a bad one.
     """
     if same_name(key, MULTIPLE_KEY):
         return MULTIPLE_KEY
@@ -152,7 +152,7 @@ def find_matches_in_scope(lines: list[str], scope_key: str, basename: str) -> li
 
 
 def resolve_scoped_matches(lines: list[str], key: str, basename: str) -> list[ScopedPin]:
-    """The pins <key> <basename> identify; <key> is a top-level key or "MULTIPLE" (global.images).
+    """The pins <key> <image-basename> identify; <key> is a top-level key or "MULTIPLE" (global.images).
 
     Raises SystemExit if nothing matches or more than one distinct
     repository does.
@@ -160,7 +160,7 @@ def resolve_scoped_matches(lines: list[str], key: str, basename: str) -> list[Sc
     scope_key = GLOBAL_IMAGES_SCOPE if same_name(key, MULTIPLE_KEY) else key
     matches = find_matches_in_scope(lines, scope_key, basename)
     if not matches:
-        msg = f"error: no image pin with basename '{basename}' found under '{key}'"
+        msg = f"error: no image pin with image basename '{basename}' found under '{key}'"
         raise SystemExit(msg)
     repositories = {m["repository"] for m in matches}
     if len(repositories) > 1:
@@ -174,9 +174,9 @@ def resolve_scoped_matches(lines: list[str], key: str, basename: str) -> list[Sc
 
 
 def check_basename_version(lines: list[str], key: str, basename: str, new_version: str) -> list[TagCheck]:
-    """Read-only registry check of new_version for <key> <basename>'s single repository.
+    """Read-only registry check of new_version for <key> <image-basename>'s single repository.
 
-    Raises SystemExit if <key> <basename> doesn't resolve uniquely.
+    Raises SystemExit if <key> <image-basename> doesn't resolve uniquely.
     """
     matches = resolve_scoped_matches(lines, key, basename)
 
@@ -213,14 +213,14 @@ def _resolve_pending_digests(pending: list[ScopedPin], new_version: str) -> dict
 
 
 def update_image_version(values_path: Path, key: str, basename: str, new_version: str) -> list[PinUpdate]:
-    """Update every pin <key> <basename> resolves to to new_version, resolving digests before writing.
+    """Update every pin <key> <image-basename> resolves to to new_version, resolving digests before writing.
 
     Resolving first means a bad version never leaves values.yaml half-updated.
     Returns one dict per changed line, in file order ([] if all current):
         {"line", "repository", "old_version", "old_digest",
          "new_version", "new_digest"}
 
-    Raises SystemExit if <key> <basename> doesn't resolve uniquely or
+    Raises SystemExit if <key> <image-basename> doesn't resolve uniquely or
     new_version doesn't exist upstream.
     """
     text = values_path.read_text(encoding="utf-8")

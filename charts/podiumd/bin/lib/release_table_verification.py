@@ -8,7 +8,7 @@ reports version mismatches / missing rows / missing pins. The script's
 - The component/alias/image_basename columns are already resolved by
   export-confluence-release-table and are read as-is.
 - An image is looked up the same way as update-image-version's <key>
-  <basename>: first basenames_under_scope_any_tag in the component's own
+  <image-basename>: first basenames_under_scope_any_tag in the component's own
   values.yaml subtree, then find_matches_any_tag across the whole file,
   since a basename can be pinned under a sibling scope (keycloak-config-
   cli lives under "keycloak", not "keycloak-operator").

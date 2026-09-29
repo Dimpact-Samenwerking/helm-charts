@@ -76,7 +76,7 @@ from lib.yaml_types import YamlMapping
 def make_image_changes_section(
     basename: str, target: str, old_version: str | None, new_version: str | None, pinned: list[tuple[str, str | None]]
 ) -> str:
-    """The "### <basename> <old> → <new>" Changes block for an image basename bump.
+    """The "### <image-basename> <old> → <new>" Changes block for an image basename bump.
 
     "Shared" only when every bumped pin is under global.images. `pinned` is
     [(dotted_path, old_version), ...], listed per pin since their old
@@ -210,7 +210,7 @@ def add_missing_sidecar_rows(
     Only when the version (not just the digest) changed vs baseline. Uses
     the shared-image shape (chart column "-") for sidecars too, matching
     the docs and the checker. global.images anchors are included so an
-    aliased image gets one bare "<basename>" row, not one per component.
+    aliased image gets one bare "<image-basename>" row, not one per component.
     Paths new to the baseline resolve their old version via
     _resolve_sidecar_old_app.
 

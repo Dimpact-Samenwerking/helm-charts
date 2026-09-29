@@ -12,7 +12,7 @@ Usage:
     fix-node-selector [--dry-run]
 
 Options:
-    --dry-run   report only, write nothing
+    --dry-run   report what would change, write nothing
 """
 
 import re

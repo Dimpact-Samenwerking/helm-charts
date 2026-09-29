@@ -21,7 +21,7 @@ Usage:
     fix-oidc-url-coverage [--dry-run]
 
 Options:
-    --dry-run   report only, write nothing
+    --dry-run   report what would change, write nothing
 """
 
 import sys

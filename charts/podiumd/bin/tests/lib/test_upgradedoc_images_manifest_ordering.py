@@ -230,7 +230,7 @@ def test_find_images_manifest_faulty_headers_sidecar_header_naming_wrong_compone
 def test_find_images_manifest_faulty_headers_digest_changed_sidecar_not_flagged(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """Regression: a same-version "sidecar: <parent> - <basename> <version> (digest changed)" header
+    """Regression: a same-version "sidecar: <parent> - <image-basename> <version> (digest changed)" header
     has no arrow but is not "wrong_name"."""
     text = '#   sidecar: redis-operator - redis 8.6.6 (digest changed)\n- name: redis-ha\n  version: "8.6.6"\n'
     lines = text.splitlines()

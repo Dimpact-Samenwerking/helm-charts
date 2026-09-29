@@ -101,7 +101,7 @@ def match_changes_item_to_entry(item_name: str, entries: list[ManifestEntry]) ->
     not release-table.csv, which is scoped to a different baseline.
 
     Uses match_dependency's word matching against each entry's last name segment; None
-    if nothing matches. A canonical "<key> - <basename>" name is matched on its basename
+    if nothing matches. A canonical "<key> - <image-basename>" name is matched on its basename
     only, or the leading key can match an unrelated entry ("keycloak-operator -
     postgres" matching "keycloak").
     """
@@ -292,7 +292,7 @@ def _baseline_and_vs_line_issues(name: str, text: str, context: ManifestCheckCon
 def _manifest_resolution_context(context: ManifestCheckContext) -> tuple[dict[str, list[ImagePath]], EntryResolution]:
     """(repo_groups, EntryResolution) derived from `context`, computed once up front.
 
-    Needed early: canonical "<key> - <basename>" Changes items resolve via their known
+    Needed early: canonical "<key> - <image-basename>" Changes items resolve via their known
     values-tree path, which text-only matching can't do. Empty chart_dir-gated parts
     when context.chart_dir is None.
     """
@@ -465,7 +465,7 @@ def _entry_comment_issues(
 
 
 def _sidecar_header_issues(name: str, parsed: ParsedManifest, resolution: EntryResolution):
-    """One issue per sidecar entry lacking its own "# sidecar: <parent> - <basename> ..." header.
+    """One issue per sidecar entry lacking its own "# sidecar: <parent> - <image-basename> ..." header.
 
     Borrowing a preceding entry's header via same_group is wrong when versions merely
     coincide (kiss-elastic-sync 0.3.3 -> 3.0.0 under "# KISS — 2.2.4 -> 3.0.0").

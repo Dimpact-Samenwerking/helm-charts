@@ -2,14 +2,14 @@
 """
 Strip a UTF-8 BOM (bytes EF BB BF) from charts/podiumd/values.yaml.
 
-A BOM breaks YAML tooling. verify-podiumd reports it; this script
-removes it in place. Does nothing when there is no BOM.
+Fixes what verify-podiumd's "UTF-8 format" step reports. Does nothing
+when there is no BOM.
 
 Usage:
     fix-utf8-bom [--dry-run]
 
 Options:
-    --dry-run  report only, write nothing
+    --dry-run   report what would change, write nothing
 """
 
 import sys

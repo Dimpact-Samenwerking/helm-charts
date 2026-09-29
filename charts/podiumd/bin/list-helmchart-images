@@ -4,17 +4,18 @@ List the images and sub-chart dependencies of one podiumd dependency
 chart at a given version.
 
 Pulls the chart (a file:// dependency is read from its source directory).
-Each image prints as "<key> <basename> <version>  (path: ...)", the
+Each image prints as "<key> <image-basename> <image-version>  (path: ...)", the
 argument order update-image-version and verify-image-version take,
 followed by an indented "<repo>:<tag>" line.
 
 Usage:
-    list-helmchart-images <chart-name-or-alias> <chart-version>
+    list-helmchart-images <component> <chart-version>
 
 Arguments:
-    <chart-name-or-alias>   Chart.yaml dependency name or alias
-    <chart-version>         chart version to inspect (for a file://
-                            dependency only checked against the source)
+    <component>       Chart.yaml dependency name or alias; not a native
+                      component, which has no chart
+    <chart-version>   Helm chart version; for a file:// dependency only
+                      checked against its source
 
 Examples:
     list-helmchart-images zac 1.0.297
