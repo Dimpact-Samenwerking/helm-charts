@@ -62,8 +62,11 @@ Yes — a 1 GiB `ReadWriteMany` Azure Files PVC shared by both replicas, rendere
 
 Public. In Dimpact environments an HTTPRoute `hr-openbeheer-nginx` on Gateway
 `public-gateway` (namespace `ingress-basic`, gatewayClass `nginx`) routes
-`<env>-openbeheer.<gemeente>.nl` (e.g. `ontw-openbeheer.assen.nl`) to the app's ClusterIP
-service. The HTTPRoute and DNS record are created by the per-gemeente environment
+`<env>-openbeheer.<gemeente>.nl` (e.g. `ontw-openbeheer.assen.nl`) to the nginx ClusterIP
+service `openbeheer-nginx` (port 80). The `backendRefs` must name `openbeheer-nginx`, not the
+Django backend service `openbeheer`: the backend answers `/admin/` and the Keycloak login, but
+its `/` is a bare "This is the Open Beheer backend" page — the frontend is only served through
+`openbeheer-nginx`. The HTTPRoute and DNS record are created by the per-gemeente environment
 deployment (ADO `ExternalsPodiumD`), not by this chart. The public hostname must equal the
 host in `openbeheer.configuration.oidcUrl` — the realm-config job derives the Keycloak
 redirect URIs (`{oidcUrl}/*`) from it. For non-NGF environments the sub-chart also ships an
@@ -306,13 +309,16 @@ with production workload measurements.
    `openbeheer` with the ZGW secret; in Objecttypen, create a token-authorised user holding
    the API token; in Objecten, create a token-authorised user with `is_superuser: true`.
 8. **DNS + HTTPRoute**: have the environment deployment create the
-   `<env>-openbeheer.<gemeente>.nl` DNS record and the HTTPRoute on `public-gateway`; the
-   hostname must match `configuration.oidcUrl`.
+   `<env>-openbeheer.<gemeente>.nl` DNS record and the HTTPRoute on `public-gateway`, with
+   `backendRefs` → `openbeheer-nginx` port 80 (not `openbeheer`); the hostname must match
+   `configuration.oidcUrl`.
 9. **Verify**: configuration Job completes (`kubectl -n podiumd get jobs -l
    app.kubernetes.io/name=openbeheer` → 1/1); 2/2 pods Ready with 0 restarts (uWSGI master
    fix active: `kubectl -n podiumd get cm openbeheer -o jsonpath='{.data.UWSGI_MASTER}'`
    → `1`); browse to `https://<env>-openbeheer.<gemeente>.nl/admin/` and confirm the Keycloak
-   redirect; in the UI confirm the Catalogi, Objecttypen, Objecten and Selectielijst services
+   redirect; browse to `https://<env>-openbeheer.<gemeente>.nl/` and confirm the Open Beheer
+   login page appears, not "This is the Open Beheer backend" (that means the HTTPRoute targets
+   the wrong service); in the UI confirm the Catalogi, Objecttypen, Objecten and Selectielijst services
    resolve and catalogi load from Open Zaak.
 
 ## Related documents
