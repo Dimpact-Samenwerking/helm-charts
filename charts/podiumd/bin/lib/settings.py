@@ -124,6 +124,11 @@ def image_upgrade_tag_check_cache_ttl_days(chart_dir: Path):
     return _int(chart_dir, "image_upgrade_check", "tag_check_cache_ttl_days", 1)
 
 
+def root_containers_accepted(chart_dir: Path) -> dict[str, str]:
+    """root_containers.accepted: "<source template>:<container>" -> why it may run as root."""
+    return _text_map(chart_dir, "root_containers", "accepted", {})
+
+
 def chart_upgrade_check_cache_ttl_days(chart_dir: Path):
     """chart_upgrade_check.cache_ttl_days."""
     return _int(chart_dir, "chart_upgrade_check", "cache_ttl_days", 1)

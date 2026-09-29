@@ -40,6 +40,7 @@ Steps, in run order:
   release-secret-size  Helm release Secret stays under 90% of 1 MiB
   chart-upgrades       newer stable dependency chart versions published
                        (report only)
+  root-containers      containers that run as root (report only)
   image-upgrades       newer same-variant tags published (report only)
   cve-scan             fixable CVEs via docker + trivy (report only; skipped
                        without docker)
@@ -99,6 +100,7 @@ from lib.checks.lockstep import check_lockstep_versions
 from lib.checks.markdown import check_markdown
 from lib.checks.node_selector import check_node_selector
 from lib.checks.oidc_url_coverage import check_oidc_url_coverage
+from lib.checks.root_containers import check_root_containers
 from lib.checks.shellcheck import check_shellcheck
 from lib.checks.vendored_tgz import check_vendored_tgz_extraction
 from lib.checks.yamllint import check_yamllint
@@ -277,6 +279,7 @@ SKIPPABLE_STEPS = [
     ("kube-score", "kube-score"),
     ("release-secret-size", "Release secret size"),
     ("chart-upgrades", "Chart upgrades"),
+    ("root-containers", "Root containers"),
     ("image-upgrades", "Image upgrades"),
     ("cve-scan", "CVE scan"),
     ("cve-diff", "CVE diff"),
@@ -301,6 +304,7 @@ STEP_PREREQUISITES = {
     "shellcheck": ("Dependencies",),
     "kube-score": ("Dependencies",),
     "Release secret size": ("Dependencies",),
+    "Root containers": ("Dependencies",),
     "Image upgrades": ("Dependencies",),
     "CVE scan": ("Dependencies", "Image upgrades"),
     "CVE diff": ("Dependencies", "Image upgrades", "Image digests"),
@@ -539,6 +543,7 @@ def _run_all_steps(runner: StepRunner, chart_dir: Path, args: argparse.Namespace
         extra_args,
     )
     runner.run("Chart upgrades", "Checking for newer dependency chart versions", check_chart_upgrades, chart_dir)
+    runner.run("Root containers", "Checking which containers run as root", check_root_containers, chart_dir, extra_args)
     runner.run("Image upgrades", "Checking for newer published tags", check_image_upgrades, chart_dir, extra_args)
     runner.run(
         "CVE scan",

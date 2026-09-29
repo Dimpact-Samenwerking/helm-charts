@@ -14,6 +14,11 @@ chart_upgrade_check:
   # New chart versions can appear any time; this only avoids re-querying within a day.
   cache_ttl_days: 1
 
+root_containers:
+  # Containers known to run as root and accepted, reported as accepted instead of as findings:
+  # "<rendered source template>:<container name>": "<why>"
+  accepted: {}
+
 repo_access:
   # Avoids Docker Hub's anonymous rate limit on quick re-runs.
   cache_ttl_minutes: 30
