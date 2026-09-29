@@ -12,8 +12,8 @@ Also repairs the content against Chart.yaml and values.yaml:
     adding missing rows, removing rows unchanged vs the baseline and
     sorting them in values.yaml order; rebuilding a generated section
     that contradicts its row; a pin bullet for every values
-    path that shares a YAML anchor with a documented pin; a blank line
-    before each "- Image / digest" pointer
+    path that shares a YAML anchor with a documented pin; a missing
+    "- Image / digest" pointer and the blank line before it
   - values-deltas doc: adds missing component sections and nested key
     added/removed lines
   - docs/images/images-<target>.yaml: fixes entries and "# Changes:"
@@ -70,8 +70,8 @@ from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import OrderingContext
-from lib.component_docs.changes_section import add_blank_line_before_pointers
 from lib.component_docs.changes_section import add_missing_component_rows
+from lib.component_docs.changes_section import fix_pointer_issues
 from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import renumber_images_manifest_changes_items
 from lib.component_docs.values_delta_sections import ValuesDeltaBaseline
@@ -461,71 +461,51 @@ def _fix_upgrade_doc_headings(
         CHART_YAML.parent, state.target_deps, state.target_values, current_paths.keys()
     )
 
-    text, added_section_names = add_missing_changes_sections(
+    doc_context = DocContext(CHART_YAML.parent, state.target)
+    ordering = OrderingContext(state.target_deps, state.target_values, canonical_names)
+    text, added = add_missing_changes_sections(
         text, state.target_deps, state.target_values, state.target, canonical_names
     )
-    if added_section_names:
-        print()
-        print(f"=== Adding missing '### ...' Changes section(s) to {upgrade_path.name} ===")
-        for name in added_section_names:
-            print(f"  {name}")
-
-    text, updated_stale_headings = update_stale_app_version_headings(
-        text,
-        DocContext(CHART_YAML.parent, state.target),
-        OrderingContext(state.target_deps, state.target_values, canonical_names),
+    changed = _report_repair("Adding missing '### ...' Changes section(s)", upgrade_path, added)
+    text, stale = update_stale_app_version_headings(text, doc_context, ordering)
+    changed |= _report_repair("Updating '### ...' Changes section(s) missing their app version", upgrade_path, stale)
+    text, rebuilt = rebuild_changes_sections_contradicting_rows(text, doc_context, ordering)
+    changed |= _report_repair(
+        "Rebuilding '### ...' Changes section(s) that contradict their table row",
+        upgrade_path,
+        [f"'### {s.heading}' -> '### {s.expected_heading}'" for s in rebuilt],
     )
-    if updated_stale_headings:
-        print()
-        print(f"=== Updating '### ...' Changes section(s) missing their app version in {upgrade_path.name} ===")
-        for heading in updated_stale_headings:
-            print(f"  {heading}")
-
-    text, rebuilt_sections = rebuild_changes_sections_contradicting_rows(
-        text,
-        DocContext(CHART_YAML.parent, state.target),
-        OrderingContext(state.target_deps, state.target_values, canonical_names),
+    text, wrong = fix_changes_heading_app_versions(text, resolution)
+    changed |= _report_repair(
+        "Correcting '### ...' Changes section heading(s) with the wrong name/app-version transition",
+        upgrade_path,
+        wrong,
     )
-    if rebuilt_sections:
-        print()
-        print(f"=== Rebuilding '### ...' Changes section(s) that contradict their table row in {upgrade_path.name} ===")
-        for section in rebuilt_sections:
-            print(f"  '### {section.heading}' -> '### {section.expected_heading}'")
-
-    text, updated_wrong_headings = fix_changes_heading_app_versions(text, resolution)
-    if updated_wrong_headings:
-        print()
-        print(
-            f"=== Correcting '### ...' Changes section heading(s) with the wrong name/app-version "
-            f"transition in {upgrade_path.name} ==="
-        )
-        for heading in updated_wrong_headings:
-            print(f"  {heading}")
-
-    changed = bool(added_section_names or updated_stale_headings or rebuilt_sections or updated_wrong_headings)
     return text, canonical_names, changed
+
+
+def _report_repair(title: str, doc: Path, items: list[str]) -> bool:
+    """Print "=== <title> in <doc> ===" and one line per item; returns whether there were any."""
+    if items:
+        print()
+        print(f"=== {title} in {doc.name} ===")
+        for item in items:
+            print(f"  {item}")
+    return bool(items)
 
 
 def _add_missing_pin_bullets(text: str, upgrade_path: Path) -> tuple[str, bool]:
     """Add a pin bullet for each path sharing a YAML anchor with a documented one. Returns (text, changed)."""
     text, added = add_missing_pin_bullets(text, alias_groups(VALUES_YAML))
-    if added:
-        print()
-        print(f"=== Adding pin bullet(s) for paths sharing a YAML anchor in {upgrade_path.name} ===")
-        for m in added:
-            print(f"  '### {m.heading}': {m.missing_path} (shares an anchor with {m.documented_path})")
-    return text, bool(added)
+    items = [f"'### {m.heading}': {m.missing_path} (shares an anchor with {m.documented_path})" for m in added]
+    return text, _report_repair("Adding pin bullet(s) for paths sharing a YAML anchor", upgrade_path, items)
 
 
-def _add_blank_line_before_pointers(text: str, upgrade_path: Path) -> tuple[str, bool]:
-    """Separate each "- Image / digest" pointer from the bullets above it. Returns (text, changed)."""
-    text, headings = add_blank_line_before_pointers(text)
-    if headings:
-        print()
-        print(f"=== Adding a blank line before the image digest pointer in {upgrade_path.name} ===")
-        for heading in headings:
-            print(f"  '### {heading}'")
-    return text, bool(headings)
+def _fix_pointer_issues(text: str, upgrade_path: Path, target: str) -> tuple[str, bool]:
+    """Add a missing "- Image / digest" pointer and the blank line before it. Returns (text, changed)."""
+    text, fixed = fix_pointer_issues(text, target)
+    items = [f"'### {issue.heading}': {issue.kind.replace('-', ' ')}" for issue in fixed]
+    return text, _report_repair("Fixing the image digest pointer", upgrade_path, items)
 
 
 def _reorder_upgrade_doc(
@@ -573,7 +553,7 @@ def _fix_upgrade_doc(state: RebaseState, upgrade_path: Path, actual_changed_keys
     changed.append(step_changed)
     text, step_changed = _add_missing_pin_bullets(text, upgrade_path)
     changed.append(step_changed)
-    text, step_changed = _add_blank_line_before_pointers(text, upgrade_path)
+    text, step_changed = _fix_pointer_issues(text, upgrade_path, state.target)
     changed.append(step_changed)
     text, step_changed = _reorder_upgrade_doc(
         text, upgrade_path, state.target_deps, state.target_values, canonical_names
@@ -737,9 +717,8 @@ def _fix_stale_changes_items(
     target = ComponentState(state.target_deps, state.target_values)
     baseline = BaselineState(state.baseline_deps, state.baseline_values)
     resolution = ResolutionContext(CHART_YAML.parent, target, baseline, upgrade_docs_baseline=state.new_baseline)
-    if fixed := correct_stale_changes_items(images_path, upgrade_path, canonical_names, resolution):
-        print(f"\n=== Correcting '# Changes:' item(s) in {images_path.name} ===")
-        print("\n".join(f"  {old}  ->  {new}" for old, new in fixed))
+    fixed = correct_stale_changes_items(images_path, upgrade_path, canonical_names, resolution)
+    _report_repair("Correcting '# Changes:' item(s)", images_path, [f"{old}  ->  {new}" for old, new in fixed])
 
 
 def _dedupe_images_manifest_changes_items(images_path: Path):

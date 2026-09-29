@@ -8,6 +8,8 @@ import re
 
 from dataclasses import dataclass
 
+from lib.component_docs.changes_section import ALIAS_NOTE
+from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 
 # "- `<path>` ..." (image block, under "pinned at:") or "- Image tag pin `<path>` ..." /
@@ -51,16 +53,16 @@ def _block_bullets(lines: list[str], start: int, end: int) -> list[_Bullet]:
 def _aliased_bullet(bullet_lines: list[str], documented_path: str, missing_path: str) -> list[str]:
     """A copy of a bullet naming `missing_path`, marked as sharing `documented_path`'s anchor."""
     first = bullet_lines[0].rstrip("\n").replace(f"`{documented_path}`", f"`{missing_path}`", 1)
-    note = f"(shares a YAML anchor with `{documented_path}`)"
+    note = ALIAS_NOTE.format(path=documented_path)
     first = f"{first[: -len(' in')]} {note} in" if first.endswith(" in") else f"{first} {note}"
     return [first + "\n", *bullet_lines[1:]]
 
 
 def _scan(text: str, alias_groups: dict[str, tuple[str, ...]]) -> tuple[list[str], list[tuple[_Bullet, list[str]]]]:
     """(lines, [(bullet, paths missing next to it), ...]) in document order."""
-    lines = text.splitlines(keepends=True)
+    lines, blocks = changes_blocks_with_lines(text)
     found: list[tuple[_Bullet, list[str]]] = []
-    for block in parse_upgrade_doc_changes_blocks(text):
+    for block in blocks:
         bullets = _block_bullets(lines, block["start"] + 1, block["end"])
         documented = {b.path for b in bullets}
         for bullet in bullets:

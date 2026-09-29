@@ -35,13 +35,14 @@ ORDER_VALUES_YAML = (
     'openzaak:\n  image:\n    tag: "1.27.4@sha256:aaaa"\nopeninwoner:\n  image:\n    tag: "2.4.2@sha256:bbbb"\n'
 )
 
+POINTER = "- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n"
 ZAAK_ROW = "| Open Zaak | 1.27.4 | 1.14.2 | - |"
 INWONER_ROW = "| Open Inwoner | 2.4.2 | 2.4.0 | - |"
 
 
 def order_doc(table_rows, changes_headings):
     table = "\n".join(table_rows)
-    changes = "\n\n".join(f"### {h}\n\nDetails.\n" for h in changes_headings)
+    changes = "\n\n".join(f"### {h}\n\nDetails.\n\n{POINTER}" for h in changes_headings)
     return (
         "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -528,7 +529,7 @@ def test_changes_heading_correct_transition_wording_passes(vp: ModuleType, chart
         "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | n/a |\n\n"
         "## Changes\n\n"
         "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
-        "blah\n"
+        "blah\n\n" + POINTER
     )
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is True, detail

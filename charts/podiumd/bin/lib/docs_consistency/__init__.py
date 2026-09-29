@@ -21,7 +21,7 @@ from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
 from lib.component_docs.changes_section import OrderingContext
-from lib.component_docs.changes_section import pointers_without_blank_line
+from lib.component_docs.changes_section import pointer_issues
 from lib.component_docs.changes_section import resolve_component_own_version_change
 from lib.component_docs.changes_section import strip_stale_upgrade_placeholders
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
@@ -450,8 +450,9 @@ def _check_changes_heading_correspondence(
     Every row needs a matching "### ..." section and vice versa, and no component may
     appear twice. A heading for one "dep" component with a resolved app version must
     show it, with the transition wording from component_version_cell (shared with the
-    row cell): fix-doc-consistency never rewrites existing sections, so these go stale
-    otherwise (e.g. "openbao v2.5.5 (unchanged)" that should be "(new)").
+    row cell), e.g. "openbao v2.5.5 (unchanged)" that should be "(new)".
+    fix-doc-consistency rewrites only the generated parts of a section; text a
+    user added is never changed.
     """
     has_changes_section = any(line.strip() == "## Changes" for line in doc_text.splitlines())
     if not has_changes_section:
@@ -554,12 +555,29 @@ def _contradicting_section_mismatches(ctx: DocsCheckContext, scan: DocScanState,
     """A "### ..." Changes section's chart part or intro contradicts its table row."""
     return [
         f"{scan.doc_path.name}: '### {s.heading}' contradicts its table row (expected '### {s.expected_heading}'); "
-        + ("run fix-doc-consistency to rebuild it" if s.generated_only else "fix it by hand")
+        + ("run fix-doc-consistency to rebuild it" if s.repairable else "fix it by hand")
         for s in changes_sections_contradicting_rows(
             doc_text,
             DocContext(ctx.chart_dir, ctx.doc_query.podiumd_version),
             OrderingContext(ctx.current.deps, ctx.current.values, scan.canonical_names),
         )
+    ]
+
+
+_POINTER_FINDINGS = {
+    "missing": 'has no "- Image / digest" pointer; run fix-doc-consistency to add it',
+    "duplicate": 'has {count} "- Image / digest" pointers; keep one',
+    "no-blank-line-before": (
+        'has no blank line before the "- Image / digest" pointer; run fix-doc-consistency to add it'
+    ),
+}
+
+
+def _pointer_mismatches(doc_path: Path, doc_text: str) -> list[str]:
+    """A Changes section's pointer is missing, duplicated or not separated by a blank line."""
+    return [
+        f"{doc_path.name}: '### {issue.heading}' " + _POINTER_FINDINGS[issue.kind].format(count=issue.count)
+        for issue in pointer_issues(doc_text)
     ]
 
 
@@ -609,11 +627,7 @@ def _check_component_versions_table(ctx: DocsCheckContext, findings: Findings):
     findings.mismatches.extend(_missing_pin_bullet_mismatches(ctx, doc_path, doc_text))
     findings.mismatches.extend(_stale_changes_item_mismatches(ctx, scan, resolution))
     findings.mismatches.extend(_contradicting_section_mismatches(ctx, scan, doc_text))
-    findings.mismatches.extend(
-        f"{doc_path.name}: '### {heading}' has no blank line before the \"- Image / digest\" pointer; "
-        "run fix-doc-consistency to add it"
-        for heading, _ in pointers_without_blank_line(doc_text)
-    )
+    findings.mismatches.extend(_pointer_mismatches(doc_path, doc_text))
 
 
 def _check_images_manifest_entry(

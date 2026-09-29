@@ -206,6 +206,24 @@ def _update_single_component_upgrade_doc(
     rewrite_upgrade_doc(upgrade_path, context.friendly, context.change, section, context.ordering)
 
 
+def _remove_values_deltas_on_reset(
+    values_deltas_path: Path, text: str, name: str, context: "_SingleComponentDocContext | _SharedImageDocContext"
+) -> None:
+    """The component is back at its baseline: remove the generated parts of its values-deltas section."""
+    text, section_removed, kept_user_text = remove_values_delta_section(
+        text, name, context.ordering.deps, context.ordering.canonical_names
+    )
+    values_deltas_path.write_text(text, encoding="utf-8")
+    print()
+    print(f"=== Updating {values_deltas_path.name} ===")
+    outcome = (
+        "kept its hand-written text, removed the generated parts; review it"
+        if kept_user_text
+        else ("removed its section" if section_removed else "nothing to remove")
+    )
+    print(f"  {name} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline} version — {outcome}")
+
+
 def _update_single_component_values_deltas(
     values_deltas_path: Path | None,
     context: _SingleComponentDocContext,
@@ -223,17 +241,8 @@ def _update_single_component_values_deltas(
         return
 
     text = values_deltas_path.read_text(encoding="utf-8")
-    text, section_removed = remove_values_delta_section(
-        text, context.friendly, context.ordering.deps, context.ordering.canonical_names
-    )
     if context.baseline.reset_to_baseline:
-        values_deltas_path.write_text(text, encoding="utf-8")
-        print()
-        print(f"=== Updating {values_deltas_path.name} ===")
-        print(
-            f"  {context.friendly} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
-            f" version — {'removed its section' if section_removed else 'nothing to remove'}"
-        )
+        _remove_values_deltas_on_reset(values_deltas_path, text, context.friendly, context)
         return
 
     baseline_values_at_release = (
@@ -267,8 +276,14 @@ def _update_single_component_values_deltas(
             ValuesDeltaEntry(context.friendly, heading_line, key_lines),
             ValuesDeltaOrdering(context.ordering.deps, context.ordering.values, context.ordering.canonical_names),
         )
-    elif section_removed:
-        write_removed_values_delta_section(values_deltas_path, text, context.friendly)
+    else:
+        text, section_removed, kept_user_text = remove_values_delta_section(
+            text, context.friendly, context.ordering.deps, context.ordering.canonical_names
+        )
+        if section_removed:
+            write_removed_values_delta_section(
+                values_deltas_path, text, context.friendly, kept_user_text=kept_user_text
+            )
     if no_baseline_ref:
         print()
         print(
@@ -421,19 +436,14 @@ def _update_shared_image_values_deltas(
         return
 
     text = values_deltas_path.read_text(encoding="utf-8")
-    text, section_removed = remove_values_delta_section(
+    if context.baseline.reset_to_baseline:
+        _remove_values_deltas_on_reset(values_deltas_path, text, bump.name, context)
+        return
+    text, section_removed, kept_user_text = remove_values_delta_section(
         text, bump.name, context.ordering.deps, context.ordering.canonical_names
     )
-    if context.baseline.reset_to_baseline:
-        values_deltas_path.write_text(text, encoding="utf-8")
-        print()
-        print(f"=== Updating {values_deltas_path.name} ===")
-        print(
-            f"  {bump.name} is back at its upgrade_docs_baseline {context.baseline.upgrade_docs_baseline}"
-            f" version — {'removed its section' if section_removed else 'nothing to remove'}"
-        )
-    elif section_removed:
-        write_removed_values_delta_section(values_deltas_path, text, bump.name)
+    if section_removed:
+        write_removed_values_delta_section(values_deltas_path, text, bump.name, kept_user_text=kept_user_text)
 
 
 def _update_shared_image_manifest_entry(

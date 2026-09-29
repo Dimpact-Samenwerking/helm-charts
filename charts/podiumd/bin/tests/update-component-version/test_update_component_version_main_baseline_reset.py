@@ -278,7 +278,8 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(
             "| --- | --- | --- | --- |\n"
             "| zac | 5.0.2 → 5.5.0 | 1.0.296 (unchanged) | - |\n\n"
             "## Changes\n\n"
-            "### zac 5.0.2 → 5.5.0 (chart 1.0.296, unchanged)\n\nblah\n"
+            "### zac 5.0.2 → 5.5.0 (chart 1.0.296, unchanged)\n\n"
+            "- Image tag pin `zac.image.tag` `5.0.2` → `5.5.0` in\n  `charts/podiumd/values.yaml`.\n"
         ),
         values_deltas_text=(
             "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"

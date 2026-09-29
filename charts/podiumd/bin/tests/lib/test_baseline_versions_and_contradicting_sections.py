@@ -91,7 +91,7 @@ def test_contradicting_section_is_reported_and_rebuilt_from_its_row(chart_dir: P
     assert len(found_list) == 1
     found = found_list[0]
     assert found.expected_heading == "openbao 2.5.5 → 2.6.3 (chart 0.28.4 → 0.29.6)"
-    assert found.generated_only
+    assert found.repairable
 
     text, rebuilt = rebuild_changes_sections_contradicting_rows(DOC, doc_context, ordering)
 
@@ -102,15 +102,33 @@ def test_contradicting_section_is_reported_and_rebuilt_from_its_row(chart_dir: P
     assert not changes_sections_contradicting_rows(text, doc_context, ordering)
 
 
-def test_section_with_hand_written_text_is_reported_but_not_rebuilt(chart_dir: Path):
-    doc = DOC.replace("- Image / digest", "Restart the vault pods after the upgrade.\n\n- Image / digest")
+def test_rebuild_keeps_hand_written_text_of_the_section(chart_dir: Path):
+    """Only the generated heading, intro and bullets are rewritten; the user's note stays in place."""
+    note = "Restart the vault pods after the upgrade.\n"
+    doc = DOC.replace("- Image / digest", note + "\n- Image / digest")
+    doc_context, ordering = _contexts(chart_dir)
+
+    text, rebuilt = rebuild_changes_sections_contradicting_rows(doc, doc_context, ordering)
+
+    assert len(rebuilt) == 1
+    assert "### openbao 2.5.5 → 2.6.3 (chart 0.28.4 → 0.29.6)\n" in text
+    assert "PodiumD 4.9.3 upgrades **openbao** from app version 2.5.5\nto 2.6.3.\n" in text
+    assert "introduces **openbao**" not in text
+    assert note in text
+    assert not changes_sections_contradicting_rows(text, doc_context, ordering)
+
+
+def test_contradiction_in_a_hand_written_heading_is_reported_but_not_repaired(chart_dir: Path):
+    """A hand-written heading is never replaced, so its wrong chart part must be fixed by hand."""
+    doc = DOC.replace("### openbao 2.5.5 → 2.6.3 (chart 0.29.6, new)", "### openbao vault bump (chart 0.29.6, new)")
     doc_context, ordering = _contexts(chart_dir)
 
     found_list = changes_sections_contradicting_rows(doc, doc_context, ordering)
     assert len(found_list) == 1
-    found = found_list[0]
-    assert not found.generated_only
-    assert rebuild_changes_sections_contradicting_rows(doc, doc_context, ordering) == (doc, [])
+    assert not found_list[0].repairable
+    text, rebuilt = rebuild_changes_sections_contradicting_rows(doc, doc_context, ordering)
+    assert rebuilt == []
+    assert text == doc
 
 
 MANIFEST: str = """\

@@ -202,7 +202,7 @@ def test_main_updates_a_changes_heading_missing_its_app_version(
         "| widget | 9.9.9 (unchanged) | 2.0.0 (unchanged) | - |\n\n"
         "## Changes\n\n"
         "### widget 2.0.0\n\n"
-        "TODO: describe this component's changes — its app version could not be resolved automatically.\n\n",
+        "TODO: describe this component's changes — its app version could not be resolved from the table row.\n\n",
     )
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "seed doc with a stale chart-only heading", cwd=tmp_path)

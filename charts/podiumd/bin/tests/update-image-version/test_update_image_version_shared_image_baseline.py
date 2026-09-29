@@ -65,7 +65,7 @@ CURL_VALUES_TMPL = (
 def test_main_removes_shared_image_docs_when_reset_back_to_baseline(
     uiv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Resetting curl to its baseline removes its row, Changes section,
+    """Resetting curl to its baseline removes its row, the generated parts of its Changes section,
     values-delta bullet and images-manifest item/entry/comment: the manifest
     only lists changed images."""
     write_chart_yaml(tmp_path, [("keycloak-operator", None), ("zac", None)])
@@ -113,7 +113,8 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(
 
     upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
     assert "| curl |" not in upgrade
-    assert "### curl" not in upgrade
+    # "blah" is hand-written: kept, with the heading above it.
+    assert "### curl 8.20.0 → 8.21.0\n\nblah\n" in upgrade
 
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
     assert "## curl" not in deltas

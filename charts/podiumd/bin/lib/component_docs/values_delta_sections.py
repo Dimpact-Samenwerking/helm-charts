@@ -5,6 +5,7 @@ Shared by update-component-version, update-image-version and fix-doc-consistency
 import re
 
 from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -12,14 +13,23 @@ from lib.chart.chart_yaml import ChartDependency
 from lib.chart.registered_paths import component_chart_versions
 from lib.component_docs.baseline_doc_stubs import GEMEENTE_SPECIFIC_STUB_LINE
 from lib.component_docs.baseline_doc_stubs import VALUES_DELTAS_STUB_TODO_LINE
+from lib.component_docs.owned_parts import BLANK
+from lib.component_docs.owned_parts import generated_heading_name
+from lib.component_docs.owned_parts import remove_section_owned_parts
+from lib.component_docs.owned_parts import replace_section_owned_parts
+from lib.component_docs.owned_parts import template_re
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.sorting_and_ordering import HeadingBlock
+from lib.upgradedoc.sorting_and_ordering import block_for_component
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import insertion_index
 from lib.upgradedoc.sorting_and_ordering import parse_values_delta_sections
 from lib.upgradedoc.sorting_and_ordering import values_key_order
 from lib.upgradedoc.string_and_parsing_basics import changes_heading_identities
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
+from lib.upgradedoc.version_cells_and_key_changes import KEY_ADDED
+from lib.upgradedoc.version_cells_and_key_changes import KEY_REMOVED
+from lib.upgradedoc.version_cells_and_key_changes import KEY_RENAMED
 from lib.upgradedoc.version_cells_and_key_changes import append_to_doc
 from lib.upgradedoc.version_cells_and_key_changes import component_version_cell
 from lib.upgradedoc.version_cells_and_key_changes import missing_key_change_lines_by_key
@@ -188,24 +198,64 @@ def append_values_delta_section_body(text: str, section: HeadingBlock, new_lines
     return new_head + tail
 
 
+_KEY_LINE_RES = [
+    template_re(template, {"path": r"[^`\s]+", "new_path": r"[^`\s]+"})
+    for template in (KEY_ADDED, KEY_REMOVED, KEY_RENAMED)
+]
+_TODO_HEADING_RE = re.compile(r"^(?P<name>.+?)(?: chart [^—]*)? — TODO: describe this component's changes; .*$")
+
+
+def values_delta_body_kinds(body: Sequence[str]) -> list[str | None]:
+    """The owned-part kind of each line after a "## ..." heading: "keys" for a
+    describe_key_changes line, BLANK, or None for a user line."""
+    kinds: list[str | None] = []
+    for line in body:
+        text = line.rstrip("\n")
+        if not text.strip():
+            kinds.append(BLANK)
+        elif any(r.match(text) for r in _KEY_LINE_RES):
+            kinds.append("keys")
+        else:
+            kinds.append(None)
+    return kinds
+
+
+def _values_delta_heading_name(heading_line: str, _body_kinds: Sequence[str | None]) -> str | None:
+    """The component name of a generated "## ..." heading, None for a hand-written one."""
+    return generated_heading_name(heading_line.rstrip("\n").removeprefix("## "), _TODO_HEADING_RE)
+
+
+def _component_section(
+    text: str, friendly: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
+) -> HeadingBlock | None:
+    """The section naming exactly `friendly`'s component; sections covering several components never match."""
+    return block_for_component(parse_values_delta_sections(text), friendly, deps, canonical_names)
+
+
 def remove_values_delta_section(
     text: str, friendly: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None = None
-):
-    """Delete the section whose identity set is exactly `friendly`'s, with its trailing blank lines.
+) -> tuple[str, bool, bool]:
+    """Remove the generated parts of `friendly`'s section: (new_text, removed, kept_user_text).
 
-    Sections covering several components are never removed. Returns (new_text, removed)."""
-    target_idents = changes_heading_identities(friendly, deps, canonical_names)
-    if not target_idents:
-        return text, False
-    for section in parse_values_delta_sections(text):
-        if changes_heading_identities(section["heading"], deps, canonical_names) == target_idents:
-            lines = text.splitlines(keepends=True)
-            start, end = section["start"], section["end"]
-            while end < len(lines) and not lines[end].strip():
-                end += 1
-            del lines[start:end]
-            return "".join(lines), True
-    return text, False
+    See remove_section_owned_parts."""
+    return remove_section_owned_parts(
+        text, _component_section(text, friendly, deps, canonical_names), values_delta_body_kinds
+    )
+
+
+def write_values_delta_section(
+    text: str, friendly: str, heading_line: str, key_lines: list[str], ordering: "ValuesDeltaOrdering"
+) -> str:
+    """Write `friendly`'s section: replace the generated heading and key lines of its section, or insert one.
+
+    The heading is replaced only when it is generated for the same component;
+    user lines stay in place.
+    """
+    section = _component_section(text, friendly, ordering.deps, ordering.canonical_names)
+    if section is None:
+        return insert_values_delta_section(text, friendly, heading_line, key_lines, ordering)
+    section_text = heading_line + "\n" + "".join(key_lines)
+    return replace_section_owned_parts(text, section, section_text, values_delta_body_kinds, _values_delta_heading_name)
 
 
 def _values_delta_new_section_heading(

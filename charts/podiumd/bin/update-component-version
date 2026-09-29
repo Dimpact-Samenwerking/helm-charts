@@ -702,9 +702,7 @@ def _update_upgrade_doc_section(
     rewrite_upgrade_doc(comparison.upgrade_path, friendly, change, section, ordering)
 
 
-def _update_values_deltas_change(
-    ctx: BumpContext, comparison: BaselineComparison, friendly: str, text: str, *, section_removed: bool
-):
+def _update_values_deltas_change(ctx: BumpContext, comparison: BaselineComparison, friendly: str, text: str):
     """Write the values-deltas section for key changes since the baseline, if any."""
     current_values_after = load_yaml_mapping(VALUES_YAML)
     current_subtree = current_values_after.get(ctx.values_key, {})
@@ -730,8 +728,12 @@ def _update_values_deltas_change(
             ValuesDeltaEntry(friendly, heading_line, key_lines),
             ValuesDeltaOrdering(ctx.deps, ctx.values),
         )
-    elif section_removed:
-        write_removed_values_delta_section(comparison.values_deltas_path, text, friendly)
+    else:
+        text, section_removed, kept_user_text = remove_values_delta_section(text, friendly, ctx.deps)
+        if section_removed:
+            write_removed_values_delta_section(
+                comparison.values_deltas_path, text, friendly, kept_user_text=kept_user_text
+            )
     if no_baseline_ref:
         print()
         print(
@@ -753,17 +755,19 @@ def _update_values_deltas_section(ctx: BumpContext, comparison: BaselineComparis
         return
 
     text = comparison.values_deltas_path.read_text(encoding="utf-8")
-    text, section_removed = remove_values_delta_section(text, friendly, ctx.deps)
     if not comparison.reset_to_baseline:
-        _update_values_deltas_change(ctx, comparison, friendly, text, section_removed=section_removed)
+        _update_values_deltas_change(ctx, comparison, friendly, text)
         return
+    text, section_removed, kept_user_text = remove_values_delta_section(text, friendly, ctx.deps)
     comparison.values_deltas_path.write_text(text, encoding="utf-8")
+    outcome = (
+        "kept its hand-written text, removed the generated parts; review it"
+        if kept_user_text
+        else ("removed its section" if section_removed else "nothing to remove")
+    )
     print()
     print(f"=== Updating {comparison.values_deltas_path.name} ===")
-    print(
-        f"  {friendly} is back at its upgrade_docs_baseline {comparison.upgrade_docs_baseline} version — "
-        f"{'removed its section' if section_removed else 'nothing to remove'}"
-    )
+    print(f"  {friendly} is back at its upgrade_docs_baseline {comparison.upgrade_docs_baseline} version — {outcome}")
 
 
 def _remove_images_manifest_entries(

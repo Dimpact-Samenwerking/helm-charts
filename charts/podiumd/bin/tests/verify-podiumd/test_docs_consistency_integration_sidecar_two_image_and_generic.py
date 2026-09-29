@@ -426,3 +426,37 @@ def test_changes_block_needs_a_blank_line_before_the_image_digest_pointer(
 
     finding = 'has no blank line before the "- Image / digest" pointer'
     assert (finding in capsys.readouterr().out) == (blank_line == "missing")
+
+
+@pytest.mark.parametrize("pointer", ["missing", "present"])
+def test_changes_block_needs_its_image_digest_pointer(
+    vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str], pointer: str
+):
+    """A section that lost its pointer (e.g. in a merge resolution) is reported."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.0"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    (chart_dir / "values.yaml").write_text(REDIS_ALIASED_VALUES_TMPL.format(tag="1.37.1"))
+    doc = ALIASED_PIN_DOC.replace("{extra}", "- `redis-operator.redis-ha.preDeleteJob.image.tag` `1.37.0` → `1.37.1`\n")
+    if pointer == "missing":
+        doc = doc.replace("\n- Image / digest: see [`images-4.9.0.yaml`](../images/images-4.9.0.yaml).\n", "")
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(doc)
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="1.37.0", app_target="1.37.1")
+    )
+
+    vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
+
+    finding = 'has no "- Image / digest" pointer'
+    assert (finding in capsys.readouterr().out) == (pointer == "missing")

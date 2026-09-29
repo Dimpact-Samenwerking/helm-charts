@@ -29,7 +29,12 @@ from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import version_of
 from lib.checks.digest_pinning import find_unresolved_subchart_images
-from lib.component_docs.changes_section import IMAGE_DIGEST_POINTER_PREFIX
+from lib.component_docs.changes_section import IMAGE_INTRO_KEPT
+from lib.component_docs.changes_section import IMAGE_INTRO_NEW
+from lib.component_docs.changes_section import IMAGE_INTRO_UPGRADE
+from lib.component_docs.changes_section import IMAGE_PATH_BULLET
+from lib.component_docs.changes_section import PINNED_AT
+from lib.component_docs.changes_section import TODO_STUB
 from lib.component_docs.changes_section import ComponentIdentity
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
@@ -37,9 +42,9 @@ from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import insert_changes_section
 from lib.component_docs.changes_section import make_changes_section
-from lib.component_docs.changes_section import remove_changes_block
-from lib.component_docs.changes_section import remove_changes_section
 from lib.component_docs.changes_section import render_changes_section
+from lib.component_docs.changes_section import replace_changes_block
+from lib.component_docs.changes_section import replace_changes_section
 from lib.component_docs.changes_section import update_component_table
 from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import find_changes_item
@@ -60,6 +65,8 @@ from lib.upgradedoc.grouped_comments_and_changes_block import find_preceding_com
 from lib.upgradedoc.images_manifest_ordering import delete_images_manifest_entry
 from lib.upgradedoc.images_manifest_ordering import images_manifest_entry_order_key
 from lib.upgradedoc.resolve_component_row import changes_heading_has_app_version
+from lib.upgradedoc.sorting_and_ordering import HeadingBlock
+from lib.upgradedoc.sorting_and_ordering import changes_blocks_with_lines
 from lib.upgradedoc.sorting_and_ordering import component_order_key
 from lib.upgradedoc.sorting_and_ordering import parse_upgrade_doc_changes_blocks
 from lib.upgradedoc.sorting_and_ordering import values_key_order
@@ -91,15 +98,17 @@ def make_image_changes_section(
         f"shared **{basename}**" if pinned and all(p.startswith("global.") for p, _ in pinned) else f"**{basename}**"
     )
     if old_version is None:
-        intro = f"PodiumD {target} introduces the {image} image at {new_version},\n"
+        intro_template = IMAGE_INTRO_NEW
     elif version_change_suffix(old_version, new_version):
-        intro = f"PodiumD {target} keeps the {image} image at {new_version},\n"
+        intro_template = IMAGE_INTRO_KEPT
     else:
-        intro = f"PodiumD {target} upgrades the {image} image to {new_version},\n"
-    bullets = [f"- `{path}` {pin_version_text(path_old, new_version)}\n" for path, path_old in pinned]
-    return render_changes_section(
-        f"{basename} {version_transition(old_version, new_version)}", [intro, "pinned at:\n"], bullets, target
-    )
+        intro_template = IMAGE_INTRO_UPGRADE
+    intro = [intro_template.format(target=target, image=image, new=new_version) + "\n", PINNED_AT + "\n"]
+    bullets = [
+        IMAGE_PATH_BULLET.format(path=path, pin=pin_version_text(path_old, new_version)) + "\n"
+        for path, path_old in pinned
+    ]
+    return render_changes_section(f"{basename} {version_transition(old_version, new_version)}", intro, bullets, target)
 
 
 @dataclass
@@ -190,10 +199,9 @@ def _add_sidecar_row(text: str, name: str, path: tuple[str, ...], ctx: _SidecarR
     if table_action is None:
         return text, False  # no "Component versions" table
 
-    text, _ = remove_changes_section(text, name, ordering)
     dotted_path = ".".join(path) + ".tag"
     section = make_image_changes_section(name, ctx.doc_context.target, old_app, new_app, [(dotted_path, old_app)])
-    text = insert_changes_section(text, section, name, ordering)
+    text = replace_changes_section(text, section, name, ordering)
     return text, True
 
 
@@ -232,11 +240,7 @@ def build_changes_section_for_row(
     """
     if row["app"] in (None, "-"):
         chart_bit = row["chart"] or row["chart_source"] or "-"
-        return (
-            f"### {row['name']} {chart_bit}\n\n"
-            f"TODO: describe this component's changes — its app version could not be "
-            f"resolved from the table row.\n\n"
-        )
+        return f"### {row['name']} {chart_bit}\n\n{TODO_STUB}\n\n"
     if ident[0] == "dep":
         values_key = ident[1]
         dep = dep_for_values_key(deps, values_key)
@@ -299,11 +303,9 @@ def add_missing_changes_sections(
     return text, added_names
 
 
-def _remove_changes_block_by_exact_heading(text: str, heading: str):
-    """remove_changes_section by exact heading text, avoiding fuzzy matches. Returns (new_text, removed)."""
-    blocks = parse_upgrade_doc_changes_blocks(text)
-    block = next((b for b in blocks if b["heading"] == heading), None)
-    return remove_changes_block(text, block)
+def _block_by_exact_heading(text: str, heading: str) -> HeadingBlock | None:
+    """The Changes block with exactly this heading, avoiding fuzzy matches."""
+    return next((b for b in parse_upgrade_doc_changes_blocks(text) if b["heading"] == heading), None)
 
 
 @dataclass
@@ -364,11 +366,10 @@ def _rewrite_stale_heading(
     if section is None:
         return text, False
 
-    text, removed = _remove_changes_block_by_exact_heading(text, heading)
-    if not removed:
+    block = _block_by_exact_heading(text, heading)
+    if block is None:
         return text, False
-    text = insert_changes_section(text, section, row["name"], ctx.ordering)
-    return text, True
+    return replace_changes_block(text, block, section), True
 
 
 def update_stale_app_version_headings(
@@ -376,8 +377,8 @@ def update_stale_app_version_headings(
 ) -> tuple[str, list[str]]:
     """Regenerate Changes sections whose heading lacks an app version that now resolves.
 
-    E.g. an old chart-only stub "### openbao 0.28.4". The section is rebuilt
-    from the component's table row; the old body is discarded. Only
+    E.g. an old chart-only stub "### openbao 0.28.4". Its generated parts are
+    rewritten from the component's table row; text a user added stays. Only
     headings naming exactly one "dep" component are touched (sidecar
     headings are written with a known tag). Returns (new_text,
     updated_headings), the latter with the original heading texts.
@@ -390,21 +391,6 @@ def update_stale_app_version_headings(
         if updated:
             updated_headings.append(heading)
     return text, updated_headings
-
-
-# Line starts of the parts build_changes_section_for_row writes; a block with only these holds no hand-written text.
-_GENERATED_LINE_STARTS = (
-    "PodiumD ",
-    "to ",
-    "**",
-    "pinned at:",
-    "- Helm chart ",
-    "- Image tag pin ",
-    "- Version pin ",
-    "- `",
-    "  `charts/podiumd/",
-    IMAGE_DIGEST_POINTER_PREFIX,
-)
 
 
 _CHART_PART_RE = re.compile(r"\(chart [^)]*\)$")
@@ -432,7 +418,7 @@ class ContradictingSection:
     expected_heading: str
     row_name: str
     expected_section: str
-    generated_only: bool
+    repairable: bool
 
 
 def changes_sections_contradicting_rows(
@@ -446,9 +432,9 @@ def changes_sections_contradicting_rows(
     """
     ctx = _StaleHeadingContext(doc_context, ordering)
     rows_by_identity = _rows_by_identity(text, ctx)
-    lines = text.splitlines(keepends=True)
+    lines, blocks = changes_blocks_with_lines(text)
     found: list[ContradictingSection] = []
-    for block in parse_upgrade_doc_changes_blocks(text):
+    for block in blocks:
         idents = changes_heading_identities(block["heading"], ordering.deps, ordering.canonical_names)
         ident = next(iter(idents)) if len(idents) == 1 else None
         row = rows_by_identity.get(ident) if ident is not None and ident[0] == "dep" else None
@@ -461,29 +447,36 @@ def changes_sections_contradicting_rows(
         body = "".join(lines[block["start"] + 1 : block["end"]])
         if not _section_contradicts(block["heading"], body, expected_heading, expected):
             continue
-        generated_only = all(
-            not line.strip() or line.startswith(_GENERATED_LINE_STARTS)
-            for line in lines[block["start"] + 1 : block["end"]]
+        found.append(
+            ContradictingSection(
+                block["heading"], expected_heading, row["name"], expected, _repair_resolves(text, block, expected)
+            )
         )
-        found.append(ContradictingSection(block["heading"], expected_heading, row["name"], expected, generated_only))
     return found
+
+
+def _repair_resolves(text: str, block: HeadingBlock, expected: str) -> bool:
+    """Whether rewriting the block's owned parts removes the contradiction (it may sit in user text)."""
+    rewritten = replace_changes_block(text, block, expected)
+    new_block = next(b for b in parse_upgrade_doc_changes_blocks(rewritten) if b["start"] == block["start"])
+    lines = rewritten.splitlines(keepends=True)
+    body = "".join(lines[new_block["start"] + 1 : new_block["end"]])
+    return not _section_contradicts(new_block["heading"], body, expected.splitlines()[0].removeprefix("### "), expected)
 
 
 def rebuild_changes_sections_contradicting_rows(
     text: str, doc_context: DocContext, ordering: OrderingContext
 ) -> tuple[str, list[ContradictingSection]]:
-    """Rebuild each contradicting section from its row when it holds no hand-written text.
+    """Rewrite the owned parts of each contradicting section from its row; user text stays.
 
-    Returns (text, rebuilt); a section with hand-written text is left for
+    Returns (text, rebuilt); a contradiction inside user text is left for
     doc-consistency to report.
     """
     rebuilt: list[ContradictingSection] = []
     for section in changes_sections_contradicting_rows(text, doc_context, ordering):
-        if not section.generated_only:
-            continue
-        text, removed = _remove_changes_block_by_exact_heading(text, section.heading)
-        if removed:
-            text = insert_changes_section(text, section.expected_section, section.row_name, ordering)
+        block = _block_by_exact_heading(text, section.heading)
+        if section.repairable and block is not None:
+            text = replace_changes_block(text, block, section.expected_section)
             rebuilt.append(section)
     return text, rebuilt
 
