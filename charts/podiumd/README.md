@@ -28,7 +28,7 @@ PodiumD Helm chart
 | file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
 | https://helm.elastic.co | kiss-eck(eck-stack) | 0.20.0 |
-| https://openbao.github.io/openbao-helm | openbao | 0.28.4 |
+| https://openbao.github.io/openbao-helm | openbao | 0.29.6 |
 | https://wearefrank.github.io/charts | zaakbrug | 2.3.32 |
 | oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.3.2 |
 | oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 3.1.3 |
@@ -760,7 +760,7 @@ PodiumD Helm chart
 | openbao.configuration.enabled | bool | `true` |  |
 | openbao.configuration.job.backoffLimit | int | `6` |  |
 | openbao.configuration.job.image.repository | string | `"quay.io/openbao/openbao"` |  |
-| openbao.configuration.job.image.tag | string | `"2.5.5@sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"` |  |
+| openbao.configuration.job.image.tag | string | `"2.6.3@sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889"` |  |
 | openbao.configuration.job.nodeSelector | object | `{}` |  |
 | openbao.configuration.job.resources.limits.cpu | string | `"250m"` |  |
 | openbao.configuration.job.resources.limits.memory | string | `"128Mi"` |  |
@@ -776,7 +776,7 @@ PodiumD Helm chart
 | openbao.configuration.uploadersGroup | string | `"vault-uploaders"` |  |
 | openbao.configuration.uploadersRole | string | `"uploaders"` |  |
 | openbao.csi.image.repository | string | `"quay.io/openbao/openbao-csi-provider"` |  |
-| openbao.csi.image.tag | string | `"2.0.2@sha256:3cb312e88c62c926caec03bf69497a16805a29daabb5ad2c7a236ab43bb241db"` |  |
+| openbao.csi.image.tag | string | `"2.0.3@sha256:ad30d5f6223f30f62e8df6e444b84af5b05402a70c09712415dd1d7f139c027e"` |  |
 | openbao.database.host | string | `""` |  |
 | openbao.database.name | string | `"openbao"` |  |
 | openbao.database.password | string | `""` |  |
@@ -809,7 +809,7 @@ PodiumD Helm chart
 | openbao.server.ha.replicas | int | `3` |  |
 | openbao.server.image.registry | string | `"quay.io"` |  |
 | openbao.server.image.repository | string | `"openbao/openbao"` |  |
-| openbao.server.image.tag | string | `"2.5.5@sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"` |  |
+| openbao.server.image.tag | string | `"2.6.3@sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889"` |  |
 | openbao.server.ingress.enabled | bool | `false` |  |
 | openbao.server.readinessProbe.enabled | bool | `true` |  |
 | openbao.server.readinessProbe.path | string | `"/v1/sys/health?standbyok=true&perfstandbyok=true&uninitcode=200&sealedcode=200"` |  |
@@ -822,7 +822,7 @@ PodiumD Helm chart
 | openbao.server.serviceAccount.name | string | `"openbao"` |  |
 | openbao.server.updateStrategyType | string | `"RollingUpdate"` |  |
 | openbao.snapshotAgent.image.repository | string | `"ghcr.io/openbao/openbao-snapshot-agent"` |  |
-| openbao.snapshotAgent.image.tag | string | `"0.3.0@sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"` |  |
+| openbao.snapshotAgent.image.tag | string | `"0.4.5@sha256:ef2c80770e30bba3fcf4d7911cb829607efcea7e7c1a917210c9fa1ba55a8249"` |  |
 | openbeheer.configuration.data | string | `""` |  |
 | openbeheer.configuration.enabled | bool | `true` |  |
 | openbeheer.configuration.job.backoffLimit | int | `6` |  |
