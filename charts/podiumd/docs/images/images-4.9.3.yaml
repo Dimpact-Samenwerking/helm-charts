@@ -4,7 +4,8 @@
 #
 # Changes:
 #   1. keycloak - keycloak-config-cli 6.5.1-26 -> 6.5.1-26.5.5.
-#   2. openbao 2.5.5 (unchanged).
+#   2. zac 5.4.4 -> 5.4.5 (chart 1.0.297, unchanged).
+#   3. openbao 2.5.5 (unchanged).
 #
 # See docs/_UPGRADE_PATHS/4.9.2-to-4.9.3-upgrade.md for the operator upgrade notes.
 #
@@ -17,8 +18,15 @@
   version: "6.5.1-26.5.5"
   digest: "sha256:0955d98c8a341898b7aa177477edf8a1e90569ae50bbe7598141c1270b773274"
 
+# zac 5.4.4 -> 5.4.5
+- name: infonl/zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.4.5"
+  digest: "sha256:9d14affb67d7bb7fce01af220e4b28c190188c5f1355d787735bd7e669fa57e3"
+
 # openbao 2.5.5 (unchanged)
 - name: openbao/openbao
   url: quay.io/openbao/openbao
   version: "2.5.5"
   digest: "sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"
+

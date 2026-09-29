@@ -169,8 +169,8 @@
 
 - name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.4.4"
-  digest: "sha256:2809ee2d2dc1ca166b88878a50d2850c7e972651f3ee5c35f44e92127c67773a"
+  version: "5.4.5"
+  digest: "sha256:9d14affb67d7bb7fce01af220e4b28c190188c5f1355d787735bd7e669fa57e3"
 
 - name: gotenberg/gotenberg
   url: docker.io/gotenberg/gotenberg
