@@ -51,9 +51,9 @@ Infra to provision per environment (one line each):
 | **Storage** | **None** — no PVC (PostgreSQL storage backend, `dataStorage.enabled=false`). |
 | **Secrets (cluster)** | `openbao-db` (chart-rendered) · `openbao-bootstrap-token` key `token` (**seeded by `scripts/openbao-mint-config-token.sh`** — a scoped periodic token, NOT the root token) · `openbao-oidc-secret` (auto-generated, kept stable). |
 | **Identity** | User-assigned MI + federated credential for SA `openbao`; set client-id in `server.serviceAccount.annotations`. (The Azure KV *crypto key* for auto-unseal is provisioned but unused — Shamir, §3.6.) |
-| **Images / egress** | Allow `quay.io/openbao/openbao:2.5.5` + `docker.io/library/postgres:16-alpine` (or mirror to ACR + override). |
-| **One-time bootstrap** | `bao operator init -key-shares=1 -key-threshold=1`; store the key and root token in Key Vault; unseal all 3 pods; mint + seed the scoped config token (`scripts/openbao-mint-config-token.sh`), then revoke the root token; re-run deploy; check `kubectl logs job/openbao-config`. |
-| **Every restart / upgrade** | Unseal all 3 pods with `openbao-unseal-key` from Key Vault (§5.1). ADO `ExternalsPodiumD` environments script the bootstrap and unseal after every deploy automatically (§5.2). |
+| **Images / egress** | Allow `quay.io/openbao/openbao:2.5.5` + `docker.io/library/postgres:16.15-alpine` (or mirror to ACR + override). |
+| **One-time bootstrap** | `bao operator init -key-shares=1 -key-threshold=1`; store the key and root token in Key Vault; unseal every pod; mint + seed the scoped config token (`scripts/openbao-mint-config-token.sh`); re-run deploy; check `kubectl logs job/openbao-config`; only then revoke the root token (§5 step 8). |
+| **Every restart / upgrade** | Unseal every pod with `openbao-unseal-key` from Key Vault (§5.1). ADO `ExternalsPodiumD` environments script the bootstrap and unseal after every deploy automatically (§5.2). |
 
 Values to set: `openbao.enabled=true`, `openbao.database.host`,
 `openbao.configuration.oidcUrl`, `openbao.configuration.keycloak.url`,
@@ -116,7 +116,10 @@ OpenBao is the only source of Frank!Gateway's external-API credentials.
 - The gateway authenticates with a **scoped reader token** from the Secret
   named by `frankgateway.openbao.tokenSecret`. It is supplied out-of-band
   (Key-Vault-fed) and never minted by the chart. Its policy must cover the
-  whole subtree (`<mount>/data/frankgateway/*` on kv-v2).
+  path itself and everything below it: on kv-v2 both
+  `<mount>/data/frankgateway` (the API keys) and `<mount>/data/frankgateway/*`
+  (client certificates, consumers). The wildcard alone does not match
+  `frankgateway` itself, and every API-key route then answers 503.
 - A route whose secret cannot be read answers **503**
   (`frankgateway.openbao.failMode: closed`). A **sealed** OpenBao therefore
   turns every key-bearing route into a 503 — unsealing after a restart (§5.1)
@@ -176,7 +179,7 @@ appears.
 |---|---|---|---|
 | `quay.io/openbao/openbao` | server StatefulSet (sub-chart) | `""` → sub-chart appVersion **2.5.5** | HA server |
 | `quay.io/openbao/openbao` | `openbao-config` Job (`bao` CLI) | **`2.5.5`** (pinned) | standalone Job can't resolve the sub-chart appVersion; keep in step with it |
-| `docker.io/library/postgres` | `openbao-db-schema` Job (`psql`) | `16-alpine` | schema DDL only |
+| `docker.io/library/postgres` | `openbao-db-schema` Job (`psql`) | `16.15-alpine` (digest-pinned, shared `postgresImage`) | schema DDL only |
 
 > The OpenBao and postgres images above are recorded (digest-pinned) in
 > `docs/images/images-baseline.yaml`, the single authoritative strip-registry
@@ -484,11 +487,14 @@ namespace. Name them on every command.
      bao operator init -key-shares=1 -key-threshold=1 -format=json)
 
    az keyvault secret set --vault-name <kv> --name openbao-unseal-key \
-     --value "$(jq -r '.unseal_keys_b64[0]' <<<"$INIT")" -o none
+     --file <(jq -j '.unseal_keys_b64[0]' <<<"$INIT") --encoding utf-8 -o none
    az keyvault secret set --vault-name <kv> --name openbao-root-token \
-     --value "$(jq -r '.root_token' <<<"$INIT")" -o none
+     --file <(jq -j '.root_token' <<<"$INIT") --encoding utf-8 -o none
    unset INIT
    ```
+
+   `--file` with process substitution keeps both values off the `az` command
+   line, where any local process could read them for the duration of the call.
 
    Read both back (`az keyvault secret show … --query value`) and confirm
    neither is still the Terraform placeholder **before** unsealing. Then
@@ -498,11 +504,11 @@ namespace. Name them on every command.
    ```bash
    BAO_ROOT_TOKEN=$(az keyvault secret show --vault-name <kv> \
      --name openbao-root-token --query value -o tsv) \
-   NAMESPACE=<ns> ./charts/podiumd/scripts/openbao-mint-config-token.sh
+   KUBE_CONTEXT=<ctx> NAMESPACE=<ns> ./charts/podiumd/scripts/openbao-mint-config-token.sh
    ```
 
-   The script uses the ambient kube-context: check it points at `<ctx>` first.
-   It writes the scoped `podiumd-config-job` policy, mints an orphan periodic
+   `KUBE_CONTEXT` is required: the script passes it to every `kubectl` call and
+   never uses the current context, because it writes a Secret. It writes the scoped `podiumd-config-job` policy, mints an orphan periodic
    token (default period `768h` = 32 days; every config-Job run renews it), and
    seeds it into `Secret/openbao-bootstrap-token` (key `token`). Do **not**
    seed the root token.
@@ -532,14 +538,16 @@ unseal:
 ```bash
 KEY=$(az keyvault secret show --vault-name <kv> --name openbao-unseal-key \
   --query value -o tsv)
-for i in 0 1 2; do
+REPLICAS=$(kubectl --context <ctx> -n <ns> get statefulset <release>-openbao \
+  -o jsonpath='{.spec.replicas}')
+for i in $(seq 0 $((REPLICAS - 1))); do
   kubectl --context <ctx> -n <ns> exec -i <release>-openbao-$i -- \
     sh -c 'read -r k; bao operator unseal "$k" >/dev/null' <<<"$KEY"
   printf '<release>-openbao-%s sealed=' "$i"
   kubectl --context <ctx> -n <ns> exec <release>-openbao-$i -- \
     bao status -format=json | jq -r .sealed
 done
-unset KEY
+unset KEY REPLICAS
 ```
 
 The key goes in over stdin rather than as an exec argument, so it is not
@@ -569,14 +577,16 @@ deploy that enables OpenBao, not after.
    proves the key unseals it. It then shows the unseal key and root token once,
    waits until the operator has stored them as `openbao-unseal-key` and
    `openbao-root-token`, checks that `openbao-unseal-key` in Key Vault holds
-   exactly that key (not the Terraform placeholder), and removes the temporary
-   pod. The database password comes from Key Vault secret `openbao`
+   exactly that key, and removes the temporary pod. The Terraform placeholder
+   counts as "not bootstrapped yet"; only a real key (base64 of 32 or 33 bytes)
+   makes the script refuse to run again. The database password comes from Key Vault secret `openbao`
    (SSC-managed, like the other database passwords — not Terraform). Use
    `--dry-run` to see the plan first. `--reset-existing-vault` empties the
    tables first and **destroys any vault already in that database**.
 2. **Deploy** with the Applications pipeline. Before the Helm deploy,
    `openbao_unseal.py --check` stops the run when `podiumd.yml` enables
-   OpenBao but the Key Vault has no `openbao-unseal-key`. After the deploy,
+   OpenBao but `openbao-unseal-key` is missing or still the Terraform
+   placeholder. After the deploy,
    `openbao_unseal.py` unseals every sealed OpenBao pod with that key — so
    §5.1 is automatic for deploys through this pipeline. It talks to OpenBao
    over `kubectl port-forward` and its HTTP API, so the key never appears on a
@@ -588,8 +598,7 @@ deploy that enables OpenBao, not after.
 
 What the scripts do not cover: a pod that restarts **between** deploys (node
 drain, eviction, OOMKill) stays sealed until the next deploy or a manual
-unseal (§5.1). The `--check` only tests that the secret exists; a key that is
-still the Terraform placeholder passes it and fails at the unseal step.
+unseal (§5.1).
 
 ---
 
@@ -652,9 +661,9 @@ still the Terraform placeholder passes it and fails at the unseal step.
   every run), and restricted to the exact paths the Job configures — an
   attacker reading the namespace Secret gets config-plumbing rights, not the
   vault's contents or root control.
-- Frank!Gateway's reader token is likewise scoped (`<mount>/frankgateway/*`,
-  read only), so a compromised gateway pod exposes the gateway's own keys and
-  nothing else in the vault.
+- Frank!Gateway's reader token is likewise scoped (`<mount>/data/frankgateway`
+  and `<mount>/data/frankgateway/*`, read only), so a compromised gateway pod
+  exposes the gateway's own keys and nothing else in the vault.
 
 ---
 
@@ -672,13 +681,12 @@ No observed-usage numbers yet — first production-like deployment pending.
 
 ## 9. Known limitations & open items
 
-1. **Images manifest.** `openbao/openbao:2.5.5` and `postgres:16-alpine` are
+1. **Images manifest.** `openbao/openbao:2.5.5` and `postgres:16.15-alpine` are
    recorded (digest-pinned) in `docs/images/images-baseline.yaml`. If the agent
    injector is ever re-enabled, add `hashicorp/vault-k8s:1.7.2` there too.
    Override `server.image` / the Job images to the ACR mirror before shipping
    to a digest-pinned production environment. Egress must reach `quay.io` and
-   `docker.io` until then. Note the schema Job tag `16-alpine` is a floating
-   minor tag (IN-2399): pin a specific 16.x when picking that up.
+   `docker.io` until then.
 2. **Config-Job silent skip.** `openbao-bootstrap-token` is created out-of-band
    (§5); if it is **missing** the `openbao-config` Job exits 0 and the `helm
    upgrade` **succeeds while the vault stays unconfigured**. Check the Job log

@@ -172,8 +172,10 @@ hostname.
   gateway reads them with a scoped token supplied out-of-band in the Secret
   named by `frankgateway.openbao.tokenSecret` (Key-Vault-fed, never minted by
   this chart — a token the chart could mint is a token the chart would store).
-  That token's policy must cover the whole subtree (`<mount>/frankgateway/*`;
-  on a kv-v2 mount `<mount>/data/frankgateway/*`): a policy scoped to one path
+  That token's policy must cover the path itself and the subtree below it
+  (`<mount>/frankgateway` and `<mount>/frankgateway/*`; on a kv-v2 mount
+  `<mount>/data/frankgateway` and `<mount>/data/frankgateway/*`): the wildcard
+  does not match the API-key path itself, and a policy scoped to one path
   makes the others read as an opaque failure, which is exactly how jim00's
   first consumer key failed. OpenBao itself — database, route, Key Vault
   items, the unseal after every restart — is documented in
@@ -468,8 +470,8 @@ security assessment without first confirming enforcement on the target cluster.
    `<mount>/frankgateway/client-certs/<name>` (`cert`, `key`) and the inbound
    consumer list to `<mount>/frankgateway/consumers`, and have the environment
    deployment create the scoped-reader-token Secret named by
-   `frankgateway.openbao.tokenSecret` with a policy covering
-   `<mount>/frankgateway/*`. Commands in
+   `frankgateway.openbao.tokenSecret` with a policy covering both
+   `<mount>/frankgateway` and `<mount>/frankgateway/*`. Commands in
    [`frankgateway-routes.md`](frankgateway-routes.md).
 4. **Route the dashboards.** One per class that has one. Gateway API
    environments: HTTPRoute → `frankgateway-<class>-oauth2-proxy:4180` in ADO
