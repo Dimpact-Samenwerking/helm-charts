@@ -23,6 +23,7 @@ from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentState
 from lib.upgradedoc.app_version_and_image_paths import actual_app_version
 from lib.upgradedoc.app_version_and_image_paths import find_image_tag_paths
+from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
 from lib.upgradedoc.string_and_parsing_basics import match_dependency_excluding_sidecar_names
 from lib.upgradedoc.string_and_parsing_basics import match_native_component
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
@@ -198,7 +199,9 @@ def _dependency_baseline_result(resolution: ResolutionContext, values_key: str):
     # (brppersonenmock), so fall back to past images-<version>.yaml manifests too.
     # Use the baseline's chart name: a chart renamed under the same alias
     # (openobject -> objecten) registers image paths under its old name.
-    baseline_app = actual_app_version(baseline_values, values_key, baseline_dep["name"])
+    # With chart_dir and the baseline dep, a blank baseline tag resolves to that chart's
+    # vendored appVersion (openbao's server.image.tag in 4.9.2).
+    baseline_app = actual_app_version(baseline_values, values_key, baseline_dep["name"], chart_dir, baseline_dep)
     if baseline_app is None and baseline_values:
         for path in image_paths_for(baseline_dep["name"], chart_dir):
             baseline_app = historical_app_version_for_path(
@@ -286,6 +289,25 @@ def resolve_component_row(
         _add_baseline_result(resolution, match, result)
 
     return result
+
+
+def compare_component_to_baseline(
+    resolution: ResolutionContext, values_key: str
+) -> tuple[str | None, str | None, bool]:
+    """(old_app, old_chart, reset_to_baseline) of the component with top-level key `values_key`.
+
+    old_app/old_chart are resolved as its "Component versions" row is, so a
+    Changes section written by update-* can't contradict the row; None when
+    unresolvable. reset_to_baseline: the component equals the baseline again.
+    """
+    baseline_deps = resolution.baseline.deps or []
+    changed = compute_changed_components(
+        resolution.target.deps, baseline_deps, resolution.target.values, resolution.baseline.values
+    )
+    resolved = resolve_component_row(values_key, {}, resolution)
+    if resolved["kind"] == "unmatched":
+        return None, None, values_key not in changed
+    return resolved["baseline_app"], resolved["baseline_chart"], values_key not in changed
 
 
 def resolved_row_unchanged(resolved: ResolvedRow) -> bool:

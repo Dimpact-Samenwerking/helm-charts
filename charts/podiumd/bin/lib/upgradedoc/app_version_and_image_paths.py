@@ -3,7 +3,6 @@
 from collections.abc import Collection
 from collections.abc import Iterator
 from collections.abc import Mapping
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 from typing import overload
@@ -17,7 +16,6 @@ from lib.chart.registered_paths import version_paths_for
 from lib.chart.values_tree_primitives import get_path
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import values_key_of
-from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.string_and_parsing_basics import words_of
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import YamlValue
@@ -57,55 +55,6 @@ def actual_app_version(
     if chart_dir is not None and dep is not None and resolved_component in component_image_paths(chart_dir):
         return subchart_app_version(chart_dir, dep)
     return None
-
-
-@dataclass
-class BaselineComponentQuery:
-    """Inputs for resolve_baseline_component_versions."""
-
-    baseline_values: YamlMapping | None
-    baseline_dep: ChartDependency | None
-    values_key: str
-    image_path: str
-    chart_name: str
-    new_chart: str
-    chart_dir: Path | None = None
-
-
-def resolve_baseline_component_versions(query: BaselineComponentQuery):
-    """(old_app, old_chart) at the release baseline; shared by update-image-version and update-component-version.
-
-    baseline_dep is the component's Chart.yaml dependency at the baseline (None
-    if new or native). image_path is the exact path this bump touched (may be a
-    sidecar), so the baseline tag is read there directly rather than via
-    actual_app_version, which only handles the primary image.
-
-    old_app: the baseline tag; if blank and the chart version is unchanged since
-    the baseline, actual_app_version's vendored-subchart fallback against a
-    synthesized {"name": chart_name, "version": new_chart} dep. Not the on-disk
-    dep: its version may predate this run's Chart.yaml rewrite and point at the
-    wrong .tgz.
-
-    old_chart: baseline_dep's version, but None when old_app is None so both
-    cells render "(new)" instead of a fake "old → new"."""
-    raw_old_chart = str(query.baseline_dep["version"]) if query.baseline_dep is not None else None
-    baseline_tag = text_at(query.baseline_values, f"{query.values_key}.{query.image_path}.tag") or ""
-    old_app = baseline_tag.split("@", 1)[0] or None
-    if (
-        old_app is None
-        and query.chart_dir is not None
-        and raw_old_chart is not None
-        and normalize_version(raw_old_chart) == normalize_version(query.new_chart)
-    ):
-        old_app = actual_app_version(
-            query.baseline_values,
-            query.values_key,
-            query.chart_name,
-            chart_dir=query.chart_dir,
-            dep={"name": query.chart_name, "version": query.new_chart},
-        )
-    old_chart = raw_old_chart if old_app is not None else None
-    return old_app, old_chart
 
 
 # A path into a values tree, one key (or list index, as a string) per level.

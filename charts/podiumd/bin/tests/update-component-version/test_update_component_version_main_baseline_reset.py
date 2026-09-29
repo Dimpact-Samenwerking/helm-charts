@@ -544,10 +544,9 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
 def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression: a dependency always has a baseline chart version, even when
-    its image was never tracked there. When the app version was blank at
-    baseline and both moved in an uncaptured earlier run, both cells render
-    "(new)" rather than a misleading "1.0.0 -> 1.1.0"."""
+    """A dependency always has a baseline chart version, even when its image
+    was never tracked there: the app renders "(new)", the chart its real
+    "1.0.0 → 1.1.0", as the table row resolves it."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
@@ -597,10 +596,9 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(
 
     upgrade = (ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     assert "None" not in upgrade
-    assert "1.0.0" not in upgrade
     assert "2.71.0" not in upgrade
-    assert "| mi | 2.90.0 (new) | 1.1.0 (new) | - |" in upgrade
-    assert "### mi 2.90.0 (new) (chart 1.1.0, new)" in upgrade
+    assert "| mi | 2.90.0 (new) | 1.0.0 → 1.1.0 | - |" in upgrade
+    assert "### mi 2.90.0 (new) (chart 1.0.0 → 1.1.0)" in upgrade
 
 
 def test_main_skips_doc_updates_when_no_upgrade_doc_exists(

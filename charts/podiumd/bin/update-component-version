@@ -63,7 +63,6 @@ from lib.chart.values_tag_sha_lines import find_child_key_line
 from lib.chart.values_tag_sha_lines import locate_dotted_key_line
 from lib.chart.values_tag_sha_lines import locate_tag_and_sha
 from lib.chart.values_tag_sha_lines import write_tag_and_sha
-from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import mapping_at
 from lib.chart.values_tree_primitives import replace_scalar_value
@@ -77,7 +76,9 @@ from lib.component_docs.baseline_doc_stubs import baseline_doc_paths as _baselin
 from lib.component_docs.baseline_doc_stubs import images_manifest_path as _images_manifest_path
 from lib.component_docs.baseline_doc_stubs import load_baseline_state as _load_baseline_state
 from lib.component_docs.baseline_doc_stubs import load_baseline_values as _load_baseline_values
+from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentIdentity
+from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import make_changes_section
@@ -105,9 +106,9 @@ from lib.registry import ImagePathTagCheck
 from lib.registry import parse_repo
 from lib.registry import registry_tag_exists
 from lib.settings import digest_pinning_exceptions
-from lib.upgradedoc.app_version_and_image_paths import BaselineComponentQuery
-from lib.upgradedoc.app_version_and_image_paths import resolve_baseline_component_versions
-from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
+from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.upgradedoc.resolve_component_row import compare_component_to_baseline
+from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
 from lib.yaml_types import YamlMapping
 from lib.yaml_types import load_yaml_mapping
@@ -613,26 +614,14 @@ def _resolve_against_baseline(
     baseline_deps: list[ChartDependency],
     baseline_values: YamlMapping | None,
     friendly: str,
-    image_path: str,
+    upgrade_docs_baseline: str | None,
 ):
-    """(old_app, old_chart, reset_to_baseline) against the resolved baseline."""
-    current_deps = load_chart_dependencies(CHART_YAML)
-    current_values = load_yaml_mapping(VALUES_YAML)
-    changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
-    reset_to_baseline = friendly not in changed_keys
-
-    baseline_dep = None if ctx.no_chart else dep_for_values_key(baseline_deps, ctx.values_key)
-    old_app, old_chart = resolve_baseline_component_versions(
-        BaselineComponentQuery(
-            baseline_values,
-            baseline_dep,
-            ctx.values_key,
-            image_path,
-            ctx.chart_name,
-            ctx.new_chart,
-            chart_dir=CHART_DIR,
-        )
+    """(old_app, old_chart, reset_to_baseline) against the resolved baseline, as the table row resolves them."""
+    current = ComponentState(load_chart_dependencies(CHART_YAML), load_yaml_mapping(VALUES_YAML))
+    resolution = ResolutionContext(
+        CHART_DIR, current, BaselineState(baseline_deps, baseline_values), upgrade_docs_baseline
     )
+    old_app, old_chart, reset_to_baseline = compare_component_to_baseline(resolution, friendly)
     if ctx.no_chart:
         old_chart = None
     # Never fall back to images-baseline.yaml: it only tracks ACR-mirror digests.
@@ -662,7 +651,7 @@ def _resolve_baseline_comparison(
     reset_to_baseline = False
     if baseline_deps is not None:
         old_app, old_chart, reset_to_baseline = _resolve_against_baseline(
-            ctx, baseline_deps, baseline_values, friendly, image_path
+            ctx, baseline_deps, baseline_values, friendly, upgrade_docs_baseline
         )
 
     return BaselineComparison(
@@ -672,6 +661,25 @@ def _resolve_baseline_comparison(
         DocPaths(upgrade_path, values_deltas_path),
         BaselineSnapshot(upgrade_docs_baseline, baseline_deps, baseline_values),
     )
+
+
+def _documented_paths(ctx: BumpContext, comparison: BaselineComparison, paths_to_update: list[str]) -> list[str]:
+    """The image paths the Changes section lists: those whose baseline version differs from the target.
+
+    Not only the paths this run wrote, so a rerun after a half-finished run
+    documents the same paths. A blank baseline tag counts as the component's
+    resolved baseline app version. Without a resolvable baseline, the paths
+    this run changes.
+    """
+    if comparison.baseline_values is None:
+        return paths_to_update
+    documented: list[str] = []
+    for path in ctx.image_paths:
+        tag = text_at(comparison.baseline_values, f"{ctx.values_key}.{path}.tag")
+        baseline_version = tag.split("@", 1)[0] if isinstance(tag, str) and tag else comparison.old_app
+        if normalize_version(baseline_version) != normalize_version(ctx.app_version):
+            documented.append(path)
+    return documented
 
 
 def _update_upgrade_doc_section(
@@ -690,7 +698,7 @@ def _update_upgrade_doc_section(
 
     change = VersionChange(comparison.old_app, ctx.app_version, comparison.old_chart, ctx.new_chart)
     identity = ComponentIdentity(friendly, ctx.chart_name, ctx.values_key)
-    section = make_changes_section(identity, target, change, paths_to_update)
+    section = make_changes_section(identity, target, change, _documented_paths(ctx, comparison, paths_to_update))
     rewrite_upgrade_doc(comparison.upgrade_path, friendly, change, section, ordering)
 
 
@@ -841,9 +849,9 @@ def main():
     paths_to_update, old_app_by_path = _compute_paths_to_update(ctx)
 
     if chart_unchanged and not paths_to_update:
+        # An earlier run may have written values.yaml/Chart.yaml and stopped before its docs.
         print()
-        print("Nothing to update — component is already at the requested versions.")
-        sys.exit(0)
+        print("Component is already at the requested versions; completing docs.")
 
     new_tags_by_path, repos = _update_image_tags(ctx, paths_to_update, split_tag_sha_paths, upstream_images)
 

@@ -53,7 +53,6 @@ from lib.chart.release_baseline_basics import chart_version
 from lib.chart.release_baseline_basics import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart.repo_and_path_resolution import canonical_sidecar_row_names
 from lib.chart.repo_and_path_resolution import doc_row_name
-from lib.chart.values_tree_primitives import dep_for_values_key
 from lib.chart.values_tree_primitives import dotted_key_path
 from lib.chart.values_tree_primitives import find_dependency
 from lib.cli import network_errors
@@ -62,7 +61,9 @@ from lib.component_docs.baseline_doc_stubs import baseline_doc_paths
 from lib.component_docs.baseline_doc_stubs import images_manifest_path
 from lib.component_docs.baseline_doc_stubs import load_baseline_state
 from lib.component_docs.baseline_doc_stubs import load_baseline_values
+from lib.component_docs.changes_section import BaselineState
 from lib.component_docs.changes_section import ComponentIdentity
+from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import OrderingContext
 from lib.component_docs.changes_section import VersionChange
 from lib.component_docs.changes_section import make_changes_section
@@ -87,14 +88,14 @@ from lib.image.docs import remove_image_manifest_entry
 from lib.image.docs import resolve_basename_baseline_version
 from lib.image.docs import update_image_manifest
 from lib.image.version import PinUpdate
+from lib.image.version import current_pin_updates
 from lib.image.version import resolve_key_scope
 from lib.image.version import update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo
-from lib.upgradedoc.app_version_and_image_paths import BaselineComponentQuery
 from lib.upgradedoc.app_version_and_image_paths import find_all_image_and_version_paths
-from lib.upgradedoc.app_version_and_image_paths import resolve_baseline_component_versions
-from lib.upgradedoc.images_manifest_list_diff import compute_changed_components
+from lib.upgradedoc.resolve_component_row import ResolutionContext
+from lib.upgradedoc.resolve_component_row import compare_component_to_baseline
 from lib.upgradedoc.string_and_parsing_basics import normalize_version
 from lib.upgradedoc.version_cells_and_key_changes import describe_key_changes
 from lib.yaml_types import YamlMapping
@@ -164,7 +165,7 @@ class _SingleComponentDocContext:
     baseline: _BaselineResolution
 
 
-def _single_component_baseline_resolution(bump: ComponentBump, chart_name: str, chart_version_str: str):
+def _single_component_baseline_resolution(bump: ComponentBump, chart_version_str: str):
     """Compare against the git-resolved upgrade_docs_baseline, not the on-disk state.
 
     Repeated bumps in one cycle then collapse into one baseline -> final
@@ -179,24 +180,11 @@ def _single_component_baseline_resolution(bump: ComponentBump, chart_name: str, 
     if upgrade_docs_baseline is not None:
         baseline_deps, baseline_values = load_baseline_state(CHART_YAML, VALUES_YAML, upgrade_docs_baseline)
     if baseline_deps is not None:
-        current_deps = load_chart_dependencies(CHART_YAML)
-        current_values = load_yaml_mapping(VALUES_YAML)
-        changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
-        # compute_changed_components returns top-level values.yaml keys.
-        reset_to_baseline = bump.values_key not in changed_keys
-        # Shared with update-component-version: a blank baseline tag means "(new)", not a fallback to old_app.
-        baseline_dep = dep_for_values_key(baseline_deps, bump.values_key)
-        old_app, old_chart_str = resolve_baseline_component_versions(
-            BaselineComponentQuery(
-                baseline_values,
-                baseline_dep,
-                bump.values_key,
-                image_paths[0],
-                chart_name,
-                chart_version_str,
-                chart_dir=CHART_DIR,
-            )
+        current = ComponentState(load_chart_dependencies(CHART_YAML), load_yaml_mapping(VALUES_YAML))
+        resolution = ResolutionContext(
+            CHART_DIR, current, BaselineState(baseline_deps, baseline_values), upgrade_docs_baseline
         )
+        old_app, old_chart_str, reset_to_baseline = compare_component_to_baseline(resolution, bump.values_key)
     return _BaselineResolution(
         upgrade_docs_baseline, old_app, old_chart_str, reset_to_baseline, baseline_deps, baseline_values
     )
@@ -333,7 +321,7 @@ def update_docs_single_component(new_version: str, bump: ComponentBump, ordering
     friendly = bump.values_key
     chart_version_str = str(bump.dep["version"])
 
-    baseline = _single_component_baseline_resolution(bump, chart_name, chart_version_str)
+    baseline = _single_component_baseline_resolution(bump, chart_version_str)
     change = VersionChange(baseline.old_app, new_version, baseline.old_chart_str, chart_version_str)
     context = _SingleComponentDocContext(friendly, chart_name, target, change, ordering, baseline)
 
@@ -551,17 +539,18 @@ def main():
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
 
     changes = update_image_version(VALUES_YAML, key, basename, new_version)
-    if not changes:
-        print(f"'{basename}' under '{key}' is already at {new_version} everywhere it's pinned — nothing to do.")
-        return
-
-    print(f"=== Writing {VALUES_YAML} ===")
-    for c in changes:
-        print(f"  values.yaml:{c['line']}  ({c['repository']})")
-        print(f"    {c['old_version']}@{c['old_digest']}")
-        print(f"    {c['new_version']}@{c['new_digest']}")
-    print()
-    print(f"Updated {len(changes)} pin(s).")
+    if changes:
+        print(f"=== Writing {VALUES_YAML} ===")
+        for c in changes:
+            print(f"  values.yaml:{c['line']}  ({c['repository']})")
+            print(f"    {c['old_version']}@{c['old_digest']}")
+            print(f"    {c['new_version']}@{c['new_digest']}")
+        print()
+        print(f"Updated {len(changes)} pin(s).")
+    else:
+        # An earlier run may have written values.yaml and stopped before its docs.
+        print(f"'{basename}' under '{key}' is already at {new_version} everywhere it's pinned; completing docs.")
+        changes = current_pin_updates(VALUES_YAML, key, basename)
 
     update_docs(basename, new_version, changes, values_lines)
 

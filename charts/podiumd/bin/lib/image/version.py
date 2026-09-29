@@ -237,6 +237,25 @@ def plan_image_version_update(values_path: Path, key: str, basename: str, new_ve
     ]
 
 
+def current_pin_updates(values_path: Path, key: str, basename: str) -> list[PinUpdate]:
+    """The pins <key> <image-basename> resolves to, as no-op PinUpdates (old equals new).
+
+    For completing the docs of a run whose values.yaml write already happened.
+    """
+    matches = resolve_scoped_matches(values_path.read_text(encoding="utf-8").splitlines(), key, basename)
+    return [
+        {
+            "line": m["line"],
+            "repository": m["repository"],
+            "old_version": m["version"],
+            "old_digest": f"sha256:{m['digest']}",
+            "new_version": m["version"],
+            "new_digest": f"sha256:{m['digest']}",
+        }
+        for m in matches
+    ]
+
+
 def write_pin_updates(values_path: Path, updates: list[PinUpdate]) -> None:
     """Write `updates` (from plan_image_version_update) into values_path."""
     if not updates:

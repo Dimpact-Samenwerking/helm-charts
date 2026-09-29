@@ -10,14 +10,16 @@ titles, headings and cross-references. Creates missing docs as TODO stubs.
 Also repairs the content against Chart.yaml and values.yaml:
   - upgrade doc: component version table and "## Changes" sections,
     adding missing rows, removing rows unchanged vs the baseline and
-    sorting them in values.yaml order; a pin bullet for every values
+    sorting them in values.yaml order; rebuilding a generated section
+    that contradicts its row; a pin bullet for every values
     path that shares a YAML anchor with a documented pin; a blank line
     before each "- Image / digest" pointer
   - values-deltas doc: adds missing component sections and nested key
     added/removed lines
-  - docs/images/images-<target>.yaml: fixes entries, adds missing ones
-    and removes images unchanged vs the baseline; review the
-    "name:"/"url:" of added entries by hand (ACR mirror name)
+  - docs/images/images-<target>.yaml: fixes entries and "# Changes:"
+    items, adds missing ones and removes images unchanged vs the
+    baseline; review the "name:"/"url:" of added entries by hand (ACR
+    mirror name)
   - docs/images/images-baseline.yaml: regenerated
 Issues it cannot fix are printed for manual review.
 
@@ -85,6 +87,7 @@ from lib.fix_doc_consistency.component_version_table import fix_changes_heading_
 from lib.fix_doc_consistency.component_version_table import fix_component_version_table
 from lib.fix_doc_consistency.component_version_table import fix_values_delta_heading_app_versions
 from lib.fix_doc_consistency.component_version_table import remove_unchanged_component_rows
+from lib.fix_doc_consistency.manifest_changes_items import correct_stale_changes_items
 from lib.fix_doc_consistency.manifest_changes_items import dedupe_images_manifest_changes_items
 from lib.fix_doc_consistency.manifest_changes_items import sort_images_manifest_changes_items
 from lib.gitutil import git_show_text
@@ -128,6 +131,7 @@ from lib.gitutil import resolve_git_ref
 from lib.image.baseline_refresh import refresh_images_baseline
 from lib.image.docs import add_missing_changes_sections
 from lib.image.docs import add_missing_sidecar_rows
+from lib.image.docs import rebuild_changes_sections_contradicting_rows
 from lib.image.docs import update_stale_app_version_headings
 from lib.image.manifest_entry_pins import sync_entry_pins
 from lib.settings import digest_pinning_exceptions
@@ -477,6 +481,17 @@ def _fix_upgrade_doc_headings(
         for heading in updated_stale_headings:
             print(f"  {heading}")
 
+    text, rebuilt_sections = rebuild_changes_sections_contradicting_rows(
+        text,
+        DocContext(CHART_YAML.parent, state.target),
+        OrderingContext(state.target_deps, state.target_values, canonical_names),
+    )
+    if rebuilt_sections:
+        print()
+        print(f"=== Rebuilding '### ...' Changes section(s) that contradict their table row in {upgrade_path.name} ===")
+        for section in rebuilt_sections:
+            print(f"  '### {section.heading}' -> '### {section.expected_heading}'")
+
     text, updated_wrong_headings = fix_changes_heading_app_versions(text, resolution)
     if updated_wrong_headings:
         print()
@@ -487,7 +502,7 @@ def _fix_upgrade_doc_headings(
         for heading in updated_wrong_headings:
             print(f"  {heading}")
 
-    changed = bool(added_section_names or updated_stale_headings or updated_wrong_headings)
+    changed = bool(added_section_names or updated_stale_headings or rebuilt_sections or updated_wrong_headings)
     return text, canonical_names, changed
 
 
@@ -715,6 +730,18 @@ def _add_missing_images_manifest_entries(images_path: Path, state: RebaseState):
             print(f"  {name} (entry already existed — only its header item was missing)")
 
 
+def _fix_stale_changes_items(
+    images_path: Path, state: RebaseState, upgrade_path: Path, canonical_names: dict[str, ImagePath]
+) -> None:
+    """Rewrite '# Changes:' items that contradict their upgrade-doc table row."""
+    target = ComponentState(state.target_deps, state.target_values)
+    baseline = BaselineState(state.baseline_deps, state.baseline_values)
+    resolution = ResolutionContext(CHART_YAML.parent, target, baseline, upgrade_docs_baseline=state.new_baseline)
+    if fixed := correct_stale_changes_items(images_path, upgrade_path, canonical_names, resolution):
+        print(f"\n=== Correcting '# Changes:' item(s) in {images_path.name} ===")
+        print("\n".join(f"  {old}  ->  {new}" for old, new in fixed))
+
+
 def _dedupe_images_manifest_changes_items(images_path: Path):
     """Removes a duplicate '# Changes:' header item."""
     lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
@@ -772,7 +799,7 @@ def _renumber_images_manifest_changes_items(images_path: Path):
         print(f"=== Renumbering '# Changes:' list in {images_path.name} ===")
 
 
-def _fix_images_manifest_content(state: RebaseState, images_path: Path):
+def _fix_images_manifest_content(state: RebaseState, images_path: Path, upgrade_path: Path):
     """Fix images manifest entries and its '# Changes:' list.
 
     URLs are fixed before names so a corrected URL yields the name in the same run.
@@ -797,6 +824,7 @@ def _fix_images_manifest_content(state: RebaseState, images_path: Path):
     _correct_images_manifest_entries(images_path, state, repo_map)
     _add_missing_images_manifest_entries(images_path, state)
     _dedupe_images_manifest_changes_items(images_path)
+    _fix_stale_changes_items(images_path, state, upgrade_path, canonical_names)
     _sort_images_manifest(images_path, state, repo_map, canonical_names)
     _renumber_images_manifest_changes_items(images_path)
 
@@ -935,7 +963,7 @@ def main():
 
     upgrade_path = DOC_DIR / f"{new_baseline}-to-{target}-upgrade.md"
     _fix_upgrade_doc(state, upgrade_path, actual_changed_keys)
-    _fix_images_manifest_content(state, images_path)
+    _fix_images_manifest_content(state, images_path, upgrade_path)
     values_deltas_path = DOC_DIR / f"{new_baseline}-to-{target}-values-deltas.md"
     _fix_values_deltas(state, upgrade_path, values_deltas_path)
 

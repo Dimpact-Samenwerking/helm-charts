@@ -700,20 +700,20 @@ def test_main_skips_values_write_when_app_version_unchanged(
     assert "app version already 5.0.2 — unchanged" in out
 
 
-def test_main_exits_zero_and_writes_nothing_when_both_unchanged(
+def test_main_writes_no_versions_but_completes_docs_when_both_unchanged(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
+    """A rerun after a half-finished run: versions already at target, docs still completed."""
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     original_chart = chart_yaml.read_text(encoding="utf-8")
     original_values = values_yaml.read_text(encoding="utf-8")
     mock_verify_passes(monkeypatch, ucv)
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.0.2", "1.0.296"])
 
-    with pytest.raises(SystemExit) as exc_info:
-        ucv.main()
+    ucv.main()
 
-    assert exc_info.value.code == 0
     assert chart_yaml.read_text(encoding="utf-8") == original_chart
     assert values_yaml.read_text(encoding="utf-8") == original_values
     out = capsys.readouterr().out
-    assert "Nothing to update" in out
+    assert "already at the requested versions; completing docs" in out
+    assert "Regenerating README.md (fix-helm-doc)" in out

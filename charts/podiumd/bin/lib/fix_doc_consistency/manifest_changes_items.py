@@ -1,5 +1,7 @@
-"""fix-doc-consistency's images-manifest "# Changes:" list maintenance (dedupe + reorder)."""
+"""fix-doc-consistency's images-manifest "# Changes:" list maintenance (dedupe, reorder, stale items)."""
 
+from collections.abc import Mapping
+from pathlib import Path
 from typing import TypedDict
 
 from lib.component_docs.images_manifest_changes_header import CHANGES_HEADER_RE
@@ -7,10 +9,14 @@ from lib.component_docs.images_manifest_changes_header import CHANGES_ITEM_RE
 from lib.component_docs.images_manifest_changes_header import NUMBER_WORDS
 from lib.component_docs.images_manifest_changes_header import find_images_manifest_changes_header
 from lib.component_docs.images_manifest_changes_header import images_manifest_changes_item_spans
+from lib.component_docs.images_manifest_entries import expected_changes_items
+from lib.component_docs.images_manifest_entries import fix_stale_changes_items
 from lib.docs_consistency.images_manifest_format import match_changes_item_to_entry
 from lib.images_manifest import ManifestEntry
 from lib.upgradedoc.images_manifest_ordering import match_changes_item_display_name
+from lib.upgradedoc.resolve_component_row import ResolutionContext
 from lib.upgradedoc.string_and_parsing_basics import match_located_line
+from lib.upgradedoc.string_and_parsing_basics import parse_upgrade_doc_rows
 
 
 class ChangesItem(TypedDict):
@@ -140,3 +146,20 @@ def sort_images_manifest_changes_items(
     ordered_chunks = [lines[items[i]["start"] : items[i]["end"]] for i in order]
     lines[spans[0][0] : block_end] = _renumbered_changes_block(ordered_chunks)
     return moved
+
+
+def correct_stale_changes_items(
+    images_path: Path, upgrade_path: Path, canonical_names: Mapping[str, tuple[str, ...]], resolution: ResolutionContext
+) -> list[tuple[str, str]]:
+    """Rewrite images_path's "# Changes:" items that contradict their upgrade-doc table row.
+
+    Returns [(old, new), ...]; writes only when something changed.
+    """
+    if not upgrade_path.is_file() or not images_path.is_file():
+        return []
+    row_names = [row["name"] for row in parse_upgrade_doc_rows(upgrade_path.read_text(encoding="utf-8"))]
+    lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    fixed = fix_stale_changes_items(lines, expected_changes_items(row_names, canonical_names, resolution))
+    if fixed:
+        images_path.write_text("".join(lines), encoding="utf-8")
+    return fixed

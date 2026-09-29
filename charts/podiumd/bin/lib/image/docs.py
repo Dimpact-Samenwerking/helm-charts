@@ -29,6 +29,7 @@ from lib.chart.values_tree_primitives import replace_scalar_value
 from lib.chart.values_tree_primitives import text_at
 from lib.chart.values_tree_primitives import version_of
 from lib.checks.digest_pinning import find_unresolved_subchart_images
+from lib.component_docs.changes_section import IMAGE_DIGEST_POINTER_PREFIX
 from lib.component_docs.changes_section import ComponentIdentity
 from lib.component_docs.changes_section import ComponentState
 from lib.component_docs.changes_section import DocContext
@@ -389,6 +390,102 @@ def update_stale_app_version_headings(
         if updated:
             updated_headings.append(heading)
     return text, updated_headings
+
+
+# Line starts of the parts build_changes_section_for_row writes; a block with only these holds no hand-written text.
+_GENERATED_LINE_STARTS = (
+    "PodiumD ",
+    "to ",
+    "**",
+    "pinned at:",
+    "- Helm chart ",
+    "- Image tag pin ",
+    "- Version pin ",
+    "- `",
+    "  `charts/podiumd/",
+    IMAGE_DIGEST_POINTER_PREFIX,
+)
+
+
+_CHART_PART_RE = re.compile(r"\(chart [^)]*\)$")
+_INTRO_VERB_RE = re.compile(r"^PodiumD \S+ (introduces|upgrades) \*\*", re.MULTILINE)
+
+
+def _section_contradicts(heading: str, body: str, expected_heading: str, expected: str) -> bool:
+    """Whether the heading's "(chart ...)" part or the generated intro verb differs from the row's section.
+
+    Hand-written headings without a chart part and hand-written intros are not compared.
+    """
+    chart = _CHART_PART_RE.search(heading)
+    expected_chart = _CHART_PART_RE.search(expected_heading)
+    if chart and expected_chart and chart.group(0) != expected_chart.group(0):
+        return True
+    verb, expected_verb = _INTRO_VERB_RE.search(body), _INTRO_VERB_RE.search(expected)
+    return bool(verb) and (expected_verb is None or verb.group(1) != expected_verb.group(1))
+
+
+@dataclass(frozen=True)
+class ContradictingSection:
+    """A Changes section whose heading or intro disagrees with its table row."""
+
+    heading: str
+    expected_heading: str
+    row_name: str
+    expected_section: str
+    generated_only: bool
+
+
+def changes_sections_contradicting_rows(
+    text: str, doc_context: DocContext, ordering: OrderingContext
+) -> list[ContradictingSection]:
+    """Dependency Changes sections whose heading or "introduces"/"upgrades" intro contradicts the table row.
+
+    E.g. row "0.28.4 → 0.29.6" with heading "(chart 0.29.6, new)" and
+    "introduces". Compared with the section build_changes_section_for_row
+    writes for that row; rows without an app version are skipped.
+    """
+    ctx = _StaleHeadingContext(doc_context, ordering)
+    rows_by_identity = _rows_by_identity(text, ctx)
+    lines = text.splitlines(keepends=True)
+    found: list[ContradictingSection] = []
+    for block in parse_upgrade_doc_changes_blocks(text):
+        idents = changes_heading_identities(block["heading"], ordering.deps, ordering.canonical_names)
+        ident = next(iter(idents)) if len(idents) == 1 else None
+        row = rows_by_identity.get(ident) if ident is not None and ident[0] == "dep" else None
+        if row is None or ident is None or row["app"] in (None, "-"):
+            continue
+        expected = build_changes_section_for_row(row, ident, ordering.deps, doc_context.target)
+        if expected is None:
+            continue
+        expected_heading = expected.splitlines()[0].removeprefix("### ")
+        body = "".join(lines[block["start"] + 1 : block["end"]])
+        if not _section_contradicts(block["heading"], body, expected_heading, expected):
+            continue
+        generated_only = all(
+            not line.strip() or line.startswith(_GENERATED_LINE_STARTS)
+            for line in lines[block["start"] + 1 : block["end"]]
+        )
+        found.append(ContradictingSection(block["heading"], expected_heading, row["name"], expected, generated_only))
+    return found
+
+
+def rebuild_changes_sections_contradicting_rows(
+    text: str, doc_context: DocContext, ordering: OrderingContext
+) -> tuple[str, list[ContradictingSection]]:
+    """Rebuild each contradicting section from its row when it holds no hand-written text.
+
+    Returns (text, rebuilt); a section with hand-written text is left for
+    doc-consistency to report.
+    """
+    rebuilt: list[ContradictingSection] = []
+    for section in changes_sections_contradicting_rows(text, doc_context, ordering):
+        if not section.generated_only:
+            continue
+        text, removed = _remove_changes_block_by_exact_heading(text, section.heading)
+        if removed:
+            text = insert_changes_section(text, section.expected_section, section.row_name, ordering)
+            rebuilt.append(section)
+    return text, rebuilt
 
 
 def resolve_basename_baseline_version(

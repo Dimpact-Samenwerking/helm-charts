@@ -103,19 +103,19 @@ def test_main_ends_with_fix_doc_consistency(
     assert stub_run_fix_doc_consistency == ["fix-doc"]
 
 
-def test_main_no_op_skips_fix_doc_consistency(
+def test_main_already_at_target_still_runs_fix_doc_consistency(
     uiv: ModuleType,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     stub_run_fix_doc_consistency: list[str],
 ) -> None:
-    """Nothing bumped, nothing to fix."""
+    """A rerun after values.yaml was written but the docs were not: the docs are completed."""
     monkeypatch.setattr(uiv, "VALUES_YAML", pabc_values(tmp_path, "1.1.2"))
     monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
 
     uiv.main()
 
-    assert not stub_run_fix_doc_consistency
+    assert stub_run_fix_doc_consistency
 
 
 def test_main_reports_noop_when_already_at_target(
@@ -135,7 +135,9 @@ def test_main_reports_noop_when_already_at_target(
 
     uiv.main()
 
-    assert "nothing to do" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "already at 1.1.2 everywhere it's pinned; completing docs" in out
+    assert values_path.read_text(encoding="utf-8").count("1.1.2@sha256:") == 1
 
 
 def test_main_resolves_given_component_key_and_basename(

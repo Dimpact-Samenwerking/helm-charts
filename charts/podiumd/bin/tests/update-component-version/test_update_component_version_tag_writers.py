@@ -195,24 +195,45 @@ def test_resolve_baseline_comparison_fallback_uses_first_changed_path(ucv: Modul
     assert comparison.old_app == "1.31.5"
 
 
-def test_resolve_baseline_comparison_baseline_lookup_uses_first_changed_path(
-    ucv: ModuleType, monkeypatch: pytest.MonkeyPatch
-):
-    queries = []
+def test_resolve_baseline_comparison_resolves_like_the_table_row(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch):
+    """old_app/old_chart come from the component's row resolution, whichever path changed."""
+    calls = []
 
-    def fake_resolve(query):
-        queries.append(query)
-        return "1.31.4", None
+    def fake_compare(resolution, values_key: str):
+        calls.append((values_key, resolution.upgrade_docs_baseline))
+        return "2.5.5", "0.28.4", False
 
-    monkeypatch.setattr(ucv, "_read_upgrade_docs_baseline", lambda chart_dir: "4.9.1")
+    monkeypatch.setattr(ucv, "_read_upgrade_docs_baseline", lambda chart_dir: "4.9.2")
     monkeypatch.setattr(ucv, "baseline_doc_paths", lambda baseline, target: (None, None))
     monkeypatch.setattr(ucv, "load_baseline_state", lambda baseline: ([], {}))
     monkeypatch.setattr(ucv, "load_chart_dependencies", lambda path: [])
     monkeypatch.setattr(ucv, "load_yaml_mapping", lambda path: {})
-    monkeypatch.setattr(ucv, "compute_changed_components", lambda *args: {"openzaak"})
-    monkeypatch.setattr(ucv, "resolve_baseline_component_versions", fake_resolve)
+    monkeypatch.setattr(ucv, "compare_component_to_baseline", fake_compare)
+    ctx = _comparison_ctx()
+    ctx.no_chart = False
+    ctx.dep = {"name": "openzaak", "version": "1.0.0"}
 
-    comparison = ucv._resolve_baseline_comparison(_comparison_ctx(), "4.9.2", {}, ["nginx.image"])
+    comparison = ucv._resolve_baseline_comparison(ctx, "4.9.3", {}, ["nginx.image"])
 
-    assert [q.image_path for q in queries] == ["nginx.image"]
-    assert comparison.old_app == "1.31.4"
+    assert calls == [("openzaak", "4.9.2")]
+    assert (comparison.old_app, comparison.old_chart) == ("2.5.5", "0.28.4")
+
+
+def test_documented_paths_come_from_the_baseline_not_from_this_run(ucv: ModuleType):
+    """On a rerun nothing is written, but the section still lists every path that moved since the baseline.
+
+    A blank baseline tag counts as the component's resolved baseline app version."""
+    ctx = SimpleNamespace(
+        values_key="openbao", app_version="2.6.3", image_paths=["server.image", "configuration.job.image", "ui.image"]
+    )
+    baseline_values = {
+        "openbao": {
+            "server": {"image": {"tag": ""}},
+            "configuration": {"job": {"image": {"tag": "2.5.5@sha256:aaaa"}}},
+            "ui": {"image": {"tag": "2.6.3@sha256:cccc"}},
+        }
+    }
+    comparison = SimpleNamespace(baseline_values=baseline_values, old_app="2.5.5")
+
+    assert ucv._documented_paths(ctx, comparison, []) == ["server.image", "configuration.job.image"]
+    assert ucv._documented_paths(ctx, SimpleNamespace(baseline_values=None, old_app=None), ["ui.image"]) == ["ui.image"]
