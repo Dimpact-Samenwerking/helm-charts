@@ -1,6 +1,4 @@
-"""Loads export-confluence-release-table (a hyphenated filename, not
-importable normally) as a module named `ecrt` so tests can call its
-functions directly."""
+"""Load export-confluence-release-table (hyphenated, not importable) as `ecrt`."""
 
 import importlib.util
 import sys
@@ -29,10 +27,6 @@ def ecrt() -> ModuleType:
 
 @pytest.fixture(autouse=True)
 def isolate_chart_dir(ecrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """extract_release_rows falls back to the real CHART_DIR (this
-    script's actual parent directory) when no chart_dir is passed
-    explicitly — tests that don't care about
-    check_target_matches_chart_version must not depend on whatever
-    charts/podiumd/Chart.yaml happens to say on disk (or which branch is
-    checked out) at test-run time."""
+    """Point the default CHART_DIR away from the real chart, so tests don't
+    depend on whatever Chart.yaml version is checked out."""
     monkeypatch.setattr(ecrt, "CHART_DIR", tmp_path)

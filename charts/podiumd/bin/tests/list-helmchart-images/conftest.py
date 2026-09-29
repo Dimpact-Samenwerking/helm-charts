@@ -1,7 +1,5 @@
-"""Loads list-helmchart-images (a hyphenated filename, not
-importable normally) as a module, with its module-level CHART_YAML constant
-repointed at an isolated temp file so tests never read/depend on the real
-chart."""
+"""Load list-helmchart-images (hyphenated, not importable) with CHART_YAML
+pointed at a temp file, so tests never read the real chart."""
 
 import importlib.util
 

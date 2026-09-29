@@ -1,9 +1,7 @@
-"""resolve_values_path_source (chart-name-or-local-file attribution) and
-check_subchart_image_visibility / find_unresolved_subchart_images — a
-separate, report-only scan for images defined only in a vendored
-dependency's own default values.yaml (see lib.chart.subchart_values),
-which check_digest_pinning can never see since it only ever walks
-podiumd's own values.yaml."""
+"""Tests for resolve_values_path_source and check_subchart_image_visibility.
+
+The latter is a report-only scan for images defined only in a vendored subchart's
+default values.yaml, which check_digest_pinning (podiumd values only) can't see."""
 
 import io
 import tarfile
@@ -30,20 +28,12 @@ def write_chart_yaml(chart_dir, deps):
 
 
 def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None, extra_files=None):
-    """A minimal vendored <name>-<version>.tgz containing <name>/values.yaml
-    and, if `templates` is given (a {filename: text} dict), <name>/templates/
-    <filename> for each entry — enough to exercise subchart_values and
-    subchart_template_text without a real `helm pull`. `templates=None`
-    (the default) omits templates/ entirely, matching a vendored .tgz whose
-    layout subchart_template_text can't make sense of.
+    """Write a minimal vendored <name>-<version>.tgz with <name>/values.yaml.
 
-    `chart_yaml`, if given (a dict), is written as <name>/Chart.yaml — used
-    by subchart_app_version/subchart_dependencies (e.g. a dependency's own
-    "appVersion" for a null-tag default, or its own nested "dependencies"
-    list for the openinwoner/eck-operator-style nested-dependency case).
-    `extra_files`, if given (a {relative path: text} dict), is written
-    verbatim under <name>/ — used for a NESTED sub-subchart's own
-    Chart.yaml (e.g. "charts/eck-operator/Chart.yaml")."""
+    `templates` ({filename: text}) adds <name>/templates/; None omits templates/ entirely.
+    `chart_yaml` (dict) is written as <name>/Chart.yaml (appVersion, nested dependencies).
+    `extra_files` ({relative path: text}) is written verbatim under <name>/, e.g. a
+    nested "charts/eck-operator/Chart.yaml"."""
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -69,19 +59,13 @@ def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None,
 
 
 def render_stdout(chart_tree_paths):
-    """A fake `helm template` stdout carrying one "# Source:" line per
-    given chart-tree path — enough for lib.render_scope.rendered_
-    chart_paths to recover exactly that set, without a real render."""
+    """Fake `helm template` stdout with one "# Source:" line per chart-tree path."""
     return "".join(f"# Source: {p}/templates/x.yaml\n" for p in chart_tree_paths)
 
 
 def stub_render(monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType, chart_tree_paths, returncode=0):
-    """Replaces check_subchart_image_visibility's own render_chart call
-    (see lib.checks.digest_pinning's "from lib.render_scope import ...
-    render_chart" binding — must be patched on THAT module, not vp/
-    render_scope, per this test suite's own module-that-owns-the-binding
-    convention) with one that reports exactly `chart_tree_paths` as
-    rendered, with no real `helm template` invocation."""
+    """Patch render_chart on lib.checks.digest_pinning (the module owning the binding) to
+    report exactly `chart_tree_paths` as rendered."""
     monkeypatch.setattr(
         libdigestpinningcheck,
         "render_chart",
@@ -138,10 +122,8 @@ def test_shared_image_usage_annotates_an_orphan_path_with_its_local_template(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """ "frankgateway" has no Chart.yaml dependency of its own at all --
-    it's a native, directly-templated top-level block. The local
-    template file that actually references ".Values.frankgateway" must
-    be named, deterministically (a literal text search, not a guess)."""
+    """ "frankgateway" has no Chart.yaml dependency: the local template referencing
+    ".Values.frankgateway" is named via a literal text search, not a guess."""
     write_chart_yaml(tmp_path, [])
     (tmp_path / "templates").mkdir()
     (tmp_path / "templates" / "frankgateway-nginx.yaml").write_text(
@@ -178,14 +160,8 @@ zac:
 
 
 # --- check_subchart_image_visibility / find_unresolved_subchart_images ---
-#
-# Every call now also renders (see lib.render_scope.rendered_chart_paths)
-# to gate findings on whether the owning chart-tree path actually
-# produced output — stub_render() fakes that render's stdout so these
-# tests don't need a real `helm template`. A dependency's own chart-tree
-# path is CHART_NAME/charts/<dep name> (never the alias — see lib.chart.
-# resolve_subchart_default), so stub_render is always given "podiumd/
-# charts/<name>", not "podiumd/charts/<alias>".
+# Findings are gated on whether the owning chart-tree path rendered; stub_render fakes
+# that. Paths are given as "podiumd/charts/<name>" (see lib.chart.resolve_subchart_default).
 
 
 def test_no_dependencies_passes(
@@ -202,8 +178,7 @@ def test_no_dependencies_passes(
 def test_dependency_not_yet_vendored_is_skipped(
     vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
 ):
-    """No .tgz on disk yet (the "Dependencies" step hasn't run) — nothing
-    to read, so silently skipped rather than an error."""
+    """No .tgz on disk yet (Dependencies step not run): silently skipped, not an error."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     write_values_yaml(tmp_path, "{}\n")
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/openzaak"])
@@ -241,17 +216,13 @@ def test_unoverridden_floating_subchart_image_fails_the_check(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A FLOATING finding (no podiumd override AND no digest pin in the
-    sub-chart's own default either) is genuinely unpinned and non-
-    reproducible — it now FAILS the step, unlike a pinned finding."""
+    """A FLOATING finding (no podiumd override, no digest in the subchart default) fails."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2", alias="oz")])
     make_tgz(
         tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}}
     )
     write_values_yaml(tmp_path, "{}\n")
-    # chart-tree path is keyed by the dependency's own alias ("oz"),
-    # never its real chart name ("openzaak") — Helm's own "# Source:"
-    # annotations name a chart-tree directory by alias when declared.
+    # Helm's "# Source:" names the chart-tree dir by alias ("oz") when one is declared
     stub_render(monkeypatch, libdigestpinningcheck, ["podiumd/charts/oz"])
 
     ok, detail = vp.check_subchart_image_visibility(tmp_path, [])
@@ -270,11 +241,8 @@ def test_subchart_image_visibility_finding_annotated_with_its_owning_chart(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """Every finding is annotated via the SAME shared resolver
-    (lib.chart.resolve_values_path_source) _print_shared_image_usage
-    uses — scope_key here is always a real Chart.yaml dependency's own
-    alias-or-name by construction, so this can only ever hit the
-    resolver's "chart X@Y" branch, never the local-file one."""
+    """Findings are annotated via the shared lib.chart.resolve_values_path_source; scope_key
+    is always a dependency alias-or-name, so only its "chart X@Y" branch is hit."""
     write_chart_yaml(tmp_path, [make_dep("eck-operator", "3.5.0")])
     make_tgz(
         tmp_path / "charts",
@@ -301,9 +269,7 @@ def test_unoverridden_already_pinned_subchart_image_never_fails(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A PINNED finding (the sub-chart's own default already embeds a
-    real digest, podiumd just doesn't override it) is already
-    reproducible as-is — report only, never fails the run on its own."""
+    """A PINNED finding (subchart default embeds a digest) is report-only, never fails."""
     write_chart_yaml(tmp_path, [make_dep("zac", "1.0.297", alias="zac")])
     make_tgz(
         tmp_path / "charts",
@@ -338,10 +304,7 @@ def test_mix_of_floating_and_pinned_findings_fails_overall(
     libdigestpinningcheck: ModuleType,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A mix — one floating, one pinned — still fails overall (any
-    floating finding fails the step), but the pinned one is still
-    printed under its own separate, clearly-labeled report-only
-    section, never conflated with the failing floating one."""
+    """One floating + one pinned: fails overall, with the pinned one in its own report-only section."""
     write_chart_yaml(
         tmp_path,
         [
@@ -382,9 +345,7 @@ def test_mix_of_floating_and_pinned_findings_fails_overall(
 def test_nested_subchart_image_path_resolved_correctly(
     vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
 ):
-    """A sub-chart default nested under more than one key (e.g. a sidecar)
-    must be checked against the SAME nested path in podiumd's own
-    values.yaml, not just its top-level scope."""
+    """A nested subchart default (e.g. a sidecar) is checked against the same nested podiumd path."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"redis": {"image": {"repository": "redis", "tag": "8.0"}}})
     write_values_yaml(
@@ -406,10 +367,8 @@ openzaak:
 def test_exempted_digest_pinning_path_never_shows_up_as_unresolved(
     vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, libdigestpinningcheck: ModuleType
 ):
-    """keycloak-operator.operator is exempt from check_digest_pinning
-    because podiumd DOES override it (with a split tag/sha convention
-    instead of an embedded digest) — it must never appear as "unresolved"
-    here, since it has an own_tag by definition."""
+    """keycloak-operator.operator is overridden by podiumd (split tag/sha), so it has an
+    own_tag and must never appear as "unresolved"."""
     write_chart_yaml(tmp_path, [make_dep("keycloak-operator", "1.0.0")])
     make_tgz(
         tmp_path / "charts",

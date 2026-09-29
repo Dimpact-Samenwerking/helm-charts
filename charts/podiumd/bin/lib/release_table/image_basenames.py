@@ -1,6 +1,4 @@
-"""export-confluence-release-table's own resolve_image_basenames and its
-supporting helpers, split out of that script for pylint's too-many-lines
-check."""
+"""export-confluence-release-table's resolution of each row's image basename(s)."""
 
 from pathlib import Path
 from typing import TypedDict
@@ -24,24 +22,13 @@ class ComponentRows(TypedDict):
 
 
 def resolve_image_basenames(rows: list[list[str]], chart_dir: Path) -> list[str]:
-    """A comma-joined image_basename string per row in `rows` (same
-    order, same shape as extract_release_rows' own output — [section,
-    vendor, used_by, name, component, alias, ...versions]) — the actual
-    values.yaml repository basename(s) each row's version numbers
-    describe, resolved by EXACT matching only (see lib.release_table.
-    component_resolution.exact_match) against the basenames found under
-    the component's own values.yaml key (see
-    _available_basenames_for_component):
-    - a "used by"-tagged row names its image exactly, e.g. "Frank
-      Gateway Etcd (etcd)";
-    - a component's own row (no "used by") gets the basename its name
-      matches exactly (e.g. "Keycloak"), else every basename on one of
-      the component's registered primary image paths (image_paths_for)
-      that no "used by" row claimed — see _assign_component_basenames;
-    - a MULTIPLE row names a global.images key or its image basename
-      exactly, e.g. "Nginx (unprivileged)" — see
-      _assign_multiple_row_basenames.
-    "" wherever nothing resolves exactly — never a guess."""
+    """A comma-joined image_basename per row of `rows`, by exact matching only; "" if unresolved.
+
+    - A "used by" row names its image exactly, e.g. "Frank Gateway Etcd (etcd)".
+    - A component row gets the basename its name matches, else the
+      unclaimed basenames on its registered primary image paths.
+    - A MULTIPLE row names a global.images key or basename exactly.
+    """
     values_path = chart_dir / "values.yaml"
     if not values_path.is_file():
         return ["" for _ in rows]
@@ -62,10 +49,7 @@ def resolve_image_basenames(rows: list[list[str]], chart_dir: Path) -> list[str]
 
 
 def _by_component_row_indices(rows: list[list[str]]) -> dict[str, ComponentRows]:
-    """component -> {"alias": ..., "indices": [...]} grouping resolve_
-    image_basenames' own per-component pass — a MULTIPLE/UNKNOWN/blank-
-    component row is never grouped here, only handled by _assign_
-    multiple_row_basenames instead."""
+    """component -> {"alias", "indices"}; MULTIPLE/UNKNOWN/blank rows are left out."""
     by_component: dict[str, ComponentRows] = {}
     for i, row in enumerate(rows):
         component, alias = row[4], row[5]
@@ -78,26 +62,12 @@ def _by_component_row_indices(rows: list[list[str]]) -> dict[str, ComponentRows]
 def _available_basenames_for_component(
     lines: list[str], scope_keys: list[str]
 ) -> dict[str, list[DigestPin | VersionPin]]:
-    """basename -> pins available under scope_keys: the digest-required
-    scan (basenames_under_scope) first, then, before concluding a
-    basename genuinely isn't resolvable, falling back per-basename to
-    the digest-OPTIONAL sibling scan (basenames_under_scope_any_tag)
-    for any basename the digest-required scan alone didn't find under
-    ANY of these scope_keys — two independent real cases need this:
-    omc's own image tag genuinely has no digest at all (its subchart
-    can't handle one), so ALL of its basenames only ever show up here;
-    keycloak-operator's own operator.config.keycloakImage is genuinely
-    digest-pinned (a separate sibling "sha:" field, not embedded in
-    "tag:"), so only THAT ONE basename ("keycloak") needs this
-    fallback, while its sibling "python"/"keycloak-config-cli"
-    basenames already resolve via the digest-required scan. A per-
-    basename fallback (never a whole-scope "if not available" gate,
-    which left keycloak-operator's own case unresolved even though its
-    scope wasn't otherwise empty) handles both the same way,
-    deliberately only ADDING a basename the digest-required scan
-    missed, never overriding one it already found (so a component
-    that's fully digest-pinned, the normal case, is completely
-    unaffected — this scan is strictly additive)."""
+    """basename -> pins under scope_keys: digest-pinned first, plus bare-tag pins for missing basenames.
+
+    The per-basename fallback covers omc (no digests at all) and
+    keycloak-operator's keycloakImage (digest in a sibling "sha:" field)
+    without changing fully digest-pinned components.
+    """
     available: dict[str, list[DigestPin | VersionPin]] = {}
     for scope_key in scope_keys:
         for basename, pins in basenames_under_scope(lines, scope_key).items():
@@ -112,10 +82,7 @@ def _available_basenames_for_component(
 def _registered_primary_basenames(
     lines: list[str], scope_key: str, primary_paths: list[str], available: dict[str, list[DigestPin | VersionPin]]
 ) -> set[str]:
-    """The `available` basenames with a pin on one of the component's
-    registered primary image paths (`primary_paths`, from
-    image_paths_for, relative to `scope_key`) — e.g. pabc's "pabc-api"
-    and "pabc-migrations" for ["image", "migrations.image"]."""
+    """The `available` basenames pinned on a registered primary image path (relative to `scope_key`)."""
     registered = {f"{scope_key}.{path}.tag" for path in primary_paths}
     return {
         basename
@@ -131,19 +98,14 @@ def _assign_component_basenames(
     available: dict[str, list[DigestPin | VersionPin]],
     primary: set[str],
 ) -> None:
-    """Claims `available` basenames into `result` for one component's
-    own row indices (info["indices"]), exact matches only (see
-    exact_match):
-    1. a component row (no "used by") whose name matches a basename
-       exactly claims it — first, so a "<Component> <Role>" sibling can
-       never take the component's own image (real case: frankgateway's
-       own "frank-gateway" image, and openbao's server image, which has
-       no tag pin of its own and only shows up as "openbao");
-    2. every "used by" row claims the basename its name matches exactly;
-    3. every still-unclaimed component row gets the remaining `primary`
-       basenames (the registered primary image paths, see
-       _registered_primary_basenames) — e.g. zgw-office-addin's frontend
-       AND backend both landing on "ZGW Office Add-in"."""
+    """Assign `available` basenames to one component's rows, exact matches only.
+
+    1. A component row whose name matches a basename claims it first, so a
+       "<Component> <Role>" row can't take the component's own image.
+    2. Each "used by" row claims the basename its name matches.
+    3. Remaining component rows get the unclaimed primary basenames (e.g.
+       zgw-office-addin's frontend and backend).
+    """
     sub_indices = [i for i in info["indices"] if rows[i][2]]
     primary_indices = [i for i in info["indices"] if not rows[i][2]]
 
@@ -169,12 +131,7 @@ def _assign_component_basenames(
 
 
 def _assign_multiple_row_basenames(rows: list[list[str]], result: list[str], basename_by_key: dict[str, str]) -> None:
-    """Resolves every MULTIPLE-component row's own basename
-    independently, via the global.images entry it names exactly — by
-    its key ("Nginx (unprivileged)" -> "nginx"), else by its image
-    basename ("... (nginx-unprivileged)") — never through any component's own
-    scope, since by definition a MULTIPLE row isn't owned by any single
-    one."""
+    """Resolve each MULTIPLE row's basename via the global.images key or basename it names exactly."""
     for i, row in enumerate(rows):
         used_by, name, component = row[2], row[3], row[4]
         if component != "MULTIPLE":

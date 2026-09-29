@@ -1,8 +1,4 @@
-"""lib.docs_consistency — match_changes_item_to_entry: matches a plain
-(non-component) "# Changes:" item to its images-manifest entry by
-basename, used when match_dependency_excluding_sidecar_names already
-ruled out a real Chart.yaml dependency — and the "Component versions"
-row's source-cell check."""
+"""lib.docs_consistency: match_changes_item_to_entry and the "Component versions" source-cell check."""
 
 from pathlib import Path
 from types import ModuleType
@@ -16,13 +12,10 @@ from lib.docs_consistency.check_context import RowContext
 
 
 def test_match_changes_item_to_entry_canonical_sidecar_name_matches_own_basename(libimagesmanifest: ModuleType):
-    """A canonical "<key> - <basename>" sidecar name (see
-    lib.chart.canonical_sidecar_row_names) is matched on its OWN
-    basename only, not the whole string — real collision: "keycloak-
-    operator - postgres" (the postgres image bundled with the keycloak-
-    operator dependency) must match the "postgres" entry, not the
-    unrelated "keycloak" entry its leading word happens to fuzzy-match
-    equally well on a same-length word."""
+    """A "<key> - <basename>" sidecar name matches on its basename only.
+
+    "keycloak-operator - postgres" must match "postgres", not "keycloak".
+    """
     keycloak_entry = {"name": "keycloak/keycloak", "version": "26.7.2"}
     postgres_entry = {"name": "postgres", "version": "16.15"}
 
@@ -34,8 +27,7 @@ def test_match_changes_item_to_entry_canonical_sidecar_name_matches_own_basename
 
 
 def test_match_changes_item_to_entry_plain_name_matches_by_basename(libimagesmanifest: ModuleType):
-    """No " - " delimiter: falls back to matching the whole item name
-    against entry basenames, unchanged from before the fix above."""
+    """Without " - ", the whole item name is matched against entry basenames."""
     entry = {"name": "library/python", "version": "3.14.7-slim"}
 
     match = libimagesmanifest.match_changes_item_to_entry("python", [entry])
@@ -55,10 +47,7 @@ def test_match_changes_item_to_entry_no_match_returns_none(libimagesmanifest: Mo
 
 
 def _source_app_mismatches(libdocsconsistency: ModuleType, app_source: str, baseline_app: str | None):
-    """Mismatches for one "mi" row (target app 2.0.0, its App cell's
-    source version app_source) whose Chart.yaml dependency line existed
-    at podiumd-4.8.5 (baseline_resolved True), with baseline_app as its
-    app version there."""
+    """Mismatches for one "mi" row (target app 2.0.0, cell source app_source) with baseline_app at 4.8.5."""
     row = {"name": "mi", "app_source": app_source, "app": "2.0.0", "chart_source": "1.0.0", "chart": "1.0.0"}
     resolved = {
         "kind": "dependency",
@@ -79,9 +68,7 @@ def _source_app_mismatches(libdocsconsistency: ModuleType, app_source: str, base
 
 
 def test_check_row_baseline_versions_flags_stale_transition_for_new_app_version(libdocsconsistency: ModuleType):
-    """baseline_resolved True but no baseline app version: fix-doc-
-    consistency rewrites the cell to "2.0.0 (new)", so a stale "1.9.0 →
-    2.0.0" cell must be flagged, not skipped."""
+    """A known baseline without app version is rewritten to "2.0.0 (new)", so "1.9.0 → 2.0.0" is flagged."""
     mismatches = _source_app_mismatches(libdocsconsistency, "1.9.0", None)
     assert mismatches == [
         'mi ("mi") source app: podiumd-4.8.5 has no app version (new), 4.8.5-to-4.9.0-upgrade.md says "1.9.0"'

@@ -1,8 +1,4 @@
-"""lib.image.docs — the "shared image basename as its own pseudo-component"
-doc-update helpers used by update-image-version when a basename bump
-touches more than one Chart.yaml component. Convention confirmed against
-docs/_UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md (curl/nginx-unprivileged/
-busybox each got their own table row + "### <name> ..." Changes block)."""
+"""lib.image.docs: doc updates for a shared image basename bumped across components."""
 
 import io
 import tarfile
@@ -17,14 +13,7 @@ import yaml
 
 
 def test_add_missing_sidecar_rows_global_image_gets_one_row_not_per_alias(libimagedocs: ModuleType, tmp_path: Path):
-    """Real bug: nginx-unprivileged is aliased by zac's own nginx sidecar
-    AND frankgateway's own nginx sidecar (the same global.images.nginx
-    anchor) — before global_image_paths was folded into current_paths
-    here, canonical_sidecar_row_names never saw a "global"-rooted path
-    at all, so each real dependency's own sidecar independently
-    qualified for its own "<dep> - nginx-unprivileged" row, giving the
-    SAME version bump two separate rows. Must be exactly one, bare
-    "nginx-unprivileged" row instead."""
+    """A global image aliased by several deps' sidecars gets one bare row, not one row per dep."""
     deps = [
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
         {"name": "frankgateway", "alias": "", "version": "1.1.0"},
@@ -68,13 +57,7 @@ def test_add_missing_sidecar_rows_global_image_gets_one_row_not_per_alias(libima
 
 
 def test_add_missing_sidecar_rows_digest_only_repin_is_not_a_row(libimagedocs: ModuleType, tmp_path: Path):
-    """Regression test: a shared image whose VERSION is unchanged but
-    whose DIGEST was re-pinned (real case: nginx-unprivileged) must NOT
-    get a row/section of its own — -upgrade.md documents version
-    changes, never a digest re-pin alone (that's the images-manifest's
-    own concern; see find_images_manifest_list_diff's docstring). Before
-    this fix, ANY digest difference (even with the exact same version)
-    added a nonsensical "1.31.4 → 1.31.4" row/section."""
+    """A digest-only re-pin (same version) gets no row/section; -upgrade.md documents versions only."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     target_values = {
         "global": {"images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
@@ -104,11 +87,7 @@ def test_add_missing_sidecar_rows_digest_only_repin_is_not_a_row(libimagedocs: M
 def test_add_missing_sidecar_rows_global_row_inserted_at_its_own_position_not_last(
     libimagedocs: ModuleType, tmp_path: Path
 ):
-    """Real bug reported live: re-running the fix script placed the new
-    "nginx-unprivileged" row at the very END of the table (component_
-    order_key's own "unmatched sorts last" fallback), when it should sort
-    to the TOP — "global:" is values.yaml's own FIRST key, and the
-    images-manifest's own equivalent entry already sorts there."""
+    """A global row sorts first ("global:" is values.yaml's first key), not last as unmatched."""
     deps = [{"name": "openzaak", "alias": "", "version": "1.14.2"}]
     target_values = {
         "global": {"images": {"nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
@@ -141,17 +120,11 @@ def test_add_missing_sidecar_rows_global_row_inserted_at_its_own_position_not_la
 def test_add_missing_sidecar_rows_same_repository_at_different_baseline_path_is_an_upgrade(
     libimagedocs: ModuleType, tmp_path: Path
 ):
-    """Real case: podiumd 4.9.1 consolidated two separate postgres pins
-    (keycloak-operator's own ensurePodiumdAdminUser job, at 16.15, and
-    openbao's own schemaJob, at 16-alpine) into one new shared
-    global.images.postgres anchor at 16.15-alpine. That exact path
-    (global.images.postgres) never existed in the baseline values.yaml,
-    so an exact-path lookup alone finds nothing and used to render this
-    as brand new ("### postgres 16.15-alpine (new)"). But the SAME
-    "postgres" repository already existed in the baseline tree, at
-    openbao.database.schemaJob.image — that path's own baseline tag
-    (16-alpine) must be picked up as the true prior version instead,
-    rendering "16-alpine -> 16.15-alpine", never "(new)"."""
+    """A new path whose repository existed elsewhere in the baseline uses that path's tag as prior version.
+
+    Case: 4.9.1 moved postgres pins into global.images.postgres; must render
+    "16-alpine -> 16.15-alpine", not "(new)".
+    """
     deps = [{"name": "openbao", "version": "2.0.0"}]
     target_values = {
         "global": {"images": {"postgres": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
@@ -182,10 +155,7 @@ def test_add_missing_sidecar_rows_same_repository_at_different_baseline_path_is_
 
 
 def test_add_missing_sidecar_rows_genuinely_new_repository_still_renders_new(libimagedocs: ModuleType, tmp_path: Path):
-    """The flip side of the postgres case above: a repository that truly
-    never appeared anywhere in baseline_values (under ANY path) — no
-    same-repository fallback match, no historical manifest entry either
-    — must still render "(new)", not be mistaken for an upgrade."""
+    """A repository absent from the baseline and historical manifests still renders "(new)"."""
     deps = [{"name": "redis-operator", "version": "1.0.0"}]
     target_values = {
         "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "1.0.0"}},
@@ -238,9 +208,7 @@ def test_make_image_changes_section_lists_every_pinned_path(libimagedocs: Module
 
 
 def test_make_image_changes_section_per_path_old_version_differs(libimagedocs: ModuleType):
-    """A basename's various pins aren't guaranteed to have all started at
-    the exact same version -- each path's own old version is shown, not
-    one assumed-uniform value."""
+    """Each path shows its own old version; pins need not share one."""
     pinned = [("a.image.tag", "8.19.0"), ("b.image.tag", "8.20.0")]
     section = libimagedocs.make_image_changes_section("curl", "4.9.0", "8.19.0", "8.21.0", pinned)
     assert "- `a.image.tag` `8.19.0` → `8.21.0`" in section
@@ -248,10 +216,7 @@ def test_make_image_changes_section_per_path_old_version_differs(libimagedocs: M
 
 
 def test_make_image_changes_section_old_version_none_renders_new(libimagedocs: ModuleType):
-    """Regression test: old_version is None when this image never had a
-    prior pin at all (genuinely new — real case: a brand-new shared
-    "redis" cache sidecar aliased into a dozen components at once) —
-    must render "(new)", not a nonsensical "None → 8.0"."""
+    """old_version None (never pinned before) renders "(new)", not "None → 8.0"."""
     pinned = [("global.images.redis.tag", None)]
     section = libimagedocs.make_image_changes_section("redis", "4.9.1", None, "8.0", pinned)
     assert section.startswith("### redis 8.0 (new)")
@@ -262,11 +227,7 @@ def test_make_image_changes_section_old_version_none_renders_new(libimagedocs: M
 
 
 def test_make_image_changes_section_old_equals_new_renders_unchanged(libimagedocs: ModuleType):
-    """Regression test: old_version already resolved equal to new_version
-    (e.g. the images-baseline.yaml fallback matching a digest-only
-    re-pin, or a genuinely new path pinned to an already-known image)
-    must render "(unchanged)", not a nonsensical "8.0 → 8.0"
-    self-transition."""
+    """old_version equal to new_version renders "(unchanged)", not "8.0 → 8.0"."""
     pinned = [("global.images.redis.tag", "8.0")]
     section = libimagedocs.make_image_changes_section("redis", "4.9.1", "8.0", "8.0", pinned)
     assert section.startswith("### redis 8.0 (unchanged)")
@@ -350,19 +311,13 @@ def test_update_image_manifest_adds_new_changes_item_when_absent(libimagedocs: M
     assert changes_action == "added"
     assert entry_updated is False
     text = path.read_text(encoding="utf-8")
-    # The header's own wording is never rewritten into a counted form —
-    # same convention lib.component_docs.update_images_manifest already
-    # uses; the real manifest's own header stays whatever it already was.
+    # The header's wording is never rewritten into a counted form.
     assert "# One change:" in text
     assert "#   2. curl 8.20.0 -> 8.21.0." in text
 
 
 def test_update_image_manifest_new_item_no_baseline_renders_new(libimagedocs: ModuleType, tmp_path: Path):
-    """Regression test: update_image_manifest's own item_text used to
-    ALWAYS hardcode "<old> -> <new>" with no (new)/(unchanged)/(digest
-    changed) branch at all — a genuinely brand-new image (no baseline
-    version at all, old_version=None) rendered as a nonsensical
-    "<new> -> <new>" instead of "<new> (new)"."""
+    """A new item with no baseline version renders "<new> (new)", not "<new> -> <new>"."""
     path = tmp_path / "images-4.9.1.yaml"
     write_manifest(
         path,
@@ -389,25 +344,11 @@ def test_update_image_manifest_new_item_no_baseline_renders_new(libimagedocs: Mo
 
 
 def test_update_image_manifest_new_item_uses_values_yaml_order_not_append(libimagedocs: ModuleType, tmp_path: Path):
-    """Regression test (real bug, real doc): update_image_manifest used to
-    always APPEND a brand-new header item at the very end of the
-    existing "# Changes:" list regardless of values.yaml's own top-level
-    component order, while its sibling lib.component_docs.update_images_
-    manifest (used for a real Chart.yaml dependency's own bump, e.g.
-    "mi") already positions ITS new items by that same order — the two
-    disagreeing meant a shared/global image (e.g. "redis", handled by
-    THIS function) bumped in the same run as a real dependency could
-    land its own header item out of order relative to the other's,
-    confirmed live: images-4.9.1.yaml's own "redis 8.0 (new)." item
-    (always appended last) ended up AFTER "mi ... unchanged."'s own
-    values.yaml-order-positioned item even though redis's real entry
-    sits earlier in values.yaml (under "global:", values.yaml's own
-    FIRST top-level key) than "mi"'s. Passing deps/values now positions
-    a brand-new item here the SAME way, via lib.upgradedoc.
-    component_order_key — the exact convention update-image-version's
-    own update_docs_shared_image already uses to position this SAME
-    basename's "Component versions" table row/"### ..." Changes section
-    in the upgrade doc, so the two docs can never disagree on order."""
+    """A new header item is positioned by values.yaml order, not appended.
+
+    Uses lib.upgradedoc.component_order_key, like the upgrade doc's table and
+    Changes sections, so both docs agree on order.
+    """
     path = tmp_path / "images-4.9.1.yaml"
     write_manifest(
         path,
@@ -437,25 +378,17 @@ def test_update_image_manifest_new_item_uses_values_yaml_order_not_append(libima
     assert changes_action == "added"
     assert entry_updated is False
     text = path.read_text(encoding="utf-8")
-    # redis (values.yaml's own FIRST top-level key, "global:") must land
-    # BEFORE mi's own item, not appended after it.
+    # redis ("global:", values.yaml's first key) lands before mi.
     assert "#   1. redis 7.4 -> 8.0.\n" in text
     assert "#   2. mi 2.90.0 (new) (chart 1.1.0, new).\n" in text
     assert text.index("1. redis") < text.index("2. mi")
 
 
 def test_update_image_manifest_recognizes_bare_changes_header(libimagedocs: ModuleType, tmp_path: Path):
-    """Regression test (real bug, real doc: nginx-unprivileged): the real,
-    hand-curated images-manifest header is the plain "# Changes:" form
-    with no count word at all — CHANGES_HEADER_RE alone never matches
-    that (it requires a leading count word), so this used to silently
-    find no header at all and skip the "changes:" list item outright for
-    EVERY MULTIPLE-scope basename bump against a real manifest, never
-    even reaching the "no existing entry" case a human could act on
-    (confirmed live: nginx-unprivileged's own bump against images-
-    4.9.1.yaml left zero trace of "nginx" anywhere in the header list).
-    find_images_manifest_changes_header (tried here instead) falls back
-    to BARE_CHANGES_HEADER_RE for exactly this bare form."""
+    """The bare "# Changes:" header (no count word) is found via find_images_manifest_changes_header.
+
+    CHANGES_HEADER_RE requires a count word, so the item was silently skipped.
+    """
     path = tmp_path / "images-4.9.1.yaml"
     write_manifest(
         path,
@@ -481,11 +414,7 @@ def test_update_image_manifest_recognizes_bare_changes_header(libimagedocs: Modu
 
 
 def test_remove_image_manifest_entry_recognizes_bare_changes_header(libimagedocs: ModuleType, tmp_path: Path):
-    """Same bare-"# Changes:"-header gap as update_image_manifest above,
-    for its counterpart remove_image_manifest_entry (the reset-to-
-    baseline path) — must find the real header and remove the matching
-    item, not silently no-op because CHANGES_HEADER_RE alone never
-    matched it."""
+    """remove_image_manifest_entry also finds the bare "# Changes:" header."""
     path = tmp_path / "images-4.9.1.yaml"
     write_manifest(
         path,
@@ -534,9 +463,7 @@ def test_update_image_manifest_no_matching_entry_reports_not_updated(libimagedoc
 
 
 def test_update_image_manifest_matches_entry_by_url_repository(libimagedocs: ModuleType, tmp_path: Path):
-    """The entry is matched by its "url:" resolving to `repository`, not
-    by "name:" (which may be a short ACR-mirror slug, not the repository
-    itself)."""
+    """The entry is matched by its "url:", not "name:" (may be a short ACR-mirror slug)."""
     path = tmp_path / "images-4.9.0.yaml"
     write_manifest(
         path,
@@ -561,11 +488,7 @@ def test_update_image_manifest_matches_entry_by_url_repository(libimagedocs: Mod
 
 
 def test_regenerate_images_baseline_manifest_full_enumeration_and_sort_order(libimagedocs: ModuleType, tmp_path: Path):
-    """Every primary image AND every sidecar is written, one entry per
-    distinct repository, ordered by values.yaml's own top-level
-    component order (images_manifest_entry_order_key) — "zac" (a real
-    Chart.yaml dependency) before "openbao" (values.yaml lists zac
-    first), regardless of dict/repo-groups iteration order."""
+    """Every primary and sidecar image is written, one per repository, in values.yaml component order."""
     deps = [
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
         {"name": "openbao", "version": "2.0.0"},
@@ -602,17 +525,7 @@ def test_regenerate_images_baseline_manifest_full_enumeration_and_sort_order(lib
 def test_regenerate_images_baseline_manifest_global_images_use_their_own_real_suborder(
     libimagedocs: ModuleType, tmp_path: Path
 ):
-    """Regression test: the real redis/nginx/curl/busybox bug — FOUR
-    peers under "global.images.*" (all genuinely different,
-    independently-orderable images) used to tie at the exact same sort
-    key (their shared top-level "global" index, both "not primary" —
-    wait, actually BOTH considered "primary" here since neither has an
-    owning dependency — either way, tied), leaving their own relative
-    order to arbitrary repo_groups dict-iteration order rather than
-    values.yaml's own real nginx/curl/busybox/redis sub-order —
-    confirmed live: images-baseline.yaml's own real order disagreed
-    with BOTH values.yaml AND images-<version>.yaml's own order for
-    these same four images."""
+    """Peers under global.images.* keep values.yaml's own sub-order instead of tying on "global"."""
     deps = []
     values = {
         "global": {
@@ -643,10 +556,7 @@ def test_regenerate_images_baseline_manifest_global_images_use_their_own_real_su
 
 
 def test_regenerate_images_baseline_manifest_collapses_shared_repository(libimagedocs: ModuleType, tmp_path: Path):
-    """A repository shared by more than one path (e.g. a "global.images"
-    anchor aliased into several components' own sidecars) collapses to
-    ONE entry, same dedup convention images-<target>.yaml's own entries
-    already follow — never one entry per alias site."""
+    """A repository shared by several paths collapses to one entry."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {
         "zac": {
@@ -672,8 +582,7 @@ def test_regenerate_images_baseline_manifest_collapses_shared_repository(libimag
 def test_regenerate_images_baseline_manifest_embedded_digest_used_directly(
     libimagedocs: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A tag that already embeds its own "@sha256:..." digest is used
-    directly — no live registry lookup is ever attempted for it."""
+    """A tag with an embedded "@sha256:" digest is used directly, without registry lookup."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
     images_baseline_path = tmp_path / "images-baseline.yaml"
@@ -696,10 +605,7 @@ def test_regenerate_images_baseline_manifest_embedded_digest_used_directly(
 def test_regenerate_images_baseline_manifest_live_lookup_for_bare_tag(
     libimagedocs: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A bare tag with no embedded digest of its own falls back to a live
-    registry lookup (lib.image.digests.cached_tag_exists) for its digest —
-    matching the file's own header comment ("Digests are resolved live
-    against the source registry")."""
+    """A bare tag gets its digest from a live registry lookup."""
     deps = [{"name": "openbao", "version": "2.0.0"}]
     values = {"openbao": {"image": {"repository": "openbao/openbao", "tag": "2.0.0"}}}
     images_baseline_path = tmp_path / "images-baseline.yaml"
@@ -725,9 +631,7 @@ def test_regenerate_images_baseline_manifest_live_lookup_for_bare_tag(
 def test_regenerate_images_baseline_manifest_skips_when_live_lookup_fails(
     libimagedocs: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A bare tag whose live registry lookup fails (image/tag doesn't
-    exist, or the registry is unreachable) is reported in `skipped`, not
-    silently written with a made-up or missing digest."""
+    """A bare tag whose lookup fails is reported in `skipped`, not written without a digest."""
     deps = [{"name": "openbao", "version": "2.0.0"}]
     values = {"openbao": {"image": {"repository": "openbao/openbao", "tag": "2.0.0"}}}
     images_baseline_path = tmp_path / "images-baseline.yaml"
@@ -746,9 +650,7 @@ def test_regenerate_images_baseline_manifest_skips_when_live_lookup_fails(
 
 
 def test_regenerate_images_baseline_manifest_wholesale_overwrite(libimagedocs: ModuleType, tmp_path: Path):
-    """A second run with different data completely REPLACES the file's
-    prior content — no incremental merge, no leftover entries from a
-    component that's since been removed."""
+    """A second run replaces the file wholesale; no leftover entries from removed components."""
     images_baseline_path = tmp_path / "images-baseline.yaml"
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
@@ -772,15 +674,7 @@ def test_regenerate_images_baseline_manifest_wholesale_overwrite(libimagedocs: M
 def test_regenerate_images_baseline_manifest_second_identical_run_does_not_rewrite(
     libimagedocs: ModuleType, tmp_path: Path
 ):
-    """Regression test: the user found every fix-doc-consistency run
-    rewriting (and reporting on) this file even when nothing about it
-    actually changed — real bug, since this was the ONE writer in this
-    codebase not gated on an actual content difference (every other
-    doc type fix-doc-consistency manages already has its own write_
-    needed-style check). A second run with IDENTICAL underlying data
-    must leave the file's mtime/content untouched and report changed=
-    False, the same "no spurious write, no spurious git-diff churn"
-    guarantee those other writers already give."""
+    """An identical second run leaves the file untouched and reports changed=False (no git churn)."""
     images_baseline_path = tmp_path / "images-baseline.yaml"
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"repository": "infonl/zaakafhandelcomponent", "tag": "1.0.297@sha256:" + "a" * 64}}}
@@ -806,10 +700,7 @@ def test_regenerate_images_baseline_manifest_second_identical_run_does_not_rewri
 def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_eof(
     libimagedocs: ModuleType, tmp_path: Path
 ):
-    """A blank line separates each entry (readability), but the file
-    still ends in exactly one trailing newline — never a blank line
-    right before EOF, the same convention collapse_multiple_blank_lines
-    already enforces for the three .md docs this script manages."""
+    """Entries are blank-line separated, but the file ends in exactly one newline."""
     deps = [
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
         {"name": "openbao", "version": "2.0.0"},
@@ -834,23 +725,13 @@ def test_regenerate_images_baseline_manifest_blank_line_between_entries_not_at_e
 
 # --- regenerate_images_baseline_manifest — subchart-default-only images (render-gate) ---
 #
-# eck-operator's own top-level "image:" block relies entirely on its
-# vendored default (null tag -> Chart.yaml appVersion) — podiumd has NO
-# override for it at all, so find_all_image_and_version_paths(values,
-# deps) alone can never see it (it only ever walks podiumd's OWN
-# values.yaml). These tests exercise the added lib.checks.digest_pinning.
-# find_unresolved_subchart_images augmentation, gated on rendered_paths
-# (see lib.render_scope.rendered_chart_paths) exactly the same way
-# check_subchart_image_visibility's own findings are gated.
+# A dependency image relying only on its vendored default (e.g. eck-operator, null
+# tag) is invisible to find_all_image_and_version_paths; these tests cover the
+# find_unresolved_subchart_images augmentation, gated on rendered_paths.
 
 
 def make_subchart_tgz(charts_dir, name, version, values, chart_yaml=None):
-    """A minimal vendored <name>-<version>.tgz containing <name>/
-    values.yaml and, if given, <name>/Chart.yaml (needed for lib.chart.
-    subchart_app_version's own null-tag resolution) — same shape as
-    tests/verify-podiumd/test_digest_pinning.py's own make_tgz, kept
-    separate/local here rather than shared since each test file already
-    keeps its own copy of this convention."""
+    """Build a minimal vendored <name>-<version>.tgz with values.yaml and optional Chart.yaml."""
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -868,12 +749,7 @@ def make_subchart_tgz(charts_dir, name, version, values, chart_yaml=None):
 def test_regenerate_images_baseline_manifest_includes_subchart_default_only_image_when_rendered(
     libimagedocs: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A dependency's own top-level image with NO podiumd override at
-    all (null tag in its own vendored default, resolved to that
-    dependency's own Chart.yaml appVersion) gets a real entry once its
-    own chart-tree path actually rendered — otherwise permanently
-    invisible to this regeneration, the same way it's invisible to
-    check_digest_pinning."""
+    """A rendered dependency image with only a vendored null-tag default gets an entry (appVersion)."""
     deps = [{"name": "eck-operator", "version": "3.5.0"}]
     values = {}
     make_subchart_tgz(
@@ -903,13 +779,7 @@ def test_regenerate_images_baseline_manifest_includes_subchart_default_only_imag
 def test_regenerate_images_baseline_manifest_excludes_subchart_default_only_image_when_not_rendered(
     libimagedocs: ModuleType, tmp_path: Path
 ):
-    """The flip side: the exact same vendored default, but its own
-    chart-tree path never rendered (a dependency — or one of ITS OWN
-    nested dependencies — disabled via Helm's condition:/tags:
-    mechanism, e.g. openinwoner's own bundled nested eck-operator, or
-    zaakbrug's own condition-disabled "staging" block) must never get an
-    entry here, same render-gate check_subchart_image_visibility's own
-    findings are already subject to."""
+    """The same vendored default gets no entry when its chart-tree path did not render (disabled dep)."""
     deps = [{"name": "eck-operator", "version": "3.5.0"}]
     values = {}
     make_subchart_tgz(
@@ -932,14 +802,7 @@ def test_regenerate_images_baseline_manifest_excludes_subchart_default_only_imag
 def test_regenerate_images_baseline_manifest_blank_tag_override_not_treated_as_subchart_default_finding(
     libimagedocs: ModuleType, tmp_path: Path
 ):
-    """openbao.server.image style regression: podiumd DOES override this
-    path, just with an explicit BLANK "tag: ''" (a deliberate "use the
-    sub-chart's own appVersion" convention, not "no override at all").
-    find_unresolved_subchart_images's own "already has an own_tag" guard
-    (get_path(...) is not None) already treats "" as a real override, so
-    the new augmentation must not add a separate/duplicate/fabricated
-    entry for it here — this exact case must keep behaving exactly as
-    it did before this render-gate augmentation existed."""
+    """An explicit blank tag override (openbao.server.image) is an override, not a subchart-default entry."""
     deps = [{"name": "openbao", "version": "0.28.4"}]
     values = {"openbao": {"server": {"image": {"repository": "openbao/openbao", "tag": ""}}}}
     make_subchart_tgz(

@@ -1,5 +1,4 @@
-"""lib.upgradedoc.consistency_checks -- find_wrong_or_duplicate_dependency_claims
-and find_changes_duplicate_identities."""
+"""lib.upgradedoc.consistency_checks -- dependency-claim and Changes-duplicate checks."""
 
 from types import ModuleType
 
@@ -18,9 +17,7 @@ def test_fuzzy_name_of_exactly_claimed_dependency_is_wrong(libupgradedocconsiste
 
 
 def test_two_exact_names_for_one_dependency_are_both_exact(libupgradedocconsistency: ModuleType):
-    """Regression: "KISS" and "Kiss" both exactly claim kiss. A {key: name}
-    dict kept only the last one, so "KISS" was wrongly reported as a fuzzy
-    claim."""
+    """Regression: "KISS" and "Kiss" both exactly claim kiss; neither is a fuzzy claim."""
     duplicates, wrong_fuzzy = libupgradedocconsistency.find_wrong_or_duplicate_dependency_claims(
         ["KISS", "Kiss", "Kiss Elasticsearch"], KISS_DEPS
     )
@@ -29,8 +26,7 @@ def test_two_exact_names_for_one_dependency_are_both_exact(libupgradedocconsiste
 
 
 def test_duplicate_exact_name_still_claims_its_dependency(libupgradedocconsistency: ModuleType):
-    """Regression: a duplicated exact name was skipped when collecting exact
-    claims, so a fuzzy name for the same dependency was not reported."""
+    """Regression: a duplicated exact name still counts, so a fuzzy name for the same dependency is reported."""
     duplicates, wrong_fuzzy = libupgradedocconsistency.find_wrong_or_duplicate_dependency_claims(
         ["KISS", "KISS", "Kiss Elasticsearch"], KISS_DEPS
     )
@@ -78,9 +74,7 @@ def test_one_row_and_one_heading_per_component_are_not_duplicates(libupgradedocc
 
 
 def test_multi_component_heading_is_not_counted_as_a_duplicate(libupgradedocconsistency: ModuleType):
-    """A heading naming two components credits neither (already reported
-    by find_changes_row_correspondence_gaps), so it never makes the
-    single-component heading beside it a duplicate."""
+    """A two-component heading credits neither, so it never makes a neighbouring heading a duplicate."""
     _, headings = libupgradedocconsistency.find_changes_duplicate_identities(
         [_row("KISS"), _row("ZAC")], ["KISS 3.1.0", "KISS 3.1.0 + ZAC 2.0.0"], KISS_DEPS, {}
     )

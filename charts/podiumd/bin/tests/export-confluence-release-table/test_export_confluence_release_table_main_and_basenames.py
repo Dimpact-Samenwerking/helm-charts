@@ -1,6 +1,4 @@
-"""main() integration tests, and basenames_under_scope / exact_match /
-resolve_image_basenames — with fetch_page_html mocked out, so no network
-access or real Confluence page is needed."""
+"""main() and image-basename resolution, with fetch_page_html mocked."""
 
 import csv
 
@@ -60,9 +58,7 @@ PRODUCT_TABLE_HTML = """
 </table>
 """
 
-# "Technische component versies" tables don't have a development-partner
-# column at all — "Used by" instead (naming the product/Common Ground
-# component that pulls this piece of tooling in), which isn't required.
+# Technische tables have "Used by" (optional) instead of a vendor column.
 TECHNISCHE_TABLE_HTML = """
 <h2>Technische component versies</h2>
 <table>
@@ -206,9 +202,8 @@ def test_main_passes_custom_heading_flags_through(ecrt: ModuleType, tmp_path: Pa
 
 
 def test_main_writes_lf_line_endings(ecrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """csv's own "excel" dialect defaults to CRLF regardless of platform —
-    every other file in this repo (and git) is LF, so a CRLF write would
-    diff on every single re-export even when nothing actually changed."""
+    """csv's "excel" dialect writes CRLF; the repo is LF, so every re-export
+    would otherwise show a diff."""
     output_path = tmp_path / "out.csv"
     monkeypatch.setattr(
         ecrt.sys,
@@ -250,24 +245,19 @@ def test_exact_match_whole_name():
 
 
 def test_exact_match_never_falls_back_to_containment():
-    """ "Redis-ha" only contains "redis" — no exact match, so no match:
-    the Confluence name must say "Redis HA (redis)"."""
+    """Containment is not a match: the Confluence name must say "Redis HA (redis)"."""
     assert exact_match("Redis-ha", {"redis-operator", "redis", "redis-exporter"}) is None
     assert exact_match("Redis HA (redis)", {"redis-operator", "redis", "redis-exporter"}) == "redis"
 
 
 def test_exact_match_bracket_content_resolves_a_role_named_row():
-    """ "Zookeeper operator hooks (k8s-kubectl)" shares no text at all with
-    "k8s-kubectl" as a whole string, but name_candidates' bracket
-    extraction tries the bracket content on its own, which matches
-    exactly."""
+    """The bracket content alone is tried as a candidate and matches exactly."""
     assert exact_match("Zookeeper operator hooks (k8s-kubectl)", {"k8s-kubectl", "solr"}) == "k8s-kubectl"
 
 
 def test_exact_match_ambiguous_is_none():
-    """ "Foo (Bar)" yields candidates "foobar", "foo", AND "bar" (see
-    name_candidates) — two DIFFERENT options each exactly matching a
-    different one of those candidates is an ambiguity, never a guess."""
+    """Different options exactly matching different candidates of "Foo (Bar)"
+    is an ambiguity, never a guess."""
     assert exact_match("Foo (Bar)", {"foo", "bar"}) is None
 
 
@@ -373,9 +363,8 @@ zac:
 
 
 def test_resolve_image_basenames_primary_row_gets_leftover_after_technische_claims(ecrt: ModuleType, tmp_path: Path):
-    """Once every "used_by"-tagged sibling has claimed its own basename,
-    the component's registered primary image (here the default "image"
-    path) goes to the primary (used_by-blank) row."""
+    """After used_by siblings claim theirs, the registered primary image goes
+    to the primary (used_by-blank) row."""
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -398,17 +387,9 @@ zac:
 
 
 def test_resolve_image_basenames_primary_claims_its_own_name_before_siblings(ecrt: ModuleType, tmp_path: Path):
-    """frankgateway's own default image is literally named "frank-gateway"
-    (same as the component's own plain display name) — every sibling
-    "Frank Gateway <Role>" row's name trivially CONTAINS that same
-    "frankgateway" prefix too, so if a sibling got first refusal it would
-    wrongly claim "frank-gateway" for itself (verified bug: "Frank Gateway
-    Dashboard" claiming "frank-gateway", leaving the real "Frank Gateway"
-    row stuck with "apisix-dashboard" as its only leftover). The primary
-    row's own unambiguous exact match must be claimed FIRST so this can't
-    happen; "Dashboard" itself shares no text with "apisix-dashboard" at
-    all, so it's correctly left blank rather than guessed (same
-    never-guess policy as test_resolve_image_basenames_unresolvable_technische_row_is_blank)."""
+    """The primary row's exact match is claimed first: every "Frank Gateway
+    <Role>" sibling also contains "frankgateway" and would otherwise steal
+    "frank-gateway". An unmatched sibling stays blank, never guessed."""
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -430,12 +411,9 @@ frankgateway:
 
 
 def test_resolve_image_basenames_primary_row_first_refusal_is_exact_match_only(ecrt: ModuleType, tmp_path: Path):
-    """redis-operator's own primary row name ("Redis Operator") merely
-    CONTAINS basename "redis" — never a match: "redis" (the actual Redis
-    server image) belongs to the sibling row naming it exactly ("Redis
-    HA (redis)"), not the generic "Redis Operator" umbrella row (whose
-    own target version is the operator CHART's own release number, not
-    any single image's version at all — it correctly stays blank)."""
+    """ "Redis Operator" merely contains "redis": "redis" goes to the sibling
+    naming it exactly, and the operator row (versioned by its chart) stays
+    blank."""
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -461,10 +439,8 @@ redis-operator:
 
 
 def test_resolve_image_basenames_primary_row_gets_multiple_leftover_basenames(ecrt: ModuleType, tmp_path: Path):
-    """A component with several registered primary images (zgw-office-
-    addin's frontend and backend, which always move in lockstep and
-    share one row/version) gets all of them comma-joined onto its
-    single primary row."""
+    """Several registered primary images (zgw-office-addin frontend/backend,
+    one shared version) are comma-joined on the primary row."""
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -485,9 +461,7 @@ zgw-office-addin:
 
 
 def test_resolve_image_basenames_unresolvable_technische_row_is_blank(ecrt: ModuleType, tmp_path: Path):
-    """ "ITA Poller" shares no text at all with the actual repository
-    basename ("internetaakafhandeling.poller") — left blank rather than
-    guessed."""
+    """No shared text with the actual basename: left blank, not guessed."""
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -530,10 +504,8 @@ def test_resolve_image_basenames_unknown_component_is_blank(ecrt: ModuleType, tm
 
 
 def test_resolve_image_basenames_native_component_scans_its_own_key(ecrt: ModuleType, tmp_path: Path):
-    """The native keycloak component (default native_components) is its
-    own component: its server image and keycloak-config-cli resolve
-    under "keycloak", and keycloak-operator's scan no longer includes
-    that key."""
+    """Native keycloak is its own component: its server and config-cli images
+    resolve under "keycloak", not keycloak-operator."""
     write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None)])
     write_values_yaml_raw(
         tmp_path,
@@ -562,8 +534,7 @@ keycloak-operator:
 
 
 def test_extract_release_rows_end_to_end_populates_image_basename(ecrt: ModuleType, tmp_path: Path):
-    """extract_release_rows itself, not just resolve_image_basenames in
-    isolation, must insert the resolved basename at the right column."""
+    """extract_release_rows inserts the resolved basename at the right column."""
     write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
     values_path = tmp_path / "values.yaml"
     values_path.write_text(
@@ -595,11 +566,8 @@ zac:
 def test_resolve_image_basenames_falls_back_to_any_tag_when_digest_required_scan_is_empty(
     ecrt: ModuleType, tmp_path: Path
 ):
-    """omc's real shape: its own image.tag has NO digest at all (its
-    subchart can't handle one) — the digest-required basenames_under_
-    scope finds nothing under "omc" at all, so resolve_image_basenames
-    must fall back to the digest-optional basenames_under_scope_any_tag
-    instead of leaving the row blank."""
+    """omc's tag has no digest (its subchart can't handle one), so resolution
+    must fall back to basenames_under_scope_any_tag."""
     write_values_yaml_raw(
         tmp_path,
         """\
@@ -616,13 +584,8 @@ omc:
 def test_resolve_image_basenames_any_tag_fallback_does_not_override_digest_scan_result(
     ecrt: ModuleType, tmp_path: Path
 ):
-    """A basename the digest-required scan already found is never
-    replaced by the any_tag fallback (the fallback is strictly additive,
-    per-basename — see test_resolve_image_basenames_any_tag_fallback_
-    supplements_a_partially_digest_pinned_component below for the case
-    where it genuinely adds something new): a component that's fully
-    digest-pinned is completely unaffected by the fallback existing at
-    all."""
+    """The any_tag fallback is per-basename additive: it never replaces a
+    basename the digest-required scan already found."""
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -639,20 +602,10 @@ zac:
 def test_resolve_image_basenames_any_tag_fallback_supplements_a_partially_digest_pinned_component(
     ecrt: ModuleType, tmp_path: Path
 ):
-    """Regression test (real bug, real chart): keycloak-operator's own
-    operator.config.keycloakImage pins its digest as a separate sibling
-    "sha:" field (never embedded in "tag:"), so the digest-required scan
-    can never see it — but keycloak-operator's OTHER image (its own
-    admin-user init container) IS fully digest-pinned, so the whole-
-    component's own digest-required scan is NOT empty. Before this fix,
-    the any_tag fallback only ever fired when a component's ENTIRE scope
-    came up empty (see the omc case above) — a component that's only
-    PARTIALLY resolvable via the digest-required scan silently kept its
-    own unresolvable basename blank forever, exactly the real gap behind
-    verify-release-table-with-podiumd's own former special_case_tag_path
-    workaround. The fallback must now be tried per-basename: "keycloak"
-    (only resolvable via any_tag) gets added, "python" (already resolved
-    via the digest-required scan) is untouched by it."""
+    """Regression: keycloak-operator's keycloakImage keeps its digest in a
+    sibling "sha:" field, invisible to the digest-required scan, while its
+    other image is digest-pinned. The any_tag fallback must run per-basename,
+    not only when the whole scope is empty."""
     write_values_yaml_raw(
         tmp_path,
         f"""\
@@ -675,10 +628,8 @@ keycloak-operator:
 
 
 def test_resolve_image_basenames_unclaimed_sidecar_is_not_given_to_the_primary_row(ecrt: ModuleType, tmp_path: Path):
-    """An unclaimed image that isn't on a registered primary path (here
-    zac's otel collector, with no row naming it) stays unassigned — the
-    primary row gets only its own registered primary image, and
-    verify-release-table-with-podiumd reports the untracked image."""
+    """An unclaimed image off the registered primary paths stays unassigned;
+    verify-release-table-with-podiumd reports it."""
     write_values_yaml_raw(
         tmp_path,
         f"""\

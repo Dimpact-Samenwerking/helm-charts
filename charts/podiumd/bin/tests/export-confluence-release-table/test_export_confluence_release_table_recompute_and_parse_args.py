@@ -1,6 +1,4 @@
-"""recompute_image_basenames, the main() --recompute-basenames flag, and
-parse_args — with fetch_page_html mocked out, so no network access or
-real Confluence page is needed."""
+"""recompute_image_basenames, --recompute-basenames and parse_args."""
 
 import csv
 

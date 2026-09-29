@@ -1,6 +1,4 @@
-"""lib.upgradedoc -- string normalization, version-cell parsing,
-fuzzy name/dependency matching, and changes-heading identity
-resolution."""
+"""lib.upgradedoc -- string normalization, version-cell parsing, name matching, heading identities."""
 
 from types import ModuleType
 
@@ -102,8 +100,7 @@ def test_word_aligned_spans_includes_every_contiguous_word_run(libupgradedocbasi
 
 
 def test_word_aligned_spans_excludes_mid_word_fragments(libupgradedocbasics: ModuleType):
-    """ "mi" never appears as its own span even though it's a literal
-    substring of "admin" — spans only ever concatenate WHOLE words."""
+    """ "mi" (a substring of "admin") never appears as a span: spans concatenate whole words only."""
     spans = libupgradedocbasics._word_aligned_spans("ensurePodiumdAdminUser")
     assert "mi" not in spans
     assert spans == {"ensurepodiumdadminuser"}
@@ -129,8 +126,7 @@ def test_match_dependency_no_match_returns_none(libupgradedocbasics: ModuleType)
 
 
 def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedocbasics: ModuleType):
-    """ "mi" is a literal substring of "ensurePodiumdAdminUser" (inside
-    "ad-mi-n") — must not match at all without a real word boundary."""
+    """ "mi" inside "ensurePodiumdAdminUser" must not match without a word boundary."""
     deps = [{"name": "mi-data", "alias": "mi"}]
     assert libupgradedocbasics.match_dependency("Python (ensurePodiumdAdminUser init image)", deps) is None
 
@@ -151,9 +147,7 @@ def test_match_native_component_no_match_returns_none(libupgradedocbasics: Modul
 
 
 def test_match_native_component_does_not_match_mid_word(libupgradedocbasics: ModuleType):
-    """Same word-boundary protection as match_dependency — a native
-    component name that happens to be a literal substring of an unrelated
-    word must not match."""
+    """A native component name inside an unrelated word must not match."""
     assert libupgradedocbasics.match_native_component("somefrankgatewayfoo", {"frankgateway"}) is None
 
 
@@ -182,14 +176,8 @@ def test_changes_heading_identities_two_real_components(libupgradedocbasics: Mod
 def test_changes_heading_identities_does_not_double_count_an_alias_nested_inside_another(
     libupgradedocbasics: ModuleType,
 ):
-    """Regression test: eck-stack's own alias "kiss-eck" tokenizes to the
-    words "kiss"+"eck" — the standalone "kiss" word inside it is ALSO,
-    coincidentally, the real KISS dependency's own alias. Without a
-    containment filter, this heading would wrongly resolve to BOTH
-    "kiss-eck" and "kiss" (two identities), when it only ever names one
-    real component — the same class of bug find_changes_row_
-    correspondence_gaps exists to catch would then wrongly flag this
-    heading as ambiguous and its row as missing a section."""
+    """Regression: "kiss-eck" contains the word "kiss" (KISS's alias); the heading must resolve to one
+    identity, or find_changes_row_correspondence_gaps flags it as ambiguous."""
     deps = [
         {"name": "kiss", "alias": "KISS", "version": "3.0.0"},
         {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"},
@@ -201,24 +189,15 @@ def test_changes_heading_identities_does_not_double_count_an_alias_nested_inside
 
 
 def test_changes_heading_identities_self_referential_sidecar_shape_resolves_to_nothing(libupgradedocbasics: ModuleType):
-    """Regression test: a heading shaped like a canonical sidecar
-    reference ("<parent> - <basename>", " - " being the shape's own
-    literal delimiter) that doesn't actually match any REAL canonical
-    sidecar name (real case: "### openbao - openbao 2.5.5 → 2.5.5" —
-    self-referential, canonical_sidecar_row_names refuses to name a
-    sidecar after its own parent) must resolve to NO identity at all —
-    never fall through to a coincidental plain word match against the
-    real "openbao" dependency just because the word "openbao" happens
-    to appear in the broken heading's own text too."""
+    """Regression: a "<parent> - <basename>" heading matching no real sidecar (e.g. self-referential
+    "openbao - openbao") resolves to nothing, not a plain word match on "openbao"."""
     deps = [{"name": "openbao", "version": "0.28.4"}]
     idents = libupgradedocbasics.changes_heading_identities("openbao - openbao 2.5.5 → 2.5.5", deps, {})
     assert idents == set()
 
 
 def test_changes_heading_identities_real_sidecar_still_resolves_despite_dash(libupgradedocbasics: ModuleType):
-    """The " - " guard must never swallow a REAL canonical sidecar match
-    — only applies once match_canonical_sidecar_name has already had its
-    own shot and failed."""
+    """The " - " guard applies only after match_canonical_sidecar_name failed."""
     canonical_names = {"openbao - postgres": ("openbao", "database", "schemaJob", "image")}
     deps = [{"name": "openbao", "version": "0.28.4"}]
     idents = libupgradedocbasics.changes_heading_identities(

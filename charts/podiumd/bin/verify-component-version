@@ -35,8 +35,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
@@ -57,20 +56,16 @@ from lib.yaml_types import load_yaml_mapping
 
 
 def find_dependency(name_or_alias: str):
-    """Looks up `name_or_alias` among podiumd's own Chart.yaml dependencies
-    (matching either the dependency's name or its alias) and raises
-    SystemExit with a clear error if there's no match."""
+    """Chart.yaml dependency by name or alias; SystemExit if none."""
     return require_dependency(CHART_YAML, name_or_alias)
 
 
 def main():
-    """CLI entry point: pulls <component>'s target <chart-version> to get
-    its real values.yaml (a chart-version bump can move a repository path
-    or add a sidecar), or reads podiumd's values.yaml for "native", then
-    checks <app-version> exists upstream for every
-    one of that component's registered app image path(s). Exits non-zero
-    if the chart version can't be pulled, or any app image version is
-    missing."""
+    """CLI entry point.
+
+    Uses the target chart version's values.yaml: a chart bump can move a
+    repository path or add a sidecar.
+    """
     component, app_version, chart_version = positional_args(__doc__, 3)
 
     if is_native_chart_version(chart_version):
@@ -83,8 +78,7 @@ def main():
         chart_values = verify_chart_version(CHART_DIR, dep, chart_version)  # exits 1 itself if missing
         podiumd_values = load_yaml_mapping(CHART_DIR / "values.yaml")
         values = component_check_values(chart_values, mapping_at(podiumd_values, values_key_of(dep)))
-    # image_paths_for is keyed by the Chart.yaml "name", never the alias
-    # the user may have passed (e.g. "kiss" for dependency "kiss-chart").
+    # image_paths_for is keyed by Chart.yaml name, not alias ("kiss" vs "kiss-chart").
     results = check_image_versions(values, image_paths_for(chart_name, CHART_DIR), app_version)
 
     print()

@@ -57,9 +57,7 @@ def test_remove_unchanged_component_rows_removes_row_and_section() -> None:
 
 
 def test_remove_unchanged_component_rows_reverted_sidecar() -> None:
-    """redis reverted to its baseline v8.6.6 while the doc still has its
-    row and section (the stale state update-image-version used to leave
-    in images-<target>.yaml, here for -upgrade.md)."""
+    """redis reverted to baseline v8.6.6 while the doc still has its row and section."""
     resolution = ResolutionContext(
         None,
         ComponentState(DEPS, values("v8.6.6", "5.4.5")),

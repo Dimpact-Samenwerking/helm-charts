@@ -28,8 +28,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.historical_baselines import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart.paths import CHART_DIR
@@ -47,17 +46,12 @@ FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
 def current_chart_version():
-    """Returns the target version to scaffold docs for: charts/podiumd/
-    Chart.yaml's own "version:" field."""
+    """Target version: Chart.yaml "version:"."""
     return chart_version(CHART_YAML)
 
 
 def main():
-    """CLI entry point: scaffolds whichever of the standard upgrade-path
-    docs and images manifest don't already exist for the current chart
-    version, refusing if docs already exist for that target under a
-    different upgrade_docs_baseline (use fix-doc-consistency for that
-    case instead), then regenerates README.md via fix-helm-doc."""
+    """CLI entry point."""
     positional_args(__doc__, 0)
 
     upgrade_docs_baseline = read_upgrade_docs_baseline(CHART_DIR)

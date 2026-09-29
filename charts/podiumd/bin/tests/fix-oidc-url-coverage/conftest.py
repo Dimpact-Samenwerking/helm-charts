@@ -1,6 +1,4 @@
-"""Loads fix-oidc-url-coverage (a hyphenated filename, not importable
-normally) as a module named `sub` so tests can call its functions
-directly."""
+"""Load fix-oidc-url-coverage (hyphenated, not importable) as module `sub`."""
 
 import importlib.util
 

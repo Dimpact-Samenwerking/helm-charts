@@ -1,17 +1,4 @@
-"""The images-manifest's own "# Changes:" (or bare "# Changes:") header
-block: finding it (find_images_manifest_changes_header), enumerating its
-numbered items (find_images_manifest_changes_items), keeping their
-numbers and the header's own leading count word gapless and correct
-(renumber_images_manifest_changes_items, images_manifest_changes_count_
-word), creating the header from scratch when a manifest has lost it
-(ensure_images_manifest_changes_header), ordering a new item against
-values.yaml's own component order (images_manifest_order_key), and
-inserting one at its correct position (insert_images_manifest_header_
-item). Shared by lib.component_docs's own update_images_manifest/
-remove_component_from_images_manifest, lib.image.docs, lib.docs_
-consistency, and fix-doc-consistency's own add_missing_images_manifest_
-entries. Split out of the former flat lib/component_docs.py, now the
-lib.component_docs package."""
+"""Find, create, number and insert items into the images-manifest "# Changes:" header block."""
 
 import re
 
@@ -43,35 +30,17 @@ NUMBER_WORDS = [
     "Fifteen",
 ]
 CHANGES_HEADER_RE = re.compile(r"^(?P<indent>#\s*)(?P<count_word>\w+)\s+changes?:\s*$", re.IGNORECASE)
-# A plain "# Changes:" images-manifest header with no leading count word at
-# all — CHANGES_HEADER_RE requires one ("# Twenty Two changes:"), but a
-# hand-curated header (this chart's own real images-4.9.0.yaml, extensively
-# rewritten with rich per-item prose) may never have picked that convention
-# up, and IMAGES_STUB_TEMPLATE's own fresh "# Changes:" line never has one
-# either. See find_images_manifest_changes_header, the shared "recognize
-# either shape" lookup.
+# "# Changes:" without a count word: hand-curated headers and IMAGES_STUB_TEMPLATE's fresh one.
 BARE_CHANGES_HEADER_RE = re.compile(r"^(?P<indent>#\s*)[Cc]hanges:\s*$")
 CHANGES_ITEM_RE = re.compile(r"^#\s*(?P<num>\d+)\.\s+(?P<rest>.+)$")
-# The intro line IMAGES_STUB_TEMPLATE's own "# Changes:\n#\n" header
-# always follows immediately — see ensure_images_manifest_changes_header,
-# which uses this as its own insertion anchor when a file has lost (or
-# never had) that header.
+# Intro line the "# Changes:" header follows; insertion anchor for a missing header.
 IMAGES_MANIFEST_INTRO_RE = re.compile(r"^#\s*Images new or changed in podiumd\b.*$", re.IGNORECASE)
 
 
 def find_images_manifest_changes_header(lines: list[str]):
-    """(header_idx, header_has_count) for the images-manifest's own "#
-    Changes:" header — matching EITHER CHANGES_HEADER_RE's counted form
-    ("# Twenty One changes:") or BARE_CHANGES_HEADER_RE's plain "#
-    Changes:" (no count word at all — the real, hand-curated images-
-    4.9.0.yaml header's own actual shape, and IMAGES_STUB_TEMPLATE's own
-    fresh one). (None, False) if neither is found anywhere in the file.
-    Shared by fix-doc-consistency's own header-item insertion/reordering
-    and update_images_manifest below — before this was factored out,
-    update_images_manifest checked CHANGES_HEADER_RE alone, so it never
-    recognized (and so never updated) a bare "# Changes:" header — the
-    exact shape both the real hand-curated file and a freshly-stubbed
-    one actually have."""
+    """(header_idx, header_has_count) for the "# Changes:" header, counted or bare.
+
+    (None, False) if neither shape is found."""
     for i, line in enumerate(lines):
         if CHANGES_HEADER_RE.match(line):
             return i, True
@@ -81,40 +50,11 @@ def find_images_manifest_changes_header(lines: list[str]):
 
 
 def ensure_images_manifest_changes_header(lines: list[str]):
-    """Create the images-manifest's own bare "# Changes:\n#\n" header
-    (see find_images_manifest_changes_header/IMAGES_STUB_TEMPLATE),
-    right after the "# Images new or changed in podiumd ... vs ..."
-    intro line, for a file that has NO header at all yet — a no-op if
-    one already exists (either shape).
+    """Add a bare "# Changes:\n#\n" header after the intro line if the file has none.
 
-    insert_images_manifest_header_item's own docstring documents it as
-    a no-op when the file has no header at all — by design, it only
-    ever inserts an item INTO an existing header, never creates one from
-    scratch. That meant a file that somehow lost its header (or never
-    got one in the first place) could never have it added back by any
-    later fix-doc-consistency run, silently, with no error or warning —
-    real, observed case: images-4.9.1.yaml gained 5 real entries (redis,
-    3 openbao sidecars, zac's own otel sidecar) across several runs, each
-    with a correct per-entry "#" comment (proving path_display_name's own
-    component lookup worked fine), but the file's "# Changes:" header
-    itself was simply never there for any of those insertions to land
-    in — so none of them ever got a summary-list item either, and
-    nothing surfaced that gap until lib.docs_consistency's own "has an
-    entry but no mention in the '# Changes:' list" check was pointed at
-    it directly.
-
-    Callers should call this before every insert_images_manifest_header_
-    item call site (both the per-entry pass and the backfill pass in
-    fix-doc-consistency's own add_missing_images_manifest_entries) —
-    it's cheap and idempotent, so unconditionally ensuring first is
-    simpler than threading "did we already ensure this run" state
-    through both call sites.
-
-    Falls through as a no-op (never crashes) if the intro line itself
-    isn't found either — a defensive fallback for a manifest shaped
-    differently than IMAGES_STUB_TEMPLATE's own convention; nothing
-    currently produces that shape, but this must never be where a
-    caller's whole run aborts."""
+    insert_images_manifest_header_item never creates a header, so without this a file that
+    lost it silently gets no summary items. Idempotent: call before every insert. No-op
+    (never crashes) if the intro line is missing too."""
     header_idx, _has_count = find_images_manifest_changes_header(lines)
     if header_idx is not None:
         return
@@ -128,13 +68,9 @@ def ensure_images_manifest_changes_header(lines: list[str]):
 
 
 def find_images_manifest_changes_items(lines: list[str]) -> tuple[int | None, bool, list[int]]:
-    """(header_idx, header_has_count, item_indices) — item_indices is
-    every "#   N. ..." line's own index (see CHANGES_ITEM_RE), in
-    current top-to-bottom document order, scoped to the "# Changes:"
-    header's own block (see find_images_manifest_changes_header). (None,
-    False, []) if the header doesn't exist. Shared by every function
-    that needs to enumerate this list's own items without re-deriving
-    the same block-scanning loop each time."""
+    """(header_idx, header_has_count, item_indices) for the "# Changes:" block.
+
+    item_indices are the "#   N. ..." lines in document order; (None, False, []) without a header."""
     header_idx, header_has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return None, False, []
@@ -143,9 +79,7 @@ def find_images_manifest_changes_items(lines: list[str]) -> tuple[int | None, bo
 
 
 def find_changes_item(lines: list[str], item_indices: list[int], name: str) -> int | None:
-    """The index in `item_indices` of the first "#   N. ..." item that
-    names `name` (see changes_item_names), or None. Shared by every
-    writer that updates or removes a component's or image's item."""
+    """The index of the first item in `item_indices` naming `name`, or None."""
     for idx in item_indices:
         m = CHANGES_ITEM_RE.match(lines[idx])
         if m and changes_item_names(m.group("rest"), name):
@@ -154,37 +88,19 @@ def find_changes_item(lines: list[str], item_indices: list[int], name: str) -> i
 
 
 def images_manifest_changes_count_word(total: int):
-    """The header's own leading count word for `total` items — a single
-    NUMBER_WORDS entry (Zero..Fifteen) when it has one, else the bare
-    numeral string; CHANGES_HEADER_RE's own count_word group is a single
-    \\w+ token, so a two-word compound like "Twenty Six" is never
-    produced — paired with "change"/"changes" for the trailing noun.
-    Shared by every function that rewrites this header line so the
-    "what word for what count" rule is never reimplemented twice."""
+    """(count_word, noun) for the header line: a NUMBER_WORDS entry, else the numeral.
+
+    CHANGES_HEADER_RE's count_word is a single \\w+ token, so never "Twenty Six"."""
     count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
     noun = "change" if total == 1 else "changes"
     return count_word, noun
 
 
 def renumber_images_manifest_changes_items(lines: list[str]):
-    """Renumber the images-manifest's own "# Changes:" numbered item
-    list to a gapless 1..N sequence matching CURRENT top-to-bottom
-    document order, and update the header's own leading count word (see
-    images_manifest_changes_count_word) to match — regardless of
-    whether anything else about the list changed. insert_images_
-    manifest_header_item/dedupe_images_manifest_changes_items/sort_
-    images_manifest_changes_items each already renumber correctly as a
-    side effect of their OWN specific operation (inserting one item,
-    removing a duplicate, reordering) — but none of them fires at all
-    when the list is already duplicate-free and already in the right
-    RELATIVE order, yet still has the wrong ABSOLUTE numbers (real case:
-    a human hand-removes a stale item's own block without renumbering
-    everything after it, leaving a gap like "...6. ... 8. ..." with no
-    "7." at all). This is the one pass that always fixes that, on its
-    own, independent of anything else. Mutates `lines` in place. Returns
-    True if anything was renumbered (either an item's own number, or
-    the header's count word), False if the list was already exactly
-    1..N (or the header/list doesn't exist at all)."""
+    """Renumber the "# Changes:" items to a gapless 1..N in document order and fix the count word.
+
+    Catches gaps the other writers miss (e.g. a hand-removed item). Mutates `lines`; returns
+    whether anything changed."""
     header_idx, header_has_count, item_indices = find_images_manifest_changes_items(lines)
     if header_idx is None or not item_indices:
         return False
@@ -211,29 +127,11 @@ def renumber_images_manifest_changes_items(lines: list[str]):
 def images_manifest_order_key(
     key_order: list[str], values_key: str | tuple[str, ...], *, is_sidecar: bool, values: YamlMapping | None = None
 ) -> tuple[int, ...]:
-    """(index-in-key_order, 0-or-1-for-sidecar) sort key for an images-
-    manifest "# Changes:" item belonging to `values_key` — an unknown
-    values_key (not in key_order at all) sorts LAST, never crashes.
-    Shared by every caller that inserts/positions a header item relative
-    to values.yaml's own top-level component order (update_images_
-    manifest below, lib.image.docs.update_image_manifest, fix-doc-
-    consistency's own add_missing_images_manifest_entries) so they can
-    never independently drift on what "in order" means.
+    """Sort key for a "# Changes:" item by values.yaml top-level order; unknown keys sort last.
 
-    `values_key` may ALSO be a full values-tree PATH TUPLE, not just its
-    own bare top-level-key string — when it is, and `values` (the real
-    parsed values.yaml dict) is also given, this resolves the item's own
-    FULL nested position (see lib.upgradedoc.values_tree_position) once
-    it's past its own top-level index, rather than tying every non-
-    primary item under the same top-level key to one identical key —
-    real bug this fixes: every "global.images.*" item (nginx/curl/
-    busybox/redis, all genuinely different, independently-orderable
-    images) used to tie at the exact same (values_key_index, is_
-    sidecar), leaving their own relative order to whatever a stable
-    sort happened to preserve. A bare STRING values_key (the historical
-    shape), or values=None, keeps the exact prior top-level-only
-    behavior unchanged — every existing caller not yet passing a real
-    path/values is never worse off than before."""
+    With a path tuple and `values`, the nested position breaks ties between items under the
+    same top-level key (e.g. the "global.images.*" images). A bare string or values=None
+    orders by top-level key and sidecar flag only."""
     path = values_key if isinstance(values_key, tuple) else (values_key,)
     try:
         idx = key_order.index(path[0])
@@ -245,11 +143,9 @@ def images_manifest_order_key(
 
 
 def images_manifest_changes_block(lines: list[str], header_idx: int) -> tuple[list[int], int]:
-    """(item_starts, block_end) for the "# Changes:" block whose header is
-    at header_idx: the index of every "#   N. ..." item line
-    (CHANGES_ITEM_RE), and the index one past the block's last comment
-    line. The block ends at a bare "#" line or the first line that isn't a
-    comment. The one scan every reader and writer of this block uses."""
+    """(item_starts, block_end) for the "# Changes:" block at header_idx.
+
+    The block ends at a bare "#" line or the first non-comment line."""
     item_starts: list[int] = []
     block_end = header_idx + 1
     for i in range(header_idx + 1, len(lines)):
@@ -285,38 +181,11 @@ def remove_changes_item(lines: list[str], item_indices: list[int], match_idx: in
 def insert_images_manifest_header_item(
     lines: list[str], deps: list[ChartDependency], key_order: list[str], new_key: tuple[int, ...], item_text: str
 ) -> None:
-    """Insert "#   N. <item_text>" into the images-manifest's own "#
-    Changes:" header list (see find_images_manifest_changes_header) at
-    the position matching new_key relative to what's already there (see
-    lib.upgradedoc.component_order_key/insertion_index — the SAME
-    ordering convention upgrade.md's own table rows/Changes sections
-    use, via images_manifest_order_key above), renumbering every
-    subsequent item. An existing item that can't be resolved to a real
-    dependency (free-form prose, matched via match_dependency_excluding_
-    sidecar_names the same way check_images_manifest_format's own
-    Changes-item check does) sorts last for THIS purpose only — never
-    causes it to move. Mutates `lines` in place; a no-op if the file has
-    no header at all. Only rewrites the header line's own leading count
-    word if it already had one (see header_has_count) — never invents
-    one for a bare "# Changes:" label.
+    """Insert "#   N. <item_text>" into the "# Changes:" list at new_key's order position.
 
-    Renumbering after the raw insert goes through renumber_images_
-    manifest_changes_items rather than a relative "+1 to every existing
-    item's OWN current number" shift — the latter silently preserves
-    (just shifted) any gap or wrong number the list already had before
-    this call, since it never computes each item's correct ABSOLUTE
-    position from scratch; the former always does, fixing a pre-existing
-    drift as a side effect of this insert instead of just adding to it.
-
-    Shared by update_images_manifest below (a real component's own app+
-    chart bump — the common case update-component-version/update-image-
-    version write) and fix-doc-consistency's own add_missing_images_
-    manifest_entries (a changed image with no entry/header item at all
-    yet) — before this was factored out here, update_images_manifest had
-    its OWN separate, append-only version (new items always landed at
-    the very end, out of values.yaml's own order, only ever fixed by a
-    LATER fix-doc-consistency run), which could silently drift from this
-    one on what "correct" position even means."""
+    Uses the same ordering as upgrade.md's rows. Items not resolvable to a dependency sort
+    last for this purpose only. Mutates `lines`; no-op without a header. Renumbers absolutely
+    via renumber_images_manifest_changes_items, which also repairs pre-existing gaps."""
     header_idx, _header_has_count, item_indices = find_images_manifest_changes_items(lines)
     if header_idx is None:
         return
@@ -334,9 +203,7 @@ def insert_images_manifest_header_item(
 
     insert_slot = insertion_index(new_key, item_keys)
     insert_line = item_indices[insert_slot] if insert_slot < len(item_indices) else block_end
-    # The number here is only ever a placeholder — renumber_images_
-    # manifest_changes_items (below) overwrites it, and every OTHER
-    # item's own number, with each one's correct final position.
+    # Placeholder number; renumbered below.
     lines.insert(insert_line, f"#   0. {item_text}\n")
 
     renumber_images_manifest_changes_items(lines)

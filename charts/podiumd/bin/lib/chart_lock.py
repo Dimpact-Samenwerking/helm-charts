@@ -1,26 +1,19 @@
-"""Chart.lock types, checked loading, and writing byte-compatible with what `helm
-dependency update` itself writes — so lib.dependencies can re-vendor only
-the dependencies that changed and still leave behind a Chart.lock Helm
-accepts as its own.
+"""Chart.lock types, checked loading, and writing byte-compatible with `helm
+dependency update`, so lib.dependencies can re-vendor only changed
+dependencies and leave a Chart.lock Helm accepts.
 
-The one non-obvious part is the `digest:` line. Helm (internal/resolver
-HashReq in Helm 3) computes it as
+The `digest:` line is Helm 3's resolver HashReq:
 
     "sha256:" + sha256(json.Marshal([2][]*chart.Dependency{req, lock}))
 
-where `req` is Chart.yaml's own dependency list after Helm resolved every
-"@alias" repository to its plain URL, and `lock` is the new Chart.lock
-dependency list. Go's encoding/json has three quirks helm_lock_digest
-mirrors exactly: struct fields in declaration order (not sorted),
-`omitempty` fields dropped when empty, and <, >, & escaped as \\u003c,
-\\u003e, \\u0026. Verified against a real Helm 3.22 Chart.lock for all 25
-podiumd dependencies (tests/lib/test_chart_lock.py pins that case).
+`req` is Chart.yaml's dependencies with "@alias" repos resolved, `lock` the
+new Chart.lock list. helm_lock_digest mirrors Go's encoding/json: fields in
+declaration order, empty `omitempty` fields dropped, and <, >, & escaped as
+\\u003c, \\u003e, \\u0026 (pinned by tests/lib/test_chart_lock.py).
 
-Only `helm dependency build` ever compares the digest (and refuses a
-mismatching lock); `helm template`/`lint`/`package` never read it, and
-Chart.lock is gitignored here — so a digest that ever drifted from
-Helm's own would cost one full `helm dependency update`, not a broken
-render."""
+Only `helm dependency build` checks the digest, and Chart.lock is
+gitignored, so a drifted digest costs one full `helm dependency update`,
+not a broken render."""
 
 import hashlib
 import json
@@ -83,10 +76,9 @@ _GO_JSON_ESCAPES = {
 
 
 def resolved_repository(dep: ChartDependency | ChartLockDependency, required_repos: dict[str, str]) -> str:
-    """dep's repository as Helm stores it in Chart.lock: an "@alias"
-    resolved through `required_repos` (lib.settings.
-    helm_repos_urls_by_alias), anything else (plain URL, oci://, file://)
-    unchanged. An alias `required_repos` doesn't know stays "@alias"."""
+    """dep's repository as stored in Chart.lock: "@alias" resolved via required_repos, else unchanged.
+
+    Unknown aliases stay "@alias"."""
     repo = dep.get("repository") or ""
     if repo.startswith("@"):
         return required_repos.get(repo[1:], repo)
@@ -94,9 +86,7 @@ def resolved_repository(dep: ChartDependency | ChartLockDependency, required_rep
 
 
 def _go_json_dependency(dep: ChartDependency | ChartLockDependency):
-    """dep as Go's json.Marshal writes a chart.Dependency: declared field
-    order, omitempty fields left out when empty, version always a string
-    (see lib.dependencies._dependency_key for why str())."""
+    """dep as Go's json.Marshal writes a chart.Dependency; version always a string."""
     out: dict[str, object] = {}
     for field, omitempty in _DEPENDENCY_JSON_FIELDS:
         value = dep.get(field)
@@ -109,8 +99,7 @@ def _go_json_dependency(dep: ChartDependency | ChartLockDependency):
 
 
 def _go_json(value: object) -> str:
-    """json.Marshal output for value: no whitespace and Go's HTML-safe
-    escapes. Key order is the caller's (see _sorted_nested_maps)."""
+    """json.Marshal output: no whitespace, Go's HTML-safe escapes, caller's key order."""
     text = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
     for char, escape in _GO_JSON_ESCAPES.items():
         text = text.replace(char, escape)
@@ -118,8 +107,7 @@ def _go_json(value: object) -> str:
 
 
 def _sorted_nested_maps(value: YamlValue) -> YamlValue:
-    """value with every dict below the top-level dependency fields sorted
-    by key, the order Go marshals a map[string]interface{} in."""
+    """value with nested dicts sorted by key, as Go marshals map[string]interface{}."""
     if isinstance(value, dict):
         return {key: _sorted_nested_maps(value[key]) for key in sorted(value)}
     if isinstance(value, list):
@@ -130,9 +118,7 @@ def _sorted_nested_maps(value: YamlValue) -> YamlValue:
 def helm_lock_digest(
     chart_deps: list[ChartDependency], lock_deps: list[ChartLockDependency], required_repos: dict[str, str]
 ) -> str:
-    """The `digest:` Helm writes into Chart.lock for Chart.yaml's
-    `chart_deps` and the lock's own `lock_deps` — see the module
-    docstring for the exact recipe."""
+    """The `digest:` Helm writes into Chart.lock (see module docstring)."""
     req: list[dict[str, object]] = []
     for dep in chart_deps:
         encoded = _go_json_dependency({**dep, "repository": resolved_repository(dep, required_repos)})
@@ -146,11 +132,10 @@ def helm_lock_digest(
 
 
 def lock_dependencies(chart_deps: list[ChartDependency], required_repos: dict[str, str]) -> list[ChartLockDependency]:
-    """Chart.lock's `dependencies:` list for Chart.yaml's `chart_deps`,
-    in Chart.yaml order — only name/repository/version, the three fields
-    Helm writes there. Assumes every version is exact (lib.dependencies
-    checks that first): Helm writes the version it resolved a range to,
-    which only a real repo index lookup knows."""
+    """Chart.lock `dependencies:` (name/repository/version) in Chart.yaml order.
+
+    Assumes exact versions (lib.dependencies checks): a range would need a
+    repo index lookup to resolve."""
     return [
         {
             "name": dep.get("name"),
@@ -162,10 +147,7 @@ def lock_dependencies(chart_deps: list[ChartDependency], required_repos: dict[st
 
 
 def write_chart_lock(chart_dir: Path, chart_deps: list[ChartDependency], required_repos: dict[str, str]) -> None:
-    """(Re)writes chart_dir/Chart.lock for `chart_deps` the way `helm
-    dependency update` would: dependency list, digest, and a fresh
-    `generated:` timestamp, keys sorted (Helm marshals the lock through
-    JSON, so its YAML keys come out alphabetical too)."""
+    """(Re)write Chart.lock like `helm dependency update`: deps, digest, fresh `generated:`, sorted keys."""
     lock_deps = lock_dependencies(chart_deps, required_repos)
     lock: ChartLock = {
         "dependencies": lock_deps,
@@ -191,9 +173,9 @@ def is_chart_lock_dependency_list(value: YamlValue) -> TypeGuard[list[ChartLockD
 
 
 def parse_chart_lock_dependencies(text: str, source: str) -> list[ChartLockDependency] | None:
-    """The dependencies of the Chart.lock in `text`, or None if it has no
-    dependency list. Checks only the dependencies. Raises YamlShapeError
-    naming `source` if an entry does not match ChartLockDependency."""
+    """Chart.lock dependencies from `text`, or None if absent.
+
+    Raises YamlShapeError naming `source` if an entry doesn't match ChartLockDependency."""
     deps = parse_yaml_mapping(text, source).get("dependencies")
     if deps is None:
         return None

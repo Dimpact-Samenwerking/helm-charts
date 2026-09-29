@@ -1,8 +1,6 @@
-"""Cross-checks between an upgrade doc's own prose (Changes
-headings, dependency-name mentions) and the real Chart.yaml
-dependency/native-component identities -- flags a heading that
-corresponds to no real row, or text claiming a dependency that
-doesn't exist, rather than ever guessing a match."""
+"""Cross-checks between an upgrade doc's prose (Changes headings, dependency
+names) and real Chart.yaml/native-component identities; mismatches are
+flagged, never guessed."""
 
 from collections.abc import Mapping
 from collections.abc import Sequence
@@ -22,22 +20,12 @@ from lib.upgradedoc.string_and_parsing_basics import normalize_name
 def resolve_component_identity(
     text: str, deps: list[ChartDependency], canonical_names: Mapping[str, tuple[str, ...]] | None
 ) -> ComponentRef | None:
-    """The single component `text` names — ("sidecar", path) or ("dep",
-    values_key) — or None if it names no real Chart.yaml dependency,
-    canonical sidecar/shared-image, or native_components component (see
-    lib.chart.native_components) at all. The same two-step resolution
-    docs_consistency.py's own table-row loop applies inline (sidecar
-    name checked first, since match_dependency_excluding_sidecar_names
-    refuses anything containing " - " on purpose), generalized here so
-    changes_heading_identities can apply it to free-form Changes-heading
-    text too, not just a table row's own bare name.
+    """The single component `text` names, ("sidecar", path) or ("dep", values_key), or None.
 
-    A native_components match is returned as ("dep", values_key) too —
-    same identity shape as a real dependency, deliberately: every caller
-    here only ever asks "does this row/heading's identity match that
-    OTHER row/heading's identity", never "is this backed by a real
-    Chart.yaml dependency", so a native component needs no third,
-    parallel identity shape of its own."""
+    Sidecar names are checked first because
+    match_dependency_excluding_sidecar_names rejects anything containing
+    " - ". Native components also return ("dep", key): callers only compare
+    identities, so no separate shape is needed."""
     sidecar_path = match_canonical_sidecar_name(text, canonical_names)
     if sidecar_path is not None:
         return ("sidecar", sidecar_path)
@@ -56,34 +44,12 @@ def find_changes_row_correspondence_gaps(
     deps: list[ChartDependency],
     canonical_names: Mapping[str, tuple[str, ...]],
 ) -> tuple[list[str], list[str]]:
-    """Cross-check the "Component versions" table against the "## Changes"
-    section: every row naming a real component should have exactly one
-    Changes heading naming that same component, and vice versa — a real
-    omission neither side's own internal checks (out-of-order, missing-
-    vs-baseline) can see, since each only ever looks at one of the two
-    lists at a time, never asking whether the OTHER list agrees a given
-    component's row/section exists at all (e.g. a row added without ever
-    writing its narrative Changes section, or a Changes section written
-    for a component whose table row was forgotten, renamed, or never
-    added).
+    """Cross-check "Component versions" rows against "## Changes" headings.
 
-    A heading only ever credits a row when changes_heading_identities
-    finds EXACTLY one component in it — a heading naming zero (an
-    orphan, real case: "Keycloak app image 26.6.4 → 26.7.2", which never
-    says "keycloak-operator" or even "operator") or two-or-more (real
-    case: the ECK Operator/ECK Stack example above) never credits any
-    component's row, and is itself always reported as having no matching
-    row, exactly like a heading naming the wrong component would be —
-    "assess the text as a whole" cuts both ways: a heading either
-    unambiguously names one row, or it's wrong, never a shortcut to
-    satisfying two rows at once.
-
-    A row/heading-side that doesn't resolve to any real component at all
-    (free-form prose, or a row already flagged elsewhere as wrong/stale
-    — see find_wrong_or_duplicate_dependency_claims) is silently skipped
-    on ITS OWN side. Returns (rows_without_heading, headings_without_row),
-    each a list of the original row name / heading text, in their
-    original order."""
+    Each resolvable row needs a heading naming exactly that component and
+    vice versa. A heading naming zero or several components credits no row
+    and is itself reported. Unresolvable rows are skipped. Returns
+    (rows_without_heading, headings_without_row) in original order."""
     heading_identity_sets = [changes_heading_identities(h, deps, canonical_names) for h in headings]
     all_heading_identities: set[ComponentRef] = set()
     for idents in heading_identity_sets:
@@ -124,19 +90,10 @@ def find_changes_duplicate_identities(
     deps: list[ChartDependency],
     canonical_names: Mapping[str, tuple[str, ...]],
 ) -> tuple[list[tuple[str, ...]], list[tuple[str, ...]]]:
-    """(duplicate_row_groups, duplicate_heading_groups): the "Component
-    versions" rows, and separately the "## Changes" headings, that name
-    the same component more than once — e.g. rows "KISS" and "Kiss", or
-    headings "KISS 3.0.0 → 3.1.0" and "kiss 3.0.0 → 3.1.0 (chart 1 → 2)".
-    find_changes_row_correspondence_gaps only asks whether an identity
-    appears on both sides, so a second row/heading for the same component
-    passes it unnoticed.
+    """(duplicate_row_groups, duplicate_heading_groups) naming the same component more than once.
 
-    Rows resolve via resolve_component_identity; a heading counts only
-    when changes_heading_identities finds exactly one identity in it (a
-    zero- or multi-identity heading is already reported by
-    find_changes_row_correspondence_gaps). Each group lists the original
-    row names / heading texts in their original order."""
+    E.g. rows "KISS" and "Kiss". Only single-identity headings count; others
+    are already reported by find_changes_row_correspondence_gaps."""
     row_idents: list[tuple[str, ComponentRef]] = []
     for row in rows:
         ident = resolve_component_identity(row["name"], deps, canonical_names)
@@ -153,17 +110,10 @@ def find_changes_duplicate_identities(
 
 
 def is_exact_dependency_match(name: str, dep: ChartDependency) -> bool:
-    """True if `name`, normalized (case/punctuation-insensitive), equals
-    `dep`'s own name or alias EXACTLY — not just a fuzzy word-span
-    containment match (see match_dependency). Distinguishes "this row
-    literally IS the dependency" (e.g. "KISS") from "this row merely
-    mentions it somewhere in a longer free-form name" (e.g. "Kiss
-    Elasticsearch", which match_dependency also resolves to the same
-    dependency via its normal word-containment matching, even though the
-    row is actually describing something else entirely — a real doc-
-    consistency gap this distinction exists to catch: once one row
-    exactly claims a dependency, no other row should be allowed to
-    silently claim the same one merely by fuzzy containment)."""
+    """True if normalized `name` equals dep's name or alias exactly, not just by word containment.
+
+    Separates "KISS" (is the dependency) from "Kiss Elasticsearch" (merely
+    mentions it)."""
     norm = normalize_name(name)
     return any(normalize_name(c) == norm for c in (dep.get("name"), dep.get("alias")) if c)
 
@@ -171,39 +121,16 @@ def is_exact_dependency_match(name: str, dep: ChartDependency) -> bool:
 def find_wrong_or_duplicate_dependency_claims(
     names: list[str], deps: list[ChartDependency]
 ) -> tuple[set[str], set[str]]:
-    """(duplicate_names, wrong_fuzzy_names) for a list of free-form names
-    each purporting to describe a Chart.yaml dependency — a doc row's own
-    Name cell, or an images-manifest "# Changes:" item's own free-form
-    text. Two deterministic gaps neither ordinary per-row/per-item
-    content checking catches on its own:
+    """(duplicate_names, wrong_fuzzy_names) for free-form names claiming Chart.yaml dependencies.
 
-    - duplicate_names: any name appearing more than once in `names` — a
-      leftover/typo'd duplicate, whatever it resolves to.
-    - wrong_fuzzy_names: any name that only fuzzy-matches (match_dependency_
-      excluding_sidecar_names) a dependency ALREADY exactly claimed (see
-      is_exact_dependency_match) by another name in `names`. Real case
-      this catches: a stale free-form item/row like "Kiss Elasticsearch"
-      or "Kiss's ECK-managed Elasticsearch/Kibana/Enterprise Search"
-      fuzzy-matches the real "kiss" dependency on the word "kiss" —
-      exactly the same collision the doc's own exact "KISS" row/item
-      already legitimately claims — so an ordinary content check comparing
-      it against kiss's own actual app/chart version finds nothing wrong
-      whenever those numbers happen to already agree, even though the
-      free-form one doesn't correspond to anything in Chart.yaml/
-      values.yaml as its own tracked item at all.
+    - duplicate_names: names appearing more than once.
+    - wrong_fuzzy_names: names that only fuzzy-match a dependency another
+      name already claims exactly (e.g. "Kiss Elasticsearch" next to "KISS");
+      a version check alone can't catch these when the numbers agree.
 
-    Callers should skip their own normal per-name resolution entirely for
-    any name in either returned set, reporting it as wrong/stale instead —
-    see lib.docs_consistency's own row loop and Changes-block loop for the
-    exact pattern.
-
-    Exact claims are tracked as two sets (claiming names, claimed keys),
-    not a {key: name} dict: a dict remembers only one claiming name per
-    key, so two different names that both exactly claim the same key
-    (e.g. "KISS" and "Kiss") would overwrite each other and leave the
-    first one looking like a fuzzy claim. Duplicate names are included:
-    a name that appears twice still exactly claims its dependency, so an
-    unrelated fuzzy name for that dependency is still reported."""
+    Callers should report names in either set as wrong/stale and skip their
+    normal resolution. Exact claims use two sets, not a {key: name} dict, so
+    two names exactly claiming one key don't overwrite each other."""
     name_counts: dict[str, int] = {}
     for name in names:
         name_counts[name] = name_counts.get(name, 0) + 1

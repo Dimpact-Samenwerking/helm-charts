@@ -1,14 +1,6 @@
-"""compare() (the pure comparison core) for verify-release-table-with-podiumd:
-is_primary_image, plus everything compare() reports as missing (from
-release-table.csv, from Chart.yaml/values.yaml), orphan/ambiguous/unresolved
-rows, "MULTIPLE" (global.images) rows, and multi-image components. compare()
-takes plain in-memory deps/values/lines/rows, so these tests need neither a
-real Chart.yaml nor network access.
-
-Split out of test_verify_release_table_with_podiumd.py (pylint
-too-many-lines) -- purely a test reorganization, no behavior change. See the
-sibling test_verify_release_table_with_podiumd_*.py files for the rest of
-that suite."""
+"""compare(): is_primary_image, missing/orphan/ambiguous/unresolved rows,
+MULTIPLE (global.images) rows and multi-image components. In-memory inputs;
+no Chart.yaml or network."""
 
 from types import ModuleType
 
@@ -39,11 +31,8 @@ def values_lines(*blocks):
 
 ZAC_BLOCK = f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.4.3@sha256:{DIGEST}"\n'
 
-# zac's own PRIMARY image (zac.image, matching lib.chart.
-# DEFAULT_IMAGE_PATHS) plus a sidecar image nested elsewhere (zac.
-# opentelemetry-collector.image) that is NEVER zac's primary image, no
-# matter how deep or shallow the nesting -- see lib.chart.
-# image_paths_for / COMPONENT_IMAGE_PATHS.
+# zac's primary image (zac.image) plus a nested sidecar that is never
+# primary, however deep it is nested.
 ZAC_WITH_SIDECAR_BLOCK = ZAC_BLOCK + (
     "  opentelemetry-collector:\n"
     "    image:\n"
@@ -56,25 +45,22 @@ ZAC_WITH_SIDECAR_BLOCK = ZAC_BLOCK + (
 
 
 def test_is_primary_image_default_path(vrt: ModuleType):
-    """DEFAULT_IMAGE_PATHS (["image"]) covers the common single-image
-    component -- zac's own "zaakafhandelcomponent" pin, at zac.image.tag."""
+    """DEFAULT_IMAGE_PATHS (["image"]) covers the single-image component."""
     lines = values_lines(ZAC_BLOCK)
     pins = vrt.basenames_under_scope_any_tag(lines, "zac")["zaakafhandelcomponent"]
     assert vrt.is_primary_image("zaakafhandelcomponent", lines, pins[0]) is True
 
 
 def test_is_primary_image_false_for_sidecar(vrt: ModuleType):
-    """A sidecar image nested elsewhere is never the component's primary
-    one, no matter how deep or shallow the nesting."""
+    """A nested sidecar image is never primary."""
     lines = values_lines(ZAC_WITH_SIDECAR_BLOCK)
     pins = vrt.basenames_under_scope_any_tag(lines, "zac")["opentelemetry-collector-contrib"]
     assert vrt.is_primary_image("zaakafhandelcomponent", lines, pins[0]) is False
 
 
 def test_is_primary_image_multi_image_component_override(vrt: ModuleType):
-    """COMPONENT_IMAGE_PATHS overrides DEFAULT_IMAGE_PATHS for a multi-
-    image component -- zgw-office-addin's own frontend+backend are BOTH
-    primary, per lib.chart.COMPONENT_IMAGE_PATHS."""
+    """COMPONENT_IMAGE_PATHS overrides the default: both zgw-office-addin
+    images are primary."""
     lines = values_lines(
         "zgw-office-addin:\n"
         "  frontend:\n"
@@ -103,11 +89,8 @@ def test_compare_reports_dependency_with_no_release_table_row(vrt: ModuleType):
 
 
 def test_compare_dependency_missing_hint_names_resolvable_identifier(vrt: ModuleType):
-    """The finding's own second line must tell a human exactly what text
-    to write on the Confluence page so the NEXT export resolves this row
-    back to the same dependency (see lib.export's component_and_alias) —
-    the dependency's own alias when it has one (a real Chart.yaml
-    dependency's alias always wins an exact-match tier on its own)."""
+    """The hint names the text to put on Confluence so the next export
+    resolves the row back to this dependency: its alias when it has one."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     findings, _ = vrt.compare([], vrt.ChartState(None, deps, {}, []))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
@@ -116,8 +99,7 @@ def test_compare_dependency_missing_hint_names_resolvable_identifier(vrt: Module
 
 
 def test_compare_reports_image_pinned_but_not_tracked(vrt: ModuleType):
-    """values.yaml pins an image under zac's own scope that no
-    release-table.csv row mentions at all."""
+    """An image pinned under zac's scope that no CSV row mentions."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="", target_helm="1.0.297")]
     findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
@@ -128,17 +110,9 @@ def test_compare_reports_image_pinned_but_not_tracked(vrt: ModuleType):
 
 
 def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt: ModuleType):
-    """The finding's own second line must name the exact Confluence table
-    (read off this component's own existing row) and exactly what a new
-    row needs to say — a Name ending in the exact identifier in brackets — so
-    resolve_image_basenames/component_and_alias resolve it on the next
-    export, not just a vague pointer to "add it somewhere". No "Used by"
-    mentioned: "Product component versies" (like Common Ground/Overige)
-    has no such column at all -- only "Technische component versies"
-    does (see missing_image_hint). The version is explicitly labeled
-    "App" since this table still splits its "Versie ..." column into
-    separate App/Helm sub-columns — a human needs to know which one to
-    fill in."""
+    """The hint names the exact table (from the component's existing row)
+    and the Name with bracketed identifier. No "Used by": Product tables
+    lack that column. "App" is explicit because this table splits App/Helm."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="", target_helm="1.0.297")]
     findings, _ = vrt.compare(rows, vrt.ChartState(None, deps, {}, values_lines(ZAC_BLOCK)))
@@ -150,11 +124,8 @@ def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt: Mod
 
 
 def test_compare_missing_primary_image_uses_own_table_without_used_by(vrt: ModuleType):
-    """A component's own PRIMARY application image (see lib.chart.
-    image_paths_for/DEFAULT_IMAGE_PATHS -- zac.image, here) never needs
-    "Used by", even when its only tracked row happens to live on
-    "Technische component versies": it's this row's own identity, not a
-    sibling image being attributed to some other consuming component."""
+    """A component's primary image never needs "Used by", even on a
+    Technische table: it's the row's own identity."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [
         {
@@ -172,11 +143,8 @@ def test_compare_missing_primary_image_uses_own_table_without_used_by(vrt: Modul
 
 
 def test_compare_missing_sidecar_image_always_goes_to_technische_with_used_by(vrt: ModuleType):
-    """A component's own sidecar/init-container image -- NOT its primary
-    application image, see lib.chart.image_paths_for -- always goes to
-    "Technische component versies" with "Used by" naming the component,
-    regardless of which table the component's own primary row actually
-    lives on (here, "Product")."""
+    """A sidecar image always goes to Technische with "Used by" naming the
+    component, wherever its primary row lives."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [
         csv_row(
@@ -234,9 +202,8 @@ def test_compare_reports_tracked_image_no_longer_pinned(vrt: ModuleType):
 
 
 def test_compare_checks_images_for_orphan_values_yaml_component(vrt: ModuleType):
-    """frankgateway-style: no Chart.yaml dependency, but a real top-level
-    values.yaml key — its own image(s) are still checked, just without a
-    chart-version comparison (no Chart.yaml "version:" to compare against)."""
+    """No Chart.yaml dependency but a top-level values.yaml key: images are
+    still checked, without a chart-version comparison."""
     frank_block = (
         f'frankgateway:\n  image:\n    repository: ghcr.io/wearefrank/frank-gateway\n    tag: "1.1.0@sha256:{DIGEST}"\n'
     )
@@ -276,10 +243,8 @@ def test_compare_reports_ambiguous_when_basename_pinned_at_multiple_versions(vrt
 
 
 def test_compare_reports_ambiguous_when_unscoped_basename_matches_different_repos(vrt: ModuleType):
-    """A basename absent from the row's own scope but present under two
-    unrelated sibling scopes with DIFFERENT repositories (the real "redis"
-    collision: quay.io/opstree/redis vs. an unrelated redis pin) must not be
-    silently trusted just because both happen to pin the same version."""
+    """A basename only under two sibling scopes with different repositories
+    (the "redis" collision) is not trusted, even if versions agree."""
     block = (
         "zac:\n"
         "  image:\n"
@@ -336,9 +301,8 @@ GLOBAL_CURL_BLOCK = (
 
 
 def test_compare_checks_multiple_row_against_global_images(vrt: ModuleType):
-    """A "MULTIPLE" row (a shared base image like curl, hoisted into
-    values.yaml's global.images map) is checked against the "global"
-    scope, not skipped as unresolved."""
+    """A MULTIPLE row (shared base image in global.images) is checked against
+    the "global" scope, not skipped as unresolved."""
     rows = [csv_row("Curl", "MULTIPLE", alias="MULTIPLE", image_basename="curl", target_app="8.23.0")]
     findings, unresolved = vrt.compare(rows, vrt.ChartState(None, [], {}, values_lines(GLOBAL_CURL_BLOCK)))
     assert any("target 8.23.0 != values.yaml 8.22.0" in m for m in findings["mismatches"])
@@ -353,9 +317,7 @@ def test_compare_multiple_row_matching_global_image_passes(vrt: ModuleType):
 
 
 def test_compare_multiple_row_with_no_image_basename_is_silently_skipped(vrt: ModuleType):
-    """A "MULTIPLE" row export-confluence-release-table couldn't even
-    resolve an image_basename for (an ambiguous plain dependency-name
-    collision, not a global image) has nothing to check — not an error."""
+    """A MULTIPLE row without image_basename has nothing to check: not an error."""
     rows = [csv_row("Something Ambiguous", "MULTIPLE", alias="MULTIPLE", image_basename="")]
     findings, unresolved = vrt.compare(rows, vrt.ChartState(None, [], {}, []))
     assert findings == {}
@@ -371,11 +333,8 @@ def test_compare_reports_global_image_with_no_release_table_row(vrt: ModuleType)
 
 
 def test_compare_missing_multiple_image_hint_has_no_used_by_and_guesses_technische(vrt: ModuleType):
-    """A MULTIPLE row resolves purely from its own Name naming the global
-    image key or basename exactly -- no "Used by" needed (see
-    resolve_image_basenames). With zero existing "MULTIPLE" rows to read
-    a section from at all, "Technische" is still a safe guess (every
-    global.images entry is, by convention, exported there)."""
+    """A MULTIPLE row needs no "Used by"; with no existing MULTIPLE row to copy
+    the section from, "Technische" is the safe guess (global.images convention)."""
     findings, _ = vrt.compare([], vrt.ChartState(None, [], {}, values_lines(GLOBAL_CURL_BLOCK)))
     hint = next(m for m in findings["missing_from_release_table"] if "'global' image 'curl'" in m)
     assert '\n      Confluence: add row to "Technische component versies"' in hint

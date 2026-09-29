@@ -1,7 +1,4 @@
-"""Version-transition cell/heading-suffix rendering ("X -> Y",
-"(new)", "(unchanged)"), the version-pair/spec line replacers used
-when bumping a pin in place, and describe_key_changes/missing_key_
-change_lines_by_key's values.yaml-schema-diff prose."""
+"""Version-transition text ("X -> Y", "(new)", "(unchanged)"), in-place pin rewriters and key-change prose."""
 
 import re
 
@@ -24,38 +21,11 @@ HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
 def version_change_suffix(old: str | None, new: str | None, *, digest_only_change: bool = False):
-    """The bracketed status suffix alone for a version transition —
-    "(new)" when there's no real baseline value at all (`old` falsy);
-    "(digest changed)" when the version itself didn't change but its
-    embedded digest did (`digest_only_change`); "(unchanged)" when the
-    version is identical and nothing else did either; None when the
-    version genuinely differs — nothing to render as a bare suffix, the
-    caller renders the transition itself ("<old> <arrow> <new>", or
-    "<old> -> <new>") instead.
+    """The status suffix for a version transition, or None when the version really changed.
 
-    THE one place this exact four-way decision is made — real bug this
-    closes: at least half a dozen call sites across this codebase used
-    to hand-roll their own copy of it (some correctly, some not) —
-    -upgrade.md's own table cell (canonical_version_cell/new_component_
-    version_cell below), its own "### ..." Changes heading (lib.
-    component_docs.make_changes_section's own app_heading/pin_suffix),
-    a shared-image basename's own Changes heading (lib.image.docs.
-    make_image_changes_section's own heading_suffix/per-path bullets),
-    and the images-manifest's own per-entry comment/header-list item
-    (image_manifest_version_text below, lib.image.docs.
-    update_image_manifest's own item_text, lib.component_docs.
-    update_images_manifest's own item_text, fix-doc-consistency's own
-    add_missing_images_manifest_entries) — with two of those (update_
-    image_manifest's own item_text; add_missing_images_manifest_
-    entries' own version_text, which used a bare "no baseline_tag ->
-    fall back to new_version itself" sentinel that made an "old ==
-    new" DIGEST-only-change check wrongly fire for a genuinely brand-
-    new image too, confirmed live: images-4.9.1.yaml's own zac otel
-    sidecar comment read "0.158.0 -> 0.158.0" instead of "0.158.0
-    (new)") actually getting it WRONG. Every caller now delegates here
-    instead — see image_manifest_version_text (images-manifest's own
-    ascii "->" arrow house style) and canonical_version_cell (-upgrade.
-    md's own unicode "→" style) for the two current thin wrappers."""
+    "(new)" without `old`; "(digest changed)" or "(unchanged)" when the versions are equal.
+    The single place this decision is made: every table cell, heading and images-manifest
+    comment delegates here (hand-rolled copies got "X -> X" instead of "X (new)")."""
     if not old:
         return "(new)"
     if normalize_version(old) == normalize_version(new):
@@ -64,13 +34,7 @@ def version_change_suffix(old: str | None, new: str | None, *, digest_only_chang
 
 
 def image_manifest_version_text(old: str | None, new: str | None, *, digest_only_change: bool = False):
-    """The images-manifest's own house style for a version-change
-    comment (an entry's own preceding comment, or a "# Changes:" header
-    list item's own embedded version fragment) — ascii "->" arrow,
-    matching this file type's own existing convention (as opposed to
-    -upgrade.md's unicode "→" — see canonical_version_cell). See
-    version_change_suffix for the shared new/unchanged/digest-changed
-    decision both delegate to."""
+    """Images-manifest version text: ascii "->" arrow, unlike -upgrade.md's "→"."""
     suffix = version_change_suffix(old, new, digest_only_change=digest_only_change)
     return f"{new} {suffix}" if suffix else f"{old} -> {new}"
 
@@ -85,10 +49,7 @@ def canonical_version_cell(actual_source: str, actual_target: str | None):
 
 
 def new_component_version_cell(actual_target: str):
-    """A "Component versions" table cell for a component with no baseline
-    version at all — brand new this hop: "<target> (new)", the third
-    member of canonical_version_cell's own "<target> (unchanged)" /
-    "<source> → <target>" family."""
+    """A "Component versions" cell for a component new this hop: "<target> (new)"."""
     return f"{actual_target} {version_change_suffix(None, actual_target)}"
 
 
@@ -101,22 +62,13 @@ def component_version_cell(old: str | None, new: str | None) -> str | None: ...
 
 
 def component_version_cell(old: str | None, new: str | None) -> str | None:
-    """canonical_version_cell(old, new) when a baseline value exists;
-    new_component_version_cell(new) when it doesn't AND `new` is a real
-    version — never for the literal "-" not-applicable placeholder a
-    sidecar row's own Helm-chart cell already legitimately uses (that's
-    "no chart version of its own to compare", not "brand new"); bare
-    `new` otherwise, and None when there is no `new` at all. The single place
-    both update_component_table (a fresh row) and fix-doc-consistency's
-    own fix_component_version_table (correcting an existing one) decide
-    this cell's text, so the two can't drift on when "(new)" applies.
+    """The "Component versions" cell text for old -> new; None when there is no `new`.
 
-    A native_components component's own Helm-chart cell (see lib.chart.
-    native_components — a component with no chart at all to compare)
-    reuses this exact "-" placeholder path too: callers pass old=None,
-    new="-" for it, same as any chart-less sidecar row."""
+    canonical_version_cell with a baseline, else new_component_version_cell, except for the
+    "-" not-applicable placeholder (chart-less sidecar or native component), returned as is.
+    Shared by update_component_table and fix_component_version_table so "(new)" can't drift."""
     if new is None:
-        return None  # no target version: nothing to write
+        return None
     if old:
         return canonical_version_cell(old, new)
     if new and new != "-":
@@ -137,39 +89,20 @@ def replace_version_pair(line: str, new_source: str, new_target: str):
 
 
 def replace_version_spec(line: str, new_spec: str):
-    """Replace the first version-spec substring in `line` — either an
-    "<source> -> <target>" (or "→") arrow pair (see replace_version_
-    pair/VERSION_PAIR_RE), or a "<version> (new)"/"(unchanged)"/"(digest
-    changed)" bracketed form (see image_manifest_version_text) — with
-    the literal text `new_spec`, preserving everything else (name,
-    prefix, em-dash, trailing newline) untouched. `line` unchanged
-    (count 0) if it has neither shape at all — a genuinely free-form
-    comment this was never meant to touch.
+    """Replace the first version spec in `line` with `new_spec`; `line` unchanged if none.
 
-    The images-manifest's own per-entry comment analogue of replace_
-    version_pair, generalized to ALSO replace a bracketed-suffix spec,
-    not just an arrow pair — needed since the CORRECT text for an entry
-    can switch from one shape to the other (e.g. a wrongly-written
-    arrow "X -> X" must become the bracketed "X (new)" — real bug, real
-    doc: images-4.9.1.yaml's own zac otel sidecar comment). Deliberately
-    whole-string replacement (never capture-group reassembly like
-    replace_version_pair's own `repl`) since the caller already has the
-    FULL desired text from image_manifest_version_text, not just its
-    two endpoints."""
+    A spec is an arrow pair (VERSION_PAIR_RE) or a "<version> (new)"/"(unchanged)"/
+    "(digest changed)" form. Whole-spec replacement, since the correct text can switch
+    shape (a wrong "X -> X" must become "X (new)")."""
     new_line, count = VERSION_SPEC_RE.subn(lambda _m: new_spec, line, count=1)
     return new_line if count else line
 
 
 def describe_key_changes(values_key: str, baseline_subtree: YamlValue, current_subtree: YamlValue):
-    """One "- Key `<dotted>` was added/removed/renamed to `<dotted>`." line
-    per top-level key change under this component — backtick-quoted,
-    matching the convention verify-podiumd's own check looks for.
+    """One "- Key `<dotted>` was added/removed/renamed to `<dotted>`." line per key change.
 
-    Paths passed to diff_keys/pair_renames are relative to the subtree
-    itself (path=()), NOT prefixed with values_key — pair_renames's own
-    lookups walk baseline_subtree/current_subtree directly, so a
-    values_key-prefixed path would never resolve (silently comparing None
-    to None, which can pair completely unrelated keys as a false rename)."""
+    Paths given to diff_keys/pair_renames are relative to the subtrees (path=()): a
+    values_key-prefixed path never resolves and pairs unrelated keys as false renames."""
     diffs = list(diff_keys(baseline_subtree, current_subtree))
     added = [p for kind, p in diffs if kind == "added"]
     removed = [p for kind, p in diffs if kind == "removed"]
@@ -187,46 +120,14 @@ def describe_key_changes(values_key: str, baseline_subtree: YamlValue, current_s
 def missing_key_change_lines_by_key(
     text: str, changed_component_keys: set[str], baseline_values: YamlMapping | None, values: YamlMapping | None
 ) -> dict[str, list[str]]:
-    """{values_key: [line, ...]} — every describe_key_changes() line for
-    a changed component that isn't already mentioned (backtick-quoted,
-    matching verify-podiumd's own check_values_deltas_content
-    convention) anywhere in text, grouped by the component it's about —
-    only keys with at least one missing line appear in the result. The
-    per-key-preserving counterpart to a flattened "just append
-    everything" list: each key's own missing lines need routing into
-    THAT key's own values-deltas.md section (see lib.component_docs.
-    sync_values_delta_sections), not appended as one shared flat block.
-    A rename line carries two backtick spans (old and new key); both
-    must already be mentioned for the line to count as covered, else
-    it's reported as missing so a partial/stale rename mention still
-    gets caught.
+    """{values_key: [line, ...]} of describe_key_changes() lines not yet mentioned in text.
 
-    "Mentioned" requires an EXACT match against an existing backtick
-    span — never a substring check either direction. A real bug this
-    guards against: ordinary prose using a short, generic word in
-    backticks elsewhere in the doc (e.g. "environments override
-    `registry`/`repository` ... but never `tag`", describing a general
-    convention, not any one specific key) would otherwise silently mark
-    EVERY dotted key path merely CONTAINING that word —
-    `objecten.image.repository`, `keycloak-operator.operator.image.tag`,
-    ... — as "already covered", dropping real, distinct
-    additions/removals with no trace. A dotted path's own bare trailing
-    segment already mentioned elsewhere without its full prefix (e.g.
-    "ita.verlopenContactverzoekHerinneringNotificatie" referred to as
-    just "verlopenContactverzoekHerinneringNotificatie" in prose) is
-    deliberately reported as missing too — the exact same string shape
-    as the bug above, with no mechanical way to tell the two apart, so
-    there's no looser rule that catches one without the other. That
-    trades an occasional harmless duplicate line (something already
-    covered by differently-phrased prose gets suggested again) for
-    actually catching every real omission, the much safer failure mode
-    for a correctness check.
-
-    A line whose exact text is already present verbatim in `text` is
-    never reported either way, even if the "mentioned" check above
-    somehow missed it — a second, independent backstop against
-    re-adding content that's already there (see strip_fenced_code_blocks
-    for the one known way the "mentioned" check itself can be fooled)."""
+    Grouped per key so each goes to its own values-deltas.md section. A line counts as
+    mentioned only if every backtick span in it exactly equals a backtick span in text
+    (both keys of a rename). Never a substring match: prose like "never `tag`" would
+    otherwise cover every key path containing "tag". A bare trailing segment mentioned
+    without its prefix is therefore reported too; an occasional duplicate beats a missed
+    omission. A line already present verbatim is never reported."""
     backtick_spans = set(re.findall(r"`([^`]+)`", strip_fenced_code_blocks(text)))
 
     def mentioned(span: str):
@@ -247,35 +148,22 @@ def missing_key_change_lines_by_key(
 
 
 def strip_fenced_code_blocks(text: str):
-    """`text` with every ```...``` fenced code block blanked out. A single
-    backtick or "**" sequence inside example code isn't a real inline-
-    code/bold span, but naively pairing delimiters across the WHOLE
-    document (see extract_mentioned_dependency_keys/
-    missing_key_change_lines/lib.docs_consistency.
-    check_values_deltas_content, all of which scan a free-form doc for
-    such spans) desyncs every pairing after the first fence — silently
-    hiding real, already-mentioned spans later in the doc from an
-    "is this already covered" check, which then wrongly reports (or
-    re-adds) content that's already there. Scan the stripped text for
-    spans, never the original."""
+    """`text` with every ```...``` fenced code block blanked out.
+
+    A lone backtick or "**" in example code desyncs delimiter pairing for the rest of the
+    doc, so span scanners must scan the stripped text."""
     return FENCED_CODE_BLOCK_RE.sub("", text)
 
 
 def strip_html_comments(text: str):
-    """`text` with every <!-- ... --> HTML comment blanked out — same
-    "scan the stripped text, never the original" precedent as strip_
-    fenced_code_blocks above. Used by lib.component_docs.has_real_
-    gemeente_specific_content: gemeente-specific.md's own STUB_TEMPLATES
-    entry keeps its "## <gemeente> (<env>)" EXAMPLE heading inside one
-    big HTML comment, so a real, human-added section of the same shape
-    must never be confused with that commented-out template text."""
+    """`text` with every <!-- ... --> HTML comment blanked out.
+
+    gemeente-specific.md's stub keeps an example "## <gemeente> (<env>)" heading in a comment."""
     return HTML_COMMENT_RE.sub("", text)
 
 
 def append_to_doc(text: str, new_lines: list[str]):
-    """Append new_lines to the end of a doc, blank-line-separated from
-    whatever's already there — the shared "just tack this on" convention
-    used when a script adds content to an existing markdown doc."""
+    """Append new_lines to a doc, separated from existing content by a blank line."""
     if not new_lines:
         return text
     if text and not text.endswith("\n\n"):

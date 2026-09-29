@@ -1,7 +1,5 @@
-"""check_node_selector / scan_missing_node_selector — every
-Deployment/StatefulSet/DaemonSet/Job/CronJob in templates/*.yaml must
-expose a nodeSelector field somewhere in its document, per
-.github/copilot-instructions.md's AKS-Blue convention."""
+"""check_node_selector / scan_missing_node_selector: every workload kind in
+templates/*.yaml must expose a nodeSelector (AKS-Blue convention)."""
 
 from pathlib import Path
 from types import ModuleType
@@ -73,11 +71,8 @@ def test_non_workload_kinds_never_flagged(vp: ModuleType, tmp_path: Path):
 
 
 def test_multi_document_file_isolates_each_resource(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
-    """redis-ha-pre-delete.yaml's shape: ServiceAccount + Role + RoleBinding
-    + Job in one file, separated by bare `---` lines — only the Job (a
-    workload kind) should be checked, and it must be isolated from the
-    other three documents so an unrelated resource's content can't hide or
-    fake a nodeSelector for it."""
+    """Multi-document file: only the Job is checked, isolated from the other
+    documents so they can't hide or fake its nodeSelector."""
     text = (
         "apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: sa\n"
         "---\n"
@@ -120,12 +115,9 @@ def test_multiple_violations_across_files_all_reported(
     assert "2 violation(s)" in detail
 
 
-# A Job whose pod spec (including its conditional nodeSelector) lives in a
-# same-file `{{ define }}` block, referenced via `include` and interpolated
-# into spec.template — same shape as pabc-seed-job.yaml's own
-# "podiumd.pabcSeedJob.podTemplate" (defined so its rendered text can also
-# feed the Job name's checksum). The define block sits BEFORE the file's own
-# "---", landing in a different doc-split chunk than "kind: Job".
+# A Job whose pod spec (with nodeSelector) lives in a same-file `define`
+# block that is `include`-d; the define sits before "---", in a different
+# doc-split chunk than "kind: Job".
 DEFINE_BLOCK_JOB_WITH_SELECTOR = """\
 {{- define "podiumd.testJob.podTemplate" -}}
 spec:
@@ -176,9 +168,7 @@ def test_job_missing_selector_in_referenced_define_block_still_flagged(
 
 
 def test_unrelated_same_file_define_block_never_credited(vp: ModuleType, tmp_path: Path):
-    """A `define` block that HAPPENS to be in the same file but is never
-    actually `include`-d by this doc's own chunk must not be credited —
-    only a real `include "<name>"` call wires it in."""
+    """A same-file `define` that this chunk never `include`s isn't credited."""
     text = (
         DEFINE_BLOCK_JOB_WITHOUT_SELECTOR + '\n---\n{{- define "podiumd.unused.podTemplate" -}}\n'
         "nodeSelector: {}\n"
@@ -191,11 +181,8 @@ def test_unrelated_same_file_define_block_never_credited(vp: ModuleType, tmp_pat
 
 
 def test_non_literal_include_call_never_matches_a_define_name(vp: ModuleType, tmp_path: Path):
-    """`include (print ... )` (keycloak-import-podiumd-realm-job.yaml's own
-    same-file include call, for an unrelated template file) has no bare
-    quoted name right after `include` — must never be mistaken for one of
-    these `include "<name>"` calls, even if some unrelated same-file
-    `define` block happens to carry a nodeSelector."""
+    """`include (print ...)` has no quoted name, so it never matches a
+    `define` block, even one carrying a nodeSelector."""
     text = (
         '{{- define "podiumd.decoy.podTemplate" -}}\n'
         "nodeSelector: {}\n"

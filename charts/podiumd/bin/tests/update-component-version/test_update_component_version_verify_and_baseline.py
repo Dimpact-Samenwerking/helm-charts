@@ -1,6 +1,4 @@
-"""verify_component_version, baseline_doc_paths, load_baseline_values:
-split out of the former, monolithic test_update_component_version.py for
-pylint's too-many-lines check."""
+"""verify_component_version, baseline_doc_paths and load_baseline_values."""
 
 import subprocess
 
@@ -99,9 +97,8 @@ def test_verify_component_version_exits_when_image_does_not_exist(ucv: ModuleTyp
 
 
 def _checked_repositories(ucv: ModuleType, monkeypatch: pytest.MonkeyPatch, component_values):
-    """Runs verify_component_version against a faked pulled chart whose
-    image.repository is maykinmedia/open-forms, returning the repository
-    check_image_versions was asked to check."""
+    """Run verify_component_version against a faked pulled chart; return the
+    repository check_image_versions was asked to check."""
     dep = {"name": "openforms", "alias": "openformulieren", "version": "1.11.0", "repository": "@maykinmedia"}
     upstream = {"image": {"repository": "maykinmedia/open-forms", "tag": "3.5.5"}}
     monkeypatch.setattr(

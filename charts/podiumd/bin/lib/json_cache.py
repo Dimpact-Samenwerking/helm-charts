@@ -1,5 +1,4 @@
-"""The personal, gitignored JSON cache files under <repo-root>/.cache/,
-shared by lib.checks.cve, lib.image.upgrade_cache and lib.repo_access_cache."""
+"""Personal, gitignored JSON cache files under <repo-root>/.cache/."""
 
 import json
 
@@ -14,10 +13,9 @@ from lib.yaml_types import is_object_dict
 
 
 def cache_file(chart_dir: Path, filename: str) -> Path:
-    """<repo-root>/.cache/<filename>. Rooted at the repo root (not
-    chart_dir) so root .gitignore's plain /.cache/ entry covers it without
-    a chart-specific rule. Falls back to chart_dir itself if it isn't
-    inside a git checkout."""
+    """<repo-root>/.cache/<filename>, or <chart_dir>/.cache/ outside a git checkout.
+
+    Rooted at the repo root so the root .gitignore's /.cache/ entry covers it."""
     root = find_repo_root(chart_dir) or chart_dir
     return root / ".cache" / filename
 
@@ -26,10 +24,7 @@ EntryT = TypeVar("EntryT")
 
 
 def load_json_cache(path: Path, is_entry: Callable[[object], TypeGuard[EntryT]]) -> dict[str, EntryT]:
-    """The entries of the JSON object at path that pass `is_entry`, or {}
-    if the file doesn't exist yet or can't be parsed (corrupt/truncated).
-    Never raises: a broken cache, or a broken entry, behaves like a cold
-    one."""
+    """The entries at path that pass is_entry; {} if missing or unparsable. Never raises."""
     if not path.is_file():
         return {}
     try:
@@ -42,7 +37,6 @@ def load_json_cache(path: Path, is_entry: Callable[[object], TypeGuard[EntryT]])
 
 
 def save_json_cache(path: Path, cache: Mapping[str, object]) -> None:
-    """Write cache to path as pretty-printed, key-sorted JSON, creating the
-    .cache directory first if needed."""
+    """Write cache to path as indented, key-sorted JSON, creating the directory if needed."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")

@@ -1,8 +1,6 @@
-"""check_image_digests — sliding vs pinned tag wiring, and the
-[DIGEST-GONE] check (is the EXACT pinned digest still pullable at all,
-independent of whether the tag itself has drifted). No network access
-needed: registry_tag_exists is monkeypatched wherever a live fetch would
-otherwise happen."""
+"""check_image_digests: sliding vs pinned tag wiring and the [DIGEST-GONE] check.
+
+registry_tag_exists is monkeypatched; no network access."""
 
 import urllib.error
 
@@ -15,12 +13,8 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _clear_tag_exists_cache(libimagedigests: ModuleType):
-    """cached_tag_exists' own in-process memoization (see its own
-    docstring) lives in a module-level dict, and libimagedigests is a
-    session-scoped fixture — without this, one test's cached (fake)
-    registry_tag_exists result could silently leak into a LATER test
-    that reuses the same (repository, version), even though that later
-    test mocks registry_tag_exists completely differently."""
+    """Clear cached_tag_exists' module-level memo: libimagedigests is session-scoped, so a
+    cached fake result would otherwise leak into later tests using the same (repo, version)."""
     libimagedigests.clear_tag_exists_cache()
     yield
     libimagedigests.clear_tag_exists_cache()
@@ -31,11 +25,7 @@ def write_values(chart_dir, text):
 
 
 # --- check_image_digests: sliding vs pinned wiring ---
-#
-# The classification logic itself (git-history digest count, registry
-# sibling-tag fallback) lives in lib.registry and is tested there —
-# is_sliding_tag is mocked here to test only that check_image_digests
-# routes its verdict into the right bucket (and print label).
+# is_sliding_tag is mocked (tested in lib.registry); only bucket routing is tested here.
 
 TWO_IMAGES_VALUES = (
     "nginx:\n"
@@ -56,13 +46,9 @@ def test_check_image_digests_sliding_drift_warns_but_passes(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A tag known to slide drifting is routine, expected drift -- and,
-    as long as the OLD pinned digest is still independently pullable
-    (see the [DIGEST-GONE] check), no longer a failure at all -- just a
-    reported warning pointing at fix-image-digests."""
+    """Sliding-tag drift with the old digest still pullable is a warning, not a failure."""
     write_values(tmp_path, TWO_IMAGES_VALUES)
-    # Keyed on (repo, tag): the nginx TAG slid to "c", but its OLD pinned
-    # "a" digest is still pullable by digest; zac's tag is unchanged.
+    # nginx tag slid to "c" but old digest "a" still pulls; zac's tag is unchanged
     registry = {
         ("nginxinc/nginx-unprivileged", "1.31.3"): (True, f"sha256:{'c' * 64}"),
         ("nginxinc/nginx-unprivileged", f"sha256:{'a' * 64}"): (True, f"sha256:{'a' * 64}"),
@@ -82,8 +68,7 @@ def test_check_image_digests_sliding_drift_warns_but_passes(
     )
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True
-    # The "old pinned digest still pullable" precondition was actually
-    # looked up, not just satisfied by a repo-wide catch-all.
+    # the old-digest precondition was actually looked up, not a catch-all match
     assert ("nginxinc/nginx-unprivileged", f"sha256:{'a' * 64}") in calls
     assert "1 sliding" in detail
     assert "0 stale" in detail
@@ -101,8 +86,7 @@ def test_check_image_digests_pinned_drift_still_fails(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A component's own release tag drifting is a real failure, even when
-    a sliding tag ALSO drifted in the same run."""
+    """A component release tag drifting fails, even when a sliding tag also drifted."""
     write_values(tmp_path, TWO_IMAGES_VALUES)
     monkeypatch.setattr(
         libimagedigests,
@@ -128,19 +112,14 @@ def test_check_image_digests_pinned_drift_still_fails(
     assert "zaakafhandelcomponent" in out
 
 
-# --- check_image_digests: [DIGEST-GONE] — is the EXACT pinned digest
-# still pullable at all? A genuinely different, harder question than
-# whether the TAG has drifted (sliding or not) — see registry_tag_exists,
-# whose manifest URL accepts a digest string in exactly the tag position,
-# so no new registry-layer code is needed, just a second call.
+# --- check_image_digests: [DIGEST-GONE] — is the exact pinned digest still pullable?
+# registry_tag_exists accepts a digest in the tag position, so it's just a second call.
 
 
 def test_check_image_digests_matched_pin_never_gets_a_second_call(
     vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A matched pin's live digest already equals the pinned one -- it's
-    trivially still there, so no second (digest-liveness) call is ever
-    made for it."""
+    """Live digest equal to the pinned one: no digest-liveness call is made."""
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n'))
     calls = []
 
@@ -161,9 +140,7 @@ def test_check_image_digests_sliding_with_digest_still_pullable_only_warns(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """The OLD pinned digest independently resolves upstream — the tag
-    merely slid, nothing this repo actually deploys is at risk. Warns
-    (via [SLIDING], not a failure) and never reports [DIGEST-GONE]."""
+    """Tag slid but the old digest still resolves: [SLIDING] warning, no [DIGEST-GONE]."""
     digest_a = "a" * 64
     write_values(
         tmp_path,
@@ -194,10 +171,8 @@ def test_check_image_digests_sliding_with_digest_gone_fails(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """The tag slid AND the OLD digest this repo actually still pins has
-    since been garbage-collected upstream — a real, hard failure: helm
-    install/upgrade would fail outright right now, regardless of the
-    tag-level slide itself only being a warning."""
+    """Tag slid and the pinned digest is garbage-collected upstream: hard failure, since
+    helm install/upgrade would fail now."""
     digest_a = "a" * 64
     write_values(
         tmp_path,
@@ -227,9 +202,7 @@ def test_check_image_digests_mismatch_with_digest_gone_fails(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A non-sliding MISMATCH whose old pinned digest is also gone —
-    still just one failure category ([DIGEST-GONE]) added on top of the
-    pre-existing [MISMATCH] failure, not a special case."""
+    """A non-sliding MISMATCH with a gone digest adds [DIGEST-GONE] on top of [MISMATCH]."""
     digest_a = "a" * 64
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{digest_a}"\n'))
 
@@ -255,9 +228,7 @@ def test_check_image_digests_fetch_error_with_digest_gone_fails(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """The tag check itself couldn't be confirmed (a genuine fetch error,
-    not an UNVERIFIABLE_HOSTS one) — the old digest is STILL checked, and
-    found gone here too."""
+    """A tag-check fetch error (not UNVERIFIABLE_HOSTS) still checks the old digest."""
     digest_a = "a" * 64
     write_values(tmp_path, (f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{digest_a}"\n'))
 
@@ -284,8 +255,7 @@ def test_check_image_digests_unverifiable_host_skips_digest_liveness_check_entir
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A host in UNVERIFIABLE_HOSTS is skipped for the SECOND call too —
-    no point attempting what's already known to fail anonymously."""
+    """UNVERIFIABLE_HOSTS hosts skip the digest-liveness call too (anonymous access fails)."""
     write_values(
         tmp_path,
         (
@@ -306,8 +276,7 @@ def test_check_image_digests_unverifiable_host_skips_digest_liveness_check_entir
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
     ok, _detail = vp.check_image_digests(tmp_path)
     assert ok is True
-    # the tag check retries once on its own network error -- both attempts
-    # are still just the TAG check; no digest-liveness follow-up at all.
+    # the tag check retries once on network error; no digest-liveness follow-up
     assert calls == ["1.1.1", "1.1.1"]
     out = capsys.readouterr().out
     assert "[DIGEST-GONE]" not in out

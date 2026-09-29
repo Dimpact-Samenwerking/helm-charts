@@ -1,11 +1,4 @@
-"""lib.confluence_tables — page_id_from_url, api_base_url, fetch_page_html,
-extract_tables, tables_under_headings, expand_grid,
-leading_header_row_count, fallback_header_row_count,
-effective_header_row_count, header_paths, find_column,
-find_versie_groups, select_release_columns,
-missing_required_release_columns, is_semver_compatible, major_minor.
-fetch_page_html's `urlopen` is injected directly, so no network access
-needed."""
+"""lib.confluence_tables tests; fetch_page_html gets a fake `urlopen`."""
 
 import json
 import urllib.error
@@ -52,8 +45,7 @@ RELEASE_TABLE_HTML = """
 </table>
 """
 
-# Same table, but header cells are plain <td> (no <th> at all) — how
-# Confluence storage format sometimes renders it.
+# Confluence storage format sometimes renders header cells as <td>.
 NO_TH_RELEASE_TABLE_HTML = RELEASE_TABLE_HTML.replace("<th", "<td").replace("</th>", "</td>")
 
 
@@ -234,9 +226,7 @@ def test_extract_tables_br_becomes_space(libconfluencetables: ModuleType):
 
 
 def test_extract_tables_adjacent_paragraphs_separated_by_hr_do_not_run_together(libconfluencetables: ModuleType):
-    """Real podiumd page content: a version-history cell rendered as
-    "<p>5.4.3</p><hr/><p>5.4.4</p>" — without this, the two values
-    concatenate into "5.4.35.4.4" instead of staying distinguishable."""
+    """Paragraphs split by <hr/> stay separate, not "5.4.35.4.4"."""
     html = "<table><tr><td><p>5.4.3</p><hr/><p>5.4.4</p></td></tr></table>"
     tables = libconfluencetables.extract_tables(html)
     assert tables[0][1][0][0]["text"] == "5.4.3 5.4.4"
@@ -249,12 +239,7 @@ def test_extract_tables_single_paragraph_cell_has_no_stray_whitespace(libconflue
 
 
 def test_extract_tables_nested_table_does_not_leak_extra_columns(libconfluencetables: ModuleType):
-    """A table nested inside a cell (seen on the real podiumd release page:
-    a CVE-details table embedded in a "what changed" cell) must not be
-    mistaken for a second top-level table, and its own tr/td/th closing
-    tags must not prematurely close the OUTER cell — either bug would leak
-    the nested table's cells out as bogus extra columns of the outer
-    table."""
+    """A table nested in a cell is not a separate table and does not close the outer cell."""
     html = (
         "<table><tr><td>a</td><td>before "
         "<table><tr><td>nested1</td><td>nested2</td></tr></table>"
@@ -398,9 +383,7 @@ def test_effective_header_row_count_prefers_th_based_count(libconfluencetables: 
 
 
 def test_effective_header_row_count_falls_back_when_no_th(libconfluencetables: ModuleType):
-    """The same release table, but with every header cell rendered as
-    plain <td> instead of <th> — some Confluence storage-format tables
-    do this."""
+    """Header rows are still found when rendered as <td> instead of <th>."""
     tables = libconfluencetables.extract_tables(NO_TH_RELEASE_TABLE_HTML)
     rows = tables[0][1]
     grid = libconfluencetables.expand_grid(rows)
@@ -441,8 +424,7 @@ def test_find_column_case_insensitive_substring_match(libconfluencetables: Modul
 
 
 def test_find_column_tolerates_hyphenated_header(libconfluencetables: ModuleType):
-    """The real podiumd page spells it "Ontwikkel-partij" — a hyphen must
-    not break the match against the "ontwikkelpartij" needle."""
+    """The page spells it "Ontwikkel-partij"; the hyphen must not break the match."""
     paths = [[], ["Ontwikkel-partij"]]
     assert libconfluencetables.find_column(paths, ["ontwikkelpartij"]) == 1
 
@@ -470,8 +452,7 @@ def test_find_versie_groups_orders_by_first_appearance(libconfluencetables: Modu
 
 
 def test_find_versie_groups_not_tied_to_specific_version_numbers(libconfluencetables: ModuleType):
-    """The page renames these headers every release — matching only
-    checks the label starts with "Versie", never a specific number."""
+    """Headers are renamed every release, so only the "Versie" prefix is matched."""
     paths = [["Versie 5.0", "App"], ["Versie 5.1", "Helm"]]
     groups = libconfluencetables.find_versie_groups(paths)
     assert [label for label, _cols in groups] == ["Versie 5.0", "Versie 5.1"]
@@ -529,7 +510,7 @@ def test_select_release_columns_not_tied_to_specific_version_numbers(libconfluen
 
 
 def test_select_release_columns_missing_column_is_none(libconfluencetables: ModuleType):
-    paths = [[], ["Ontwikkelpartij"]]  # no Versie ... columns at all
+    paths = [[], ["Ontwikkelpartij"]]
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["vendor"] == 1
     assert columns["used_by"] is None
@@ -538,9 +519,7 @@ def test_select_release_columns_missing_column_is_none(libconfluencetables: Modu
 
 
 def test_select_release_columns_finds_used_by(libconfluencetables: ModuleType):
-    """A "Technische component versies"-style table has "Used by" instead
-    of "Ontwikkelpartij" — naming which product/Common Ground component
-    pulls that piece of tooling in."""
+    """Tooling tables have a "Used by" column instead of "Ontwikkelpartij"."""
     paths = [
         [],
         ["Used by"],
@@ -555,11 +534,7 @@ def test_select_release_columns_finds_used_by(libconfluencetables: ModuleType):
 
 
 def test_select_release_columns_lone_versie_column_is_app_even_without_label(libconfluencetables: ModuleType):
-    """A "Versie ..." group with exactly one column (Helm dropped
-    entirely, e.g. "Technische component versies" since 2026-09) is
-    always that group's App column, whether or not it still carries its
-    own "App" sub-label — matched by position, not text, since a lone
-    column can't be anything else."""
+    """A single-column "Versie" group (no Helm column) is its App column, label or not."""
     paths = [[], ["Used by"], ["Versie 4.8"], ["Versie 4.9"]]
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["source_app"] == 2
@@ -569,9 +544,7 @@ def test_select_release_columns_lone_versie_column_is_app_even_without_label(lib
 
 
 def test_select_release_columns_none_when_not_exactly_two_versie_groups(libconfluencetables: ModuleType):
-    """One "Versie ..." group (or three+) isn't the source/target pair
-    this export expects — leave everything unresolved rather than
-    guessing which one(s) to use."""
+    """Anything but two "Versie" groups leaves source/target unresolved rather than guessed."""
     paths = [[], ["Versie 4.9", "App"], ["Versie 4.9", "Helm"]]
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["source_app"] is None
@@ -579,8 +552,7 @@ def test_select_release_columns_none_when_not_exactly_two_versie_groups(libconfl
 
 
 def test_missing_required_release_columns_vendor_not_required(libconfluencetables: ModuleType):
-    """A "Used by"-style table with no Ontwikkelpartij column at all, but
-    every App/Helm column present, must report nothing missing."""
+    """The vendor column is optional."""
     paths = [
         [],
         ["Used by"],
@@ -595,11 +567,8 @@ def test_missing_required_release_columns_vendor_not_required(libconfluencetable
 
 
 def test_missing_required_release_columns_helm_not_required(libconfluencetables: ModuleType):
-    """A table with no Helm sub-column at all (e.g. "Technische component
-    versies" on the real page, since 2026-09 -- its Helm cells were
-    always empty anyway) reports nothing missing, as long as both App
-    columns resolve."""
-    paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "App"], ["Versie 4.9", "App"]]  # no Helm columns at all
+    """Helm columns are optional as long as both App columns resolve."""
+    paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "App"], ["Versie 4.9", "App"]]
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["source_helm"] is None
     assert columns["target_helm"] is None
@@ -607,7 +576,7 @@ def test_missing_required_release_columns_helm_not_required(libconfluencetables:
 
 
 def test_missing_required_release_columns_reports_missing_app(libconfluencetables: ModuleType):
-    paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "Helm"], ["Versie 4.9", "Helm"]]  # no App columns at all
+    paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "Helm"], ["Versie 4.9", "Helm"]]
     columns = libconfluencetables.select_release_columns(paths)
     missing = libconfluencetables.missing_required_release_columns(columns)
     assert set(missing) == {"source_app", "target_app"}

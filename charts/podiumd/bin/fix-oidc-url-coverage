@@ -31,8 +31,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
@@ -127,10 +126,7 @@ def apply_fixes(text: str, entries: list[str]) -> str:
 
 
 def main():
-    """CLI entry point: appends a `$oidcClients` entry for every
-    uncovered redirect URI path and (unless --dry-run) writes the
-    template back. Exits 1 if anything is left unresolved or, in dry-run
-    mode, whenever an entry would be added."""
+    """CLI entry point; exits 1 on unresolved paths, or in dry-run when anything would change."""
     exit_on_help(__doc__)
     args = sys.argv[1:]
     if args not in ([], ["--dry-run"]):

@@ -1,6 +1,5 @@
-"""check_duplicate_keys — including the list-item scoping fix: sibling list
-items sharing a key name (e.g. every item having its own "value:") must never
-be treated as duplicates of each other."""
+"""check_duplicate_keys, including list-item scoping: sibling list items
+sharing a key name are not duplicates."""
 
 from pathlib import Path
 from types import ModuleType
@@ -28,9 +27,7 @@ def test_genuine_duplicate_at_root_is_caught(vp: ModuleType, tmp_path: Path):
 
 
 def test_duplicate_message_includes_the_file_name(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
-    """A bare "Line N: duplicate ..." message doesn't say which file that
-    line number is in — easy to lose track of once read out of context
-    (copy-pasted, or read without the surrounding check output)."""
+    """A bare "Line N" doesn't say which file: the message must name it."""
     chart_dir = write_values(tmp_path, "zac:\n  a: 1\nzac:\n  b: 2\n")
     vp.check_duplicate_keys(chart_dir)
     out = capsys.readouterr().out
@@ -46,9 +43,8 @@ def test_genuine_duplicate_nested_is_caught(vp: ModuleType, tmp_path: Path):
 
 
 def test_list_items_sharing_key_names_are_not_false_positives(vp: ModuleType, tmp_path: Path):
-    """Regression test for the bug found in /helm-dupecheck's ported algorithm:
-    naive scoping treated every list item's "value:"/"mountPath:" as
-    colliding with its siblings."""
+    """Regression: naive scoping treated each list item's "value:"/"mountPath:"
+    as colliding with its siblings."""
     content = (
         "additionalOptions:\n"
         "  - name: foo\n"

@@ -1,5 +1,4 @@
-"""lib.upgradedoc -- values-tree/component ordering keys and
-upgrade-doc row/changes-block/values-delta-section sorting."""
+"""lib.upgradedoc -- component ordering keys and upgrade-doc section sorting."""
 
 from types import ModuleType
 
@@ -41,60 +40,40 @@ def test_component_order_key_unmatched_name_sorts_after_every_real_component(lib
 
 
 def test_component_order_key_global_shared_image_uses_its_own_values_position(libupgradedocsorting: ModuleType):
-    """Real bug: a bare "global" shared-image name (e.g. "nginx-
-    unprivileged") never embeds any dependency's own name/alias as a
-    substring, so match_dependency finds nothing and this used to always
-    fall to the "unmatched sorts last" sentinel — even though "global:"
-    is values.yaml's own FIRST top-level key. Given canonical_names, it
-    now resolves via its own real position instead."""
+    """A "global" shared-image name sorts at global's values.yaml position given canonical_names, not last."""
     key_order = ["global", *KEY_ORDER]
     canonical_names = {"nginx-unprivileged": ("global", "images", "nginx")}
 
     assert libupgradedocsorting.component_order_key("nginx-unprivileged", DEPS, key_order, canonical_names) == (0, 0)
 
-    # A "### ..." Changes heading has version/arrow text after the name —
-    # match_canonical_sidecar_name's text_names fallback still finds it.
+    # "### ..." headings carry version text after the name; the text_names fallback handles it.
     assert libupgradedocsorting.component_order_key(
         "nginx-unprivileged 1.31.3 → 1.31.4", DEPS, key_order, canonical_names
     ) == (0, 0)
 
 
 def test_component_order_key_no_canonical_names_given_is_unaffected(libupgradedocsorting: ModuleType):
-    """Omitting canonical_names entirely behaves exactly as before — real
-    dependency names and their own sidecars are never affected by this
-    parameter either way."""
+    """Without canonical_names, real dependency names are unaffected."""
     assert libupgradedocsorting.component_order_key("nginx-unprivileged", DEPS, KEY_ORDER) == (len(KEY_ORDER), 0)
 
 
 def test_component_order_key_native_component_uses_its_own_values_position(libupgradedocsorting: ModuleType):
-    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
-    dependency to match_dependency resolve at all — falls back to
-    match_native_component, so its own row/section still sorts at its
-    real values.yaml position instead of always last."""
+    """frankgateway (a native component, no Chart.yaml dependency) sorts at its values.yaml position."""
     key_order = [*KEY_ORDER, "frankgateway"]
     assert libupgradedocsorting.component_order_key("frankgateway", DEPS, key_order) == (len(KEY_ORDER), 0)
 
-    # A "### ..." Changes heading has version/arrow text after the name —
-    # match_native_component's own word-span matching still finds it.
+    # "### ..." headings carry version text after the name; word-span matching handles it.
     assert libupgradedocsorting.component_order_key("frankgateway 100 → 104", DEPS, key_order) == (len(KEY_ORDER), 0)
 
 
 def test_component_order_key_matched_dep_not_in_key_order_sorts_last(libupgradedocsorting: ModuleType):
-    """A dependency that resolves fine but isn't a top-level values.yaml key
-    at all (e.g. removed from values.yaml but still in Chart.yaml) can't be
-    placed meaningfully -- falls back to the same "sorts last" sentinel as
-    an unmatched name."""
+    """A dependency missing from values.yaml's top-level keys sorts last, like an unmatched name."""
     deps = [{"name": "totallyabsent", "version": "1.0.0"}]
     assert libupgradedocsorting.component_order_key("TotallyAbsent", deps, KEY_ORDER) == (len(KEY_ORDER), 0)
 
 
 def test_component_order_key_sidecar_sorts_after_its_own_parent_row(libupgradedocsorting: ModuleType):
-    """A canonical sidecar name ("<parent> - <basename>") always resolves
-    to the SAME values_key_index as its owning dependency's own row via
-    match_dependency's fuzzy word-containment — the " - " secondary bit
-    is what keeps the sidecar from sorting before (or, without any
-    tie-break, merely wherever it already happened to be — Python's sort
-    is stable) its own parent."""
+    """A "<parent> - <basename>" sidecar shares its parent's index; the secondary key sorts it after."""
     assert libupgradedocsorting.component_order_key(
         "redis-operator", [*DEPS, {"name": "redis-operator", "version": "0.26.0"}], [*KEY_ORDER, "redis-operator"]
     ) == (3, 0)
@@ -127,14 +106,7 @@ GLOBAL_IMAGES_CANONICAL_NAMES = {
 
 
 def test_values_tree_position_walks_full_nested_structure(libupgradedocsorting: ModuleType):
-    """Real bug this closes: nginx/curl/busybox/redis are all genuinely
-    different, independently-orderable images sharing the exact same
-    "global.images.*" prefix — every existing sort-key function only
-    ever resolved a path down to its TOP-LEVEL key, tying all four at
-    the same index and leaving their own relative order to whatever a
-    stable sort happened to preserve (confirmed live: four documents,
-    four different, individually wrong orderings). This walks the FULL
-    path, one index per level."""
+    """Each path level gets its own index, so global.images.* siblings don't tie."""
     assert libupgradedocsorting.values_tree_position(GLOBAL_IMAGES_VALUES, ("global", "images", "nginx")) == (0, 0, 0)
     assert libupgradedocsorting.values_tree_position(GLOBAL_IMAGES_VALUES, ("global", "images", "curl")) == (0, 0, 1)
     assert libupgradedocsorting.values_tree_position(GLOBAL_IMAGES_VALUES, ("global", "images", "busybox")) == (0, 0, 2)
@@ -143,12 +115,7 @@ def test_values_tree_position_walks_full_nested_structure(libupgradedocsorting: 
 
 
 def test_values_tree_position_shorter_prefix_always_sorts_first(libupgradedocsorting: ModuleType):
-    """A dependency's own bare 1-tuple identity (never resolved down
-    into whichever specific image path its app version came from) is a
-    genuine PREFIX of any of its own nested sidecar paths — Python's own
-    tuple-comparison rule makes it sort first regardless of what the
-    sidecar's own deeper indices happen to be, with no separate is-
-    sidecar bit needed at this level."""
+    """A dependency's 1-tuple path is a prefix of its sidecar paths, so it sorts first."""
     assert libupgradedocsorting.values_tree_position(
         GLOBAL_IMAGES_VALUES, ("zac",)
     ) < libupgradedocsorting.values_tree_position(GLOBAL_IMAGES_VALUES, ("zac", "image"))
@@ -160,19 +127,13 @@ def test_values_tree_position_unresolvable_segment_sorts_last_never_crashes(libu
 
 
 def test_component_order_key_distinguishes_multiple_global_images_given_values(libupgradedocsorting: ModuleType):
-    """Regression test: the real redis/nginx/curl/busybox bug. Without
-    `values`, all four canonical "global" shared-image names tie at the
-    exact same (index, is_sidecar) key (see test_component_order_key_
-    global_shared_image_uses_its_own_values_position — the pre-existing
-    behavior this must never change). Given `values`, they resolve to
-    their own real, distinct sub-positions instead, matching values.
-    yaml's own true nginx/curl/busybox/redis order."""
+    """Given values, the global nginx/curl/busybox/redis images get distinct keys in values.yaml order."""
     key_order = ["global", "zac"]
     without_values = [
         libupgradedocsorting.component_order_key(name, [], key_order, GLOBAL_IMAGES_CANONICAL_NAMES)
         for name in ("nginx-unprivileged", "curl", "busybox", "redis")
     ]
-    assert without_values == [(0, 0)] * 4  # the pre-existing, now-fixed tie
+    assert without_values == [(0, 0)] * 4  # tied without values
 
     with_values = [
         libupgradedocsorting.component_order_key(
@@ -203,9 +164,7 @@ def test_find_out_of_order_names_two_unmatched_names_never_conflict(libupgradedo
 
 
 def test_find_out_of_order_names_unmatched_before_a_real_component_is_flagged(libupgradedocsorting: ModuleType):
-    """An unmatched row/heading sorts after every real component -- one
-    appearing BEFORE a real component earlier in values.yaml's own order is
-    still a genuine violation."""
+    """An unmatched row before a real component is out of order."""
     names = ["Some Shared Sidecar", "Open Zaak"]
     assert libupgradedocsorting.find_out_of_order_names(names, DEPS, KEY_ORDER) == [
         ("Some Shared Sidecar", "Open Zaak")
@@ -232,17 +191,12 @@ def test_insertion_index_empty_existing(libupgradedocsorting: ModuleType):
 
 
 def test_insertion_index_real_component_goes_before_unmatched_ones(libupgradedocsorting: ModuleType):
-    """A genuinely new, resolvable component (a real, early key) inserted
-    where every existing item is an unmatched/sentinel-keyed row belongs
-    BEFORE all of them -- matches how a real component is expected to sort
-    ahead of a generic/unmatched summary row."""
+    """A new real component is inserted before unmatched rows."""
     assert libupgradedocsorting.insertion_index(0, [3, 3, 3]) == 0
 
 
 def test_insertion_index_new_unmatched_item_among_unmatched_ones_goes_last(libupgradedocsorting: ModuleType):
-    """A new item that itself carries the sentinel key (unmatched) is never
-    inserted ahead of other unmatched items without evidence it belongs
-    there -- it goes after all of them, preserving their relative order."""
+    """A new unmatched item goes after existing unmatched ones."""
     assert libupgradedocsorting.insertion_index(3, [3, 3, 3]) == 3
 
 
@@ -347,12 +301,7 @@ def test_sort_upgrade_doc_rows_unmatched_row_stays_last(libupgradedocsorting: Mo
 
 
 def test_sort_upgrade_doc_rows_global_row_sorts_to_its_own_real_position(libupgradedocsorting: ModuleType):
-    """Real bug: "nginx-unprivileged" (a canonical "global" shared-image
-    row — see canonical_sidecar_row_names) always sorted LAST, even
-    though "global:" is values.yaml's own FIRST top-level key and the
-    images-manifest's own equivalent sort already places it there. Given
-    canonical_names, it now sorts to the front, matching images-v2.yaml's
-    own order."""
+    """A "global" shared-image row sorts to global's values.yaml position given canonical_names."""
     text = (
         COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
@@ -372,13 +321,7 @@ def test_sort_upgrade_doc_rows_global_row_sorts_to_its_own_real_position(libupgr
 
 
 def test_sort_upgrade_doc_rows_multiple_global_images_use_their_own_real_suborder(libupgradedocsorting: ModuleType):
-    """Regression test: the real redis/nginx/curl/busybox bug. FOUR
-    canonical "global" shared-image rows (all peers under values.yaml's
-    own "global.images.*") plus one real dependency ("zac") — given
-    `values`, they must reorder to values.yaml's own true order
-    (nginx-unprivileged, curl, busybox, redis), with "zac" still
-    correctly sorting after "global" as a whole (its own top-level key
-    comes second in values.yaml)."""
+    """Global image rows follow values.yaml's nginx/curl/busybox/redis order; zac still sorts after global."""
     text = (
         COMPONENT_VERSIONS_HEADING + "| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
@@ -457,10 +400,7 @@ def test_sort_changes_blocks_unmatched_block_stays_last_and_later_h2_untouched(l
 
 
 def test_sort_changes_blocks_global_block_sorts_to_its_own_real_position(libupgradedocsorting: ModuleType):
-    """Same real bug as sort_upgrade_doc_rows, for the "### ..." Changes
-    heading shape — the heading text has version/arrow text after the
-    canonical name (match_canonical_sidecar_name's text_names fallback
-    handles that, unlike an exact dict-key lookup)."""
+    """Changes-heading variant of the global-row ordering test."""
     text = (
         "## Changes\n\n"
         "### Open Zaak 1.27.3 → 1.27.4\n\n"
@@ -481,8 +421,7 @@ def test_sort_changes_blocks_global_block_sorts_to_its_own_real_position(libupgr
 
 
 def test_sort_changes_blocks_multiple_global_images_use_their_own_real_suborder(libupgradedocsorting: ModuleType):
-    """The Changes-heading shape of the same real redis/nginx/curl/
-    busybox regression test above."""
+    """Changes-heading variant of the global-images suborder test."""
     text = (
         "## Changes\n\n"
         "### redis 8.0 → 8.10.1\n\nRedis details.\n\n"
@@ -580,10 +519,7 @@ def test_sort_values_delta_sections_fewer_than_two_is_unchanged(libupgradedocsor
 
 
 def test_sort_values_delta_sections_never_touches_intro_prose_above(libupgradedocsorting: ModuleType):
-    """Content before the very first "## " heading (the doc's own H1
-    title, and any intro prose) is never part of any section — see
-    parse_values_delta_sections — so it's never moved even when every
-    real section below it is."""
+    """Content before the first "## " heading is never moved."""
     text = (
         "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
         "Some intro prose.\n\n"
@@ -596,11 +532,7 @@ def test_sort_values_delta_sections_never_touches_intro_prose_above(libupgradedo
 
 
 def test_sort_values_delta_sections_reorders_hand_written_sections_too(libupgradedocsorting: ModuleType):
-    """A hand-written section (no different from an auto-generated one
-    as far as this function is concerned) is reordered exactly like any
-    other — its own CONTENT is never touched, only its physical
-    position, the same guarantee sort_changes_blocks already gives
-    -upgrade.md's own hand-written "### ..." blocks."""
+    """Hand-written sections are reordered too; their content is untouched."""
     text = (
         "## openinwoner 2.4.2 → 2.4.3\n\n- Key `openinwoner.a` was added.\n\n"
         "## ZAC 5.0.2 → 5.4.4 — required edits\n\nSome hand-written prose.\n\n"
@@ -617,10 +549,7 @@ def test_sort_values_delta_sections_reorders_hand_written_sections_too(libupgrad
 def test_sort_values_delta_sections_multiple_global_images_use_their_own_real_suborder(
     libupgradedocsorting: ModuleType,
 ):
-    """The values-deltas.md shape of the same real redis/nginx/curl/
-    busybox regression test above — confirms the identical fix applies
-    to this THIRD consumer too, not just -upgrade.md's own table/
-    Changes shapes."""
+    """values-deltas.md variant of the global-images suborder test."""
     text = (
         "## redis 8.0 → 8.10.1\n\n- `global.images.redis.tag` bumped.\n\n"
         "## curl 8.21.0 → 8.22.0\n\n- `global.images.curl.tag` bumped.\n\n"

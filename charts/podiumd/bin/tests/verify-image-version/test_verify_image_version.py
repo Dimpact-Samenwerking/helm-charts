@@ -1,11 +1,6 @@
-"""verify-image-version's main() — argument parsing and end-to-end wiring
-into lib.image.version.check_basename_version (and, transitively,
-resolve_scoped_matches). No network needed: lib.registry.
-registry_tag_exists is monkeypatched via the image_version module's own
-imported binding (check_basename_version lives in lib.image.version,
-which resolves registry_tag_exists via ITS OWN globals — see
-lib.image.version's import — so tests patch that module directly, same
-as tests/update-image-version/test_update_image_version.py does)."""
+"""verify-image-version main(): argument parsing and wiring into
+check_basename_version. registry_tag_exists is patched on lib.image.version,
+which resolves it through its own module globals."""
 
 from pathlib import Path
 from types import ModuleType
@@ -107,8 +102,7 @@ def test_main_missing_reports_fail(
 def test_main_resolves_given_component_key_and_basename(
     viv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """<key> "openklant" scopes the search to that component's own
-    values.yaml subtree, where <basename> "open-klant" is pinned."""
+    """<key> scopes the search to that component's values.yaml subtree."""
     write_chart_yaml(tmp_path, [("openklant", None)])
     values_path = write_values(
         tmp_path,
@@ -132,14 +126,8 @@ def test_main_resolves_given_component_key_and_basename(
 def test_main_accepts_dependency_name_not_just_alias(
     viv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """Regression test (real bug, confirmed live against the real chart):
-    <key> used to only accept whichever string happens to literally BE
-    the values.yaml top-level key — the alias, when a dependency has one
-    — rejecting the dependency's own real Chart.yaml "name" outright
-    ("no image pin ... found under"). lib.image.version.resolve_key_
-    scope now resolves either form to the real values.yaml key first —
-    same convention update-component-version's own <component> argument
-    already uses via find_dependency."""
+    """Regression: <key> accepts the Chart.yaml name as well as the alias
+    (the values.yaml key), like update-component-version's <component>."""
     write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
     values_path = write_values(
         tmp_path,
@@ -160,9 +148,7 @@ def test_main_accepts_dependency_name_not_just_alias(
 
 
 def test_main_unresolvable_target_propagates(viv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """resolve_scoped_matches (lib.image.version) already raises
-    SystemExit with a clear message when <key> <basename> doesn't
-    resolve to any pinned image — main() has nothing to add here."""
+    """resolve_scoped_matches' own SystemExit for an unpinned image propagates."""
     values_path = write_values(tmp_path, "foo: bar\n")
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     monkeypatch.setattr("sys.argv", ["verify-image-version", "foo", "totally-unknown", "1.0.0"])

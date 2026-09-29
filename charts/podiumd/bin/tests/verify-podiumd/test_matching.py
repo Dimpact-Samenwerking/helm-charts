@@ -1,6 +1,5 @@
-"""match_dependency and resolve_entry_path — including the two disambiguation
-bugs found (and fixed) during development: resolve_entry_path picking the
-wrong sibling path via naive longest-substring matching."""
+"""match_dependency and resolve_entry_path, including sibling-path
+disambiguation."""
 
 from types import ModuleType
 
@@ -23,10 +22,8 @@ def test_match_dependency_no_match_returns_none(libupgradedocbasics: ModuleType)
 
 
 def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedocbasics: ModuleType):
-    """ "mi" (mi-data's own alias) is a literal substring of
-    "ensurePodiumdAdminUser" (inside "ad-mi-n") — a raw normalize_name(text)
-    containment check would wrongly match it; word-boundary-aligned
-    matching must not."""
+    """ "mi" is a raw substring of "ensurePodiumdAdminUser"; word-aligned
+    matching must not match it."""
     deps = [make_dep("mi-data", "1.0.0", alias="mi")]
     assert libupgradedocbasics.match_dependency("Python (ensurePodiumdAdminUser init image)", deps) is None
 
@@ -59,10 +56,8 @@ def test_resolve_entry_path_multi_word_entry(libupgradedocappversion: ModuleType
 
 
 def test_resolve_entry_path_disambiguates_sibling_paths_by_last_word(libupgradedocappversion: ModuleType):
-    """Regression test: zac-solr must resolve to zac.solr-operator.solr, not
-    zac.solr-operator.zookeeper-operator.zookeeper, even though both paths
-    start with the same "zac"+"solr"+"operator" prefix. Naive
-    longest-substring-wins matching picked the wrong (longer) one."""
+    """Regression: zac-solr resolves to zac.solr-operator.solr, not the
+    longer zookeeper path sharing its prefix."""
     paths = [
         ("zac",),
         ("zac", "solr-operator", "solr"),

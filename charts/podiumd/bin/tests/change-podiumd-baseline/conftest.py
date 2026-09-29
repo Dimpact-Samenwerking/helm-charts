@@ -1,5 +1,4 @@
-"""Loads change-podiumd-baseline (a hyphenated filename, not importable
-normally) as a module named `cpb`."""
+"""Load change-podiumd-baseline (hyphenated, not importable) as module `cpb`."""
 
 import importlib.util
 

@@ -1,7 +1,5 @@
-"""check_markdown — lints every *.md file under chart_dir with pymarkdown,
-failing on any finding (or a missing pymarkdown install). No real
-pymarkdown binary is invoked in most of these tests — `run` is mocked
-throughout except where find_pymarkdown itself is under test."""
+"""check_markdown: pymarkdown over every *.md under chart_dir; any finding or
+a missing pymarkdown fails. `run` is mocked except for find_pymarkdown tests."""
 
 from pathlib import Path
 from types import ModuleType
@@ -59,9 +57,7 @@ def test_find_markdown_files_excludes_generated_readme(libmarkdowncheck: ModuleT
 def test_find_markdown_files_excludes_upgrade_path_docs_for_other_releases(
     libmarkdowncheck: ModuleType, tmp_path: Path
 ):
-    """Chart.yaml's version is 4.9.0 (see make_chart_dir) — a doc targeting
-    some other release is closed out and frozen, nobody's ever touching
-    it again."""
+    """A doc targeting another release than Chart.yaml's (4.9.0) is frozen."""
     chart_dir = make_chart_dir(
         tmp_path,
         files={
@@ -75,11 +71,8 @@ def test_find_markdown_files_excludes_upgrade_path_docs_for_other_releases(
 
 
 def test_find_markdown_files_excludes_target_match_with_wrong_baseline(libmarkdowncheck: ModuleType, tmp_path: Path):
-    """release-baseline.yaml's upgrade_docs key says '4.8.5' — a doc
-    targeting 4.9.0 but still naming some OTHER baseline is exactly what
-    fix-doc-consistency would itself rename right now; it isn't "the
-    current release's own" doc yet, so it stays out of scope until that
-    rename happens."""
+    """A 4.9.0 doc still naming another baseline than upgrade_docs (4.8.5) is
+    out of scope until fix-doc-consistency renames it."""
     chart_dir = make_chart_dir(
         tmp_path,
         upgrade_docs_baseline="4.8.5",
@@ -95,9 +88,7 @@ def test_find_markdown_files_excludes_target_match_with_wrong_baseline(libmarkdo
 def test_find_markdown_files_target_only_match_when_release_baseline_missing(
     libmarkdowncheck: ModuleType, tmp_path: Path
 ):
-    """No release-baseline.yaml upgrade_docs key at all (see
-    lib.chart.upgrade_docs_baseline) — falls back to matching by target
-    only, same as before baseline-matching existed."""
+    """Without an upgrade_docs key, docs match by target version only."""
     chart_dir = make_chart_dir(
         tmp_path,
         files={
@@ -111,9 +102,7 @@ def test_find_markdown_files_target_only_match_when_release_baseline_missing(
 def test_find_markdown_files_includes_current_release_upgrade_path_docs_of_any_suffix(
     libmarkdowncheck: ModuleType, tmp_path: Path
 ):
-    """Suffix is intentionally permissive (not enumerated) — a non-standard
-    doc type (operators-crds, say) for the CURRENT release must still be
-    in scope."""
+    """Any doc-type suffix for the current release is in scope."""
     chart_dir = make_chart_dir(
         tmp_path,
         files={
@@ -127,9 +116,7 @@ def test_find_markdown_files_includes_current_release_upgrade_path_docs_of_any_s
 def test_find_markdown_files_generic_docs_stay_in_scope_regardless_of_release(
     libmarkdowncheck: ModuleType, tmp_path: Path
 ):
-    """Only docs/_UPGRADE_PATHS/*.md is release-scoped — everything else
-    (docs/apps/, docs/architecture/, ...) isn't tied to one release and
-    always stays in scope."""
+    """Only docs/_UPGRADE_PATHS/*.md is release-scoped; other docs always are."""
     chart_dir = make_chart_dir(
         tmp_path,
         files={
@@ -141,8 +128,7 @@ def test_find_markdown_files_generic_docs_stay_in_scope_regardless_of_release(
 
 
 def test_find_markdown_files_excludes_bin_dir(libmarkdowncheck: ModuleType, tmp_path: Path):
-    """chart_dir/bin/ is this chart's own release tooling, not part of the
-    chart release itself — out of scope regardless of anything else."""
+    """chart_dir/bin/ is release tooling, not the chart: out of scope."""
     chart_dir = make_chart_dir(
         tmp_path,
         files={
@@ -241,10 +227,8 @@ def test_a_pymarkdown_crash_is_reported_as_a_failure_not_a_clean_pass(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Regression test: pymarkdown's default return-code scheme returns 1 for
-    both real findings and a genuine failure such as a bad path. With
-    --return-code-scheme explicit, anything other than 0 (clean) or 4
-    (findings) is a failure and must never pass as clean."""
+    """Regression: pymarkdown's default scheme returns 1 for findings and real
+    failures alike; with --return-code-scheme explicit, anything but 0 or 4 fails."""
     chart_dir = make_chart_dir(tmp_path, files={"docs/foo.md": "# a\n"})
     monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
     monkeypatch.setattr(
@@ -309,9 +293,8 @@ def test_disables_line_length_and_commands_show_output_rules(
 def test_md024_scoped_to_siblings_only(
     libmarkdowncheck: ModuleType, vp: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """MD024 (no-duplicate-heading) is left on but restricted to duplicates
-    under the same parent — several docs deliberately repeat subsection
-    names under different parents (see module docstring)."""
+    """MD024 only flags duplicates under the same parent: docs repeat
+    subsection names under different parents."""
     chart_dir = make_chart_dir(tmp_path, files={"docs/foo.md": "# a\n"})
     monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
     captured = {}

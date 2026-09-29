@@ -1,15 +1,7 @@
-"""Shared infrastructure for every check that operates on a full `helm
-template` render: scoping a finding to this chart's own templates/ vs. a
-vendored sub-chart, classifying a vendored sub-chart as a "friendly"
-partner vendor worth per-item detail, splitting/mapping the render back to
-its source templates, the common grouped-findings printer, and — for a
-caller that needs to know whether a given dependency (or nested
-dependency) actually renders anything at all right now, not just
-whether it's vendored on disk — rendered_chart_paths. Used by
-check_render (verify-podiumd), check_yamllint/check_kubeconform/
-check_shellcheck/check_kube_score (lib/checks/*.py), and (rendered_chart_
-paths specifically) check_subchart_image_visibility (lib.
-checks.digest_pinning) and list-podiumd-images."""
+"""Shared helpers for checks on a full `helm template` render: own vs.
+vendored scoping, partner-vendor classification, mapping render output
+back to source templates, grouped-findings printing, and which
+(nested) dependencies actually render."""
 
 import re
 
@@ -40,12 +32,9 @@ OWN_TEMPLATES_PREFIX = "podiumd/templates/"
 
 
 def lint_args_for(chart_dir: Path) -> list[str]:
-    """The extra `helm template`/`helm lint` args needed to render chart_dir
-    with its own ci/lint-values.yaml overrides, e.g. ["-f", ".../ci/
-    lint-values.yaml"] — every render/lint/check command in this toolchain
-    uses this SAME result so they all validate against the same values
-    instead of the chart's bare, aspirational defaults. Returns [] (with a
-    printed warning) if no ci/lint-values.yaml exists."""
+    """`helm template`/`helm lint` args applying chart_dir's
+    ci/lint-values.yaml, so every check validates the same values. [] with a
+    warning if the file doesn't exist."""
     lint_values = chart_dir / "ci" / "lint-values.yaml"
     if lint_values.is_file():
         return ["-f", str(lint_values)]
@@ -57,36 +46,14 @@ _render_cache: dict[tuple[str, tuple[str, ...]], RunResult] = {}
 
 
 def render_chart(chart_dir: Path, extra_args: list[str]) -> RunResult:
-    """Run `helm template <CHART_NAME> <chart_dir> <extra_args>`. Returns
-    the raw subprocess result; every caller decides for itself what a
-    non-zero returncode means and how to report it.
+    """Run `helm template <CHART_NAME> <chart_dir> <extra_args>` and return
+    the raw result; callers interpret the returncode.
 
-    Memoized in-process, keyed on (str(chart_dir), tuple(extra_args)) —
-    `extra_args` is an ordinary list at every call site, not hashable on
-    its own, so the tuple conversion happens here rather than pushing it
-    onto every caller. verify-podiumd's own check_subchart_image_
-    visibility/check_shared_image_usage/check_release_secret_size all
-    call this with the EXACT same chart_dir/extra_args (verify-podiumd's
-    own already-computed lint_args_for(chart_dir) result — confirmed,
-    not assumed), so within one verify-podiumd run they now share a
-    SINGLE real `helm template` subprocess instead of three independent
-    ones. A genuine failure (non-zero returncode) is cached too, not
-    just success — calling again with the identical args would
-    deterministically fail the same way, and verify-podiumd runs once
-    per process and exits, so there's no long-running-process staleness
-    concern to worry about here. No "force fresh" escape hatch: nothing
-    today needs one, since every existing caller already shares the
-    same args on purpose.
-
-    Not used by the existing check_render/check_yamllint/check_kubeconform/
-    check_shellcheck/check_kube_score — each of those has its own inline
-    `run(["helm", "template", ...])` call that its own test suite mocks via
-    `monkeypatch.setattr(<that check's module>, "run", ...)`, relying on
-    the call living in that module's own globals. Routing them through this
-    function instead would resolve `run` via lib.render_scope's globals,
-    silently breaking that mocking — out of scope for a change those checks
-    didn't ask for. New callers (e.g. render-podiumd) are free to use
-    this directly."""
+    Memoized per process on (chart_dir, extra_args), failures included, so
+    checks sharing the same args share one render. check_render/
+    check_yamllint/check_kubeconform/check_shellcheck/check_kube_score keep
+    their own `run` call because their tests monkeypatch `run` in their
+    own module."""
     key = (str(chart_dir), tuple(extra_args))
     if key in _render_cache:
         return _render_cache[key]
@@ -96,11 +63,8 @@ def render_chart(chart_dir: Path, extra_args: list[str]) -> RunResult:
 
 
 def report_largest_templates(rendered_text: str, top_n: int):
-    """Print the top_n templates in `rendered_text` (a full `helm template`
-    render) by rendered line count, attributed via each "# Source: <path>"
-    annotation — a diagnostic aid for spotting which template is bloating
-    a render. Prints nothing if rendered_text has no "# Source:" lines at
-    all (e.g. an empty or failed render)."""
+    """Print the top_n templates of a render by line count, attributed via
+    "# Source:" lines. Prints nothing if there are none."""
     source_re = re.compile(r"^# Source: (.+)$")
     counts: Counter[str] = Counter()
     current = None
@@ -118,41 +82,24 @@ def report_largest_templates(rendered_text: str, top_n: int):
         print(f"  {n:6d}  {path}")
 
 
-# The full chart-tree directory a "# Source: <path>" annotation (or any
-# other text embedding the same "<tree>/templates/<file>" shape, e.g. a
-# helm error message) belongs to — e.g. "podiumd/charts/openinwoner/
-# charts/eck-operator" out of ".../charts/openinwoner/charts/
-# eck-operator/templates/x.yaml". The ONE place this parsing happens:
-# rendered_chart_paths (below) keeps the FULL path — only the full path
-# can tell a top-level dependency apart from a same-named NESTED one at
-# any depth (e.g. openinwoner's own bundled "eck-operator" vs. the
-# separate top-level "eck-operator" dependency) — while report_errors_
-# by_subchart/chart_name_from_source only ever want the LEAF chart name
-# (the last path segment) for their own per-chart counting/grouping.
+# Chart-tree directory before "/templates/" in a "# Source:" path or helm
+# error, e.g. "podiumd/charts/openinwoner/charts/eck-operator". The full path
+# is needed to tell a nested dependency from a same-named top-level one.
 CHART_TREE_PATH_RE = re.compile(r"([A-Za-z0-9_./\-]+)/templates/")
 
 
 def chart_tree_paths(text: str) -> list[str]:
-    """Every distinct chart_tree_path match in `text` (a full render, or
-    an error-output blob with one or more embedded "<tree>/templates/
-    ..." paths) — in match order, duplicates included; callers reduce
-    as fits their own purpose (report_errors_by_subchart counts by leaf
-    name, rendered_chart_paths keeps the full paths as a set)."""
+    """All CHART_TREE_PATH_RE matches in `text`, in order, duplicates
+    included."""
     return CHART_TREE_PATH_RE.findall(text)
 
 
 def report_errors_by_subchart(error_text: str):
-    """Print a per-sub-chart count of `error_text`'s embedded "<tree>/
-    templates/..." paths (see chart_tree_paths), grouped by leaf chart
-    name — lets a caller facing a wall of validator errors see at a
-    glance which vendored sub-chart most of them belong to. Prints
-    nothing if no chart-tree path appears in error_text at all.
+    """Print error counts per leaf sub-chart name, from the chart-tree paths
+    in `error_text`. Prints nothing if there are none.
 
-    Pass helm's stderr only, never stdout: a failed `helm template
-    --debug` still prints every rendered resource to stdout, "# Source:"
-    line (and any "/templates/" string in a resource body) included, so
-    every chart would count as an error. The error itself is always on
-    stderr."""
+    Pass helm's stderr only: a failed `helm template --debug` still prints
+    every rendered resource to stdout, so every chart would count."""
     counts = Counter(path.rsplit("/", 1)[-1] for path in chart_tree_paths(error_text))
     if not counts:
         return
@@ -162,66 +109,25 @@ def report_errors_by_subchart(error_text: str):
 
 
 def chart_name_from_source(source: str | None) -> str:
-    """The leaf chart name at the end of `source`'s embedded "<tree>/
-    templates/..." path (see CHART_TREE_PATH_RE/chart_tree_paths) — e.g.
-    "eck-operator" out of ".../charts/openinwoner/charts/eck-operator/
-    templates/x.yaml". Falls back to `source` itself (or the literal
-    "(unknown source)" if source is falsy/has no such path) so a caller
-    always gets some printable label rather than a KeyError."""
+    """Leaf chart name of `source`'s chart-tree path, e.g. "eck-operator";
+    falls back to `source` or "(unknown source)"."""
     m = CHART_TREE_PATH_RE.search(source or "")
     return m.group(1).rsplit("/", 1)[-1] if m else (source or "(unknown source)")
 
 
 def rendered_chart_paths(rendered_text: str) -> set[str]:
-    """Every distinct chart-tree directory that either produced at least
-    one rendered resource of its OWN in `rendered_text` (a full `helm
-    template` render), or has at least one rendered DESCENDANT — e.g.
-    {"podiumd", "podiumd/charts/zac", "podiumd/charts/openinwoner",
-    "podiumd/charts/eck-operator", ...}. Parsed from each "# Source:
-    <path>" line's own chart_tree_path (see above) — the ONE ground-
-    truth oracle for "is chart-tree path X genuinely live right now" —
-    PLUS every proper ancestor of each such path (splitting on
-    "/charts/" segments): a dependency can be a pure "umbrella" chart
-    with no templates/ of its own at all, bundling only NESTED
-    dependencies that do all the actual rendering (real, confirmed live
-    case: eck-stack/"kiss-eck" itself never appears in any "# Source:"
-    line — only its own nested eck-elasticsearch/eck-kibana do — yet
-    kiss-eck is very much enabled) — without ancestor inference, such a
-    dependency would look indistinguishable from a genuinely-disabled
-    one to every consumer below, a real bug caught only by testing
-    against the real chart rather than a synthetic one where every
-    dependency happens to own at least one template directly.
+    """Chart-tree paths that rendered at least one resource in a full
+    render, plus all their ancestors, e.g. {"podiumd",
+    "podiumd/charts/zac", ...}.
 
-    Exists because Helm's condition:/tags: mechanism (on a Chart.yaml
-    dependency directly, or transitively — a NESTED dependency's own
-    "tags:" entry in ITS OWN Chart.yaml, or a nested dependency's own
-    "condition:" overridden at "<parent>.<nested>.enabled" in podiumd's
-    values.yaml) can leave a real-looking image/version default sitting
-    inert in a vendored sub-chart's own values.yaml with NOTHING ever
-    actually rendering it — e.g. openinwoner's own bundled eck-operator
-    (globally disabled via ITS OWN Chart.yaml "tags: [eck-operator.
-    enabled]", set false in podiumd's own top-level values.yaml "tags:"
-    block) or any Maykin chart's own bundled bitnami/redis (same "tags:"
-    mechanism, disabled the same way). Asking Helm itself what actually
-    rendered — rather than re-implementing its own condition/tags
-    precedence rules by hand — avoids a real risk of subtle bugs and
-    Helm-version drift for a comparatively rare, easy-to-get-wrong
-    algorithm (confirmed the hard way: even reasoning through a single
-    2-dependency example by hand took several wrong turns before landing
-    on the right answer via a real `helm template` render).
+    Ancestors are added because an umbrella chart without templates of its
+    own (e.g. eck-stack) otherwise looks disabled. Siblings of rendered
+    paths are never added.
 
-    Ancestor inference never widens the set beyond genuinely-live
-    subtrees: a SIBLING or descendant path (e.g. openinwoner's own
-    disabled nested eck-operator, a sibling of its own enabled nested
-    eck-elasticsearch) is never added just because another child of the
-    same parent happens to render — only actual ancestors of an
-    actually-rendered path are added.
-
-    Used by lib.checks.digest_pinning.check_subchart_image_visibility and
-    list-podiumd-images to gate a finding/entry/row on whether its own
-    owning dependency (or nested dependency — see lib.chart.
-    resolve_subchart_default) genuinely renders right now, instead of
-    just being vendored on disk."""
+    Asking Helm what rendered avoids re-implementing its condition:/tags:
+    precedence, which can leave an image default inert in a vendored
+    sub-chart (e.g. openinwoner's bundled eck-operator, disabled via
+    tags)."""
     source_lines = "\n".join(line for line in rendered_text.splitlines() if line.startswith("# Source: "))
     paths = set(chart_tree_paths(source_lines))
     ancestors: set[str] = set()
@@ -233,44 +139,20 @@ def rendered_chart_paths(rendered_text: str) -> set[str]:
 
 
 def resolve_dependency_repo(repository: str, required_repos: dict[str, str]) -> str:
-    """`repository` (a Chart.yaml dependency's `repository:` field), with
-    an "@alias" resolved to its real URL via `required_repos` (see
-    lib.settings.helm_repos_urls_by_alias) — anything else (a plain
-    https:// URL, an oci:// registry ref, a "file://" local dependency)
-    passes through unchanged."""
+    """A Chart.yaml `repository:` with an "@alias" resolved via
+    required_repos; anything else is returned unchanged."""
     if repository.startswith("@"):
         return required_repos.get(repository[1:], repository)
     return repository
 
 
 def friendly_vendor_charts(chart_dir: Path) -> dict[str, str]:
-    """Chart name -> vendor label, for every Chart.yaml dependency whose
-    (resolved) repository matches a vendor_classification.keywords entry
-    (see lib.settings.vendor_classification_keywords — vendored sub-charts
-    from these upstream orgs are close/collaborative dependencies, Dutch
-    govtech partners in the same "common ground" ecosystem this repo
-    lives in, worth seeing individual findings for even though this repo
-    still can't directly fix their code; matched case-insensitively as a
-    substring of the dependency's resolved repository, an "@alias" first
-    resolved via required_repos since e.g. "@zac" itself doesn't contain
-    "infonl" — only its resolved URL does; every other vendored sub-chart
-    — elastic, redis-operator, keycloak-operator, openbao, ... — stays
-    aggregate-count-only: harder to act on, not worth the extra detail),
-    plus the vendor_classification.chart_overrides exceptions that can't
-    be derived that way (see lib.settings.
-    vendor_classification_chart_overrides — e.g. "kiss" can't be derived
-    from its own Chart.yaml repository field: KISS (oci://ghcr.io/
-    klantinteractie-servicesysteem) is developed by ICATT (org
-    "icatt-menselijk-digitaal" on GitHub/GHCR — see docs/apps/kiss/
-    kiss-BASICS.md and the podiumd-adapter image repository), but neither
-    appears in KISS's own repository URL, only in prose/its own
-    sub-chart's image override), plus any "file://" dependency — a local
-    sub-chart living in this same monorepo (e.g. mi-data) isn't a
-    "vendor" at all and is trivially fixable here, so it gets the same
-    per-item visibility. Chart name is the dependency's alias if it has
-    one, else its name — matching how Helm names the charts/<name>/
-    directory a "# Source:" path is rooted at, and how chart_overrides is
-    keyed (matching chart_name_from_source)."""
+    """Chart name (alias or name) -> vendor label for dependencies whose
+    findings are shown per item: partner vendors whose resolved repository
+    contains a vendor_classification keyword (case-insensitive; "@alias"
+    resolved first), vendor_classification.chart_overrides for charts the
+    URL can't identify (e.g. kiss), and "Local" for file:// dependencies.
+    Other vendored charts stay count-only."""
     required_repos = helm_repos_urls_by_alias(chart_dir)
     keywords = vendor_classification_keywords(chart_dir)
     chart_overrides = vendor_classification_chart_overrides(chart_dir)
@@ -296,10 +178,8 @@ def friendly_vendor_charts(chart_dir: Path) -> dict[str, str]:
 
 
 def build_line_sources(rendered_text: str) -> dict[int, str | None]:
-    """Map each 1-based line number in a full `helm template` render to the
-    most recent preceding "# Source: <path>" comment, so a yamllint finding
-    (which only knows line numbers) can be attributed back to the template
-    file that produced it."""
+    """Map each 1-based render line to its preceding "# Source:" path, so
+    line-only findings (yamllint) can be attributed to a template."""
     sources: dict[int, str | None] = {}
     current: str | None = None
     for i, line in enumerate(rendered_text.splitlines(), 1):
@@ -309,10 +189,8 @@ def build_line_sources(rendered_text: str) -> dict[int, str | None]:
     return sources
 
 
-# kind/version/name only — kubeconform's JSON output carries no line number
-# or originating-file info per resource (unlike yamllint), so scoping own
-# vs. vendored has to happen BEFORE validation: split the render into
-# separate per-scope YAML streams and run the tool once per stream.
+# kubeconform output has no line/file per resource, so own vs. vendored is
+# split before validation (see split_rendered_by_source).
 # (kind, namespace, name) -> 1-based rendered line; see build_resource_locations.
 ResourceLocations = dict[tuple[str, str, str], int]
 
@@ -320,12 +198,9 @@ SOURCE_DOC_SPLIT_RE = re.compile(r"(?m)^---\n(?=# Source: )")
 
 
 def split_rendered_by_source(rendered_text: str) -> list[tuple[str, str]]:
-    """Split a full `helm template` render into (source, doc_text) pairs,
-    one per "# Source: <path>" block — each doc_text keeps its own leading
-    "---\\n# Source: ...\\n" header, so any subset of the pairs can be
-    concatenated back into a smaller, still-valid multi-document YAML
-    stream (used to validate this chart's own templates and its vendored
-    sub-charts as separate runs)."""
+    """Split a render into (source, doc_text) pairs per "# Source:" block.
+    Each doc_text keeps its "---" header, so any subset concatenates into a
+    valid YAML stream."""
     docs = SOURCE_DOC_SPLIT_RE.split(rendered_text)
     result: list[tuple[str, str]] = []
     for doc in docs:
@@ -336,16 +211,9 @@ def split_rendered_by_source(rendered_text: str) -> list[tuple[str, str]]:
 
 
 def build_resource_locations(rendered_text: str) -> ResourceLocations:
-    """Map (kind, namespace, name) -> the 1-based line number where that
-    resource's manifest begins (the line right after its own "# Source:"
-    comment) in the full multi-document `helm template` render — a
-    debugging aid for kubeconform/kube-score findings, neither of which
-    carries a line number of its own (only kind/name, and kubeconform's
-    JSON doesn't even have namespace — see resource_line). namespace is
-    "" for a resource that renders with none set on it (this chart is
-    installed into one namespace via `helm install -n`, so most resources
-    have no templated "namespace:" field at all — but ~50 do in this
-    chart's own render today, so it can't just be ignored)."""
+    """Map (kind, namespace, name) to the 1-based line where the resource
+    starts in the render, for tools without line numbers. namespace is ""
+    when unset (most resources; some set it explicitly)."""
     lines = rendered_text.splitlines()
     marker_indices = [i for i, line in enumerate(lines) if line.startswith("# Source: ")]
     locations: ResourceLocations = {}
@@ -372,13 +240,9 @@ def build_resource_locations(rendered_text: str) -> ResourceLocations:
 def resource_line(
     locations: ResourceLocations, kind: str | None, name: str | None, namespace: str | None = None
 ) -> int | None:
-    """Look up a resource's rendered-line hint from build_resource_locations's
-    map. With namespace known (kube-score's own object_name gives one),
-    matches exactly. Without it (kubeconform's JSON has no namespace
-    field), falls back to matching on (kind, name) alone — but only when
-    that's unambiguous across every namespace the same kind/name might
-    render into; otherwise returns None rather than risk pointing at the
-    wrong one."""
+    """A resource's rendered line. Exact with namespace; without it
+    (kubeconform), matches on (kind, name) only if unambiguous, else
+    None."""
     if kind is None or name is None:
         return None
     if namespace is not None:
@@ -398,14 +262,8 @@ def print_grouped_findings(
     label_fn: Callable[[GroupKeyT], object],
     items_label: str = "line(s)",
 ):
-    """Shared grouping printer for check_yamllint/check_kubeconform/
-    check_shellcheck/check_kube_score: the same root cause (e.g. a
-    duplicated label key) typically shows up once per resource, not once
-    overall — group by key_fn and list the occurrences (item_fn) one per
-    line under the group's own heading, so N near-identical hits print as
-    a handful of headings instead of a wall of repeats (and each
-    location list stays readable instead of one giant comma-joined
-    line)."""
+    """Print findings grouped by key_fn with one item_fn line each, since
+    one root cause usually repeats once per resource."""
     groups: dict[GroupKeyT, list[FindingT]] = {}
     for finding in findings:
         groups.setdefault(key_fn(finding), []).append(finding)
@@ -423,10 +281,8 @@ VendoredFindingT = TypeVar("VendoredFindingT")
 
 @dataclass
 class VendorBucketScan(Generic[OwnFindingT, VendoredFindingT]):
-    """A completed render + tool pass over the chart, as check_kubeconform
-    and check_shellcheck report it: the rendered-line lookup (locations),
-    the friendly-vendor map (for the report's label text), and the
-    findings split into own / vendored-friendly / vendored-other."""
+    """A render + tool pass: line lookup, friendly-vendor map, and findings
+    split into own / vendored-friendly / vendored-other."""
 
     locations: ResourceLocations
     vendor_map: dict[str, str]

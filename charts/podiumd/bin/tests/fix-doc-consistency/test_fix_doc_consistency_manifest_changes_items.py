@@ -31,10 +31,8 @@ def set_argv_and_dir(cdb: ModuleType, monkeypatch: pytest.MonkeyPatch, doc_dir, 
 
 
 def test_dedupe_images_manifest_changes_items_removes_exact_repeat_and_renumbers(cdb: ModuleType):
-    """Real symptom: a lockstep component's TWO missing_paths each got
-    their own identical header item on an earlier (buggy) run — the
-    second, exact-duplicate "ita 3.2.0 -> 3.3.0." item is dropped, and
-    every item after it is renumbered down by one."""
+    """A lockstep component's duplicate header item (from a buggy run) is
+    dropped and later items renumbered."""
     lines = [
         "# Changes:\n",
         "#   1. redis-operator 0.25.0 -> 0.26.0.\n",
@@ -66,9 +64,8 @@ def test_dedupe_images_manifest_changes_items_updates_header_count_word(cdb: Mod
 
 
 def test_dedupe_images_manifest_changes_items_continuation_line_travels_with_kept_item(cdb: ModuleType):
-    """A wrapped continuation line is part of the item's own compared
-    text, and moves/stays with whichever occurrence of that item is
-    kept — never left orphaned or duplicated on its own."""
+    """A wrapped continuation line belongs to its item and goes with the
+    kept occurrence."""
     lines = [
         "# Changes:\n",
         "#   1. openzaak 1.27.4 -> 1.29.3.\n",
@@ -106,11 +103,8 @@ def test_dedupe_images_manifest_changes_items_no_header_returns_empty(cdb: Modul
 
 # --- sort_images_manifest_changes_items ---
 
-# entries + entry_positions mirror what images_manifest_entry_positions
-# would compute for a manifest listing redis-operator's own entry
-# BEFORE zac's — position is what sort_images_manifest_changes_items
-# now mirrors, instead of an independently fuzzy-matched dependency
-# order (see the function's own docstring for why that regressed).
+# entries + entry_positions as images_manifest_entry_positions would compute
+# them for a manifest listing redis-operator before zac.
 CHANGES_ITEMS_ENTRIES = [
     {"name": "opstree/redis-operator", "version": "0.26.0"},
     {"name": "infonl/zac", "version": "5.4.4"},
@@ -134,13 +128,9 @@ def test_sort_images_manifest_changes_items_reorders_and_renumbers(cdb: ModuleTy
 
 
 def test_sort_images_manifest_changes_items_display_name_exact_match_takes_priority(cdb: ModuleType):
-    """Real bug: "kiss" (a dependency's own bare alias) shares no word
-    at all with its own image's repository basename ("kiss-frontend"),
-    so match_changes_item_to_entry's fuzzy basename-in-text search could
-    never resolve it — landing "kiss"'s own primary item far from its
-    real sidecars ("kiss - crawler", "kiss - kiss-elastic-sync") despite
-    the entry list itself already grouping all three together. Given
-    display_name_positions, matched by EXACT prefix instead."""
+    """Regression: "kiss" shares no word with its basename "kiss-frontend",
+    so fuzzy matching separated it from its sidecars; display_name_positions
+    matches by exact prefix instead."""
     entries = [
         {"name": "klantinteractie-servicesysteem/kiss-frontend", "version": "3.0.0"},
         {"name": "integrations/crawler", "version": "1.0.0"},
@@ -171,9 +161,7 @@ def test_sort_images_manifest_changes_items_display_name_exact_match_takes_prior
 
 
 def test_sort_images_manifest_changes_items_display_name_prefers_longest_match(cdb: ModuleType):
-    """ "keycloak-operator" is itself a valid, shorter prefix of
-    "keycloak-operator - postgres 16 -> 16.15." — the longer, more
-    specific display name must win, not the primary's own shorter one."""
+    """The longest matching display-name prefix wins over the primary's."""
     entries = [{"name": "postgres", "version": "16.15"}, {"name": "keycloak/keycloak", "version": "26.7.2"}]
     entry_positions = {"postgres": 1, "keycloak/keycloak": 0}
     display_name_positions = {"keycloak-operator": 0, "keycloak-operator - postgres": 1}
@@ -189,9 +177,7 @@ def test_sort_images_manifest_changes_items_display_name_prefers_longest_match(c
 
 
 def test_sort_images_manifest_changes_items_no_display_name_positions_falls_back_to_fuzzy(cdb: ModuleType):
-    """Omitting display_name_positions (the default) behaves exactly as
-    before — the existing fuzzy match_changes_item_to_entry path, fully
-    unaffected."""
+    """Without display_name_positions the fuzzy match path is unchanged."""
     lines = [
         "# Changes:\n",
         "#   1. zac 5.0.2 -> 5.4.4.\n",
@@ -203,9 +189,7 @@ def test_sort_images_manifest_changes_items_no_display_name_positions_falls_back
 
 
 def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(cdb: ModuleType):
-    """A wrapped continuation line (2+ spaces after "#") stays attached
-    to its own item when that item moves — never split off or left
-    behind at its old position."""
+    """A wrapped continuation line (2+ spaces after "#") moves with its item."""
     lines = [
         "# Changes:\n",
         "#   1. zac 5.0.2 -> 5.4.4.\n",
@@ -221,10 +205,7 @@ def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(
 
 
 def test_sort_images_manifest_changes_items_unresolved_item_sorts_last(cdb: ModuleType):
-    """An item that doesn't resolve to any of this manifest's own
-    entries (free-form prose — see lib.docs_consistency.match_changes_
-    item_to_entry) sorts after every real one — never dragged around by
-    a real item's move."""
+    """An item matching no entry (free-form prose) sorts after all real ones."""
     lines = [
         "# Changes:\n",
         "#   1. Totally Unknown Thing 1.0.0 -> 2.0.0.\n",
@@ -239,14 +220,9 @@ def test_sort_images_manifest_changes_items_unresolved_item_sorts_last(cdb: Modu
 
 
 def test_sort_images_manifest_changes_items_mirrors_entry_order_not_fuzzy_dependency_match(cdb: ModuleType):
-    """The real bug this redesign fixes: an item's own free-form prose
-    mentioning an unrelated dependency's name only incidentally (here,
-    "keycloak-operator" inside a parenthetical aside about "keycloak
-    app image") must NOT be fuzzy-matched to that dependency — it must
-    follow whichever entry match_changes_item_to_entry actually
-    resolves it to (its own "keycloak/keycloak" entry), landing at
-    THAT entry's own real position, not wherever a "keycloak-operator"
-    dependency-name match would have placed it."""
+    """Regression: prose that incidentally mentions another dependency
+    ("keycloak-operator") must sort by the entry match_changes_item_to_entry
+    resolves it to, not by that dependency name."""
     entries = [{"name": "postgres", "version": "16.15"}, {"name": "keycloak/keycloak", "version": "26.7.2"}]
     positions = {"postgres": 0, "keycloak/keycloak": 1}
     lines = [
@@ -284,11 +260,8 @@ def test_sort_images_manifest_changes_items_no_header_is_a_noop(cdb: ModuleType)
 def test_main_reorders_images_manifest_to_match_values_yaml(
     cdb: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """images-4.9.0.yaml lists zac before redis-operator, but values.yaml
-    (via sort_keys=False — see repo_with_out_of_order_doc's own comment
-    on why the dict's own insertion order matters) lists redis-operator
-    first — main() must reorder the manifest's own entries too, not just
-    the "Component versions" table/Changes blocks."""
+    """main() reorders manifest entries to values.yaml order too, not just
+    the table and Changes blocks."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -352,11 +325,9 @@ def test_main_reorders_images_manifest_to_match_values_yaml(
     # Each entry's own comment travels WITH it, never left behind.
     assert text.index("# redis-operator") < text.index("- name: opstree/redis-operator")
     assert text.index("# zac") < text.index("- name: infonl/zaakafhandelcomponent")
-    # The "# Changes:" numbered list is ALSO reordered and renumbered.
     assert "#   1. redis-operator 0.25.0 -> 0.26.0.\n" in text
     assert "#   2. zac 5.0.2 -> 5.4.4.\n" in text
     assert text.index("#   1. redis-operator") < text.index("#   2. zac")
-    # The old numbering is gone, not left alongside the new one.
     assert "#   1. zac 5.0.2 -> 5.4.4.\n" not in text
     assert "#   2. redis-operator 0.25.0 -> 0.26.0.\n" not in text
 

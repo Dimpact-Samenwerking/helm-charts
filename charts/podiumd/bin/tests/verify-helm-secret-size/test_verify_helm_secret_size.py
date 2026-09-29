@@ -1,11 +1,5 @@
-"""main() — the standalone verify-helm-secret-size CLI: a thin argparse
-wrapper around lib.release_secret_size's own core (build_release/
-encoded_secret_size/format_report/record_result), unlike check_release_
-secret_size (verify-podiumd's own integration, tested in tests/verify-
-podiumd/test_release_secret_size.py) this CLI renders via its OWN `helm
-template <name> <chart_dir> ...` call (an arbitrary --name, so it can't
-go through lib.render_scope.render_chart, which is hardcoded to
-CHART_NAME) — mocked here via vhss.run, never a real helm invocation."""
+"""verify-helm-secret-size CLI. It renders via its own `helm template` call
+(arbitrary --name, so not lib.render_scope.render_chart), mocked via vhss.run."""
 
 from pathlib import Path
 from types import ModuleType
@@ -119,11 +113,8 @@ def test_main_no_values_file_means_no_config_override(
 def test_main_falls_back_when_helm_predates_skip_schema_validation(
     vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-    """Real bug caught live: this repo's own environment (Helm 3.9.0, no
-    --skip-schema-validation flag at all) failed outright with "unknown
-    flag" before this fallback existed -- verify-podiumd's own render
-    (lib.render_scope.render_chart) never needed the flag either, so an
-    older `helm` must still work here, not hard-fail on it."""
+    """Older helm (e.g. 3.9.0) lacks --skip-schema-validation and fails with
+    "unknown flag"; the render must fall back rather than hard-fail."""
     calls = []
 
     def fake_run(cmd, **kwargs):
@@ -146,9 +137,8 @@ def test_main_falls_back_when_helm_predates_skip_schema_validation(
 def test_main_other_render_failure_is_not_retried(
     vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """A real render failure unrelated to --skip-schema-validation (a
-    genuine template error) must NOT be silently retried/swallowed --
-    only the specific "unknown flag" case falls back."""
+    """Only the "unknown flag" failure falls back; a real template error is
+    not retried or swallowed."""
     calls = []
 
     def fake_run(cmd, **kwargs):
@@ -249,8 +239,7 @@ def test_main_without_record_flag_never_calls_record_result(
 def test_main_exits_one_and_warns_at_threshold(
     vhss: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """Regression: the standalone CLI's own exit-1 semantics, unchanged
-    by the refactor -- pct >= WARN_THRESHOLD still fails the run."""
+    """pct >= WARN_THRESHOLD still exits 1."""
     monkeypatch.setattr(vhss, "run", lambda cmd, **kw: SimpleNamespace(returncode=0, stdout="manifest", stderr=""))
     monkeypatch.setattr(vhss, "build_release", lambda *a, **kw: ({}, "4.9.1", []))
     monkeypatch.setattr(

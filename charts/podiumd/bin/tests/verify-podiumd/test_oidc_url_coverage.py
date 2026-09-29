@@ -1,7 +1,5 @@
-"""check_oidc_url_coverage — every Keycloak client in
-templates/keycloak-podiumd-realm-config.yaml that builds its redirectUris
-from a `.Values.<path>` must have that path as the "oidcUrl" of some
-`$oidcClients` entry (helm-charts PR #461's review finding, PR #490)."""
+"""check_oidc_url_coverage: every Keycloak client building redirectUris from a
+`.Values.<path>` needs that path as an $oidcClients "oidcUrl"."""
 
 from pathlib import Path
 from types import ModuleType
@@ -59,8 +57,7 @@ def test_covered_client_passes(vp: ModuleType, tmp_path: Path):
 def test_uncovered_values_path_fails_naming_client_and_path(
     vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """The PR #461 shape: kiss builds its redirectUris from a value that
-    $oidcClients never lists, so an example.nl default renders silently."""
+    """An uncovered value lets an example.nl default render silently."""
     write_realm_config(tmp_path, realm(OPENZAAK_CLIENT, KISS_CLIENT))
     ok, detail = vp.check_oidc_url_coverage(tmp_path)
     assert ok is False

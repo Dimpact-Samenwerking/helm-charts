@@ -1,34 +1,15 @@
-"""check_cve_diff — for every image check_image_upgrades flagged with a
-newer tag, or check_image_digests flagged with a slid digest, scan BOTH
-the current and proposed image with trivy and report the per-severity CVE
-set difference, now split into the same own/partner-vendor/other-vendor
-buckets as lib.checks.cve.check_cves (ALL get identical treatment — no
-aggregate-only rollup for other-vendor). No real docker/trivy/registry
-invocation happens in these tests — load_upgrade_cache/find_sliding_pins/
-registry_tag_exists are mocked directly on lib.checks.cve_diff's own module
-bindings (the module that actually owns them, per this test suite's own
-convention). run_trivy and cache_key, though, are mocked on lib.checks.cve
-(the `libcvecheck` fixture) instead: both current/proposed scans now
-route through lib.checks.cve.scan_cached (imported into lib.checks.cve_diff
-only as `scan_cached` itself), so run_trivy's own binding — and
-cache_key's, which is only ever called from inside scan_cached, never
-re-imported into lib.checks.cve_diff — live in lib.checks.cve now, not
-here.
+"""check_cve_diff: per-severity CVE difference between current and proposed images.
 
-classify_candidates (the new bucketing step) needs a Chart.yaml to exist
-(dependency_names/friendly_vendor_charts both read Chart.yaml through lib.chart.chart_yaml on
-it directly, no existence check) and calls lib.render_scope.render_chart
-— every test in this file gets a minimal Chart.yaml via make_chart_dir,
-and an autouse fixture defaults render_chart to a FAILING render (see
-_default_render below) so every EXISTING test's candidates fall through
-to the classify_by_key fallback and land in "own" (the minimal default
-Chart.yaml has no dependencies at all, so dep_names is always empty) —
-existing assertions about scanning/caching/diffing behavior stay valid
-unchanged, just now printed under a "--- Own images ---" header. Tests
-that care about the bucket split itself override render_chart/Chart.yaml
-directly (see the "own/partner/other bucket split" section below, modeled
-on tests/verify-podiumd/test_cve_check.py's own CHART_YAML/VALUES_YAML/
-RENDERED/make_chart_dir/fake_render_chart pattern)."""
+Candidates come from check_image_upgrades (newer tag) and check_image_digests
+(slid digest), bucketed own/partner-vendor/other-vendor like check_cves. No
+real docker/trivy/registry calls: load_upgrade_cache/find_sliding_pins/
+registry_tag_exists are mocked on lib.checks.cve_diff, but run_trivy and
+cache_key on lib.checks.cve (`libcvecheck`), because scans go through
+lib.checks.cve.scan_cached.
+
+classify_candidates needs a Chart.yaml and calls render_chart: make_chart_dir
+writes a dependency-less Chart.yaml and an autouse fixture makes the render
+fail, so candidates default to "own". Bucket-split tests override both."""
 
 import urllib.error
 
@@ -57,15 +38,10 @@ def write_chart_yaml(chart_dir, text=MINIMAL_CHART_YAML):
 
 
 def write_values_yaml(chart_dir, text):
-    """Every EXISTING test in this file only ever wrote values.yaml — now
-    that classify_candidates (called unconditionally by check_cve_diff)
-    needs a Chart.yaml to exist too (dependency_names/friendly_vendor_
-    charts both read it through lib.chart.chart_yaml, no existence
-    check), this also drops in a minimal Chart.yaml with no dependencies
-    at all, unless a test already wrote its own first — the least
-    invasive fix, since every existing candidate then falls through
-    classify_by_key's fallback straight to "own" (see this module's own
-    docstring), keeping every existing assertion valid unchanged."""
+    """Write values.yaml plus a dependency-less Chart.yaml unless one exists.
+
+    classify_candidates reads Chart.yaml unconditionally; with no dependencies
+    every candidate falls back to "own"."""
     if not (chart_dir / "Chart.yaml").exists():
         write_chart_yaml(chart_dir)
     (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
@@ -99,10 +75,7 @@ def make_run_trivy(vulns_by_ref, calls=None):
 
 
 def fake_render_chart(rendered="", returncode=1):
-    """Defaults to a FAILING render (returncode=1, empty stdout) — every
-    existing test in this file never set up a real render, so
-    classify_candidates must degrade to classify_by_key for all of them
-    (see _default_render below and this module's own docstring)."""
+    """Default to a failing render so classify_candidates falls back to classify_by_key."""
 
     def render_chart(chart_dir, extra_args):
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
@@ -129,8 +102,7 @@ def test_diff_vulns_exact_set_difference_per_severity(libcvediffcheck: ModuleTyp
 
 
 def test_diff_vulns_never_collapses_into_a_naive_net_count(libcvediffcheck: ModuleType):
-    """5 closed + 3 introduced must stay two distinct lists, never a
-    misleading "net -2"."""
+    """5 closed + 3 introduced stay two lists, never a misleading "net -2"."""
     current = [vuln("HIGH", f"CVE-{i}", "pkg") for i in range(5)]
     proposed = [vuln("HIGH", f"CVE-new-{i}", "pkg") for i in range(3)]
 
@@ -186,9 +158,7 @@ zac:
 def test_upgrade_candidate_current_ref_is_the_plain_pinned_tag(
     libcvediffcheck: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Unlike the sliding-digest case below, an "upgrade" candidate's own
-    current side is the bare pinned tag -- its digest hasn't drifted, so
-    there's nothing to pin more precisely against."""
+    """An "upgrade" candidate's current side is the bare pinned tag: its digest has not drifted."""
     write_values_yaml(
         tmp_path,
         f"""\
@@ -254,8 +224,7 @@ def test_sliding_candidate_uses_pinned_digest_not_bare_tag_for_current_side(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """The tag alone would now resolve to the NEW upstream digest, not
-    what's actually pinned in values.yaml -- current_ref MUST be
+    """The tag now resolves to the new upstream digest, so current_ref must be
     "repo@sha256:<pinned_digest>", never "repo:version"."""
     write_values_yaml(
         tmp_path,
@@ -296,10 +265,7 @@ openzaak:
 def test_sliding_candidate_proposed_side_caches_across_runs(
     libcvediffcheck: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A sliding candidate's own proposed digest is already known (see
-    gather_candidates' own "proposed_digest" field) -- no registry call
-    is needed to make it cache-eligible, and a second run reuses the
-    cached scan instead of re-invoking trivy."""
+    """A sliding candidate's proposed digest is already known, so a second run reuses the cached scan."""
     write_values_yaml(
         tmp_path,
         f"""\
@@ -333,11 +299,8 @@ openzaak:
 def test_upgrade_candidate_proposed_side_resolves_digest_then_caches_across_runs(
     libcvediffcheck: ModuleType, libcvecheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """An "upgrade" candidate's own proposed side is a bare tag -- its
-    digest is resolved via ONE registry_tag_exists manifest lookup
-    (never a docker pull), called with exactly (host, repo_path,
-    newest-tag). Once resolved, a second run reuses the cached scan
-    instead of re-invoking trivy, the same as the sliding case."""
+    """An "upgrade" proposed tag is resolved by one registry_tag_exists call (host, repo_path,
+    newest-tag), never a docker pull; a second run then reuses the cached scan."""
     write_values_yaml(
         tmp_path,
         f"""\
@@ -385,10 +348,7 @@ def test_upgrade_candidate_resolve_failure_falls_back_to_uncached_scan(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A network error while resolving the proposed tag's digest must
-    never abort the candidate or count as a scan error -- it just falls
-    back to an uncached run_trivy call, same as if caching were never
-    attempted at all."""
+    """A network error resolving the proposed digest falls back to an uncached scan, not an error."""
     write_values_yaml(
         tmp_path,
         f"""\
@@ -432,10 +392,7 @@ def test_cache_hit_and_fresh_scan_are_both_reported_per_side(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """The current side hits a pre-populated cache entry; the proposed
-    side doesn't -- the printed output must say so explicitly, per side
-    (not a single blanket "unless cached" caveat that never says which
-    side actually hit)."""
+    """Cache hit vs fresh scan is reported per side, not as one blanket caveat."""
     write_values_yaml(
         tmp_path,
         f"""\
@@ -600,8 +557,7 @@ def test_detail_flag_never_itemizes_medium_low_unknown(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """Same convention as check_cves' own --detail-cve-check: only
-    CRITICAL/HIGH ever get itemized, regardless of the flag."""
+    """Like check_cves' --detail-cve-check, only CRITICAL/HIGH are itemized."""
     write_values_yaml(
         tmp_path,
         f"""\
@@ -703,23 +659,19 @@ redis-thing:
     assert kinds == ["sliding digest", "upgrade"]
 
     by_kind = {c["kind"]: c for c in candidates}
-    # sliding digest already has its own resolved digest -- bare hex, no
-    # "sha256:" prefix (see _bare_digest/cache_key) -- no extra call
-    # needed to cache its proposed side.
+    # sliding: proposed digest already resolved (bare hex, no "sha256:" prefix).
     assert by_kind["sliding digest"]["proposed_digest"] == DIGEST_B
-    # upgrade's own proposed side is a bare tag -- genuinely unresolved
-    # until _scan_proposed actually needs it.
+    # upgrade: proposed side is a bare tag, resolved only when _scan_proposed needs it.
     assert by_kind["upgrade"]["proposed_digest"] is None
 
 
 def test_gather_candidates_attaches_the_values_yaml_line_for_both_kinds(
     libcvediffcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """classify_candidates' own classify_by_key fallback needs the
-    values.yaml source line for each candidate -- the "upgrade" loop
-    already unpacks it from targets.items(); the "sliding digest" loop
-    (whose own find_sliding_pins never returns a line number) looks it up
-    from that SAME targets dict, keyed by (repository, version)."""
+    """Both kinds carry the values.yaml line classify_by_key needs.
+
+    find_sliding_pins returns no line, so sliding candidates look it up in
+    targets by (repository, version)."""
     write_values_yaml(
         tmp_path,
         f"""\
@@ -752,9 +704,7 @@ redis-thing:
 def test_classify_candidates_falls_back_to_classify_by_key_when_render_raises(
     libcvediffcheck: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """render_chart can raise (e.g. FileNotFoundError when helm itself is
-    missing); classify_candidates must then degrade to classify_by_key
-    for every candidate instead of crashing."""
+    """If render_chart raises (e.g. helm missing), classify_candidates falls back to classify_by_key."""
     write_values_yaml(
         tmp_path, f'zac:\n  image:\n    repository: ghcr.io/infonl/zac\n    tag: "1.0.0@sha256:{DIGEST_A}"\n'
     )
@@ -784,14 +734,8 @@ def test_classify_candidates_falls_back_to_classify_by_key_when_render_raises(
 
 # --- check_cve_diff: own/partner/other bucket split ---
 #
-# Modeled on tests/verify-podiumd/test_cve_check.py's own CHART_YAML/
-# VALUES_YAML/RENDERED/make_chart_dir/fake_render_chart shape (this file's
-# own versions live above, adapted for cve_diff's own candidate model:
-# every candidate here is an "upgrade" kind, sourced via load_upgrade_cache,
-# so its own current side's repository/version/digest can be attributed
-# by classify_candidates via the real render's "# Source:" lines, exactly
-# like check_cves/check_image_upgrades already do for a currently-pinned
-# image.
+# Same fixture shape as test_cve_check.py. All candidates are "upgrade" kind
+# (via load_upgrade_cache), attributed through the render's "# Source:" lines.
 
 BUCKET_CHART_YAML = """\
 apiVersion: v2
@@ -930,9 +874,7 @@ def test_check_cve_diff_bucket_with_no_candidates_prints_no_header(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """Only own+partner have a flagged candidate here (redis-operator's
-    own upgrade cache entry is missing, so it never becomes a candidate at
-    all) -- "--- Other-vendor images ---" must not appear anywhere."""
+    """redis-operator has no upgrade cache entry, so no candidate: no "--- Other-vendor images ---" header."""
     vulns_by_ref = {
         "ghcr.io/infonl/zac:1.0.0": [vuln("CRITICAL", "CVE-OWN-1", "openssl")],
         "ghcr.io/infonl/zac:1.1.0": [],

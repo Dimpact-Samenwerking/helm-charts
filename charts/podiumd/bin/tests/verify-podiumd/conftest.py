@@ -1,16 +1,8 @@
-"""Loads verify-podiumd (a hyphenated filename, not importable normally)
-as a module named `vp` so tests can call its functions directly.
+"""Load verify-podiumd (hyphenated, not importable) as module `vp`; provide per-check-module fixtures.
 
-Also provides one fixture per lib/*_check.py module the checks were
-refactored into (same convention as tests/lib/conftest.py's libregistry/
-libchart/etc. fixtures). Most tests still go through `vp.check_X(...)` —
-that keeps working unchanged since verify-podiumd re-exports every
-check function. But a monkeypatch on a *helper* a moved check calls
-internally (run, friendly_vendor_charts, registry_tag_exists, ...) must
-target the module that check now actually lives in — `vp.run` only
-affects code whose global `run` was bound by verify-podiumd's own
-imports, not a lib module's separate `from lib.procutil import run`
-binding. Use e.g. `libyamllintcheck` for those cases."""
+Monkeypatch a helper (run, registry_tag_exists, ...) on the lib module that
+calls it (e.g. `libyamllintcheck`), not on `vp`: each module binds its own name.
+"""
 
 import importlib.util
 import subprocess
@@ -324,11 +316,7 @@ def _chart_repo_values_yaml(app_version):
 
 @pytest.fixture
 def chart_repo(tmp_path: Path):
-    """Baseline commit (tagged podiumd-4.8.5) has ZAC 5.0.2; HEAD bumps it to
-    5.4.3 and updates the matching docs to describe that exact change.
-
-    Shared across the test_docs_consistency_integration_*.py files (promoted
-    here since nearly every one of them uses it)."""
+    """Baseline commit (tagged podiumd-4.8.5) has ZAC 5.0.2; HEAD bumps it to 5.4.3 with matching docs."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
@@ -365,9 +353,5 @@ def chart_repo(tmp_path: Path):
 
 @pytest.fixture(autouse=True)
 def stub_ensure_vendored_dependencies(vp: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """main() now calls lib.dependencies.ensure_vendored_dependencies
-    first, but every main()-level test here runs against a fake chart
-    directory with no vendored sub-charts at all. Stubbed to a no-op by
-    default; a test exercising the guard itself puts the real one back
-    via its own monkeypatch.setattr, same as any other autouse default."""
+    """Stub ensure_vendored_dependencies: fake chart dirs have no vendored sub-charts."""
     monkeypatch.setattr(vp, "ensure_vendored_dependencies", lambda chart_dir: None)

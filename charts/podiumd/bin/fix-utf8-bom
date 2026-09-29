@@ -19,8 +19,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.values_tree_primitives import UTF8_BOM as BOM
 
@@ -28,9 +27,7 @@ VALUES_PATH = SCRIPT_DIR.parents[0] / "values.yaml"
 
 
 def main():
-    """CLI entry point: strips a leading UTF-8 BOM from values.yaml in
-    place, or with --dry-run just reports whether one is present (exit 1)
-    without writing anything."""
+    """CLI entry point; --dry-run exits 1 when a BOM is present."""
     if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
         print(__doc__)
         sys.exit(0)

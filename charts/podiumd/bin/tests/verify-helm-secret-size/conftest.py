@@ -1,6 +1,4 @@
-"""Loads verify-helm-secret-size (a hyphenated filename, not importable
-normally) as a module named `vhss` so tests can call its functions
-directly."""
+"""Load verify-helm-secret-size (hyphenated, not importable) as module `vhss`."""
 
 import importlib.util
 
@@ -25,9 +23,6 @@ def vhss() -> ModuleType:
 
 @pytest.fixture(autouse=True)
 def stub_ensure_vendored_dependencies(vhss: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """main() now calls lib.dependencies.ensure_vendored_dependencies
-    first, but every main()-level test here runs against a fake chart
-    directory with no vendored sub-charts at all. Stubbed to a no-op by
-    default; a test exercising the guard itself puts the real one back
-    via its own monkeypatch.setattr, same as any other autouse default."""
+    """Stub ensure_vendored_dependencies: tests use a fake chart without
+    vendored sub-charts. Guard tests restore the real one."""
     monkeypatch.setattr(vhss, "ensure_vendored_dependencies", lambda chart_dir: None)

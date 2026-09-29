@@ -1,43 +1,17 @@
-"""Verifies two independent "lockstep" declarations lib.chart makes
-about a component actually hold in values.yaml/Chart.yaml right now.
-Registering either is a purely declarative claim; nothing else in this
-codebase ever re-checks it holds — see each check function's own
-docstring below for exactly what that means downstream. Both are
-checked directly against values.yaml/Chart.yaml, independent of any
-upgrade doc, so this also runs (and catches drift) on a branch with no
-upgrade doc pair at all.
+"""Verify lib.chart's lockstep declarations hold in values.yaml/Chart.yaml.
 
-find_lockstep_mismatches — every lib.chart.component_image_paths()/
-component_version_paths() entry registered with 2+ paths (lib.chart's
-signal that those paths are co-equal images/versions meant to move
-together, see either accessor's own docstring — e.g. kiss-chart's
-frontend "image" + its own settings.syncJobs.image, eck-stack's
-eck-elasticsearch.version + eck-kibana.version) must agree on ONE
-version.
+Nothing else re-checks these claims, and this runs without an upgrade doc.
 
-find_chart_version_mismatches — every lib.chart.chart_version_lockstep_
-components() entry (settings.yaml's own signal that a component's
-Chart.yaml dependency version and its own resolved app image version
-are released as the SAME number) must agree with each other.
+- find_lockstep_mismatches: a component with 2+ registered image/version paths must
+  agree on one version (e.g. eck-elasticsearch.version + eck-kibana.version).
+- find_chart_version_mismatches: a chart_version_lockstep component's Chart.yaml
+  dependency version must equal its app version.
+- find_embedded_version_mismatches: an embedded_version image tag (e.g.
+  keycloak-config-cli "6.5.1-26.5.5") must embed a full version with the same major
+  as the followed image, no newer than it.
 
-find_embedded_version_mismatches — every lib.chart.embedded_version_
-images() entry (an image whose tag embeds the version of the image it
-is built against, e.g. keycloak-config-cli "6.5.1-26.5.5" is built for
-Keycloak 26.5.5) must embed a full MAJOR.MINOR.PATCH version with the
-same major as that image, and no newer than it.
-
-These are genuinely different things being checked, not two flavors of
-the same one: find_lockstep_mismatches compares several values-tree
-PATHS against EACH OTHER; find_chart_version_mismatches compares ONE
-path against the Chart.yaml dependency's own "version:" field. Neither
-ever compares across two different COMPONENTS, and neither ever uses a
-dotted PATH STRING itself (or a shared version number between unrelated
-components) as a group key — that's a different, weaker signal (lib.
-upgradedoc's own same_group/images_manifest_entries_share_group) this
-module has nothing to do with: two unrelated components coincidentally
-sharing a version number is normal and not a mismatch — the exact
-opposite mistake same_group's own docstring already warns against (the
-kiss/kiss-elastic-sync precedent)."""
+All comparisons stay within one component: unrelated components sharing a version is normal.
+"""
 
 import re
 
@@ -62,23 +36,12 @@ from lib.yaml_types import load_yaml_mapping
 def find_lockstep_mismatches(
     deps: list[ChartDependency], values: YamlMapping | None
 ) -> list[tuple[str, str, list[tuple[str, str]]]]:
-    """[(component, values_key, [(path, version), ...])] for every
-    multi-path component_image_paths()/component_version_paths() entry
-    whose resolved paths disagree on version. `resolved` only ever lists the
-    paths that actually resolved to a version — the culprit(s) worth
-    showing, not every registered path regardless of whether it even
-    carries a value.
+    """[(component, values_key, [(path, version), ...])] for multi-path components that disagree.
 
-    A path with no explicit value at all (values.yaml relies entirely
-    on the vendored chart's own default) is skipped, not treated as a
-    mismatch — comparing "no override" against an explicit override
-    would flag a legitimate config choice, not a real drift. A
-    component where fewer than two of its registered paths carry an
-    explicit value has nothing left to compare, so it's never reported
-    either. A registered component with no matching Chart.yaml
-    dependency (shouldn't happen — every current entry names a real
-    dependency — but nothing here assumes it) is skipped the same way,
-    rather than raising."""
+    Only paths with an explicit value are compared or listed (relying on the vendored
+    default is a legitimate choice). Components with fewer than two such paths, or no
+    matching Chart.yaml dependency, are skipped.
+    """
     entries = [(name, paths, True) for name, paths in component_image_paths().items() if len(paths) >= 2] + [
         (name, paths, False) for name, paths in component_version_paths().items() if len(paths) >= 2
     ]
@@ -105,19 +68,11 @@ def find_lockstep_mismatches(
 def find_chart_version_mismatches(
     deps: list[ChartDependency], values: YamlMapping | None
 ) -> list[tuple[str, str, str, str]]:
-    """[(component, values_key, chart_version, app_version)] for every
-    lib.chart.chart_version_lockstep_components() entry whose Chart.yaml
-    dependency "version:" disagrees with its own resolved app version. Resolution
-    order — first image_paths_for(component) candidate with a real tag,
-    else first version_paths_for(component) candidate with a real value
-    — is the exact same "first candidate wins" order lib.upgradedoc.
-    actual_app_version itself uses, so this never disagrees with what
-    that call already treats as the component's current app version.
+    """[(component, values_key, chart_version, app_version)] where the two disagree.
 
-    A component with no resolvable app version at all (relies entirely
-    on its vendored chart's own appVersion default) has nothing to
-    compare, so it's skipped, not reported. Same for a registered
-    component with no matching Chart.yaml dependency at all."""
+    App version resolves like lib.upgradedoc.actual_app_version (image paths, then
+    version paths). Components without an app version or dependency are skipped.
+    """
     findings: list[tuple[str, str, str, str]] = []
     for component in sorted(chart_version_lockstep_components()):
         dep = find_dependency(deps, component)
@@ -159,11 +114,9 @@ def _version_parts(match: re.Match[str] | None) -> tuple[int, int, int] | None:
 
 
 def find_embedded_version_mismatches(values: YamlMapping | None) -> list[tuple[str, str]]:
-    """[(path, problem)] for every
-    lib.chart.embedded_version_images() entry whose tag doesn't embed a
-    full version (e.g. the floating "6.5.1-26"), embeds a different
-    major than the followed image's version, or embeds a newer one.
-    Entries whose path or followed path has no tag are skipped."""
+    """[(path, problem)] for every embedded_version_images() tag that doesn't embed a full
+    version (e.g. floating "6.5.1-26"), embeds a different major, or a newer one.
+    Entries without a tag are skipped."""
     findings: list[tuple[str, str]] = []
     base = values if isinstance(values, dict) else {}
     for path, followed_path in sorted(embedded_version_images().items()):
@@ -190,9 +143,7 @@ def find_embedded_version_mismatches(values: YamlMapping | None) -> list[tuple[s
 
 
 def check_lockstep_versions(chart_dir: Path):
-    """Runs find_lockstep_mismatches, find_chart_version_mismatches and
-    find_embedded_version_mismatches against chart_dir's own Chart.yaml/values.yaml and reports every
-    mismatch found."""
+    """Report every lockstep, chart-version and embedded-version mismatch."""
     deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     values = load_yaml_mapping(chart_dir / "values.yaml")
 

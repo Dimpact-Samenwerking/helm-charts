@@ -1,5 +1,4 @@
-"""lib.upgradedoc -- preceding-comment/grouped-comment lookup and
-Changes-block parsing."""
+"""lib.upgradedoc -- preceding/grouped-comment lookup and Changes-block parsing."""
 
 from types import ModuleType
 
@@ -7,18 +6,13 @@ from types import ModuleType
 
 
 def test_path_display_name_primary_dependency_image_uses_bare_key(libupgradedoccomments: ModuleType):
-    """A dependency's own primary image (image_paths_for's default
-    "image" path) displays as just its values key — the same name every
-    "component "<key>" changed vs ..." message elsewhere already uses,
-    never the dotted values.yaml path."""
+    """A dependency's primary image displays as its bare values key, matching other messages."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"}]
     assert libupgradedoccomments.path_display_name(("zac", "image"), deps, canonical_names={}) == "zac"
 
 
 def test_path_display_name_sidecar_uses_canonical_name(libupgradedoccomments: ModuleType):
-    """A nested sidecar path resolves via canonical_names
-    (canonical_sidecar_row_names's own {name: path} mapping) to its
-    "<key> - <basename>" doc name."""
+    """A nested sidecar path displays as its canonical "<key> - <basename>" name."""
     deps = [{"name": "redis-operator", "version": "1.0.0"}]
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
     assert (
@@ -28,8 +22,7 @@ def test_path_display_name_sidecar_uses_canonical_name(libupgradedoccomments: Mo
 
 
 def test_path_display_name_global_uses_bare_basename(libupgradedoccomments: ModuleType):
-    """A shared "global" image resolves to canonical_names' bare
-    basename, with no "<key> -" prefix at all."""
+    """A shared "global" image displays as its bare basename."""
     canonical_names = {"curl": ("global", "images", "curl", "image")}
     assert (
         libupgradedoccomments.path_display_name(
@@ -40,10 +33,7 @@ def test_path_display_name_global_uses_bare_basename(libupgradedoccomments: Modu
 
 
 def test_path_display_name_falls_back_to_dotted_path(libupgradedoccomments: ModuleType):
-    """A path covered by neither a real dependency's primary image nor
-    canonical_names (e.g. an image with no vendored/own repository to
-    resolve a basename from) falls back to the raw dotted path rather
-    than guessing at a name."""
+    """A path with no primary image or canonical name falls back to the dotted path, not a guess."""
     assert (
         libupgradedoccomments.path_display_name(("mystery", "nested", "image"), deps=[], canonical_names={})
         == "mystery.nested.image"
@@ -51,15 +41,8 @@ def test_path_display_name_falls_back_to_dotted_path(libupgradedoccomments: Modu
 
 
 def test_path_display_name_version_paths_for_field_uses_bare_key(libupgradedoccomments: ModuleType):
-    """A dependency whose real app version comes from lib.chart.
-    version_paths_for's own bare-scalar fallback (no "image: {tag}"
-    block at all — redis-operator's own split "redisOperator.imageTag")
-    is ALSO its primary, displaying as just its values key — the exact
-    same convention actual_app_version already uses for -upgrade.md's
-    own row/Changes heading (there literally named "redis-operator").
-    Before _is_dependency_primary_rel_path existed, this path matched
-    neither image_paths_for nor canonical_names and fell back to the
-    raw dotted path, real case reported live against images-4.9.0.yaml."""
+    """A version_paths_for bare-scalar field (redis-operator's "redisOperator.imageTag") is also the
+    primary, so it displays as the bare key, as actual_app_version does."""
     deps = [{"name": "redis-operator", "version": "1.0.0"}]
     assert (
         libupgradedoccomments.path_display_name(
@@ -124,12 +107,10 @@ def component_of(entry):
 
 
 def same_group(entry_a, entry_b):
-    """The grouping predicate check_images_manifest_format and friends
-    actually use: same top-level component AND same declared version —
-    matching declared versions is what tells a lockstep multi-image bump
-    (zgw-office-addin frontend/backend, always identical) apart from two
-    independently-versioned images that just share a values-tree prefix
-    (zac vs. its zac.opa sidecar)."""
+    """Grouping predicate used by check_images_manifest_format: same component and same version.
+
+    The version check separates lockstep bumps (zgw-office-addin frontend/backend) from independently
+    versioned images sharing a prefix (zac vs. zac.opa)."""
     return (
         component_of(entry_a) is not None
         and component_of(entry_a) == component_of(entry_b)
@@ -152,9 +133,7 @@ def test_find_grouped_preceding_comment_inherits_sibling_comment_across_blank_li
 
 
 def test_find_grouped_preceding_comment_does_not_inherit_across_different_component(libupgradedoccomments: ModuleType):
-    """A ZAC entry right after ZGW's group, with no comment of its own, must
-    NOT inherit ZGW's comment just because it's the immediately preceding
-    entry — they resolve to different components."""
+    """An entry must not inherit the preceding entry's comment across different components."""
     lines = [*ZGW_GROUPED_LINES, "\n", "- name: zac\n", '  version: "5.1.0"\n']
     entries = [*ZGW_ENTRIES, {"name": "zac", "version": "5.1.0"}]
     entry_line_indices = [*ZGW_ENTRY_LINE_INDICES, 7]
@@ -164,9 +143,7 @@ def test_find_grouped_preceding_comment_does_not_inherit_across_different_compon
 
 
 def test_find_grouped_preceding_comment_does_not_override_own_distinct_comment(libupgradedoccomments: ModuleType):
-    """ZAC's OPA sidecar has its own comment despite resolving to the same
-    top-level component ("zac") as ZAC's main entry — its own comment must
-    win, never be replaced by the main entry's comment."""
+    """An entry's own comment wins over its group's comment."""
     lines = [
         "# ZAC — 5.0.1 -> 5.1.0\n",
         "- name: zac\n",
@@ -183,10 +160,7 @@ def test_find_grouped_preceding_comment_does_not_override_own_distinct_comment(l
 
 
 def test_find_grouped_preceding_comment_does_not_inherit_when_versions_differ(libupgradedoccomments: ModuleType):
-    """Same top-level component ("zac") is not enough on its own — the
-    OPA sidecar's version differs from ZAC's own, so even with no comment
-    of its own it must NOT inherit ZAC's comment (they're independently
-    versioned, not one lockstep bump)."""
+    """Same component but a different version is not a lockstep bump, so no comment is inherited."""
     lines = [
         "# ZAC — 5.0.1 -> 5.1.0\n",
         "- name: zac\n",
@@ -254,8 +228,7 @@ def test_flatten_leaf_keys_collects_nested_leaf_names_only(libupgradedoccomments
 
 
 def test_diff_keys_yields_keys_in_sorted_order(libupgradedoccomments: ModuleType):
-    """Added, removed and shared keys each come out sorted, not in set
-    order, so pair_renames sees the same input order in every process."""
+    """Output is sorted, so pair_renames sees the same input order in every process."""
     names = [f"key{i:02d}" for i in range(20)]
     baseline = {name: {"x": 1} for name in reversed(names[:10])} | {"shared": dict.fromkeys(reversed(names[:5]), 1)}
     current = {name: {"x": 1} for name in reversed(names[10:])} | {"shared": dict.fromkeys(reversed(names[5:10]), 1)}
@@ -269,15 +242,13 @@ def test_diff_keys_yields_keys_in_sorted_order(libupgradedoccomments: ModuleType
 
 
 def test_flatten_leaf_keys_excludes_intermediate_keys(libupgradedoccomments: ModuleType):
-    """A key whose value is a dict or list is not a leaf: counting it would
-    inflate the similarity ratio pair_renames uses."""
+    """Dict/list-valued keys are not leaves; counting them would inflate pair_renames' similarity ratio."""
     node = {"a": {"x": 1, "y": [{"z": 2}]}}
     assert libupgradedoccomments.flatten_leaf_keys(node) == {"x", "z"}
 
 
 def test_pair_renames_ignores_shared_intermediate_keys(libupgradedoccomments: ModuleType):
-    """Two blocks that only share an intermediate key name ("auth") and no
-    leaf key are an unrelated add and remove, not a rename."""
+    """Sharing only an intermediate key ("auth") is an unrelated add and remove, not a rename."""
     baseline = {"old": {"auth": {"user": "u", "password": "p"}}}
     current = {"new": {"auth": {"token": "t"}}}
     renamed, added, removed = libupgradedoccomments.pair_renames([("new",)], [("old",)], baseline, current)
@@ -346,12 +317,8 @@ def test_parse_changes_block_version_with_dot_not_mistaken_for_new_item(libupgra
 
 
 def test_parse_changes_block_joins_a_wrapped_version_pair(libupgradedoccomments: ModuleType):
-    """Regression test: an item whose own "<source> -> <target>" pair
-    sits on a WRAPPED continuation line (not the numbered line itself)
-    used to be silently unparseable — extract_source_version/
-    extract_target_version's own "no arrow found" fallback grabbed the
-    item's own leading word ("nginx-unprivileged") as a fake version,
-    since the numbered line alone never had an arrow in it at all."""
+    """Regression: a version pair on a wrapped continuation line is joined; otherwise the item's
+    leading word was taken as a fake version."""
     text = (
         "# Changes:\n"
         "#   21. nginx-unprivileged (shared global.images.nginx anchor, used by every\n"
@@ -369,11 +336,7 @@ def test_parse_changes_block_joins_a_wrapped_version_pair(libupgradedoccomments:
 
 
 def test_parse_changes_block_joins_a_wrapped_chart_version(libupgradedoccomments: ModuleType):
-    """The same continuation-joining fixes a second, previously silent
-    gap: a "(chart ...)" span whose own closing paren is on the wrapped
-    line never matched at all before (chart_source/chart just stayed
-    None, so the chart comparison was silently skipped rather than
-    actually verified)."""
+    """A "(chart ...)" span closing on a wrapped line is parsed, so the chart comparison is not skipped."""
     text = (
         "# Changes:\n"
         "#   1. ZAC 5.0.2 -> 5.4.4 (chart 1.0.297, unchanged — the chart line was\n"
@@ -386,15 +349,8 @@ def test_parse_changes_block_joins_a_wrapped_chart_version(libupgradedoccomments
 
 
 def test_parse_changes_block_chart_only_item_with_no_parens_has_no_fake_app_version(libupgradedoccomments: ModuleType):
-    """Regression test: a chart-only item that states its version pair as
-    a bare "chart <source> -> <target>" clause (no "(chart ...)" parens
-    at all) must never have that pair mistaken for the item's own APP
-    version — the real-world case this was found from: "ECK Stack
-    (kiss-eck) chart 0.19.0 -> 0.20.0 (no image change of its own)."
-    used to grab "0.19.0 -> 0.20.0" as a fake app version once eck-stack
-    became resolvable via COMPONENT_VERSION_PATHS, silently comparing it
-    against the real (unrelated) app version and reporting a bogus
-    mismatch."""
+    """Regression: a bare "chart <source> -> <target>" clause is not taken as the app version (it
+    caused a bogus mismatch for eck-stack)."""
     text = "# Changes:\n#   6. ECK Stack (kiss-eck) chart 0.19.0 -> 0.20.0 (no image change of\n#      its own).\n"
     items = libupgradedoccomments.parse_changes_block(text)
     assert len(items) == 1
@@ -405,10 +361,7 @@ def test_parse_changes_block_chart_only_item_with_no_parens_has_no_fake_app_vers
 
 
 def test_parse_changes_block_chart_pair_before_app_pair_both_extracted_correctly(libupgradedoccomments: ModuleType):
-    """The real-world redis-operator case: BOTH a bare chart clause and a
-    real app-version pair appear in the same sentence, chart first — the
-    chart pair must not be mistaken for the app pair, and the real app
-    pair (the second one) must still be found correctly."""
+    """Chart clause before the app pair (redis-operator): each pair lands in the right field."""
     text = (
         "# Changes:\n"
         "#   15. redis-operator chart 0.25.0 -> 0.26.1, operator image 0.25.0 ->\n"
@@ -423,9 +376,7 @@ def test_parse_changes_block_chart_pair_before_app_pair_both_extracted_correctly
 
 
 def test_parse_changes_block_strips_trailing_sentence_period_even_on_a_single_line(libupgradedoccomments: ModuleType):
-    """The trailing-period fix isn't specific to wrapped items — any
-    Changes item whose version is the last thing before its own
-    sentence-ending period, single-line or not, must have it stripped."""
+    """A trailing sentence period is stripped from single-line items too."""
     text = "# Changes:\n#   1. curl 8.20.0 -> 8.21.0.\n"
     items = libupgradedoccomments.parse_changes_block(text)
     assert len(items) == 1
@@ -434,11 +385,8 @@ def test_parse_changes_block_strips_trailing_sentence_period_even_on_a_single_li
 
 
 def test_parse_changes_block_trailing_remark_does_not_get_absorbed_into_last_item(libupgradedoccomments: ModuleType):
-    """A trailing "# See docs/..." remark right after the last item, with
-    no blank "#" line separating them, must never be swallowed into that
-    item's own text — it's indented with the ordinary single-space
-    comment convention, not the 2+-space continuation indent, so it's
-    distinguishable from a real wrapped continuation line."""
+    """A single-space-indented trailing remark is not a continuation (2+ spaces), so it is not
+    absorbed into the last item."""
     text = "# Changes:\n#   1. ZAC 5.0.2 -> 5.4.3\n# See docs/_UPGRADE_PATHS/...\n"
     items = libupgradedoccomments.parse_changes_block(text)
     assert len(items) == 1
@@ -447,10 +395,7 @@ def test_parse_changes_block_trailing_remark_does_not_get_absorbed_into_last_ite
 
 
 def test_parse_changes_block_last_item_with_no_trailing_hash_line_still_finalizes(libupgradedoccomments: ModuleType):
-    """The very last item in the block, with nothing at all following it
-    (no blank "#" line, no trailing remark, file just ends) must still
-    be finalized — not silently dropped because there was no later line
-    to trigger it."""
+    """The last item is finalized even when nothing follows it."""
     text = "# Changes:\n#   1. ZAC 5.0.2 -> 5.4.3"
     items = libupgradedoccomments.parse_changes_block(text)
     assert len(items) == 1

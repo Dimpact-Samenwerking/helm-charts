@@ -1,6 +1,5 @@
-"""check_digest_pinning — every "image: {tag: ...}" block in values.yaml
-must have a digest-pinned tag, except the one known keycloak-operator
-field that uses a separate split tag/sha convention instead."""
+"""check_digest_pinning: every "image: {tag: ...}" block must be digest-pinned,
+except fields using a split tag/sha convention."""
 
 from pathlib import Path
 from types import ModuleType
@@ -74,10 +73,8 @@ clamav:
 
 
 def test_keycloak_operator_own_image_is_exempt(vp: ModuleType, tmp_path: Path):
-    """keycloak-operator.operator.image uses the adfinis chart's own
-    split tag/sha convention -- embedding @sha256 in tag there would
-    produce a double digest. Must never be flagged, regardless of what
-    its own tag looks like."""
+    """The adfinis chart's split tag/sha convention: @sha256 in tag would
+    double the digest. Never flagged."""
     write_values_yaml(
         tmp_path,
         """\
@@ -94,10 +91,7 @@ keycloak-operator:
 
 
 def test_keycloak_operator_keycloak_image_is_exempt(vp: ModuleType, tmp_path: Path):
-    """keycloak-operator.operator.config.keycloakImage uses the exact
-    same split tag/sha convention as operator.image above -- only
-    visible to this check at all since find_image_tag_paths started
-    recognizing "...Image"-suffixed keys, not just the literal "image"."""
+    """Same split tag/sha convention as operator.image. Never flagged."""
     write_values_yaml(
         tmp_path,
         """\
@@ -116,8 +110,7 @@ keycloak-operator:
 
 
 def test_omc_own_image_is_exempt(vp: ModuleType, tmp_path: Path):
-    """omc's values.yaml comment says the subchart itself can't handle a
-    digest-pinned tag -- must never be flagged."""
+    """The omc subchart can't handle a digest-pinned tag. Never flagged."""
     write_values_yaml(
         tmp_path,
         """\
@@ -132,11 +125,8 @@ omc:
 
 
 def test_eck_operator_own_image_is_exempt(vp: ModuleType, tmp_path: Path):
-    """eck-operator.image uses the upstream elastic chart's own split
-    tag/digest convention (confirmed against eck-operator-3.5.0.tgz's
-    own templates/_helpers.tpl) -- embedding @sha256 in tag there too
-    would produce a double digest. Must never be flagged, regardless of
-    what its own tag looks like."""
+    """The elastic chart's split tag/digest convention (templates/_helpers.tpl):
+    @sha256 in tag would double the digest. Never flagged."""
     write_values_yaml(
         tmp_path,
         """\
@@ -173,9 +163,8 @@ keycloak-operator:
 
 
 def test_sha256_style_digest_is_case_sensitive_lowercase_hex(vp: ModuleType, tmp_path: Path):
-    """A malformed/uppercase digest must still fail -- this check is
-    about the shape scan_digest_pins itself requires, not just "has an
-    @sha256 substring somewhere"."""
+    """A malformed/uppercase digest must fail: the shape scan_digest_pins
+    requires, not just an @sha256 substring."""
     write_values_yaml(
         tmp_path,
         """\
@@ -219,12 +208,8 @@ zac:
 
 
 def test_suffixed_image_key_is_enforced_too(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
-    """A component needing more than one distinctly-named image (e.g. a
-    job's main "image" plus a separate "initImage") can't use the bare
-    "image" key for both — real-world case: ensurePodiumdAdminUser's
-    Python init image. Regression: find_image_tag_paths used to only
-    recognize the literal key "image", silently exempting every
-    "...Image"-suffixed sibling from digest-pin enforcement entirely."""
+    """A "...Image"-suffixed key (e.g. "initImage") is digest-pin enforced
+    too, not only the literal key "image"."""
     write_values_yaml(
         tmp_path,
         """\
@@ -244,12 +229,8 @@ keycloak-operator:
 
 
 def test_plural_images_container_not_treated_as_an_image_block(vp: ModuleType, tmp_path: Path):
-    """ "images" (plural, a container of several named templates, e.g.
-    global.images.nginx) must not itself be flagged — it doesn't end in
-    "Image" (capital I), so only its own literally-"image"/"...Image"-
-    keyed children would ever be. Two real consumers given here purely
-    so the (unrelated) global.images.* under-use check introduced later
-    doesn't also fail this — see its own dedicated tests below."""
+    """ "images" (plural container, e.g. global.images.nginx) is not itself
+    flagged. Two consumers keep the global.images.* under-use check quiet."""
     write_values_yaml(
         tmp_path,
         f"""\

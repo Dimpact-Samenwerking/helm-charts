@@ -1,11 +1,5 @@
-"""deep_merge, version_of, find_images, row_chart_tree_path, load_chart,
-pull_chart, and main() — offline throughout. load_chart's normal path reads a
-locally vendored .tgz (exactly like a real `helm dependency update` output),
-so most of this needs neither `helm` nor network access; the few tests that
-exercise the `helm pull` fallback mock subprocess.run instead. A "file://"
-dependency (e.g. mi-data) skips both the vendored-.tgz and pull paths
-entirely — see lib.chart.local_chart_dir, tested directly in
-tests/lib/test_chart.py — and reads its own source directory instead."""
+"""list-podiumd-images, offline: load_chart reads locally vendored .tgz
+files; the few `helm pull` fallback tests mock subprocess.run."""
 
 import subprocess
 import tarfile
@@ -18,9 +12,7 @@ import yaml
 
 
 def write_pulled_chart(dest, name, chart_yaml, values_yaml):
-    """Real `helm pull --untar --untardir dest` creates dest/<name>/... (a
-    nested directory) — load_chart() specifically looks for that nested dir,
-    so a fake pull_chart must reproduce the same layout."""
+    """Mimic `helm pull --untar` creating dest/<name>/, which load_chart expects."""
     chart_dir = dest / name
     chart_dir.mkdir()
     (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"apiVersion": "v2", **chart_yaml}))
@@ -28,13 +20,9 @@ def write_pulled_chart(dest, name, chart_yaml, values_yaml):
 
 
 def make_vendored_tgz(vendored_dir, tmp_path: Path, name, version, chart_yaml, values_yaml, raw_files=None):
-    """`raw_files`, if given (a {path relative to the chart root: text}
-    dict, e.g. "charts/eck-elasticsearch/values.yaml") — writes each
-    verbatim, in addition to Chart.yaml/values.yaml — for a nested
-    sub-subchart's own commented-out "# image: ..." documentation (see
-    lib.chart.nested_subchart_documented_image_repository), where the
-    content isn't real structured YAML so yaml.safe_dump can't produce
-    it (same convention tests/lib/test_chart.py's own make_tgz uses)."""
+    """`raw_files` ({chart-relative path: text}) are written verbatim, for
+    content yaml.safe_dump can't produce, such as a nested sub-subchart's
+    commented-out "# image: ..." documentation."""
     staging = tmp_path / f"stage-{name}-{version}"
     chart_dir = staging / name
     chart_dir.mkdir(parents=True)
@@ -48,10 +36,6 @@ def make_vendored_tgz(vendored_dir, tmp_path: Path, name, version, chart_yaml, v
     with tarfile.open(tgz_path, "w:gz") as tf:
         tf.add(chart_dir, arcname=name)
     return tgz_path
-
-
-# chart_ref is a pure passthrough of lib.chart.chart_ref — covered directly
-# in tests/lib/test_chart.py, no need to duplicate here.
 
 
 # --- deep_merge ---
@@ -121,10 +105,8 @@ def test_resolution_note_resolvable_pair_returns_none(lpi):
 
 
 def test_resolution_note_shared_global_image_points_to_multiple(lpi):
-    """A basename only literally pinned under values.yaml's global.images
-    scope, not under the component asking about it, isn't a dead end --
-    it's pointed at the key that DOES resolve (MULTIPLE, see
-    lib.image.version.MULTIPLE_KEY)."""
+    """A basename pinned only under global.images points at the key that
+    does resolve (MULTIPLE) instead of being a dead end."""
     lines = [
         "global:",
         "  images:",
@@ -163,21 +145,17 @@ def test_print_image_lines_appends_note_when_not_resolvable(lpi, capsys: pytest.
 
 
 def test_print_image_lines_appends_disabled_hint_for_a_never_rendered_row(lpi, capsys: pytest.CaptureFixture[str]):
-    """A row whose own chart-tree path never rendered (e.g. a Maykin
-    chart's own bundled bitnami/redis, globally disabled via podiumd's
-    top-level "tags: {redis: false}") is labeled "disabled" — no longer
-    indistinguishable from a real, live image — rather than being
-    silently dropped. Combined with an unresolvable resolution_note
-    (empty values_lines here), both hints show up, disabled first."""
+    """A row whose chart-tree path never rendered (e.g. a Maykin chart's
+    bundled redis disabled via "tags: {redis: false}") is labelled "disabled"
+    rather than dropped; with an unresolvable note both show, disabled first."""
     lpi.print_image_lines([("openzaak", "redis.image", "redis", "8.0", True)], [])
     first_line, _detail_line = capsys.readouterr().out.splitlines()
     assert "disabled; unresolvable" in first_line
 
 
 def test_print_image_lines_puts_note_on_first_line_not_the_detail_line(lpi, capsys: pytest.CaptureFixture[str]):
-    """The note is exactly what decides whether <key> <basename> (the
-    first line) is usable -- it belongs there, not on the second,
-    repo:tag detail line."""
+    """The note decides whether <key> <basename> is usable, so it belongs on
+    the first line, not the repo:tag line."""
     lines = [
         "global:",
         "  images:",
@@ -192,23 +170,13 @@ def test_print_image_lines_puts_note_on_first_line_not_the_detail_line(lpi, caps
 
 
 # --- component_version_rows ---
-# lib.chart.COMPONENT_VERSION_PATHS/COMPONENT_VERSION_PATH_NESTED_SUBCHARTS-
-# registered bare version fields — the ONE image shape find_images'
-# generic "{repository, tag}" dict match structurally can never see at
-# all: redis-operator's own split imageName:/imageTag: sibling fields,
-# and eck-stack's own eck-elasticsearch/eck-kibana/eck-enterprise-search
-# CRD-version-only fields (repository only ever documented in the nested
-# sub-subchart's own vendored values.yaml — see lib.chart.
-# nested_subchart_documented_image_repository). Real gap, confirmed
-# empirically against the real chart: all 4 of these images are in
-# docs/images/images-baseline.yaml but were entirely absent from
-# list-podiumd-images's own output before this fix.
+# Registered bare version fields (COMPONENT_VERSION_PATHS) have shapes
+# find_images' "{repository, tag}" match can't see: redis-operator's split
+# imageName:/imageTag: and eck-stack's CRD "version:" fields.
 
 
 def test_component_version_rows_resolves_redis_operator_split_image_fields(lpi):
-    """redis-operator's own controller image is never nested under an
-    "image:"/"...Image:" dict at all — a split "imageName:"/"imageTag:"
-    sibling-field pair instead (lib.chart.COMPONENT_VERSION_PATHS)."""
+    """redis-operator's controller image uses split imageName:/imageTag: fields."""
     dep = {"name": "redis-operator", "version": "0.26.1"}
     digest = "a" * 64
     merged = {
@@ -234,11 +202,8 @@ def test_component_version_rows_resolves_redis_operator_split_image_fields(lpi):
 
 
 def test_component_version_rows_uses_merged_tree_not_just_podiumd_overrides(lpi):
-    """Unlike the doc-generation side (lib.upgradedoc.find_component_
-    version_tags), which only ever looks at podiumd's own values.yaml,
-    this tool's whole point is the full EFFECTIVE image set — a tag that
-    ONLY exists in the chart default (never overridden by podiumd) must
-    still show up here."""
+    """Unlike doc generation, this tool shows the effective image set, so a
+    tag only present in the chart default must appear."""
     dep = {"name": "redis-operator", "version": "0.26.1"}
     digest = "b" * 64
     merged = {
@@ -264,11 +229,8 @@ def test_component_version_rows_uses_merged_tree_not_just_podiumd_overrides(lpi)
 
 
 def test_component_version_rows_resolves_eck_stack_nested_subchart_images(lpi, tmp_path: Path):
-    """eck-stack's own eck-elasticsearch/eck-kibana/eck-enterprise-search
-    fields are bare CRD "version:" scalars with no repository sibling
-    anywhere in podiumd's own values.yaml at all — the real repository
-    is only ever documented in the nested sub-subchart's own vendored
-    values.yaml."""
+    """eck-stack's CRD "version:" fields have no repository in podiumd's
+    values.yaml; it's only documented in the nested sub-subchart's values.yaml."""
     dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
     make_vendored_tgz(
         lpi.VENDORED_DIR,
@@ -291,8 +253,7 @@ def test_component_version_rows_resolves_eck_stack_nested_subchart_images(lpi, t
         "eck-enterprise-search": {"version": "8.19.19"},
     }
 
-    # chart-tree path is keyed by dep's own alias ("kiss-eck"), never
-    # its real chart name ("eck-stack").
+    # chart-tree path is keyed by the dep's alias, not its chart name.
     ctx = lpi.ChartContext(deps=[dep], root_values={}, rendered_paths={"podiumd/charts/kiss-eck"})
     rows = lpi.component_version_rows(dep, "kiss-eck", merged, ctx)
 
@@ -326,10 +287,8 @@ def test_component_version_rows_blank_tag_is_skipped(lpi):
 
 
 def test_component_version_rows_unresolvable_repository_is_skipped(lpi):
-    """A registered version field with a real tag but no resolvable
-    repository anywhere (no podiumd override, no vendored nested
-    sub-subchart) is silently skipped — never a row with a fabricated or
-    missing repository."""
+    """A version field with no resolvable repository is skipped, never given
+    a fabricated or missing repository."""
     dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
     merged = {"eck-elasticsearch": {"version": "8.19.19"}}
     ctx = lpi.ChartContext(deps=[dep], root_values={}, rendered_paths={"podiumd/charts/kiss-eck"})
@@ -343,12 +302,8 @@ def test_component_version_rows_irrelevant_for_unregistered_component(lpi):
 
 
 def test_component_version_rows_marks_row_disabled_when_its_own_path_never_rendered(lpi):
-    """The render-gate applies here too, independent of the merged
-    tag/repository resolution above it: a registered version field with
-    a real, resolvable tag+repository still gets a "disabled" row when
-    its own chart-tree path never rendered — the exact same mechanism
-    that fixes the 9 Maykin-chart redis rows in find_images-derived rows
-    below, just for the split-field shape instead."""
+    """The render-gate applies to split-field rows too: a resolvable one
+    still gets "disabled" when its chart-tree path never rendered."""
     dep = {"name": "redis-operator", "version": "0.26.1"}
     digest = "a" * 64
     merged = {
@@ -376,12 +331,8 @@ def test_row_chart_tree_path_defaults_to_the_dependency_own_top_level_path(lpi):
 
 
 def test_row_chart_tree_path_resolves_a_nested_chart_yaml_dependency(lpi, tmp_path: Path):
-    """openzaak's own bundled bitnami/redis (a real, separate Chart.yaml
-    dependency OF openzaak itself, tagged "redis" in openzaak's own
-    Chart.yaml "tags:" list) must resolve to ITS OWN nested chart-tree
-    path — not openzaak's own top-level one — so podiumd's own top-level
-    "tags: {redis: false}" (which disables ONLY this nested path, not
-    openzaak itself) is reflected correctly."""
+    """openzaak's bundled redis resolves to its own nested chart-tree path,
+    so podiumd's "tags: {redis: false}" disables only that path."""
     dep = {"name": "openzaak", "version": "1.14.2"}
     make_vendored_tgz(
         lpi.VENDORED_DIR,
@@ -475,10 +426,8 @@ def test_load_chart_raises_if_nothing_produced(lpi, tmp_path: Path, monkeypatch:
 
 
 def test_load_chart_reads_local_source_for_file_dependency(lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """A "file://" dependency has no remote to pull from and no vendored
-    .tgz shape to extract — read straight from its own source directory
-    instead, regardless of --refresh (there's nothing to refresh: reading
-    the directory live is already always current)."""
+    """A "file://" dependency is read from its source directory, regardless
+    of --refresh."""
     dep = {"name": "mi-data", "version": "1.0.0", "repository": "file://../mi-data"}
     local_dir = tmp_path / "mi-data"
     local_dir.mkdir()
@@ -613,11 +562,8 @@ def test_main_full_offline_flow(
         {"name": "openbeheer", "version": "0.1.3", "appVersion": "0.1.0"},
         {"image": {"repository": "maykinmedia/open-beheer", "tag": "0.9.0"}},
     )
-    # Overrides the autouse stub_render_chart default (which reports
-    # every chart-tree path as rendered) — this test specifically
-    # exercises the render-gate's own "condition:-disabled dependency"
-    # case: only zac's own path actually rendered. Keyed by zac's own
-    # alias, never its real chart name ("zaakafhandelcomponent").
+    # Only zac's path rendered (a condition:-disabled dependency case); keyed
+    # by alias, not chart name.
     monkeypatch.setattr(lpi, "rendered_chart_paths", lambda stdout: {"podiumd/charts/zac"})
 
     run_main(lpi, monkeypatch)
@@ -637,13 +583,8 @@ def test_main_full_offline_flow(
 def test_main_nested_tags_disabled_sidecar_is_labeled_disabled_not_dropped(
     lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """The real bug this task fixes: a Maykin-style chart bundles its own
-    bitnami/redis as a SEPARATE nested Chart.yaml dependency of its own,
-    globally disabled via podiumd's own top-level "tags: {redis: false}"
-    — the dependency itself (openzaak) is very much enabled and renders
-    fine, but its own nested redis sidecar never renders. The redis row
-    must be labeled "disabled", not silently look like a live image —
-    while openzaak's own header and its own real image stay unaffected."""
+    """A Maykin-style chart's nested redis, disabled via "tags: {redis: false}",
+    is labelled "disabled" while openzaak itself stays live."""
     lpi.CHART_YAML.write_text(
         yaml.safe_dump(
             {
@@ -756,16 +697,8 @@ def test_main_reports_and_continues_on_load_failure(
 def test_main_includes_component_version_path_images(
     lpi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """Regression test for the real gap (confirmed empirically against
-    the real chart): redis-operator's own controller image (split
-    imageName:/imageTag: fields) and eck-stack's own eck-elasticsearch/
-    eck-kibana/eck-enterprise-search (bare CRD "version:" fields,
-    repository only documented in the nested sub-subchart's own
-    vendored values.yaml) were BOTH entirely invisible to
-    list-podiumd-images before this fix — find_images' generic
-    "{repository, tag}" dict match structurally can't see either shape
-    at all. Also confirms no double-counting: each basename appears
-    exactly once in the whole run's output."""
+    """Regression: split imageName:/imageTag: and bare CRD "version:" images
+    were invisible to find_images; each must appear exactly once."""
     digest = "a" * 64
     lpi.CHART_YAML.write_text(
         yaml.safe_dump(
@@ -831,8 +764,7 @@ def test_main_includes_component_version_path_images(
     assert "docker.elastic.co/kibana/kibana:8.19.19" in out
     assert "docker.elastic.co/enterprise-search/enterprise-search:8.19.19" in out
 
-    # no double-counting: each basename's own first-line key+basename
-    # column shows up exactly once across the whole run.
+    # Each basename's key+basename first line appears exactly once.
     assert out.count("redis-operator  redis-operator ") == 1
     assert out.count("kiss-eck  elasticsearch ") == 1
     assert out.count("kiss-eck  kibana ") == 1

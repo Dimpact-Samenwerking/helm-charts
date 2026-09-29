@@ -1,8 +1,5 @@
-"""check_lockstep_versions / find_lockstep_mismatches /
-find_chart_version_mismatches / find_embedded_version_mismatches — every component registered as
-"lockstep" in lib.chart (component_image_paths()/component_version_
-paths() multi-path entries, and chart_version_lockstep_components())
-must actually agree on one version in values.yaml/Chart.yaml."""
+"""check_lockstep_versions and its find_*_mismatches helpers: every component
+registered as lockstep in lib.chart must agree on one version."""
 
 from pathlib import Path
 from types import ModuleType
@@ -12,10 +9,7 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _lockstep_registries(liblockstepcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """Isolate every test from the real, ever-growing component_image_
-    paths()/component_version_paths()/chart_version_lockstep_
-    components() — a real entry added later for an unrelated component
-    must never change what these tests exercise."""
+    """Isolate tests from the real, growing lockstep registries."""
     monkeypatch.setattr(
         liblockstepcheck, "component_image_paths", lambda: {"zgw-office-addin": ["frontend.image", "backend.image"]}
     )
@@ -95,9 +89,8 @@ def test_digest_ignored_when_comparing_image_tag_versions(liblockstepcheck: Modu
 
 
 def test_path_with_no_explicit_value_is_skipped_not_flagged(liblockstepcheck: ModuleType):
-    """backend.image has no override at all (relies on the vendored
-    chart's own default) — comparing "no override" against frontend's
-    explicit tag would flag a legitimate config choice, not real drift."""
+    """backend.image without an override (vendored default) is a config
+    choice, not drift."""
     deps = [{"name": "zgw-office-addin", "alias": "", "version": "0.9.352"}]
     values = {"zgw-office-addin": {"frontend": {"image": {"tag": "0.9.352@sha256:aaa"}}}}
     assert liblockstepcheck.find_lockstep_mismatches(deps, values) == []
@@ -121,9 +114,7 @@ def test_component_with_no_matching_dependency_is_skipped(liblockstepcheck: Modu
 
 
 def test_single_path_registration_never_compared(liblockstepcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """A component_image_paths() entry with just one path has nothing to
-    compare against, so it's skipped outright — regardless of whatever
-    that lone path resolves to."""
+    """A single-path entry has nothing to compare against: skipped."""
     monkeypatch.setattr(liblockstepcheck, "component_image_paths", lambda: {"openbao": ["server.image"]})
     dep = {"name": "openbao", "alias": "", "version": "2.0.0"}
     values = {"openbao": {"server": {"image": {"tag": "2.0.0@sha256:aaa"}}}}
@@ -131,9 +122,7 @@ def test_single_path_registration_never_compared(liblockstepcheck: ModuleType, m
 
 
 def test_unrelated_components_sharing_a_version_never_flagged(liblockstepcheck: ModuleType):
-    """Two DIFFERENT registered components that happen to share a
-    version number is normal, not a mismatch — find_lockstep_mismatches
-    only ever compares paths WITHIN one component's own entry."""
+    """Different components sharing a version number is not a mismatch."""
     deps = [
         {"name": "zgw-office-addin", "alias": "", "version": "0.9.352"},
         {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"},
@@ -168,8 +157,7 @@ def test_chart_version_disagrees_with_image_version_reported(liblockstepcheck: M
 
 
 def test_chart_version_component_with_no_image_tag_skipped(liblockstepcheck: ModuleType):
-    """Relies entirely on the vendored chart's own appVersion default —
-    nothing to compare, not a mismatch."""
+    """Relying on the vendored appVersion default is not a mismatch."""
     dep = {"name": "kiss-chart", "alias": "kiss", "version": "3.1.1"}
     assert liblockstepcheck.find_chart_version_mismatches([dep], {"kiss": {}}) == []
 
@@ -185,13 +173,8 @@ def test_chart_version_digest_ignored_when_comparing(liblockstepcheck: ModuleTyp
 
 
 def test_eck_operator_chart_version_lockstep_registered(liblockstepcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """eck-operator was added to chart_version_lockstep_components() since
-    the elastic eck-operator chart IS the operator image, released
-    together at one version number -- unlike keycloak-operator/eck-
-    stack, which vendor a third-party app at its own independent
-    version. The autouse _lockstep_registries fixture above isolates
-    every OTHER test from this real entry; this one opts back in
-    explicitly to prove the registration itself actually works."""
+    """eck-operator is registered because its chart and operator image share
+    one version. Opts back in past the autouse isolation fixture."""
     monkeypatch.setattr(
         liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset({"kiss-chart", "pabc", "eck-operator"})
     )
@@ -201,9 +184,8 @@ def test_eck_operator_chart_version_lockstep_registered(liblockstepcheck: Module
 
 
 def test_eck_operator_chart_version_drift_reported(liblockstepcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """A future eck-operator dependency bump that forgets to also bump
-    the image tag override (or vice versa) must be caught, the same as
-    kiss-chart/pabc drift already is."""
+    """An eck-operator dependency bump without the matching image tag bump
+    (or vice versa) is caught."""
     monkeypatch.setattr(
         liblockstepcheck, "chart_version_lockstep_components", lambda: frozenset({"kiss-chart", "pabc", "eck-operator"})
     )

@@ -1,9 +1,8 @@
 # Coding Guide
 
-Day-to-day commands for working on this `charts/podiumd/bin/` toolset — running
-the test suite and the linters. For installing the tools themselves (`ruff`,
-`pylint`, `pytest`, and the external CLIs `verify-podiumd` shells out to), see
-[README-release-process.md's own Setup section](README-release-process.md#setup).
+Commands for testing and linting the `charts/podiumd/bin/` toolset. For
+installing the tools, see
+[README-release-process.md's Setup section](README-release-process.md#setup).
 
 ## Table of contents
 
@@ -19,9 +18,8 @@ the test suite and the linters. For installing the tools themselves (`ruff`,
 
 ## Running the tests
 
-All commands below are run from `charts/podiumd/bin/` itself (not the repo root —
-the test suite has no root-level `conftest.py`/`pytest.ini`, each `tests/<script-name>/`
-subdirectory is self-contained):
+Run from `charts/podiumd/bin/`, not the repo root: there is no root-level
+`conftest.py`/`pytest.ini`; each `tests/<script-name>/` is self-contained.
 
 ```bash
 cd charts/podiumd/bin
@@ -39,15 +37,14 @@ python3 -m pytest -q -k "keycloak"
 python3 -m pytest -q -v
 ```
 
-The full suite currently runs ~2300+ tests in a couple of minutes.
-
 ## Running the linters
 
-All four tools are configured from the single `pyproject.toml` in this same
-directory (`[tool.ruff]`/`[tool.pylint]`/`[tool.bandit]`/`[tool.basedpyright]`)
-— no separate `ruff.toml`/`pylintrc`/etc. files, and no flags needed for any
-of them to find it, as long as you're running them from somewhere under
-`charts/podiumd/bin/`.
+All tools read `pyproject.toml` in this directory; run them from anywhere
+under `charts/podiumd/bin/`.
+
+The extensionless top-level scripts must be passed explicitly to every tool:
+they only discover `*.py` files. Pass `lib` as a directory, not `lib/*.py`,
+so subpackages are included.
 
 ### ruff (lint + format)
 
@@ -61,22 +58,13 @@ ruff check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 ruff check --fix . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 ```
 
-The extensionless top-level scripts need to be passed explicitly — ruff only
-auto-discovers `*.py` files via a bare `.`, the same file-discovery gap
-`pylint`/`vulture` below have always had.
+Import order is part of `ruff check` (`I001`). `[tool.ruff.lint.isort]`
+mirrors `[tool.isort]`, so `ruff check --select I --fix` and `isort` agree.
+They attach comments between imports differently: fence such a block with
+`# isort: off` / `# isort: on`.
 
-Import order is part of `ruff check` (rule `I001`). `[tool.ruff.lint.isort]` mirrors
-`[tool.isort]`, so `ruff check --select I --fix` and `isort` give the same result — use
-either. Both attach comment lines between imports differently, so fence such a block
-with `# isort: off` / `# isort: on` (both tools honor it).
-
-**Always review `ruff check --fix`'s own diff by hand before trusting it** —
-it's usually safe, but it has produced real regressions in this codebase before:
-a mechanical `if`/`elif` merge that collapsed a readable 3-branch condition into
-one unreadable 187-character line, and (separately) a merge that mechanically
-combined two `elif` branches that happened to test the exact same condition
-(a genuine pre-existing dead-code bug) into a `X or X` expression — technically
-correct, but worth cleaning up by hand rather than leaving it looking like that.
+Review the diff of `ruff check --fix` by hand: its mechanical merges can
+produce unreadable conditions.
 
 ```bash
 # Format check only, no changes (exits non-zero if anything would reformat)
@@ -86,25 +74,15 @@ ruff format --check . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm
 ruff format . $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 ```
 
-`ruff format` is AST-preserving (re-serializes the same parse tree — unlike
-`ruff check --fix`, it can't change behavior) and leaves docstring/comment
-*prose* completely untouched, only restructuring code layout (line wrapping,
-blank lines, quote style). Still worth running `ruff format --check` again
-right after formatting once, to confirm it's idempotent (0 further changes) —
-it always has been so far, but that's a cheap, worthwhile sanity check whenever
-a lot of files change at once.
-
 ### shellcheck (shell scripts)
 
 ```bash
 shellcheck run_python_checks
 ```
 
-Lints the shell scripts under `bin/`: every file whose first line is a
-`sh`/`bash`/`dash`/`ksh` shebang, plus any `*.sh` file. Today that is only
-`run_python_checks` itself. shellcheck has no configuration here; a
-deliberate exception gets a `# shellcheck disable=SCxxxx` comment on the line
-it applies to, with the reason.
+Covers every file under `bin/` with a `sh`/`bash`/`dash`/`ksh` shebang, plus
+any `*.sh` file. No configuration: a deliberate exception gets a
+`# shellcheck disable=SCxxxx` comment on its line, with the reason.
 
 ### vulture (dead code)
 
@@ -113,32 +91,16 @@ cd charts/podiumd/bin
 vulture lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 ```
 
-Same file-discovery gap as pylint above (vulture only walks `*.py` files
-under a directory, so the extensionless top-level scripts need to be passed
-explicitly) — same fix, same command shape. `lib` is passed as a directory
-(not a `lib/*.py` glob) so vulture recurses into subpackages like
-`lib/component_docs/` too, same reason as pylint above — and, unlike a bare
-`vulture .`, still leaves `tests/` out (see below).
+`tests/` is excluded: pytest fixtures and mock parameters look like dead
+code. The remaining false positives are in `ignore_names` in
+`pyproject.toml`, each with its reason.
 
-**Deliberately excludes `tests/` entirely.** Vulture flags anything it can't
-see a direct call to, and pytest fixtures / mock-function signature params
-are structurally indistinguishable from real dead code under that test —
-neither is ever "called" in vulture's own static sense. Trying it against
-the whole tree once produced far more of that noise than real signal (see
-git history). `pyproject.toml`'s own `[tool.vulture]` comment documents the
-handful of individually-confirmed false positives this scoped invocation
-still produces (`ignore_names`) and exactly why each one is safe to ignore.
+TypedDict fields read only by string key (`row["app"]`) look unused.
+`run_python_checks` generates a whitelist for them, so the command above
+reports those fields; use `./run_python_checks` for the real result.
 
-**TypedDict keys.** A TypedDict field the code only reads by string key
-(`row["app"]`) looks unused to vulture. `run_python_checks` therefore
-generates a whitelist of every field declared in a TypedDict class in `lib/`
-and the scripts and passes it to vulture, so the command above reports those
-fields; use `./run_python_checks` for the real result.
-
-A genuinely new finding here means: either it really is dead code (delete
-it), or it's a new false positive of the same two shapes above — in which
-case add it to `ignore_names` with the same kind of explanation, don't just
-suppress it silently.
+A new finding is either dead code (delete it) or a false positive of those
+kinds (add it to `ignore_names` with a reason).
 
 ### bandit (security)
 
@@ -147,24 +109,13 @@ cd charts/podiumd/bin
 bandit -c pyproject.toml -r lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) -q
 ```
 
-Same file-discovery/`tests/`-exclusion shape as vulture above: `lib` is
-passed as a directory so bandit recurses into subpackages, the extensionless
-top-level scripts are passed explicitly, and `tests/` is deliberately left
-out — every `assert` statement would otherwise flag `B101` (assert_used),
-the same false-positive class ruff's own `tests/**` `S101` exemption
-documents for the identical check under a different tool. `pyproject.toml`'s
-own `[tool.bandit]` `skips` documents the checks ruff's `S` rules already
-own elsewhere.
+`tests/` is excluded: every `assert` would flag `B101`. `[tool.bandit]`
+`skips` lists checks ruff's `S` rules already cover.
 
 ### pylint
 
-Two invocations, because `pyproject.toml` has no per-directory scoping for
-pylint's message-control (unlike ruff's `per-file-ignores`): `lib` and the
-top-level scripts get the full default pylint rule set; `tests/`
-additionally disables 7 checks that are false positives only there (pytest
-fixture signatures, sys.path-hack conftest imports, shared assertion
-boilerplate) — see `pyproject.toml`'s own `[tool.pylint."messages control"]`
-comment for the full list and reasoning.
+pylint has no per-directory configuration, so it runs twice: `lib` and the
+scripts get the full rule set; `tests/` also disables `TESTS_PYLINT_DISABLE`.
 
 ```bash
 cd charts/podiumd/bin
@@ -172,21 +123,8 @@ pylint lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x))
 PYTHONPATH=. pylint --disable="$TESTS_PYLINT_DISABLE" $(find tests -name '*.py')
 ```
 
-`TESTS_PYLINT_DISABLE` is the rule list `run_python_checks` defines (and
-explains): pylint false positives under `tests/`, plus the style and
-structure rules not enforced for test code. Copy its value from there.
-
-`lib` isn't an analyzed target in the second invocation, so its imports need
-`PYTHONPATH=.` (not the target list) to resolve — otherwise pylint can't see
-`lib.*` at all and every cross-package import in `tests/` raises a false
-`import-error`.
-
-The explicit file list matters: pylint has no config option to auto-discover
-this directory's own extensionless top-level scripts (`fix-doc-consistency`,
-`verify-podiumd`, etc. — they have no `.py` suffix for it to glob on), so a
-bare `pylint .` silently misses all of them. `lib` is passed as a directory
-argument, not a `lib/*.py` glob, so pylint recurses into subpackages like
-`lib/component_docs/` too — same reason as vulture above.
+Copy `TESTS_PYLINT_DISABLE` from `run_python_checks`. `PYTHONPATH=.` lets
+pylint resolve `lib.*` imports in `tests/` without analyzing `lib`.
 
 ### basedpyright (type checking)
 
@@ -195,13 +133,9 @@ cd charts/podiumd/bin
 basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x)) tests
 ```
 
-`typeCheckingMode = "strict"` in `pyproject.toml` — every function parameter
-in `lib/` and the scripts needs a type annotation. basedpyright walks
-`tests/` too, with every rule except two: unannotated pytest fixture
-parameters and monkeypatch lambdas are allowed there (see the
-`executionEnvironments` entry in `pyproject.toml`). The extensionless
-top-level scripts still need to be passed explicitly, same file-discovery
-gap as pylint/vulture/bandit above.
+`typeCheckingMode = "strict"`: every parameter in `lib/` and the scripts
+needs a type annotation. `tests/` allows unannotated fixture parameters and
+monkeypatch lambdas (see `executionEnvironments` in `pyproject.toml`).
 
 ## Before committing
 
@@ -210,17 +144,9 @@ cd charts/podiumd/bin
 ./run_python_checks
 ```
 
-Runs everything above fastest-first, stopping at the first failure: `ruff
-check` (~0.03s) → `shellcheck` (~0.05s) → `ruff format --check` (~0.05s) →
-`pymarkdown` (~0.5s) →
-`vulture` (~0.5s) →
-`bandit` (~1.7s) → `pylint` (~6s) → `basedpyright` (~8.6s) → `pytest` (the
-full suite, ~2-3 minutes) — measured, not guessed, so a real problem in the
-cheap checks fails in well under a second instead of waiting on the full
-test run first. Equivalent to running each command from the sections above
-by hand, in this order (`pymarkdown` lints this directory's own `*.md`
-docs, with the same rules as `verify-podiumd`'s markdown check, which skips
-`bin/`):
+Runs everything above, fastest first, stopping at the first failure. By
+hand, in the same order (`pymarkdown` lints this directory's `*.md` with the
+rules of `verify-podiumd`'s markdown check, which skips `bin/`):
 
 ```bash
 cd charts/podiumd/bin
@@ -236,7 +162,5 @@ basedpyright lib $(grep -l '^#!.*python' $(find . -maxdepth 1 -type f -perm -u+x
 python3 -m pytest -q
 ```
 
-A failing `pytest` run or a `ruff check`/`pymarkdown`/`pylint`/`bandit`/`basedpyright`
-finding introduced by your own change should be fixed before committing; a
-pre-existing finding you didn't touch is fine to leave (see this repo's own
-git history — findings get worked through in batches, not all at once).
+Fix every test failure and new finding your change introduces;
+pre-existing findings in code you did not touch may stay.

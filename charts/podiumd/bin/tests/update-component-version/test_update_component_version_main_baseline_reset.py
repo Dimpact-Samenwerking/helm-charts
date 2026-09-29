@@ -1,9 +1,6 @@
-"""main() integration: doc updates end-to-end, and main() vs the TRUE git
-baseline (reset-to-baseline removal, collapsing more than one bump in a
-release cycle into a single entry): split out of the former, monolithic
-test_update_component_version.py for pylint's too-many-lines check.
-setup_docs() is shared by both banners' tests, which is why they stay
-together in one file."""
+"""main() integration: doc updates end-to-end, and main() against the true git
+baseline (reset-to-baseline removal, collapsing repeated bumps into one entry).
+Both share setup_docs()."""
 
 import io
 import subprocess
@@ -37,9 +34,8 @@ def init_git_repo(root):
 def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType):
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
-    # written as raw text (not yaml.safe_dump, which alphabetizes keys) so
-    # "name:" is the block's first key — same convention as the real
-    # Chart.yaml, which update_chart_yaml's line-scan depends on.
+    # Raw text, not yaml.safe_dump (alphabetizes keys): update_chart_yaml's
+    # line-scan needs "name:" first, as in the real Chart.yaml.
     chart_yaml.write_text(
         "version: 4.9.0\n"
         "dependencies:\n"
@@ -66,28 +62,17 @@ def setup_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ucv: ModuleType)
 
 
 def mock_registry_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b"):
-    """A component whose values.yaml image path has an explicit
-    "repository:" (e.g. zac) delegates its tag update to
-    lib.image.version.update_image_version, which resolves
-    `registry_tag_exists` via ITS OWN globals — not ucv's — so a main()
-    test mocking this avoids a real network call for the delegated-path
-    write itself. The upfront verification gate (fallback-path digests
-    included) is covered separately by mock_verify_passes."""
+    """Mock registry_tag_exists in lib.image.version: the delegated tag update
+    for explicit-repository images resolves it via that module's globals."""
     digest = "sha256:" + digest_char * 64
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, digest))
 
 
 def mock_verify_passes(monkeypatch: pytest.MonkeyPatch, ucv: ModuleType, digest_char="b", calls=None):
-    """Fakes update-component-version's own upfront verify_component_version
-    step (a lib.chart.resolve_chart_values call + lib.chart.
-    check_image_versions call) so main()'s tests don't need real
-    helm/network access. resolve_chart_values/check_image_versions' own
-    correctness is covered by tests/lib/test_chart.py — this only fakes
-    "the chart version and its images exist", returning FOUND for every
-    path passed in. If `calls` is given, each check_image_versions
-    invocation's image_paths argument is appended to it — lets a test
-    assert the upfront check ran exactly once (no second/fallback
-    re-check)."""
+    """Fake the upfront verify_component_version step (FOUND for every path)
+    so tests need no helm/network. If `calls` is given, each
+    check_image_versions image_paths argument is appended, to assert the
+    check ran exactly once."""
     digest = "sha256:" + digest_char * 64
 
     def fake_check_image_versions(values, image_paths, app_version):
@@ -168,10 +153,8 @@ def test_main_adds_new_component_mention_end_to_end(ucv: ModuleType, tmp_path: P
     # inserted before the next "## " heading, not after it
     assert upgrade.index("### zac") < upgrade.index("## Per-environment checklist")
 
-    # setup_repo never initializes a git repo — the baseline can never be
-    # resolved, so whether zac's own values.yaml schema actually changed
-    # can never be determined either; no section is written rather than
-    # guessing (see sync_values_delta_sections' own docstring).
+    # No git repo, so the baseline is unresolvable and whether zac's schema
+    # changed is unknown: no section is written rather than guessing.
     deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert "## zac" not in deltas
 
@@ -184,14 +167,8 @@ def test_main_adds_new_component_mention_end_to_end(ucv: ModuleType, tmp_path: P
 def test_main_fixes_a_preexisting_changes_numbering_gap_when_adding_an_item(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """The images manifest already has a gap in its own "# Changes:"
-    numbering (items "1." and "3." — a THIRD, unrelated item was
-    apparently removed by hand at some point without renumbering) when
-    update-component-version adds zac's own brand-new item — the whole
-    list must come out fully renumbered 1..N, not just the new item
-    slotted in with the pre-existing gap still there (see lib.
-    component_docs.insert_images_manifest_header_item/renumber_images_
-    manifest_changes_items)."""
+    """A pre-existing numbering gap in "# Changes:" is fully renumbered 1..N
+    when a new item is added."""
     setup_repo(tmp_path, monkeypatch, ucv)
     setup_docs(
         ucv,
@@ -224,12 +201,8 @@ def test_main_fixes_a_preexisting_changes_numbering_gap_when_adding_an_item(
 
     ucv.main()
 
-    # zac is the only REAL Chart.yaml dependency among these three items
-    # (redis-operator/openbao are free-form prose here, matching no
-    # dependency at all) — a resolved item always sorts before an
-    # unresolved one, so zac's own new item becomes "1.", pushing the
-    # other two down to "2."/"3." (still 2 apart in the source, but now
-    # correctly sequential instead of the original 1/3 gap).
+    # zac is the only item resolving to a real dependency, and resolved items
+    # sort first, so it becomes "1." and the other two "2."/"3.".
     images = (ucv.IMAGES_DIR / "images-4.9.0.yaml").read_text(encoding="utf-8")
     assert "#   2. redis-operator v0.25.0 -> v0.26.0.\n" in images
     assert "#   3. openbao 0.28.4, unchanged.\n" in images
@@ -263,16 +236,15 @@ def test_main_updates_existing_component_mention_end_to_end(
     upgrade = (ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     assert "| zac | 5.0.2 → 5.4.3 | 1.0.296 → 1.0.297 | - |" in upgrade
     assert "| zac | 5.0.1 → 5.0.2 |" not in upgrade  # old row content is gone
-    # the existing Changes section is rewritten from scratch (not left
-    # stale, not duplicated) to match the table row's own new transition —
-    # the old "5.0.1 → 5.0.2" heading is gone entirely
+    # The Changes section is rewritten (not stale, not duplicated) to match
+    # the row's new transition.
     assert upgrade.count("### zac") == 1
     assert "### zac 5.0.1 → 5.0.2" not in upgrade
     assert "### zac 5.0.2 → 5.4.3 (chart 1.0.296 → 1.0.297)" in upgrade
 
 
 # --- main() vs the TRUE git baseline: reset-to-baseline removal, and
-# collapsing more than one bump in a release cycle into a single entry ---
+# collapsing repeated bumps into a single entry ---
 
 
 def commit_baseline_tag(tmp_path: Path):
@@ -285,18 +257,13 @@ def commit_baseline_tag(tmp_path: Path):
 def test_main_removes_all_docs_when_reset_back_to_baseline(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A component bumped once (baseline 5.0.2 -> 5.5.0, already fully
-    documented) and then reset all the way back to its baseline version
-    has nothing left to report: the table row, Changes section,
-    values-delta bullet, and images-manifest 'changes:' item, entry and
-    comment must all be removed, not left describing a transition that
-    no longer happened net of baseline: images-<target>.yaml only lists
-    images that changed."""
+    """A component reset back to its baseline version has nothing to report:
+    its table row, Changes section, values-delta bullet and images-manifest
+    item, entry and comment are all removed."""
     _chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     commit_baseline_tag(tmp_path)  # baseline: chart 1.0.296, zac 5.0.2@sha256:aaaa...
 
-    # Simulate "already bumped to 5.5.0 earlier in this release cycle" --
-    # chart version stays at baseline (1.0.296), only the app tag moved.
+    # Simulate an earlier in-cycle bump to 5.5.0; chart stays at baseline.
     values_yaml.write_text(
         f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.5.0@sha256:{OLD_DIGEST}"\n',
         encoding="utf-8",
@@ -329,9 +296,7 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(
         ),
     )
     mock_verify_passes(monkeypatch, ucv)
-    # Same digest baseline already recorded -- re-resolving 5.0.2 (a real,
-    # immutable released version) from the registry always returns this
-    # same digest, exactly like it would outside this mocked test.
+    # Released versions are immutable, so re-resolving 5.0.2 yields this digest.
     mock_registry_passes(monkeypatch, ucv, "a")
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.0.2", "1.0.296"])
 
@@ -354,23 +319,11 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(
 def test_main_new_component_row_renders_new_ignoring_images_baseline(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test: brppersonenmock's own Chart.yaml dependency is
-    brand new (it doesn't exist at all at the podiumd-4.8.5 baseline
-    commit — zac is the only dependency there), so baseline_dep resolves
-    to None and the git-baseline read has nothing for it. images-
-    baseline.yaml is NOT a valid substitute for that (source-version
-    resolution must come strictly from Chart.yaml/values.yaml AT the
-    release baseline's own git ref — see lib.upgradedoc.resolve_
-    baseline_component_versions) even though it happens to already know
-    this exact (repository, version, digest) pin — that's a genuinely
-    different, unrelated fact (ACR-mirror digest provenance), not "was
-    this component tracked at the true baseline." A component the true
-    baseline git ref has nothing for renders "(new)", full stop. No
-    explicit "repository:" override in podiumd's own values.yaml here
-    (the "fallback_paths" branch — a sub-chart default digest) since
-    that's the only bootstrap route with no PRE-EXISTING digest pin to
-    bump from at all — see check_image_versions, faked below to resolve
-    brppersonenmock's own real repository."""
+    """Regression: a dependency absent at the baseline git ref renders "(new)",
+    even if images-baseline.yaml already knows its pin: source versions must
+    come only from Chart.yaml/values.yaml at the baseline ref. Uses the
+    fallback_paths (sub-chart default digest) route, the only one with no
+    pre-existing pin to bump from."""
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     commit_baseline_tag(tmp_path)  # baseline: only zac, no brppersonenmock at all
 
@@ -447,10 +400,8 @@ def test_main_new_component_row_renders_new_ignoring_images_baseline(
 def test_main_collapses_repeated_bump_into_single_baseline_entry(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Bumping zac to 5.4.3 and then, within the same release cycle,
-    reconsidering to 5.5.0 instead must leave exactly ONE entry in each
-    doc showing baseline -> final (5.0.2 -> 5.5.0) -- never two entries,
-    and never an intermediate-hop transition like "5.4.3 -> 5.5.0"."""
+    """Two bumps in one cycle (5.4.3 then 5.5.0) leave one entry per doc,
+    baseline -> final, never an intermediate hop."""
     _chart_yaml, _values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     commit_baseline_tag(tmp_path)  # baseline: chart 1.0.296, zac 5.0.2@sha256:aaaa...
     setup_docs(
@@ -492,9 +443,7 @@ def test_main_collapses_repeated_bump_into_single_baseline_entry(
     assert upgrade.count("### zac") == 1
     assert "### zac 5.0.2 → 5.5.0 (chart 1.0.296 → 1.0.297)" in upgrade
 
-    # zac's own values.yaml has no schema beyond image.tag — a pure
-    # version/chart bump needs no values-deltas.md section at all (see
-    # sync_values_delta_sections' own docstring).
+    # zac has no schema beyond image.tag: no values-deltas.md section needed.
     deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert "## zac" not in deltas
     assert "5.4.3" not in deltas
@@ -521,21 +470,10 @@ def _make_vendored_tgz(charts_dir, name, version, chart_yaml):
 def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test (real bug, real doc): openbao's own "server.image.
-    tag" was left blank at the baseline (podiumd <= 4.9.3 relied on the
-    chart's appVersion; the fixture registers only server.image, as
-    settings.yaml did then) — its real baseline
-    app version only resolves via the vendored-.tgz subchart_app_version
-    fallback, which the raw baseline_values.yaml tag read used to never
-    attempt. Its chart version (0.28.4) isn't bumped by this run either,
-    so the SAME vendored .tgz backs both baseline and target — old_app
-    must resolve to the real "v2.5.0" baked into that file, not None,
-    rendering a real "v2.5.0 -> v2.6.0" transition instead of a false
-    "(new)" one purely because of this resolution gap (the exact same
-    fix already made in lib.component_docs.resolve_component_own_
-    version_change for fix-doc-consistency's own doc-sync path — this
-    is the same gap in update-component-version's own doc-writing
-    path)."""
+    """Regression: openbao's baseline server.image.tag was blank (chart
+    appVersion used), so old_app must resolve via the vendored-.tgz
+    subchart_app_version fallback to "v2.5.0", not None, giving
+    "v2.5.0 -> v2.6.0" instead of a false "(new)"."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
@@ -606,19 +544,10 @@ def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unc
 def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(
     ucv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test (same #5-class gap as update-image-version's own
-    update_docs_single_component, in update-component-version's own
-    baseline resolution): a Chart.yaml dependency ALWAYS has a "version"
-    field, even one never really tracked at the baseline (no image
-    override existed there at all) -- old_chart used to unconditionally
-    trust that raw baseline_dep["version"] regardless of whether the
-    component's own app version resolved to anything real, showing a
-    misleading "1.0.0 -> 1.1.0" transition implying a real prior
-    baseline value existed and moved. Both mi-data's chart version
-    (1.0.0 -> 1.1.0) and app version (blank -> 2.90.0) moved together,
-    mid-cycle, via an earlier separate run never captured in any prior
-    baseline doc -- both fields must render "(new)" together (see lib.
-    upgradedoc.resolve_baseline_component_versions's own docstring)."""
+    """Regression: a dependency always has a baseline chart version, even when
+    its image was never tracked there. When the app version was blank at
+    baseline and both moved in an uncaptured earlier run, both cells render
+    "(new)" rather than a misleading "1.0.0 -> 1.1.0"."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
@@ -637,9 +566,8 @@ def test_main_renders_new_for_both_app_and_chart_version_when_never_baselined(
     monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
     commit_baseline_tag(tmp_path)  # baseline: chart 1.0.0, no image override at all
 
-    # Simulate the earlier, separate in-cycle bump that first introduced
-    # mi's own image override -- chart AND app version both moved, never
-    # captured in any prior doc.
+    # Simulate an earlier uncaptured in-cycle bump that added mi's image
+    # override, moving both chart and app version.
     chart_yaml.write_text(
         'version: 4.9.0\ndependencies:\n  - name: mi-data\n    version: 1.1.0\n    repository: "@mi"\n    alias: mi\n',
         encoding="utf-8",

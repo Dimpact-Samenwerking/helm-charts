@@ -1,24 +1,9 @@
-# Combined ruff + pylint config for the podiumd release-tooling scripts
-# (verify-podiumd and its own lib/, plus every sibling top-level script and
-# its tests) under THIS directory, charts/podiumd/bin/, only. Both tools
-# auto-discover this file by walking up from each file they check, so it
-# only ever applies here -- no repo-root pyproject.toml is needed, and it
-# does NOT reach charts/podiumd/scripts/ (a different, older, unrelated set
-# of one-off migration scripts -- fix-oidc-config.py, migrate-*.py -- that
-# predate this toolset and were never moved here; they get each tool's
-# bare defaults if ever linted, not this config).
-#
-# Previously two separate files (ruff.toml, pylintrc); converged here so
-# both tools' settings live in one place, same convention either tool
-# would use at a real project root.
+# ruff, pylint, isort, vulture, bandit and basedpyright config for
+# charts/podiumd/bin/ (scripts, lib/, tests/). Not applied to
+# charts/podiumd/scripts/.
 
 [tool.ruff]
-# This codebase's own docstrings/comments are deliberately long, explanatory
-# prose (see git history) -- ruff's own default 88-char line-length would
-# flag nearly every one of them as noise, not a real issue. 120 is generous
-# enough to leave the deliberate style alone while still catching genuine
-# outliers (a handful of lines even past that). Shared by [tool.ruff.format]
-# below too, so linter and formatter agree.
+# Shared with [tool.ruff.format] and pylint max-line-length.
 line-length = 120
 indent-width = 4
 force-exclude = true
@@ -86,8 +71,7 @@ ignore = [
     "T201", # 'print' statement found, sometimes these are deliberate
     "EXE001", # shebang permission mismatch between host and Docker container
     "E501", # line-too-long: pylint's job now (C0301), avoid flagging the same line twice
-    "ERA001", # commented-out-code: all current hits are explanatory prose (e.g. a rendered-
-              # output line-number comment) that structurally resembles code, not real dead code
+    "ERA001", # commented-out-code: current hits are prose that resembles code
 ]
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
@@ -96,10 +80,7 @@ unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.isort]
-# Mirror [tool.isort] below, so `ruff check --select I --fix` and `isort`
-# produce the same import layout. Without these, ruff's own isort defaults
-# merge single-line imports ("from x import a, b") and drop the blank line
-# between "import x" and "from x import y" lines.
+# Mirror [tool.isort] below so ruff and isort agree on import layout.
 force-single-line = true
 lines-between-types = 1
 
@@ -107,12 +88,7 @@ lines-between-types = 1
 check-typed-exception = true  # Enable additional checks for try-except-pass
 
 [tool.ruff.lint.per-file-ignores]
-# Every one of these test conftest.py files, and every extensionless
-# top-level script below, inserts its own directory onto sys.path before
-# importing its sibling lib.* modules -- these aren't installed as a
-# package, so this is the only way to import them at all. E402 (import not
-# at top of file) is the deliberate, necessary consequence of that, not a
-# real ordering problem.
+# These patch sys.path before importing lib.* (not a package), so E402 is unavoidable.
 "tests/lib/conftest.py" = ["E402"]
 "tests/render-podiumd/conftest.py" = ["E402"]
 "tests/update-component-version/conftest.py" = ["E402"]
@@ -144,83 +120,40 @@ check-typed-exception = true  # Enable additional checks for try-except-pass
 "verify-podiumd-dead-values" = ["E402"]
 "verify-release-table-with-podiumd" = ["E402"]
 
-# S101 (assert), ARG001/ARG005 (unused argument), SLF001 (private-member-
-# access -- tests reach into a module's own _private helpers on purpose to
-# verify them directly), INP001 (no __init__.py -- deliberate, these dirs
-# are never imported as a package, only loaded ad hoc via SourceFileLoader/
-# conftest.py fixtures), PT018 (composite assert -- this codebase's own
-# established one-assert-per-behavior-with-context style), and RUF059
-# (unused unpacked variable -- e.g. `_old, new = ...`, kept for readability
-# even when only one side is asserted on): tests/ is pytest's own
-# assert-per-check style plus fixture/mock/stub signature params that are
-# structurally indistinguishable from a real unused arg -- same false-
-# positive class [tool.vulture]'s own ignore_names comment above documents
-# for this directory, just under a different tool.
-# S603/S607 (subprocess call, partial executable path): tests run `git`
-# with a fixed argv to build throwaway repos under tmp_path. S106
-# (hardcoded password argument): fake tokens passed to the code under
-# test. bandit, the security scan these rules mirror, never scans tests/
-# either.
+# tests/: pytest asserts, fixture/mock params (ARG), private-helper access
+# (SLF001), no __init__.py (INP001), composite asserts (PT018), unused
+# unpacked vars (RUF059), fixed-argv `git` calls (S603/S607), fake tokens
+# (S106). bandit does not scan tests/ either.
 "tests/**" = ["S101", "ARG001", "ARG005", "SLF001", "INP001", "PT018", "RUF059", "S603", "S607", "S106"]
 
-# S310 (audit URL open for permitted schemes): every urlopen() call in these
-# 3 files targets a known, config-derived trusted host (container registry
-# API, helm repo index.yaml, Confluence API base URL) -- never an attacker-
-# controllable scheme. Scoped here, not a global ignore, since S310 is a
-# real check worth keeping everywhere else.
+# S310: these urlopen() calls only target config-derived trusted hosts.
 "lib/registry.py" = ["S310"]
 "lib/repo_access.py" = ["S310"]
 "lib/confluence_tables.py" = ["S310"]
 
-# ruff format (AST-preserving -- unlike `ruff check --fix`, it re-serializes
-# the same parse tree, never changes behavior; confirmed it also leaves
-# docstring/comment PROSE completely untouched, only restructures code
-# layout). Shares line-length above with the linter, so both agree on 120.
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
-# pylint runs alongside ruff for checks ruff has no equivalent for (total
-# module line count, subprocess-run-check, etc.). Where the two genuinely
-# overlap, one tool owns the rule and the other is disabled for it here --
-# same "one rule, one documented reason" precedent as [tool.ruff.lint]
-# ignore above (see its own E501 entry for the same pattern in reverse).
-#
-# Invoke explicitly against the extensionless top-level scripts too (pylint
-# won't discover them via a bare directory/glob scan the way it does *.py
-# files) -- and against tests/ (several test modules are themselves well
-# over 1000 lines). See README-coding.md and run_python_checks for the full
-# command (filtered to a `python` shebang, so a non-Python executable like
-# run_python_checks itself isn't handed to a Python linter).
-#
-# This file has no per-directory scoping (unlike ruff's [tool.ruff.lint.
-# per-file-ignores]) -- pylint reads one config for the whole run. Checks
-# that are false positives under tests/, or not enforced for test code,
-# must stay enabled for lib/ and the top-level scripts, so they're disabled
-# via a second, tests/-only `--disable` CLI flag (TESTS_PYLINT_DISABLE) in
-# run_python_checks instead of here. See run_python_checks for the list and
-# its reasoning.
+# pylint covers checks ruff lacks; overlapping rules are owned by one tool.
+# Extensionless scripts must be passed explicitly (see run_python_checks).
+# tests/-only disables live in run_python_checks (TESTS_PYLINT_DISABLE):
+# pylint has no per-directory config.
 
 [tool.pylint.basic]
-# Default module-rgx is snake_case-only and flags every extensionless
-# top-level script's deliberate kebab-case name (e.g. "verify-podiumd") as
-# invalid-name. Widened to allow hyphens; variable/function/class naming
-# (variable-rgx, function-rgx, class-rgx, ...) is untouched and still checked.
+# Allow hyphens for the kebab-case script names (e.g. "verify-podiumd").
 module-rgx = "^(([a-z_][a-z0-9_-]*)|(__.*__))$"
 
 [tool.pylint.format]
-# Matches [tool.ruff] line-length above (see that section's own comment for
-# why 120: this codebase's deliberate long-docstring style). max-module-
-# lines is left at pylint's own upstream default (1000) -- not re-tuned here.
+# Matches [tool.ruff] line-length.
 max-line-length = 120
 
 [tool.isort]
-# Configured to be compatible with 'ruff format', and mirrored by
-# [tool.ruff.lint.isort] above so ruff's own import sorting agrees. The two
-# still attach comment lines between imports differently -- fence such
-# blocks with "# isort: off" / "# isort: on" (both tools honor it).
+# Compatible with 'ruff format'; mirrored by [tool.ruff.lint.isort]. The two
+# attach comments between imports differently: fence such blocks with
+# "# isort: off" / "# isort: on".
 line_length = 120
 multi_line_output = 3
 lines_between_types = 1
@@ -230,29 +163,12 @@ force_single_line = true
 default_section = "THIRDPARTY"
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 
-# vulture: dead-code detection. Like pylint above, it can't discover the
-# extensionless top-level scripts via a bare directory scan (it only walks
-# *.py files under a directory), so it's invoked the same explicit way. See
-# README-coding.md and run_python_checks for the full command.
-#
-# tests/ is deliberately never passed to vulture at all -- pytest fixtures
-# and mock/stub function signature params are structurally indistinguishable
-# from real dead code to vulture's static analysis (neither is ever "called"
-# in vulture's own sense), and dominated any real signal the one time this
-# was tried against the whole tree (see git history).
-#
-# The names below are the exact, individually-confirmed false positives this
-# scoped (lib/ + scripts only) invocation produces every time, because their
-# only real callers live in the deliberately-excluded tests/ tree, or --
-# for the three HTMLParser overrides -- are dispatched by name from stdlib
-# internals, never called directly by this codebase at all:
-#   - pull_chart_values: called only from tests/lib/test_chart.py.
-#   - find_matches: called only from tests/lib/test_image_version.py.
-#   - clear_tag_exists_cache: resets lib/image/digests.py's in-process
-#     cache between tests; called only from tests/.
-#   - handle_starttag, handle_endtag, handle_data: _TableExtractor's own
-#     HTMLParser method overrides in lib/confluence_tables.py, dispatched
-#     by name from HTMLParser.feed() itself.
+# vulture runs on lib/ + scripts only (see run_python_checks): tests/
+# fixtures and mock params look like dead code. False positives:
+#   - pull_chart_values, find_matches, clear_tag_exists_cache: only called
+#     from tests/.
+#   - handle_starttag, handle_endtag, handle_data: HTMLParser overrides in
+#     lib/confluence_tables.py, dispatched by HTMLParser.feed().
 [tool.vulture]
 ignore_names = [
     "pull_chart_values",
@@ -279,14 +195,11 @@ typeCheckingMode = "strict"
 reportUnusedImport = false  # done by ruff F401
 reportUntypedBaseClass = false # dony by ruff N801
 
-# tests/ only: fake functions, parametrize arguments and monkeypatch
-# lambdas are not annotated, and script modules are loaded as ModuleType,
-# so Unknown types remain in tests/. Every other rule still applies to
-# tests/.
+# tests/: fakes, parametrize args and monkeypatch lambdas are unannotated
+# and scripts load as ModuleType, so Unknown types remain.
 [[tool.basedpyright.executionEnvironments]]
 root = "tests"
-# An execution environment resolves imports from its own root; tests
-# import lib.* from this directory.
+# Imports resolve from the environment root; tests import lib.* from here.
 extraPaths = ["."]
 reportMissingParameterType = false
 reportUnknownLambdaType = false

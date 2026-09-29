@@ -1,30 +1,15 @@
-"""Verifies every Keycloak client in templates/keycloak-podiumd-realm-
-config.yaml that builds its `redirectUris:` from a `.Values.<path>` has
-that same path listed as the "oidcUrl" of some `$oidcClients` entry at
-the top of that file. That list feeds the template's own render-time
-guard (a `range` that `fail`s when an enabled entry's oidcUrl is empty
-or still the example.nl placeholder), so a client whose redirect-URI
-value is missing from it renders example.nl redirect URIs silently: the
-deploy succeeds and every login then fails with "Invalid parameter:
-redirect_uri". helm-charts PR #461's review found exactly that gap
-(kiss, zac, ita, pabc, monitoring, datamigratie, zaakbrug had no
-entry); PR #490 closed it, and this check stops it from coming back
-when a new client is added.
+"""Verify each Keycloak client's `.Values` redirect URI paths are in `$oidcClients`.
 
-Scans the raw template source (not a `helm template` render) — Go
-template syntax breaks a real YAML parser (see lib.checks.node_selector),
-so this is a best-effort textual scan: the file is split into client
-blocks on its `- clientId:` list items, and each `redirectUris:` key's
-own list items inside a block are read line by line. Every
-`.Values.<path>` (or `$.Values.<path>`) inside such an item must be
-covered. An item with no `.Values` path at all — a `range` variable like
-the frankgateway dashboard clients' `$fgInst.dashboard.auth.hostname`,
-or a plain literal like OpenBao's `http://localhost:8250/*` CLI callback
-— can't be mapped statically, so it's reported as informational only,
-never a failure. `webOrigins:` is deliberately not checked: it's built
-from the same value as `redirectUris:` in every client, and a wrong
-web origin alone doesn't break a login. A client with no `redirectUris:`
-at all (a service-account-only client) is ignored."""
+In templates/keycloak-podiumd-realm-config.yaml, `$oidcClients` feeds a render-time
+guard that fails on an empty or example.nl oidcUrl. A client missing from it renders
+example.nl redirect URIs silently and every login fails with "Invalid parameter:
+redirect_uri".
+
+Raw text scan (Go templating breaks a YAML parser): blocks split on `- clientId:`,
+then each `redirectUris:` item is read. Items without a `.Values` path (range
+variables, literals) can't be mapped and are informational only. `webOrigins:` isn't
+checked: it mirrors redirectUris and a wrong origin alone doesn't break login.
+"""
 
 import re
 
@@ -51,10 +36,10 @@ def oidc_client_url_paths(text: str) -> set[str] | None:
 
 
 def _client_blocks(lines: list[str]) -> list[tuple[str, int, list[str]]]:
-    """[(clientId text, 1-based line number, block lines), ...] — one per
-    `- clientId:` list item, each running up to the next one (or the end
-    of the file; only redirectUris: items are read from a block, so any
-    unrelated trailing content the last block picks up is harmless)."""
+    """[(clientId text, 1-based line, block lines)] per `- clientId:` item, up to the next one.
+
+    The last block runs to end of file; harmless since only redirectUris: items are read.
+    """
     starts = [(i, m.group("id").strip("\"'")) for i, line in enumerate(lines) if (m := CLIENT_ITEM_RE.match(line))]
     return [
         (client_id, start + 1, lines[start : starts[n + 1][0] if n + 1 < len(starts) else len(lines)])
@@ -63,11 +48,11 @@ def _client_blocks(lines: list[str]) -> list[tuple[str, int, list[str]]]:
 
 
 def _redirect_uri_items(block: list[str]) -> list[str]:
-    """Every list item under every `redirectUris:` key in one client
-    block, in order. Items may be indented deeper than the key or sit at
-    the key's own indent (both valid YAML); blank lines, `#` comments and
-    template-only control lines (`{{- if ... }}`) between items are
-    skipped; the first other line ends the list."""
+    """Every item under every `redirectUris:` key in one client block, in order.
+
+    Items may sit deeper than or at the key's indent. Blank, `#` and template-only
+    control lines are skipped; any other line ends the list.
+    """
     items: list[str] = []
     i = 0
     while i < len(block):
@@ -93,12 +78,11 @@ def _redirect_uri_items(block: list[str]) -> list[str]:
 def scan_oidc_url_coverage(
     text: str,
 ) -> tuple[list[tuple[str, int, str]], list[tuple[str, int, str]]] | None:
-    """(uncovered, unmapped) for a realm-config template's text, or None
-    when it has no `$oidcClients` list (see oidc_client_url_paths).
-    uncovered: (clientId, line, ".Values.<path>") for every redirect URI
-    `.Values` path no `$oidcClients` entry lists as its "oidcUrl".
-    unmapped: (clientId, line, raw item) for every redirect URI with no
-    `.Values` path at all (informational — see module docstring)."""
+    """(uncovered, unmapped) for the template text, or None without an `$oidcClients` list.
+
+    uncovered: (clientId, line, ".Values.<path>") not listed as any "oidcUrl".
+    unmapped: (clientId, line, raw item) with no `.Values` path (informational).
+    """
     covered = oidc_client_url_paths(text)
     if covered is None:
         return None
@@ -114,14 +98,10 @@ def scan_oidc_url_coverage(
 
 
 def check_oidc_url_coverage(chart_dir: Path) -> tuple[bool, str]:
-    """Fails if any Keycloak client in the realm-config template builds a
-    redirect URI from a `.Values` path with no `$oidcClients` entry (see
-    module docstring), printing each clientId and uncovered path and
-    pointing at fix-oidc-url-coverage. Also
-    fails, clearly, when the template or its `$oidcClients` list is
-    missing — this check's whole premise is gone then, and passing
-    silently would hide that. Redirect URIs with no `.Values` path are
-    printed as informational notes, never a failure."""
+    """Fail on uncovered redirect URI paths, or when the template or `$oidcClients` is missing.
+
+    Points at fix-oidc-url-coverage. Unmapped items are printed as notes only.
+    """
     template = chart_dir / REALM_CONFIG_TEMPLATE
     if not template.is_file():
         print(f"FAIL: {REALM_CONFIG_TEMPLATE} not found — cannot check its Keycloak clients' redirectUris")

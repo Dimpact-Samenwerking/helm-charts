@@ -1,9 +1,4 @@
-"""The images-baseline.yaml regeneration step every script that changes
-an image pin ends with: render the chart, then hand the render to
-lib.image.docs.regenerate_images_baseline_manifest. Shared by
-fix-doc-consistency, update-component-version and update-image-version,
-so a version bump never leaves images-baseline.yaml behind at the old
-pin."""
+"""Regenerate images-baseline.yaml from a chart render; the last step of every image-pin writer."""
 
 import sys
 
@@ -20,19 +15,13 @@ from lib.yaml_types import YamlMapping
 def refresh_images_baseline(
     chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, images_baseline_path: Path
 ) -> None:
-    """Regenerates images_baseline_path for Chart.yaml's `deps` and
-    values.yaml's `values`, rendering the chart first to also catch
-    images defined only in a vendored sub-chart's default. Needs the
-    vendored sub-charts in sync with `deps` (see lib.dependencies.
-    ensure_vendored_dependencies). Exits 1 when the render fails."""
+    """Regenerate images_baseline_path from a chart render, which also catches subchart-default images.
+
+    Needs vendored sub-charts in sync with `deps`. Exits 1 when the render fails.
+    """
     print()
     print("=== Regenerating images-baseline.yaml ===")
-    # Rendered with ci/lint-values.yaml (same convention every other
-    # render-based check in this codebase already uses) — a bare
-    # `values.yaml` render fails outright: several sub-charts declare
-    # required fields (JSON-schema "minLength", etc.) only ever
-    # satisfied by that CI overlay, which a real deploy always supplies
-    # via its own environment-specific values anyway.
+    # ci/lint-values.yaml: a bare values.yaml render fails on sub-charts' required fields.
     render_result = render_chart(chart_dir, lint_args_for(chart_dir))
     if render_result.returncode != 0:
         print(

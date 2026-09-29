@@ -23,8 +23,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.checks.markdown import MARKDOWN_PLUGIN_SETTINGS
@@ -35,14 +34,12 @@ from lib.settings import quality_gates_markdown_disabled_rules
 
 
 def run_fix(pymarkdown: str, files: list[Path], disabled_rules: str):
-    """Runs `pymarkdown fix` against files (writes in place) and returns
-    the list of paths pymarkdown itself reported as "Fixed: <path>".
-    `disabled_rules` is the configured quality_gates.markdown_disabled_
-    rules (see lib.settings) plus ",md031": md031's FIX action (not its
-    detection) crashes on docs/_UPGRADE_PATHS/4.6.6-to-4.7.3-upgrade.md
-    ("BadPluginError ... MD031 had a critical failure during the
-    'next_token' action"). Detection stays on (verify-podiumd still
-    reports it); only the fix pass skips it."""
+    """Run `pymarkdown fix` in place; return the paths it reported as "Fixed: <path>".
+
+    `disabled_rules` must include md031: its fix action crashes on
+    docs/_UPGRADE_PATHS/4.6.6-to-4.7.3-upgrade.md (BadPluginError).
+    Detection stays on in verify-podiumd.
+    """
     result = run(
         [pymarkdown, "-d", disabled_rules, *MARKDOWN_PLUGIN_SETTINGS, "fix", *[str(f) for f in files]],
         capture_output=True,
@@ -53,9 +50,7 @@ def run_fix(pymarkdown: str, files: list[Path], disabled_rules: str):
 
 
 def dry_run_fix(pymarkdown: str, files: list[Path], chart_dir: Path, disabled_rules: str) -> list[Path]:
-    """Copies every file into a throwaway tmpdir (preserving its path
-    relative to chart_dir), runs the real fix there, and reports which
-    ones would change — the real files are never touched."""
+    """Relative paths of files the fix would change, by fixing copies in a tmpdir."""
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
         tmp_files: list[Path] = []
@@ -77,10 +72,7 @@ def dry_run_fix(pymarkdown: str, files: list[Path], chart_dir: Path, disabled_ru
 
 
 def main():
-    """CLI entry point: runs pymarkdown's real fix against every markdown
-    file in the chart, or (with --dry-run) runs it against throwaway
-    copies via dry_run_fix and just reports which files would change,
-    leaving the real files untouched."""
+    """CLI entry point."""
     if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
         print(__doc__)
         sys.exit(0)

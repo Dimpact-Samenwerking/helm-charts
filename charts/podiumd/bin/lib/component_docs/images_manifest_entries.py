@@ -1,7 +1,6 @@
-"""Update/remove a single component's own entries (and "# Changes:" header
-item) in docs/images/images-<target>.yaml — the manifest-entry counterpart
-to lib.component_docs.changes_section's table row / "## Changes" section.
-Shared by update-component-version and update-image-version."""
+"""Update/remove one component's entries and "# Changes:" item in
+docs/images/images-<target>.yaml. Shared by update-component-version and
+update-image-version."""
 
 import re
 
@@ -39,9 +38,7 @@ from lib.yaml_types import YamlMapping
 
 @dataclass
 class ManifestUpdateTarget:
-    """images_path/friendly/values_key -- which manifest file, and which
-    component's own entries within it, update_images_manifest/remove_
-    component_from_images_manifest operate on."""
+    """Which manifest file and component the update/remove functions operate on."""
 
     images_path: Path
     friendly: str
@@ -50,11 +47,7 @@ class ManifestUpdateTarget:
 
 @dataclass
 class ImagePathUpdate:
-    """paths/repos/new_tags, keyed together by image path -- update_images_
-    manifest/remove_component_from_images_manifest both walk `paths` and
-    look up each one's own repo/new-tag in lockstep (a missing manifest
-    entry is reported as (path, repos[path], new_tags[path]), see update_
-    images_manifest's own docstring)."""
+    """Image paths with their repo and new tag, looked up per path in lockstep."""
 
     paths: list[str]
     repos: dict[str, str]
@@ -63,11 +56,7 @@ class ImagePathUpdate:
 
 @dataclass
 class ParsedManifest:
-    """lines/entries/entry_line_indices, kept in lockstep -- `entries`
-    (yaml.safe_load'd) and `entry_line_indices` (parallel, one YAML-doc
-    line index per entry) are both derived from `lines` and only ever
-    meaningful read together; update_images_manifest_entry/find_matching_
-    images_entry both need all three."""
+    """Manifest lines with entries and their line indices, derived from and kept in sync with `lines`."""
 
     lines: list[str]
     entries: list[ManifestEntry]
@@ -75,8 +64,7 @@ class ParsedManifest:
 
 
 def values_tree_path_for(values_key: str, image_path: str):
-    """The find_image_tag_paths key for a component_image_paths()-style
-    dotted path (e.g. "frontend.image") under this component's values_key."""
+    """find_image_tag_paths key for a dotted image path (e.g. "frontend.image") under values_key."""
     segments = image_path.split(".")
     return (values_key, *tuple(segments[:-1]))
 
@@ -84,13 +72,7 @@ def values_tree_path_for(values_key: str, image_path: str):
 def find_matching_images_entry(
     entries: list[ManifestEntry], entry_line_indices: list[int], target_path: tuple[str, ...]
 ) -> tuple[ManifestEntry, int, int] | tuple[None, None, None]:
-    """(entry, line_idx, index) for the parsed manifest entry whose own
-    resolve_entry_path(entry["name"], ...) equals `target_path` (see
-    values_tree_path_for), or (None, None, None) if this component has no
-    existing entry for that image path yet — used by both update_images_
-    manifest and remove_component_from_images_manifest to locate an
-    entry's own YAML lines (entry_line_indices, parallel to `entries`) for
-    in-place editing."""
+    """(entry, line_idx, index) of the entry resolving to target_path, or (None, None, None)."""
     for index, (entry, line_idx) in enumerate(zip(entries, entry_line_indices, strict=True)):
         if resolve_entry_path(entry["name"], [target_path]) == target_path:
             return entry, line_idx, index
@@ -98,11 +80,7 @@ def find_matching_images_entry(
 
 
 def _parsed_manifest(lines: list[str]):
-    """entries/entry_line_indices parsed fresh from `lines` (already
-    possibly mutated by a changes-header edit) — bundled as a
-    ParsedManifest since update_images_manifest_entry/find_matching_
-    images_entry both need all three (lines/entries/entry_line_indices)
-    kept in lockstep."""
+    """Re-parse entries/line indices from `lines` (possibly edited by a header change)."""
     entries = try_parse_images_manifest("".join(lines)) or []
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
     return ParsedManifest(lines, entries, entry_line_indices)
@@ -113,11 +91,7 @@ def _component_of(values_key: str, entry: ManifestEntry):
 
 
 def _same_group(values_key: str, entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
-    """Whether `entry_a`/`entry_b` share the same top-level component AND
-    version — find_grouped_preceding_comment_line's own "same group"
-    predicate, so a shared comment block (e.g. zgw-office-addin's frontend
-    + backend, listed under one comment) is found for either entry, not
-    just the line directly above it."""
+    """Whether both entries share component and version, i.e. one shared comment block."""
     return (
         _component_of(values_key, entry_a) is not None
         and _component_of(values_key, entry_a) == _component_of(values_key, entry_b)
@@ -126,9 +100,7 @@ def _same_group(values_key: str, entry_a: ManifestEntry, entry_b: ManifestEntry)
 
 
 def _rewrite_entry_scalars(lines: list[str], entry_line_idx: int, new_app_version: str, digest: str):
-    """Overwrite the version:/digest: scalar lines within this entry's own
-    block (up to the next "- name:" line or a blank line) in place.
-    Returns True if anything actually changed."""
+    """Overwrite version:/digest: lines in this entry's block; True if anything changed."""
     block_end = len(lines)
     for i in range(entry_line_idx + 1, len(lines)):
         if re.match(r"^-\s*name:", lines[i]) or not lines[i].strip():
@@ -146,13 +118,10 @@ def _rewrite_entry_scalars(lines: list[str], entry_line_idx: int, new_app_versio
 
 
 def update_images_manifest_entry(manifest: ParsedManifest, index: int, new_tag: str, values_key: str):
-    """Update an existing entry's version/digest fields and its preceding
-    comment's version pair in place. The comment may be shared across
-    several of this component's entries (e.g. zgw-office-addin's frontend +
-    backend, listed as one block under one comment) — found via the same
-    top-level-component grouping as find_grouped_preceding_comment_line,
-    not just the line directly above this entry. `manifest` is a
-    ParsedManifest. Returns True if anything changed."""
+    """Update an entry's version/digest and its preceding comment's version pair.
+
+    The comment may be shared by several entries of this component (see
+    _same_group). Returns True if anything changed."""
     entry_line_idx = manifest.entry_line_indices[index]
     new_app_version, digest = new_tag.split("@", 1)
     changed = _rewrite_entry_scalars(manifest.lines, entry_line_idx, new_app_version, digest)
@@ -175,11 +144,7 @@ def update_images_manifest_entry(manifest: ParsedManifest, index: int, new_tag: 
 
 
 def _changes_header_item_text(friendly: str, change: VersionChange):
-    """The rendered "<friendly> <app transition> (chart <chart bit>)."
-    changes-header list-item text for `change` (a VersionChange) — a
-    native_components component (see lib.chart.native_components,
-    `change.new_chart == "-"`) has no chart to verify against at all, so
-    it gets no "(chart ...)" clause rather than a misleading one."""
+    """Changes-header item text; native components (new_chart "-") get no "(chart ...)" clause."""
     if change.new_chart == "-":
         return f"{friendly} {image_manifest_version_text(change.old_app, change.new_app)}."
     chart_changed = normalize_version(change.old_chart) != normalize_version(change.new_chart)
@@ -190,13 +155,9 @@ def _changes_header_item_text(friendly: str, change: VersionChange):
 def _update_changes_header_item(
     lines: list[str], target: ManifestUpdateTarget, change: VersionChange, state: ComponentState
 ):
-    """Update this component's own existing changes-header list item in
-    place, or insert a brand-new one at its own values.yaml-order slot
-    (see update_images_manifest's own docstring for why the position
-    matters) when it doesn't have one yet. `target` is a
-    ManifestUpdateTarget (only its own `friendly`/`values_key` are used
-    here), `state` a ComponentState (deps/values). Returns "updated" or
-    "added"."""
+    """Update this component's changes-header item, or insert it in values.yaml order.
+
+    Returns "updated" or "added"."""
     _header_idx, _header_has_count, item_indices = find_images_manifest_changes_items(lines)
     match_idx = find_changes_item(lines, item_indices, target.friendly)
     item_text = _changes_header_item_text(target.friendly, change)
@@ -215,11 +176,10 @@ def _update_changes_header_item(
 def _apply_entry_updates(
     manifest: ParsedManifest, path_update: ImagePathUpdate, values_key: str
 ) -> tuple[list[str], list[tuple[str, str, str]]]:
-    """Update every existing manifest entry for `path_update.paths`,
-    returning (entry_names_updated, missing_entries) — missing_entries is
-    [(image_path, repo, new_tag), ...] for a component_image_paths() path
-    with no matching manifest entry yet (see update_images_manifest's own
-    docstring for why nothing here invents one)."""
+    """Update existing entries for path_update.paths.
+
+    Returns (entry_names_updated, missing_entries), missing_entries being
+    [(image_path, repo, new_tag), ...] for paths without an entry."""
     entry_updates: list[str] = []
     missing_entries: list[tuple[str, str, str]] = []
     for path in path_update.paths:
@@ -242,39 +202,17 @@ def update_images_manifest(
     deps: list[ChartDependency],
     values: YamlMapping,
 ):
-    """Update the "# <N> changes:" header list and any existing entries'
-    version/digest/comment for this component. `target` is a
-    ManifestUpdateTarget, `change` a VersionChange, `path_update` an
-    ImagePathUpdate. Returns (changes_action, entry_names_updated,
-    missing_entries) where missing_entries is [(image_path, repo,
-    new_tag), ...] for components with no existing entry — never invented
-    here: the callers' closing fix-doc-consistency run adds the whole
-    entry (add_missing_images_manifest_entries) rather than this function
-    writing part of it.
+    """Update the "# <N> changes:" item and existing entries for this component.
 
-    deps/values position a brand-new header item at its own values.yaml-
-    order slot (via insert_images_manifest_header_item/images_manifest_
-    order_key — the SAME convention fix-doc-consistency's own add_
-    missing_images_manifest_entries already uses) instead of always
-    appending at the very end — real bug this fixes: update-image-
-    version/update-component-version writing a new item that then sat
-    out of order until a LATER fix-doc-consistency run reshuffled it,
-    even though nothing else about the manifest was actually wrong.
-    Updating an EXISTING item never needs them for anything — the far
-    more common path here — so they're only ever read on a genuinely new
-    item."""
+    Returns (changes_action, entry_names_updated, missing_entries). Missing
+    entries are not created here; the callers' closing fix-doc-consistency
+    run adds them. A new header item is inserted in values.yaml order, same
+    as fix-doc-consistency, so a later run doesn't reshuffle it."""
     original_text = target.images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
-    # A file that has lost its "# Changes:" header (or never had one) —
-    # see ensure_images_manifest_changes_header's own docstring for the
-    # real bug this fixes: insert_images_manifest_header_item is a
-    # documented no-op with no header to insert into, so without this,
-    # a component bumped via update-component-version/update-image-
-    # version into a header-less manifest would silently never get a
-    # "# Changes:" list item, exactly the fix-doc-consistency-side gap
-    # this same fix already closed for add_missing_images_manifest_
-    # entries — this is the same gap in THESE scripts' own write path.
+    # insert_images_manifest_header_item is a no-op without a header, so a
+    # header-less manifest would otherwise never get this component's item.
     ensure_images_manifest_changes_header(lines)
     header_idx, _header_has_count = find_images_manifest_changes_header(lines)
 
@@ -292,12 +230,9 @@ def update_images_manifest(
 
 
 def _remove_changes_header_item(lines: list[str], friendly: str):
-    """Delete this component's own "#   <N>. ..." changes-header list
-    item (renumbering the rest) and update the header's own count word,
-    when it has one — mirrors _update_changes_header_item's own item-match
-    logic (shared via find_images_manifest_changes_items/find_changes_item)
-    but for removal instead of update/insert. Returns "removed" or None
-    (no matching item found)."""
+    """Delete this component's changes-header item, renumbering the rest and updating the count word.
+
+    Returns "removed", or None if no item matched."""
     header_idx, header_has_count, item_indices = find_images_manifest_changes_items(lines)
     match_idx = find_changes_item(lines, item_indices, friendly)
     if match_idx is None:
@@ -308,15 +243,14 @@ def _remove_changes_header_item(lines: list[str], friendly: str):
         count_word, noun = images_manifest_changes_count_word(remaining)
         header_m = match_located_line(CHANGES_HEADER_RE, lines[header_idx])
         lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
-    # else: bare "# Changes:" header — left as-is, same convention
-    # update_images_manifest's own insertion path follows.
+    # else: bare "# Changes:" header is left as-is.
     return "removed"
 
 
 def _remove_entries(manifest: ParsedManifest, path_update: ImagePathUpdate, values_key: str) -> list[str]:
-    """Delete every touched entry with its own comment (see lib.upgradedoc.
-    delete_images_manifest_entry), last entry first so the line indices
-    of the ones above stay valid. Returns entry_names_removed."""
+    """Delete every matching entry with its comment, last first to keep indices valid.
+
+    Returns entry_names_removed."""
     found: list[tuple[int, str]] = []
     for path in path_update.paths:
         target_path = values_tree_path_for(values_key, path)
@@ -331,17 +265,12 @@ def _remove_entries(manifest: ParsedManifest, path_update: ImagePathUpdate, valu
 
 
 def remove_component_from_images_manifest(target: ManifestUpdateTarget, path_update: ImagePathUpdate):
-    """Counterpart to update_images_manifest for a bump that nets out to no
-    change from upgrade_docs_baseline at all (see lib.upgradedoc.compute_changed_
-    components): removes the "changes:" list item and each touched entry
-    with its own comment, since the manifest only lists images that
-    changed. A same-version re-pin with a new digest is added back as
-    "(digest changed)" by the fix-doc-consistency run that follows.
-    `target` is a ManifestUpdateTarget, `path_update` an ImagePathUpdate
-    (its own `repos` and `new_tags` fields are unused here — kept only
-    for symmetry with update_images_manifest's own ImagePathUpdate).
-    Returns (changes_action, entry_names_removed) — changes_action is
-    "removed" or None (no matching list item found)."""
+    """Remove this component's header item and entries when a bump nets out to no change vs the baseline.
+
+    A same-version re-pin with a new digest is re-added as "(digest changed)"
+    by the following fix-doc-consistency run. path_update.repos/new_tags are
+    unused. Returns (changes_action, entry_names_removed), changes_action
+    "removed" or None."""
     original_text = target.images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 

@@ -3,12 +3,10 @@
 Render the podiumd chart with the same `helm template` call verify-podiumd
 uses, to inspect the manifest behind a failed check.
 
-Writes to charts/podiumd/rendered-helm.yaml unless an output file or
---stdout is given; a first argument starting with "-" is a helm
-argument, not the output file. With --stdout only the YAML goes to stdout; messages
-go to stderr. Without extra args it renders with ci/lint-values.yaml
-(the verify-podiumd default); extra args replace that default and go to
-`helm template` as-is. The script prints which of the two it uses.
+Writes charts/podiumd/rendered-helm.yaml, or [output-file], or stdout
+with --stdout (messages then go to stderr). A first argument starting
+with "-" is a helm argument. Without helm args it renders with
+ci/lint-values.yaml; helm args replace that default.
 
 Usage:
     render-podiumd [output-file] [helm-template-args...]
@@ -32,8 +30,7 @@ from typing import Any
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.cli import check_output_path
@@ -50,11 +47,7 @@ DEFAULT_OUTPUT = CHART_DIR / render_report_default_output_file_name(CHART_DIR)
 
 
 def main():
-    """CLI entry point: renders the podiumd chart with either the default
-    CI values or any extra `helm template` args passed on the command
-    line, writing the manifest to [output-file] (default rendered-helm.
-    yaml) or to stdout with --stdout (in which case every status message
-    is redirected to stderr so stdout stays pure YAML)."""
+    """CLI entry point."""
     exit_on_help(__doc__)
     ensure_vendored_dependencies(CHART_DIR)
 
@@ -71,9 +64,7 @@ def main():
     if output_path is not None:
         check_output_path(output_path, "output-file")
 
-    # In --stdout mode, stdout is the data channel (the rendered YAML) —
-    # every status/diagnostic message must go to stderr instead, or it
-    # would corrupt a pipe/redirect of stdout.
+    # With --stdout, messages go to stderr to keep stdout pure YAML.
     def status(*a: Any, **kw: Any):
         print(*a, file=sys.stderr if to_stdout else None, **kw)
 

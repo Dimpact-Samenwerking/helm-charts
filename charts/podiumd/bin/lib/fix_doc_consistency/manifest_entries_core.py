@@ -1,6 +1,4 @@
-"""fix-doc-consistency's own images-manifest entry-comment version
-verification/repair, split out of that script for pylint's too-many-
-lines check."""
+"""fix-doc-consistency's images-manifest entry-comment version verification/repair."""
 
 import re
 
@@ -33,11 +31,7 @@ from lib.yaml_types import YamlMapping
 
 @dataclass
 class ManifestEntriesContext:
-    """chart_dir/deps/target_values/baseline_values/repo_map/
-    upgrade_docs_baseline — fix_images_manifest_entries' own six raw
-    resolution inputs (everything but the manifest text itself),
-    bundled since every per-entry helper below needs some subset of
-    the same six together."""
+    """Resolution inputs shared by fix_images_manifest_entries' per-entry helpers."""
 
     chart_dir: Path | None
     deps: list[ChartDependency]
@@ -49,12 +43,7 @@ class ManifestEntriesContext:
 
 @dataclass
 class _BaselineSetup:
-    """baseline_paths/baseline_repo_groups — grouped together since
-    _manifest_entries_setup computes both from baseline_values in one
-    pass (same shape as lib.fix_doc_consistency.manifest_entries_new_
-    and_urls.BaselineResolution). Nested inside _ManifestEntriesSetup
-    rather than living there directly, purely to stay under pylint's
-    max-instance-attributes."""
+    """Baseline paths and repo groups; nested only to stay under pylint's max-instance-attributes."""
 
     baseline_paths: dict[ImagePath, str]
     baseline_repo_groups: dict[str, list[ImagePath]]
@@ -62,10 +51,7 @@ class _BaselineSetup:
 
 @dataclass
 class _ManifestEntriesSetup:
-    """Everything _manifest_entries_setup computes once, up front, from
-    text/context — reused by every per-entry helper below (mirrors
-    lib.chart.repo_and_path_resolution's own setup-once-share-
-    everywhere shape)."""
+    """Per-run state computed once by _manifest_entries_setup and shared by every entry."""
 
     lines: list[str]
     entries: list[ManifestEntry]
@@ -78,11 +64,7 @@ class _ManifestEntriesSetup:
 
 @dataclass
 class _ManifestFixState:
-    """changed_entries/unresolved_names/fixed_comment_versions —
-    fix_images_manifest_entries' own three per-run accumulators,
-    threaded into _process_manifest_entry so each entry can append
-    directly rather than returning results back up for the loop to
-    merge."""
+    """Per-run accumulators each _process_manifest_entry call appends to."""
 
     changed_entries: list[tuple[str, str | None, str]]
     unresolved_names: list[str]
@@ -93,18 +75,14 @@ class _ManifestFixState:
 def resolve_entry_version(
     entry: ManifestEntry, paths: Mapping[ImagePath, str | None], repo_map: dict[str, ImagePath] | None = None
 ) -> str | None:
-    """The app version pinned at the values-tree path this images-manifest
-    entry resolves to, or None if it can't be resolved (no matching
-    path, or that path has no version, e.g. the component didn't exist yet)."""
+    """App version at the values-tree path this entry resolves to, or None."""
     path = resolve_entry_image_path(entry["name"], paths.keys(), repo_map)
     tag = paths.get(path) if path else None
     return tag.split("@")[0] if tag else None
 
 
 def _manifest_entries_setup(text: str, context: ManifestEntriesContext) -> _ManifestEntriesSetup | None:
-    """None when text isn't parsable/isn't a list — the "nothing to do,
-    hand caller-visible text back unchanged" case fix_images_manifest_
-    entries itself used to return early for."""
+    """None when text isn't a parsable list (caller returns text unchanged)."""
     lines = text.splitlines(keepends=True)
     entries = try_parse_images_manifest(text)
     if entries is None:
@@ -116,18 +94,13 @@ def _manifest_entries_setup(text: str, context: ManifestEntriesContext) -> _Mani
     baseline_values = context.baseline_values
     baseline_paths = dict(find_all_image_and_version_paths(baseline_values, context.deps)) if baseline_values else {}
     baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
-    # Same up-front grouping (against baseline_values, reused across
-    # every entry below) add_missing_images_manifest_entries already
-    # computes for the identical lib.chart.baseline_tag_for_sidecar_path
-    # fallback.
+    # Grouped once for the baseline_tag_for_sidecar_path fallback.
     baseline_repo_groups = (
         paths_by_repository(context.chart_dir, context.deps, baseline_values, baseline_paths.keys())
         if baseline_values
         else {}
     )
-    # chart_dir is optional here (some callers/tests pass None) — see
-    # lib.upgradedoc.find_images_manifest_list_diff's own identical
-    # None-safe handling.
+    # chart_dir may be None (some callers/tests).
     sibling_fields = digest_pinning_exceptions(context.chart_dir) if context.chart_dir is not None else {}
 
     def same_group(entry_a: ManifestEntry, entry_b: ManifestEntry) -> bool:
@@ -147,12 +120,10 @@ def _manifest_entries_setup(text: str, context: ManifestEntriesContext) -> _Mani
 def _fallback_actual_baseline(
     context: ManifestEntriesContext, setup: _ManifestEntriesSetup, path: tuple[str, ...]
 ) -> str | None:
-    """Two-tier fallback used only when no direct baseline_paths match
-    exists (see fix_images_manifest_entries' own docstring): whether
-    this same repository already lives somewhere else in
-    baseline_values, under a different values-tree path, then, only
-    once that finds nothing either, whether the repository appears in
-    any of this chart's own PAST images-<version>.yaml manifests."""
+    """Baseline fallback when baseline_paths has no direct match.
+
+    First the same repository under another path in baseline_values, then
+    this chart's past images-<version>.yaml manifests."""
     actual_baseline = baseline_tag_for_sidecar_path(
         baseline_lookup(
             context.chart_dir, context.deps, context.target_values, context.baseline_values, setup.baseline
@@ -173,9 +144,7 @@ def _manifest_entry_digest_only_change(
     actual_baseline: str | None,
     actual_target: str,
 ):
-    """Whether this entry is a same-version, changed-digest re-pin (see
-    find_images_manifest_list_diff's own digest-comparison branch,
-    which this mirrors)."""
+    """Whether this entry is a same-version, changed-digest re-pin."""
     if actual_baseline is None or normalize_version(actual_baseline) != normalize_version(actual_target):
         return False
     current_tag, baseline_tag = setup.current_paths.get(path), setup.baseline.baseline_paths.get(path)
@@ -195,10 +164,7 @@ def _process_manifest_entry(
     setup: _ManifestEntriesSetup,
     state: _ManifestFixState,
 ):
-    """Resolves and, if needed, rewrites the one images-manifest entry
-    at `entries[index]` — appending to state.changed_entries/
-    unresolved_names/fixed_comment_versions in place, same shared-
-    accumulator shape as _RepoResolutionState's mutable caches."""
+    """Resolve and, if needed, rewrite the comment for entries[index], recording results in state."""
     name = entry["name"]
     comment_idx = find_grouped_preceding_comment_line(
         setup.lines, setup.entries, setup.entry_line_indices, index, setup.same_group
@@ -241,58 +207,21 @@ def _process_manifest_entry(
 def fix_images_manifest_entries(
     text: str, context: ManifestEntriesContext
 ) -> tuple[str, list[tuple[str, str | None, str]], list[str]]:
-    """Rewrite each images-manifest entry's preceding comment to state the
-    actual source (baseline) and target versions for the image at its
-    matched values-tree path. An entry is only rewritten when both ends are
-    independently verifiable (a resolvable baseline, and the component
-    existed there); anything else is reported, not guessed at. A component
-    whose images share one comment across several entries (e.g.
-    zgw-office-addin's frontend + backend) has that comment fixed once,
-    from whichever entry reaches it first — later entries sharing the same
-    comment line just confirm they agree, or are reported as unresolved if
-    they don't (never silently overwritten twice). Returns (new_text,
-    changed_entries, unresolved_names).
+    """Rewrite each entry's preceding comment to the actual baseline -> target versions.
 
-    context (a ManifestEntriesContext) carries chart_dir/deps/
-    target_values/baseline_values/repo_map/upgrade_docs_baseline.
-    context.repo_map (see lib.chart.repository_path_map) lets an entry
-    match its values-tree path exactly via its own "name:"/repository,
-    rather than resolve_entry_path's fuzzy name-word matching alone —
-    the difference that matters for a component whose current strip-
-    registry-shaped manifest name (e.g. "infonl/zaakafhandelcomponent")
-    no longer resembles its values.yaml key ("zac") the way the old
-    hand-translated slug did.
+    Rewritten only when both ends are verifiable; otherwise reported. A
+    comment shared by several entries (e.g. zgw-office-addin) is fixed once;
+    later entries must agree or are reported. context.repo_map lets entries
+    match their path by repository instead of fuzzy name matching.
 
-    Real bug this closes: a path with NO baseline value at all (no
-    matching entry in baseline_paths) used to always report the entry as
-    unresolved and leave its comment untouched, FOREVER — there was no
-    verifier/fixer that ever re-checked an EXISTING entry's own comment
-    for staleness once written, the same structural gap already found
-    and fixed for -upgrade.md/-values-deltas.md HEADINGS (_resolved_
-    rows_by_values_key/_fix_heading_app_versions) but never extended to
-    images-<version>.yaml's own per-entry comments. Confirmed live:
-    images-4.9.1.yaml's own zac otel sidecar comment read "0.158.0 ->
-    0.158.0" (and three of openbao's own sidecars similarly) — a
-    nonsensical arrow self-transition an earlier, now-superseded
-    reordering pass wrote, never corrected since. Now, when actual_
-    baseline can't be resolved directly AND context.baseline_values is a
-    REAL, resolved baseline state (never when it's falsy — see resolve_
-    component_row's own sidecar branch for the identical "genuinely
-    resolved but empty at this path" vs "couldn't resolve a baseline at
-    all" distinction), _fallback_actual_baseline tries two fallback
-    tiers before concluding "genuinely new" (see its own docstring) —
-    either way, the comment's own version-spec portion (see lib.
-    upgradedoc.replace_version_spec) is now recomputed via image_
-    manifest_version_text (also detecting a same-version, changed-
-    digest re-pin the same way find_images_manifest_list_diff's own
-    digest-comparison branch does) — correctly downgrading a stale
-    "(digest changed)"/"(new)"/"(unchanged)" claim back to whatever it
-    should actually say too, not just a stale arrow pair. Deliberately
-    replaces ONLY that version-spec substring, same as before — the
-    comment's own name/prefix text (which may be hand-styled, e.g. "#
-    ZAC — ...", not necessarily the auto-written "# <canonical name>
-    ..." convention) is never touched or re-derived; verifying THAT is a
-    different, not-yet-built check."""
+    Without a direct baseline value, and only when baseline_values is a real
+    resolved state, _fallback_actual_baseline is tried before concluding
+    "new". The version spec is recomputed with image_manifest_version_text,
+    so stale "(digest changed)"/"(new)"/"(unchanged)" claims are corrected
+    too. Only the version-spec substring is replaced; the comment's name
+    text is left as written.
+
+    Returns (new_text, changed_entries, unresolved_names)."""
     setup = _manifest_entries_setup(text, context)
     if setup is None:
         return text, [], []

@@ -1,8 +1,7 @@
-"""How update-*-version and fix-doc-consistency find the table row,
-"### ..." Changes block and "# Changes:" item they rewrite: text_names,
-changes_item_names,
-find_changes_item and remove_changes_section, which resolve names the
-same way check_docs_consistency does (match_canonical_sidecar_name)."""
+"""Name resolution for the rows, Changes blocks and "# Changes:" items that update-*/fix-doc rewrite.
+
+Must match check_docs_consistency (match_canonical_sidecar_name).
+"""
 
 from lib.chart.chart_yaml import ChartDependency
 from lib.component_docs.changes_section import OrderingContext

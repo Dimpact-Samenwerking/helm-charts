@@ -1,7 +1,4 @@
-"""parse_repo, resolve_pin_repo, scan_digest_pins, find_stale_digests, main —
-pure logic plus a mocked-registry integration test. No network access
-needed: registry_tag_exists is monkeypatched wherever a live fetch would
-otherwise happen."""
+"""fix-image-digests logic plus a mocked-registry main() integration test."""
 
 import io
 import subprocess
@@ -16,9 +13,7 @@ import yaml
 
 
 def make_tgz(charts_dir, name, version, values):
-    """A minimal vendored <name>-<version>.tgz containing just
-    <name>/values.yaml, for exercising the subchart-default-repository
-    fallback without a real `helm pull`."""
+    """Minimal vendored <name>-<version>.tgz with just <name>/values.yaml."""
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -48,12 +43,7 @@ def test_parse_repo_explicit_host(sid: ModuleType):
 
 
 # --- scan_digest_pins ---
-# (resolve_pin_repo, the function scan_digest_pins itself calls to resolve
-# each pin's repository, now lives in lib.image.digests -- deduped there
-# since it already handled split "registry:"/"repository:" style pins
-# (see find_sibling_registry) that this script's own former copy didn't.
-# Its own dedicated tests are tests/verify-podiumd/test_image_digests.py's;
-# no need to duplicate them here.)
+# (resolve_pin_repo is tested in tests/verify-podiumd/test_image_digests.py.)
 
 
 def test_scan_digest_pins_quoted_and_bare(sid: ModuleType):
@@ -119,9 +109,8 @@ def test_find_stale_digests_records_unresolved(sid: ModuleType, tmp_path: Path):
 def test_find_stale_digests_falls_back_to_subchart_default_repository(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """openzaak/openformulieren-style pins: no repository in values.yaml at
-    all, resolved instead from the vendored subchart's own default (the
-    same one Helm merges in at render time)."""
+    """No repository in values.yaml: resolved from the vendored subchart's
+    default, as Helm merges it at render time."""
     lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
     write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
@@ -158,9 +147,8 @@ def test_find_stale_digests_stays_unresolved_when_subchart_has_no_default_either
 def test_find_stale_digests_vendors_dependencies_when_tgz_missing(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """openzaak-style pin: matching Chart.yaml dependency, but its .tgz
-    isn't vendored at all yet — worth a real re-vendor, unlike the "already
-    vendored, subchart just doesn't default one" case above."""
+    """Dependency present but its .tgz not vendored yet: a re-vendor is worth
+    triggering."""
     lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
     write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
     # no .tgz vendored at all yet
@@ -227,9 +215,8 @@ def test_find_stale_digests_warns_and_stays_unresolved_when_vendoring_fails(
 def test_find_stale_digests_never_vendors_when_no_matching_dependency(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """A component with no Chart.yaml dependency at all (e.g. a values.yaml
-    key that isn't a subchart) can never be resolved by vendoring — must
-    not trigger the (real, network-touching) re-vendor path."""
+    """No Chart.yaml dependency: vendoring can't help, so the network-touching
+    re-vendor path must not trigger."""
     lines = ["a:", "  image:", f'    tag: "1.0.0@sha256:{"a" * 64}"']
     write_chart_yaml(tmp_path, [])  # no dependencies at all
 
@@ -288,9 +275,7 @@ def test_find_stale_digests_dedupes_shared_repo_and_tag(
 def test_find_stale_digests_marks_sliding_from_is_sliding_tag(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """find_stale_digests just threads is_sliding_tag's verdict through into
-    the returned tuple — the classification logic itself is lib.registry's
-    job and is tested there."""
+    """is_sliding_tag's verdict is passed through; classification is tested in lib.registry."""
     lines = ["a:", "  image:", "    repository: org/repo", f'    tag: "1.0.0@sha256:{"a" * 64}"']
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: True)
@@ -394,11 +379,8 @@ def test_main_invokes_fix_helm_doc_after_a_real_write(
 def test_main_invokes_fix_doc_consistency_after_fix_helm_doc(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """A real digest rewrite also re-pins that same digest in whichever
-    images-<version>.yaml entry mirrors it — fix-doc-consistency repairs
-    that, same reasoning as the fix-helm-doc call right before it (README
-    embeds the same values.yaml digest string, and goes stale the same
-    way)."""
+    """A digest rewrite also re-pins the mirrored images-<version>.yaml entry
+    via fix-doc-consistency, just as README goes stale and needs fix-helm-doc."""
     values_path = tmp_path / "values.yaml"
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
@@ -504,8 +486,7 @@ def test_main_propagates_fix_doc_consistency_failure_exit_code(
 def test_main_stale_digest_report_names_the_file(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """A bare "lines: N" doesn't say which file N is in — prefix with
-    values.yaml, same convention as check_image_digests/check_duplicate_keys."""
+    """Prefix "lines: N" with values.yaml, as check_image_digests does."""
     values_path = tmp_path / "values.yaml"
     old_digest = "a" * 64
     new_digest = "b" * 64
@@ -618,10 +599,8 @@ def mock_is_sliding_tag_by_repo(monkeypatch: pytest.MonkeyPatch, sid: ModuleType
 def test_main_default_updates_sliding_and_pinned_alike(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """verify-podiumd's own check fails on a sliding mismatch the same
-    as a pinned one, so there's no reason for this tool to leave a sliding
-    pin unfixed by default -- both get rewritten in the same run, the
-    sliding one just gets the "(sliding)" label in the report."""
+    """verify-podiumd fails on sliding mismatches too, so both are rewritten;
+    the sliding one is just labelled "(sliding)"."""
     values_path = tmp_path / "values.yaml"
     old_nginx, new_nginx = "a" * 64, "c" * 64
     old_zac, new_zac = "b" * 64, "d" * 64
@@ -651,8 +630,7 @@ def test_main_default_updates_sliding_and_pinned_alike(
 
 
 def test_main_target_updates_sliding_pin(sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """Naming the image explicitly still works when it happens to be
-    sliding -- no different from the default, unscoped behavior."""
+    """Naming a sliding image explicitly works like the unscoped default."""
     values_path = tmp_path / "values.yaml"
     old_nginx, new_nginx = "a" * 64, "c" * 64
     zac_digest = "b" * 64
@@ -679,8 +657,7 @@ def test_main_target_updates_sliding_pin(sid: ModuleType, tmp_path: Path, monkey
 def test_main_target_leaves_other_stale_pins_untouched(
     sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Both images drifted, but only the named one is refreshed -- the
-    other stays exactly as it was, not silently swept in."""
+    """Only the named image is refreshed, not every drifted one."""
     values_path = tmp_path / "values.yaml"
     old_nginx, new_nginx = "a" * 64, "c" * 64
     old_zac, new_zac = "b" * 64, "d" * 64
@@ -777,8 +754,7 @@ def test_main_more_than_two_targets_raises(sid: ModuleType, tmp_path: Path, monk
 
 
 def test_main_one_target_raises(sid: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """<key> <basename> must be given together -- a lone positional
-    argument is rejected rather than guessed at."""
+    """A lone positional argument is rejected rather than guessed at."""
     monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx"])
     with pytest.raises(SystemExit) as exc_info:
         sid.main()

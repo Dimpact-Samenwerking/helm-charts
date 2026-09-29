@@ -1,8 +1,5 @@
-"""current_chart_version, extract_images_baseline / update_sibling_doc_refs /
-update_images_manifest_baseline, plus main() integration for images-<target>.yaml
-handling and end-to-end component-version-table correction. The
-`repo_with_baseline_tag` fixture lives in conftest.py (shared with other test
-files in this directory)."""
+"""Baseline/images-manifest helpers, plus main() integration for
+images-<target>.yaml handling and component-version-table correction."""
 
 import subprocess
 
@@ -69,16 +66,9 @@ def test_update_sibling_doc_refs_ignores_other_targets(cdb: ModuleType):
 
 
 def test_update_sibling_doc_refs_already_correct_reference_is_not_reported_changed(cdb: ModuleType):
-    """Regression test: a doc mentioning "<new_baseline>-to-<target>-*.md"
-    (nothing stale left — the reference already names the current
-    baseline) still MATCHES the pattern, but subn's own replacement
-    rebuilds the exact same string — `changed` must reflect whether the
-    TEXT actually differs, not whether the pattern matched anything, or
-    main()'s own "already baseline ... — fixed stale sibling doc
-    reference(s)" print falsely claims a fix for every already-correct
-    mention (real case: a doc that merely references its own sibling
-    doc correctly, with nothing to repair, printed as "fixed" with no
-    file actually changed)."""
+    """Regression: an already-correct sibling reference still matches the
+    pattern, so `changed` must reflect whether the text differs, or main()
+    reports a fix that changed nothing."""
     text = "See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for details.\n"
     new_text, changed = cdb.update_sibling_doc_refs(text, "4.9.0", "4.8.5")
     assert changed is False
@@ -161,15 +151,9 @@ def test_main_images_manifest_already_at_baseline_is_noop(
 def test_main_images_baseline_manifest_second_run_reports_unchanged(
     cdb: ModuleType, repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """Regression test: regenerate_images_baseline_manifest used to
-    unconditionally rewrite (and report on) images-baseline.yaml every
-    single run, even when nothing about the chart actually changed —
-    the ONE doc-writer in this script without the same write-gating
-    every OTHER doc type it manages already has (see e.g. the
-    "already baseline ... — unchanged" test right above this one). A
-    second run with no underlying chart change must report "unchanged"
-    instead of "wrote N entries", and must not touch the file's own
-    mtime at all — no spurious write, no spurious git-diff churn."""
+    """Regression: images-baseline.yaml must be write-gated like every other
+    doc: a second run without chart changes reports "unchanged" and leaves
+    the mtime alone."""
     set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
     cdb.main()
     out1 = capsys.readouterr().out
@@ -208,17 +192,10 @@ def test_main_corrects_stale_table_using_real_baseline_tag(
 
 @pytest.fixture
 def repo_with_mi_shaped_stale_docs(tmp_path: Path):
-    """The real mi bug, reproduced synthetically: a Chart.yaml dependency
-    ("mi-data", alias "mi") that already existed at the baseline ref
-    (condition-gated, disabled by default) but had NO "image:" block
-    pinned in values.yaml there yet — its own app version is genuinely
-    unresolvable at baseline, so per component_version_cell it should
-    render "(new)" everywhere, never a stale "<old> → <new>" transition.
-    All three surfaces (the table row, its own -upgrade.md Changes
-    heading, its own -values-deltas.md section heading) were written by
-    an earlier, buggy tool run with the wrong transition AND, for the
-    two headings, the wrong (bare "mi", not the row's own "mi-data
-    (MI-data exports)") name too."""
+    """mi bug reproduction: "mi-data" existed at baseline but had no image
+    pinned there, so its app version is unresolvable and must render
+    "(new)". Row and both headings were written by a buggy run with a stale
+    transition and, for the headings, the bare "mi" name."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -299,12 +276,7 @@ def repo_with_mi_shaped_stale_docs(tmp_path: Path):
 def test_main_corrects_mi_shaped_stale_name_and_new_dependency_wording_everywhere(
     cdb: ModuleType, repo_with_mi_shaped_stale_docs, monkeypatch: pytest.MonkeyPatch
 ):
-    """One fix-doc-consistency run corrects all three surfaces to the
-    SAME name ("mi-data (MI-data exports)", the row's own — see
-    fix_changes_heading_app_versions' own docstring for why that one is
-    authoritative) and the SAME "(new)" wording (never the stale
-    "2.71.0 → 2.90.0" transition, since mi's own app version genuinely
-    never resolved at baseline)."""
+    """One run corrects all three surfaces to the row's name and to "(new)"."""
     set_argv_and_dir(cdb, monkeypatch, repo_with_mi_shaped_stale_docs, "4.9.0", target="4.9.1")
     cdb.main()
 

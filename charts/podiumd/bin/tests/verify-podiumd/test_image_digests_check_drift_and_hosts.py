@@ -1,7 +1,5 @@
-"""check_image_digests — split registry:/repository: style resolution,
-version-drift/duplicate-pin reporting, and UNVERIFIABLE_HOSTS handling.
-No network access needed: registry_tag_exists is monkeypatched wherever
-a live fetch would otherwise happen."""
+"""check_image_digests: split registry:/repository: resolution, drift and
+duplicate-pin reporting, UNVERIFIABLE_HOSTS. registry_tag_exists is mocked."""
 
 import urllib.error
 
@@ -14,12 +12,8 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _clear_tag_exists_cache(libimagedigests: ModuleType):
-    """cached_tag_exists' own in-process memoization (see its own
-    docstring) lives in a module-level dict, and libimagedigests is a
-    session-scoped fixture — without this, one test's cached (fake)
-    registry_tag_exists result could silently leak into a LATER test
-    that reuses the same (repository, version), even though that later
-    test mocks registry_tag_exists completely differently."""
+    """Clear cached_tag_exists' module-level memo so one test's fake result
+    can't leak into a later test via the session-scoped fixture."""
     libimagedigests.clear_tag_exists_cache()
     yield
     libimagedigests.clear_tag_exists_cache()
@@ -35,9 +29,8 @@ def write_values(chart_dir, text):
 def test_check_image_digests_split_style_pin_queries_the_correct_registry(
     vp: ModuleType, libimagedigests: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test for the actual bug: a split-style pin (redis-ha's
-    real values.yaml shape) must resolve against ITS OWN registry (quay.io
-    here), not silently fall back to docker.io."""
+    """Regression: a split-style pin resolves against its own registry
+    (quay.io), not docker.io."""
     write_values(
         tmp_path,
         (
@@ -150,13 +143,9 @@ def test_check_image_digests_unverifiable_host_does_not_fail_the_check(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A registry this environment can never reach anonymously (see
-    lib.registry.UNVERIFIABLE_HOSTS) must be reported distinctly from a
-    genuine FETCH-ERR, and must not fail the check on its own — it can't
-    succeed here regardless of whether the pin is actually correct.
-    UNVERIFIABLE_HOSTS is empty by default (no such host currently known —
-    see its docstring in lib/registry.py), so this injects a fake one
-    rather than depending on any real, possibly-transient special case."""
+    """An anonymously unreachable host (UNVERIFIABLE_HOSTS) is reported
+    apart from FETCH-ERR and doesn't fail the check. The set is empty by
+    default, so a fake host is injected."""
     write_values(
         tmp_path,
         (

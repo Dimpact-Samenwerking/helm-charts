@@ -35,8 +35,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.historical_baselines import SEMVER_RE as CHART_VERSION_RE
 from lib.chart.paths import CHART_DIR
@@ -58,26 +57,17 @@ BRANCH_RE = re.compile(r"^feature/podiumd-(\d+\.\d+\.\d+)$")
 
 
 def current_chart_version():
-    """The podiumd chart's own currently-pinned version, read from
-    Chart.yaml via lib.chart.release_baseline_basics.chart_version — the
-    "baseline" being left behind by this run."""
+    """Chart.yaml's current version."""
     return chart_version(CHART_YAML)
 
 
 def version_tuple(v: str):
-    """`v` (a plain "MAJOR.MINOR.PATCH" string) as an (int, int, int)
-    tuple, for the arithmetic comparison bump_kind needs — callers are
-    responsible for validating the shape first (see CHART_VERSION_RE in
-    main()), this raises ValueError on anything that isn't dot-separated
-    integers."""
+    """Parse "MAJOR.MINOR.PATCH" into an int tuple; ValueError if not dot-separated ints."""
     return tuple(int(part) for part in v.split("."))
 
 
 def bump_kind(baseline: str, target: str):
-    """ "patch", "minor", or None (not a valid single-increment jump —
-    covers a same-or-lower target, a skipped version, and any
-    major-version change, which is out of scope for this tool
-    entirely)."""
+    """ "patch", "minor", or None when not a single patch/minor increment."""
     b_major, b_minor, b_patch = version_tuple(baseline)
     t_major, t_minor, t_patch = version_tuple(target)
     if b_major == t_major and b_minor == t_minor and t_patch == b_patch + 1:
@@ -88,10 +78,10 @@ def bump_kind(baseline: str, target: str):
 
 
 def update_chart_version(new_version: str) -> list[str]:
-    """Bump Chart.yaml's top-level "version:" and "appVersion:" (this
-    repo's own chart always keeps the two in lockstep — see git history of
-    every prior release bump) to new_version. Returns the field names
-    actually changed, in file order; writes nothing when none change."""
+    """Set Chart.yaml "version:" and "appVersion:" to new_version.
+
+    Returns the changed field names in file order; writes nothing when none change.
+    """
     lines = CHART_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
     changed: list[str] = []
     found_version = False
@@ -150,14 +140,7 @@ def outgoing_version(chart_version_now: str, target: str) -> str:
 
 
 def main():
-    """CLI entry point: opens a new podiumd release cycle — bumps
-    Chart.yaml's version/appVersion from the current branch's target
-    (parsed via BRANCH_RE) after checking the jump is a single valid
-    patch or minor increment (see bump_kind), records the outgoing
-    version as release-baseline.yaml's new upgrade_docs baseline (and, on
-    a minor bump, its new release_table baseline too), then scaffolds the
-    upgrade-path docs for that outgoing version by running
-    create-doc-version. See --help for the refusal conditions."""
+    """CLI entry point."""
     positional_args(__doc__, 0)
 
     repo_root = find_repo_root(CHART_DIR)

@@ -32,8 +32,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.chart_yaml import load_chart_dependencies
 from lib.chart.paths import CHART_YAML
@@ -45,11 +44,7 @@ from lib.image.version import resolve_key_scope
 
 
 def main():
-    """CLI entry point: resolves <key> <basename> to the current values.
-    yaml pin(s) and checks whether <image-version> already exists upstream
-    for each, printing FOUND/MISSING per match. Exits non-zero if <key>
-    <basename> doesn't resolve uniquely, or if the version is missing for
-    any resolved pin."""
+    """CLI entry point."""
     key, basename, image_version = positional_args(__doc__, 3)
 
     deps = load_chart_dependencies(CHART_YAML)

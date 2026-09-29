@@ -1,5 +1,4 @@
-"""lib.upgradedoc -- images-manifest entry ordering, grouping, and
-faulty-header detection."""
+"""lib.upgradedoc -- images-manifest entry ordering, grouping, and faulty-header detection."""
 
 from types import ModuleType
 
@@ -31,9 +30,7 @@ def test_is_primary_image_path_default_image_key(libchartregisteredpaths: Module
 
 
 def test_is_primary_image_path_multi_container_dependency(libchartregisteredpaths: ModuleType):
-    """zgw-office-addin's frontend + backend are BOTH registered as
-    primary images (lib.chart.COMPONENT_IMAGE_PATHS) — co-equal
-    containers of one dependency, not one primary + a sidecar."""
+    """zgw-office-addin frontend and backend are co-equal primaries, not primary plus sidecar."""
     deps = [{"name": "zgw-office-addin", "version": "1.0.0"}]
     assert libchartregisteredpaths.is_primary_image_path(("zgw-office-addin", "frontend", "image"), deps) is True
     assert libchartregisteredpaths.is_primary_image_path(("zgw-office-addin", "backend", "image"), deps) is True
@@ -45,22 +42,15 @@ def test_is_primary_image_path_nested_sidecar_is_not_primary(libchartregisteredp
 
 
 def test_is_primary_image_path_version_paths_for_field_is_primary(libchartregisteredpaths: ModuleType):
-    """redis-operator's own split "redisOperator.imageTag" field (lib.
-    chart.version_paths_for's own bare-scalar fallback for a component
-    with no "image: {tag}" block at all — actual_app_version's own
-    second-pass lookup) is its primary, same as a "normal" image_paths_
-    for match — real case: without this, redis-operator's OWN manifest
-    entry was wrongly classified as an unrecognized sidecar of itself."""
+    """redis-operator's bare-scalar "redisOperator.imageTag" (version_paths_for) is its primary, so
+    its own manifest entry is not a sidecar of itself."""
     deps = [{"name": "redis-operator", "version": "1.0.0"}]
     assert libchartregisteredpaths.is_primary_image_path(("redis-operator", "redisOperator", "imageTag"), deps) is True
 
 
 def test_is_primary_image_path_eck_stack_registered_version_fields_are_primary(libchartregisteredpaths: ModuleType):
-    """eck-stack's own two COMPONENT_VERSION_PATHS entries (eck-
-    elasticsearch + eck-kibana) are co-equal primaries, same "no single
-    canonical one, list several" shape as zgw-office-addin's frontend +
-    backend — eck-enterprise-search, deliberately NOT registered there
-    (disabled by default), stays a real sidecar needing its own header."""
+    """eck-stack's registered eck-elasticsearch and eck-kibana are co-equal primaries; unregistered
+    eck-enterprise-search stays a sidecar needing its own header."""
     deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "1.0.0"}]
     assert libchartregisteredpaths.is_primary_image_path(("kiss-eck", "eck-elasticsearch", "version"), deps) is True
     assert libchartregisteredpaths.is_primary_image_path(("kiss-eck", "eck-kibana", "version"), deps) is True
@@ -70,10 +60,7 @@ def test_is_primary_image_path_eck_stack_registered_version_fields_are_primary(l
 
 
 def test_is_primary_image_path_no_owning_dependency_is_primary(libchartregisteredpaths: ModuleType):
-    """A path with no owning Chart.yaml dependency at all (podiumd's own
-    directly-templated top-level block, or the shared "global" anchor)
-    has no PARENT to be a sidecar of — treated as its own standalone/
-    primary entity, never subject to sidecar-only rules."""
+    """A path with no owning dependency (top-level block, "global") has no parent, so it is primary."""
     deps = [{"name": "zac", "version": "1.0.0"}]
     assert libchartregisteredpaths.is_primary_image_path(("global", "images", "nginx"), deps) is True
 
@@ -94,9 +81,7 @@ def test_header_name_segment_arrow_pair_isolates_name(libupgradedocmanifestorder
 
 
 def test_header_name_segment_self_arrow_unchanged_isolates_name(libupgradedocmanifestordering: ModuleType):
-    """A self-referential "X -> X" pair (unchanged value, still written
-    with an arrow) is handled by the arrow path exactly like a real
-    transition — never falls through to the bare-version branch."""
+    """A self-referential "X -> X" pair takes the arrow path, not the bare-version branch."""
     assert (
         libupgradedocmanifestordering.header_name_segment("zac - opentelemetry-collector-contrib 0.158.0 -> 0.158.0")
         == "zac - opentelemetry-collector-contrib"
@@ -110,23 +95,15 @@ def test_header_name_segment_self_arrow_unchanged_isolates_name(libupgradedocman
 def test_header_name_segment_basename_ending_in_version_shaped_word_with_real_arrow(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """Regression guard: "openbao - vault-k8s" ends in "k8s", which is
-    version-shaped on its own — but a real arrow pair IS present here
-    ("1.7.2 -> 1.7.2"), so the arrow path must take priority and match
-    at the actual version token, never at "k8s" itself."""
+    """Regression: with a real arrow pair, "openbao - vault-k8s" splits at the version, not at "k8s"."""
     assert (
         libupgradedocmanifestordering.header_name_segment("openbao - vault-k8s 1.7.2 -> 1.7.2") == "openbao - vault-k8s"
     )
 
 
 def test_header_name_segment_bare_version_before_parenthetical_no_arrow(libupgradedocmanifestordering: ModuleType):
-    """Real bug, real doc: "keycloak-operator - python 3.14.7-slim
-    (digest changed)" has NO arrow anywhere (fix-doc-consistency's own
-    same-version/changed-digest wording) — VERSION_PAIR_RE finds
-    nothing, so the trailing bare version token "3.14.7-slim" must be
-    stripped separately, immediately before the "(...)" aside, to
-    isolate "keycloak-operator - python" the same way the arrow path
-    already isolates a name."""
+    """Regression: with no arrow ("keycloak-operator - python 3.14.7-slim (digest changed)"), the bare
+    version before the aside is stripped to isolate the name."""
     assert (
         libupgradedocmanifestordering.header_name_segment("keycloak-operator - python 3.14.7-slim (digest changed)")
         == "keycloak-operator - python"
@@ -140,13 +117,8 @@ def test_header_name_segment_bare_version_no_arrow_generic_case(libupgradedocman
 def test_header_name_segment_name_with_its_own_embedded_parenthetical_no_arrow(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """Real bug, real docs: "mi-data (MI-data exports)" is a real
-    component display name that embeds its OWN parenthetical, nowhere
-    near the trailing "(new)"/"(chart ...)" asides — truncating at
-    wherever the FIRST "(" happens to appear (a first version of this
-    fix did exactly that) silently lost everything from "(MI-data" on,
-    leaving just the bare "mi-data". Trailing asides must be stripped
-    from the END of the string, never by finding the first "(" anywhere."""
+    """Regression: a name with its own parenthetical ("mi-data (MI-data exports)") keeps it; asides are
+    stripped from the end, not at the first "("."""
     assert (
         libupgradedocmanifestordering.header_name_segment(
             "mi-data (MI-data exports) 2.90.0 (new) (chart 1.1.0, unchanged)"
@@ -158,9 +130,7 @@ def test_header_name_segment_name_with_its_own_embedded_parenthetical_no_arrow(
 def test_header_name_segment_name_with_its_own_embedded_parenthetical_with_arrow(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """Same embedded-parenthetical concern, but for the arrow-present
-    path this time — "Keycloak Operator (server)" is real, current doc
-    text (4.9.0-to-4.9.1-upgrade.md's own heading)."""
+    """Embedded-parenthetical name ("Keycloak Operator (server)") with an arrow present."""
     assert (
         libupgradedocmanifestordering.header_name_segment(
             "Keycloak Operator (server) 26.7.2 -> 26.7.3 (chart 1.12.1 -> 1.13.0)"
@@ -170,12 +140,8 @@ def test_header_name_segment_name_with_its_own_embedded_parenthetical_with_arrow
 
 
 def test_header_name_segment_no_version_no_parenthetical_never_truncated(libupgradedocmanifestordering: ModuleType):
-    """No arrow AND no "(...)" aside at all — nothing in this codebase
-    ever actually produces this shape, but if it occurred, the whole
-    text is the name: there's no trailing token to strip, and a real
-    bare-name-only header's own last word (e.g. "python") must never be
-    mistaken for a version token just because it matches the same bare
-    "word-shaped" pattern."""
+    """No arrow and no aside: the whole text is the name; a last word like "python" is not taken as a
+    version."""
     assert (
         libupgradedocmanifestordering.header_name_segment("keycloak-operator - python") == "keycloak-operator - python"
     )
@@ -219,10 +185,8 @@ def test_find_images_manifest_faulty_headers_correct_sidecar_header_is_not_flagg
 def test_find_images_manifest_faulty_headers_sidecar_sharing_parents_plain_header_is_missing(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """The real kiss-elastic-sync case: a sidecar entry with NO comment
-    of its own, sitting right after its parent's plain (unindented, no
-    "sidecar:" keyword) header — flagged as "missing", not silently
-    treated as covered by the parent's header."""
+    """kiss-elastic-sync: an uncommented sidecar after its parent's plain header is "missing", not
+    covered by the parent's header."""
     text = (
         "# redis-operator 0.25.0 -> 0.26.0 (chart 0.25.0 -> 0.26.1)\n"
         "- name: redis-operator\n"
@@ -266,12 +230,8 @@ def test_find_images_manifest_faulty_headers_sidecar_header_naming_wrong_compone
 def test_find_images_manifest_faulty_headers_digest_changed_sidecar_not_flagged(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """Real bug, real doc (keycloak-operator's own python init image):
-    a correct "#   sidecar: <parent> - <basename> <version> (digest
-    changed)" header — the wording fix-doc-consistency now writes for a
-    same-version/changed-digest re-pin, with no arrow at all — must NOT
-    be flagged as "wrong_name" just because header_name_segment can't
-    find a version pair to search for."""
+    """Regression: a same-version "sidecar: <parent> - <basename> <version> (digest changed)" header
+    has no arrow but is not "wrong_name"."""
     text = '#   sidecar: redis-operator - redis 8.6.6 (digest changed)\n- name: redis-ha\n  version: "8.6.6"\n'
     lines = text.splitlines()
     entries = [{"name": "redis-ha", "version": "8.6.6"}]
@@ -292,10 +252,8 @@ def test_find_images_manifest_faulty_headers_primary_entry_never_checked(
     libupgradedocappversion: ModuleType,
     libchartregisteredpaths: ModuleType,
 ):
-    """A dependency's own primary image is exempt — including a
-    multi-container dependency's second co-equal primary sharing the
-    first's plain header (zgw-office-addin frontend + backend), which
-    is expected and correct, not a sidecar needing its own header."""
+    """Primary images are exempt, including a second co-equal primary sharing the first's plain header
+    (zgw-office-addin)."""
     text = (
         "# ZGW Office Add-in -> 0.11.0\n"
         "- name: infonl/zgw-office-addin-frontend\n"
@@ -319,9 +277,7 @@ def test_find_images_manifest_faulty_headers_primary_entry_never_checked(
         "infonl/zgw-office-addin-frontend": ("zgw-office-addin", "frontend", "image"),
         "infonl/zgw-office-addin-backend": ("zgw-office-addin", "backend", "image"),
     }
-    # Both entries really resolve (exact repo_map hit) to a primary path,
-    # so the empty result below is the primary exemption at work, not an
-    # unresolvable-entry skip.
+    # Both entries resolve via repo_map, so the empty result proves the primary exemption, not a skip.
     for entry in entries:
         path = libupgradedocappversion.resolve_entry_image_path(entry["name"], current_paths, repo_map)
         assert path is not None
@@ -336,10 +292,7 @@ def test_find_images_manifest_faulty_headers_primary_entry_never_checked(
 
 
 def test_find_images_manifest_faulty_headers_unresolvable_entry_skipped(libupgradedocmanifestordering: ModuleType):
-    """An entry that doesn't resolve to any values-tree path at all is
-    skipped — find_images_manifest_list_diff's unmatched_entry_names
-    already reports it; there's no "expected name" to validate a header
-    against for something that isn't a real image."""
+    """An unresolvable entry is skipped: list_diff reports it and there is no expected name."""
     text = '- name: does-not-exist\n  version: "1.0.0"\n'
     lines = text.splitlines()
     entries = [{"name": "does-not-exist", "version": "1.0.0"}]
@@ -355,12 +308,8 @@ def test_find_images_manifest_faulty_headers_unresolvable_entry_skipped(libupgra
 def test_find_images_manifest_faulty_headers_orphan_top_level_block_is_exempt(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """A path rooted at podiumd's own directly-templated top-level block
-    with no Chart.yaml dependency of its own at all (real cases:
-    "keycloak", "apiproxy", "frankgateway" — see lib.image.repository_
-    check's own docstring) has no PARENT to be a "sidecar OF", so it's
-    never subject to the "#   sidecar: <parent> - ..." shape — its own
-    free-form header (explaining why it's listed) is correct as-is."""
+    """A top-level block without a dependency (keycloak, apiproxy, frankgateway) has no parent, so its
+    free-form header is not checked against the sidecar shape."""
     text = '# Keycloak server -> 26.7.2 (app image only)\n- name: keycloak/keycloak\n  version: "26.7.2"\n'
     lines = text.splitlines()
     entries = [{"name": "keycloak/keycloak", "version": "26.7.2"}]
@@ -380,11 +329,7 @@ def test_find_images_manifest_faulty_headers_orphan_top_level_block_is_exempt(
 def test_find_images_manifest_faulty_headers_version_paths_for_primary_is_exempt(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """redis-operator's OWN manifest entry (its real app version comes
-    from version_paths_for's "redisOperator.imageTag" field, not an
-    "image: {tag}" block) is a PRIMARY, not a sidecar — same real case
-    -upgrade.md's own "### redis-operator ..." heading already names
-    plain "redis-operator", not "redis-operator - <something>"."""
+    """redis-operator's version_paths_for entry is a primary, matching its plain -upgrade.md heading."""
     text = (
         "# redis-operator 0.25.0 -> 0.26.0 (chart 0.25.0 -> 0.26.1)\n"
         "- name: opstree/redis-operator\n"
@@ -424,16 +369,13 @@ def test_images_manifest_entry_order_key_sidecar_sorts_after_primary(libupgraded
 
 
 def test_images_manifest_entry_order_key_unresolved_path_sorts_last(libupgradedocmanifestordering: ModuleType):
-    """path=None (an entry that doesn't resolve to any real values-tree
-    path at all) sorts after every real component — same sentinel
-    component_order_key uses for a name matching no dependency."""
+    """An unresolved entry sorts last, like component_order_key's no-dependency sentinel."""
     key_order = ["redis-operator", "zac"]
     assert libupgradedocmanifestordering.images_manifest_entry_order_key(None, deps=[], key_order=key_order) == (2, 1)
 
 
 def test_images_manifest_entry_order_key_unknown_values_key_sorts_last(libupgradedocmanifestordering: ModuleType):
-    """path[0] not in key_order at all (shouldn't happen for a real
-    resolved path, but stays a sane sentinel rather than crashing)."""
+    """A path[0] missing from key_order sorts last instead of crashing."""
     deps = [{"name": "mystery", "version": "1.0.0"}]
     key_order = ["redis-operator", "zac"]
     assert libupgradedocmanifestordering.images_manifest_entry_order_key(("mystery", "image"), deps, key_order) == (
@@ -446,11 +388,8 @@ def test_images_manifest_entry_order_key_unknown_values_key_sorts_last(libupgrad
 
 
 def _images_manifest_two_component_fixture():
-    """zac then redis-operator, in that order — own comments, no shared
-    groups. `values` has real "image: {tag: ...}" blocks for both, so
-    resolve_entry_image_path (used internally by sort_images_manifest_
-    entries) actually resolves each entry, not just the standalone
-    current_paths/repo_map handed to the out-of-order check directly."""
+    """zac then redis-operator, each with its own comment; `values` has real image blocks so
+    sort_images_manifest_entries can resolve the entries itself."""
     text = (
         "# zac 5.0.2 -> 5.4.4\n"
         "- name: infonl/zaakafhandelcomponent\n"
@@ -533,17 +472,10 @@ def test_sort_images_manifest_entries_already_ordered_reports_nothing(libupgrade
 def test_sort_images_manifest_entries_inserts_missing_blank_line_between_groups(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """Regression test (real bug, real doc): a group's own captured span
-    never includes a LEADING blank line (that's the PRECEDING group's
-    own trailing space instead) — a pre-existing "zero blank lines
-    between these two groups" formatting defect therefore survived
-    forever once spliced next to a new neighbor, since this function
-    only ever COLLAPSED an excess, never inserted a missing one.
-    Confirmed live: images-4.9.1.yaml had no blank line at all between
-    its own redis entry and keycloak-operator's, and between
-    frankgateway's and zaakbrug's — already in the CORRECT relative
-    order here (no `moved` at all), proving this is a pure formatting
-    fix, independent of reordering."""
+    """Regression: a missing blank line between groups is inserted, not only excess ones collapsed.
+
+    A group's span never includes a leading blank line, so the defect survived without reordering
+    (seen in images-4.9.1.yaml)."""
     text = (
         "# zac 5.0.2 -> 5.4.4\n"
         "- name: infonl/zaakafhandelcomponent\n"
@@ -569,10 +501,7 @@ def test_sort_images_manifest_entries_inserts_missing_blank_line_between_groups(
 
 
 def test_sort_images_manifest_entries_moves_shared_group_as_one_unit(libupgradedocmanifestordering: ModuleType):
-    """A group of entries sharing ONE header (e.g. zgw-office-addin's
-    frontend + backend, both primaries of the same dependency) moves
-    together — the shared header is never left behind or split from
-    only some of the entries it covers."""
+    """Entries sharing one header move together with it."""
     text = (
         "# redis-operator 0.25.0 -> 0.26.0\n"
         "- name: opstree/redis-operator\n"
@@ -607,8 +536,7 @@ def test_sort_images_manifest_entries_moves_shared_group_as_one_unit(libupgraded
         < new_text.index("opstree/redis-operator")
     )
     assert new_text.index("# ZGW Office Add-in") < new_text.index("zgw-office-addin-frontend")
-    # The blank line the fixture had WITHIN the frontend/backend group is
-    # gone — entries sharing one header sit directly below each other.
+    # Entries sharing one header lose the blank line between them.
     assert '0.11.0"\n\n- name: infonl/zgw-office-addin-backend' not in new_text
     assert '0.11.0"\n- name: infonl/zgw-office-addin-backend' in new_text
 
@@ -616,9 +544,7 @@ def test_sort_images_manifest_entries_moves_shared_group_as_one_unit(libupgraded
 def test_sort_images_manifest_entries_collapses_internal_blank_lines_even_without_reordering(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """A group with a blank line between its own entries gets tidied
-    even when NO group actually changes position — this is a separate
-    formatting concern from ordering, not conditional on it."""
+    """Internal blank lines are tidied even when no group moves."""
     text = (
         "# ZGW Office Add-in -> 0.11.0\n"
         "- name: infonl/zgw-office-addin-frontend\n"
@@ -655,15 +581,8 @@ def test_sort_images_manifest_entries_collapses_internal_blank_lines_even_withou
 def test_sort_images_manifest_entries_collapses_between_separately_headered_sidecars(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """Real bug: a component's own primary image and its sidecars almost
-    always have their OWN separate comment header each (different
-    versions bumped independently — e.g. keycloak-operator's own
-    postgres/python job images never share ITS "26.6.4 -> 26.7.2" header)
-    — so they're three separate _images_manifest_groups, not one shared-
-    header group. Blank lines must still collapse across all three, not
-    just within a single literal shared header — the whole family reads
-    as ONE visual block, blank-line-separated only from the NEXT
-    component."""
+    """Regression: a primary and its separately-headered sidecars (keycloak-operator's postgres/python
+    job images) form one blank-line-free block, separated only from the next component."""
     text = (
         "# keycloak-operator 26.6.4 -> 26.7.2\n"
         "- name: keycloak/keycloak\n"
@@ -701,20 +620,15 @@ def test_sort_images_manifest_entries_collapses_between_separately_headered_side
     )
 
     assert moved == []
-    # No blank line between the primary and either sidecar, or between
-    # the two sidecars — one unbroken block for the whole component.
+    # One unbroken block for the whole component.
     assert '26.7.2"\n#   sidecar: keycloak-operator - postgres' in new_text
     assert '16.15"\n#   sidecar: keycloak-operator - python' in new_text
-    # The blank line separating this component from the NEXT one (a
-    # genuinely different top-level component) is preserved.
+    # The separator before the next component is kept.
     assert '3.14.7-slim"\n\n# redis-operator' in new_text
 
 
 def test_sort_images_manifest_entries_never_merges_two_unresolved_entries(libupgradedocmanifestordering: ModuleType):
-    """Two entries that each fail to resolve to any real values-tree path
-    at all must never be merged into one block just because they happen
-    to sit next to each other — only a real, matching component
-    identifies one family, not "both unknown"."""
+    """Two adjacent unresolved entries are never merged into one family."""
     text = (
         "# mystery one\n"
         "- name: totally/unknown-one\n"
@@ -737,15 +651,8 @@ def test_sort_images_manifest_entries_never_merges_two_unresolved_entries(libupg
 
 
 def test_sort_images_manifest_entries_global_entry_sorts_first_not_last(libupgradedocmanifestordering: ModuleType):
-    """Real bug: an entry naming a shared global.images.* anchor (e.g.
-    "curlimages/curl") couldn't resolve its own repo_map hit at all
-    during sorting — _images_manifest_sorted_groups computed its OWN
-    current_paths internally via find_all_image_and_version_paths alone,
-    which never includes global_image_paths, so resolve_entry_image_
-    path's "path in paths" guard failed and the entry fell through to
-    fuzzy name-word matching, landing at the very END of the manifest
-    instead of under "global" 's own values.yaml position (first, since
-    "global:" is the file's own first top-level key)."""
+    """Regression: a global.images.* entry resolves via repo_map during sorting (global_image_paths
+    included), so it sorts first instead of falling to the end via fuzzy matching."""
     text = (
         "# curl 8.21.0 -> 8.21.0\n"
         "- name: curlimages/curl\n"
@@ -773,11 +680,7 @@ def test_sort_images_manifest_entries_global_entry_sorts_first_not_last(libupgra
 def test_sort_images_manifest_entries_multiple_global_images_use_their_own_real_suborder(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """Regression test: the real redis/nginx/curl/busybox bug, for
-    images-<version>.yaml's own ENTRY list. FOUR "global.images.*" peers,
-    scrambled — must reorder to values.yaml's own true nginx/curl/
-    busybox/redis order, not just "global sorts before everything
-    else" (already covered by the test above)."""
+    """Regression: several global.images.* entries follow values.yaml's own sub-order."""
     text = (
         "# redis 8.0 -> 8.10.1\n"
         "- name: redis\n"
@@ -823,14 +726,8 @@ def test_sort_images_manifest_entries_multiple_global_images_use_their_own_real_
 def test_images_manifest_display_name_positions_matches_entry_positions_order(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """Real bug scenario: "kiss"'s own image basename ("kiss-frontend")
-    shares no word with its display name ("kiss"), and "kiss-eck"'s two
-    primaries' basenames ("elasticsearch"/"kibana") share no word with
-    theirs either — match_changes_item_to_entry can never resolve these
-    by fuzzy basename-in-text search. images_manifest_display_name_
-    positions must still expose their TRUE position (matching the
-    already-correct YAML entry order) keyed by display name so callers
-    can match Changes items by exact display-name prefix instead."""
+    """Display names sharing no word with their basenames (kiss, kiss-eck) still map to their true
+    entry position, so Changes items can match by exact display-name prefix."""
     text = (
         "# redis-operator 0.25.0 -> 0.26.0\n"
         "- name: opstree/redis-operator\n"
@@ -893,10 +790,7 @@ def test_images_manifest_display_name_positions_matches_entry_positions_order(
 def test_images_manifest_display_name_positions_ambiguous_name_keeps_first_position(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """Two separate groups can legitimately share one display name (e.g.
-    two "kiss-eck" primaries for elasticsearch/kibana) — the map must
-    keep the FIRST (lowest) position for that name, not the last one it
-    happens to see."""
+    """A display name shared by two groups (kiss-eck) keeps its first position."""
     text = (
         "# kiss-eck 8.19.3 -> 8.19.19\n"
         "- name: elasticsearch/elasticsearch\n"
@@ -921,8 +815,7 @@ def test_images_manifest_display_name_positions_ambiguous_name_keeps_first_posit
 def test_sort_images_manifest_entries_no_blank_lines_no_reorder_is_truly_unchanged(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """Nothing to tidy and nothing to reorder — text comes back byte-
-    identical, matching the function's own "unchanged" convention."""
+    """Nothing to tidy or reorder: text is returned byte-identical."""
     text = (
         "# redis-operator 0.25.0 -> 0.26.0\n"
         "- name: opstree/redis-operator\n"
@@ -1005,9 +898,7 @@ def test_delete_images_manifest_entry_removes_entry_and_its_version_comment(
 def test_delete_images_manifest_entry_keeps_group_divider_on_next_entry(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """An entry without a version comment of its own, right below a
-    "# Applicaties" divider: the divider stays and ends up directly on
-    top of the next entry's own comment."""
+    """Deleting an uncommented entry below a divider keeps the divider on the next entry."""
     lines = TWO_ENTRY_MANIFEST.splitlines(keepends=True)
     libupgradedocmanifestordering.delete_images_manifest_entry(lines, _entry_line(lines, "openformulieren/open-forms"))
     text = "".join(lines)
@@ -1018,8 +909,7 @@ def test_delete_images_manifest_entry_keeps_group_divider_on_next_entry(
 def test_delete_images_manifest_entry_keeps_comment_shared_with_next_entry(
     libupgradedocmanifestordering: ModuleType,
 ):
-    """zgw-office-addin-shaped lockstep pair under one comment: deleting
-    the first entry keeps the comment for the second."""
+    """Deleting the first of a lockstep pair keeps the shared comment for the second."""
     lines = (
         "# zgw-office-addin 0.0.91 -> 0.0.92\n"
         "- name: frontend\n"
@@ -1047,8 +937,7 @@ def test_delete_images_manifest_entry_last_entry_leaves_no_trailing_blank(
 
 
 def test_repository_group_key_uses_the_docker_hub_library_namespace(libchartrepoandpathresolution: ModuleType):
-    """The images-manifest "name:" is the url minus its registry host, so
-    a bare official Docker Hub image gets its implicit "library/"."""
+    """The manifest name is the url minus the registry host, so official images get "library/"."""
     key = libchartrepoandpathresolution.repository_group_key
     assert key("python") == "library/python"
     assert key("docker.io/library/python") == "library/python"
@@ -1058,8 +947,7 @@ def test_repository_group_key_uses_the_docker_hub_library_namespace(libchartrepo
 
 
 def test_paths_by_repository_joins_a_namespace_only_registry_field(libchartrepoandpathresolution: ModuleType):
-    """zaakbrug's "registry: wearefrank" is a Docker Hub namespace, not a
-    host: the group key keeps it, same as full_repository_for_path's url."""
+    """A namespace-only "registry: wearefrank" is kept in the key, as in full_repository_for_path."""
     values = {
         "zaakbrug": {"image": {"registry": "wearefrank", "repository": "zaakbrug", "tag": "1.26.18"}},
         "mi": {"image": {"registry": "mcr.microsoft.com", "repository": "azure-cli", "tag": "2.0"}},

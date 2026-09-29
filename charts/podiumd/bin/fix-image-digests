@@ -33,8 +33,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.chart_yaml import ChartDependency
 from lib.chart.chart_yaml import load_chart_dependencies
@@ -65,14 +64,10 @@ FetchError = tuple[str, str, str, list[int]]
 def _resolve_pin_repositories(
     pins: list[DigestPin], chart_dir: Path, lines: list[str], deps: list[ChartDependency]
 ) -> list[DigestPin]:
-    """Resolves each pin's "repository:" in place via its vendored
-    subchart default (see lib.chart.subchart_default_repository) and
-    returns the pins still left unresolved after that. If any of those
-    are unresolved specifically because the vendored .tgz isn't there yet
-    (see lib.chart.subchart_needs_vendoring), vendors dependencies once (see
-    lib.dependencies.check_dependencies) and retries — never for a pin that has
-    no matching Chart.yaml dependency at all, since vendoring can't help
-    that one regardless."""
+    """Fill missing pin repositories from the vendored subchart default; return pins still unresolved.
+
+    Vendors dependencies once and retries when a subchart .tgz is missing.
+    """
     subchart_cache: SubchartValuesCache = {}
     for p in pins:
         if not p["repository"]:
@@ -99,11 +94,7 @@ def _resolve_pin_repositories(
 
 
 def _fetch_live_digest(host: str, repo_path: str, version: str) -> tuple[str | None, str | None]:
-    """Live registry digest for one host/repo_path/version. Retries once
-    on a transient fetch error (URLError/OSError) before giving up.
-    Returns (digest, error) — error is either the retried fetch
-    exception's message or "tag not found upstream", or None on
-    success."""
+    """(digest, error) from the registry; retries once on URLError/OSError."""
     digest, error = None, None
     for _attempt in range(2):
         try:
@@ -118,13 +109,10 @@ def _fetch_live_digest(host: str, repo_path: str, version: str) -> tuple[str | N
 def _check_target(
     repository: str, version: str, group: list[DigestPin], values_path: Path
 ) -> tuple[StaleDigest | None, FetchError | None]:
-    """Live-digest check for one (repository, version) target (`group` is
-    its list of matching pins). Returns (stale_entry, fetch_error_entry),
-    each None unless applicable — stale_entry is (repository, version,
-    old_digest, new_digest, [line, ...], sliding), where `sliding` (see
-    lib.registry.is_sliding_tag) is purely informational, used only for
-    the printed "(sliding)" label; every stale pin is treated the same
-    way by main() regardless."""
+    """(stale_entry, fetch_error) for one (repository, version); each None when not applicable.
+
+    `sliding` in stale_entry only affects the printed label.
+    """
     host, repo_path = parse_repo(repository)
     pinned_digest = group[0]["digest"]
     lines_for_pin = [p["line"] for p in group]
@@ -140,9 +128,7 @@ def _check_target(
 
 
 def _group_pins_by_target(pins: list[DigestPin]) -> dict[tuple[str, str], list[DigestPin]]:
-    """(repository, version) -> [pin, ...] grouping for every pin with a
-    resolved repository, so a repository:tag shared by several values.yaml
-    pins is only checked against the registry once (see _check_target)."""
+    """Pins with a repository, grouped by (repository, version) so each is fetched once."""
     targets: dict[tuple[str, str], list[DigestPin]] = {}
     for p in pins:
         if p["repository"]:
@@ -153,12 +139,7 @@ def _group_pins_by_target(pins: list[DigestPin]) -> dict[tuple[str, str], list[D
 def find_stale_digests(
     lines: list[str], values_path: Path
 ) -> tuple[list[StaleDigest], list[DigestPin], list[FetchError]]:
-    """Return (stale, unresolved, fetch_errors). stale is a list of
-    (repository, version, old_digest, new_digest, [line, ...], sliding) —
-    see _check_target. unresolved pins are handled by _resolve_pin_
-    repositories: a pin whose "tag:" has no resolvable "repository:" of
-    its own falls back to the same component's vendored subchart
-    default."""
+    """(stale, unresolved, fetch_errors) for every digest pin in `lines`."""
     pins = scan_digest_pins(lines)
 
     chart_dir = values_path.parent
@@ -181,10 +162,7 @@ def find_stale_digests(
 
 
 def _parse_args(argv: list[str]):
-    """Parses fix-image-digests' own CLI args: -h/--help, --dry-run, and
-    an optional <key> <basename> scoping pair. Exits 0 after printing
-    help, or 1 on a malformed positional-arg count. Returns (dry_run,
-    key, basename) — key/basename are both None when unscoped."""
+    """(dry_run, key, basename); key/basename None when unscoped. Exits on -h or bad arg count."""
     if "-h" in argv or "--help" in argv:
         print(__doc__)
         sys.exit(0)
@@ -198,8 +176,7 @@ def _parse_args(argv: list[str]):
 
 
 def _report_unresolved_and_errors(unresolved: list[DigestPin], fetch_errors: list[FetchError]) -> None:
-    """Prints fix-image-digests' own unresolved-pin and fetch-error report
-    sections, when present."""
+    """Print unresolved pins and fetch errors, if any."""
     if unresolved:
         print(f"\n{len(unresolved)} pin(s) could not be resolved to a repository (skipped):")
         for p in unresolved:
@@ -212,10 +189,7 @@ def _report_unresolved_and_errors(unresolved: list[DigestPin], fetch_errors: lis
 
 
 def _apply_stale_digests(text: str, to_update: list[StaleDigest], *, dry_run: bool) -> str:
-    """Prints fix-image-digests' own stale-digest report and, unless
-    dry_run, returns `text` with every old digest replaced by its new one
-    (byte-identical otherwise) — returns `text` unchanged when dry_run,
-    since main() only writes it back out for a real run."""
+    """Print the stale-digest report; return `text` with digests replaced, unchanged when dry_run."""
     print(f"\n{len(to_update)} stale digest(s){' (dry-run, not writing)' if dry_run else ''}:")
     for repository, version, old_digest, new_digest, pin_lines, sliding in to_update:
         print(f"  {repository}:{version}{'  (sliding)' if sliding else ''}")
@@ -229,9 +203,7 @@ def _apply_stale_digests(text: str, to_update: list[StaleDigest], *, dry_run: bo
 
 
 def _regenerate_docs():
-    """Runs fix-helm-doc then fix-doc-consistency after a real digest
-    rewrite — both regenerate content that embeds the digests main() just
-    changed. Exits with that script's own return code if either fails."""
+    """Run fix-helm-doc and fix-doc-consistency, which embed the digests; exit on failure."""
     print()
     print("=== Regenerating README.md (fix-helm-doc) ===")
     result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
@@ -246,13 +218,7 @@ def _regenerate_docs():
 
 
 def main():
-    """CLI entry point: scans values.yaml for digest-pinned images, fetches
-    each pin's live registry digest, and (unless --dry-run) rewrites every
-    stale one in place — optionally scoped to a single <key> <basename>
-    pair. After a real, non-empty write also regenerates README.md and
-    repairs the current target's images manifest (see _regenerate_docs).
-    Exits 1 if any pin had a fetch error, even when the write itself
-    succeeded."""
+    """CLI entry point; exits 1 on any fetch error, even after a successful write."""
     dry_run, key, basename = _parse_args(sys.argv[1:])
 
     text = VALUES_PATH.read_text(encoding="utf-8")
@@ -267,7 +233,7 @@ def main():
 
     if target_repository:
         stale = [s for s in stale if s[0] == target_repository]
-        unresolved = []  # scoped to one target -- unrelated unresolved pins aren't this run's concern
+        unresolved = []  # unrelated to the scoped target
         fetch_errors = [f for f in fetch_errors if f[0] == target_repository]
 
     _report_unresolved_and_errors(unresolved, fetch_errors)

@@ -1,7 +1,4 @@
-"""The version/digest an images-<target>.yaml entry must state: the tag
-values.yaml pins at the entry's image path. check_docs_consistency
-compares against it and fix-doc-consistency writes it, so the two
-cannot disagree."""
+"""The version/digest an images-<target>.yaml entry must state, shared by the checker and the fixer."""
 
 import re
 
@@ -32,8 +29,7 @@ def current_image_paths(values: YamlMapping) -> dict[tuple[str, ...], str | None
 def image_repo_map(
     chart_dir: Path, deps: list[ChartDependency], values: YamlMapping, paths: dict[tuple[str, ...], str | None]
 ) -> dict[str, tuple[str, ...]]:
-    """{repository: representative values-tree path} for `paths`, used
-    to match an entry to its image path by repository."""
+    """{repository: representative values-tree path} for `paths`."""
     groups = paths_by_repository(chart_dir, deps, values, paths.keys())
     return {repo: repo_group_representative(group, deps) for repo, group in groups.items()}
 
@@ -45,10 +41,10 @@ def entry_pin(
     repo_map: dict[str, tuple[str, ...]],
     sibling_fields: dict[tuple[str, ...], DigestPinningException],
 ) -> tuple[tuple[str, ...] | None, str | None]:
-    """(path, tag) for an images-manifest entry: its values-tree path
-    and the tag pinned there, with the digest from a sibling field when
-    the tag has none (resolved_digest_pin). Tag None when the path has
-    no tag; (None, None) when the entry matches no image path."""
+    """(path, tag) pinned for an images-manifest entry, digest from a sibling field if needed.
+
+    tag None when the path has no tag; (None, None) when no path matches.
+    """
     path = resolve_entry_image_path(entry["name"], paths.keys(), repo_map)
     if not path:
         return None, None
@@ -70,9 +66,7 @@ def _rewrite_entry_pin(lines: list[str], start: int, tag: str) -> None:
 
 
 def _parsed_entries(text: str) -> tuple[list[str], list[tuple[int, ManifestEntry]]]:
-    """(lines, [(start line index, entry), ...]) of an images manifest,
-    or no entries when it is not a list whose "- name:" lines line up
-    with its entries."""
+    """(lines, [(start line index, entry), ...]); no entries unless the "- name:" lines match the entries."""
     lines = text.splitlines(keepends=True)
     entries = try_parse_images_manifest(text)
     starts = [i for i, line in enumerate(lines) if ENTRY_START_RE.match(line)]
@@ -88,9 +82,10 @@ def sync_entry_pins(
     values: YamlMapping,
     sibling_fields: dict[tuple[str, ...], DigestPinningException],
 ) -> tuple[str, list[str]]:
-    """Rewrites the version:/digest: of every entry in `text` whose pin
-    differs from entry_pin. Entries whose pin has no digest are left
-    alone. Returns (new_text, [entry name, ...])."""
+    """Rewrite version:/digest: of entries whose pin differs; digest-less pins are left alone.
+
+    Returns (new_text, [entry name, ...]).
+    """
     lines, entries = _parsed_entries(text)
     paths = current_image_paths(values)
     repo_map = image_repo_map(chart_dir, deps, values, paths)

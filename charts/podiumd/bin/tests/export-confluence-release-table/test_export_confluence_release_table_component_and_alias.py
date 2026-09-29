@@ -1,7 +1,4 @@
-"""chart_dependencies, normalize_name, name_candidates, component_and_alias,
-orphan_values_yaml_keys, global_image_names, extract_release_rows — with
-fetch_page_html mocked out, so no network access or real Confluence page
-is needed."""
+"""Name resolution and extract_release_rows, with fetch_page_html mocked."""
 
 from pathlib import Path
 from types import ModuleType
@@ -24,8 +21,7 @@ def write_chart_yaml_with_dependencies(chart_dir, deps):
 
 
 def write_values_yaml(chart_dir, keys):
-    """A minimal values.yaml with each of `keys` as a top-level key
-    mapping to an empty block."""
+    """values.yaml with each of `keys` as an empty top-level block."""
     (chart_dir / "values.yaml").write_text(
         "".join(f"{key}: {{}}\n" for key in keys),
         encoding="utf-8",
@@ -33,9 +29,7 @@ def write_values_yaml(chart_dir, keys):
 
 
 def write_values_yaml_with_global_images(chart_dir, image_keys):
-    """A minimal values.yaml with a top-level global.images map holding
-    each of `image_keys` — mirrors the real chart's
-    global.images.nginx/curl/busybox shared-base-image anchors."""
+    """values.yaml with a global.images map of `image_keys` (shared-image anchors)."""
     lines = ["global:", "  images:"] + [f"    {key}: {{}}" for key in image_keys]
     (chart_dir / "values.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -76,9 +70,7 @@ PRODUCT_TABLE_HTML = """
 </table>
 """
 
-# "Technische component versies" tables don't have a development-partner
-# column at all — "Used by" instead (naming the product/Common Ground
-# component that pulls this piece of tooling in), which isn't required.
+# Technische tables have "Used by" (optional) instead of a vendor column.
 TECHNISCHE_TABLE_HTML = """
 <h2>Technische component versies</h2>
 <table>
@@ -107,11 +99,8 @@ TECHNISCHE_TABLE_HTML = """
 </table>
 """
 
-# Same shape as TECHNISCHE_TABLE_HTML, but without the App/Helm
-# sub-header split at all -- since 2026-09 the real page's "Technische
-# component versies" table dropped its Helm sub-column entirely (its
-# cells were always empty anyway), leaving one bare column per
-# "Versie ..." group.
+# Like TECHNISCHE_TABLE_HTML but without the Helm sub-column, as on the real
+# page since 2026-09.
 TECHNISCHE_TABLE_NO_HELM_HTML = """
 <h2>Technische component versies</h2>
 <table>
@@ -132,13 +121,10 @@ TECHNISCHE_TABLE_NO_HELM_HTML = """
 </table>
 """
 
-# A table with no heading at all above it — not under any of the target
-# sections, so it's ignored outright, not merely "skipped for missing
-# columns".
+# No heading above it: ignored outright, not reported as skipped.
 UNRELATED_TABLE_HTML = "<table><tr><th>Legend</th></tr><tr><td>n/a</td></tr></table>"
 
-# Under a target heading, but genuinely missing the required App/Helm
-# columns — this one SHOULD be reported as skipped.
+# Under a target heading but missing App/Helm columns: reported as skipped.
 INCOMPLETE_UNDER_TARGET_HEADING_HTML = (
     "<h2>Overige component versies</h2><table><tr><th>Naam</th></tr><tr><td>iets</td></tr></table>"
 )
@@ -173,8 +159,7 @@ def test_name_candidates_splits_bracketed_part_from_the_rest():
 
 
 def test_name_candidates_dedupes_and_drops_empties():
-    """ "(KISS)" alone, with nothing outside the brackets, must not
-    produce a spurious empty "rest" candidate."""
+    """ "(KISS)" alone must not produce an empty "rest" candidate."""
     assert name_candidates("(KISS)") == ["kiss"]
 
 
@@ -202,10 +187,7 @@ def test_component_and_alias_alias_substring_no_longer_matches(ecrt: ModuleType)
 
 
 def test_component_and_alias_resolves_via_bracketed_alias_exact_match(ecrt: ModuleType):
-    """The bracketed part alone ("PABC") exactly equals the dependency's
-    alias — resolved via name_candidates splitting it out, even though
-    the whole name only contains it as a small piece of a much longer
-    string."""
+    """The bracketed part alone ("PABC") exactly equals the alias."""
     deps = [("pabc", "pabc")]
     assert ecrt.component_and_alias("Platform Autorisatie Beheer Component (PABC)", deps) == ("pabc", "pabc")
 
@@ -219,33 +201,25 @@ def test_component_and_alias_name_relation_no_longer_matches(ecrt: ModuleType):
 
 
 def test_component_and_alias_exact_match_takes_priority_over_alias_relation(ecrt: ModuleType):
-    """ "kiss" exactly equals one dependency's own name — that wins over a
-    *different* dependency whose alias merely relates to it."""
+    """An exact dependency-name match beats a merely related alias."""
     deps = [("kiss-chart", "kiss"), ("kiss", "k")]
     assert ecrt.component_and_alias("kiss", deps) == ("kiss", "k")
 
 
 def test_component_and_alias_unresolved_is_unknown(ecrt: ModuleType):
-    """ "Open Zaak" doesn't match any dependency at all — "component"
-    becomes UNKNOWN rather than left blank or guessed at, and "alias"
-    stays empty."""
+    """No match: component is UNKNOWN, not guessed; alias stays empty."""
     assert ecrt.component_and_alias("Open Zaak", []) == ("UNKNOWN", "")
 
 
 def test_component_and_alias_exact_alias_match_beats_substring_ambiguity(ecrt: ModuleType):
-    """ "kiss" exactly equals "kiss-chart"'s own alias "kiss" — that must
-    resolve outright, even though "eck-stack"'s alias "kiss-eck" also
-    happens to *contain* "kiss" as a substring. An exact alias match is
-    its own tier, ahead of the looser substring-relation tier, precisely
-    so this isn't treated as an ambiguity."""
+    """An exact alias match is its own tier ahead of substring relation, so
+    "kiss-eck" also containing "kiss" is not an ambiguity."""
     deps = [("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")]
     assert ecrt.component_and_alias("kiss", deps) == ("kiss-chart", "kiss")
 
 
 def test_component_and_alias_multiple_when_two_dependencies_share_exact_alias(ecrt: ModuleType):
-    """A genuine ambiguity at the exact-alias tier: two dependencies
-    that (however unusually) share the literal same alias — there's no
-    principled way to prefer one over the other."""
+    """Two dependencies sharing the same alias: ambiguous, no pick."""
     deps = [("foo-chart", "shared"), ("bar-chart", "shared")]
     assert ecrt.component_and_alias("shared", deps) == ("MULTIPLE", "MULTIPLE")
 
@@ -265,18 +239,15 @@ def test_component_and_alias_shared_prefix_is_unknown_not_multiple(ecrt: ModuleT
 
 
 def test_component_and_alias_never_relates_mid_word(ecrt: ModuleType) -> None:
-    """Loose matching is at whole words only, like the doc scripts
-    (word_contains): "Referentielijst" does not relate to the plural
-    "referentielijsten", nor "mi" to "ensurePodiumdAdminUser"."""
+    """Loose matching is on whole words only (as word_contains): "Referentielijst"
+    does not relate to "referentielijsten", nor "mi" to "ensurePodiumdAdminUser"."""
     assert ecrt.component_and_alias("Referentielijst", [("referentielijsten", "")]) == ("UNKNOWN", "")
     assert ecrt.component_and_alias("mi", [("ensurePodiumdAdminUser", "")]) == ("UNKNOWN", "")
 
 
 def test_component_and_alias_clean_exact_match_short_circuits_ambiguous_lower_tier(ecrt: ModuleType):
-    """A single exact-name match at tier 1 resolves immediately —
-    without ever reaching the looser alias-relation tier, which would
-    otherwise have been ambiguous between "kiss-chart" and "eck-stack"
-    for this same text."""
+    """A tier-1 exact-name match resolves before the alias-relation tier,
+    which would be ambiguous here."""
     deps = [("kiss", "k"), ("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")]
     assert ecrt.component_and_alias("kiss", deps) == ("kiss", "k")
 
@@ -291,9 +262,8 @@ def test_orphan_values_yaml_keys_returns_keys_not_covered_by_any_dependency(ecrt
 
 
 def test_orphan_values_yaml_keys_excludes_keys_matching_a_dependency_name(ecrt: ModuleType, tmp_path: Path):
-    """A values.yaml key equal to a dependency's own name (not just its
-    alias) is also excluded — e.g. "keycloak-operator" itself, not just
-    the alias-style keys."""
+    """A values.yaml key equal to a dependency's name (not just its alias)
+    is excluded too."""
     write_values_yaml(tmp_path, ["keycloak-operator", "frankgateway"])
     deps = [("keycloak-operator", "")]
     assert ecrt.orphan_values_yaml_keys(tmp_path, deps) == [("frankgateway", "")]
@@ -307,18 +277,14 @@ def test_orphan_values_yaml_keys_missing_values_yaml_returns_empty(ecrt: ModuleT
 
 
 def test_component_and_alias_resolves_via_orphan_key(ecrt: ModuleType):
-    """ "Frank Gateway" matches no real dependency at all, but exactly
-    equals the orphan values.yaml key "frankgateway" — resolved as a
-    last resort, with alias left empty (orphan keys aren't Chart.yaml
-    aliases)."""
+    """Last resort: an exact match on an orphan values.yaml key; alias stays
+    empty since orphan keys aren't Chart.yaml aliases."""
     assert ecrt.component_and_alias("Frank Gateway", [], [("frankgateway", "")]) == ("frankgateway", "")
 
 
 def test_component_and_alias_real_dependency_always_wins_over_orphan_key(ecrt: ModuleType):
-    """An orphan key must never hijack a name that already resolves
-    through a real dependency: "Widget operator (widget)" names both
-    dependency "widget-operator" and orphan key "widget" exactly, and
-    the dependency wins."""
+    """An orphan key never hijacks a name that a real dependency also names
+    exactly."""
     deps = [("widget-operator", "")]
     orphans = [("widget", "")]
     assert ecrt.component_and_alias("Widget operator (widget)", deps, orphans) == ("widget-operator", "")
@@ -326,11 +292,8 @@ def test_component_and_alias_real_dependency_always_wins_over_orphan_key(ecrt: M
 
 
 def test_component_and_alias_native_component_exact_match_beats_loose_dependency(ecrt: ModuleType):
-    """A native component (native_keys) is matched in the exact tiers:
-    "Keycloak" (or used_by "keycloak") names native "keycloak" exactly,
-    so it never falls through to the loose relation with dependency
-    "keycloak-operator" — while "Keycloak operator" still names that
-    dependency exactly."""
+    """Native components are matched in the exact tiers, so "Keycloak" never
+    falls through to a loose relation with "keycloak-operator"."""
     deps = [("keycloak-operator", "")]
     orphans = [("keycloak", ""), ("frankgateway", "")]
     natives = [("frankgateway", ""), ("keycloak", "")]
@@ -340,8 +303,7 @@ def test_component_and_alias_native_component_exact_match_beats_loose_dependency
 
 
 def test_component_and_alias_orphan_key_multiple(ecrt: ModuleType):
-    """The same ambiguity detection applies to the orphan-key pool: two
-    orphan keys each named exactly is MULTIPLE, not a silent pick."""
+    """Two orphan keys each named exactly is MULTIPLE, not a silent pick."""
     orphans = [("foo-bar", ""), ("foo-baz", "")]
     assert ecrt.component_and_alias("Foo Bar (foo baz)", [], orphans) == ("MULTIPLE", "MULTIPLE")
 
@@ -380,10 +342,8 @@ def test_global_image_names_missing_global_images_returns_empty(ecrt: ModuleType
 
 
 def test_component_and_alias_global_image_key_is_always_multiple(ecrt: ModuleType):
-    """ "Nginx (unprivileged)" names global image key "nginx" exactly — a
-    key that exists specifically because it's shared, via YAML anchor,
-    across multiple unrelated components — so it's MULTIPLE. "Nginx
-    unprivileged" only contains the key: UNKNOWN."""
+    """An exact global image key match is MULTIPLE (the key is shared by
+    several components via anchor); mere containment is UNKNOWN."""
     keys = ["nginx", "curl", "busybox"]
     assert ecrt.component_and_alias("Nginx (unprivileged)", [], [], keys) == ("MULTIPLE", "MULTIPLE")
     assert ecrt.component_and_alias("Nginx unprivileged", [], [], keys) == ("UNKNOWN", "")
@@ -406,21 +366,15 @@ def test_component_and_alias_still_unknown_when_no_global_image_key_relates_eith
 
 
 def test_component_and_alias_global_image_key_overrides_coincidental_loose_dependency_match(ecrt: ModuleType):
-    """Regression test (real bug, real export): "Redis" (the shared
-    global.images.redis anchor) must resolve MULTIPLE, not hijacked by
-    the wholly unrelated "redis-operator" dependency just because "redis"
-    happens to be a substring of "redisoperator" (redis-operator has no
-    alias, so this can only ever be a loose tier-4 name relation, never
-    an exact match) — a global image key is a much stronger "genuinely
-    shared" signal than that coincidence."""
+    """Regression: "Redis" (global.images.redis) must be MULTIPLE, not
+    hijacked by a loose substring relation to "redis-operator"."""
     deps = [("redis-operator", "")]
     assert ecrt.component_and_alias("Redis", deps, [], ["redis"]) == ("MULTIPLE", "MULTIPLE")
 
 
 def test_component_and_alias_exact_dependency_match_still_wins_despite_global_image_key(ecrt: ModuleType):
-    """The override above must never fire for an EXACT match — only a
-    loose-relation-only resolution is at risk of being a coincidental
-    false positive."""
+    """The override applies only to loose-relation resolutions, never an
+    exact match."""
     deps = [("redis-operator", "redis")]
     assert ecrt.component_and_alias("redis", deps, [], ["redis"]) == ("redis-operator", "redis")
 
@@ -439,13 +393,8 @@ def test_extract_release_rows_matches_and_reports(ecrt: ModuleType, capsys: pyte
 
 
 def test_extract_release_rows_resolves_component_and_alias_by_exact_match(ecrt: ModuleType, tmp_path: Path):
-    """A Chart.yaml dependency named exactly "zac" (with spaces stripped,
-    identical to the row's own "ZAC") that also has an alias resolves
-    "component"/"alias" for that row; "Open Zaak" doesn't match any
-    dependency name this way and stays UNKNOWN. Uses a deliberately
-    non-colliding alias ("zacalias") — a too-short one (e.g. "z") would
-    spuriously substring-match "Open Zaak" too and defeat the point of
-    this test."""
+    """An exact dependency-name match resolves component/alias; "Open Zaak"
+    stays UNKNOWN. The alias is chosen not to substring-match "Open Zaak"."""
     write_chart_yaml_with_dependencies(tmp_path, [("zac", "zacalias")])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     assert rows == [
@@ -455,10 +404,8 @@ def test_extract_release_rows_resolves_component_and_alias_by_exact_match(ecrt: 
 
 
 def test_extract_release_rows_resolves_component_and_alias_by_alias_substring(ecrt: ModuleType, tmp_path: Path):
-    """ "ZAC" doesn't equal dependency name "zaakafhandelcomponent"
-    exactly, but the dependency's own alias "zac" is a substring of it —
-    this is the rule that resolves most real components (see
-    component_and_alias)."""
+    """ "ZAC" resolves via the dependency's alias being a substring of it,
+    the rule most real components rely on."""
     write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     assert rows[0] == [
@@ -477,10 +424,8 @@ def test_extract_release_rows_resolves_component_and_alias_by_alias_substring(ec
 
 
 def test_extract_release_rows_resolves_component_without_alias_via_name_relation(ecrt: ModuleType, tmp_path: Path):
-    """ "Open Zaak" resolves purely via a name relation against a
-    dependency that has no alias at all — "component" gets that
-    dependency's name and "alias" stays empty. "ZAC" doesn't relate to
-    "openzaak" at all and stays UNKNOWN."""
+    """A name relation against an alias-less dependency sets component only;
+    "ZAC" stays UNKNOWN."""
     write_chart_yaml_with_dependencies(tmp_path, [("openzaak", None)])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     assert rows[0][4] == "UNKNOWN"
@@ -488,9 +433,8 @@ def test_extract_release_rows_resolves_component_without_alias_via_name_relation
 
 
 def test_extract_release_rows_not_tied_to_specific_version_numbers(ecrt: ModuleType):
-    """The page renames "Versie 4.8"/"Versie 4.9" every release — a table
-    headed "Versie 5.0"/"Versie 5.1" instead must resolve exactly the
-    same way, into "source"/"target" by column order, not by number."""
+    """Versie headings are renamed every release: source/target come from
+    column order, not the number."""
     html = PRODUCT_TABLE_HTML.replace("Versie 4.8", "Versie 5.0").replace("Versie 4.9", "Versie 5.1")
     rows = ecrt.extract_release_rows(html)
     assert rows == [
@@ -508,8 +452,7 @@ def test_extract_release_rows_replaces_non_semver_version_with_unknown_and_repor
     out = capsys.readouterr().out
     assert "1 version value(s) were not semver-compatible — replaced with UNKNOWN" in out
     assert 'WARNING: "ZAC": target_version_app is not semver-compatible — replaced with UNKNOWN' in out
-    # "ZAC" also resolves to component UNKNOWN here (no Chart.yaml/values.yaml
-    # at all under the isolated chart_dir this test runs against).
+    # No Chart.yaml/values.yaml under the isolated chart_dir, so ZAC is UNKNOWN.
     assert (
         'WARNING: "ZAC" did not resolve to any Chart.yaml dependency, orphan values.yaml key, or global image key'
     ) in out
@@ -539,9 +482,7 @@ def test_extract_release_rows_reports_skip_for_incomplete_table_under_target_hea
 def test_extract_release_rows_vendor_blank_used_by_populated_for_technische_table(
     ecrt: ModuleType, capsys: pytest.CaptureFixture[str]
 ):
-    """A "Technische component versies" table has no Ontwikkelpartij
-    column (vendor blank) but does have "Used by" — the reverse of a
-    Product table."""
+    """Technische tables have "Used by" but no vendor column."""
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML)
     assert rows == [
         ["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "", "3.4.0", "3.4.0", "3.5.0", "3.5.0"]
@@ -554,9 +495,7 @@ def test_extract_release_rows_vendor_blank_used_by_populated_for_technische_tabl
 
 
 def test_extract_release_rows_technische_table_without_helm_column(ecrt: ModuleType):
-    """Since 2026-09 the real page's "Technische component versies" table
-    has no Helm sub-column at all (it was always empty) -- the row must
-    still be exported, with blank source/target_version_helm cells
-    instead of being skipped as missing a required column."""
+    """A Technische table without a Helm sub-column (real page since 2026-09)
+    still exports rows, with blank helm cells."""
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_NO_HELM_HTML)
     assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "", "3.4.0", "", "3.5.0", ""]]

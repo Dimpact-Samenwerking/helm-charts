@@ -30,8 +30,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.baseline_report import show_baseline_section
 from lib.chart.chart_yaml import load_chart_dependencies
@@ -45,17 +44,7 @@ from lib.release_baseline import resolve_baseline_values
 
 
 def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, key: str, basename: str):
-    """Prints <key> <basename>'s resolved pin(s) at `baseline` (labeled
-    `label`, "upgrade_docs" or "release_table") — see lib.baseline_
-    report.show_baseline_section for the shared "skip if None / print
-    the error / blank line" wrapper this only needs to supply its own
-    resolve-and-print body for: values.yaml's own text at that baseline
-    comes from lib.release_baseline.resolve_baseline_values (the
-    values.yaml-only sibling of the same shared ref-resolution + git-
-    show primitive show-component-baseline-version's own component_
-    state_at_baseline builds on — this script never needs Chart.yaml at
-    all) — never a separate git_show_text call of its own. Returns True
-    if the image's state was actually shown."""
+    """Print the image pin(s) at `baseline`; True if shown."""
 
     def resolve(baseline_value: str):
         ref, _baseline_values, baseline_lines, error = resolve_baseline_values(chart_dir, baseline_value)
@@ -65,7 +54,7 @@ def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, key: str
         try:
             matches = resolve_scoped_matches(baseline_lines, key, basename)
         except SystemExit as e:
-            return str(e)  # already "error: ..." — resolve_scoped_matches' own prefix, not added twice
+            return str(e)  # already prefixed with "error: "
 
         print(f"  Baseline: {baseline_value} (resolved to {ref})")
         for m in matches:
@@ -76,9 +65,7 @@ def show_at_baseline(chart_dir: Path, label: str, baseline: str | None, key: str
 
 
 def main():
-    """CLI entry point: prints <key> <basename>'s resolved image pin(s) at
-    both the upgrade_docs and release_table baselines, exiting 1 only if
-    neither baseline could show anything at all."""
+    """CLI entry point; exits 1 only when neither baseline can be shown."""
     key, basename = positional_args(__doc__, 2)
 
     chart_dir = CHART_DIR

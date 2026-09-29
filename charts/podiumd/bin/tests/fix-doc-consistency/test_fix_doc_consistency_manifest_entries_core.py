@@ -4,10 +4,7 @@ from pathlib import Path
 from types import ModuleType
 
 # --- resolve_entry_version ---
-# replace_version_pair itself (no longer imported into this module — see
-# fix_images_manifest_entries' own docstring for why it now uses lib.
-# upgradedoc.replace_version_spec instead) is already fully tested in
-# tests/lib/test_upgradedoc.py; no duplicate coverage needed here.
+# (replace_version_spec is tested in tests/lib/test_upgradedoc.py.)
 
 
 def test_resolve_entry_version_finds_matching_path(cdb: ModuleType):
@@ -21,9 +18,8 @@ def test_resolve_entry_version_none_when_unresolvable(cdb: ModuleType):
 
 
 def test_resolve_entry_version_uses_repo_map_for_strip_registry_names(cdb: ModuleType):
-    """ "infonl/zaakafhandelcomponent" doesn't fuzzy-word-match the "zac"
-    values key at all — repo_map is what makes a current-convention
-    manifest name resolve."""
+    """ "infonl/zaakafhandelcomponent" doesn't word-match the "zac" key;
+    repo_map resolves it."""
     paths = {("zac",): "5.4.4@sha256:aaaa"}
     repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
     assert cdb.resolve_entry_version({"name": "infonl/zaakafhandelcomponent"}, paths) is None
@@ -88,9 +84,8 @@ def test_fix_images_manifest_entries_reports_unresolvable_baseline(cdb: ModuleTy
 
 
 def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(cdb: ModuleType):
-    """ "infonl/zaakafhandelcomponent" (the current strip-registry manifest
-    naming convention) doesn't fuzzy-word-match the values.yaml key
-    ("zac") at all — without repo_map this entry would be unresolved."""
+    """The manifest name doesn't word-match the "zac" key; without repo_map
+    the entry would be unresolved."""
     text = (
         "# ZAC — 5.0.1 -> 5.1.0\n"
         "- name: infonl/zaakafhandelcomponent\n"
@@ -109,8 +104,7 @@ def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(c
     assert changed == [("infonl/zaakafhandelcomponent", "5.0.2", "5.1.0")]
     assert "# ZAC — 5.0.2 -> 5.1.0" in new_text
 
-    # without repo_map, the same entry is unresolved -- proves repo_map is
-    # what makes the difference, not some other fixture quirk
+    # Without repo_map the same entry is unresolved.
     _new_text2, changed2, unresolved2 = cdb.fix_images_manifest_entries(
         text, cdb.ManifestEntriesContext(None, [], target_values, baseline_values)
     )
@@ -119,10 +113,8 @@ def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(c
 
 
 def test_fix_images_manifest_entries_fixes_shared_group_comment_via_either_entry(cdb: ModuleType):
-    """zgw-office-addin's frontend + backend share one comment (backend has
-    none of its own, separated by a blank line) — backend must be fixed via
-    that shared comment, not reported as unresolved just because there's no
-    comment directly above it."""
+    """zgw-office-addin backend (no comment of its own) is fixed via the
+    comment shared with frontend, not reported unresolved."""
     text = (
         "# ZGW Office Add-in — v0.9.300 -> v0.9.352\n"
         "- name: zgw-office-addin-frontend\n"
@@ -154,18 +146,10 @@ def test_fix_images_manifest_entries_fixes_shared_group_comment_via_either_entry
 
 
 def test_fix_images_manifest_entries_corrects_stale_arrow_to_new(cdb: ModuleType):
-    """Regression test (real bug, real doc): a path with NO baseline
-    value at all used to always report the entry as unresolved and
-    leave its comment untouched FOREVER — no verifier/fixer ever re-
-    checked an EXISTING entry's own comment for staleness once written.
-    Confirmed live: images-4.9.1.yaml's own zac otel sidecar comment
-    read "0.158.0 -> 0.158.0" (a nonsensical arrow self-transition an
-    earlier, now-superseded reordering pass wrote) instead of "0.158.0
-    (new)". `baseline_values` here is a REAL, non-empty resolved
-    baseline state that simply has nothing for this path — the case
-    that must now resolve to "(new)", unlike a genuinely-unresolvable
-    baseline (see test_fix_images_manifest_entries_reports_
-    unresolvable_baseline, unchanged behavior)."""
+    """Regression: a path absent from a resolved baseline must become
+    "(new)" rather than stay unresolved, so a stale existing comment
+    (e.g. "0.158.0 -> 0.158.0") gets corrected. An unresolvable baseline
+    still reports unresolved."""
     text = (
         "#   sidecar: zac - opentelemetry-collector-contrib 0.158.0 -> 0.158.0\n"
         "- name: otel/opentelemetry-collector-contrib\n"
@@ -181,8 +165,7 @@ def test_fix_images_manifest_entries_corrects_stale_arrow_to_new(cdb: ModuleType
             }
         }
     }
-    # A real, resolved baseline state — zac itself existed, just not this
-    # sidecar (genuinely new this hop).
+    # Resolved baseline: zac existed, this sidecar is new.
     baseline_values = {
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.2@sha256:eeee"}}
     }
@@ -198,11 +181,8 @@ def test_fix_images_manifest_entries_corrects_stale_arrow_to_new(cdb: ModuleType
 
 
 def test_fix_images_manifest_entries_finds_historical_baseline_for_new_path(cdb: ModuleType, tmp_path: Path):
-    """The historical-images-manifest fallback (same one resolve_
-    component_row's own sidecar branch already uses) applies here too:
-    a path with no CURRENT baseline value that nonetheless already
-    appears in an earlier images-<version>.yaml manifest gets a real
-    "<old> -> <new>" transition, not just "(new)"."""
+    """A path absent from the baseline but present in an earlier
+    images-<version>.yaml gets a real "<old> -> <new>" transition."""
     images_dir = tmp_path / "docs" / "images"
     images_dir.mkdir(parents=True)
     (images_dir / "images-4.8.0.yaml").write_text(
@@ -238,14 +218,9 @@ def test_fix_images_manifest_entries_finds_historical_baseline_for_new_path(cdb:
 
 
 def test_fix_images_manifest_entries_corrects_moved_repository_comment(cdb: ModuleType, tmp_path: Path):
-    """Real case (podiumd 4.9.1): the postgres consolidation (see
-    lib.chart.baseline_tag_for_sidecar_path) — global.images.postgres
-    never existed in baseline_values, but the same "postgres" repository
-    already did, at openbao.database.schemaJob.image. An EXISTING entry
-    comment stuck on "(new)" from an earlier run must be corrected to
-    the real "16-alpine -> 16.15-alpine" transition, the exact same
-    fallback add_missing_images_manifest_entries/add_missing_sidecar_
-    rows/resolve_component_row already use for this same question."""
+    """podiumd 4.9.1 postgres consolidation: global.images.postgres is new but
+    the same repository existed elsewhere at baseline, so a stale "(new)" is
+    corrected to the real transition (same fallback as the other writers)."""
     text = (
         "# postgres 16.15-alpine (new)\n"
         "- name: postgres\n"
@@ -279,12 +254,9 @@ def test_fix_images_manifest_entries_corrects_moved_repository_comment(cdb: Modu
 
 
 def test_fix_images_manifest_entries_correctly_verified_digest_changed_untouched(cdb: ModuleType):
-    """A same-version, changed-digest re-pin already correctly annotated
-    "(digest changed)" must survive re-verification unchanged — this
-    function must actually independently confirm it (via resolved_
-    digest_pin, the same comparison find_images_manifest_list_diff's
-    own digest_changed closure uses), not merely leave it alone because
-    a plain arrow/bracket regex happens not to match it."""
+    """A correct "(digest changed)" annotation survives because the digest
+    change is actually confirmed via resolved_digest_pin, not just left
+    unmatched by the version regex."""
     text = (
         "#   sidecar: keycloak-operator - python 3.14.7-slim (digest changed)\n"
         "- name: python\n"

@@ -1,11 +1,6 @@
-"""check_release_baseline — release-baseline.yaml's two independent
-baselines (upgrade_docs, release_table) must each resolve to a real
-podiumd-<version> tag/branch. Unlike the old single release-baseline
-file this replaced (where a wholly-absent file was fine, since older
-releases/fresh checkouts predated it), release-baseline.yaml is
-committed with real values from day one — a missing file, a missing
-key, or a key present but unresolvable are all failures now, checked
-independently per key."""
+"""check_release_baseline: release-baseline.yaml's upgrade_docs and
+release_table must each resolve to a podiumd-<version> tag/branch. A missing
+file, missing key or unresolvable key each fail, per key."""
 
 import subprocess
 

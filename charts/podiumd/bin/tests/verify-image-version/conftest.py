@@ -1,5 +1,4 @@
-"""Loads verify-image-version (a hyphenated filename, not importable
-normally) as a module named `viv` so tests can call its functions directly."""
+"""Load verify-image-version (hyphenated, not importable) as module `viv`."""
 
 import importlib.util
 

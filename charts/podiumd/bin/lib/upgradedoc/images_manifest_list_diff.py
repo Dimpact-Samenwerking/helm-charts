@@ -1,7 +1,5 @@
-"""compute_changed_components (the top-level values.yaml/Chart.yaml
-keys that actually changed since the baseline) and find_images_
-manifest_list_diff (the images-manifest.yaml "changes:" list this
-diff implies), both diffing against the true git baseline."""
+"""Diff against the git baseline: which top-level components changed, and
+which images the images-manifest "changes:" list should contain."""
 
 from dataclasses import dataclass
 from dataclasses import field
@@ -31,41 +29,15 @@ def compute_changed_components(
     values: YamlMapping,
     baseline_values: YamlMapping | None,
 ) -> set[str]:
-    """Top-level component keys (Chart.yaml alias, or name if unaliased) that
-    actually differ between the baseline and now: dependency added or
-    removed, chart version bumped, or any image tag anywhere under that
-    key's values.yaml subtree changed VERSION (lib.chart.version_of — the
-    tag with any "@sha256:..." digest suffix stripped; see
-    find_images_manifest_list_diff's own docstring for why: a chart-wide
-    digest-pinning sweep can touch the digest of virtually every image at
-    once with no app-version change behind any of it, and -upgrade.md is
-    about version changes, never a digest re-pin on its own — that's the
-    images-manifest's own concern). This is the ground truth the docs are
-    checked against — independent of what they currently say, so it also
-    catches a component that changed but was never added to any doc at
-    all.
+    """Top-level component keys (alias or name) that differ from the
+    baseline: dependency added/removed, chart version bumped, or an image
+    VERSION (digest ignored) under the key's values subtree changed. Ground
+    truth for the docs, so it also catches components no doc mentions.
 
-    Also checks every lib.chart.native_components key (a values.yaml top-
-    level component with no backing Chart.yaml dependency at all, e.g.
-    frankgateway) — for those there's no dep to compare, so only the
-    subtree-image-version check applies; without this, such a component's
-    own version bump could never register as "changed" here at all, since
-    it never appears in current_by_key/baseline_by_key to begin with.
-
-    A subtree path whose OWN tag matches one of global_image_paths' own
-    entries (either side — current or baseline) is excluded from the
-    subtree comparison: a shared "global.images.<name>" YAML anchor
-    (e.g. nginx-unprivileged, redis) aliased into a component's own
-    sidecar block is that ONE shared image's own concern (already
-    reported as its own bare-basename row/section — see lib.image.docs.
-    add_missing_sidecar_rows), never a real change specific to THIS
-    component; without this exclusion, a single global image added (or
-    bumped) once ripples into every consuming component's own subtree
-    at once — real case: a new shared "redis" cache sidecar aliased
-    into a dozen unrelated components in the same release, each of
-    which then got a spurious, fully "(unchanged)" table row/Changes
-    section added of its own, purely because its subtree gained that
-    one shared path — confirmed live."""
+    Native components (no Chart.yaml dependency) are compared on subtree
+    image versions only. Paths whose tag equals a global_image_paths tag
+    are excluded: a shared global image is reported once on its own, not
+    as a change in every component aliasing it."""
     current_by_key = {values_key_of(dep): dep for dep in deps}
     baseline_by_key = {values_key_of(dep): dep for dep in baseline_deps}
 
@@ -99,13 +71,8 @@ def compute_changed_components(
 
 @dataclass
 class ManifestDiffContext:
-    """chart_dir/deps/upgrade_docs_baseline/values/baseline_values —
-    the optional extra context _digest_changed/_pin_changed need
-    beyond ManifestDiffInputs' own required core diff inputs (see its
-    docstring for why these are split into a nested object rather than
-    eleven flat fields). All optional, same as before splitting; every
-    real caller passes all five — see find_images_manifest_list_diff's
-    own docstring for what each one means."""
+    """Optional context for the digest and historical-manifest checks; see
+    find_images_manifest_list_diff. Real callers pass all fields."""
 
     chart_dir: Path | None = None
     deps: list[ChartDependency] | None = None
@@ -116,14 +83,8 @@ class ManifestDiffContext:
 
 @dataclass
 class ManifestDiffInputs:
-    """entries/current_paths/baseline_paths/repo_map/repo_groups/
-    unresolvable_paths bundled with a ManifestDiffContext (the same
-    five optional values find_images_manifest_list_diff always took as
-    keyword args — see ManifestDiffContext's own docstring) since every
-    step of find_images_manifest_list_diff (representative/path_to_repo
-    setup, _digest_changed, _pin_changed, entry matching) needs a
-    different subset of these together. See find_images_manifest_list_
-    diff's own docstring for what each field means."""
+    """Inputs of find_images_manifest_list_diff (see there for each
+    field)."""
 
     entries: list[ManifestEntry]
     current_paths: dict[tuple[str, ...], str]
@@ -141,10 +102,8 @@ def _digest_changed(
     tag: str,
     baseline_tag: str,
 ) -> bool:
-    # Only fires when BOTH sides have a resolvable digest of their own
-    # to compare (see find_images_manifest_list_diff's own docstring) —
-    # a bare tag with no stored digest on either side yields None here
-    # and is deliberately left alone, not treated as "changed".
+    # Only when both sides have a stored digest; a missing digest is not a
+    # change.
     if inputs.context.values is None or inputs.context.baseline_values is None:
         return False
     current_digest = resolved_digest_pin(inputs.context.values, path, tag, sibling_fields)
@@ -166,23 +125,14 @@ def _pin_changed(
         return version_of(tag) != version_of(baseline_tag) or _digest_changed(
             inputs, sibling_fields, path, tag, baseline_tag
         )
-    # No prior value for this path at all (a component that didn't
-    # exist in Chart.yaml/values.yaml until this release) — the git
-    # baseline genuinely has nothing to diff against. Before
-    # concluding "changed", check whether this repository already
-    # appears in any of this chart's own PAST images-<version>.yaml
-    # manifests (see find_images_manifest_list_diff's own docstring) —
-    # never a fallback to images-baseline.yaml, an unrelated concern.
+    # New path: check past images-<version>.yaml manifests for this
+    # repository before calling it changed.
     repo = path_to_repo.get(path)
     if repo is None:
         return True
     if inputs.context.deps is not None:
-        # See find_images_manifest_list_diff's own docstring:
-        # cross-check against `path`'s CURRENT fully-qualified
-        # repository, the same collision guard lib.chart.historical_
-        # app_version_for_path already applies — never fall back to
-        # the unsafe name-only match below just because THIS path's
-        # own repository can't be resolved.
+        # Require a matching full repository URL, so a same-named legacy
+        # entry never counts; unresolvable URL means changed.
         expected_url = full_repository_for_path(
             inputs.context.chart_dir, inputs.context.deps, inputs.context.values, path
         )
@@ -203,25 +153,16 @@ def _pin_changed(
 def _match_entries(
     inputs: ManifestDiffInputs, representative_of: dict[ImagePath, ImagePath], changed_paths: set[ImagePath]
 ) -> tuple[set[ImagePath], list[str], list[str]]:
-    """(matched_paths, stale_entry_names, unmatched_entry_names) — every
-    manifest entry resolved to its values-tree path (collapsed to its
-    shared-repository group's representative, same as changed_paths
-    already is — see find_images_manifest_list_diff's own docstring)
-    and classified against changed_paths."""
+    """(matched_paths, stale_entry_names, unmatched_entry_names): each entry
+    resolved to its (group-representative) values path and classified
+    against changed_paths."""
     matched_paths: set[ImagePath] = set()
     stale_entry_names: list[str] = []
     unmatched_entry_names: list[str] = []
     for entry in inputs.entries:
         path = resolve_entry_image_path(entry["name"], inputs.current_paths.keys(), inputs.repo_map)
-        # An entry can resolve to ANY path in a shared-repository group —
-        # repo_map's own exact "name: is a stripped repository" hit
-        # always lands on repo_map's chosen representative already, but
-        # resolve_entry_path's fuzzy name-word fallback (e.g. manifest
-        # name "redis-ha" fuzzy-matching the literal path segment
-        # ("redis-operator", "redis-ha", "image")) can land on any OTHER
-        # member instead — collapsed the same way changed_paths already
-        # is, so the two sides can never disagree about which path
-        # "counts" for a shared image.
+        # The fuzzy fallback can land on any member of a shared-repository
+        # group; collapse to the representative like changed_paths.
         path = representative_of.get(path, path) if path is not None else None
         if path is None:
             unmatched_entry_names.append(entry["name"])
@@ -233,136 +174,34 @@ def _match_entries(
 
 
 def find_images_manifest_list_diff(inputs: ManifestDiffInputs) -> tuple[list[ImagePath], list[str], list[str]]:
-    """(missing_paths, extra_entry_names) — the images-manifest's own
-    "list of changed images" checked against the FULL, actual set of
-    every image tag pin whose VERSION (lib.chart.version_of — the tag
-    with any "@sha256:..." digest suffix stripped) OR resolvable DIGEST
-    (lib.chart.resolved_digest_pin) differs between the target
-    (current_paths) and upgrade_docs_baseline (baseline_paths) — see
-    find_image_tag_paths for what these dicts hold.
+    """(missing_paths, stale_entry_names, unmatched_entry_names): the
+    manifest's entries checked against every image pin whose version, or
+    digest, differs between current_paths and baseline_paths. All empty
+    means the manifest lists exactly the changed images.
 
-    The digest side of this is deliberately narrow: it only fires when
-    BOTH the target and upgrade_docs_baseline pin have a resolvable
-    digest of their own (an embedded "@sha256:..." in the tag, or — for
-    a digest_pinning.exceptions path (lib.settings.digest_pinning_
-    exceptions) — the sibling field it names; see resolved_digest_pin)
-    AND those two digests differ while the version stayed
-    the same. A path where either side has NO resolvable digest at all
-    (an ordinary bare-tag pin, digest resolved live against the
-    registry rather than stored anywhere in values.yaml/git history) is
-    NOT compared on digest — there is nothing stored to diff, and
-    treating "no digest recorded" as "digest changed" would flag every
-    such image on every run regardless of whether anything really
-    changed. This still leaves the routine chart-wide digest-pinning
-    sweep (see PR #437) largely out of scope: a sweep touches images
-    that didn't carry a digest before, so most of it has no baseline
-    digest to compare against and stays version-only exactly as
-    before — but a genuine, individually-deliberate re-pin of an image
-    that ALREADY carried a digest on both sides (ground-truthed against
-    the real 4.9.0 baseline while adding this: only clamav.image and
-    keycloak-operator's ensurePodiumdAdminUser initImage qualified, not
-    a chart-wide flood) now correctly surfaces as changed instead of
-    being silently invisible to this check.
+    Digest changes count only when both sides have a resolvable digest
+    (embedded "@sha256:" or a digest_pinning.exceptions sibling field) and
+    they differ. Bare tags have nothing stored to diff; flagging them would
+    report every image on every run. Without context.values/baseline_values
+    the comparison is version-only.
 
-    values/baseline_values (the full values trees resolved_digest_pin
-    needs to look up a digest_pinning.exceptions path's own sibling
-    field) are optional — omitting either one (or both) just means the digest
-    comparison can never fire for ANY path (resolved_digest_pin needs a
-    real values tree, not just the bare tag strings current_paths/
-    baseline_paths already hold), collapsing this back to the old
-    version-only behaviour. Every real caller passes both.
+    Entries resolve via resolve_entry_image_path (repo_map exact match, then
+    fuzzy name words). repo_groups: paths sharing one repository are one
+    image, represented and decided solely by repo_map's representative
+    path, so a new alias of an unchanged shared image is not a change.
 
-    deps (Chart.yaml's own "dependencies:" list) is likewise optional,
-    but for a different reason: without it there's no way to compute
-    lib.chart.full_repository_for_path's fully-qualified repository for
-    a brand-new path, so the historical-manifest lookup below falls
-    back to matching a candidate entry's stripped "name:" alone — the
-    exact same collision lib.chart.historical_app_version_for_path's own
-    "expected_url" cross-check exists to prevent (real case: global.
-    images.redis, added in 4.9.1, colliding with images-4.6.4.yaml's own
-    legacy "name: redis" entry for redis-operator's unrelated quay.io/
-    opstree/redis). Every real caller passes deps too, so this fallback
-    is only ever exercised by a caller with no Chart.yaml dependencies
-    of its own to give.
+    unresolvable_paths (no resolvable repository) never need an entry;
+    another check reports them.
 
-    Each entry is matched to its values-tree path via resolve_entry_
-    image_path — repo_map's exact "name: is a stripped repository"
-    match first, falling back to fuzzy name-word matching — the SAME
-    resolution the rest of this images-manifest check already uses.
+    A path absent from the baseline is checked against past
+    images-<version>.yaml manifests before counting as changed. With
+    context.deps the match also requires the full repository URL;
+    without, it matches on name alone, which can collide (e.g.
+    global.images.redis vs. a legacy "name: redis" entry).
 
-    repo_groups: lib.chart.paths_by_repository's own {repository:
-    [path, ...]} grouping. A repository shared by more than one path
-    (e.g. several "<component>.nginx.image" sidecars all aliasing the
-    same global.images.nginx YAML anchor) is ONE image needing at most
-    ONE entry between all of them, not one each — resolved through repo_
-    map's own single representative path (the same one an entry naming
-    that repository resolves to via resolve_entry_image_path) for BOTH
-    directions: an existing entry naming that repository always matches
-    the representative regardless of which member resolve_entry_path's
-    fuzzy fallback happens to land on, and "did this image actually
-    change" is decided ONLY by the representative's OWN before/after
-    tag — never by whether some OTHER member of the group merely started
-    being used somewhere new. Real case: kiss's own indexTemplateImage
-    started aliasing curlimages/curl for the first time in 4.9.0 (no
-    baseline value for THAT path at all), while global.images.curl
-    itself (repo_map's own representative for that repository) has the
-    exact same tag before and after — the group must NOT be flagged
-    "changed" on the strength of kiss's own brand-new usage alone; the
-    manifest lists images whose version or digest actually changed,
-    never "is newly used somewhere" on its own.
-
-    unresolvable_paths: lib.image.repository_check.find_images_without_
-    repository's own result — a path with no resolvable repository at
-    all (real case: kiss.adapter.image, whose "repository:" is
-    commented out in podiumd's own values.yaml AND the vendored kiss-
-    chart subchart has no "adapter" default either, so it isn't a real,
-    referenceable image at all — see that function's own docstring)
-    never needs a manifest entry: there is nothing a {name, url,
-    version, digest} entry could even correspond to. That check already
-    reports it as broken on its own; this one has no business demanding
-    a manifest entry for it too.
-
-    A path with NOTHING in baseline_paths at all (baseline_tag is None
-    below — a component that didn't exist in Chart.yaml/values.yaml
-    until this release, so the git baseline genuinely has nothing to
-    diff against) checks lib.chart.historical_app_version_for_repository
-    before concluding "changed": this chart's own PAST images-
-    <version>.yaml manifests (real, already-committed per-release
-    documents — chart_dir/upgrade_docs_baseline, when given) may
-    already record this same repository at an earlier release, even
-    though THIS path is new (real case: brppersonenmock, added in
-    4.9.0, whose image had already been mirrored/used by an unrelated,
-    earlier hop) — never a substitute images-baseline.yaml lookup (ACR-
-    mirror digest provenance, a genuinely different question), and
-    never attempted at all when chart_dir/upgrade_docs_baseline aren't
-    given (changed, same as when nothing is ever found).
-
-    missing_paths: every (already-collapsed) path whose tag actually
-    changed but no entry resolves to it at all — a real change the
-    manifest never mentions. stale_entry_names: every entry's own
-    "name:" that DOES resolve to a real values-tree path, but that
-    path's tag did NOT actually change — listed without a real reason
-    to be there. unmatched_entry_names: every entry's own "name:" that
-    doesn't resolve to any real values-tree path AT ALL — same "wrong
-    phrasing, or a stale row" gap a -upgrade.md row that names no real
-    component reports (see check_docs_consistency's own duplicate_
-    names/wrong_fuzzy_names handling), kept SEPARATE from stale_entry_
-    names since "this entry's image is unchanged" and "this entry
-    doesn't correspond to anything at all" call for two different fixes
-    (drop a stale entry outright; a genuinely unmatched one needs its
-    own name/repository corrected, or a values-tree lookup this
-    function's own registries don't cover yet added — see
-    lib.chart.COMPONENT_VERSION_PATH_NESTED_SUBCHARTS for a real
-    example of the second kind). All three empty means the manifest
-    lists the EXACT set of changed images, nothing more and nothing
-    less.
-
-    `inputs` is a ManifestDiffInputs bundling entries/current_paths/
-    baseline_paths/repo_map/repo_groups/unresolvable_paths with a
-    ManifestDiffContext (chart_dir/deps/upgrade_docs_baseline/values/
-    baseline_values) — see both dataclasses' own docstrings. See
-    _digest_changed/_pin_changed for the pin-changed logic and
-    _match_entries for how entries are matched against it."""
+    missing_paths: changed, but no entry. stale_entry_names: entry resolves
+    but the image didn't change (drop it). unmatched_entry_names: entry
+    resolves to no values path (fix its name/repository or registries)."""
     representative_of = {
         path: inputs.repo_map[repo]
         for repo, paths in inputs.repo_groups.items()
@@ -370,9 +209,7 @@ def find_images_manifest_list_diff(inputs: ManifestDiffInputs) -> tuple[list[Ima
         if repo in inputs.repo_map
     }
     path_to_repo = {path: repo for repo, paths in inputs.repo_groups.items() for path in paths}
-    # chart_dir is optional here (its one real caller always passes it,
-    # but this function's own signature allows None) -- resolved,
-    # None-safely, once rather than at each _digest_changed call.
+    # Resolved once, None-safe, instead of per _digest_changed call.
     sibling_fields = digest_pinning_exceptions(inputs.context.chart_dir) if inputs.context.chart_dir is not None else {}
 
     changed_paths = {

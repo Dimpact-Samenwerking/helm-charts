@@ -1,14 +1,5 @@
-"""print_report()'s own output ordering, main() (the file-loading/CLI glue
-around compare()), and --baseline-only/strict_presence for
-verify-release-table-with-podiumd. main()'s own tests cover its
-file-loading/CLI glue; the --baseline-only tests cover compare()'s own
-baseline_only param (threaded through to check_chart_version_source/
-check_images_source as strict_presence).
-
-Split out of test_verify_release_table_with_podiumd.py (pylint
-too-many-lines) -- purely a test reorganization, no behavior change. See the
-sibling test_verify_release_table_with_podiumd_*.py files for the rest of
-that suite."""
+"""print_report ordering, main() CLI glue, and --baseline-only
+(strict_presence in check_chart_version_source/check_images_source)."""
 
 from pathlib import Path
 from types import ModuleType
@@ -199,20 +190,13 @@ def test_main_rejects_unknown_flag(vrt: ModuleType, monkeypatch: pytest.MonkeyPa
 
 
 # --- --baseline-only / strict_presence ---
-#
-# The blank-source short-circuit ("nothing recorded yet at the release_table
-# baseline" is assumed, never verified) stays completely untouched by
-# default; --baseline-only (compare()'s own baseline_only, threaded through
-# to check_chart_version_source/check_images_source as strict_presence)
-# additionally verifies that assumption, and skips every target-side check
-# entirely. See module docstring.
+# By default a blank source is assumed "nothing recorded at the baseline";
+# --baseline-only verifies that and skips all target-side checks.
 
 
 def test_compare_baseline_only_skips_target_side_checks(vrt: ModuleType):
-    """Real target-side mismatches (both [CHART] and [IMAGE]) exist here —
-    proven by the second, non-baseline_only call below — but must never
-    appear when baseline_only=True; only the source side is checked, and
-    it's clean here."""
+    """Under baseline_only, target-side mismatches (present, see the second
+    call) are not reported; only the clean source side is checked."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.298"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [
@@ -246,9 +230,8 @@ def test_compare_baseline_only_skips_target_side_checks(vrt: ModuleType):
 
 
 def test_compare_chart_version_source_blank_but_justified_no_finding(vrt: ModuleType):
-    """A blank source_version_helm IS justified here: the dependency
-    genuinely didn't exist at the release_table baseline yet -- must stay
-    silent under --baseline-only too, not just by default."""
+    """A blank source_version_helm is justified when the dependency didn't
+    exist at the release_table baseline."""
     deps = [{"name": "newthing", "alias": "", "version": "1.0.0"}]
     rows = [csv_row("New Thing", "newthing", target_helm="1.0.0")]  # source_helm blank
     findings, _ = vrt.compare(
@@ -258,9 +241,8 @@ def test_compare_chart_version_source_blank_but_justified_no_finding(vrt: Module
 
 
 def test_compare_chart_version_source_blank_but_unjustified_reports_presence_finding(vrt: ModuleType):
-    """The dependency DID already exist at the release_table baseline --
-    the blank source_version_helm was never justified, only ever
-    checked under --baseline-only (strict_presence)."""
+    """A blank source_version_helm for a dependency that existed at the
+    baseline is reported under strict_presence."""
     deps = [{"name": "existingthing", "alias": "", "version": "1.1.0"}]
     baseline_deps = [{"name": "existingthing", "alias": "", "version": "1.0.0"}]
     rows = [csv_row("Existing Thing", "existingthing", target_helm="1.1.0")]  # source_helm blank
@@ -277,12 +259,8 @@ def test_compare_chart_version_source_blank_but_unjustified_reports_presence_fin
 
 
 def test_compare_chart_version_source_presence_finding_fires_once_per_dependency_not_per_sidecar_row(vrt: ModuleType):
-    """Real bug caught live against the actual chart: a Helm chart
-    version only ever belongs on ONE of a dependency's own rows (its
-    primary row -- structurally, a sidecar row's own source_version_helm
-    is ALWAYS blank, by design, same as chart_version_ever_tracked's own
-    target-side check already assumes) -- the presence check must mirror
-    that per-DEPENDENCY granularity, never fire once per sidecar row."""
+    """Only the primary row carries a Helm version (sidecar rows are always
+    blank), so the presence check fires once per dependency, not per row."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
     rows = [
@@ -312,10 +290,7 @@ def test_compare_chart_version_source_presence_finding_fires_once_per_dependency
 
 
 def test_compare_chart_version_source_blank_unjustified_case_silent_by_default(vrt: ModuleType):
-    """Same fixture as the presence finding above, but WITHOUT
-    baseline_only -- default behavior is completely unaffected: the blank
-    source is silently skipped even though the dependency demonstrably
-    did exist at the release_table baseline."""
+    """Without baseline_only the blank source is silently skipped."""
     deps = [{"name": "existingthing", "alias": "", "version": "1.1.0"}]
     baseline_deps = [{"name": "existingthing", "alias": "", "version": "1.0.0"}]
     rows = [csv_row("Existing Thing", "existingthing", target_helm="1.1.0")]  # source_helm blank
@@ -326,11 +301,8 @@ def test_compare_chart_version_source_blank_unjustified_case_silent_by_default(v
 
 
 def test_compare_image_source_blank_but_justified_no_finding(vrt: ModuleType):
-    """The image genuinely wasn't pinned anywhere at the release_table
-    baseline (baseline_lines is empty, and the dependency itself didn't
-    exist at baseline either, so the subchart-default fallback has
-    nothing to resolve against) -- the blank source_version_app is
-    justified, silent under --baseline-only too."""
+    """An image not pinned at the baseline (and no dependency for the
+    subchart fallback) justifies a blank source_version_app."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [
         csv_row(
@@ -351,9 +323,8 @@ def test_compare_image_source_blank_but_justified_no_finding(vrt: ModuleType):
 
 
 def test_compare_image_source_blank_but_unjustified_reports_presence_finding_scoped_tier(vrt: ModuleType):
-    """The image DID already exist at the release_table baseline (found
-    via the plain scoped scan, the common tier) -- the blank
-    source_version_app was never justified."""
+    """An image found at the baseline by the scoped scan makes a blank
+    source_version_app a finding."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
     rows = [
@@ -379,11 +350,8 @@ def test_compare_image_source_blank_but_unjustified_reports_presence_finding_sco
 
 
 def test_compare_image_source_blank_unjustified_case_silent_by_default(vrt: ModuleType):
-    """Same fixture as the scoped-tier presence finding above (plus a
-    matching target_app, so the EXISTING target-side "app version never
-    recorded" check -- an orthogonal, already-covered gap -- doesn't
-    also fire and muddy this assertion), but WITHOUT baseline_only:
-    default behavior completely unaffected."""
+    """Without baseline_only the blank source is skipped. target_app is set
+    so the unrelated "never recorded" check doesn't fire."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
     rows = [
@@ -408,11 +376,8 @@ def test_compare_image_source_blank_unjustified_case_silent_by_default(vrt: Modu
 def test_compare_image_source_blank_but_unjustified_reports_presence_finding_subchart_fallback_tier(
     vrt: ModuleType, monkeypatch: pytest.MonkeyPatch
 ):
-    """Same real-world gap as test_compare_image_source_falls_back_to_
-    vendored_subchart_default, but for the blank-source presence check:
-    the image only resolves at baseline via the subchart-default
-    fallback tier -- must still be caught, not just the plain scoped
-    tier."""
+    """An image resolved at the baseline only via the subchart-default
+    fallback is caught too."""
     monkeypatch.setattr(
         "lib.release_table_verification.primary_image_repositories",
         lambda chart_dir, dep, values, allow_pull=True: ({"image": "docker.io/clamav/clamav"}, None),
@@ -438,9 +403,7 @@ def test_compare_image_source_blank_but_unjustified_reports_presence_finding_sub
 
 
 def test_compare_baseline_only_image_source_ambiguous_stays_ambiguous_not_a_presence_finding(vrt: ModuleType):
-    """An ambiguous baseline pin (more than one distinct version) is
-    "can't verify", not "confirmed present" -- must never be reported as
-    a -PRESENCE finding, even under strict_presence."""
+    """An ambiguous baseline pin is "can't verify", never a -PRESENCE finding."""
     two_versions_block = (
         "zac:\n"
         "  a:\n"
@@ -477,9 +440,8 @@ def test_compare_baseline_only_image_source_ambiguous_stays_ambiguous_not_a_pres
 def test_main_baseline_only_end_to_end(
     vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """Full CLI path: target-side mismatches that would otherwise fire
-    (a wrong Chart.yaml version, a wrong app version) never appear under
-    --baseline-only; the blank-source presence check does."""
+    """Full CLI: --baseline-only hides target-side mismatches and reports the
+    blank-source presence finding."""
     import csv as csv_module
 
     chart_dir = tmp_path / "chart"
@@ -500,8 +462,7 @@ def test_main_baseline_only_end_to_end(
     with release_table.open("w", newline="", encoding="utf-8") as f:
         writer = csv_module.DictWriter(f, fieldnames=list(csv_row("x", "y").keys()))
         writer.writeheader()
-        # image_basename left blank -- isolates this end-to-end test to the
-        # chart-version presence check alone, no subchart/network mocking needed.
+        # Blank image_basename isolates the chart-version presence check.
         writer.writerow(
             csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", target_app="9.9.9", target_helm="1.0.297")
         )
@@ -535,9 +496,8 @@ def test_main_baseline_only_end_to_end(
 def test_main_baseline_only_errors_when_baseline_cannot_be_resolved(
     vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """--baseline-only has nothing left to check at all if the
-    release_table baseline itself can't be resolved -- must error out
-    loudly (exit 1) rather than silently reporting "OK"."""
+    """--baseline-only with an unresolvable baseline has nothing to check:
+    exit 1 rather than report OK."""
     import csv as csv_module
 
     chart_dir = tmp_path / "chart"
@@ -566,10 +526,7 @@ def test_main_baseline_only_errors_when_baseline_cannot_be_resolved(
 def test_main_plain_invocation_still_reports_ok_when_baseline_unresolvable(
     vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """The new hard-error is scoped to --baseline-only only -- a plain
-    invocation with an unresolvable baseline keeps warning-and-continuing
-    exactly as before (see test_main_unresolvable_release_table_baseline_
-    warns_and_keeps_target_checks)."""
+    """Without --baseline-only an unresolvable baseline only warns."""
     import csv as csv_module
 
     chart_dir = tmp_path / "chart"
@@ -602,10 +559,9 @@ def test_main_plain_invocation_still_reports_ok_when_baseline_unresolvable(
 def test_main_guards_vendored_dependencies_unless_baseline_only(
     vrt: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, argv, expect_guard
 ):
-    """The target-side checks read this checkout's own charts/*.tgz, so a
-    normal run checks them first; --baseline-only skips every target-side
-    check, so it must not be blocked by a stale charts/. The missing
-    release-table.csv ends main() right after the guard either way."""
+    """Target-side checks read charts/*.tgz, so a normal run guards staleness
+    first; --baseline-only must not be blocked by it. The missing CSV ends
+    main() right after the guard."""
     calls = []
     monkeypatch.setattr(vrt, "ensure_vendored_dependencies", calls.append)
     monkeypatch.setattr(vrt, "RELEASE_TABLE_CSV", tmp_path / "release-table.csv")

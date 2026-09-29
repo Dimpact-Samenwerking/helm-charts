@@ -22,17 +22,14 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.checks.vendored_tgz import find_extracted_vendored_dirs
 
 
 def main():
-    """CLI entry point: deletes every extracted charts/podiumd/charts/<name>/
-    directory that shadows a pinned <name>-<version>.tgz, or with
-    --dry-run just lists them and exits 1 without deleting anything."""
+    """CLI entry point; --dry-run exits 1 when directories are found."""
     if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
         print(__doc__)
         sys.exit(0)

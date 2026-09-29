@@ -1,11 +1,5 @@
-"""find_dependency and main() for verify-component-version. The chart-
-pull-and-report step itself (lib.chart.verify_chart_version) and the
-registry check (lib.chart.check_image_versions, shared with update-
-component-version's own pre-write gate) are both covered by
-tests/lib/test_chart.py — these tests mock them out and only exercise
-this script's own glue: looking up the Chart.yaml dependency, resolving
-image_paths_for(component), and reporting the app-image FOUND/MISSING/
-OK/FAIL lines on top of whatever verify_chart_version already reported."""
+"""verify-component-version glue: dependency lookup, image_paths_for and the
+app-image report lines; lib.chart's chart pull and registry check are mocked."""
 
 from pathlib import Path
 from types import ModuleType
@@ -18,8 +12,7 @@ from lib.yaml_types import YamlMapping
 
 
 def write_chart_yaml(vcv: ModuleType, dependencies):
-    """Chart.yaml with `dependencies`, each given a version (as every real
-    Chart.yaml dependency has) unless the test sets one."""
+    """Chart.yaml with `dependencies`, each given a version unless set."""
     versioned = [{"version": "1.0.0", **dep} for dep in dependencies]
     vcv.CHART_YAML.write_text(yaml.safe_dump({"dependencies": versioned}))
 
@@ -123,21 +116,9 @@ def test_main_multi_image_component_checks_both(
 def test_main_alias_argument_resolves_full_multi_path_registration(
     vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Regression test (real bug, confirmed live against the real chart):
-    image_paths_for is keyed by the dependency's own Chart.yaml "name",
-    never its alias (see settings.yaml's component_resolution.image_
-    paths) — this used to pass the raw <component> CLI argument straight
-    through to image_paths_for(component) instead of the already-
-    resolved dep["name"], so the ALIAS form (the shorter, more natural
-    one — "kiss" here) silently missed a real multi-path registry entry
-    keyed by name ("kiss-chart"), falling back to the generic ["image"]
-    default and skipping any co-registered lockstep path entirely.
-    Confirmed live: `verify-component-version kiss ...` only checked
-    kiss-frontend; `verify-component-version kiss-chart ...` (the real
-    name) checked both kiss-frontend and kiss-elastic-sync. No override
-    needed — kiss-chart is already registered this way in the real
-    component_resolution.image_paths, and CHART_DIR here stays the real
-    production chart_dir."""
+    """Regression: image_paths_for is keyed by the Chart.yaml name, not the
+    alias, so the alias argument ("kiss") must be resolved to "kiss-chart"
+    first or co-registered lockstep paths are silently skipped."""
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "kiss-chart", "alias": "kiss", "repository": "@kiss"}])
     checked_paths = []
@@ -174,8 +155,7 @@ def test_main_alias_argument_resolves_full_multi_path_registration(
 def test_main_dockerhub_component(
     vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    """openformulieren ships on Docker Hub — the registry must be inferred
-    from the repository string, not assumed to be ghcr for everything."""
+    """The registry is inferred from the repository (Docker Hub here), not assumed ghcr."""
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "openforms", "alias": "openformulieren", "repository": "@maykinmedia"}])
     monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {})
@@ -200,9 +180,7 @@ def test_main_dockerhub_component(
 
 
 def test_main_missing_chart_version_propagates(vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """verify_chart_version (lib.chart) already prints its own FAIL message
-    and exits 1 when the chart version can't be pulled — main() has
-    nothing to add and must not swallow that exit."""
+    """verify_chart_version's own FAIL exit must propagate, not be swallowed."""
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
 
@@ -245,9 +223,7 @@ def test_main_missing_app_version_fails(
 def test_main_no_repository_at_configured_path_propagates(
     vcv: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """check_image_versions (lib.chart) already raises SystemExit with a
-    clear message when none of COMPONENT_IMAGE_PATHS resolves to a
-    repository — main() has nothing to add here either."""
+    """check_image_versions' own SystemExit for unresolvable paths propagates."""
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
     monkeypatch.setattr(

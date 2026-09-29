@@ -32,8 +32,7 @@ from typing import TypeGuard
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.cli import exit_on_help
@@ -67,32 +66,19 @@ def is_query_column(value: str) -> TypeGuard[QueryColumn]:
 def matching_rows(
     rows: list[ReleaseTableRow], column: QueryColumn | Literal["alias", "name"], text: str
 ) -> list[ReleaseTableRow]:
-    """The rows whose `column` value contains `text` as a
-    case-insensitive substring — the plain single-column match every
-    query but "component" uses directly (component_matches layers its own
-    alias/name fallback on top of this)."""
+    """Rows whose `column` contains `text`, case-insensitively."""
     needle = text.lower()
     return [row for row in rows if needle in row[column].lower()]
 
 
 def component_matches(rows: list[ReleaseTableRow], text: str) -> list[ReleaseTableRow]:
-    """The row(s) a "component" query for `text` should treat as
-    matches: rows whose own "component" or "alias" column (both set by
-    export-confluence-release-table — see its component_and_alias)
-    contains `text` as a substring — e.g. "keycloak-operator" or its
-    alias find the same row either way. These are the resolved
-    Chart.yaml identifiers themselves, so they're tried first, ahead of
-    the row's own "name" — e.g. querying component "zac" should find the
-    row resolved to component "zaakafhandelcomponent" (alias "zac"), not
-    incidentally match some unrelated row whose own display name happens
-    to contain "zac". Component rows (no "used_by") are tried first, so
-    a component's tooling rows, which carry the same component/alias,
-    land in used_by_rows_for's table instead; tooling rows only match
-    here when no component row does. Only falls back to matching_rows(
-    rows, "name", text) if neither "component" nor "alias" matches
-    anything at all, so a row that never got resolved to a real
-    component (component is "UNKNOWN" or "MULTIPLE") can still be found
-    by its own name as a last resort."""
+    """Rows matching a "component" query, first non-empty of:
+
+    component/alias on component rows (no used_by), component/alias on any
+    row, then name. component/alias are the resolved Chart.yaml identifiers,
+    so "zac" finds zaakafhandelcomponent rather than a row whose display
+    name contains "zac"; name catches UNKNOWN/MULTIPLE rows.
+    """
     component_rows = [row for row in rows if not row["used_by"]]
     return (
         _component_or_alias_matches(component_rows, text)
@@ -109,25 +95,17 @@ def _component_or_alias_matches(rows: list[ReleaseTableRow], text: str) -> list[
 
 
 def used_by_rows_for(rows: list[ReleaseTableRow], matches: list[ReleaseTableRow]) -> list[ReleaseTableRow]:
-    """Every row in `rows` not in `matches` with a non-empty "used_by"
-    and the same "component" as one of `matches` — e.g. a vendor query
-    matching "Contact (KISS)" also lists the kiss-chart tooling rows.
-    The "component" column is resolved exactly at export time (see
-    export-confluence-release-table), so a row used by "keycloak" never
-    shows up under a "keycloak-operator" match. A match without a real
-    component (blank, MULTIPLE or UNKNOWN) adds nothing."""
+    """Rows not in `matches` with a used_by and the same resolved component as a match.
+
+    Matches without a real component (blank, MULTIPLE, UNKNOWN) add nothing.
+    """
     components = {m["component"] for m in matches if m["component"] not in ("", "MULTIPLE", "UNKNOWN")}
     match_ids = {id(m) for m in matches}
     return [row for row in rows if row["used_by"] and id(row) not in match_ids and row["component"] in components]
 
 
 def display_value(row: ReleaseTableRow, column: VersionColumn) -> str:
-    """`row[column]` unchanged, except a target version column shows
-    "UNCHANGED" instead of the raw value when either there's no target
-    value at all (empty cell), or the target equals its own source
-    column's value (e.g. target_version_app == source_version_app) —
-    both mean nothing actually changed for that app/helm version on this
-    release."""
+    """`row[column]`, or "UNCHANGED" for a target column that is empty or equals its source."""
     value = row[column]
     if column in TARGET_VERSION_COLUMNS and (not value or value == row[TARGET_TO_SOURCE_COLUMN[column]]):
         return "UNCHANGED"
@@ -135,10 +113,7 @@ def display_value(row: ReleaseTableRow, column: VersionColumn) -> str:
 
 
 def print_table(rows: list[ReleaseTableRow]) -> None:
-    """Prints `rows` as a whitespace-aligned table: name/component/alias/
-    image_basename plus the four version columns (see display_value for
-    how a target column renders as "UNCHANGED"), with each column's width
-    computed from its widest cell, header included."""
+    """Print `rows` as an aligned table of name/component/alias/image_basename and versions."""
     headers = ["name", "component", "alias", "image_basename", *list(VERSION_COLUMNS)]
     table = [
         [row["name"], row["component"], row["alias"], row["image_basename"]]
@@ -152,11 +127,7 @@ def print_table(rows: list[ReleaseTableRow]) -> None:
 
 
 def main():
-    """CLI entry point: matches release-table.csv rows against
-    `column`/`text` (a "component" query also matches alias/name — see
-    component_matches), printing them as a table via print_table, plus a
-    second table of the matched components' other tooling rows (see
-    used_by_rows_for)."""
+    """CLI entry point."""
     exit_on_help(__doc__)
     if len(sys.argv) != 3 or not is_query_column(sys.argv[1]):
         print(__doc__)

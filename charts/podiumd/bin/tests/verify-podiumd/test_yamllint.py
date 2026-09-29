@@ -1,17 +1,9 @@
-"""check_yamllint / build_line_sources / chart_name_from_source — runs
-yamllint against the full `helm template` render (never against raw
-templates/*.yaml, which contain Go template syntax that isn't valid YAML on
-its own) and buckets findings by scope (this chart's own templates/ vs. a
-"friendly" vendored sub-chart — Maykin/Info(NL)/ICATT/Worth/WeAreFrank/
-Dimpact/local — vs. any other vendored sub-chart) and by rule (a real
-structural problem — key-duplicates, syntax — vs. cosmetic style). Only an
-own+real finding fails; a partner-vendor finding is printed per-item but
-never fails; any other vendored finding only ever gets a one-line aggregate
-count; cosmetic findings aren't reported at all anywhere — too noisy to be
-worth surfacing right now. All `helm`/`yamllint` subprocess calls are
-mocked via vp.run — friendly_vendor_charts is mocked too, since these tests
-use tmp_path (no real Chart.yaml) — no real yamllint or helm invocation
-happens in these tests."""
+"""Tests for check_yamllint: yamllint on the full `helm template` render.
+
+Raw templates aren't valid YAML (Go template syntax), hence the render. Only own +
+structural findings fail; partner-vendor findings print per-item but never fail; other
+vendored findings get an aggregate count; cosmetic findings are never reported.
+helm/yamllint calls (vp.run) and friendly_vendor_charts are mocked."""
 
 from pathlib import Path
 from types import ModuleType
@@ -35,9 +27,7 @@ def fake_render_chart(rendered="", returncode=0):
 
 
 def no_friendly_vendors(libyamllintcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """Most tests don't care about the partner-vendor split — default to
-    an empty mapping so every vendored finding lands in the plain
-    "other vendor" aggregate-count bucket, as before that feature existed."""
+    """Default to no partner vendors, so vendored findings land in the "other vendor" count."""
     monkeypatch.setattr(libyamllintcheck, "friendly_vendor_charts", lambda chart_dir: {})
 
 
@@ -64,19 +54,12 @@ RENDERED = (
 
 @pytest.fixture(autouse=True)
 def _default_render(libyamllintcheck: ModuleType, monkeypatch: pytest.MonkeyPatch):
-    """check_yamllint now gets its render via lib.render_scope.render_
-    chart(chart_dir, extra_args), not a run([...]) call of its own —
-    default every test in this file to the standard RENDERED fixture
-    text; a test needing different rendered content overrides this via
-    its own monkeypatch.setattr(libyamllintcheck, "render_chart", ...)
-    call, same as before this migration."""
+    """Default every test to the RENDERED fixture; override render_chart to change it."""
     monkeypatch.setattr(libyamllintcheck, "render_chart", fake_render_chart(RENDERED))
 
 
 def sequenced_run(yamllint_stdout, yamllint_returncode=1):
-    """The yamllint call is check_yamllint's own ONLY remaining `run([...])`
-    call (the render moved to render_chart, see _default_render above),
-    so no cmd[0] dispatch is needed here any more."""
+    """Fake run() for the yamllint call."""
 
     def run(cmd, **kwargs):
         return SimpleNamespace(returncode=yamllint_returncode, stdout=yamllint_stdout, stderr="")
@@ -150,10 +133,8 @@ def test_check_yamllint_finding_line_is_labeled_as_rendered(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """The line number under a finding is yamllint's own position in the
-    full rendered `helm template` output, not a line in the source
-    template file shown in the group heading above it — label it
-    "rendered line(s)" so that's never ambiguous."""
+    """Finding lines are positions in the rendered output, labelled "rendered line(s)"
+    so they aren't mistaken for lines in the source template."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
     no_friendly_vendors(libyamllintcheck, monkeypatch)
     yamllint_out = '  4:5     error    duplication of key "kind" in mapping  (key-duplicates)\n'
@@ -171,9 +152,7 @@ def test_check_yamllint_own_cosmetic_not_reported_at_all(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """Cosmetic findings in our own templates aren't just non-failing —
-    they're not mentioned anywhere in the output or detail string at all,
-    per project decision (too noisy to be worth surfacing right now)."""
+    """Cosmetic own findings are not mentioned in output or detail at all (too noisy)."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
     no_friendly_vendors(libyamllintcheck, monkeypatch)
     yamllint_out = "  4:1     error    trailing spaces  (trailing-spaces)\n"
@@ -195,9 +174,7 @@ def test_check_yamllint_vendored_key_duplicate_never_fails(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """Even a rule that would fail if found in our own templates must never
-    fail the check when it's in a vendored sub-chart — we don't control
-    that content, per project policy."""
+    """Vendored findings never fail, even for rules that fail in own templates."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
     no_friendly_vendors(libyamllintcheck, monkeypatch)
     yamllint_out = '  8:5     error    duplication of key "kind" in mapping  (key-duplicates)\n'
@@ -219,9 +196,7 @@ def test_check_yamllint_vendored_findings_reported_as_one_line_count(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """Non-friendly vendored findings are noisy (can be hundreds) and not
-    actionable — reported as a single aggregate count, never dumped
-    finding-by-finding."""
+    """Non-friendly vendored findings (can be hundreds) are reported as one aggregate count."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
     no_friendly_vendors(libyamllintcheck, monkeypatch)
     yamllint_out = (
@@ -245,10 +220,7 @@ def test_check_yamllint_friendly_vendor_finding_reported_per_item_never_fails(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """A vendored sub-chart from a listed partner org (Maykin, Info(NL),
-    ICATT, Worth, WeAreFrank, Dimpact, or a local file:// dep) gets its
-    finding printed individually — unlike a plain vendored finding, which
-    only ever gets an aggregate count — but must still never fail."""
+    """A partner-org vendored finding is printed individually but never fails."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
     monkeypatch.setattr(libyamllintcheck, "friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
     yamllint_out = '  8:5     error    duplication of key "kind" in mapping  (key-duplicates)\n'
@@ -274,10 +246,8 @@ def test_check_yamllint_repeated_own_finding_in_one_file_is_grouped(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    """The same root cause (e.g. the frankgateway templates duplicating
-    app.kubernetes.io/name once per resource) shows up as several hits in
-    one file — these must print as one grouped line with an occurrence
-    count and a line list, not one [ERROR] line per hit."""
+    """Repeated hits of one rule in one file print as one grouped line with a count and
+    line list, not one [ERROR] line per hit."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
     no_friendly_vendors(libyamllintcheck, monkeypatch)
     rendered = (

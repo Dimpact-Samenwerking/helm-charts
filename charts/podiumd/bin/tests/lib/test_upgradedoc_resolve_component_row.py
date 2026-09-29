@@ -1,5 +1,4 @@
-"""lib.upgradedoc -- resolve_component_row and changes-heading /
-dependency-claim correspondence checks."""
+"""lib.upgradedoc -- resolve_component_row and changes-heading checks."""
 
 from pathlib import Path
 from types import ModuleType
@@ -12,9 +11,7 @@ DEPS = [
 
 
 # --- resolve_component_row ---
-# The one place fix-doc-consistency's row-rewriter and lib.docs_consistency's
-# row-checker both resolve a "Component versions" table row — see its own
-# docstring for the drift this closes.
+# Shared by fix-doc-consistency's row rewriter and the docs_consistency checker.
 
 
 def _redis_sidecar_deps_and_values(target_tag="8.6.6", baseline_tag="8.6.2"):
@@ -90,10 +87,7 @@ def test_resolve_component_row_dependency_baseline_resolved(libupgradedocresolve
 
 
 def test_resolve_component_row_dependency_missing_from_baseline_is_unresolved(libupgradedocresolverow: ModuleType):
-    """The component doesn't exist yet at the baseline ref (no matching
-    Chart.yaml dependency there) — baseline_resolved is False, not just a
-    None app/chart, so a caller can tell "asked and failed" apart from
-    "never asked"."""
+    """No baseline dependency gives baseline_resolved=False, so "failed" differs from "not asked"."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
 
@@ -110,13 +104,7 @@ def test_resolve_component_row_dependency_missing_from_baseline_is_unresolved(li
 def test_resolve_component_row_dependency_baseline_dep_exists_values_entry_missing_renders_new(
     libupgradedocresolverow: ModuleType, tmp_path: Path
 ):
-    """Regression test: brppersonenmock's own Chart.yaml dependency line
-    predates 4.9.0 (baseline_dep IS found — baseline_resolved stays
-    governed by that alone), but its "image:" block was only added to
-    podiumd's own values.yaml this release — baseline_app is correctly
-    None (the git baseline genuinely has nothing for it), never a
-    fallback to images-baseline.yaml (ACR-mirror digest provenance, a
-    genuinely different, unrelated question)."""
+    """Baseline dependency exists but its values entry doesn't: baseline_app is None, no images-baseline fallback."""
     deps = [{"name": "brppersonenmock", "version": "1.2.9"}]
     baseline_deps = [{"name": "brppersonenmock", "version": "1.2.9"}]
     values = {
@@ -124,7 +112,7 @@ def test_resolve_component_row_dependency_baseline_dep_exists_values_entry_missi
             "image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}
         }
     }
-    baseline_values = {"zac": {"image": {"tag": "5.1.0@sha256:bbbb"}}}  # no "brppersonenmock" key at all
+    baseline_values = {"zac": {"image": {"tag": "5.1.0@sha256:bbbb"}}}  # no "brppersonenmock" key
 
     resolved = libupgradedocresolverow.resolve_component_row(
         "brppersonenmock",
@@ -140,11 +128,7 @@ def test_resolve_component_row_dependency_baseline_dep_exists_values_entry_missi
 def test_resolve_component_row_dependency_chart_renamed_under_same_alias_uses_baseline_chart_name(
     libupgradedocresolverow: ModuleType,
 ):
-    """The baseline dependency is matched by alias, so its chart name can
-    differ from the target's (real case: objecten's openobject ->
-    objecten rename). Its app version is read at the image path(s)
-    registered for the baseline's own chart name ("openbao" ->
-    "server.image"), not the target's (unregistered -> "image")."""
+    """A chart renamed under the same alias reads the baseline app version via the baseline chart's image paths."""
     deps = [{"name": "renamed-vault", "alias": "vault", "version": "0.20.0"}]
     values = {"vault": {"image": {"tag": "2.2.0@sha256:aaaa"}}}
     baseline_deps = [{"name": "openbao", "alias": "vault", "version": "0.19.0"}]
@@ -164,8 +148,7 @@ def test_resolve_component_row_dependency_chart_renamed_under_same_alias_uses_ba
 def test_resolve_component_row_dependency_missing_from_baseline_is_false(
     libupgradedocresolverow: ModuleType, tmp_path: Path
 ):
-    """A genuinely brand-new Chart.yaml dependency (baseline_dep not
-    found AT ALL) stays baseline_resolved=False."""
+    """A dependency absent from the baseline gives baseline_resolved=False."""
     deps = [{"name": "brppersonenmock", "version": "1.2.9"}]
     values = {
         "brppersonenmock": {
@@ -181,8 +164,7 @@ def test_resolve_component_row_dependency_missing_from_baseline_is_false(
 
 
 def test_resolve_component_row_native_component_no_baseline_requested(libupgradedocresolverow: ModuleType):
-    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
-    dependency at all — deps is empty on purpose."""
+    """frankgateway (native component) has no Chart.yaml dependency, so deps is empty."""
     values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
 
     resolved = libupgradedocresolverow.resolve_component_row(
@@ -215,9 +197,7 @@ def test_resolve_component_row_native_component_baseline_resolved(libupgradedocr
 def test_resolve_component_row_native_component_missing_from_baseline_is_unresolved(
     libupgradedocresolverow: ModuleType,
 ):
-    """Mirrors a real dependency's own "missing from baseline" case — no
-    frankgateway key at all at the baseline ref means baseline_app can't
-    resolve, so baseline_resolved is False rather than a silent None."""
+    """A native component absent from the baseline gives baseline_resolved=False."""
     values = {"frankgateway": {"image": {"tag": "104@sha256:bbbb"}}}
 
     resolved = libupgradedocresolverow.resolve_component_row(
@@ -232,13 +212,9 @@ def test_resolve_component_row_native_component_missing_from_baseline_is_unresol
 def test_resolve_component_row_native_component_falls_back_to_historical_images_manifest(
     libupgradedocresolverow: ModuleType, tmp_path: Path
 ):
-    """frankgateway didn't exist at the baseline ref at all, but its own
-    image repository already appeared in an earlier release's own
-    images-<version>.yaml manifest — that release's own recorded
-    version is the true prior app version, not images-baseline.yaml
-    (removed)."""
+    """A native component absent from the baseline uses the version in an earlier images-<version>.yaml."""
     values = {"frankgateway": {"image": {"repository": "docker.io/infonl/frankgateway", "tag": "104@sha256:aaaa"}}}
-    baseline_values = {"zac": {"image": {"tag": "5.1.0@sha256:bbbb"}}}  # no "frankgateway" key at all
+    baseline_values = {"zac": {"image": {"tag": "5.1.0@sha256:bbbb"}}}  # no "frankgateway" key
     images_dir = tmp_path / "docs" / "images"
     images_dir.mkdir(parents=True)
     (images_dir / "images-4.8.0.yaml").write_text(
@@ -291,18 +267,13 @@ def test_resolve_component_row_sidecar_missing_baseline_tag_is_unresolved(libupg
     )
 
     assert resolved["baseline_resolved"] is False
-    assert resolved["target_app"] == "8.6.6"  # target side resolves fine — this row IS new, not broken
+    assert resolved["target_app"] == "8.6.6"  # new, not broken
 
 
 def test_resolve_component_row_sidecar_falls_back_to_historical_images_manifest(
     libupgradedocresolverow: ModuleType, tmp_path: Path
 ):
-    """Regression test: redis-operator's own "k8s" sidecar, added in
-    4.9.0 — baseline_values has nothing for this path at all, but its
-    repository already appeared in an earlier release's own images-
-    <version>.yaml manifest — that release's own recorded version is
-    the true prior app version (a real "X → Y" transition, not
-    images-baseline.yaml, removed, and not forced to "(unchanged)")."""
+    """A sidecar absent from the baseline uses the version in an earlier images-<version>.yaml."""
     target_deps = [{"name": "redis-operator", "version": "1.36.2"}]
     baseline_deps = [{"name": "redis-operator", "version": "1.36.1"}]
     target_values = {
@@ -333,17 +304,10 @@ def test_resolve_component_row_sidecar_falls_back_to_historical_images_manifest(
 def test_resolve_component_row_sidecar_same_repository_at_different_baseline_path_is_an_upgrade(
     libupgradedocresolverow: ModuleType, tmp_path: Path
 ):
-    """Real case (podiumd 4.9.1): keycloak-operator's own
-    ensurePodiumdAdminUser job and openbao's own schemaJob each pinned
-    their own separate "postgres" image; both got consolidated into one
-    new shared global.images.postgres anchor at 16.15-alpine. That exact
-    path (global.images.postgres) never existed in baseline_values, so
-    an exact-path lookup alone finds nothing — this used to make
-    resolve_component_row's own sidecar branch resolve baseline_app to
-    None (a real "(new)" heading) even though lib.image.docs.
-    add_missing_sidecar_rows' own table row, using the SAME repository-
-    moved fallback, already correctly resolved a real prior version
-    ("16-alpine"). Both must now agree: baseline_app == "16-alpine"."""
+    """A repository moved to a new path in the target (postgres -> global.images.postgres) is an upgrade.
+
+    Must agree with add_missing_sidecar_rows, which uses the same repository fallback.
+    """
     deps = [{"name": "openbao", "version": "2.0.0"}]
     target_values = {
         "global": {"images": {"postgres": {"repository": "postgres", "tag": "16.15-alpine@sha256:aaaa"}}},
@@ -371,12 +335,7 @@ def test_resolve_component_row_sidecar_same_repository_at_different_baseline_pat
 def test_resolve_component_row_sidecar_genuinely_new_repository_stays_unresolved(
     libupgradedocresolverow: ModuleType, tmp_path: Path
 ):
-    """The flip side of the postgres case above: a repository that truly
-    never appeared anywhere in baseline_values (under ANY path) — no
-    same-repository fallback match, no historical manifest entry either
-    — must still resolve baseline_app to None (a real "(new)" heading),
-    never mistaken for an upgrade just because SOME other path/repository
-    exists in baseline_values."""
+    """A repository absent from the baseline under any path stays new (baseline_app None)."""
     deps = [{"name": "redis-operator", "version": "1.0.0"}]
     target_values = {
         "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "1.0.0"}},
@@ -402,14 +361,7 @@ def test_resolve_component_row_sidecar_genuinely_new_repository_stays_unresolved
 def test_resolve_component_row_sidecar_target_itself_unresolvable_also_baseline_resolved_false(
     libupgradedocresolverow: ModuleType,
 ):
-    """canonical_names naming a path with no real tag in target_values at
-    all can't happen via canonical_sidecar_row_names' own derivation (it
-    only ever names paths find_image_tag_paths already found a tag at),
-    but resolve_component_row itself doesn't assume that — a caller
-    telling "new" (target resolves, baseline doesn't) apart from
-    "broken" (target doesn't resolve either) needs target_app itself,
-    not just this single boolean, which is exactly why fix-doc-
-    consistency's own fix_component_version_table checks both."""
+    """An unresolvable target path gives target_app None, so callers can tell "broken" from "new"."""
     target_deps, target_values, baseline_deps, baseline_values = _redis_sidecar_deps_and_values()
     canonical_names = {"redis-operator - ghost-sidecar": ("redis-operator", "redis-ha", "ghostImage")}
 
@@ -426,10 +378,7 @@ def test_resolve_component_row_sidecar_target_itself_unresolvable_also_baseline_
 def test_resolve_component_row_sidecar_shaped_name_with_no_canonical_match_is_unmatched(
     libupgradedocresolverow: ModuleType,
 ):
-    """ "redis-operator - ghost" isn't in canonical_names at all — must
-    never fall through to a fuzzy match_dependency lookup against the
-    real "redis-operator" dependency just because it shares a leading
-    word; reported as unmatched, same as any other unresolvable name."""
+    """A sidecar-shaped name not in canonical_names is unmatched, never fuzzy-matched to its parent."""
     target_deps, target_values, baseline_deps, baseline_values = _redis_sidecar_deps_and_values()
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
@@ -450,20 +399,12 @@ def test_changes_heading_has_app_version_arrow_shape(libupgradedocresolverow: Mo
 
 
 def test_changes_heading_has_app_version_new_shape(libupgradedocresolverow: ModuleType):
-    """Regression test: a genuinely-new component's heading (see make_
-    changes_section's own old_app is None case) shows "(new)" for the
-    app version, no arrow at all — must still count as having one, or
-    check_docs_consistency false-flags every such heading as missing
-    its app version (real case: "### openbao v2.5.5 (new) (chart
-    0.28.4, unchanged)")."""
+    """A "(new)" app version without an arrow counts as having one."""
     assert libupgradedocresolverow.changes_heading_has_app_version("openbao v2.5.5 (new) (chart 0.28.4, unchanged)")
 
 
 def test_changes_heading_has_app_version_unchanged_shape(libupgradedocresolverow: ModuleType):
-    """Same regression, for the "(unchanged)" app-version shape (see
-    make_changes_section's old_app == new_app case) — must not be
-    confused with the CHART clause's own unrelated "(..., unchanged)"
-    that may follow it in the same heading."""
+    """An "(unchanged)" app version counts, not confused with the chart clause's "unchanged"."""
     assert libupgradedocresolverow.changes_heading_has_app_version(
         "mi-data (MI-data exports) 2.71.0 (unchanged) (chart 1.0.0 → 1.1.0)"
     )
@@ -472,16 +413,12 @@ def test_changes_heading_has_app_version_unchanged_shape(libupgradedocresolverow
 def test_changes_heading_has_app_version_chart_only_unchanged_is_not_confused_for_app_side(
     libupgradedocresolverow: ModuleType,
 ):
-    """The chart clause alone saying "(..., unchanged)" (or "(..., new)")
-    must never be read as if it were the APP side's own version marker
-    — only text OUTSIDE that clause counts."""
+    """Only text outside the "(chart ...)" clause counts as the app version."""
     assert not libupgradedocresolverow.changes_heading_has_app_version("openbao 0.28.4 (chart 0.28.4, unchanged)")
 
 
 def test_changes_heading_has_app_version_chart_only_stub_has_none(libupgradedocresolverow: ModuleType):
-    """add_missing_component_rows' own chart-only TODO-stub shape (no
-    app version could be resolved at all, no "(chart ...)" clause
-    either) reliably signals no app version was ever written."""
+    """The chart-only TODO stub has no app version."""
     assert not libupgradedocresolverow.changes_heading_has_app_version("openbao 0.28.4")
 
 

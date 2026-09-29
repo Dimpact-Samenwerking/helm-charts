@@ -1,5 +1,4 @@
-"""Loads create-podiumd-version (a hyphenated filename, not importable
-normally) as a module named `cpv`."""
+"""Load create-podiumd-version (hyphenated, not importable) as module `cpv`."""
 
 import importlib.util
 import sys

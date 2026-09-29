@@ -1,8 +1,8 @@
-"""Scans values.yaml for duplicate keys that would silently overwrite an
-earlier value. Each YAML sequence item gets its own scope (tagged by the
-line its "-" appears on) so that unrelated list items sharing a key name
-(e.g. every item in a list having its own "value:" or "mountPath:") are
-never treated as duplicates of each other."""
+"""Scan values.yaml for duplicate keys that would silently overwrite an earlier value.
+
+Each sequence item gets its own scope, so list items sharing a key name (e.g. "value:")
+are not duplicates of each other.
+"""
 
 import re
 
@@ -13,11 +13,7 @@ from pathlib import Path
 
 @dataclass
 class DuplicateKeyScan:
-    """Running state for check_duplicate_keys' line-by-line scan: filename
-    (for message text only), the indent-tagged scope stack, the keys seen
-    so far per scope, and the duplicates found. Bundled so
-    _scan_list_item_line/_scan_key_line/_register_duplicate_key can share
-    and mutate it without each taking four separate parameters."""
+    """Mutable state for check_duplicate_keys' line-by-line scan."""
 
     filename: str
     stack: list[tuple[int, str]] = field(default_factory=list)
@@ -40,9 +36,8 @@ def _register_duplicate_key(scan: DuplicateKeyScan, scope_id: tuple[str, ...], k
 def _scan_list_item_line(
     scan: DuplicateKeyScan, key_re: re.Pattern[str], dash_re: re.Pattern[str], line: str, line_no: int
 ):
-    """A "- ..." line: closes any scope at or past this item's indent,
-    opens a new one unique to this occurrence (so sibling list items never
-    share a scope), then treats "- key: ..." same as a plain key line."""
+    """A "- ..." line: close scopes at or past its indent, open one unique to this item,
+    then handle "- key: ..." like a plain key line."""
     dash_m = dash_re.match(line)
     if dash_m is None:
         return
@@ -75,10 +70,7 @@ def _scan_key_line(scan: DuplicateKeyScan, key_re: re.Pattern[str], line: str, l
 
 
 def check_duplicate_keys(chart_dir: Path):
-    """Scan values.yaml for duplicate keys that would silently overwrite an
-    earlier value. See module docstring for the scoping rule, and
-    DuplicateKeyScan/_scan_list_item_line/_scan_key_line for the
-    line-by-line scan itself."""
+    """Scan values.yaml for duplicate keys (see module docstring for scoping)."""
     values_path = chart_dir / "values.yaml"
     lines = values_path.read_text(encoding="utf-8").splitlines(keepends=True)
     key_re = re.compile(r"^(\s*)([a-zA-Z0-9_\-][^:#\n]*?)\s*:")

@@ -1,29 +1,10 @@
-"""Verifies every "image: {tag: ...}" block, plus every registered bare
-tag/version field (see lib.upgradedoc.find_all_image_and_version_paths),
-in this chart's own values.yaml resolves to an actual, non-empty
-repository — either podiumd's own override, or the owning dependency's
-vendored subchart default (the same own-vs-subchart-default resolution
-lib.chart.repository_path_map uses, but
-checked PER PATH here — repository_path_map's own output is keyed by
-the repository string, which silently collapses down to one survivor
-whenever more than one path shares the same repository, e.g. several
-"<component>.nginx.image" sidecars all aliasing the same
-global.images.nginx YAML anchor; that's fine for repository_path_map's
-own actual purpose — images-manifest entry -> values-tree path, a
-repository is exactly its own lookup key there — but it's wrong for
-this check, which needs a real answer for every single path). Without a
-resolvable repository, the shared `podiumd.image` template helper
-every image: field must call (see lib.image.references_check) renders
-"<empty>:<tag>" — a malformed image reference Kubernetes rejects
-outright (InvalidImageName / ImagePullBackOff) — caught here BEFORE
-that ever reaches a cluster.
+"""Check that every image block and registered version field in values.yaml resolves to a repository.
 
-Real case this exists for: kiss.adapter.image's own "repository:" line
-is commented out in podiumd's values.yaml, and the vendored kiss-chart
-subchart has no "adapter" key in its own defaults either — so the
-podiumd-adapter Deployment currently renders "image: :0.6.7@sha256:...",
-confirmed both by rendering the podiumd.image helper directly and
-against a real `helm template` output already checked into this repo."""
+Without one, the podiumd.image helper renders "<empty>:<tag>", which
+Kubernetes rejects (e.g. kiss.adapter.image: repository commented out and
+no subchart default). Checked per path, unlike repository_path_map, which
+collapses paths that share a repository.
+"""
 
 from dataclasses import dataclass
 from dataclasses import field
@@ -45,10 +26,7 @@ from lib.yaml_types import load_yaml_mapping
 
 @dataclass
 class _RepositoryResolutionContext:
-    """find_images_without_repository's own per-call config (chart_dir,
-    allow_pull) plus the two subchart-lookup caches _path_has_repository
-    fills in across paths, bundled since every one of its 4 params is
-    threaded unchanged through every call in the same loop."""
+    """Per-call config and subchart-lookup caches of find_images_without_repository."""
 
     chart_dir: Path
     allow_pull: bool
@@ -59,19 +37,13 @@ class _RepositoryResolutionContext:
 def _path_has_repository(
     path: tuple[str, ...], values: YamlMapping, dep: ChartDependency | None, ctx: _RepositoryResolutionContext
 ):
-    """True if `path`'s image-tag block resolves to a non-empty
-    repository, per find_images_without_repository's own resolution
-    rules (own override, sibling repository field, documented nested
-    subchart, then vendored subchart default) — see that function's
-    docstring for why each fallback exists."""
+    """Whether `path` resolves to a repository: own override, sibling field, nested subchart, subchart default."""
     own_repo = text_at(values, ".".join(path) + ".repository")
     if isinstance(own_repo, str) and own_repo:
         return True
 
     if dep is None:
-        # No Chart.yaml dependency owns this key — nothing to fall
-        # back to, so podiumd's own (already-checked-above) value is
-        # the only possible answer.
+        # No owning dependency: podiumd's own value (checked above) is the only source.
         return False
 
     sibling_rel = version_repository_path_for(dep["name"], ctx.chart_dir)
@@ -100,26 +72,13 @@ def _path_has_repository(
 
 
 def find_images_without_repository(chart_dir: Path, *, allow_pull: bool = False) -> list[tuple[str, ...]]:
-    """[path, ...] (each as find_image_tag_paths' own tuple form, sorted)
-    for every image-tag block whose repository can't be resolved at all.
-    A path rooted at a real Chart.yaml dependency's own values-tree key
-    is checked against podiumd's own override first, else the owning
-    dependency's vendored subchart default (resolved at most once per
-    dependency and reused across every one of its paths, same caching
-    lib.chart.repository_path_map/primary_image_repositories use).
+    """Sorted image-tag paths whose repository can't be resolved.
 
-    A path rooted at anything else — the shared "global" anchor, or one
-    of podiumd's own directly-templated top-level blocks with no
-    Chart.yaml dependency of its own at all (e.g. "adapter"'s own
-    siblings "keycloak", "apiproxy", "frankgateway" — real Deployments
-    this chart's OWN templates/*.yaml render straight from podiumd's own
-    values.yaml, never a vendored subchart) — is checked directly
-    against podiumd's own values.yaml ONLY: there is no subchart to fall
-    back to either way, so "no owning dependency" must never by itself
-    mean "missing" the way it first did here (that treated every one of
-    these orphan blocks as broken even though each has a perfectly real
-    repository of its own — confirmed live against the real chart, 9 of
-    the first 10 findings this way were exactly this false positive)."""
+    A dependency's path: podiumd's override, else the vendored subchart
+    default (resolved once per dependency). Any other path (global,
+    keycloak, apiproxy, ...) is rendered by podiumd's own templates, so only
+    podiumd's values.yaml is checked; lacking a dependency is not "missing".
+    """
     deps = load_chart_dependencies(chart_dir / "Chart.yaml")
     values = load_yaml_mapping(chart_dir / "values.yaml")
     by_values_key = {values_key_of(dep): dep for dep in deps}
@@ -137,14 +96,10 @@ def find_images_without_repository(chart_dir: Path, *, allow_pull: bool = False)
 
 
 def check_image_repository(chart_dir: Path):
-    """The verify-podiumd check itself: every image-tag block in
-    chart_dir's values.yaml must resolve to a non-empty repository (see
-    find_images_without_repository for the resolution rules). Prints each
-    dotted path with no resolvable repository and fails if any are found
-    — an unresolvable repository means the podiumd.image helper would
-    render a malformed "<empty>:<tag>" image reference. Passes trivially
-    (True, "0 missing repository") if chart_dir has no values.yaml at
-    all."""
+    """verify-podiumd check: print each path with no resolvable repository; fail if any.
+
+    Passes when chart_dir has no values.yaml.
+    """
     if not (chart_dir / "values.yaml").is_file():
         print("OK: no values.yaml found — nothing to check")
         return True, "0 missing repository"

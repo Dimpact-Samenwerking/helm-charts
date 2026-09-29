@@ -1,6 +1,5 @@
-"""diff_keys, flatten_leaf_keys, pair_renames, check_values_deltas_content —
-the values.yaml structural-diff machinery, including the real mi.sftp ->
-mi.transfer rename example from the docs."""
+"""diff_keys, flatten_leaf_keys, pair_renames, check_values_deltas_content:
+values.yaml structural diffing."""
 
 from pathlib import Path
 from types import ModuleType

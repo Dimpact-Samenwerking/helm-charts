@@ -1,12 +1,6 @@
-"""check_image_repository / find_images_without_repository — every
-"image: {tag: ...}" block in values.yaml must resolve to an actual
-repository, either podiumd's own override or the owning dependency's
-vendored subchart default (see lib.chart.repository_path_map), else the
-podiumd.image template helper renders a malformed "<empty>:<tag>"
-reference. The real-world case this exists for: kiss.adapter.image's
-own "repository:" is commented out in podiumd's values.yaml, and the
-vendored kiss-chart subchart has no "adapter" key in its own defaults
-either."""
+"""check_image_repository / find_images_without_repository: every
+"image: {tag: ...}" block must resolve a repository (own override or the
+vendored subchart default), else podiumd.image renders "<empty>:<tag>"."""
 
 import io
 import tarfile
@@ -85,8 +79,7 @@ zac:
 
 
 def test_missing_repository_everywhere_is_reported(vp: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
-    """kiss.adapter.image's own real-world shape: no own override, and
-    the vendored subchart's own defaults have no matching key either."""
+    """No own override and no matching key in the vendored defaults."""
     write_chart_yaml(tmp_path, [make_dep("kiss-chart", "3.0.0", alias="kiss")])
     make_tgz(tmp_path / "charts", "kiss-chart", "3.0.0", {"image": {"repository": "ghcr.io/x/kiss", "tag": "3.0.0"}})
     write_values_yaml(
@@ -106,9 +99,7 @@ kiss:
 
 
 def test_dependency_not_yet_vendored_is_reported(vp: ModuleType, tmp_path: Path):
-    """No .tgz on disk, no own override either — genuinely unresolvable,
-    same as check_subchart_image_visibility's own "not vendored" case
-    but a real failure here, not just a report."""
+    """No .tgz and no own override: a failure, not just a report."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     write_values_yaml(
         tmp_path,
@@ -124,9 +115,7 @@ openzaak:
 
 
 def test_global_shared_image_with_own_repository_passes(vp: ModuleType, tmp_path: Path):
-    """A "global.*" anchor is checked against podiumd's own values.yaml
-    only — never a subchart fallback, same convention
-    lib.chart.canonical_sidecar_row_names itself uses for this shape."""
+    """A "global.*" anchor is checked against podiumd's own values only."""
     write_chart_yaml(tmp_path, [])
     write_values_yaml(
         tmp_path,
@@ -163,17 +152,10 @@ global:
 
 
 def test_orphan_top_level_block_with_own_repository_passes(vp: ModuleType, tmp_path: Path):
-    """Regression test: a top-level values.yaml block with NO matching
-    Chart.yaml dependency at all (podiumd's own directly-templated
-    resources, e.g. the real "keycloak"/"apiproxy"/"frankgateway"
-    blocks — real Deployments rendered straight from podiumd's own
-    templates/*.yaml, never a vendored subchart) must still be checked
-    against podiumd's own value — "no owning dependency" must never by
-    itself mean "missing" the way it first did here, treating every one
-    of these as broken even though each has a perfectly real repository
-    of its own. "keycloak" deliberately shares a name with the REAL
-    "keycloak-operator" dependency's own alias-less top-level key to
-    prove they're not confused with each other."""
+    """Regression: a top-level block with no Chart.yaml dependency (rendered
+    from podiumd's own templates) is checked against its own value, not
+    treated as missing. "keycloak" must not be confused with the
+    "keycloak-operator" dependency."""
     write_chart_yaml(tmp_path, [make_dep("keycloak-operator", "1.12.1")])
     write_values_yaml(
         tmp_path,
@@ -208,9 +190,8 @@ apiproxy:
 
 
 def test_nested_sidecar_repository_resolved_via_subchart_default(vp: ModuleType, tmp_path: Path):
-    """A sub-chart default nested under more than one key (a sidecar)
-    resolves via the SAME nested path in the vendored default, not just
-    the top-level scope."""
+    """A nested sidecar default resolves via the same nested path in the
+    vendored default."""
     write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"redis": {"image": {"repository": "redis", "tag": "8.0"}}})
     write_values_yaml(
@@ -250,15 +231,9 @@ openzaak:
 
 
 def test_multiple_paths_sharing_the_same_repository_are_all_resolved(vp: ModuleType, tmp_path: Path):
-    """Regression test: several own-override paths that happen to pin
-    the EXACT same repository (e.g. a shared nginx image aliased via a
-    YAML anchor across multiple components) must each be recognized as
-    resolved independently — an earlier implementation reused
-    lib.chart.repository_path_map's own output, which is keyed by the
-    repository string and silently collapses down to a single survivor
-    whenever more than one path shares one, wrongly flagging every
-    other path sharing that repository as "missing" even though each
-    one's own values.yaml content has a perfectly real repository set."""
+    """Regression: several paths pinning the same repository (a YAML anchor)
+    each resolve independently; a repository-keyed map collapsed them to one
+    survivor and flagged the rest as missing."""
     write_chart_yaml(
         tmp_path,
         [

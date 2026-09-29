@@ -1,50 +1,15 @@
-"""Report-only check for whether a numerically-newer same-variant tag is
-currently published for every unique digest-pinned image in values.yaml,
-split into the same own/partner-vendor/other-vendor buckets as
-check_yamllint/check_kubeconform/check_shellcheck/check_kube_score/
-check_cves. Classification itself is reused directly from lib.checks.cve
-(own always wins from the `helm template` render's "# Source:"
-attribution, falling back to a values.yaml top-level-key heuristic for a
-component not present in the render at all — see that module's docstring
-for the full rationale). Every bucket is itemized the same way (only the
-images with an upgrade available — nothing to say about a clean image),
-and, like every bucket here, only printed at all when at least one of its
-images has an upgrade available. Other-vendor's own entries never carry a
-vendor-label suffix the way partner-vendor's do — "other" is the leftover
-bucket for a chart with no real vendor name to show, so there's nothing
-meaningful to print beyond the ref itself (the same reason "own" images
-never carry one either). Prints an explicit "OK" line only when NOTHING
-anywhere is upgradable; per-bucket totals (upgradable/total, including
-clean images) are always in the one-line summary regardless.
+"""Report-only check for a newer same-variant tag of every digest-pinned image in values.yaml.
 
-Split out of check_cves, where this used to live folded into its summary
-line: "does this image have a newer tag published" and "does this image
-have a KNOWN CVE" are independent questions — a newer tag doesn't imply
-it fixes anything, and this check's own answer is useful even for an
-image with zero current CVE findings — so it now runs (and can be
-skipped/run standalone via --skip=image-upgrades/--include=image-upgrades)
-on its own.
+Images are split into own/partner-vendor/other-vendor buckets using
+lib.checks.cve's classification; only partner-vendor entries carry a
+vendor label. A bucket is printed only if it has an upgradable image; "OK"
+only when nothing is upgradable. Separate from the CVE check: a newer tag
+doesn't imply a fix.
 
-One registry tag-list call per unique (repository, version) pin — cheap,
-no image pull — but still worth caching: results are cached by
-(repository, version) in <repo-root>/.cache/image-upgrade-cache.json
-(see lib.image.upgrade_cache — split into its own module so lib.checks.cve
-can read this cache too, read-only, to annotate a CVE finding as
-"upgradable" without triggering a registry call of its own), a personal,
-gitignored, per-checkout cache (same as <repo-root>/.cache/
-cve-scan-cache.json — see lib.checks.cve's docstring), not shared between
-contributors or CI. image_upgrade_check.tag_check_cache_ttl_days (lib.
-settings) is deliberately much shorter than the CVE cache's TTL: a new
-tag can be published at any
-moment, so "no newer tag as of yesterday" is a far weaker guarantee than
-"no new CVE disclosed against this exact, unchanged digest last week" —
-caching here is purely about not re-querying every registry on every
-single local run within the same day, not about the answer being stable
-over any longer window.
-
-Never fails regardless of findings — a newer tag being published is
-advisory (worth checking whether it's worth bumping to), not something
-this repo's own content violates."""
+Tag lists are cached per (repository, version) in the gitignored
+.cache/image-upgrade-cache.json, with a much shorter TTL than the CVE cache
+since a new tag can appear any moment. Never fails on findings.
+"""
 
 import urllib.error
 
@@ -75,11 +40,7 @@ from lib.settings import image_upgrade_tag_check_cache_ttl_days
 
 @dataclass
 class UpgradeCheckContext:
-    """Everything _resolve_target_upgrade needs to resolve ONE digest-pin
-    target that doesn't vary per-target: the label lookups it falls back
-    through (rendered_labels/values_lines/dep_names/vendor_map) and the
-    cache state that stays fixed while the scan is in progress
-    (old_cache, ttl_days). See check_image_upgrades, which builds this."""
+    """The per-scan inputs of _resolve_target_upgrade: label lookups and cache state."""
 
     rendered_labels: dict[ImageKey, str]
     values_lines: list[str]
@@ -101,10 +62,7 @@ class ImageUpgrade(TypedDict):
 
 @dataclass
 class ImageUpgradeScan:
-    """Everything check_image_upgrades's own print/detail logic needs from
-    a completed registry-check pass: the per-ref info map, the three
-    own/partner-vendor/other-vendor ref buckets, and the fetch-errors/
-    cache-hits scan stats. See _scan_image_upgrades, which builds this."""
+    """A completed registry-check pass: per-ref info, the three buckets, fetch-error and cache-hit stats."""
 
     images: dict[str, ImageUpgrade]
     own_refs: list[str]
@@ -115,9 +73,7 @@ class ImageUpgradeScan:
 
 
 def _upgrade_info(label: str, newest: str, version: str) -> ImageUpgrade:
-    """One images[] entry: bucket_of(label), a vendor-label suffix (only
-    for a partner-vendor image — see check_image_upgrades' docstring for
-    why own/other never carry one), and whether a newer tag is published."""
+    """One images[] entry: bucket, vendor-label suffix (partner-vendor only) and whether a newer tag exists."""
     return {
         "bucket": bucket_of(label),
         "vendor_label": label if bucket_of(label) == "partner" else None,
@@ -127,9 +83,7 @@ def _upgrade_info(label: str, newest: str, version: str) -> ImageUpgrade:
 
 
 def _label_for_target(repository: str, version: str, digest: str, line: int, ctx: UpgradeCheckContext) -> str:
-    """Label for one target: the render's own "# Source:" attribution when
-    it rendered at all, else the values.yaml top-level-key heuristic (see
-    this module's own docstring for why own always wins)."""
+    """A target's label: the render's "# Source:" attribution, else the values.yaml top-level-key heuristic."""
     label = ctx.rendered_labels.get((repository, version, digest))
     if label is not None:
         return label
@@ -139,9 +93,7 @@ def _label_for_target(repository: str, version: str, digest: str, line: int, ctx
 
 @dataclass
 class _TargetResolveInfo:
-    """A target's own fixed identity, resolved once up front and threaded
-    through both the cache-hit and registry-fetch paths of
-    _resolve_target_upgrade — see that function."""
+    """A target's identity, resolved once for both the cache-hit and fetch paths."""
 
     image_ref: str
     key: str
@@ -153,10 +105,7 @@ class _TargetResolveInfo:
 
 @dataclass
 class _TargetResult:
-    """One target's outcome, as returned by _resolve_target_upgrade: on a
-    registry fetch failure, only image_ref and error=True are meaningful;
-    otherwise key/cache_entry/info are this target's tag-cache entry and
-    images[] entry, and cache_hit says whether it came from the cache."""
+    """One target's outcome; on a fetch failure only image_ref and error=True are meaningful."""
 
     image_ref: str
     key: str | None = None
@@ -167,9 +116,7 @@ class _TargetResult:
 
 
 def _fetch_target_upgrade(i: int, total: int, info: _TargetResolveInfo) -> _TargetResult:
-    """The registry-fetch path of _resolve_target_upgrade: announces the
-    real tag-list call (a cache hit is near-instant and stays silent —
-    same convention as check_cves), then queries the registry."""
+    """Announce and run the registry tag-list call (cache hits stay silent)."""
     print(f"  [{i}/{total}] checking {info.image_ref} for a newer tag...", flush=True)
     try:
         newest = find_newest_same_variant_tag(info.host, info.repo_path, info.version)
@@ -184,8 +131,7 @@ def _fetch_target_upgrade(i: int, total: int, info: _TargetResolveInfo) -> _Targ
 def _resolve_target_upgrade(
     i: int, total: int, target: tuple[tuple[str, str], tuple[str, int]], ctx: UpgradeCheckContext
 ) -> _TargetResult:
-    """Resolves ONE unique_digest_pin_targets entry against the tag cache
-    (a fresh cache hit) or the registry (see _fetch_target_upgrade)."""
+    """Resolve one target from a fresh cache entry or the registry."""
     (repository, version), (digest, line) = target
     host, repo_path = parse_repo(repository)
     info = _TargetResolveInfo(
@@ -206,9 +152,7 @@ def _resolve_target_upgrade(
 
 
 def _bucket_refs(images: dict[str, ImageUpgrade]) -> tuple[list[str], list[str], list[str]]:
-    """own_refs, partner_refs, other_refs -- the ref lists for each of
-    check_image_upgrades' own/partner-vendor/other-vendor buckets, drawn
-    from `images`' own "bucket" field (see _upgrade_info)."""
+    """(own_refs, partner_refs, other_refs) from each image's "bucket"."""
 
     def refs_in(bucket: str) -> list[str]:
         return [ref for ref, info in images.items() if info["bucket"] == bucket]
@@ -219,10 +163,7 @@ def _bucket_refs(images: dict[str, ImageUpgrade]) -> tuple[list[str], list[str],
 def _scan_image_upgrades(
     chart_dir: Path, targets: list[tuple[tuple[str, str], tuple[str, int]]], ctx: UpgradeCheckContext
 ) -> ImageUpgradeScan:
-    """Resolves every target (see _resolve_target_upgrade), saving the tag
-    cache incrementally after each real registry call (same convention as
-    check_cves) and once more at the end (to drop stale entries for an
-    image no longer pinned). Bundles the result into an ImageUpgradeScan."""
+    """Resolve every target, saving the cache after each registry call and at the end (drops stale entries)."""
     new_cache: dict[str, UpgradeEntry] = {}
     cache_hits = 0
     images: dict[str, ImageUpgrade] = {}
@@ -237,7 +178,7 @@ def _scan_image_upgrades(
         if r.cache_hit:
             cache_hits += 1
         else:
-            save_cache(chart_dir, new_cache)  # persist incrementally, same as check_cves
+            save_cache(chart_dir, new_cache)  # persist incrementally
         images[r.image_ref] = r.info
 
     save_cache(chart_dir, new_cache)  # drop entries for images no longer pinned
@@ -247,12 +188,11 @@ def _scan_image_upgrades(
 
 
 def _print_image_upgrade_findings(scan: ImageUpgradeScan, total: int, ttl_days: int):
-    """Prints check_image_upgrades' three report sections (own/partner-
-    vendor/other-vendor), the OK-line/fetch-errors sections, and the
-    cache-hit summary line -- see check_image_upgrades' own docstring for
-    what each section means. The OK-line is only printed when every image
-    was actually checked: scan.images holds successfully-checked entries
-    only, so with fetch errors "no newer tag" would be vacuously true."""
+    """Print the bucket sections, OK/fetch-error lines and cache summary.
+
+    OK only when every image was checked: with fetch errors "no newer tag"
+    would be vacuously true.
+    """
     print_upgradable("Own images", scan.own_refs, scan.images)
     print_upgradable("Partner-vendor images", scan.partner_refs, scan.images)
     print_upgradable("Other-vendor images", scan.other_refs, scan.images)
@@ -280,17 +220,11 @@ def _image_upgrade_detail(scan: ImageUpgradeScan):
 
 
 def check_image_upgrades(chart_dir: Path, extra_args: list[str]):
-    """The verify-podiumd check itself: for every unique digest-pinned
-    image in values.yaml, ask the registry (via find_newest_same_variant_
-    tag, cached per (repository, version) — see lib.image.upgrade_cache)
-    whether a numerically-newer same-variant tag is currently published,
-    then print the own/partner-vendor/other-vendor upgradable buckets
-    (see this module's own docstring for the full bucket/caching
-    rationale). Always returns (True, detail) — a newer tag being
-    published never fails this check, only informs it; `detail` is the
-    one-line "upgradable: X/Y own, ..." summary. Returns (False, "helm
-    template failed to render") only if the render itself fails, before
-    any registry call is made."""
+    """verify-podiumd check: report digest-pinned images with a newer same-variant tag.
+
+    Returns (True, "upgradable: X/Y own, ...") regardless of findings, or
+    (False, "helm template failed to render") if the render fails.
+    """
     ttl_days = image_upgrade_tag_check_cache_ttl_days(chart_dir)
 
     result = render_chart(chart_dir, extra_args)
@@ -314,19 +248,12 @@ def check_image_upgrades(chart_dir: Path, extra_args: list[str]):
 
 
 def bucket_totals(refs: list[str], images: dict[str, ImageUpgrade]) -> tuple[int, int]:
-    """(total, upgradable_count) for `refs` (one bucket's image refs) against
-    `images` (check_image_upgrades's own ref -> info map) — feeds the
-    final "upgradable: X/Y own, ..." summary line."""
+    """(total, upgradable_count) for one bucket's `refs`."""
     return len(refs), sum(1 for ref in refs if images[ref]["has_newer"])
 
 
 def print_upgradable(title: str, refs: list[str], images: dict[str, ImageUpgrade]) -> None:
-    """Print `title` as a section heading followed by one line per ref in
-    `refs` that has a newer tag available (images[ref]["has_newer"]),
-    each with its vendor label suffix when the image has one (see
-    check_image_upgrades) — silently prints nothing at all if no ref in
-    this bucket is upgradable, so a clean bucket never adds an empty
-    heading to the report."""
+    """Print `title` and each upgradable ref with its vendor label; nothing if none is upgradable."""
     upgradable = [ref for ref in refs if images[ref]["has_newer"]]
     if not upgradable:
         return

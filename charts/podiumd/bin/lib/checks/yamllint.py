@@ -1,6 +1,4 @@
-"""Runs yamllint against the full `helm template` render (never against raw
-templates/*.yaml — those contain Go template syntax that isn't valid YAML
-on its own)."""
+"""Run yamllint on the `helm template` render (raw templates aren't valid YAML)."""
 
 import re
 import shutil
@@ -21,13 +19,8 @@ from lib.render_scope import render_chart
 from lib.render_scope import scan_outcome
 from lib.settings import quality_gates_yamllint_failing_rules
 
-# yamllint config, tuned against this repo's own real findings (not
-# guessed): line-length and document-start are disabled because they're
-# pure noise for rendered k8s manifests (long image refs/URLs routinely
-# exceed 80 chars; a lone manifest doesn't need a "---" header).
-# indent-sequences: whatever accepts this chart's established convention of
-# unindented list items (e.g. "initContainers:\n- name: ..."), which is a
-# deliberate, consistent style choice here, not a mistake.
+# line-length and document-start are noise for rendered manifests; indent-sequences
+# accepts this chart's deliberate unindented list items.
 YAMLLINT_CONFIG = """
 extends: default
 rules:
@@ -50,9 +43,7 @@ YamllintFinding = tuple[int, str | None, str, str, str]
 def _classify_yamllint_findings(
     output: str, sources: dict[int, str | None], vendor_map: dict[str, str], failing_rules: set[str]
 ):
-    """Buckets every non-cosmetic yamllint finding in `output` into (own_real,
-    vendored_friendly, vendored_other) — see check_yamllint's own docstring
-    for what each bucket means."""
+    """Bucket every non-cosmetic finding into (own_real, vendored_friendly, vendored_other)."""
     own_real: list[YamllintFinding] = []
     vendored_friendly: list[YamllintFinding] = []
     vendored_other: list[YamllintFinding] = []
@@ -73,31 +64,13 @@ def _classify_yamllint_findings(
 
 
 def check_yamllint(chart_dir: Path, extra_args: list[str]):
-    """Runs yamllint against the full `helm template` render (never against
-    raw templates/*.yaml — those contain Go template syntax that isn't
-    valid YAML on its own) and buckets every finding several ways:
+    """Run yamllint on the render and report findings by scope.
 
-    - scope: this chart's OWN templates/ (Source starts with
-      "podiumd/templates/") vs. a vendored sub-chart bundled under
-      charts/podiumd/charts/*. A dependency's content isn't something this
-      repo controls or can fix, so a vendored finding never fails — but a
-      friendly-vendor/local ("file://") dependency (see
-      lib.render_scope.friendly_vendor_charts — Maykin, Info(NL), ICATT,
-      Worth, WeAreFrank, Dimpact, or this monorepo's own mi-data) is
-      close/collaborative enough to be worth seeing individually; every
-      other vendored sub-chart (elastic,
-      redis-operator, keycloak-operator, openbao, ...) only ever gets a
-      one-line aggregate count (there can be hundreds).
-    - rule: quality_gates.yamllint_failing_rules (see lib.settings — a
-      structurally broken/ambiguous document: duplicate keys, a real
-      syntax error) vs. everything else,
-      which is cosmetic style — not reported at all, too noisy to be worth
-      surfacing right now, and never fails regardless of scope.
-
-    Only an OWN + non-cosmetic finding fails the check. Same-root-cause
-    repeats in one file are grouped into a single line (an occurrence
-    count + line list) rather than one line per hit, both for OWN findings
-    and for partner-vendor findings."""
+    Only quality_gates.yamllint_failing_rules findings (duplicate keys, syntax errors)
+    are reported; the rest is cosmetic. Own findings fail. Friendly-vendor findings
+    (lib.render_scope.friendly_vendor_charts) are listed; other vendored charts get one
+    count line. Repeats per file are grouped into one line with a line list.
+    """
     if shutil.which("yamllint") is None:
         return False, "yamllint is not installed (see --skip-yamllint to bypass)"
 

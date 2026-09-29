@@ -38,8 +38,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-# Not installed as a package -- sys.path must be patched before
-# lib.* can be imported, so these imports can't move to the top.
+# sys.path must be patched before lib.* can be imported.
 # pylint: disable=wrong-import-position
 from lib.chart.paths import CHART_DIR
 from lib.chart.paths import CHART_YAML
@@ -52,24 +51,14 @@ from lib.release_table.state import ChartState
 from lib.release_table_verification import compare
 
 # isort: off
-# Fenced from import sorting: isort and ruff's isort rules attach these
-# comment lines to different imports.
-#
-# basenames_under_scope_any_tag isn't used by this script's own code
-# below -- kept imported only so the tests/ suite's `vrt` fixture (which
-# loads this whole script as a module) can still reach it as
-# vrt.basenames_under_scope_any_tag.
+# isort and ruff attach these comments to different imports.
+# Test-only re-exports, reached via the tests' `vrt` fixture.
 # pylint: disable-next=unused-import
 from lib.image.version import basenames_under_scope_any_tag  # noqa: F401
 
-# primary_image_repositories: same test-only re-export reason as
-# basenames_under_scope_any_tag above (vrt.primary_image_repositories,
-# monkeypatched by tests to fake subchart-fallback image resolution).
 # pylint: disable-next=unused-import
 from lib.chart.pull_and_subchart_resolution import primary_image_repositories  # noqa: F401
 
-# is_primary_image: same test-only re-export reason as
-# basenames_under_scope_any_tag above (vrt.is_primary_image).
 # pylint: disable-next=unused-import
 from lib.release_table_verification import is_primary_image  # noqa: F401
 from lib.chart.chart_yaml import load_chart_dependencies
@@ -89,13 +78,7 @@ SECTIONS = [
 
 
 def print_report(findings: Mapping[str, list[str]], unresolved: list[ReleaseTableRow]) -> bool:
-    """Prints every non-empty findings[key] section (in SECTIONS' order,
-    items sorted), plus a "Skipped" block for `unresolved` rows (see
-    compare — a release-table.csv row whose component couldn't be
-    resolved to a Chart.yaml dependency or values.yaml key at all), or a
-    single "OK" line when there's nothing to report. Returns True if
-    anything was printed, so main() can use it directly as the process's
-    exit-status signal."""
+    """Print non-empty sections, unresolved rows, or "OK"; True when there were findings."""
     any_findings = False
     for key, title in SECTIONS:
         items = findings.get(key)
@@ -117,13 +100,10 @@ def print_report(findings: Mapping[str, list[str]], unresolved: list[ReleaseTabl
 
 
 def _resolve_baseline_state(chart_dir: Path):
-    """The release_table baseline's own ChartState (see main()), or None
-    with a WARNING already printed — either because release-baseline.yaml
-    has no release_table key set yet, or that ref couldn't be resolved
-    (see lib.release_baseline.resolve_baseline_chart_state). Either way,
-    None is exactly what tells compare() to skip every source-side check
-    entirely rather than risk a false "didn't exist at baseline" flood
-    (see compare()'s own docstring)."""
+    """ChartState at the release_table baseline, or None (with a WARNING) when unset or unresolvable.
+
+    None makes compare() skip source-side checks instead of flagging every row.
+    """
     baseline_ref = release_table_baseline(chart_dir)
     if baseline_ref is None:
         print("WARNING: release_table baseline not set in release-baseline.yaml — skipping source-version checks\n")
@@ -136,15 +116,7 @@ def _resolve_baseline_state(chart_dir: Path):
 
 
 def main():
-    """CLI entry point: loads release-table.csv plus Chart.yaml/values.yaml
-    (and, when release-baseline.yaml's release_table key resolves, the
-    same state as of that baseline — see resolve_baseline_chart_state),
-    runs compare() over every dependency/component, prints the results
-    via print_report, and exits 1 if anything was found. `--baseline-only`
-    restricts the run to the source-side presence checks (see compare's
-    own docstring) and requires the baseline to have resolved; with no
-    resolvable baseline otherwise, the source-version checks are skipped
-    with a warning rather than failing the whole run."""
+    """CLI entry point."""
     args = sys.argv[1:]
     if args in (["-h"], ["--help"]):
         print(__doc__)
@@ -154,8 +126,7 @@ def main():
         sys.exit(1)
     baseline_only = args == ["--baseline-only"]
     if not baseline_only:
-        # --baseline-only skips every target-side check, the only ones
-        # that read this checkout's own vendored charts/*.tgz.
+        # Only target-side checks read the vendored charts/*.tgz.
         ensure_vendored_dependencies(CHART_DIR)
 
     if not RELEASE_TABLE_CSV.is_file():
@@ -168,13 +139,6 @@ def main():
     values = load_yaml_mapping(VALUES_YAML) if VALUES_YAML.is_file() else {}
     lines = VALUES_YAML.read_text(encoding="utf-8").splitlines() if VALUES_YAML.is_file() else []
 
-    # None on ANY failure here — see compare()'s own docstring for why
-    # that distinction matters: a baseline that couldn't be resolved
-    # must skip the new source-checks entirely, never be silently
-    # treated as "resolved, genuinely empty", which would flood every
-    # row with a false finding instead. The existing target-checks are
-    # completely unaffected either way — only the new source-checks are
-    # ever gated on this.
     baseline = _resolve_baseline_state(CHART_DIR)
 
     if baseline_only and baseline is None:
