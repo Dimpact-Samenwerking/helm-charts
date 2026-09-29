@@ -24,7 +24,7 @@ using about 3.4Gi in practice.
   `https://wearefrank.github.io/charts` (wraps the Frank!Framework `ff-common`
   library chart). Condition `zaakbrug.enabled`, tag `zaak`. **Disabled by
   default.**
-- Image: `wearefrank/zaakbrug:1.26.18` (mirror to `acrprodmgmt.azurecr.io` for
+- Image: `wearefrank/zaakbrug:1.26.19` (mirror to `acrprodmgmt.azurecr.io` for
   production). Runs Frank!Framework `10.2.1`.
 - Role in PodiumD: translates inbound ZDS (SOAP/StUF) traffic from legacy
   applications into ZGW API calls against Open Zaak, so legacy koppelingen
@@ -136,7 +136,7 @@ troubleshooting):
    the pipeline as `ZAAKBRUG_DATABASE_PASSWORD`,
    `ZAAKBRUG_OAUTH_CLIENT_SECRET`, `ZAAKBRUG_ZAKEN_API_JWT_PASSWORD`.
 3. **Environment values** — set `zaakbrug.enabled: true`,
-   `zaakbrug.staging.enabled: false`, pin `zaakbrug.image.tag` (`1.26.18`),
+   `zaakbrug.staging.enabled: false`, pin `zaakbrug.image.tag` (`1.26.19`),
    supply `zaakbrug.frank.zakenApi.jwt.password`
    (`REP_ZAAKBRUG_ZAKEN_API_JWT_PASSWORD_REP`), the
    `frank.environmentVariables`

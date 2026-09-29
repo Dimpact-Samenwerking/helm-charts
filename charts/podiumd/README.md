@@ -1266,7 +1266,7 @@ PodiumD Helm chart
 | serviceAccount.name | string | `""` |  |
 | tags."eck-operator.enabled" | bool | `false` |  |
 | tags.redis | bool | `false` |  |
-| zaakbrug | object | `{"enabled":false,"frank":{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}},"image":{"registry":"wearefrank","repository":"zaakbrug","tag":"1.26.18@sha256:255a717ff620b08608db2d8cde24e6993b96896f785ecfb7082054a4cc36bc3b"},"oauthRoleMapping":{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"},"resources":{"limits":{"cpu":"2","memory":"6Gi"},"requests":{"cpu":"250m","memory":"5Gi"}},"staging":{"enabled":false}}` | --------------------------------------------------------------------------- |
+| zaakbrug | object | `{"enabled":false,"frank":{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}},"image":{"registry":"wearefrank","repository":"zaakbrug","tag":"1.26.19@sha256:4c90dddac58fdbe813566417c796b5890ab86a4ffd70f143460b6b9b379eec8c"},"oauthRoleMapping":{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"},"resources":{"limits":{"cpu":"2","memory":"6Gi"},"requests":{"cpu":"250m","memory":"5Gi"}},"staging":{"enabled":false}}` | --------------------------------------------------------------------------- |
 | zaakbrug.frank | object | `{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}}` | ------------------------------------------------------------------------- |
 | zaakbrug.oauthRoleMapping | object | `{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"}` | ------------------------------------------------------------------------- |
 | zac.auth.clientId | string | `"zac"` |  |

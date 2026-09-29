@@ -4406,14 +4406,14 @@ zaakbrug:
     # staging.apiProxy.image here as a result — they're just the
     # sub-chart's own stale upstream defaults (staging.image.tag alone
     # drifts to "1.9.0" against the actively-maintained main image's
-    # "1.26.18"), never rendered, and pinning them only made
+    # "1.26.19"), never rendered, and pinning them only made
     # verify-release-table-with-podiumd.py flag a same-basename
     # version "ambiguity" between the two that doesn't actually matter.
     enabled: false
   image:
     registry: wearefrank
     repository: zaakbrug
-    tag: "1.26.18@sha256:255a717ff620b08608db2d8cde24e6993b96896f785ecfb7082054a4cc36bc3b"
+    tag: "1.26.19@sha256:4c90dddac58fdbe813566417c796b5890ab86a4ffd70f143460b6b9b379eec8c"
   # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
   # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
   # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
